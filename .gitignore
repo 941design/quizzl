@@ -1,6 +1,9 @@
 # OS
 .DS_Store
 
+# Secrets
+.env
+
 # Project state (session-specific)
 implementation-state.json
 
