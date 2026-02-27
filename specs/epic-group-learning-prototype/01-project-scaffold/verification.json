@@ -1,0 +1,64 @@
+{
+  "created_at": "2026-02-27T16:10:00Z",
+  "story_id": "01",
+  "questions": [
+    {
+      "id": "VQ-01-001",
+      "category": "build",
+      "question": "Does `npm run build` complete without TypeScript errors or compilation failures?",
+      "actionable_check": "Run `npm run build` in school-app directory and verify exit code 0",
+      "evidence_required": ["build output showing all pages compiled", "exit code 0"],
+      "pass_criteria": "Build succeeds with all routes compiled as static pages"
+    },
+    {
+      "id": "VQ-01-002",
+      "category": "routing",
+      "question": "Do all 6 required routes exist and render a page heading?",
+      "actionable_check": "Navigate to /, /topics, /topic/[slug], /leaderboard, /study-times, /settings and verify heading visible",
+      "evidence_required": ["screenshots or DOM output for each route", "heading elements present"],
+      "pass_criteria": "All 6 routes render without errors and show meaningful page headings"
+    },
+    {
+      "id": "VQ-01-003",
+      "category": "navigation",
+      "question": "Is the shared navigation component present on all pages?",
+      "actionable_check": "Visit each route, verify nav with links to Topics, Leaderboard, Study Times, Settings is visible",
+      "evidence_required": ["nav element with aria-label present", "all nav links visible"],
+      "pass_criteria": "Navigation is consistently present and accessible on all pages"
+    },
+    {
+      "id": "VQ-01-004",
+      "category": "types",
+      "question": "Are all TypeScript types from spec section 4.3 defined in src/types/index.ts?",
+      "actionable_check": "Read src/types/index.ts and verify Topic, QuizQuestion, StudyPlan, StudyStep, StudyTask, Settings, Progress, StudyTimes types exist",
+      "evidence_required": ["file contents showing all required types"],
+      "pass_criteria": "All spec-required types are present and correctly typed"
+    },
+    {
+      "id": "VQ-01-005",
+      "category": "chakra-ui",
+      "question": "Is Chakra UI v2 correctly integrated with the app?",
+      "actionable_check": "Verify ChakraProvider wraps the app in _app.tsx, custom theme with brand colors is applied",
+      "evidence_required": ["_app.tsx with ChakraProvider", "theme.ts with brand color definitions"],
+      "pass_criteria": "Chakra UI v2 is installed and configured with custom theme"
+    }
+  ],
+  "mandatory_questions": [
+    {
+      "id": "VQ-01-M1",
+      "category": "e2e",
+      "question": "Do all Playwright E2E tests in story-01-scaffold.spec.ts pass?",
+      "actionable_check": "Run `PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers npx playwright test tests/e2e/story-01-scaffold.spec.ts`",
+      "evidence_required": ["playwright test output showing N passed", "0 failed tests"],
+      "pass_criteria": "All 6 E2E tests pass: home page, navigation, topics, leaderboard, study-times, settings"
+    },
+    {
+      "id": "VQ-01-M2",
+      "category": "static-export",
+      "question": "Is the app configured for static export (output: 'export' in next.config.mjs)?",
+      "actionable_check": "Read next.config.mjs and verify output: 'export' setting",
+      "evidence_required": ["next.config.mjs content showing output: 'export'"],
+      "pass_criteria": "Static export is configured for CDN/static hosting"
+    }
+  ]
+}

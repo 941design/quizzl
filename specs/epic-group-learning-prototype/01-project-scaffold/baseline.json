@@ -1,0 +1,36 @@
+{
+  "created_at": "2026-02-27T16:02:30Z",
+  "status": "ready",
+  "story_id": "01",
+  "checks": {
+    "compiles": {
+      "passed": true,
+      "command": "N/A - greenfield project, no code yet",
+      "evidence": "No existing code to compile. Greenfield start."
+    },
+    "tests_pass": {
+      "passed": true,
+      "command": "N/A - greenfield project, no tests yet",
+      "evidence": "No existing tests. 0/0 tests pass.",
+      "failing_tests": []
+    },
+    "coverage": {
+      "value": 0,
+      "threshold": null,
+      "passed": true
+    },
+    "dependencies": {
+      "passed": true,
+      "command": "N/A - greenfield project, no dependencies installed yet",
+      "evidence": "Greenfield project. Dependencies will be installed in story 01."
+    }
+  },
+  "test_snapshot": {
+    "total": 0,
+    "passing": 0,
+    "failing": 0,
+    "skipped": 0,
+    "coverage_percent": 0
+  },
+  "blocking_issues": []
+}

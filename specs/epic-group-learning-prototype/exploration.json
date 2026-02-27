@@ -1,0 +1,44 @@
+{
+  "created_at": "2026-02-27T16:00:00Z",
+  "key_files": [],
+  "patterns": [],
+  "similar_features": [],
+  "architecture": {
+    "type": "greenfield",
+    "description": "No existing codebase. Project root contains only spec files. This is a brand-new Next.js static export app.",
+    "target_stack": "Next.js 14 (static export) + React + TypeScript + Chakra UI v2",
+    "node_version": "22",
+    "content_strategy": "bundled JSON files in /content/ directory",
+    "persistence_strategy": "localStorage only"
+  },
+  "extension_points": [
+    {
+      "name": "content/",
+      "description": "Bundled topic JSON files parsed at build time"
+    },
+    {
+      "name": "src/lib/storage.ts",
+      "description": "localStorage abstraction layer"
+    },
+    {
+      "name": "src/hooks/",
+      "description": "Custom React hooks for progress, settings, study times"
+    },
+    {
+      "name": "src/components/",
+      "description": "Reusable Chakra UI components"
+    }
+  ],
+  "testing": {
+    "framework": "Playwright (chromium, firefox, webkit available)",
+    "e2e_runner": "playwright",
+    "note": "No existing tests. Will set up Jest + React Testing Library for unit tests and Playwright for E2E."
+  },
+  "conventions": [
+    "TypeScript strict mode",
+    "Next.js App Router or Pages Router (Pages Router preferred for static export simplicity)",
+    "Chakra UI v2 for all styling",
+    "localStorage keys prefixed with lp_ as per spec",
+    "Content as JSON in /public/content/ or /content/ imported at build time"
+  ]
+}

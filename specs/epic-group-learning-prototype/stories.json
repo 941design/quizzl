@@ -1,0 +1,244 @@
+{
+  "epic_name": "group-learning-prototype",
+  "created_at": "2026-02-27T16:00:00Z",
+  "updated_at": "2026-02-27T16:00:00Z",
+  "total_stories": 8,
+  "stories": [
+    {
+      "id": "01",
+      "name": "project-scaffold",
+      "title": "Project Scaffold: Next.js + TypeScript + Chakra UI + Routing Skeleton",
+      "description": "Initialize a new Next.js (Pages Router) project with TypeScript and Chakra UI. Create all route files with placeholder pages: /, /topics, /topic/[slug], /leaderboard, /study-times, /settings. Set up shared layout with navigation. Verify static export (`next export`) works. Set up Playwright for E2E tests.",
+      "acceptance_criteria": ["AC-001"],
+      "scope": {
+        "includes": [
+          "Next.js Pages Router setup with TypeScript",
+          "Chakra UI v2 provider setup",
+          "All 6 route placeholders",
+          "Shared navigation/layout component",
+          "next.config.js for static export",
+          "Playwright config and one smoke test",
+          "package.json with all required dependencies",
+          "TypeScript types file (src/types/index.ts) with all spec types"
+        ],
+        "excludes": [
+          "Real content loading",
+          "Any functional features",
+          "localStorage interactions"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "notes": "Use Next.js 14 with Pages Router for simplest static export. Chakra UI v2. Initialize with `npx create-next-app` or manual setup. All type definitions from spec section 4.3 go into src/types/index.ts."
+    },
+    {
+      "id": "02",
+      "name": "content-ingestion",
+      "title": "Content Ingestion: JSON Topics + Topic List/Selection UI",
+      "description": "Create at least 3 bundled topic JSON files in /public/content/ (or src/content/) covering all 3 quiz types. Implement content loading utilities that normalize JSON into the Topic TypeScript type. Build the /topics page showing all topics with title, description, tags. Implement topic selection (select/deselect) with localStorage persistence (lp_selectedTopics_v1). Show 'My Topics' section. Handle empty state (no topics selected).",
+      "acceptance_criteria": ["AC-002", "AC-003", "AC-017"],
+      "scope": {
+        "includes": [
+          "3+ topic JSON files with varied content",
+          "src/lib/content.ts: load and normalize topics",
+          "src/lib/storage.ts: localStorage abstraction with fallback",
+          "src/hooks/useSelectedTopics.ts",
+          "/topics page with full/my tabs or sections",
+          "TopicCard component",
+          "Empty state for 'My Topics' with CTA",
+          "localStorage unavailable warning banner"
+        ],
+        "excludes": [
+          "Topic detail page",
+          "Quiz, Notes, Study Plan functionality"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [
+        "3 sample topic JSON files with all quiz types represented"
+      ],
+      "status": "pending",
+      "notes": "Content JSON schema must match Topic type exactly. Include topics about diverse subjects. Each topic must have at least one single, one multi, one flashcard question, and a study plan with 2+ steps."
+    },
+    {
+      "id": "03",
+      "name": "quiz-engine",
+      "title": "Topic Page Tabs + Quiz Engine (A/B/C) + Scoring + Persistence",
+      "description": "Build the /topic/[slug] page with Quiz, Notes, Study Plan tabs. Implement the full quiz engine: display questions by type (single, multi, flashcard), handle answer recording, scoring logic (+1/-1 floored at 0 for multi), prev/next navigation, progress indicator, completion summary with retry. Persist answers and points to lp_progress_v1 in localStorage.",
+      "acceptance_criteria": ["AC-004", "AC-005", "AC-006", "AC-007", "AC-008"],
+      "scope": {
+        "includes": [
+          "/topic/[slug] page with tab UI (Chakra Tabs)",
+          "QuizTab component",
+          "QuestionCard components for each type (Single, Multi, Flashcard)",
+          "Scoring engine (src/lib/scoring.ts)",
+          "Quiz navigation (prev/next)",
+          "Progress indicator",
+          "Quiz summary/completion screen with retry",
+          "useTopicProgress hook for progress persistence",
+          "Topic header with stats (points, plan progress)"
+        ],
+        "excludes": [
+          "Notes tab content (placeholder only)",
+          "Study Plan tab content (placeholder only)",
+          "Study time tracking"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "pending",
+      "notes": "Notes and Study Plan tabs show placeholder content in this story. Scoring must be unit tested. Flashcard flip animation is optional but recommended."
+    },
+    {
+      "id": "04",
+      "name": "notes-editor",
+      "title": "Notes Editor + Persistence",
+      "description": "Implement the Notes tab with a rich text editor (TipTap recommended). Support bold, italic, lists, headings, links. Autosave with debounce (500ms) to lp_progress_v1[slug].notesHtml. Show autosave indicator. Notes persist after refresh. Notes are per-topic.",
+      "acceptance_criteria": ["AC-009"],
+      "scope": {
+        "includes": [
+          "TipTap (or similar) integration",
+          "NotesTab component",
+          "Toolbar with bold, italic, ul, ol, h1/h2, link controls",
+          "Debounced autosave (500ms) to localStorage",
+          "Autosave status indicator ('Saving...' / 'Saved')",
+          "Load saved content on mount",
+          "ARIA labels on toolbar buttons"
+        ],
+        "excludes": [
+          "Insert prompt from quiz question (nice-to-have)",
+          "Export/import notes"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "pending",
+      "notes": "TipTap v2 is recommended. Use @tiptap/react, @tiptap/starter-kit. Ensure SSR compatibility with Next.js (dynamic import with ssr:false if needed)."
+    },
+    {
+      "id": "05",
+      "name": "study-plan",
+      "title": "Study Plan Rendering + Task Completion Persistence",
+      "description": "Implement the Study Plan tab. Render ordered steps from topic content. Each step shows title, optional description, and a task checklist. Tasks can be marked complete. Show completed/total progress per step. Persist completedTaskIds to lp_progress_v1[slug].completedTaskIds. Completion survives refresh.",
+      "acceptance_criteria": ["AC-010", "AC-011"],
+      "scope": {
+        "includes": [
+          "StudyPlanTab component",
+          "StudyStep component with expand/collapse",
+          "TaskItem component with checkbox",
+          "Step progress bar/counter",
+          "Persistence via useTopicProgress hook (extend from story 03)",
+          "Empty state for topics with no study plan"
+        ],
+        "excludes": [
+          "Study plan authoring",
+          "Quiz question references rendered inline (show task title only)"
+        ]
+      },
+      "complexity": "low",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "pending",
+      "notes": "Task types: quiz, notes, flashcards, custom — all rendered as checkable items with their title. No need to deep-link to quiz questions from study plan in this story."
+    },
+    {
+      "id": "06",
+      "name": "study-time-tracking",
+      "title": "Study Time Tracking + Shared Study Times Page",
+      "description": "Add Start/Stop session controls to the topic page header. On start, record activeSession in lp_studyTimes_v1. On stop, append completed session. On refresh during active session, prompt user to continue or stop. Build /study-times page showing today's time, this week's time, and recent sessions list (start, end, duration, topic).",
+      "acceptance_criteria": ["AC-012", "AC-013"],
+      "scope": {
+        "includes": [
+          "StudyTimer component (Start/Stop button + elapsed time display)",
+          "useStudyTimer hook",
+          "lp_studyTimes_v1 storage schema",
+          "Active session recovery on refresh (modal or banner prompt)",
+          "/study-times page",
+          "StudyTimeSummary component (today / this week totals)",
+          "SessionList component (recent sessions table/list)"
+        ],
+        "excludes": [
+          "Auto-start on page entry (manual start/stop per spec)",
+          "Export session data"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "pending",
+      "notes": "Duration calculation: endedAt - startedAt in ms. Group sessions by day for today/week totals. Show topic name in session list."
+    },
+    {
+      "id": "07",
+      "name": "leaderboard",
+      "title": "Leaderboard Page (User-only Aggregation)",
+      "description": "Build the /leaderboard page. Aggregate total quiz points across all selected topics from lp_progress_v1. Show user's total points, rank as 'You (1/1)', and optional streak. Design implies group context without mentioning fake users. No other users displayed.",
+      "acceptance_criteria": ["AC-014"],
+      "scope": {
+        "includes": [
+          "/leaderboard page",
+          "LeaderboardEntry component",
+          "Total points aggregation across selected topics",
+          "Rank display ('You (1/1)')",
+          "Optional: streak calculation (days with any study activity)",
+          "Empty state (no selected topics or no quiz answers yet)"
+        ],
+        "excludes": [
+          "Real multi-user data",
+          "Server-side aggregation"
+        ]
+      },
+      "complexity": "low",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "pending",
+      "notes": "Points are aggregated from lp_progress_v1.byTopicSlug[slug].quizPoints for all selected topics. The framing should feel like a real leaderboard — 'Your Score' as the only entry is fine."
+    },
+    {
+      "id": "08",
+      "name": "mood-theming-settings-polish",
+      "title": "Mood Theming + Settings + Reset + Empty/Error States Polish",
+      "description": "Implement calm/playful mood theming via Chakra UI theme extension. Build /settings page with mood toggle and 'Reset all data' action. Apply theme tokens throughout the app. Polish all empty/error states (no topics selected, missing quiz, localStorage unavailable). Ensure responsive layout on 375px mobile and keyboard navigation works throughout.",
+      "acceptance_criteria": ["AC-015", "AC-016", "AC-017", "AC-018"],
+      "scope": {
+        "includes": [
+          "Chakra UI theme extension with calm and playful variants",
+          "useMoodTheme hook (reads/writes lp_settings_v1)",
+          "ChakraProvider wrapping with dynamic theme",
+          "/settings page: mood toggle + reset button",
+          "Reset confirmation modal",
+          "lp_* localStorage keys cleared on reset",
+          "localStorage unavailable detection and warning banner",
+          "Polish: responsive layout audit at 375px",
+          "Polish: keyboard navigation audit",
+          "Polish: all empty states have message + CTA"
+        ],
+        "excludes": [
+          "Advanced animations beyond subtle transitions",
+          "Dark mode (not in spec)"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "pending",
+      "notes": "Calm theme: muted blues/greens, minimal animations. Playful theme: warmer colors (oranges/purples), slightly more rounded corners, subtle bounce animations. Both must pass WCAG AA contrast."
+    }
+  ],
+  "story_order": ["01", "02", "03", "04", "05", "06", "07", "08"],
+  "dependency_notes": "Stories build sequentially on prior work. Story 01 establishes the scaffold all others extend. Story 02 creates the content and storage layer used by 03-08. Stories 03-08 each add a distinct feature layer. No cross-story mocks required since each story builds on prior completed work.",
+  "mock_resolution_plan": "No temporary mocks needed. Stories are sequenced so each one can rely on the real implementations from previous stories."
+}
