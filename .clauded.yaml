@@ -1,0 +1,34 @@
+version: '1'
+vm:
+  name: clauded-school-b68a71
+  distro: ubuntu
+  cpus: 4
+  memory: 8GiB
+  disk: 20GiB
+  previous_name: clauded-school-b68a71
+mount:
+  host: /Users/mrother/Projects/941design/school
+  guest: /Users/mrother/Projects/941design/school
+environment:
+  python: null
+  node: '22'
+  java: null
+  kotlin: null
+  rust: null
+  go: null
+  dart: null
+  c: null
+  tools: []
+  databases: []
+  frameworks:
+  - claude-code
+  - codex
+  - playwright
+  playwright_browsers:
+  - chromium
+  - firefox
+  - webkit
+claude:
+  dangerously_skip_permissions: true
+ssh:
+  host_key_checking: true
