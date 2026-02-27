@@ -1,0 +1,80 @@
+{
+  "created_at": "2026-02-27T18:40:00Z",
+  "story_id": "08",
+  "questions": [
+    {
+      "id": "VQ-08-001",
+      "category": "implementation",
+      "question": "Does the useMoodTheme hook read/write lp_settings_v1 and provide the active Chakra theme?",
+      "actionable_check": "Check useMoodTheme.ts reads readSettings().mood on mount, writes on setTheme, returns calmTheme or playfulTheme",
+      "evidence_required": ["src/hooks/useMoodTheme.ts source", "E2E test 2 verifies localStorage"],
+      "pass_criteria": "lp_settings_v1 written with correct mood value; activeTheme switches correctly"
+    },
+    {
+      "id": "VQ-08-002",
+      "category": "implementation",
+      "question": "Does _app.tsx use dynamic theme from useMoodTheme hook?",
+      "actionable_check": "Check pages/_app.tsx uses useMoodTheme().activeTheme in ChakraProvider",
+      "evidence_required": ["pages/_app.tsx source"],
+      "pass_criteria": "ChakraProvider receives activeTheme from hook, not hardcoded calmTheme"
+    },
+    {
+      "id": "VQ-08-003",
+      "category": "ux",
+      "question": "Does the Settings page have mood toggle (calm/playful) buttons?",
+      "actionable_check": "Check pages/settings.tsx renders theme-calm-btn and theme-playful-btn",
+      "evidence_required": ["pages/settings.tsx", "E2E test 1 result"],
+      "pass_criteria": "Both buttons visible; active theme has visual indicator"
+    },
+    {
+      "id": "VQ-08-004",
+      "category": "ux",
+      "question": "Does mood selection persist after page reload?",
+      "actionable_check": "E2E test 3: select playful, reload, still shows playful",
+      "evidence_required": ["E2E test 3 result"],
+      "pass_criteria": "Mood setting persists via lp_settings_v1"
+    },
+    {
+      "id": "VQ-08-005",
+      "category": "ux",
+      "question": "Does the Reset All Data button show a confirmation modal before resetting?",
+      "actionable_check": "E2E test 4: click reset btn, modal appears with cancel and confirm buttons",
+      "evidence_required": ["pages/settings.tsx modal code", "E2E test 4 result"],
+      "pass_criteria": "reset-modal-content visible with reset-cancel-btn and reset-confirm-btn"
+    },
+    {
+      "id": "VQ-08-006",
+      "category": "implementation",
+      "question": "Does confirming reset clear all lp_* localStorage keys?",
+      "actionable_check": "E2E test 6: confirm reset, localStorage.getItem('lp_selectedTopics_v1') returns null",
+      "evidence_required": ["src/lib/storage.ts resetAllData()", "E2E test 6 result"],
+      "pass_criteria": "All lp_* keys removed; success banner shown"
+    },
+    {
+      "id": "VQ-08-007",
+      "category": "ux",
+      "question": "Is the StorageWarning banner present in the global layout?",
+      "actionable_check": "Check Layout.tsx imports and renders StorageWarning component",
+      "evidence_required": ["src/components/Layout.tsx StorageWarning import"],
+      "pass_criteria": "StorageWarning rendered inside main container in Layout"
+    }
+  ],
+  "mandatory_questions": [
+    {
+      "id": "VQ-08-M1",
+      "category": "testing",
+      "question": "Do all 6 Story 08 E2E tests pass?",
+      "actionable_check": "Run: PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers npx playwright test tests/e2e/story-08-settings-theming.spec.ts",
+      "evidence_required": ["Playwright output showing 6/6 pass"],
+      "pass_criteria": "6/6 tests pass with no failures"
+    },
+    {
+      "id": "VQ-08-M2",
+      "category": "testing",
+      "question": "Do all prior story tests still pass (no regressions)?",
+      "actionable_check": "Run: npx playwright test",
+      "evidence_required": ["Playwright output showing 48/48 pass"],
+      "pass_criteria": "All 48 tests pass (42 baseline + 6 new)"
+    }
+  ]
+}

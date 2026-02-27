@@ -1,0 +1,181 @@
+{
+  "story_id": "08",
+  "status": "done",
+  "created_at": "2026-02-27T18:27:00Z",
+  "updated_at": "2026-02-27T18:50:00Z",
+  "completed_at": "2026-02-27T18:50:00Z",
+
+  "implementation": {
+    "status": "done",
+    "started_at": "2026-02-27T18:27:00Z",
+    "completed_at": "2026-02-27T18:45:00Z",
+    "files_created": [
+      "school-app/src/hooks/useMoodTheme.ts",
+      "school-app/tests/e2e/story-08-settings-theming.spec.ts"
+    ],
+    "files_modified": [
+      "school-app/pages/settings.tsx",
+      "school-app/pages/_app.tsx",
+      "school-app/src/components/Layout.tsx"
+    ],
+    "mocks_introduced": []
+  },
+
+  "verification_rounds": [
+    {
+      "round": 1,
+      "timestamp": "2026-02-27T18:48:00Z",
+      "results": [
+        {
+          "question_id": "VQ-08-001",
+          "question": "Does the useMoodTheme hook read/write lp_settings_v1 and provide the active Chakra theme?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/hooks/useMoodTheme.ts"],
+            "findings": "useEffect reads readSettings().mood and sets mood state. setTheme writes writeSettings({ mood: newMood }). activeTheme = mood === 'playful' ? playfulTheme : calmTheme. E2E test 2 confirms localStorage written.",
+            "specific_locations": ["src/hooks/useMoodTheme.ts:13-30"]
+          },
+          "severity": 9,
+          "confidence": 1.0,
+          "examiner_notes": "useMoodTheme hook fully functional."
+        },
+        {
+          "question_id": "VQ-08-002",
+          "question": "Does _app.tsx use dynamic theme from useMoodTheme hook?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["pages/_app.tsx"],
+            "findings": "const { activeTheme } = useMoodTheme(); ChakraProvider theme={activeTheme}. No longer hardcoded to calmTheme.",
+            "specific_locations": ["pages/_app.tsx:7-13"]
+          },
+          "severity": 9,
+          "confidence": 1.0,
+          "examiner_notes": "Dynamic theme connected to ChakraProvider."
+        },
+        {
+          "question_id": "VQ-08-003",
+          "question": "Does the Settings page have mood toggle (calm/playful) buttons?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["pages/settings.tsx"],
+            "findings": "theme-calm-btn and theme-playful-btn rendered. Active button has solid variant and 'Active' badge. E2E test 1 confirms both visible.",
+            "specific_locations": ["pages/settings.tsx:58-85"]
+          },
+          "severity": 8,
+          "confidence": 1.0,
+          "examiner_notes": "Both mood buttons present with active state indicator."
+        },
+        {
+          "question_id": "VQ-08-004",
+          "question": "Does mood selection persist after page reload?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/hooks/useMoodTheme.ts"],
+            "findings": "writeSettings called on setTheme. E2E test 3: switch to playful, reload, theme-preview still shows 'playful'.",
+            "specific_locations": ["src/hooks/useMoodTheme.ts:22-26"]
+          },
+          "severity": 8,
+          "confidence": 1.0,
+          "examiner_notes": "Mood persists across reloads."
+        },
+        {
+          "question_id": "VQ-08-005",
+          "question": "Does the Reset All Data button show a confirmation modal?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["pages/settings.tsx"],
+            "findings": "reset-data-btn triggers useDisclosure.onOpen(). Chakra Modal renders with reset-modal-content, reset-cancel-btn, reset-confirm-btn. E2E test 4 confirms.",
+            "specific_locations": ["pages/settings.tsx:114-147"]
+          },
+          "severity": 9,
+          "confidence": 1.0,
+          "examiner_notes": "Confirmation modal shown before reset."
+        },
+        {
+          "question_id": "VQ-08-006",
+          "question": "Does confirming reset clear all lp_* localStorage keys?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["pages/settings.tsx", "src/lib/storage.ts"],
+            "findings": "handleReset() calls resetAllData() which removes all STORAGE_KEYS values. setResetDone(true) shows success banner. E2E test 6: lp_selectedTopics_v1 = null after reset.",
+            "specific_locations": ["pages/settings.tsx:28-33", "src/lib/storage.ts:132-141"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "All lp_* keys cleared on reset."
+        },
+        {
+          "question_id": "VQ-08-007",
+          "question": "Is the StorageWarning banner present in the global layout?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/Layout.tsx"],
+            "findings": "StorageWarning imported and rendered inside <Container> before {children}. Shows when localStorage unavailable.",
+            "specific_locations": ["src/components/Layout.tsx:13, 88-90"]
+          },
+          "severity": 7,
+          "confidence": 1.0,
+          "examiner_notes": "StorageWarning global in layout."
+        },
+        {
+          "question_id": "VQ-08-M1",
+          "question": "Do all 6 Story 08 E2E tests pass?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["tests/e2e/story-08-settings-theming.spec.ts"],
+            "findings": "6/6 tests pass in 13.0s: settings renders (1), playful theme persists (2), reload persistence (3), reset modal (4), cancel reset (5), confirm reset (6).",
+            "specific_locations": ["tests/e2e/story-08-settings-theming.spec.ts"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "All Story 08 tests pass."
+        },
+        {
+          "question_id": "VQ-08-M2",
+          "question": "Do all prior story tests still pass (no regressions)?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["tests/e2e/"],
+            "findings": "48/48 total tests pass in 1.1 minutes. All 42 baseline tests from stories 01-07 still pass. Zero regressions.",
+            "specific_locations": ["Full suite: 48 passed"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "Zero regressions."
+        }
+      ],
+      "summary": {
+        "total": 9,
+        "passed": 9,
+        "failed": 0,
+        "partial": 0
+      },
+      "verification_passed": true,
+      "test_gate": {
+        "ran_at": "2026-02-27T18:49:00Z",
+        "command": "npm run build",
+        "passed": true,
+        "total_tests": 6,
+        "passed_tests": 6,
+        "failed_tests": 0,
+        "failures": [],
+        "evidence": "Build: 10 pages compiled. 0 TypeScript errors.",
+        "e2e_tests": {
+          "ran_at": "2026-02-27T18:49:00Z",
+          "command": "PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers npx playwright test tests/e2e/story-08-settings-theming.spec.ts",
+          "passed": true,
+          "total_tests": 6,
+          "passed_tests": 6,
+          "failed_tests": 0,
+          "test_files": ["tests/e2e/story-08-settings-theming.spec.ts"],
+          "evidence": "6/6 E2E tests pass in 13.0s"
+        }
+      },
+      "all_passed": true
+    }
+  ],
+
+  "remediation_attempts": [],
+  "final_outcome": "accepted",
+  "escalation": null
+}

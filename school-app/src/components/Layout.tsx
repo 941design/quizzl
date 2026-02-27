@@ -10,6 +10,7 @@ import {
 } from '@chakra-ui/react';
 import NextLink from 'next/link';
 import { useRouter } from 'next/router';
+import StorageWarning from '@/src/components/StorageWarning';
 
 type NavItem = {
   label: string;
@@ -86,6 +87,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main Content */}
       <Container maxW="container.xl" py={8} as="main">
+        <StorageWarning />
         {children}
       </Container>
     </Box>
