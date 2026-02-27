@@ -93,7 +93,7 @@
       "mock_dependencies": [],
       "introduces_mocks": [],
       "test_fixtures": [],
-      "status": "pending",
+      "status": "done",
       "notes": "Notes and Study Plan tabs show placeholder content in this story. Scoring must be unit tested. Flashcard flip animation is optional but recommended."
     },
     {

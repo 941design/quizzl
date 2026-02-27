@@ -1,0 +1,36 @@
+{
+  "created_at": "2026-02-27T16:30:00Z",
+  "status": "ready",
+  "story_id": "03",
+  "checks": {
+    "compiles": {
+      "passed": true,
+      "command": "npm run build",
+      "evidence": "Build succeeds. 8 pages compiled including /topics (SSG). 0 TypeScript errors."
+    },
+    "tests_pass": {
+      "passed": true,
+      "command": "PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers npx playwright test",
+      "evidence": "12/12 E2E tests pass (6 story-01 + 6 story-02).",
+      "failing_tests": []
+    },
+    "coverage": {
+      "value": 0,
+      "threshold": null,
+      "passed": true
+    },
+    "dependencies": {
+      "passed": true,
+      "command": "npm install",
+      "evidence": "All dependencies installed."
+    }
+  },
+  "test_snapshot": {
+    "total": 12,
+    "passing": 12,
+    "failing": 0,
+    "skipped": 0,
+    "coverage_percent": 0
+  },
+  "blocking_issues": []
+}

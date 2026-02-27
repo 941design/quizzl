@@ -1,0 +1,64 @@
+{
+  "created_at": "2026-02-27T16:40:00Z",
+  "story_id": "03",
+  "questions": [
+    {
+      "id": "VQ-03-001",
+      "category": "quiz-types",
+      "question": "Are all 3 quiz question types (single, multi, flashcard) rendered with correct UI components?",
+      "actionable_check": "Navigate to /topic/javascript-basics and verify SingleChoiceQuestion (radio buttons), MultiChoiceQuestion (checkboxes + submit), FlashcardQuestion (front/reveal/assess) components",
+      "evidence_required": ["quiz components source files", "E2E test screenshots"],
+      "pass_criteria": "All 3 types render correctly with appropriate input controls"
+    },
+    {
+      "id": "VQ-03-002",
+      "category": "scoring",
+      "question": "Does the scoring engine correctly implement Type A (+1/-0), Type B (+1/-1 floor 0), Type C (+1/0)?",
+      "actionable_check": "Review src/lib/scoring.ts scoreQuestion function for each type",
+      "evidence_required": ["scoring.ts source with all 3 scoring implementations"],
+      "pass_criteria": "scoreQuestion correctly handles all 3 types with correct math"
+    },
+    {
+      "id": "VQ-03-003",
+      "category": "persistence",
+      "question": "Do quiz answers persist in lp_progress_v1 after page refresh?",
+      "actionable_check": "Answer a question, refresh, verify same answer is shown",
+      "evidence_required": ["E2E test for persistence passes"],
+      "pass_criteria": "Answer recorded before refresh appears correctly after reload"
+    },
+    {
+      "id": "VQ-03-004",
+      "category": "navigation",
+      "question": "Do Prev/Next navigation buttons allow moving between questions without losing answers?",
+      "actionable_check": "Answer question 1, navigate to Q2, navigate back to Q1 — answer still shown",
+      "evidence_required": ["E2E navigation test passes"],
+      "pass_criteria": "Navigation works in both directions; answers persist in-memory"
+    },
+    {
+      "id": "VQ-03-005",
+      "category": "completion",
+      "question": "Does answering all questions trigger the quiz summary screen with retry option?",
+      "actionable_check": "Answer all 5 questions in javascript-basics topic, verify 'Quiz Complete!' appears with retry button",
+      "evidence_required": ["E2E completion test passes"],
+      "pass_criteria": "Summary shows total points and retry button after all questions answered"
+    }
+  ],
+  "mandatory_questions": [
+    {
+      "id": "VQ-03-M1",
+      "category": "e2e",
+      "question": "Do all 9 Story 03 Playwright E2E tests pass?",
+      "actionable_check": "Run story-03-quiz-engine.spec.ts",
+      "evidence_required": ["9/9 tests pass"],
+      "pass_criteria": "All quiz engine E2E tests pass including all quiz types, navigation, persistence, completion"
+    },
+    {
+      "id": "VQ-03-M2",
+      "category": "regression",
+      "question": "Do all previous story E2E tests still pass (12 total from stories 01 and 02)?",
+      "actionable_check": "Run story-01 and story-02 test files",
+      "evidence_required": ["12/12 previous tests pass"],
+      "pass_criteria": "Zero regressions from Story 03 changes"
+    }
+  ]
+}

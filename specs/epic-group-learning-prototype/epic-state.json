@@ -1,17 +1,18 @@
 {
   "epic_name": "group-learning-prototype",
   "created_at": "2026-02-27T16:00:00Z",
-  "updated_at": "2026-02-27T16:28:00Z",
+  "updated_at": "2026-02-27T16:45:00Z",
   "status": "in_progress",
-  "phase": "STORY_03_BASELINE",
-  "current_story": "03",
-  "completed_stories": ["01", "02"],
+  "phase": "STORY_04_BASELINE",
+  "current_story": "04",
+  "completed_stories": ["01", "02", "03"],
   "blocked_stories": [],
   "escalated_stories": [],
   "phase_history": [
     {"phase": "STORIES_DEFINED", "timestamp": "2026-02-27T16:01:00Z", "trigger": "stories_created"},
     {"phase": "STORY_01_COMPLETE", "timestamp": "2026-02-27T16:15:00Z", "trigger": "story_01_done"},
     {"phase": "STORY_02_COMPLETE", "timestamp": "2026-02-27T16:28:00Z", "trigger": "story_02_done"},
-    {"phase": "STORY_03_BASELINE", "timestamp": "2026-02-27T16:28:00Z", "trigger": "starting_story_03"}
+    {"phase": "STORY_03_COMPLETE", "timestamp": "2026-02-27T16:45:00Z", "trigger": "story_03_done"},
+    {"phase": "STORY_04_BASELINE", "timestamp": "2026-02-27T16:45:00Z", "trigger": "starting_story_04"}
   ]
 }
