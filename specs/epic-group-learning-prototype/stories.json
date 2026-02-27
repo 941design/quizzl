@@ -121,7 +121,7 @@
       "mock_dependencies": [],
       "introduces_mocks": [],
       "test_fixtures": [],
-      "status": "pending",
+      "status": "done",
       "notes": "TipTap v2 is recommended. Use @tiptap/react, @tiptap/starter-kit. Ensure SSR compatibility with Next.js (dynamic import with ssr:false if needed)."
     },
     {

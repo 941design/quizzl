@@ -1,0 +1,64 @@
+{
+  "created_at": "2026-02-27T17:00:00Z",
+  "story_id": "04",
+  "questions": [
+    {
+      "id": "VQ-04-001",
+      "category": "editor",
+      "question": "Is the TipTap rich text editor correctly integrated with SSR safety (immediatelyRender: false)?",
+      "actionable_check": "Read NotesEditorClient.tsx and verify immediatelyRender: false in useEditor config",
+      "evidence_required": ["NotesEditorClient.tsx source with immediatelyRender: false"],
+      "pass_criteria": "TipTap editor initializes without SSR hydration errors"
+    },
+    {
+      "id": "VQ-04-002",
+      "category": "toolbar",
+      "question": "Does the toolbar provide bold, italic, H1, H2, UL, OL formatting controls with ARIA labels?",
+      "actionable_check": "Read NotesEditorClient.tsx toolbar section, verify all 6 buttons have aria-label",
+      "evidence_required": ["toolbar source showing all 6 buttons with aria-label attributes"],
+      "pass_criteria": "6 formatting controls with ARIA labels for accessibility"
+    },
+    {
+      "id": "VQ-04-003",
+      "category": "autosave",
+      "question": "Is autosave debounced at 500ms using a ref-based timer?",
+      "actionable_check": "Read NotesEditorClient.tsx DEBOUNCE_MS constant and useRef timer implementation",
+      "evidence_required": ["DEBOUNCE_MS = 500 in source", "debounceTimer.current usage"],
+      "pass_criteria": "Debounced autosave implemented with 500ms delay via useRef"
+    },
+    {
+      "id": "VQ-04-004",
+      "category": "persistence",
+      "question": "Do notes persist in lp_progress_v1[slug].notesHtml after page refresh?",
+      "actionable_check": "E2E test 4 verifies persistence by typing, waiting 1s, refreshing, checking content",
+      "evidence_required": ["E2E test 4 passes"],
+      "pass_criteria": "Notes content survives page refresh via localStorage"
+    },
+    {
+      "id": "VQ-04-005",
+      "category": "isolation",
+      "question": "Are notes stored per-topic independently (different slugs don't share notes)?",
+      "actionable_check": "E2E test 5 verifies JS topic notes don't appear in World History topic",
+      "evidence_required": ["E2E test 5 passes", "useTopicProgress slug-based key"],
+      "pass_criteria": "Each topic has independent notes storage"
+    }
+  ],
+  "mandatory_questions": [
+    {
+      "id": "VQ-04-M1",
+      "category": "e2e",
+      "question": "Do all 5 Story 04 Playwright E2E tests pass?",
+      "actionable_check": "Run story-04-notes-editor.spec.ts",
+      "evidence_required": ["5/5 tests pass"],
+      "pass_criteria": "All notes editor E2E tests pass including toolbar, autosave, persistence, isolation"
+    },
+    {
+      "id": "VQ-04-M2",
+      "category": "ssr",
+      "question": "Does the notes editor load without runtime errors (no SSR hydration mismatch)?",
+      "actionable_check": "Click Notes tab in topic page, verify no runtime error overlay",
+      "evidence_required": ["E2E tests complete without unhandled runtime errors"],
+      "pass_criteria": "Editor loads cleanly in development mode without TipTap SSR errors"
+    }
+  ]
+}

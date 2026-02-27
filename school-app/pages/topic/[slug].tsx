@@ -26,6 +26,7 @@ import {
   maxPossiblePoints,
 } from '@/src/lib/scoring';
 import QuizTab from '@/src/components/quiz/QuizTab';
+import NotesTab from '@/src/components/NotesTab';
 
 type Props = {
   topic: Topic | null;
@@ -35,7 +36,7 @@ export default function TopicPage({ topic }: Props) {
   const router = useRouter();
   const slug = (router.query.slug as string) ?? '';
 
-  const { progress, hydrated, recordAnswer, resetQuiz } = useTopicProgress(
+  const { progress, hydrated, recordAnswer, updateNotes, resetQuiz } = useTopicProgress(
     topic?.slug ?? slug
   );
 
@@ -130,17 +131,13 @@ export default function TopicPage({ topic }: Props) {
               />
             </TabPanel>
 
-            {/* Notes Tab - Placeholder for Story 04 */}
+            {/* Notes Tab */}
             <TabPanel px={0} pt={6}>
-              <Alert status="info" borderRadius="md" data-testid="notes-placeholder">
-                <AlertIcon />
-                <Box>
-                  <Text fontWeight="semibold">Notes Editor</Text>
-                  <Text fontSize="sm">
-                    Rich text notes with auto-save coming in the next update.
-                  </Text>
-                </Box>
-              </Alert>
+              <NotesTab
+                slug={topic.slug}
+                notesHtml={hydrated ? progress.notesHtml : ''}
+                onUpdate={updateNotes}
+              />
             </TabPanel>
 
             {/* Study Plan Tab - Placeholder for Story 05 */}

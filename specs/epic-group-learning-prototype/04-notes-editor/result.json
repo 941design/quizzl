@@ -1,0 +1,196 @@
+{
+  "story_id": "04",
+  "status": "done",
+  "created_at": "2026-02-27T16:47:00Z",
+  "updated_at": "2026-02-27T17:05:00Z",
+  "completed_at": "2026-02-27T17:05:00Z",
+
+  "implementation": {
+    "status": "done",
+    "started_at": "2026-02-27T16:47:00Z",
+    "completed_at": "2026-02-27T17:05:00Z",
+    "files_created": [
+      "school-app/src/components/NotesTab.tsx",
+      "school-app/src/components/NotesEditorClient.tsx",
+      "school-app/tests/e2e/story-04-notes-editor.spec.ts"
+    ],
+    "files_modified": [
+      "school-app/pages/topic/[slug].tsx",
+      "school-app/package.json",
+      "school-app/package-lock.json"
+    ],
+    "mocks_introduced": []
+  },
+
+  "verification_rounds": [
+    {
+      "round": 1,
+      "timestamp": "2026-02-27T17:04:00Z",
+      "results": [
+        {
+          "question_id": "VQ-04-001",
+          "question": "Is TipTap correctly integrated with SSR safety?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/NotesEditorClient.tsx"],
+            "findings": "immediatelyRender: false set in useEditor config. NotesEditorClient loaded via dynamic import with ssr:false in NotesTab. Fix applied after discovering TipTap v3 SSR error during E2E test.",
+            "specific_locations": ["src/components/NotesEditorClient.tsx:20"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "SSR fix confirmed by E2E tests passing."
+        },
+        {
+          "question_id": "VQ-04-002",
+          "question": "Does toolbar provide all 6 formatting controls with ARIA labels?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/NotesEditorClient.tsx"],
+            "findings": "Bold (aria-label='Bold'), Italic (aria-label='Italic'), H1 (aria-label='Heading 1'), H2 (aria-label='Heading 2'), UL (aria-label='Bullet list'), OL (aria-label='Ordered list'). All 6 confirmed in E2E test 2.",
+            "specific_locations": ["src/components/NotesEditorClient.tsx:50-120"]
+          },
+          "severity": 8,
+          "confidence": 1.0,
+          "examiner_notes": "All toolbar buttons present with ARIA labels."
+        },
+        {
+          "question_id": "VQ-04-003",
+          "question": "Is autosave debounced at 500ms?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/NotesEditorClient.tsx"],
+            "findings": "DEBOUNCE_MS = 500. debounceTimer.current ref cleared and reset on each onUpdate call. Cleanup on unmount via useEffect.",
+            "specific_locations": ["src/components/NotesEditorClient.tsx:16, 34-39"]
+          },
+          "severity": 8,
+          "confidence": 1.0,
+          "examiner_notes": "500ms debounce correctly implemented."
+        },
+        {
+          "question_id": "VQ-04-004",
+          "question": "Do notes persist after page refresh?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/hooks/useTopicProgress.ts"],
+            "findings": "updateNotes writes to lp_progress_v1.byTopicSlug[slug].notesHtml. useTopicProgress reads on mount. E2E test 4 confirms: type text, wait 1s, refresh, content persists.",
+            "specific_locations": ["src/hooks/useTopicProgress.ts:42-48"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "Persistence confirmed."
+        },
+        {
+          "question_id": "VQ-04-005",
+          "question": "Are notes stored per-topic independently?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/lib/storage.ts", "src/hooks/useTopicProgress.ts"],
+            "findings": "writeTopicProgress uses slug as key in byTopicSlug record. E2E test 5 confirms JS notes don't appear in World History topic.",
+            "specific_locations": ["src/lib/storage.ts:85-97"]
+          },
+          "severity": 9,
+          "confidence": 1.0,
+          "examiner_notes": "Per-topic isolation confirmed."
+        },
+        {
+          "question_id": "VQ-04-M1",
+          "question": "Do all 5 Story 04 E2E tests pass?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["tests/e2e/story-04-notes-editor.spec.ts"],
+            "findings": "5/5 tests pass in 11.7s: toolbar visible (1), ARIA labels (2), typing and save status (3), persistence (4), per-topic isolation (5).",
+            "specific_locations": ["tests/e2e/story-04-notes-editor.spec.ts"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "All tests pass after fixing TipTap SSR issue."
+        },
+        {
+          "question_id": "VQ-04-M2",
+          "question": "Does editor load without runtime errors?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/NotesEditorClient.tsx"],
+            "findings": "Error was: 'Tiptap Error: SSR has been detected, please set immediatelyRender explicitly to false'. Fixed by adding immediatelyRender: false. E2E tests now complete without runtime error overlay.",
+            "specific_locations": ["src/components/NotesEditorClient.tsx:20"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "Runtime error resolved."
+        }
+      ],
+      "summary": {
+        "total": 7,
+        "passed": 7,
+        "failed": 0,
+        "partial": 0
+      },
+      "verification_passed": true,
+      "test_gate": {
+        "ran_at": "2026-02-27T17:04:30Z",
+        "command": "npm run build",
+        "passed": true,
+        "total_tests": 5,
+        "passed_tests": 5,
+        "failed_tests": 0,
+        "failures": [],
+        "evidence": "Build: 10 pages compiled. 0 TypeScript errors. TipTap v3.20.0 installed.",
+        "e2e_tests": {
+          "ran_at": "2026-02-27T17:04:30Z",
+          "command": "PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers npx playwright test tests/e2e/story-04-notes-editor.spec.ts",
+          "passed": true,
+          "total_tests": 5,
+          "passed_tests": 5,
+          "failed_tests": 0,
+          "test_files": ["tests/e2e/story-04-notes-editor.spec.ts"],
+          "evidence": "5/5 E2E tests pass in 11.7s"
+        }
+      },
+      "all_passed": true
+    }
+  ],
+
+  "remediation_attempts": [
+    {
+      "attempt": 1,
+      "timestamp": "2026-02-27T17:02:00Z",
+      "triggered_by_round": 0,
+      "root_cause_analysis": {
+        "categories_identified": ["impl_bug"],
+        "patterns": [
+          {
+            "category": "impl_bug",
+            "affected_questions": ["VQ-04-M2"],
+            "pattern_description": "TipTap v3 requires immediatelyRender: false for SSR environments. This was a breaking change from v2. The editor was causing a runtime error that prevented any tab interaction."
+          }
+        ]
+      },
+      "issues_addressed": [
+        {
+          "question_id": "VQ-04-M2",
+          "root_cause_category": "impl_bug",
+          "issue": "TipTap v3 SSR error: 'please set immediatelyRender explicitly to false'",
+          "action_taken": "Added immediatelyRender: false to useEditor config in NotesEditorClient.tsx",
+          "root_cause_addressed": "impl_bug",
+          "fix_rationale": "TipTap v3 explicitly requires this option for Next.js SSR compatibility",
+          "prevention_measure": "Dynamic import with ssr:false also applied",
+          "files_changed": ["src/components/NotesEditorClient.tsx"],
+          "evidence": "E2E tests now pass without runtime error overlay"
+        }
+      ],
+      "questions_added": [],
+      "regression_check": {
+        "ran_at": "2026-02-27T17:03:00Z",
+        "baseline_tests": 21,
+        "current_tests": 26,
+        "all_baseline_passing": true,
+        "new_failures": [],
+        "regressions_detected": false
+      },
+      "outcome": "proceed_to_verification",
+      "next_verification_round": 1
+    }
+  ],
+  "final_outcome": "accepted",
+  "escalation": null
+}
