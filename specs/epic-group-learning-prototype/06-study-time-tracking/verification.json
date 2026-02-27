@@ -1,0 +1,80 @@
+{
+  "created_at": "2026-02-27T18:00:00Z",
+  "story_id": "06",
+  "questions": [
+    {
+      "id": "VQ-06-001",
+      "category": "implementation",
+      "question": "Does StudyTimer render Start/Stop controls on the topic page?",
+      "actionable_check": "Check pages/topic/[slug].tsx renders StudyTimer, E2E test 1 confirms start-session-btn visible",
+      "evidence_required": ["pages/topic/[slug].tsx import and usage", "E2E test 1 result"],
+      "pass_criteria": "Start Session button visible on topic page"
+    },
+    {
+      "id": "VQ-06-002",
+      "category": "implementation",
+      "question": "Does starting a session record activeSession in lp_studyTimes_v1?",
+      "actionable_check": "Check useStudyTimer.start() calls writeStudyTimes with activeSession object",
+      "evidence_required": ["src/hooks/useStudyTimer.ts start function"],
+      "pass_criteria": "activeSession = { startedAt, topicSlug } written to localStorage on start"
+    },
+    {
+      "id": "VQ-06-003",
+      "category": "implementation",
+      "question": "Does stopping a session append a completed StudySession to sessions array?",
+      "actionable_check": "Check useStudyTimer.stop() creates StudySession with id, startedAt, endedAt, durationMs and appends to sessions",
+      "evidence_required": ["src/hooks/useStudyTimer.ts stop function", "E2E test 3 result"],
+      "pass_criteria": "Session appended with correct fields, activeSession cleared"
+    },
+    {
+      "id": "VQ-06-004",
+      "category": "implementation",
+      "question": "Does the /study-times page show today's and this week's total study time?",
+      "actionable_check": "Check StudyTimeSummary renders today-total and week-total data-testid elements",
+      "evidence_required": ["src/components/StudyTimeSummary.tsx", "E2E test 4 result"],
+      "pass_criteria": "today-total and week-total visible with formatted duration"
+    },
+    {
+      "id": "VQ-06-005",
+      "category": "implementation",
+      "question": "Does the session list show recent sessions with topic, time range, and duration?",
+      "actionable_check": "Check SessionList renders session items with topic title, start/end times, and duration badge",
+      "evidence_required": ["src/components/SessionList.tsx", "E2E test 3 session-list visible"],
+      "pass_criteria": "session-list visible with at least one session item showing topic and duration"
+    },
+    {
+      "id": "VQ-06-006",
+      "category": "ux",
+      "question": "Is there a recovery banner when user refreshes during an active session?",
+      "actionable_check": "useStudyTimer detects activeSession in localStorage on mount, sets hasOrphanedSession=true, StudyTimer renders recovery banner",
+      "evidence_required": ["src/hooks/useStudyTimer.ts mount effect", "E2E test 5 result"],
+      "pass_criteria": "session-recovery-banner visible after refresh during active session"
+    },
+    {
+      "id": "VQ-06-007",
+      "category": "ux",
+      "question": "Does the recovery banner allow continuing or stopping the orphaned session?",
+      "actionable_check": "session-recover-continue resumes timer, session-recover-stop records session and dismisses banner",
+      "evidence_required": ["src/components/StudyTimer.tsx recovery buttons", "E2E test 6 result"],
+      "pass_criteria": "Stopping via recovery banner records session, banner dismissed"
+    }
+  ],
+  "mandatory_questions": [
+    {
+      "id": "VQ-06-M1",
+      "category": "testing",
+      "question": "Do all 6 Story 06 E2E tests pass?",
+      "actionable_check": "Run: PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers npx playwright test tests/e2e/story-06-study-time-tracking.spec.ts",
+      "evidence_required": ["Playwright output showing 6/6 pass"],
+      "pass_criteria": "6/6 tests pass with no failures"
+    },
+    {
+      "id": "VQ-06-M2",
+      "category": "testing",
+      "question": "Do all prior story tests still pass (no regressions)?",
+      "actionable_check": "Run: npx playwright test",
+      "evidence_required": ["Playwright output showing 37/37 pass"],
+      "pass_criteria": "All 37 tests pass (31 baseline + 6 new)"
+    }
+  ]
+}

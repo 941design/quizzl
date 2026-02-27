@@ -176,7 +176,7 @@
       "mock_dependencies": [],
       "introduces_mocks": [],
       "test_fixtures": [],
-      "status": "pending",
+      "status": "done",
       "notes": "Duration calculation: endedAt - startedAt in ms. Group sessions by day for today/week totals. Show topic name in session list."
     },
     {

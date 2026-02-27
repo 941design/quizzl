@@ -26,6 +26,7 @@ import {
 import QuizTab from '@/src/components/quiz/QuizTab';
 import NotesTab from '@/src/components/NotesTab';
 import StudyPlanTab from '@/src/components/StudyPlanTab';
+import StudyTimer from '@/src/components/StudyTimer';
 
 type Props = {
   topic: Topic | null;
@@ -70,6 +71,9 @@ export default function TopicPage({ topic }: Props) {
       <Box>
         {/* Topic Header */}
         <Box mb={6}>
+          {/* Session recovery / study timer controls */}
+          <StudyTimer topicSlug={topic.slug} />
+
           <HStack mb={2} flexWrap="wrap" gap={2}>
             {topic.tags?.map((tag) => (
               <Badge key={tag} colorScheme="teal" variant="subtle">

@@ -1,0 +1,183 @@
+{
+  "story_id": "06",
+  "status": "done",
+  "created_at": "2026-02-27T17:46:00Z",
+  "updated_at": "2026-02-27T18:10:00Z",
+  "completed_at": "2026-02-27T18:10:00Z",
+
+  "implementation": {
+    "status": "done",
+    "started_at": "2026-02-27T17:46:00Z",
+    "completed_at": "2026-02-27T18:05:00Z",
+    "files_created": [
+      "school-app/src/hooks/useStudyTimer.ts",
+      "school-app/src/components/StudyTimer.tsx",
+      "school-app/src/components/StudyTimeSummary.tsx",
+      "school-app/src/components/SessionList.tsx",
+      "school-app/tests/e2e/story-06-study-time-tracking.spec.ts"
+    ],
+    "files_modified": [
+      "school-app/pages/study-times.tsx",
+      "school-app/pages/topic/[slug].tsx"
+    ],
+    "mocks_introduced": []
+  },
+
+  "verification_rounds": [
+    {
+      "round": 1,
+      "timestamp": "2026-02-27T18:08:00Z",
+      "results": [
+        {
+          "question_id": "VQ-06-001",
+          "question": "Does StudyTimer render Start/Stop controls on the topic page?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["pages/topic/[slug].tsx", "src/components/StudyTimer.tsx"],
+            "findings": "StudyTimer imported and rendered in topic page header. data-testid=start-session-btn present. E2E test 1 confirms button visible.",
+            "specific_locations": ["pages/topic/[slug].tsx:30,72-74", "src/components/StudyTimer.tsx:63-70"]
+          },
+          "severity": 8,
+          "confidence": 1.0,
+          "examiner_notes": "Start session button confirmed visible."
+        },
+        {
+          "question_id": "VQ-06-002",
+          "question": "Does starting a session record activeSession in lp_studyTimes_v1?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/hooks/useStudyTimer.ts"],
+            "findings": "start() calls writeStudyTimes with { ...data, activeSession: { startedAt: now, topicSlug } }. writeStudyTimes stores to lp_studyTimes_v1.",
+            "specific_locations": ["src/hooks/useStudyTimer.ts:55-64"]
+          },
+          "severity": 9,
+          "confidence": 1.0,
+          "examiner_notes": "activeSession written on start."
+        },
+        {
+          "question_id": "VQ-06-003",
+          "question": "Does stopping a session append a completed StudySession to sessions array?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/hooks/useStudyTimer.ts"],
+            "findings": "stop() creates StudySession {id, topicSlug, startedAt, endedAt, durationMs} and writes {sessions: [...data.sessions, session], activeSession: undefined}. E2E test 3 confirms session count=1 on study-times page.",
+            "specific_locations": ["src/hooks/useStudyTimer.ts:66-87"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "Session appended and activeSession cleared on stop."
+        },
+        {
+          "question_id": "VQ-06-004",
+          "question": "Does the /study-times page show today's and this week's total study time?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/StudyTimeSummary.tsx", "src/hooks/useStudyTimer.ts"],
+            "findings": "StudyTimeSummary renders today-total (getTodayMs) and week-total (getThisWeekMs) with formatDuration. E2E test 4 confirms both elements visible.",
+            "specific_locations": ["src/components/StudyTimeSummary.tsx:14-44"]
+          },
+          "severity": 8,
+          "confidence": 1.0,
+          "examiner_notes": "Today and week totals displayed."
+        },
+        {
+          "question_id": "VQ-06-005",
+          "question": "Does the session list show recent sessions with topic, time range, and duration?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/SessionList.tsx"],
+            "findings": "SessionList renders session items sorted by startedAt desc, each showing topicTitle, startedAt-endedAt range, and durationMs formatted. E2E test 3 confirms session-list visible.",
+            "specific_locations": ["src/components/SessionList.tsx:48-79"]
+          },
+          "severity": 8,
+          "confidence": 1.0,
+          "examiner_notes": "Session list shows topic, time range, duration badge."
+        },
+        {
+          "question_id": "VQ-06-006",
+          "question": "Is there a recovery banner when user refreshes during an active session?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/hooks/useStudyTimer.ts", "src/components/StudyTimer.tsx"],
+            "findings": "useStudyTimer mount effect checks readStudyTimes().activeSession, sets hasOrphanedSession=true if found. StudyTimer renders session-recovery-banner Alert when hasOrphanedSession=true. E2E test 5 confirms banner after refresh.",
+            "specific_locations": ["src/hooks/useStudyTimer.ts:27-33", "src/components/StudyTimer.tsx:29-56"]
+          },
+          "severity": 9,
+          "confidence": 1.0,
+          "examiner_notes": "Recovery banner confirmed by E2E test 5."
+        },
+        {
+          "question_id": "VQ-06-007",
+          "question": "Does the recovery banner allow continuing or stopping the orphaned session?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/hooks/useStudyTimer.ts", "src/components/StudyTimer.tsx"],
+            "findings": "recoverStop() records session and clears orphaned state. recoverContinue() resumes timer from original startedAt. E2E test 6 confirms recoverStop records session (count=1 on study-times page).",
+            "specific_locations": ["src/hooks/useStudyTimer.ts:96-132", "src/components/StudyTimer.tsx:44-55"]
+          },
+          "severity": 9,
+          "confidence": 1.0,
+          "examiner_notes": "Recovery stop and continue both implemented and tested."
+        },
+        {
+          "question_id": "VQ-06-M1",
+          "question": "Do all 6 Story 06 E2E tests pass?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["tests/e2e/story-06-study-time-tracking.spec.ts"],
+            "findings": "6/6 tests pass in 21.2s: start/stop btn (1), elapsed+stop btn (2), session recording (3), today/week totals (4), recovery banner (5), recovery stop records session (6).",
+            "specific_locations": ["tests/e2e/story-06-study-time-tracking.spec.ts"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "All Story 06 tests pass."
+        },
+        {
+          "question_id": "VQ-06-M2",
+          "question": "Do all prior story tests still pass (no regressions)?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["tests/e2e/"],
+            "findings": "37/37 total tests pass in 51.6s. All 31 baseline tests from stories 01-05 still pass. No regressions.",
+            "specific_locations": ["Full suite output: 37 passed"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "Zero regressions."
+        }
+      ],
+      "summary": {
+        "total": 9,
+        "passed": 9,
+        "failed": 0,
+        "partial": 0
+      },
+      "verification_passed": true,
+      "test_gate": {
+        "ran_at": "2026-02-27T18:09:00Z",
+        "command": "npm run build",
+        "passed": true,
+        "total_tests": 6,
+        "passed_tests": 6,
+        "failed_tests": 0,
+        "failures": [],
+        "evidence": "Build: 10 pages compiled. 0 TypeScript errors.",
+        "e2e_tests": {
+          "ran_at": "2026-02-27T18:09:00Z",
+          "command": "PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers npx playwright test tests/e2e/story-06-study-time-tracking.spec.ts",
+          "passed": true,
+          "total_tests": 6,
+          "passed_tests": 6,
+          "failed_tests": 0,
+          "test_files": ["tests/e2e/story-06-study-time-tracking.spec.ts"],
+          "evidence": "6/6 E2E tests pass in 21.2s"
+        }
+      },
+      "all_passed": true
+    }
+  ],
+
+  "remediation_attempts": [],
+  "final_outcome": "accepted",
+  "escalation": null
+}
