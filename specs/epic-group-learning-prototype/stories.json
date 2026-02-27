@@ -203,7 +203,7 @@
       "mock_dependencies": [],
       "introduces_mocks": [],
       "test_fixtures": [],
-      "status": "pending",
+      "status": "done",
       "notes": "Points are aggregated from lp_progress_v1.byTopicSlug[slug].quizPoints for all selected topics. The framing should feel like a real leaderboard — 'Your Score' as the only entry is fine."
     },
     {

@@ -1,0 +1,64 @@
+{
+  "created_at": "2026-02-27T18:20:00Z",
+  "story_id": "07",
+  "questions": [
+    {
+      "id": "VQ-07-001",
+      "category": "implementation",
+      "question": "Does the leaderboard page aggregate quiz points across all selected topics?",
+      "actionable_check": "Check leaderboard.tsx reads readSelectedTopics().slugs and sums quizPoints from readProgress()",
+      "evidence_required": ["pages/leaderboard.tsx aggregation code", "E2E test 3 result"],
+      "pass_criteria": "Total points = sum of quizPoints for all selected topic slugs"
+    },
+    {
+      "id": "VQ-07-002",
+      "category": "ux",
+      "question": "Does the user appear as 'You (1/1)' in the leaderboard?",
+      "actionable_check": "Check LeaderboardEntry renders label='You (1/1)' with isYou=true styling",
+      "evidence_required": ["pages/leaderboard.tsx LeaderboardEntry usage", "E2E test 2 result"],
+      "pass_criteria": "Entry shows rank 1, label 'You (1/1)', highlighted with teal styling"
+    },
+    {
+      "id": "VQ-07-003",
+      "category": "ux",
+      "question": "Is there an empty state when no topics are selected?",
+      "actionable_check": "Check leaderboard-no-topics alert rendered when selectedCount === 0",
+      "evidence_required": ["pages/leaderboard.tsx empty state check", "E2E test 1 result"],
+      "pass_criteria": "leaderboard-no-topics alert visible with link to topics page"
+    },
+    {
+      "id": "VQ-07-004",
+      "category": "ux",
+      "question": "Is there a streak display showing days of study activity?",
+      "actionable_check": "Check streak-display element exists and calculateStreak returns 0 when no sessions",
+      "evidence_required": ["pages/leaderboard.tsx calculateStreak", "E2E test 5 result"],
+      "pass_criteria": "streak-display shows 0 when no sessions, increments for consecutive study days"
+    },
+    {
+      "id": "VQ-07-005",
+      "category": "implementation",
+      "question": "Does the rank display show 1/1 always (single-user app)?",
+      "actionable_check": "Check rank-display element contains '1' and '1'",
+      "evidence_required": ["pages/leaderboard.tsx rank-display", "E2E test 2 result"],
+      "pass_criteria": "rank-display shows '1 / 1' (or similar)"
+    }
+  ],
+  "mandatory_questions": [
+    {
+      "id": "VQ-07-M1",
+      "category": "testing",
+      "question": "Do all 5 Story 07 E2E tests pass?",
+      "actionable_check": "Run: PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers npx playwright test tests/e2e/story-07-leaderboard.spec.ts",
+      "evidence_required": ["Playwright output showing 5/5 pass"],
+      "pass_criteria": "5/5 tests pass with no failures"
+    },
+    {
+      "id": "VQ-07-M2",
+      "category": "testing",
+      "question": "Do all prior story tests still pass (no regressions)?",
+      "actionable_check": "Run: npx playwright test",
+      "evidence_required": ["Playwright output showing 42/42 pass"],
+      "pass_criteria": "All 42 tests pass (37 baseline + 5 new)"
+    }
+  ]
+}
