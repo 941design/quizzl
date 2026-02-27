@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
-import { Box, HStack, IconButton, Divider, Button, Tooltip } from '@chakra-ui/react';
+import { Box, HStack, Divider, Button, Tooltip } from '@chakra-ui/react';
 
 type NotesEditorClientProps = {
   initialContent: string;
@@ -136,6 +136,29 @@ export default function NotesEditorClient({
               data-testid="toolbar-ordered-list"
             >
               OL
+            </Button>
+          </Tooltip>
+
+          <Divider orientation="vertical" h="24px" />
+
+          <Tooltip label={editor.isActive('link') ? 'Remove Link' : 'Add Link'} hasArrow>
+            <Button
+              size="xs"
+              variant={editor.isActive('link') ? 'solid' : 'ghost'}
+              onClick={() => {
+                if (editor.isActive('link')) {
+                  editor.chain().focus().unsetLink().run();
+                } else {
+                  const url = window.prompt('Enter URL:');
+                  if (url) {
+                    editor.chain().focus().setLink({ href: url }).run();
+                  }
+                }
+              }}
+              aria-label={editor.isActive('link') ? 'Remove link' : 'Add link'}
+              data-testid="toolbar-link"
+            >
+              {editor.isActive('link') ? 'Unlink' : 'Link'}
             </Button>
           </Tooltip>
         </HStack>

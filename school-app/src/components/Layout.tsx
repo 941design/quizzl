@@ -3,10 +3,14 @@ import {
   Box,
   Flex,
   HStack,
+  VStack,
   Link,
   Text,
   Container,
+  IconButton,
   useColorModeValue,
+  useDisclosure,
+  Collapse,
 } from '@chakra-ui/react';
 import NextLink from 'next/link';
 import { useRouter } from 'next/router';
@@ -33,6 +37,7 @@ export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
   const bg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const { isOpen, onToggle } = useDisclosure();
 
   return (
     <Box minH="100vh" bg={useColorModeValue('gray.50', 'gray.900')}>
@@ -57,6 +62,7 @@ export default function Layout({ children }: LayoutProps) {
               </Link>
             </NextLink>
 
+            {/* Desktop nav */}
             <HStack
               as="ul"
               spacing={{ base: 2, md: 6 }}
@@ -81,7 +87,57 @@ export default function Layout({ children }: LayoutProps) {
                 );
               })}
             </HStack>
+
+            {/* Mobile hamburger */}
+            <IconButton
+              display={{ base: 'flex', md: 'none' }}
+              onClick={onToggle}
+              variant="ghost"
+              aria-label="Toggle navigation menu"
+              data-testid="mobile-menu-btn"
+              icon={
+                <Text fontSize="xl" lineHeight="1">
+                  {isOpen ? '\u2715' : '\u2630'}
+                </Text>
+              }
+            />
           </Flex>
+
+          {/* Mobile nav dropdown */}
+          <Collapse in={isOpen} animateOpacity>
+            <VStack
+              as="ul"
+              listStyleType="none"
+              spacing={0}
+              pb={4}
+              display={{ base: 'flex', md: 'none' }}
+              data-testid="mobile-nav"
+            >
+              {NAV_ITEMS.map((item) => {
+                const isActive = router.pathname === item.href;
+                return (
+                  <Box as="li" key={item.href} w="100%">
+                    <NextLink href={item.href} passHref legacyBehavior>
+                      <Link
+                        display="block"
+                        py={2}
+                        px={3}
+                        borderRadius="md"
+                        fontWeight={isActive ? 'semibold' : 'normal'}
+                        color={isActive ? 'brand.500' : 'gray.600'}
+                        bg={isActive ? 'gray.100' : 'transparent'}
+                        _hover={{ bg: 'gray.100', textDecoration: 'none' }}
+                        aria-current={isActive ? 'page' : undefined}
+                        onClick={onToggle}
+                      >
+                        {item.label}
+                      </Link>
+                    </NextLink>
+                  </Box>
+                );
+              })}
+            </VStack>
+          </Collapse>
         </Container>
       </Box>
 

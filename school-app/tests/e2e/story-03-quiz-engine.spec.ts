@@ -157,4 +157,28 @@ test.describe('Story 03 - Topic Page Tabs and Quiz Engine', () => {
     // Should still show 1 answered
     await expect(page.getByTestId('topic-stats')).toContainText('1/5 answered');
   });
+
+  test('flashcard self-assessment persists after page refresh (AC-007)', async ({ page }) => {
+    await page.goto(TOPIC_URL);
+
+    // Navigate to flashcard question (3rd question, index 2)
+    await page.getByTestId('next-question-btn').click();
+    await page.getByTestId('next-question-btn').click();
+
+    // Reveal and self-assess
+    await page.getByTestId('reveal-answer-btn').click();
+    await page.getByTestId('knew-it-btn').click();
+    await expect(page.getByTestId('question-feedback')).toContainText('+1');
+
+    // Refresh
+    await page.reload();
+
+    // Navigate back to the flashcard
+    await page.getByTestId('next-question-btn').click();
+    await page.getByTestId('next-question-btn').click();
+
+    // Feedback should still be visible (answer persisted)
+    await expect(page.getByTestId('question-feedback')).toBeVisible();
+    await expect(page.getByTestId('question-feedback')).toContainText('+1');
+  });
 });

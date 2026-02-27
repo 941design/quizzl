@@ -98,12 +98,14 @@ test.describe('Story 08: Mood Theming + Settings + Reset', () => {
     expect(stored).toBeTruthy();
   });
 
-  test('6. Confirming reset clears all lp_ localStorage data and shows success', async ({ page }) => {
-    // Set up some data
+  test('6. Confirming reset clears ALL lp_ localStorage keys and shows success (AC-016)', async ({ page }) => {
+    // Set up data in all 4 lp_* keys
     await page.goto('/');
     await page.evaluate(() => {
+      localStorage.setItem('lp_settings_v1', JSON.stringify({ mood: 'playful' }));
       localStorage.setItem('lp_selectedTopics_v1', JSON.stringify({ slugs: ['javascript-basics'] }));
       localStorage.setItem('lp_progress_v1', JSON.stringify({ byTopicSlug: { 'javascript-basics': { quizPoints: 5 } } }));
+      localStorage.setItem('lp_studyTimes_v1', JSON.stringify({ sessions: [{ id: 's1' }] }));
     });
 
     await page.goto('/settings');
@@ -117,8 +119,18 @@ test.describe('Story 08: Mood Theming + Settings + Reset', () => {
     const successBanner = page.getByTestId('reset-success-banner');
     await expect(successBanner).toBeVisible();
 
-    // Data should be gone
-    const stored = await page.evaluate(() => localStorage.getItem('lp_selectedTopics_v1'));
-    expect(stored).toBeNull();
+    // ALL lp_* keys should be gone
+    const remaining = await page.evaluate(() => {
+      return {
+        settings: localStorage.getItem('lp_settings_v1'),
+        selectedTopics: localStorage.getItem('lp_selectedTopics_v1'),
+        progress: localStorage.getItem('lp_progress_v1'),
+        studyTimes: localStorage.getItem('lp_studyTimes_v1'),
+      };
+    });
+    expect(remaining.settings).toBeNull();
+    expect(remaining.selectedTopics).toBeNull();
+    expect(remaining.progress).toBeNull();
+    expect(remaining.studyTimes).toBeNull();
   });
 });

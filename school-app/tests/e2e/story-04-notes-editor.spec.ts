@@ -18,7 +18,7 @@ test.describe('Story 04 - Notes Editor', () => {
     await expect(page.getByTestId('editor-toolbar')).toBeVisible();
   });
 
-  test('toolbar has formatting buttons with ARIA labels', async ({ page }) => {
+  test('toolbar has formatting buttons with ARIA labels including link', async ({ page }) => {
     await page.goto(TOPIC_URL);
     await page.getByTestId('tab-notes').click();
 
@@ -28,6 +28,7 @@ test.describe('Story 04 - Notes Editor', () => {
     await expect(page.getByTestId('editor-toolbar').getByRole('button', { name: 'Heading 2' })).toBeVisible();
     await expect(page.getByTestId('editor-toolbar').getByRole('button', { name: 'Bullet list' })).toBeVisible();
     await expect(page.getByTestId('editor-toolbar').getByRole('button', { name: 'Ordered list' })).toBeVisible();
+    await expect(page.getByTestId('toolbar-link')).toBeVisible();
   });
 
   test('user can type notes and see save status', async ({ page }) => {

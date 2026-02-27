@@ -1,0 +1,8 @@
+# OS
+.DS_Store
+
+# Project state (session-specific)
+implementation-state.json
+
+# Test artifacts
+school-app/test-results/

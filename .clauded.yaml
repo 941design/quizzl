@@ -5,7 +5,6 @@ vm:
   cpus: 4
   memory: 8GiB
   disk: 20GiB
-  previous_name: clauded-school-b68a71
 mount:
   host: /Users/mrother/Projects/941design/school
   guest: /Users/mrother/Projects/941design/school
