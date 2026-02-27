@@ -1,0 +1,64 @@
+{
+  "created_at": "2026-02-27T16:25:00Z",
+  "story_id": "02",
+  "questions": [
+    {
+      "id": "VQ-02-001",
+      "category": "content",
+      "question": "Are at least 3 topic JSON files present in /public/content/ and do they include all 3 quiz types (single, multi, flashcard)?",
+      "actionable_check": "List files in public/content/ and inspect each for single, multi, and flashcard questions",
+      "evidence_required": ["file listing", "quiz type samples from each file"],
+      "pass_criteria": "3+ JSON files exist, each with questions covering single/multi/flashcard types"
+    },
+    {
+      "id": "VQ-02-002",
+      "category": "type-safety",
+      "question": "Does the content normalization in content.ts correctly validate and map to the Topic TypeScript type?",
+      "actionable_check": "Read src/lib/content.ts normalizeTopic function and verify it validates slug, title, description, quiz, studyPlan",
+      "evidence_required": ["normalizeTopic function source", "null check for invalid content"],
+      "pass_criteria": "normalizeTopic validates required fields and returns null for invalid data"
+    },
+    {
+      "id": "VQ-02-003",
+      "category": "localStorage",
+      "question": "Does the storage abstraction handle localStorage unavailability gracefully?",
+      "actionable_check": "Read src/lib/storage.ts isStorageAvailable and readItem/writeItem functions",
+      "evidence_required": ["isStorageAvailable implementation", "try/catch in readItem/writeItem"],
+      "pass_criteria": "Storage functions return defaults when localStorage unavailable, no exceptions thrown"
+    },
+    {
+      "id": "VQ-02-004",
+      "category": "ui",
+      "question": "Does the Topics page show All Topics and My Topics tabs with correct content?",
+      "actionable_check": "Navigate to /topics and verify tabs exist, all topics visible in All tab, empty state in My Topics tab",
+      "evidence_required": ["screenshot of topics page", "tab content for both tabs"],
+      "pass_criteria": "Both tabs render correctly with all topics shown and proper empty state"
+    },
+    {
+      "id": "VQ-02-005",
+      "category": "persistence",
+      "question": "Does topic selection persist in localStorage using the lp_selectedTopics_v1 key?",
+      "actionable_check": "Select a topic and inspect localStorage lp_selectedTopics_v1 value",
+      "evidence_required": ["localStorage key present with selected slug"],
+      "pass_criteria": "Selected topic slug appears in lp_selectedTopics_v1.slugs array"
+    }
+  ],
+  "mandatory_questions": [
+    {
+      "id": "VQ-02-M1",
+      "category": "e2e",
+      "question": "Do all 6 Story 02 Playwright E2E tests pass?",
+      "actionable_check": "Run story-02-content-ingestion.spec.ts with Playwright",
+      "evidence_required": ["playwright output showing 6 passed, 0 failed"],
+      "pass_criteria": "All 6 E2E tests pass including topic display, selection, persistence, and empty state"
+    },
+    {
+      "id": "VQ-02-M2",
+      "category": "regression",
+      "question": "Do all Story 01 E2E tests still pass (no regressions)?",
+      "actionable_check": "Run story-01-scaffold.spec.ts with Playwright",
+      "evidence_required": ["6/6 Story 01 tests pass"],
+      "pass_criteria": "No regressions in Story 01 routing and navigation tests"
+    }
+  ]
+}

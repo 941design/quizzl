@@ -1,0 +1,106 @@
+{
+  "slug": "human-biology",
+  "title": "Human Biology: Body Systems",
+  "description": "Understand how the human body works, from cells to organ systems and homeostasis.",
+  "tags": ["biology", "science", "health", "beginner"],
+  "quiz": [
+    {
+      "id": "bio-q1",
+      "type": "single",
+      "prompt": "What is the powerhouse of the cell?",
+      "options": [
+        { "id": "a", "text": "The nucleus" },
+        { "id": "b", "text": "The ribosome" },
+        { "id": "c", "text": "The mitochondria" },
+        { "id": "d", "text": "The endoplasmic reticulum" }
+      ],
+      "correctOptionId": "c",
+      "explanation": "Mitochondria produce ATP through cellular respiration, providing energy for cell functions. They are often called the 'powerhouse of the cell'."
+    },
+    {
+      "id": "bio-q2",
+      "type": "multi",
+      "prompt": "Which of the following are functions of the human liver?",
+      "options": [
+        { "id": "a", "text": "Producing bile for digestion" },
+        { "id": "b", "text": "Filtering blood and removing toxins" },
+        { "id": "c", "text": "Producing red blood cells" },
+        { "id": "d", "text": "Regulating blood sugar via glycogen storage" }
+      ],
+      "correctOptionIds": ["a", "b", "d"],
+      "explanation": "The liver produces bile, filters toxins, and regulates blood sugar via glycogen. Red blood cells are produced in the bone marrow."
+    },
+    {
+      "id": "bio-q3",
+      "type": "flashcard",
+      "front": "What is homeostasis?",
+      "back": "Homeostasis is the body's ability to maintain a stable internal environment despite external changes. Examples include regulating body temperature (36.5-37.5°C), blood pH (7.35-7.45), and blood glucose levels. It is achieved through feedback mechanisms."
+    },
+    {
+      "id": "bio-q4",
+      "type": "single",
+      "prompt": "How many chambers does the human heart have?",
+      "options": [
+        { "id": "a", "text": "2" },
+        { "id": "b", "text": "3" },
+        { "id": "c", "text": "4" },
+        { "id": "d", "text": "6" }
+      ],
+      "correctOptionId": "c",
+      "explanation": "The human heart has 4 chambers: the left and right atria (upper) and the left and right ventricles (lower)."
+    },
+    {
+      "id": "bio-q5",
+      "type": "multi",
+      "prompt": "Which organs are part of the respiratory system?",
+      "options": [
+        { "id": "a", "text": "Lungs" },
+        { "id": "b", "text": "Trachea" },
+        { "id": "c", "text": "Liver" },
+        { "id": "d", "text": "Diaphragm" }
+      ],
+      "correctOptionIds": ["a", "b", "d"],
+      "explanation": "The respiratory system includes the lungs, trachea, bronchi, and diaphragm. The liver is part of the digestive and metabolic systems."
+    },
+    {
+      "id": "bio-q6",
+      "type": "flashcard",
+      "front": "What is the difference between DNA and RNA?",
+      "back": "DNA (deoxyribonucleic acid) stores genetic information and is double-stranded with bases A, T, G, C. RNA (ribonucleic acid) carries instructions from DNA for protein synthesis and is single-stranded with bases A, U, G, C. DNA lives in the nucleus; RNA travels to ribosomes."
+    }
+  ],
+  "studyPlan": {
+    "steps": [
+      {
+        "id": "step-1",
+        "title": "Day 1: Cells and Energy",
+        "description": "Learn about cell structure and energy production.",
+        "tasks": [
+          { "id": "t1-1", "type": "custom", "title": "Read: Cell organelles overview" },
+          { "id": "t1-2", "type": "quiz", "questionIds": ["bio-q1"], "title": "Quiz: Mitochondria" },
+          { "id": "t1-3", "type": "flashcards", "questionIds": ["bio-q6"], "title": "Flashcard: DNA vs RNA" }
+        ]
+      },
+      {
+        "id": "step-2",
+        "title": "Day 2: Organ Systems",
+        "description": "Explore the heart, lungs, and liver.",
+        "tasks": [
+          { "id": "t2-1", "type": "quiz", "questionIds": ["bio-q4"], "title": "Quiz: Heart chambers" },
+          { "id": "t2-2", "type": "quiz", "questionIds": ["bio-q2", "bio-q5"], "title": "Quiz: Liver and Respiratory system" },
+          { "id": "t2-3", "type": "notes", "title": "Draw and label the circulatory system" }
+        ]
+      },
+      {
+        "id": "step-3",
+        "title": "Day 3: Homeostasis",
+        "description": "Understand how the body maintains balance.",
+        "tasks": [
+          { "id": "t3-1", "type": "flashcards", "questionIds": ["bio-q3"], "title": "Flashcard: Homeostasis" },
+          { "id": "t3-2", "type": "custom", "title": "Research: Examples of negative feedback loops" },
+          { "id": "t3-3", "type": "notes", "title": "Summarize feedback mechanisms" }
+        ]
+      }
+    ]
+  }
+}

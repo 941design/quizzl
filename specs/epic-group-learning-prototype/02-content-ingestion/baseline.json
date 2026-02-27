@@ -1,0 +1,36 @@
+{
+  "created_at": "2026-02-27T16:17:00Z",
+  "status": "ready",
+  "story_id": "02",
+  "checks": {
+    "compiles": {
+      "passed": true,
+      "command": "npm run build",
+      "evidence": "Build succeeds. 7 pages compiled. 0 TypeScript errors."
+    },
+    "tests_pass": {
+      "passed": true,
+      "command": "PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers npx playwright test",
+      "evidence": "6/6 E2E tests pass from Story 01.",
+      "failing_tests": []
+    },
+    "coverage": {
+      "value": 0,
+      "threshold": null,
+      "passed": true
+    },
+    "dependencies": {
+      "passed": true,
+      "command": "npm install",
+      "evidence": "All dependencies installed. @chakra-ui/react@2.10.9, next@14.2.35."
+    }
+  },
+  "test_snapshot": {
+    "total": 6,
+    "passing": 6,
+    "failing": 0,
+    "skipped": 0,
+    "coverage_percent": 0
+  },
+  "blocking_issues": []
+}

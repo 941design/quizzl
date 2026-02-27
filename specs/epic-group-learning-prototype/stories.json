@@ -62,7 +62,7 @@
       "test_fixtures": [
         "3 sample topic JSON files with all quiz types represented"
       ],
-      "status": "pending",
+      "status": "done",
       "notes": "Content JSON schema must match Topic type exactly. Include topics about diverse subjects. Each topic must have at least one single, one multi, one flashcard question, and a study plan with 2+ steps."
     },
     {
