@@ -1,0 +1,179 @@
+{
+  "story_id": "05",
+  "status": "done",
+  "created_at": "2026-02-27T17:07:00Z",
+  "updated_at": "2026-02-27T17:45:00Z",
+  "completed_at": "2026-02-27T17:45:00Z",
+
+  "implementation": {
+    "status": "done",
+    "started_at": "2026-02-27T17:07:00Z",
+    "completed_at": "2026-02-27T17:40:00Z",
+    "files_created": [
+      "school-app/src/components/StudyPlanTab.tsx",
+      "school-app/tests/e2e/story-05-study-plan.spec.ts"
+    ],
+    "files_modified": [
+      "school-app/pages/topic/[slug].tsx"
+    ],
+    "mocks_introduced": []
+  },
+
+  "verification_rounds": [
+    {
+      "round": 1,
+      "timestamp": "2026-02-27T17:42:00Z",
+      "results": [
+        {
+          "question_id": "VQ-05-001",
+          "question": "Does StudyPlanTab render study steps from topic content?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/StudyPlanTab.tsx", "pages/topic/[slug].tsx"],
+            "findings": "StudyPlanTab receives studyPlan prop and maps studyPlan.steps to StudyStep components. topic/[slug].tsx passes topic.studyPlan to StudyPlanTab. E2E test 1 confirms 3 steps visible for javascript-basics.",
+            "specific_locations": ["src/components/StudyPlanTab.tsx:188-198", "pages/topic/[slug].tsx:144-150"]
+          },
+          "severity": 9,
+          "confidence": 1.0,
+          "examiner_notes": "Steps render correctly from topic content."
+        },
+        {
+          "question_id": "VQ-05-002",
+          "question": "Does each step show a per-step progress counter and progress bar?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/StudyPlanTab.tsx"],
+            "findings": "StudyStep renders HStack with completedCount/totalTasks text and a Progress component with value=progressPercent. Progress has colorScheme=teal and size=xs.",
+            "specific_locations": ["src/components/StudyPlanTab.tsx:89-105"]
+          },
+          "severity": 7,
+          "confidence": 1.0,
+          "examiner_notes": "Per-step progress counter and bar confirmed."
+        },
+        {
+          "question_id": "VQ-05-003",
+          "question": "Can tasks be individually checked/unchecked via checkbox?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/StudyPlanTab.tsx"],
+            "findings": "Checkbox onChange={() => onToggleTask(task.id)} calls parent handler. E2E test 2 confirms check and uncheck behavior works.",
+            "specific_locations": ["src/components/StudyPlanTab.tsx:121-127"]
+          },
+          "severity": 9,
+          "confidence": 1.0,
+          "examiner_notes": "Task toggle confirmed by E2E test 2."
+        },
+        {
+          "question_id": "VQ-05-004",
+          "question": "Do completed task IDs persist across page refreshes?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/hooks/useTopicProgress.ts", "src/lib/storage.ts"],
+            "findings": "toggleTask in useTopicProgress updates completedTaskIds and calls writeTopicProgress. writeTopicProgress stores to lp_progress_v1. E2E test 4: check task, reload, task still checked.",
+            "specific_locations": ["src/hooks/useTopicProgress.ts:47-58", "src/lib/storage.ts"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "Persistence confirmed by E2E test 4."
+        },
+        {
+          "question_id": "VQ-05-005",
+          "question": "Does the overall progress bar show total completed/total tasks ratio?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/StudyPlanTab.tsx"],
+            "findings": "allTasks = studyPlan.steps.flatMap(s => s.tasks). totalCompleted = allTasks.filter(t => completedTaskIds.includes(t.id)).length. Progress value = (totalCompleted / Math.max(totalTasks, 1)) * 100.",
+            "specific_locations": ["src/components/StudyPlanTab.tsx:163-185"]
+          },
+          "severity": 8,
+          "confidence": 1.0,
+          "examiner_notes": "Overall progress computation confirmed."
+        },
+        {
+          "question_id": "VQ-05-006",
+          "question": "Is there an empty state when topic has no study plan?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/StudyPlanTab.tsx"],
+            "findings": "if (!studyPlan || studyPlan.steps.length === 0) return empty state with data-testid=study-plan-empty and helpful message directing user to Quiz or Notes.",
+            "specific_locations": ["src/components/StudyPlanTab.tsx:150-161"]
+          },
+          "severity": 7,
+          "confidence": 1.0,
+          "examiner_notes": "Empty state present for topics without study plan."
+        },
+        {
+          "question_id": "VQ-05-007",
+          "question": "Do completed steps show a Done badge?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["src/components/StudyPlanTab.tsx"],
+            "findings": "isComplete = completedCount === totalTasks && totalTasks > 0. When isComplete, Badge colorScheme=teal variant=solid with text 'Done' is rendered in the step header. E2E test 3 confirms Done badge appears after all tasks checked.",
+            "specific_locations": ["src/components/StudyPlanTab.tsx:49, 75-79"]
+          },
+          "severity": 7,
+          "confidence": 1.0,
+          "examiner_notes": "Done badge confirmed by E2E test 3."
+        },
+        {
+          "question_id": "VQ-05-M1",
+          "question": "Do all 5 Story 05 E2E tests pass?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["tests/e2e/story-05-study-plan.spec.ts"],
+            "findings": "5/5 tests pass in 13.2s: steps render (1), task check/uncheck (2), progress updates + Done badge (3), persistence (4), collapse/expand (5).",
+            "specific_locations": ["tests/e2e/story-05-study-plan.spec.ts"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "All Story 05 tests pass."
+        },
+        {
+          "question_id": "VQ-05-M2",
+          "question": "Do all prior story tests still pass (no regressions)?",
+          "result": "pass",
+          "evidence": {
+            "files_examined": ["tests/e2e/"],
+            "findings": "31/31 total tests pass in 35.7s. All 26 baseline tests from stories 01-04 still pass. No regressions detected.",
+            "specific_locations": ["tests/e2e/story-01-scaffold.spec.ts", "tests/e2e/story-02-content-ingestion.spec.ts", "tests/e2e/story-03-quiz-engine.spec.ts", "tests/e2e/story-04-notes-editor.spec.ts"]
+          },
+          "severity": 10,
+          "confidence": 1.0,
+          "examiner_notes": "Zero regressions in full suite."
+        }
+      ],
+      "summary": {
+        "total": 9,
+        "passed": 9,
+        "failed": 0,
+        "partial": 0
+      },
+      "verification_passed": true,
+      "test_gate": {
+        "ran_at": "2026-02-27T17:44:00Z",
+        "command": "npm run build",
+        "passed": true,
+        "total_tests": 5,
+        "passed_tests": 5,
+        "failed_tests": 0,
+        "failures": [],
+        "evidence": "Build: 10 pages compiled. 0 TypeScript errors.",
+        "e2e_tests": {
+          "ran_at": "2026-02-27T17:44:00Z",
+          "command": "PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers npx playwright test tests/e2e/story-05-study-plan.spec.ts",
+          "passed": true,
+          "total_tests": 5,
+          "passed_tests": 5,
+          "failed_tests": 0,
+          "test_files": ["tests/e2e/story-05-study-plan.spec.ts"],
+          "evidence": "5/5 E2E tests pass in 13.2s"
+        }
+      },
+      "all_passed": true
+    }
+  ],
+
+  "remediation_attempts": [],
+  "final_outcome": "accepted",
+  "escalation": null
+}

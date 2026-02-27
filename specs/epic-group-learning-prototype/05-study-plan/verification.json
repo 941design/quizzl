@@ -1,0 +1,80 @@
+{
+  "created_at": "2026-02-27T17:30:00Z",
+  "story_id": "05",
+  "questions": [
+    {
+      "id": "VQ-05-001",
+      "category": "implementation",
+      "question": "Does StudyPlanTab render study steps from topic content?",
+      "actionable_check": "Check StudyPlanTab.tsx renders topic.studyPlan.steps as StudyStep components with titles and tasks",
+      "evidence_required": ["StudyPlanTab.tsx source", "E2E test 1 result"],
+      "pass_criteria": "Steps render with titles and task checklists visible"
+    },
+    {
+      "id": "VQ-05-002",
+      "category": "implementation",
+      "question": "Does each step show a per-step progress counter and progress bar?",
+      "actionable_check": "Check StudyStep component renders Progress component and completed/total counter",
+      "evidence_required": ["StudyPlanTab.tsx source showing Progress component"],
+      "pass_criteria": "Each step shows completed/total count and a progress bar"
+    },
+    {
+      "id": "VQ-05-003",
+      "category": "implementation",
+      "question": "Can tasks be individually checked/unchecked via checkbox?",
+      "actionable_check": "Check Checkbox onChange calls onToggleTask with task.id",
+      "evidence_required": ["StudyPlanTab.tsx Checkbox onChange handler", "E2E test 2 result"],
+      "pass_criteria": "Clicking checkbox toggles task completion state"
+    },
+    {
+      "id": "VQ-05-004",
+      "category": "persistence",
+      "question": "Do completed task IDs persist across page refreshes?",
+      "actionable_check": "E2E test checks: check task, reload, task still checked",
+      "evidence_required": ["E2E test 4 result", "useTopicProgress toggleTask implementation"],
+      "pass_criteria": "completedTaskIds written to lp_progress_v1 via writeTopicProgress, read on mount"
+    },
+    {
+      "id": "VQ-05-005",
+      "category": "implementation",
+      "question": "Does the overall progress bar show total completed/total tasks ratio?",
+      "actionable_check": "Check StudyPlanTab renders overall Progress with correct value calculation",
+      "evidence_required": ["StudyPlanTab.tsx overall progress calculation"],
+      "pass_criteria": "Overall progress bar value = (completedCount / totalTasks) * 100"
+    },
+    {
+      "id": "VQ-05-006",
+      "category": "ux",
+      "question": "Is there an empty state when topic has no study plan?",
+      "actionable_check": "Check StudyPlanTab renders data-testid=study-plan-empty when studyPlan is empty",
+      "evidence_required": ["StudyPlanTab.tsx empty state check"],
+      "pass_criteria": "Empty state message shown when studyPlan.steps.length === 0"
+    },
+    {
+      "id": "VQ-05-007",
+      "category": "ux",
+      "question": "Do completed steps show a Done badge?",
+      "actionable_check": "E2E test 3 checks Done badge appears when all tasks in a step are checked",
+      "evidence_required": ["StudyPlanTab.tsx Done Badge rendering", "E2E test 3 result"],
+      "pass_criteria": "Badge with text 'Done' appears when completedCount === totalTasks"
+    }
+  ],
+  "mandatory_questions": [
+    {
+      "id": "VQ-05-M1",
+      "category": "testing",
+      "question": "Do all 5 Story 05 E2E tests pass?",
+      "actionable_check": "Run: PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers npx playwright test tests/e2e/story-05-study-plan.spec.ts",
+      "evidence_required": ["Playwright test output showing 5/5 pass"],
+      "pass_criteria": "5/5 tests pass with no failures"
+    },
+    {
+      "id": "VQ-05-M2",
+      "category": "testing",
+      "question": "Do all prior story tests still pass (no regressions)?",
+      "actionable_check": "Run full Playwright suite: npx playwright test",
+      "evidence_required": ["Playwright output showing 31/31 pass"],
+      "pass_criteria": "All 31 tests pass (26 baseline + 5 new)"
+    }
+  ]
+}

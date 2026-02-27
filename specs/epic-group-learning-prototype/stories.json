@@ -148,7 +148,7 @@
       "mock_dependencies": [],
       "introduces_mocks": [],
       "test_fixtures": [],
-      "status": "pending",
+      "status": "done",
       "notes": "Task types: quiz, notes, flashcards, custom — all rendered as checkable items with their title. No need to deep-link to quiz questions from study plan in this story."
     },
     {

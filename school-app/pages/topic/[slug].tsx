@@ -9,8 +9,6 @@ import {
   TabPanel,
   HStack,
   Badge,
-  Alert,
-  AlertIcon,
   Button,
 } from '@chakra-ui/react';
 import Head from 'next/head';
@@ -27,6 +25,7 @@ import {
 } from '@/src/lib/scoring';
 import QuizTab from '@/src/components/quiz/QuizTab';
 import NotesTab from '@/src/components/NotesTab';
+import StudyPlanTab from '@/src/components/StudyPlanTab';
 
 type Props = {
   topic: Topic | null;
@@ -36,7 +35,7 @@ export default function TopicPage({ topic }: Props) {
   const router = useRouter();
   const slug = (router.query.slug as string) ?? '';
 
-  const { progress, hydrated, recordAnswer, updateNotes, resetQuiz } = useTopicProgress(
+  const { progress, hydrated, recordAnswer, updateNotes, toggleTask, resetQuiz } = useTopicProgress(
     topic?.slug ?? slug
   );
 
@@ -140,17 +139,13 @@ export default function TopicPage({ topic }: Props) {
               />
             </TabPanel>
 
-            {/* Study Plan Tab - Placeholder for Story 05 */}
+            {/* Study Plan Tab */}
             <TabPanel px={0} pt={6}>
-              <Alert status="info" borderRadius="md" data-testid="study-plan-placeholder">
-                <AlertIcon />
-                <Box>
-                  <Text fontWeight="semibold">Study Plan</Text>
-                  <Text fontSize="sm">
-                    Step-by-step study plan with task tracking coming in the next update.
-                  </Text>
-                </Box>
-              </Alert>
+              <StudyPlanTab
+                studyPlan={topic.studyPlan}
+                completedTaskIds={hydrated ? progress.completedTaskIds : []}
+                onToggleTask={toggleTask}
+              />
             </TabPanel>
           </TabPanels>
         </Tabs>
