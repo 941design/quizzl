@@ -3,12 +3,10 @@ import dynamic from 'next/dynamic';
 import {
   Box,
   HStack,
-  IconButton,
   Text,
   Skeleton,
-  Divider,
-  Tooltip,
 } from '@chakra-ui/react';
+import { useCopy } from '@/src/context/LanguageContext';
 
 // Dynamic import to avoid SSR issues with TipTap
 const NotesEditor = dynamic(() => import('./NotesEditorClient'), {
@@ -28,6 +26,7 @@ type NotesTabProps = {
 };
 
 export default function NotesTab({ slug, notesHtml, onUpdate }: NotesTabProps) {
+  const copy = useCopy();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
 
   const handleUpdate = useCallback(
@@ -56,10 +55,10 @@ export default function NotesTab({ slug, notesHtml, onUpdate }: NotesTabProps) {
           data-testid="save-status"
         >
           {saveStatus === 'saving'
-            ? 'Saving...'
+            ? copy.notes.saving
             : saveStatus === 'saved'
-            ? 'Saved'
-            : 'Unsaved'}
+            ? copy.notes.saved
+            : copy.notes.unsaved}
         </Text>
       </HStack>
 
@@ -78,7 +77,7 @@ export default function NotesTab({ slug, notesHtml, onUpdate }: NotesTabProps) {
       </Box>
 
       <Text fontSize="xs" color="gray.400" mt={2}>
-        Notes are saved automatically to your browser.
+        {copy.notes.autoSave}
       </Text>
     </Box>
   );

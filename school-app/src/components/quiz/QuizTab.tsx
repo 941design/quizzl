@@ -18,6 +18,7 @@ import {
   answeredCount,
   isQuizComplete,
 } from '@/src/lib/scoring';
+import { useCopy } from '@/src/context/LanguageContext';
 import SingleChoiceQuestion from './SingleChoiceQuestion';
 import MultiChoiceQuestion from './MultiChoiceQuestion';
 import FlashcardQuestion from './FlashcardQuestion';
@@ -30,6 +31,7 @@ type QuizTabProps = {
 };
 
 export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabProps) {
+  const copy = useCopy();
   const questions = topic.quiz;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showFeedback, setShowFeedback] = useState(true);
@@ -38,10 +40,10 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
     return (
       <Box py={8} textAlign="center">
         <Text color="gray.500" fontSize="lg">
-          This topic has no quiz questions yet.
+          {copy.quiz.emptyHeading}
         </Text>
         <Text color="gray.400" mt={2}>
-          Try the Notes or Study Plan tabs to continue learning.
+          {copy.quiz.emptyBody}
         </Text>
       </Box>
     );
@@ -57,12 +59,12 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
     return (
       <Box>
         <Box p={6} bg="teal.50" borderRadius="lg" textAlign="center" mb={6}>
-          <Heading size="lg" mb={2}>Quiz Complete!</Heading>
+          <Heading size="lg" mb={2}>{copy.quiz.completeHeading}</Heading>
           <Text fontSize="xl" fontWeight="bold" color="teal.600">
             {totalPoints} / {maxPoints} points
           </Text>
           <Text color="gray.600" mt={1}>
-            {questions.length} question{questions.length !== 1 ? 's' : ''} answered
+            {copy.quiz.answeredSummary(questions.length)}
           </Text>
         </Box>
 
@@ -77,7 +79,7 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
                   {q.type === 'flashcard' ? q.front : q.prompt}
                 </Text>
                 <Badge colorScheme={pts > 0 ? 'green' : 'gray'}>
-                  {pts} pt{pts !== 1 ? 's' : ''}
+                  {pts} {copy.leaderboard.pointsUnit}
                 </Badge>
               </HStack>
             );
@@ -92,7 +94,7 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
           }}
           data-testid="retry-quiz-btn"
         >
-          Retry Quiz
+          {copy.quiz.retry}
         </Button>
       </Box>
     );
@@ -125,10 +127,10 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
       <Box mb={6}>
         <HStack justify="space-between" mb={2}>
           <Text fontSize="sm" color="gray.600">
-            Question {currentIndex + 1} of {questions.length}
+            {copy.quiz.questionProgress(currentIndex + 1, questions.length)}
           </Text>
           <Text fontSize="sm" color="gray.600">
-            {answered}/{questions.length} answered · {totalPoints} pts
+            {copy.quiz.scoreProgress(answered, questions.length, totalPoints)}
           </Text>
         </HStack>
         <Progress
@@ -148,10 +150,10 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
         fontSize="xs"
       >
         {currentQuestion.type === 'single'
-          ? 'Single Choice'
+          ? copy.quiz.singleChoice
           : currentQuestion.type === 'multi'
-          ? 'Multiple Choice'
-          : 'Flashcard'}
+          ? copy.quiz.multiChoice
+          : copy.quiz.flashcard}
       </Badge>
 
       {/* Question Card */}
@@ -208,7 +210,7 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
           isDisabled={currentIndex === 0}
           data-testid="prev-question-btn"
         >
-          ← Previous
+          ← {copy.quiz.previous}
         </Button>
 
         <Button
@@ -217,7 +219,7 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
           isDisabled={currentIndex === questions.length - 1}
           data-testid="next-question-btn"
         >
-          Next →
+          {copy.quiz.next} →
         </Button>
       </HStack>
     </Box>

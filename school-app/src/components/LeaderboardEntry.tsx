@@ -6,6 +6,7 @@ import {
   Badge,
   Avatar,
 } from '@chakra-ui/react';
+import { useCopy } from '@/src/context/LanguageContext';
 
 type LeaderboardEntryProps = {
   rank: number;
@@ -20,6 +21,8 @@ export default function LeaderboardEntry({
   totalPoints,
   isYou = false,
 }: LeaderboardEntryProps) {
+  const copy = useCopy();
+
   return (
     <HStack
       spacing={4}
@@ -61,7 +64,7 @@ export default function LeaderboardEntry({
         </Text>
         {isYou && (
           <Badge colorScheme="teal" fontSize="xs" variant="subtle">
-            You
+            {copy.leaderboard.youBadge}
           </Badge>
         )}
       </Box>
@@ -72,7 +75,7 @@ export default function LeaderboardEntry({
           {totalPoints}
         </Text>
         <Text fontSize="xs" color="gray.500">
-          pts
+          {copy.leaderboard.pointsUnit}
         </Text>
       </Box>
     </HStack>

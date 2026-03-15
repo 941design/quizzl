@@ -8,6 +8,7 @@ import {
   Collapse,
 } from '@chakra-ui/react';
 import type { QuizQuestion } from '@/src/types';
+import { useCopy } from '@/src/context/LanguageContext';
 
 type FlashcardProps = {
   question: Extract<QuizQuestion, { type: 'flashcard' }>;
@@ -20,6 +21,7 @@ export default function FlashcardQuestion({
   knewIt,
   onAnswer,
 }: FlashcardProps) {
+  const copy = useCopy();
   const [revealed, setRevealed] = useState(knewIt !== null);
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export default function FlashcardQuestion({
         data-testid="flashcard-front"
       >
         <Text fontSize="sm" fontWeight="semibold" color="teal.600" mb={2}>
-          Question
+          {copy.quiz.flashcardQuestion}
         </Text>
         <Text fontWeight="semibold" fontSize="lg">
           {question.front}
@@ -53,7 +55,7 @@ export default function FlashcardQuestion({
           onClick={() => setRevealed(true)}
           data-testid="reveal-answer-btn"
         >
-          Reveal Answer
+          {copy.quiz.revealAnswer}
         </Button>
       )}
 
@@ -68,7 +70,7 @@ export default function FlashcardQuestion({
           data-testid="flashcard-back"
         >
           <Text fontSize="sm" fontWeight="semibold" color="gray.600" mb={2}>
-            Answer
+            {copy.quiz.flashcardAnswer}
           </Text>
           <Text>{question.back}</Text>
         </Box>
@@ -83,14 +85,14 @@ export default function FlashcardQuestion({
             onClick={() => onAnswer(false)}
             data-testid="didnt-know-btn"
           >
-            I didn&apos;t know it
+            {copy.quiz.didntKnow}
           </Button>
           <Button
             colorScheme="green"
             onClick={() => onAnswer(true)}
             data-testid="knew-it-btn"
           >
-            I knew it!
+            {copy.quiz.knewIt}
           </Button>
         </HStack>
       )}
@@ -109,7 +111,7 @@ export default function FlashcardQuestion({
             fontWeight="semibold"
             color={knewIt ? 'green.700' : 'red.700'}
           >
-            {knewIt ? 'You knew it! +1 point' : "You didn't know it. Keep studying!"}
+            {knewIt ? copy.quiz.knewItFeedback : copy.quiz.didntKnowFeedback}
           </Text>
         </Box>
       )}

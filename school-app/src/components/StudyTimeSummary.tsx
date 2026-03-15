@@ -1,6 +1,7 @@
 import React from 'react';
 import { HStack, Stat, StatLabel, StatNumber, StatHelpText, Box } from '@chakra-ui/react';
 import type { StudySession } from '@/src/types';
+import { useCopy } from '@/src/context/LanguageContext';
 import { getTodayMs, getThisWeekMs, formatDuration } from '@/src/hooks/useStudyTimer';
 
 type StudyTimeSummaryProps = {
@@ -8,6 +9,7 @@ type StudyTimeSummaryProps = {
 };
 
 export default function StudyTimeSummary({ sessions }: StudyTimeSummaryProps) {
+  const copy = useCopy();
   const todayMs = getTodayMs(sessions);
   const weekMs = getThisWeekMs(sessions);
 
@@ -22,29 +24,29 @@ export default function StudyTimeSummary({ sessions }: StudyTimeSummaryProps) {
     >
       <Box>
         <Stat>
-          <StatLabel>Today</StatLabel>
+          <StatLabel>{copy.studyTimes.today}</StatLabel>
           <StatNumber fontSize="2xl" data-testid="today-total">
             {todayMs > 0 ? formatDuration(todayMs) : '0s'}
           </StatNumber>
-          <StatHelpText>study time</StatHelpText>
+          <StatHelpText>{copy.studyTimes.studyTime}</StatHelpText>
         </Stat>
       </Box>
       <Box>
         <Stat>
-          <StatLabel>This Week</StatLabel>
+          <StatLabel>{copy.studyTimes.thisWeek}</StatLabel>
           <StatNumber fontSize="2xl" data-testid="week-total">
             {weekMs > 0 ? formatDuration(weekMs) : '0s'}
           </StatNumber>
-          <StatHelpText>study time</StatHelpText>
+          <StatHelpText>{copy.studyTimes.studyTime}</StatHelpText>
         </Stat>
       </Box>
       <Box>
         <Stat>
-          <StatLabel>Total Sessions</StatLabel>
+          <StatLabel>{copy.studyTimes.totalSessions}</StatLabel>
           <StatNumber fontSize="2xl" data-testid="session-count">
             {sessions.length}
           </StatNumber>
-          <StatHelpText>completed</StatHelpText>
+          <StatHelpText>{copy.studyTimes.completed}</StatHelpText>
         </Stat>
       </Box>
     </HStack>

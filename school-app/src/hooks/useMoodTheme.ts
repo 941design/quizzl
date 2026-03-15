@@ -17,7 +17,10 @@ export function useMoodTheme() {
 
   const setTheme = useCallback((newMood: Mood) => {
     setMood(newMood);
-    const settings: Settings = { mood: newMood };
+    const settings: Settings = {
+      ...readSettings(),
+      mood: newMood,
+    };
     writeSettings(settings);
   }, []);
 

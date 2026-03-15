@@ -10,6 +10,7 @@ import {
   Box,
   ButtonGroup,
 } from '@chakra-ui/react';
+import { useCopy } from '@/src/context/LanguageContext';
 import { useStudyTimer, formatElapsed } from '@/src/hooks/useStudyTimer';
 
 type StudyTimerProps = {
@@ -17,6 +18,7 @@ type StudyTimerProps = {
 };
 
 export default function StudyTimer({ topicSlug }: StudyTimerProps) {
+  const copy = useCopy();
   const {
     isRunning,
     elapsedMs,
@@ -42,9 +44,9 @@ export default function StudyTimer({ topicSlug }: StudyTimerProps) {
       >
         <AlertIcon />
         <Box flex="1">
-          <AlertTitle>Active study session detected</AlertTitle>
+          <AlertTitle>{copy.studyTimer.activeSessionTitle}</AlertTitle>
           <AlertDescription>
-            You may have refreshed during a session. Would you like to continue or stop it?
+            {copy.studyTimer.activeSessionBody}
           </AlertDescription>
         </Box>
         <ButtonGroup mt={{ base: 2, sm: 0 }} ml={{ base: 0, sm: 4 }} size="sm">
@@ -53,14 +55,14 @@ export default function StudyTimer({ topicSlug }: StudyTimerProps) {
             onClick={recoverContinue}
             data-testid="session-recover-continue"
           >
-            Continue
+            {copy.studyTimer.continue}
           </Button>
           <Button
             variant="outline"
             onClick={recoverStop}
             data-testid="session-recover-stop"
           >
-            Stop
+            {copy.studyTimer.stop}
           </Button>
         </ButtonGroup>
       </Alert>
@@ -87,7 +89,7 @@ export default function StudyTimer({ topicSlug }: StudyTimerProps) {
         onClick={isRunning ? stop : start}
         data-testid={isRunning ? 'stop-session-btn' : 'start-session-btn'}
       >
-        {isRunning ? 'Stop Session' : 'Start Session'}
+        {isRunning ? copy.studyTimer.stopSession : copy.studyTimer.startSession}
       </Button>
     </HStack>
   );

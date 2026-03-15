@@ -9,33 +9,35 @@ import {
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import NextLink from 'next/link';
+import { useCopy } from '@/src/context/LanguageContext';
 
 export default function HomePage() {
+  const copy = useCopy();
+
   return (
     <>
       <Head>
-        <title>GroupLearn - Learn Together</title>
-        <meta name="description" content="Group learning prototype with quiz, notes, and study plans" />
+        <title>{`${copy.appName} - ${copy.home.title}`}</title>
+        <meta name="description" content={copy.home.description} />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <Box>
         <VStack spacing={8} textAlign="center" py={16}>
           <Heading as="h1" size="2xl">
-            Welcome to GroupLearn
+            {copy.home.title}
           </Heading>
           <Text fontSize="xl" color="gray.600" maxW="600px">
-            Learn with freely selectable topics. Combine quiz, notes, and study plans
-            to master any subject at your own pace.
+            {copy.home.description}
           </Text>
           <HStack spacing={4}>
             <NextLink href="/topics" passHref legacyBehavior>
               <Button as="a" size="lg" data-testid="browse-topics-btn">
-                Browse Topics
+                {copy.home.browseTopics}
               </Button>
             </NextLink>
             <NextLink href="/settings" passHref legacyBehavior>
               <Button as="a" size="lg" variant="outline">
-                Settings
+                {copy.home.settings}
               </Button>
             </NextLink>
           </HStack>
@@ -43,21 +45,21 @@ export default function HomePage() {
 
         <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} mt={8}>
           <Box p={6} bg="white" borderRadius="lg" shadow="sm" borderWidth="1px">
-            <Heading size="md" mb={2}>Quiz &amp; Flashcards</Heading>
+            <Heading size="md" mb={2}>{copy.home.featureQuiz}</Heading>
             <Text color="gray.600">
-              Test your knowledge with single-choice, multi-choice, and flashcard questions.
+              {copy.home.featureQuizBody}
             </Text>
           </Box>
           <Box p={6} bg="white" borderRadius="lg" shadow="sm" borderWidth="1px">
-            <Heading size="md" mb={2}>Notes</Heading>
+            <Heading size="md" mb={2}>{copy.home.featureNotes}</Heading>
             <Text color="gray.600">
-              Write rich formatted notes per topic. Auto-saved to your browser.
+              {copy.home.featureNotesBody}
             </Text>
           </Box>
           <Box p={6} bg="white" borderRadius="lg" shadow="sm" borderWidth="1px">
-            <Heading size="md" mb={2}>Study Plans</Heading>
+            <Heading size="md" mb={2}>{copy.home.featurePlan}</Heading>
             <Text color="gray.600">
-              Follow structured study steps and track your daily progress.
+              {copy.home.featurePlanBody}
             </Text>
           </Box>
         </SimpleGrid>

@@ -14,42 +14,44 @@ import {
 import Head from 'next/head';
 import type { GetStaticProps } from 'next';
 import NextLink from 'next/link';
-import type { Topic } from '@/src/types';
-import { loadAllTopicsSync } from '@/src/lib/content';
+import type { TopicCatalogue } from '@/src/types';
+import { loadTopicCataloguesSync } from '@/src/lib/content';
+import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import { useSelectedTopics } from '@/src/hooks/useSelectedTopics';
 import TopicCard from '@/src/components/TopicCard';
 import StorageWarning from '@/src/components/StorageWarning';
 
 type Props = {
-  topics: Topic[];
+  topicsByLanguage: TopicCatalogue;
 };
 
-export default function TopicsPage({ topics }: Props) {
+export default function TopicsPage({ topicsByLanguage }: Props) {
+  const { language } = useLanguage();
+  const copy = useCopy();
   const { selectedSlugs, toggleTopic, isSelected, hydrated } = useSelectedTopics();
+  const topics = topicsByLanguage[language] ?? topicsByLanguage.en;
 
   const myTopics = topics.filter((t) => selectedSlugs.includes(t.slug));
 
   return (
     <>
       <Head>
-        <title>Topics - GroupLearn</title>
+        <title>{`${copy.topics.pageTitle} - ${copy.appName}`}</title>
       </Head>
       <Box>
         <StorageWarning />
 
         <Heading as="h1" size="xl" mb={2}>
-          Topics
+          {copy.topics.heading}
         </Heading>
         <Text color="gray.600" mb={6}>
-          Select topics you want to learn. Your selections are saved automatically.
+          {copy.topics.description}
         </Text>
 
         <Tabs colorScheme="teal" variant="enclosed">
           <TabList>
-            <Tab data-testid="tab-all-topics">All Topics ({topics.length})</Tab>
-            <Tab data-testid="tab-my-topics">
-              My Topics {hydrated ? `(${selectedSlugs.length})` : ''}
-            </Tab>
+            <Tab data-testid="tab-all-topics">{copy.topics.allTopics(topics.length)}</Tab>
+            <Tab data-testid="tab-my-topics">{copy.topics.myTopics(hydrated ? selectedSlugs.length : undefined)}</Tab>
           </TabList>
 
           <TabPanels>
@@ -72,10 +74,10 @@ export default function TopicsPage({ topics }: Props) {
               {!hydrated ? null : myTopics.length === 0 ? (
                 <VStack spacing={4} py={12} textAlign="center">
                   <Text fontSize="lg" color="gray.500">
-                    You haven&apos;t selected any topics yet.
+                    {copy.topics.emptyHeading}
                   </Text>
                   <Text color="gray.400">
-                    Go to &quot;All Topics&quot; and click &quot;Select&quot; on any topic to get started.
+                    {copy.topics.emptyBody}
                   </Text>
                   <NextLink href="/topics" passHref legacyBehavior>
                     <Button
@@ -83,7 +85,7 @@ export default function TopicsPage({ topics }: Props) {
                       colorScheme="teal"
                       data-testid="pick-topics-cta"
                     >
-                      Browse All Topics
+                      {copy.topics.browseAll}
                     </Button>
                   </NextLink>
                 </VStack>
@@ -108,8 +110,8 @@ export default function TopicsPage({ topics }: Props) {
 }
 
 export const getStaticProps: GetStaticProps<Props> = async () => {
-  const topics = loadAllTopicsSync();
+  const topicsByLanguage = loadTopicCataloguesSync();
   return {
-    props: { topics },
+    props: { topicsByLanguage },
   };
 };

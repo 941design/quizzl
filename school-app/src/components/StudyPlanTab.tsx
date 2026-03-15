@@ -13,6 +13,7 @@ import {
   Badge,
 } from '@chakra-ui/react';
 import type { StudyPlan, StudyTask } from '@/src/types';
+import { useCopy } from '@/src/context/LanguageContext';
 
 type StudyPlanTabProps = {
   studyPlan: StudyPlan;
@@ -42,6 +43,7 @@ type StepProps = {
 };
 
 function StudyStep({ step, completedTaskIds, onToggleTask, defaultExpanded = true }: StepProps) {
+  const copy = useCopy();
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   const completedCount = step.tasks.filter((t) => completedTaskIds.includes(t.id)).length;
@@ -74,7 +76,7 @@ function StudyStep({ step, completedTaskIds, onToggleTask, defaultExpanded = tru
         <HStack flex="1" spacing={3}>
           {isComplete && (
             <Badge colorScheme="teal" variant="solid" fontSize="xs">
-              Done
+              {copy.studyPlan.done}
             </Badge>
           )}
           <Box textAlign="left">
@@ -122,7 +124,7 @@ function StudyStep({ step, completedTaskIds, onToggleTask, defaultExpanded = tru
                   isChecked={isTaskDone}
                   onChange={() => onToggleTask(task.id)}
                   colorScheme="teal"
-                  aria-label={`Complete: ${task.title}`}
+                  aria-label={copy.studyPlan.completeTask(task.title)}
                   data-testid={`task-checkbox-${task.id}`}
                 />
                 <Text
@@ -147,14 +149,15 @@ export default function StudyPlanTab({
   completedTaskIds,
   onToggleTask,
 }: StudyPlanTabProps) {
+  const copy = useCopy();
   if (!studyPlan || studyPlan.steps.length === 0) {
     return (
       <Box py={8} textAlign="center" data-testid="study-plan-empty">
         <Text color="gray.500" fontSize="lg">
-          This topic has no study plan yet.
+          {copy.studyPlan.emptyHeading}
         </Text>
         <Text color="gray.400" mt={2}>
-          Try the Quiz or Notes tabs to continue learning.
+          {copy.studyPlan.emptyBody}
         </Text>
       </Box>
     );
@@ -169,10 +172,10 @@ export default function StudyPlanTab({
       {/* Overall progress */}
       <HStack justify="space-between" mb={2}>
         <Text fontSize="sm" color="gray.600">
-          Overall progress
+          {copy.studyPlan.overallProgress}
         </Text>
         <Text fontSize="sm" fontWeight="semibold" color="teal.600">
-          {totalCompleted}/{totalTasks} tasks completed
+          {copy.studyPlan.tasksCompleted(totalCompleted, totalTasks)}
         </Text>
       </HStack>
       <Progress

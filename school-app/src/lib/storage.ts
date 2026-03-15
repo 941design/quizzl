@@ -1,4 +1,10 @@
-import type { Settings, SelectedTopics, Progress, StudyTimes, TopicProgress } from '@/src/types';
+import type {
+  Settings,
+  SelectedTopics,
+  Progress,
+  StudyTimes,
+  TopicProgress,
+} from '@/src/types';
 import { STORAGE_KEYS } from '@/src/types';
 
 // ============================
@@ -50,10 +56,14 @@ function writeItem<T>(key: string, value: T): void {
 // Settings
 // ============================
 
-const DEFAULT_SETTINGS: Settings = { mood: 'calm' };
+const DEFAULT_SETTINGS: Settings = { mood: 'calm', language: 'en' };
 
 export function readSettings(): Settings {
-  return readItem<Settings>(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
+  const stored = readItem<Partial<Settings> | null>(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
+  return {
+    ...DEFAULT_SETTINGS,
+    ...(stored ?? {}),
+  };
 }
 
 export function writeSettings(settings: Settings): void {

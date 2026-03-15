@@ -1,20 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Heading, Text, Divider, VStack } from '@chakra-ui/react';
 import Head from 'next/head';
-import type { StudySession } from '@/src/types';
+import type { StudySession, TopicCatalogue } from '@/src/types';
 import { readStudyTimes } from '@/src/lib/storage';
-import { loadAllTopicsSync } from '@/src/lib/content';
+import { loadTopicCataloguesSync } from '@/src/lib/content';
 import type { GetStaticProps } from 'next';
+import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import StudyTimeSummary from '@/src/components/StudyTimeSummary';
 import SessionList from '@/src/components/SessionList';
 
 type Props = {
-  topicTitleBySlug: Record<string, string>;
+  topicsByLanguage: TopicCatalogue;
 };
 
-export default function StudyTimesPage({ topicTitleBySlug }: Props) {
+export default function StudyTimesPage({ topicsByLanguage }: Props) {
+  const { language } = useLanguage();
+  const copy = useCopy();
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const topicTitleBySlug = Object.fromEntries(
+    (topicsByLanguage[language] ?? topicsByLanguage.en).map((topic) => [topic.slug, topic.title])
+  );
 
   useEffect(() => {
     const data = readStudyTimes();
@@ -25,14 +31,14 @@ export default function StudyTimesPage({ topicTitleBySlug }: Props) {
   return (
     <>
       <Head>
-        <title>Study Times - GroupLearn</title>
+        <title>{`${copy.studyTimes.pageTitle} - ${copy.appName}`}</title>
       </Head>
       <Box data-testid="study-times-page">
         <Heading as="h1" size="xl" mb={2}>
-          Study Times
+          {copy.studyTimes.heading}
         </Heading>
         <Text color="gray.600" mb={6}>
-          Track your study sessions and see your progress over time.
+          {copy.studyTimes.description}
         </Text>
 
         {hydrated ? (
@@ -45,7 +51,7 @@ export default function StudyTimesPage({ topicTitleBySlug }: Props) {
             {/* Session history */}
             <Box>
               <Heading as="h2" size="md" mb={4}>
-                Recent Sessions
+                {copy.studyTimes.recentSessions}
               </Heading>
               <SessionList
                 sessions={sessions}
@@ -55,7 +61,7 @@ export default function StudyTimesPage({ topicTitleBySlug }: Props) {
           </VStack>
         ) : (
           <Box py={8} textAlign="center" color="gray.400">
-            <Text>Loading...</Text>
+            <Text>{copy.studyTimes.loading}</Text>
           </Box>
         )}
       </Box>
@@ -64,10 +70,6 @@ export default function StudyTimesPage({ topicTitleBySlug }: Props) {
 }
 
 export const getStaticProps: GetStaticProps<Props> = async () => {
-  const topics = loadAllTopicsSync();
-  const topicTitleBySlug: Record<string, string> = {};
-  topics.forEach((t) => {
-    topicTitleBySlug[t.slug] = t.title;
-  });
-  return { props: { topicTitleBySlug } };
+  const topicsByLanguage = loadTopicCataloguesSync();
+  return { props: { topicsByLanguage } };
 };

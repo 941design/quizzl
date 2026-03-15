@@ -1,0 +1,93 @@
+{
+  "slug": "javascript-basics",
+  "title": "JavaScript Basics",
+  "description": "Learn the fundamentals of JavaScript: variables, functions, arrays, and modern ES6+ features.",
+  "tags": ["programming", "web", "beginner"],
+  "quiz": [
+    {
+      "id": "js-q1",
+      "type": "single",
+      "prompt": "Which keyword declares a block-scoped variable in modern JavaScript?",
+      "options": [
+        { "id": "a", "text": "var" },
+        { "id": "b", "text": "let" },
+        { "id": "c", "text": "set" },
+        { "id": "d", "text": "def" }
+      ],
+      "correctOptionId": "b",
+      "explanation": "`let` declares a block-scoped variable. `var` is function-scoped and often causes bugs."
+    },
+    {
+      "id": "js-q2",
+      "type": "multi",
+      "prompt": "Which of the following are valid ways to declare a function in JavaScript?",
+      "options": [
+        { "id": "a", "text": "function myFn() {}" },
+        { "id": "b", "text": "const myFn = () => {}" },
+        { "id": "c", "text": "def myFn() {}" },
+        { "id": "d", "text": "const myFn = function() {}" }
+      ],
+      "correctOptionIds": ["a", "b", "d"],
+      "explanation": "Functions can be declared as function declarations, arrow functions, or function expressions. `def` is Python syntax."
+    },
+    {
+      "id": "js-q3",
+      "type": "flashcard",
+      "front": "What is the difference between `==` and `===` in JavaScript?",
+      "back": "`==` compares values with type coercion (e.g., `'5' == 5` is true). `===` compares both value and type strictly (`'5' === 5` is false). Prefer `===` to avoid unexpected behavior."
+    },
+    {
+      "id": "js-q4",
+      "type": "single",
+      "prompt": "What does `Array.map()` return?",
+      "options": [
+        { "id": "a", "text": "The original array, modified" },
+        { "id": "b", "text": "A new array with the results of calling a function on each element" },
+        { "id": "c", "text": "undefined" },
+        { "id": "d", "text": "A boolean indicating if mapping succeeded" }
+      ],
+      "correctOptionId": "b",
+      "explanation": "`Array.map()` creates a new array populated with the return values of the callback for each element. It does not mutate the original array."
+    },
+    {
+      "id": "js-q5",
+      "type": "flashcard",
+      "front": "What is a closure in JavaScript?",
+      "back": "A closure is a function that 'closes over' its surrounding scope, retaining access to variables from its outer function even after that outer function has returned. Closures enable data encapsulation and factory functions."
+    }
+  ],
+  "studyPlan": {
+    "steps": [
+      {
+        "id": "step-1",
+        "title": "Day 1: Variables and Types",
+        "description": "Understand how JavaScript handles variables and data types.",
+        "tasks": [
+          { "id": "t1-1", "type": "custom", "title": "Read: var vs let vs const", "description": "Understand scoping differences" },
+          { "id": "t1-2", "type": "quiz", "questionIds": ["js-q1"], "title": "Quiz: Variable declarations" },
+          { "id": "t1-3", "type": "notes", "title": "Write notes on primitive types" }
+        ]
+      },
+      {
+        "id": "step-2",
+        "title": "Day 2: Functions",
+        "description": "Master different ways to define and use functions.",
+        "tasks": [
+          { "id": "t2-1", "type": "custom", "title": "Read: Function declarations vs expressions" },
+          { "id": "t2-2", "type": "quiz", "questionIds": ["js-q2"], "title": "Quiz: Function types" },
+          { "id": "t2-3", "type": "flashcards", "questionIds": ["js-q3"], "title": "Flashcard: == vs ===" }
+        ]
+      },
+      {
+        "id": "step-3",
+        "title": "Day 3: Arrays and Closures",
+        "description": "Work with arrays and understand closures.",
+        "tasks": [
+          { "id": "t3-1", "type": "quiz", "questionIds": ["js-q4"], "title": "Quiz: Array.map()" },
+          { "id": "t3-2", "type": "flashcards", "questionIds": ["js-q5"], "title": "Flashcard: Closures" },
+          { "id": "t3-3", "type": "custom", "title": "Practice: Write 3 functions using closures" }
+        ]
+      }
+    ]
+  }
+}

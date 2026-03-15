@@ -1,4 +1,5 @@
-import type { Topic } from '@/src/types';
+import type { LanguageCode, Topic, TopicCatalogue } from '@/src/types';
+import { SUPPORTED_LANGUAGES } from '@/src/types';
 
 // Content is loaded from /public/content/*.json at runtime
 // For a static export, we load all topic slugs at build time via getStaticProps
@@ -15,9 +16,9 @@ export const TOPIC_SLUGS: string[] = [
  * Fetch and validate a topic by slug.
  * Returns null if topic not found or invalid.
  */
-export async function fetchTopic(slug: string): Promise<Topic | null> {
+export async function fetchTopic(slug: string, language: LanguageCode): Promise<Topic | null> {
   try {
-    const res = await fetch(`/content/${slug}.json`);
+    const res = await fetch(`/content/${language}/${slug}.json`);
     if (!res.ok) return null;
     const data = await res.json();
     return normalizeTopic(data);
@@ -29,8 +30,8 @@ export async function fetchTopic(slug: string): Promise<Topic | null> {
 /**
  * Fetch all available topics.
  */
-export async function fetchAllTopics(): Promise<Topic[]> {
-  const results = await Promise.all(TOPIC_SLUGS.map(fetchTopic));
+export async function fetchAllTopics(language: LanguageCode): Promise<Topic[]> {
+  const results = await Promise.all(TOPIC_SLUGS.map((slug) => fetchTopic(slug, language)));
   return results.filter((t): t is Topic => t !== null);
 }
 
@@ -65,14 +66,14 @@ export function normalizeTopic(raw: unknown): Topic | null {
  * Load topics for getStaticProps.
  * Uses fs/path to read from public directory at build time.
  */
-export function loadAllTopicsSync(): Topic[] {
+export function loadAllTopicsSync(language: LanguageCode): Topic[] {
   // This function is only usable server-side (in getStaticProps)
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const fs = require('fs');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const path = require('path');
 
-  const contentDir = path.join(process.cwd(), 'public', 'content');
+  const contentDir = path.join(process.cwd(), 'public', 'content', language);
   const topics: Topic[] = [];
 
   for (const slug of TOPIC_SLUGS) {
@@ -87,4 +88,10 @@ export function loadAllTopicsSync(): Topic[] {
   }
 
   return topics;
+}
+
+export function loadTopicCataloguesSync(): TopicCatalogue {
+  return Object.fromEntries(
+    SUPPORTED_LANGUAGES.map((language) => [language, loadAllTopicsSync(language)])
+  ) as TopicCatalogue;
 }

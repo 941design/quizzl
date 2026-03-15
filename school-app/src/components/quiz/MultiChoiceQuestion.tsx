@@ -10,6 +10,7 @@ import {
   Button,
 } from '@chakra-ui/react';
 import type { QuizQuestion } from '@/src/types';
+import { useCopy } from '@/src/context/LanguageContext';
 import { scoreQuestion } from '@/src/lib/scoring';
 
 type MultiQuestionProps = {
@@ -27,6 +28,7 @@ export default function MultiChoiceQuestion({
   showFeedback,
   isAnswered,
 }: MultiQuestionProps) {
+  const copy = useCopy();
   const [localSelected, setLocalSelected] = useState<string[]>(selectedOptionIds);
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export default function MultiChoiceQuestion({
         {question.prompt}
       </Text>
       <Text fontSize="sm" color="gray.500">
-        Select all that apply
+        {copy.quiz.selectAll}
       </Text>
 
       <CheckboxGroup
@@ -108,7 +110,7 @@ export default function MultiChoiceQuestion({
           isDisabled={localSelected.length === 0}
           data-testid="submit-multi-answer"
         >
-          Submit Answer
+          {copy.quiz.submitAnswer}
         </Button>
       )}
 
@@ -121,7 +123,7 @@ export default function MultiChoiceQuestion({
           <AlertIcon />
           <Box>
             <Text fontWeight="semibold">
-              Score: {score} point{score !== 1 ? 's' : ''}
+              {copy.quiz.scoreLabel(score ?? 0)}
             </Text>
             {question.explanation && (
               <Text fontSize="sm" mt={1}>{question.explanation}</Text>

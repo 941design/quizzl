@@ -10,6 +10,7 @@ import {
 } from '@chakra-ui/react';
 import NextLink from 'next/link';
 import type { Topic } from '@/src/types';
+import { useCopy } from '@/src/context/LanguageContext';
 
 type TopicCardProps = {
   topic: Topic;
@@ -18,6 +19,8 @@ type TopicCardProps = {
 };
 
 export default function TopicCard({ topic, isSelected, onToggle }: TopicCardProps) {
+  const copy = useCopy();
+
   return (
     <Box
       p={5}
@@ -58,13 +61,13 @@ export default function TopicCard({ topic, isSelected, onToggle }: TopicCardProp
             aria-pressed={isSelected}
             data-testid={`toggle-topic-${topic.slug}`}
           >
-            {isSelected ? 'Remove' : 'Select'}
+            {isSelected ? copy.topics.remove : copy.topics.select}
           </Button>
 
           {isSelected && (
             <NextLink href={`/topic/${topic.slug}`} passHref legacyBehavior>
               <Button as="a" size="sm" variant="ghost" colorScheme="teal">
-                Study Now →
+                {copy.topics.studyNow} →
               </Button>
             </NextLink>
           )}

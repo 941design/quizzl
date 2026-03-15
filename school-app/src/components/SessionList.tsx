@@ -8,6 +8,7 @@ import {
   Badge,
 } from '@chakra-ui/react';
 import type { StudySession } from '@/src/types';
+import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import { formatDuration } from '@/src/hooks/useStudyTimer';
 
 type SessionListProps = {
@@ -15,9 +16,9 @@ type SessionListProps = {
   topicTitleBySlug?: Record<string, string>;
 };
 
-function formatDateTime(isoString: string): string {
+function formatDateTime(isoString: string, language: string): string {
   const date = new Date(isoString);
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString(language, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -26,6 +27,9 @@ function formatDateTime(isoString: string): string {
 }
 
 export default function SessionList({ sessions, topicTitleBySlug = {} }: SessionListProps) {
+  const { language } = useLanguage();
+  const copy = useCopy();
+
   if (sessions.length === 0) {
     return (
       <Box
@@ -34,9 +38,9 @@ export default function SessionList({ sessions, topicTitleBySlug = {} }: Session
         color="gray.500"
         data-testid="session-list-empty"
       >
-        <Text>No study sessions yet.</Text>
+        <Text>{copy.studyTimes.noSessions}</Text>
         <Text fontSize="sm" mt={1} color="gray.400">
-          Start a session on a topic page to track your study time.
+          {copy.studyTimes.noSessionsBody}
         </Text>
       </Box>
     );
@@ -57,7 +61,7 @@ export default function SessionList({ sessions, topicTitleBySlug = {} }: Session
       {sorted.map((session) => {
         const topicTitle = session.topicSlug
           ? topicTitleBySlug[session.topicSlug] ?? session.topicSlug
-          : 'General';
+          : copy.studyTimes.general;
 
         return (
           <HStack
@@ -74,7 +78,7 @@ export default function SessionList({ sessions, topicTitleBySlug = {} }: Session
                 {topicTitle}
               </Text>
               <Text fontSize="xs" color="gray.500">
-                {formatDateTime(session.startedAt)} — {formatDateTime(session.endedAt)}
+                {formatDateTime(session.startedAt, language)} - {formatDateTime(session.endedAt, language)}
               </Text>
             </Box>
             <Badge

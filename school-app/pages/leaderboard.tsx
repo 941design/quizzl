@@ -15,13 +15,8 @@ import Head from 'next/head';
 import NextLink from 'next/link';
 import { Button } from '@chakra-ui/react';
 import { readProgress, readSelectedTopics, readStudyTimes } from '@/src/lib/storage';
-import type { GetStaticProps } from 'next';
-import { loadAllTopicsSync } from '@/src/lib/content';
+import { useCopy } from '@/src/context/LanguageContext';
 import LeaderboardEntry from '@/src/components/LeaderboardEntry';
-
-type Props = {
-  topicTitleBySlug: Record<string, string>;
-};
 
 function calculateStreak(studyTimes: { sessions: { startedAt: string }[] }): number {
   const sessions = studyTimes.sessions;
@@ -57,7 +52,8 @@ function calculateStreak(studyTimes: { sessions: { startedAt: string }[] }): num
   return streak;
 }
 
-export default function LeaderboardPage({ topicTitleBySlug }: Props) {
+export default function LeaderboardPage() {
+  const copy = useCopy();
   const [totalPoints, setTotalPoints] = useState(0);
   const [streak, setStreak] = useState(0);
   const [selectedCount, setSelectedCount] = useState(0);
@@ -84,24 +80,24 @@ export default function LeaderboardPage({ topicTitleBySlug }: Props) {
   return (
     <>
       <Head>
-        <title>Leaderboard - GroupLearn</title>
+        <title>{`${copy.leaderboard.pageTitle} - ${copy.appName}`}</title>
       </Head>
       <Box data-testid="leaderboard-page">
         <Heading as="h1" size="xl" mb={2}>
-          Leaderboard
+          {copy.leaderboard.heading}
         </Heading>
         <Text color="gray.600" mb={6}>
-          Your learning progress. Keep studying to climb the ranks!
+          {copy.leaderboard.description}
         </Text>
 
         {hydrated && selectedCount === 0 && (
           <Alert status="info" borderRadius="md" mb={6} data-testid="leaderboard-no-topics">
             <AlertIcon />
             <AlertDescription>
-              Select some topics to track your quiz points.{' '}
+              {copy.leaderboard.noTopics}{' '}
               <NextLink href="/topics" passHref legacyBehavior>
                 <Button as="a" variant="link" colorScheme="teal" size="sm">
-                  Browse Topics
+                  {copy.leaderboard.browseTopics}
                 </Button>
               </NextLink>
             </AlertDescription>
@@ -112,7 +108,7 @@ export default function LeaderboardPage({ topicTitleBySlug }: Props) {
           <Alert status="info" borderRadius="md" mb={6} data-testid="leaderboard-no-points">
             <AlertIcon />
             <AlertDescription>
-              Complete some quiz questions to earn points and appear on the leaderboard.
+              {copy.leaderboard.noPoints}
             </AlertDescription>
           </Alert>
         )}
@@ -122,7 +118,7 @@ export default function LeaderboardPage({ topicTitleBySlug }: Props) {
             {/* Leaderboard entry */}
             <LeaderboardEntry
               rank={1}
-              label="You (1/1)"
+              label={copy.leaderboard.youLabel}
               totalPoints={totalPoints}
               isYou={true}
             />
@@ -133,7 +129,7 @@ export default function LeaderboardPage({ topicTitleBySlug }: Props) {
             <HStack spacing={6} flexWrap="wrap" gap={3}>
               <Box>
                 <Text fontSize="sm" color="gray.500">
-                  Total Points
+                  {copy.leaderboard.totalPoints}
                 </Text>
                 <Text fontWeight="bold" fontSize="2xl" color="teal.600" data-testid="total-points">
                   {totalPoints}
@@ -141,7 +137,7 @@ export default function LeaderboardPage({ topicTitleBySlug }: Props) {
               </Box>
               <Box>
                 <Text fontSize="sm" color="gray.500">
-                  Rank
+                  {copy.leaderboard.rank}
                 </Text>
                 <Text fontWeight="bold" fontSize="2xl" data-testid="rank-display">
                   1 / 1
@@ -149,25 +145,25 @@ export default function LeaderboardPage({ topicTitleBySlug }: Props) {
               </Box>
               <Box>
                 <Text fontSize="sm" color="gray.500">
-                  Study Streak
+                  {copy.leaderboard.streak}
                 </Text>
                 <HStack spacing={1}>
                   <Text fontWeight="bold" fontSize="2xl" data-testid="streak-display">
                     {streak}
                   </Text>
                   <Text fontSize="sm" color="gray.500">
-                    {streak === 1 ? 'day' : 'days'}
+                    {streak === 1 ? copy.leaderboard.streakDay : copy.leaderboard.streakDays}
                   </Text>
                   {streak > 0 && (
                     <Badge colorScheme="orange" variant="solid" fontSize="xs">
-                      On a roll!
+                      {copy.leaderboard.onARoll}
                     </Badge>
                   )}
                 </HStack>
               </Box>
               <Box>
                 <Text fontSize="sm" color="gray.500">
-                  Topics Selected
+                  {copy.leaderboard.topicsSelected}
                 </Text>
                 <Text fontWeight="bold" fontSize="2xl" data-testid="topics-selected">
                   {selectedCount}
@@ -179,19 +175,10 @@ export default function LeaderboardPage({ topicTitleBySlug }: Props) {
 
         {!hydrated && (
           <Box py={8} textAlign="center" color="gray.400">
-            <Text>Loading...</Text>
+            <Text>{copy.leaderboard.loading}</Text>
           </Box>
         )}
       </Box>
     </>
   );
 }
-
-export const getStaticProps: GetStaticProps<Props> = async () => {
-  const topics = loadAllTopicsSync();
-  const topicTitleBySlug: Record<string, string> = {};
-  topics.forEach((t) => {
-    topicTitleBySlug[t.slug] = t.title;
-  });
-  return { props: { topicTitleBySlug } };
-};

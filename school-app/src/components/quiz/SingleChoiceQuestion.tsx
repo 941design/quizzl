@@ -9,6 +9,7 @@ import {
   AlertIcon,
 } from '@chakra-ui/react';
 import type { QuizQuestion } from '@/src/types';
+import { useCopy } from '@/src/context/LanguageContext';
 
 type SingleQuestionProps = {
   question: Extract<QuizQuestion, { type: 'single' }>;
@@ -23,6 +24,7 @@ export default function SingleChoiceQuestion({
   onAnswer,
   showFeedback,
 }: SingleQuestionProps) {
+  const copy = useCopy();
   const isCorrect = selectedOptionId === question.correctOptionId;
 
   return (
@@ -88,7 +90,7 @@ export default function SingleChoiceQuestion({
           <AlertIcon />
           <Box>
             <Text fontWeight="semibold">
-              {isCorrect ? 'Correct!' : 'Incorrect'}
+              {isCorrect ? copy.quiz.correct : copy.quiz.incorrect}
             </Text>
             {question.explanation && (
               <Text fontSize="sm" mt={1}>{question.explanation}</Text>

@@ -15,8 +15,9 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import type { GetStaticProps, GetStaticPaths } from 'next';
 import NextLink from 'next/link';
-import type { Topic } from '@/src/types';
-import { loadAllTopicsSync, TOPIC_SLUGS } from '@/src/lib/content';
+import type { TopicCatalogue } from '@/src/types';
+import { loadTopicCataloguesSync, TOPIC_SLUGS } from '@/src/lib/content';
+import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import { useTopicProgress } from '@/src/hooks/useTopicProgress';
 import {
   answeredCount,
@@ -29,12 +30,18 @@ import StudyPlanTab from '@/src/components/StudyPlanTab';
 import StudyTimer from '@/src/components/StudyTimer';
 
 type Props = {
-  topic: Topic | null;
+  topicsByLanguage: TopicCatalogue;
 };
 
-export default function TopicPage({ topic }: Props) {
+export default function TopicPage({ topicsByLanguage }: Props) {
   const router = useRouter();
   const slug = (router.query.slug as string) ?? '';
+  const { language } = useLanguage();
+  const copy = useCopy();
+  const topic =
+    topicsByLanguage[language]?.find((entry) => entry.slug === slug) ??
+    topicsByLanguage.en?.find((entry) => entry.slug === slug) ??
+    null;
 
   const { progress, hydrated, recordAnswer, updateNotes, toggleTask, resetQuiz } = useTopicProgress(
     topic?.slug ?? slug
@@ -44,15 +51,15 @@ export default function TopicPage({ topic }: Props) {
     return (
       <>
         <Head>
-          <title>Topic Not Found - GroupLearn</title>
+          <title>{`${copy.topicPage.notFoundTitle} - ${copy.appName}`}</title>
         </Head>
         <Box textAlign="center" py={16}>
-          <Heading size="lg" mb={4}>Topic not found</Heading>
+          <Heading size="lg" mb={4}>{copy.topicPage.notFoundHeading}</Heading>
           <Text color="gray.600" mb={6}>
-            This topic doesn&apos;t exist or failed to load.
+            {copy.topicPage.notFoundBody}
           </Text>
           <NextLink href="/topics" passHref legacyBehavior>
-            <Button as="a" colorScheme="teal">Browse Topics</Button>
+            <Button as="a" colorScheme="teal">{copy.topicPage.browseTopics}</Button>
           </NextLink>
         </Box>
       </>
@@ -66,7 +73,7 @@ export default function TopicPage({ topic }: Props) {
   return (
     <>
       <Head>
-        <title>{topic.title} - GroupLearn</title>
+        <title>{`${topic.title} - ${copy.appName}`}</title>
       </Head>
       <Box>
         {/* Topic Header */}
@@ -99,13 +106,13 @@ export default function TopicPage({ topic }: Props) {
             data-testid="topic-stats"
           >
             <Text fontSize="sm" color="gray.600">
-              Quiz:{' '}
+              {copy.topicPage.quizLabel}:{' '}
               <Text as="span" fontWeight="semibold">
-                {hydrated ? `${answered}/${topic.quiz.length} answered` : '—'}
+                {hydrated ? copy.topicPage.answeredStat(answered, topic.quiz.length) : '—'}
               </Text>
             </Text>
             <Text fontSize="sm" color="gray.600">
-              Points:{' '}
+              {copy.topicPage.pointsLabel}:{' '}
               <Text as="span" fontWeight="semibold" color="teal.600">
                 {hydrated ? `${totalPoints}/${maxPoints}` : '—'}
               </Text>
@@ -116,9 +123,9 @@ export default function TopicPage({ topic }: Props) {
         {/* Tabs */}
         <Tabs colorScheme="teal" variant="line">
           <TabList>
-            <Tab data-testid="tab-quiz">Quiz</Tab>
-            <Tab data-testid="tab-notes">Notes</Tab>
-            <Tab data-testid="tab-study-plan">Study Plan</Tab>
+            <Tab data-testid="tab-quiz">{copy.topicPage.tabs.quiz}</Tab>
+            <Tab data-testid="tab-notes">{copy.topicPage.tabs.notes}</Tab>
+            <Tab data-testid="tab-study-plan">{copy.topicPage.tabs.studyPlan}</Tab>
           </TabList>
 
           <TabPanels>
@@ -166,8 +173,6 @@ export const getStaticPaths: GetStaticPaths = async () => {
 };
 
 export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
-  const slug = params?.slug as string;
-  const topics = loadAllTopicsSync();
-  const topic = topics.find((t) => t.slug === slug) ?? null;
-  return { props: { topic } };
+  const topicsByLanguage = loadTopicCataloguesSync();
+  return { props: { topicsByLanguage } };
 };

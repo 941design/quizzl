@@ -1,0 +1,93 @@
+{
+  "slug": "javascript-basics",
+  "title": "JavaScript-Grundlagen",
+  "description": "Lerne die Grundlagen von JavaScript: Variablen, Funktionen, Arrays und moderne ES6+-Features.",
+  "tags": ["programmierung", "web", "einsteiger"],
+  "quiz": [
+    {
+      "id": "js-q1",
+      "type": "single",
+      "prompt": "Welches Schlüsselwort deklariert in modernem JavaScript eine blockgebundene Variable?",
+      "options": [
+        { "id": "a", "text": "var" },
+        { "id": "b", "text": "let" },
+        { "id": "c", "text": "set" },
+        { "id": "d", "text": "def" }
+      ],
+      "correctOptionId": "b",
+      "explanation": "`let` deklariert eine blockgebundene Variable. `var` ist funktionsgebunden und sorgt oft für Fehler."
+    },
+    {
+      "id": "js-q2",
+      "type": "multi",
+      "prompt": "Welche der folgenden Möglichkeiten sind gültige Arten, eine Funktion in JavaScript zu definieren?",
+      "options": [
+        { "id": "a", "text": "function myFn() {}" },
+        { "id": "b", "text": "const myFn = () => {}" },
+        { "id": "c", "text": "def myFn() {}" },
+        { "id": "d", "text": "const myFn = function() {}" }
+      ],
+      "correctOptionIds": ["a", "b", "d"],
+      "explanation": "Funktionen können als Funktionsdeklaration, Arrow Function oder Funktionsausdruck definiert werden. `def` ist Python-Syntax."
+    },
+    {
+      "id": "js-q3",
+      "type": "flashcard",
+      "front": "Was ist der Unterschied zwischen `==` und `===` in JavaScript?",
+      "back": "`==` vergleicht Werte mit Typumwandlung (zum Beispiel ist `'5' == 5` wahr). `===` vergleicht Wert und Typ strikt (`'5' === 5` ist falsch). Bevorzuge `===`, um unerwartetes Verhalten zu vermeiden."
+    },
+    {
+      "id": "js-q4",
+      "type": "single",
+      "prompt": "Was gibt `Array.map()` zurück?",
+      "options": [
+        { "id": "a", "text": "Das Original-Array, verändert" },
+        { "id": "b", "text": "Ein neues Array mit den Ergebnissen einer Funktion für jedes Element" },
+        { "id": "c", "text": "undefined" },
+        { "id": "d", "text": "Einen Boolean, ob das Mapping erfolgreich war" }
+      ],
+      "correctOptionId": "b",
+      "explanation": "`Array.map()` erzeugt ein neues Array mit den Rückgabewerten der Callback-Funktion für jedes Element. Das Original-Array wird nicht verändert."
+    },
+    {
+      "id": "js-q5",
+      "type": "flashcard",
+      "front": "Was ist eine Closure in JavaScript?",
+      "back": "Eine Closure ist eine Funktion, die ihren umgebenden Gültigkeitsbereich mit einschließt und dadurch auch nach dem Ende der äußeren Funktion Zugriff auf deren Variablen behält. Closures ermöglichen Kapselung und Factory Functions."
+    }
+  ],
+  "studyPlan": {
+    "steps": [
+      {
+        "id": "step-1",
+        "title": "Tag 1: Variablen und Typen",
+        "description": "Verstehe, wie JavaScript mit Variablen und Datentypen umgeht.",
+        "tasks": [
+          { "id": "t1-1", "type": "custom", "title": "Lesen: var vs let vs const", "description": "Unterschiede im Scope verstehen" },
+          { "id": "t1-2", "type": "quiz", "questionIds": ["js-q1"], "title": "Quiz: Variablendeklarationen" },
+          { "id": "t1-3", "type": "notes", "title": "Notizen zu primitiven Typen schreiben" }
+        ]
+      },
+      {
+        "id": "step-2",
+        "title": "Tag 2: Funktionen",
+        "description": "Lerne verschiedene Arten kennen, Funktionen zu definieren und zu verwenden.",
+        "tasks": [
+          { "id": "t2-1", "type": "custom", "title": "Lesen: Funktionsdeklarationen vs Ausdrücke" },
+          { "id": "t2-2", "type": "quiz", "questionIds": ["js-q2"], "title": "Quiz: Funktionstypen" },
+          { "id": "t2-3", "type": "flashcards", "questionIds": ["js-q3"], "title": "Karteikarte: == vs ===" }
+        ]
+      },
+      {
+        "id": "step-3",
+        "title": "Tag 3: Arrays und Closures",
+        "description": "Arbeite mit Arrays und verstehe Closures.",
+        "tasks": [
+          { "id": "t3-1", "type": "quiz", "questionIds": ["js-q4"], "title": "Quiz: Array.map()" },
+          { "id": "t3-2", "type": "flashcards", "questionIds": ["js-q5"], "title": "Karteikarte: Closures" },
+          { "id": "t3-3", "type": "custom", "title": "Praxis: Schreibe 3 Funktionen mit Closures" }
+        ]
+      }
+    ]
+  }
+}

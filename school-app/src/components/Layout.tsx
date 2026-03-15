@@ -11,23 +11,13 @@ import {
   useColorModeValue,
   useDisclosure,
   Collapse,
+  ButtonGroup,
+  Button,
 } from '@chakra-ui/react';
 import NextLink from 'next/link';
 import { useRouter } from 'next/router';
+import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import StorageWarning from '@/src/components/StorageWarning';
-
-type NavItem = {
-  label: string;
-  href: string;
-};
-
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Home', href: '/' },
-  { label: 'Topics', href: '/topics' },
-  { label: 'Leaderboard', href: '/leaderboard' },
-  { label: 'Study Times', href: '/study-times' },
-  { label: 'Settings', href: '/settings' },
-];
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -35,9 +25,39 @@ type LayoutProps = {
 
 export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
+  const { language, setLanguage } = useLanguage();
+  const copy = useCopy();
   const bg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const { isOpen, onToggle } = useDisclosure();
+  const navItems = [
+    { label: copy.layout.nav.home, href: '/' },
+    { label: copy.layout.nav.topics, href: '/topics' },
+    { label: copy.layout.nav.leaderboard, href: '/leaderboard' },
+    { label: copy.layout.nav.studyTimes, href: '/study-times' },
+    { label: copy.layout.nav.settings, href: '/settings' },
+  ];
+
+  const languageToggle = (
+    <HStack spacing={2}>
+      <Text fontSize="sm" color="gray.500">
+        {copy.layout.languageLabel}
+      </Text>
+      <ButtonGroup isAttached size="sm" variant="outline">
+        {(['en', 'de'] as const).map((option) => (
+          <Button
+            key={option}
+            onClick={() => setLanguage(option)}
+            variant={language === option ? 'solid' : 'outline'}
+            colorScheme="teal"
+            aria-pressed={language === option}
+          >
+            {option.toUpperCase()}
+          </Button>
+        ))}
+      </ButtonGroup>
+    </HStack>
+  );
 
   return (
     <Box minH="100vh" bg={useColorModeValue('gray.50', 'gray.900')}>
@@ -57,35 +77,33 @@ export default function Layout({ children }: LayoutProps) {
             <NextLink href="/" passHref legacyBehavior>
               <Link _hover={{ textDecoration: 'none' }}>
                 <Text fontWeight="bold" fontSize="lg" color="brand.500">
-                  GroupLearn
+                  {copy.appName}
                 </Text>
               </Link>
             </NextLink>
 
             {/* Desktop nav */}
-            <HStack
-              as="ul"
-              spacing={{ base: 2, md: 6 }}
-              listStyleType="none"
-              display={{ base: 'none', md: 'flex' }}
-            >
-              {NAV_ITEMS.map((item) => {
-                const isActive = router.pathname === item.href;
-                return (
-                  <Box as="li" key={item.href}>
-                    <NextLink href={item.href} passHref legacyBehavior>
-                      <Link
-                        fontWeight={isActive ? 'semibold' : 'normal'}
-                        color={isActive ? 'brand.500' : 'gray.600'}
-                        _hover={{ color: 'brand.500', textDecoration: 'none' }}
-                        aria-current={isActive ? 'page' : undefined}
-                      >
-                        {item.label}
-                      </Link>
-                    </NextLink>
-                  </Box>
-                );
-              })}
+            <HStack spacing={6} display={{ base: 'none', md: 'flex' }}>
+              <HStack as="ul" spacing={{ base: 2, md: 6 }} listStyleType="none">
+                {navItems.map((item) => {
+                  const isActive = router.pathname === item.href;
+                  return (
+                    <Box as="li" key={item.href}>
+                      <NextLink href={item.href} passHref legacyBehavior>
+                        <Link
+                          fontWeight={isActive ? 'semibold' : 'normal'}
+                          color={isActive ? 'brand.500' : 'gray.600'}
+                          _hover={{ color: 'brand.500', textDecoration: 'none' }}
+                          aria-current={isActive ? 'page' : undefined}
+                        >
+                          {item.label}
+                        </Link>
+                      </NextLink>
+                    </Box>
+                  );
+                })}
+              </HStack>
+              {languageToggle}
             </HStack>
 
             {/* Mobile hamburger */}
@@ -93,7 +111,7 @@ export default function Layout({ children }: LayoutProps) {
               display={{ base: 'flex', md: 'none' }}
               onClick={onToggle}
               variant="ghost"
-              aria-label="Toggle navigation menu"
+              aria-label={copy.layout.mobileMenuLabel}
               data-testid="mobile-menu-btn"
               icon={
                 <Text fontSize="xl" lineHeight="1">
@@ -113,7 +131,10 @@ export default function Layout({ children }: LayoutProps) {
               display={{ base: 'flex', md: 'none' }}
               data-testid="mobile-nav"
             >
-              {NAV_ITEMS.map((item) => {
+              <Box w="100%" px={3} pb={3}>
+                {languageToggle}
+              </Box>
+              {navItems.map((item) => {
                 const isActive = router.pathname === item.href;
                 return (
                   <Box as="li" key={item.href} w="100%">

@@ -2,6 +2,10 @@
 // Content Schema Types
 // ============================
 
+export const SUPPORTED_LANGUAGES = ['en', 'de'] as const;
+
+export type LanguageCode = typeof SUPPORTED_LANGUAGES[number];
+
 export type Option = {
   id: string;
   text: string;
@@ -57,12 +61,15 @@ export type Topic = {
   studyPlan: StudyPlan;
 };
 
+export type TopicCatalogue = Record<LanguageCode, Topic[]>;
+
 // ============================
 // User Data / localStorage Types
 // ============================
 
 export type Settings = {
   mood: 'calm' | 'playful';
+  language: LanguageCode;
 };
 
 export type SelectedTopics = {
