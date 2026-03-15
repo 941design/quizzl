@@ -86,7 +86,7 @@ export default function LeaderboardPage() {
         <Heading as="h1" size="xl" mb={2}>
           {copy.leaderboard.heading}
         </Heading>
-        <Text color="gray.600" mb={6}>
+        <Text color="textMuted" mb={6}>
           {copy.leaderboard.description}
         </Text>
 
@@ -96,7 +96,7 @@ export default function LeaderboardPage() {
             <AlertDescription>
               {copy.leaderboard.noTopics}{' '}
               <NextLink href="/topics" passHref legacyBehavior>
-                <Button as="a" variant="link" colorScheme="teal" size="sm">
+                <Button as="a" variant="link" size="sm">
                   {copy.leaderboard.browseTopics}
                 </Button>
               </NextLink>
@@ -128,15 +128,15 @@ export default function LeaderboardPage() {
             {/* Stats row */}
             <HStack spacing={6} flexWrap="wrap" gap={3}>
               <Box>
-                <Text fontSize="sm" color="gray.500">
+                <Text fontSize="sm" color="textMuted">
                   {copy.leaderboard.totalPoints}
                 </Text>
-                <Text fontWeight="bold" fontSize="2xl" color="teal.600" data-testid="total-points">
+                <Text fontWeight="bold" fontSize="2xl" color="brand.600" data-testid="total-points">
                   {totalPoints}
                 </Text>
               </Box>
               <Box>
-                <Text fontSize="sm" color="gray.500">
+                <Text fontSize="sm" color="textMuted">
                   {copy.leaderboard.rank}
                 </Text>
                 <Text fontWeight="bold" fontSize="2xl" data-testid="rank-display">
@@ -144,25 +144,25 @@ export default function LeaderboardPage() {
                 </Text>
               </Box>
               <Box>
-                <Text fontSize="sm" color="gray.500">
+                <Text fontSize="sm" color="textMuted">
                   {copy.leaderboard.streak}
                 </Text>
                 <HStack spacing={1}>
                   <Text fontWeight="bold" fontSize="2xl" data-testid="streak-display">
                     {streak}
                   </Text>
-                  <Text fontSize="sm" color="gray.500">
+                  <Text fontSize="sm" color="textMuted">
                     {streak === 1 ? copy.leaderboard.streakDay : copy.leaderboard.streakDays}
                   </Text>
                   {streak > 0 && (
-                    <Badge colorScheme="orange" variant="solid" fontSize="xs">
+                    <Badge colorScheme="warning" variant="solid" fontSize="xs">
                       {copy.leaderboard.onARoll}
                     </Badge>
                   )}
                 </HStack>
               </Box>
               <Box>
-                <Text fontSize="sm" color="gray.500">
+                <Text fontSize="sm" color="textMuted">
                   {copy.leaderboard.topicsSelected}
                 </Text>
                 <Text fontWeight="bold" fontSize="2xl" data-testid="topics-selected">
@@ -174,7 +174,7 @@ export default function LeaderboardPage() {
         )}
 
         {!hydrated && (
-          <Box py={8} textAlign="center" color="gray.400">
+          <Box py={8} textAlign="center" color="textMuted">
             <Text>{copy.leaderboard.loading}</Text>
           </Box>
         )}

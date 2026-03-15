@@ -41,10 +41,10 @@ export default function SingleChoiceQuestion({
           {question.options.map((option) => {
             const isSelected = selectedOptionId === option.id;
             const isCorrectOption = option.id === question.correctOptionId;
-            let bg = 'white';
+            let bg = 'surfaceBg';
             if (showFeedback && selectedOptionId !== null) {
-              if (isCorrectOption) bg = 'green.50';
-              else if (isSelected && !isCorrectOption) bg = 'red.50';
+              if (isCorrectOption) bg = 'successBg';
+              else if (isSelected && !isCorrectOption) bg = 'dangerBg';
             }
 
             return (
@@ -56,13 +56,13 @@ export default function SingleChoiceQuestion({
                 borderColor={
                   showFeedback && selectedOptionId !== null
                     ? isCorrectOption
-                      ? 'green.300'
+                      ? 'successBorder'
                       : isSelected
-                      ? 'red.300'
-                      : 'gray.200'
+                      ? 'dangerBorder'
+                      : 'borderSubtle'
                     : isSelected
-                    ? 'teal.400'
-                    : 'gray.200'
+                    ? 'brand.400'
+                    : 'borderSubtle'
                 }
                 bg={bg}
                 transition="all 0.15s"

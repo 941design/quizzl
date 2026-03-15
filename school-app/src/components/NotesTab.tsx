@@ -47,10 +47,10 @@ export default function NotesTab({ slug, notesHtml, onUpdate }: NotesTabProps) {
           fontSize="xs"
           color={
             saveStatus === 'saving'
-              ? 'orange.500'
+              ? 'warningText'
               : saveStatus === 'saved'
-              ? 'green.500'
-              : 'gray.400'
+              ? 'successText'
+              : 'textMuted'
           }
           data-testid="save-status"
         >
@@ -64,7 +64,7 @@ export default function NotesTab({ slug, notesHtml, onUpdate }: NotesTabProps) {
 
       <Box
         borderWidth="1px"
-        borderColor="gray.200"
+        borderColor="borderSubtle"
         borderRadius="lg"
         overflow="hidden"
         data-testid="notes-editor"
@@ -76,7 +76,7 @@ export default function NotesTab({ slug, notesHtml, onUpdate }: NotesTabProps) {
         />
       </Box>
 
-      <Text fontSize="xs" color="gray.400" mt={2}>
+      <Text fontSize="xs" color="textMuted" mt={2}>
         {copy.notes.autoSave}
       </Text>
     </Box>

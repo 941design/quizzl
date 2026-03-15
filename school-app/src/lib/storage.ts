@@ -6,6 +6,7 @@ import type {
   TopicProgress,
 } from '@/src/types';
 import { STORAGE_KEYS } from '@/src/types';
+import { DEFAULT_THEME_NAME, normalizeThemeName } from '@/src/lib/theme';
 
 // ============================
 // localStorage availability check
@@ -56,18 +57,23 @@ function writeItem<T>(key: string, value: T): void {
 // Settings
 // ============================
 
-const DEFAULT_SETTINGS: Settings = { mood: 'calm', language: 'en' };
+const DEFAULT_SETTINGS: Settings = { theme: DEFAULT_THEME_NAME, language: 'en' };
 
 export function readSettings(): Settings {
   const stored = readItem<Partial<Settings> | null>(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
+  const storedTheme = normalizeThemeName(stored?.theme ?? stored?.mood);
   return {
     ...DEFAULT_SETTINGS,
     ...(stored ?? {}),
+    theme: storedTheme,
   };
 }
 
 export function writeSettings(settings: Settings): void {
-  writeItem(STORAGE_KEYS.settings, settings);
+  writeItem(STORAGE_KEYS.settings, {
+    theme: normalizeThemeName(settings.theme ?? settings.mood),
+    language: settings.language,
+  });
 }
 
 // ============================

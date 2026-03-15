@@ -44,11 +44,11 @@ export default function TopicsPage({ topicsByLanguage }: Props) {
         <Heading as="h1" size="xl" mb={2}>
           {copy.topics.heading}
         </Heading>
-        <Text color="gray.600" mb={6}>
+        <Text color="textMuted" mb={6}>
           {copy.topics.description}
         </Text>
 
-        <Tabs colorScheme="teal" variant="enclosed">
+        <Tabs variant="enclosed">
           <TabList>
             <Tab data-testid="tab-all-topics">{copy.topics.allTopics(topics.length)}</Tab>
             <Tab data-testid="tab-my-topics">{copy.topics.myTopics(hydrated ? selectedSlugs.length : undefined)}</Tab>
@@ -73,16 +73,15 @@ export default function TopicsPage({ topicsByLanguage }: Props) {
             <TabPanel px={0} pt={6}>
               {!hydrated ? null : myTopics.length === 0 ? (
                 <VStack spacing={4} py={12} textAlign="center">
-                  <Text fontSize="lg" color="gray.500">
+                  <Text fontSize="lg" color="textMuted">
                     {copy.topics.emptyHeading}
                   </Text>
-                  <Text color="gray.400">
+                  <Text color="textMuted">
                     {copy.topics.emptyBody}
                   </Text>
                   <NextLink href="/topics" passHref legacyBehavior>
                     <Button
                       as="a"
-                      colorScheme="teal"
                       data-testid="pick-topics-cta"
                     >
                       {copy.topics.browseAll}

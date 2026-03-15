@@ -39,10 +39,10 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
   if (questions.length === 0) {
     return (
       <Box py={8} textAlign="center">
-        <Text color="gray.500" fontSize="lg">
+        <Text color="textMuted" fontSize="lg">
           {copy.quiz.emptyHeading}
         </Text>
-        <Text color="gray.400" mt={2}>
+        <Text color="textMuted" mt={2}>
           {copy.quiz.emptyBody}
         </Text>
       </Box>
@@ -58,12 +58,12 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
   if (complete) {
     return (
       <Box>
-        <Box p={6} bg="teal.50" borderRadius="lg" textAlign="center" mb={6}>
+        <Box p={6} bg="surfaceMutedBg" borderRadius="lg" textAlign="center" mb={6} borderWidth="1px" borderColor="borderSubtle">
           <Heading size="lg" mb={2}>{copy.quiz.completeHeading}</Heading>
-          <Text fontSize="xl" fontWeight="bold" color="teal.600">
+          <Text fontSize="xl" fontWeight="bold" color="brand.600">
             {totalPoints} / {maxPoints} points
           </Text>
-          <Text color="gray.600" mt={1}>
+          <Text color="textMuted" mt={1}>
             {copy.quiz.answeredSummary(questions.length)}
           </Text>
         </Box>
@@ -73,12 +73,12 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
             const answer = answers[q.id];
             const pts = answer ? scoreQuestion(q, answer) : 0;
             return (
-              <HStack key={q.id} justify="space-between" w="100%" p={3} bg="gray.50" borderRadius="md">
+              <HStack key={q.id} justify="space-between" w="100%" p={3} bg="surfaceRaisedBg" borderRadius="md" borderWidth="1px" borderColor="borderSubtle">
                 <Text fontSize="sm" noOfLines={1} flex="1">
                   {idx + 1}.{' '}
                   {q.type === 'flashcard' ? q.front : q.prompt}
                 </Text>
-                <Badge colorScheme={pts > 0 ? 'green' : 'gray'}>
+                <Badge colorScheme={pts > 0 ? 'success' : 'neutral'}>
                   {pts} {copy.leaderboard.pointsUnit}
                 </Badge>
               </HStack>
@@ -87,7 +87,6 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
         </VStack>
 
         <Button
-          colorScheme="teal"
           onClick={() => {
             onRetry();
             setCurrentIndex(0);
@@ -126,16 +125,15 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
       {/* Progress Header */}
       <Box mb={6}>
         <HStack justify="space-between" mb={2}>
-          <Text fontSize="sm" color="gray.600">
+          <Text fontSize="sm" color="textMuted">
             {copy.quiz.questionProgress(currentIndex + 1, questions.length)}
           </Text>
-          <Text fontSize="sm" color="gray.600">
+          <Text fontSize="sm" color="textMuted">
             {copy.quiz.scoreProgress(answered, questions.length, totalPoints)}
           </Text>
         </HStack>
         <Progress
           value={(answered / questions.length) * 100}
-          colorScheme="teal"
           borderRadius="full"
           size="sm"
           data-testid="quiz-progress"
@@ -144,7 +142,6 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
 
       {/* Question Type Badge */}
       <Badge
-        colorScheme="teal"
         mb={4}
         textTransform="uppercase"
         fontSize="xs"
@@ -159,10 +156,11 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
       {/* Question Card */}
       <Box
         p={6}
-        bg="white"
+        bg="surfaceBg"
         borderRadius="lg"
         shadow="sm"
         borderWidth="1px"
+        borderColor="borderSubtle"
         mb={6}
         data-testid="question-card"
       >
@@ -214,7 +212,6 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
         </Button>
 
         <Button
-          colorScheme="teal"
           onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
           isDisabled={currentIndex === questions.length - 1}
           data-testid="next-question-btn"

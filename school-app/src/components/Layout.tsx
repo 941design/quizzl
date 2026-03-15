@@ -8,7 +8,6 @@ import {
   Text,
   Container,
   IconButton,
-  useColorModeValue,
   useDisclosure,
   Collapse,
   ButtonGroup,
@@ -27,8 +26,6 @@ export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
   const { language, setLanguage } = useLanguage();
   const copy = useCopy();
-  const bg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
   const { isOpen, onToggle } = useDisclosure();
   const navItems = [
     { label: copy.layout.nav.home, href: '/' },
@@ -40,7 +37,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const languageToggle = (
     <HStack spacing={2}>
-      <Text fontSize="sm" color="gray.500">
+      <Text fontSize="sm" color="textMuted">
         {copy.layout.languageLabel}
       </Text>
       <ButtonGroup isAttached size="sm" variant="outline">
@@ -49,7 +46,6 @@ export default function Layout({ children }: LayoutProps) {
             key={option}
             onClick={() => setLanguage(option)}
             variant={language === option ? 'solid' : 'outline'}
-            colorScheme="teal"
             aria-pressed={language === option}
           >
             {option.toUpperCase()}
@@ -60,13 +56,13 @@ export default function Layout({ children }: LayoutProps) {
   );
 
   return (
-    <Box minH="100vh" bg={useColorModeValue('gray.50', 'gray.900')}>
+    <Box minH="100vh" bg="appBg">
       {/* Navigation Bar */}
       <Box
         as="nav"
-        bg={bg}
+        bg="surfaceBg"
         borderBottomWidth="1px"
-        borderBottomColor={borderColor}
+        borderBottomColor="borderSubtle"
         position="sticky"
         top={0}
         zIndex={10}
@@ -92,7 +88,7 @@ export default function Layout({ children }: LayoutProps) {
                       <NextLink href={item.href} passHref legacyBehavior>
                         <Link
                           fontWeight={isActive ? 'semibold' : 'normal'}
-                          color={isActive ? 'brand.500' : 'gray.600'}
+                          color={isActive ? 'brand.500' : 'textMuted'}
                           _hover={{ color: 'brand.500', textDecoration: 'none' }}
                           aria-current={isActive ? 'page' : undefined}
                         >
@@ -145,9 +141,9 @@ export default function Layout({ children }: LayoutProps) {
                         px={3}
                         borderRadius="md"
                         fontWeight={isActive ? 'semibold' : 'normal'}
-                        color={isActive ? 'brand.500' : 'gray.600'}
-                        bg={isActive ? 'gray.100' : 'transparent'}
-                        _hover={{ bg: 'gray.100', textDecoration: 'none' }}
+                        color={isActive ? 'brand.500' : 'textMuted'}
+                        bg={isActive ? 'surfaceMutedBg' : 'transparent'}
+                        _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
                         aria-current={isActive ? 'page' : undefined}
                         onClick={onToggle}
                       >

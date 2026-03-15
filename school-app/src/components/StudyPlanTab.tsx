@@ -54,7 +54,7 @@ function StudyStep({ step, completedTaskIds, onToggleTask, defaultExpanded = tru
   return (
     <Box
       borderWidth="1px"
-      borderColor={isComplete ? 'teal.300' : 'gray.200'}
+      borderColor={isComplete ? 'brand.300' : 'borderSubtle'}
       borderRadius="lg"
       overflow="hidden"
       transition="border-color 0.2s"
@@ -70,29 +70,29 @@ function StudyStep({ step, completedTaskIds, onToggleTask, defaultExpanded = tru
         justifyContent="space-between"
         aria-expanded={expanded}
         aria-controls={`step-content-${step.id}`}
-        bg={isComplete ? 'teal.50' : 'gray.50'}
-        _hover={{ bg: isComplete ? 'teal.100' : 'gray.100' }}
+        bg={isComplete ? 'surfaceMutedBg' : 'surfaceRaisedBg'}
+        _hover={{ bg: 'surfaceMutedBg' }}
       >
         <HStack flex="1" spacing={3}>
           {isComplete && (
-            <Badge colorScheme="teal" variant="solid" fontSize="xs">
+            <Badge variant="solid" fontSize="xs">
               {copy.studyPlan.done}
             </Badge>
           )}
           <Box textAlign="left">
             <Text fontWeight="semibold">{step.title}</Text>
             {step.description && (
-              <Text fontSize="sm" color="gray.500" fontWeight="normal">
+              <Text fontSize="sm" color="textMuted" fontWeight="normal">
                 {step.description}
               </Text>
             )}
           </Box>
         </HStack>
         <HStack spacing={3} ml={4}>
-          <Text fontSize="sm" color="gray.600" flexShrink={0}>
+          <Text fontSize="sm" color="textMuted" flexShrink={0}>
             {completedCount}/{totalTasks}
           </Text>
-          <Text fontSize="xs" color="gray.400">
+          <Text fontSize="xs" color="textMuted">
             {expanded ? '▲' : '▼'}
           </Text>
         </HStack>
@@ -102,7 +102,6 @@ function StudyStep({ step, completedTaskIds, onToggleTask, defaultExpanded = tru
       <Progress
         value={progressPercent}
         size="xs"
-        colorScheme="teal"
         borderRadius={0}
       />
 
@@ -116,21 +115,20 @@ function StudyStep({ step, completedTaskIds, onToggleTask, defaultExpanded = tru
                 key={task.id}
                 p={3}
                 spacing={3}
-                bg={isTaskDone ? 'teal.50' : 'white'}
+                bg={isTaskDone ? 'surfaceMutedBg' : 'surfaceBg'}
                 transition="background-color 0.15s"
                 data-testid={`task-item-${task.id}`}
               >
                 <Checkbox
                   isChecked={isTaskDone}
                   onChange={() => onToggleTask(task.id)}
-                  colorScheme="teal"
                   aria-label={copy.studyPlan.completeTask(task.title)}
                   data-testid={`task-checkbox-${task.id}`}
                 />
                 <Text
                   fontSize="sm"
                   textDecoration={isTaskDone ? 'line-through' : 'none'}
-                  color={isTaskDone ? 'gray.400' : 'gray.700'}
+                  color={isTaskDone ? 'textMuted' : 'textStrong'}
                   flex="1"
                 >
                   {task.title}
@@ -153,10 +151,10 @@ export default function StudyPlanTab({
   if (!studyPlan || studyPlan.steps.length === 0) {
     return (
       <Box py={8} textAlign="center" data-testid="study-plan-empty">
-        <Text color="gray.500" fontSize="lg">
+        <Text color="textMuted" fontSize="lg">
           {copy.studyPlan.emptyHeading}
         </Text>
-        <Text color="gray.400" mt={2}>
+        <Text color="textMuted" mt={2}>
           {copy.studyPlan.emptyBody}
         </Text>
       </Box>
@@ -171,16 +169,15 @@ export default function StudyPlanTab({
     <Box data-testid="study-plan-container">
       {/* Overall progress */}
       <HStack justify="space-between" mb={2}>
-        <Text fontSize="sm" color="gray.600">
+        <Text fontSize="sm" color="textMuted">
           {copy.studyPlan.overallProgress}
         </Text>
-        <Text fontSize="sm" fontWeight="semibold" color="teal.600">
+        <Text fontSize="sm" fontWeight="semibold" color="brand.600">
           {copy.studyPlan.tasksCompleted(totalCompleted, totalTasks)}
         </Text>
       </HStack>
       <Progress
         value={(totalCompleted / Math.max(totalTasks, 1)) * 100}
-        colorScheme="teal"
         borderRadius="full"
         size="sm"
         mb={6}

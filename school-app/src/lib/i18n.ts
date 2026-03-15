@@ -60,14 +60,18 @@ type Copy = {
     resetSuccess: string;
     languageHeading: string;
     languageDescription: string;
-    moodHeading: string;
-    moodDescription: string;
+    themeHeading: string;
+    themeDescription: string;
     calm: string;
     playful: string;
+    lego: string;
+    minecraft: string;
     active: string;
     currentTheme: string;
     calmDescription: string;
     playfulDescription: string;
+    legoDescription: string;
+    minecraftDescription: string;
     resetHeading: string;
     resetDescription: string;
     resetButton: string;
@@ -238,14 +242,18 @@ const copy: Record<LanguageCode, Copy> = {
       resetSuccess: 'All data has been reset. Start fresh!',
       languageHeading: 'Language',
       languageDescription: 'Choose which language the app and content catalogue should use.',
-      moodHeading: 'Mood Theme',
-      moodDescription: 'Choose a visual style that matches your study mood.',
+      themeHeading: 'Theme',
+      themeDescription: 'Choose the visual theme for the app.',
       calm: 'Calm',
       playful: 'Playful',
+      lego: 'Lego',
+      minecraft: 'Minecraft',
       active: 'Active',
       currentTheme: 'Current theme',
       calmDescription: 'Muted blues and greens, minimal animations.',
       playfulDescription: 'Warm oranges and purples, rounded corners.',
+      legoDescription: 'Bold brick colors, toy-like contrast, and a patterned background.',
+      minecraftDescription: 'Earthy block tones, squared surfaces, and a pixel-grid backdrop.',
       resetHeading: 'Reset All Data',
       resetDescription:
         'Clear all your progress, notes, study sessions, and settings. This cannot be undone.',
@@ -408,14 +416,18 @@ const copy: Record<LanguageCode, Copy> = {
       resetSuccess: 'Alle Daten wurden zurückgesetzt. Du kannst neu starten.',
       languageHeading: 'Sprache',
       languageDescription: 'Lege fest, in welcher Sprache App und Inhaltskatalog angezeigt werden.',
-      moodHeading: 'Stilmodus',
-      moodDescription: 'Wähle einen visuellen Stil, der zu deiner Lernstimmung passt.',
+      themeHeading: 'Design',
+      themeDescription: 'Wähle das visuelle Design der App.',
       calm: 'Ruhig',
       playful: 'Verspielt',
+      lego: 'Lego',
+      minecraft: 'Minecraft',
       active: 'Aktiv',
       currentTheme: 'Aktuelles Design',
       calmDescription: 'Gedämpfte Blau- und Grüntöne, minimale Animationen.',
       playfulDescription: 'Warme Orange- und Lilatöne, runde Ecken.',
+      legoDescription: 'Kräftige Steinfarben, spielzeughafte Kontraste und ein gemusterter Hintergrund.',
+      minecraftDescription: 'Erdige Blockfarben, eckige Flächen und ein Pixelraster im Hintergrund.',
       resetHeading: 'Alle Daten zurücksetzen',
       resetDescription:
         'Lösche deinen Fortschritt, Notizen, Lernsitzungen und Einstellungen. Das kann nicht rückgängig gemacht werden.',

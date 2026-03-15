@@ -55,11 +55,11 @@ export default function TopicPage({ topicsByLanguage }: Props) {
         </Head>
         <Box textAlign="center" py={16}>
           <Heading size="lg" mb={4}>{copy.topicPage.notFoundHeading}</Heading>
-          <Text color="gray.600" mb={6}>
+          <Text color="textMuted" mb={6}>
             {copy.topicPage.notFoundBody}
           </Text>
           <NextLink href="/topics" passHref legacyBehavior>
-            <Button as="a" colorScheme="teal">{copy.topicPage.browseTopics}</Button>
+            <Button as="a">{copy.topicPage.browseTopics}</Button>
           </NextLink>
         </Box>
       </>
@@ -83,7 +83,7 @@ export default function TopicPage({ topicsByLanguage }: Props) {
 
           <HStack mb={2} flexWrap="wrap" gap={2}>
             {topic.tags?.map((tag) => (
-              <Badge key={tag} colorScheme="teal" variant="subtle">
+              <Badge key={tag} variant="subtle">
                 {tag}
               </Badge>
             ))}
@@ -91,7 +91,7 @@ export default function TopicPage({ topicsByLanguage }: Props) {
           <Heading as="h1" size="xl" mb={2}>
             {topic.title}
           </Heading>
-          <Text color="gray.600" mb={4}>
+          <Text color="textMuted" mb={4}>
             {topic.description}
           </Text>
 
@@ -99,21 +99,21 @@ export default function TopicPage({ topicsByLanguage }: Props) {
           <HStack
             spacing={6}
             p={3}
-            bg="gray.50"
+            bg="surfaceMutedBg"
             borderRadius="md"
             flexWrap="wrap"
             gap={3}
             data-testid="topic-stats"
           >
-            <Text fontSize="sm" color="gray.600">
+            <Text fontSize="sm" color="textMuted">
               {copy.topicPage.quizLabel}:{' '}
               <Text as="span" fontWeight="semibold">
                 {hydrated ? copy.topicPage.answeredStat(answered, topic.quiz.length) : '—'}
               </Text>
             </Text>
-            <Text fontSize="sm" color="gray.600">
+            <Text fontSize="sm" color="textMuted">
               {copy.topicPage.pointsLabel}:{' '}
-              <Text as="span" fontWeight="semibold" color="teal.600">
+              <Text as="span" fontWeight="semibold" color="brand.600">
                 {hydrated ? `${totalPoints}/${maxPoints}` : '—'}
               </Text>
             </Text>
@@ -121,7 +121,7 @@ export default function TopicPage({ topicsByLanguage }: Props) {
         </Box>
 
         {/* Tabs */}
-        <Tabs colorScheme="teal" variant="line">
+        <Tabs variant="line">
           <TabList>
             <Tab data-testid="tab-quiz">{copy.topicPage.tabs.quiz}</Tab>
             <Tab data-testid="tab-notes">{copy.topicPage.tabs.notes}</Tab>

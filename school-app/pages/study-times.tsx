@@ -37,7 +37,7 @@ export default function StudyTimesPage({ topicsByLanguage }: Props) {
         <Heading as="h1" size="xl" mb={2}>
           {copy.studyTimes.heading}
         </Heading>
-        <Text color="gray.600" mb={6}>
+        <Text color="textMuted" mb={6}>
           {copy.studyTimes.description}
         </Text>
 
@@ -60,7 +60,7 @@ export default function StudyTimesPage({ topicsByLanguage }: Props) {
             </Box>
           </VStack>
         ) : (
-          <Box py={8} textAlign="center" color="gray.400">
+          <Box py={8} textAlign="center" color="textMuted">
             <Text>{copy.studyTimes.loading}</Text>
           </Box>
         )}

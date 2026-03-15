@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
+const isProduction = process.env.NODE_ENV === 'production';
+
 const nextConfig = {
   output: 'export',
-  basePath: '/group-learn',
+  basePath: isProduction ? '/group-learn' : '',
   trailingSlash: true,
   reactStrictMode: true,
 };

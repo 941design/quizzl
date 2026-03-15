@@ -33,13 +33,13 @@ export default function FlashcardQuestion({
       {/* Front */}
       <Box
         p={6}
-        bg="teal.50"
+        bg="surfaceMutedBg"
         borderRadius="lg"
         borderWidth="1px"
-        borderColor="teal.200"
+        borderColor="borderSubtle"
         data-testid="flashcard-front"
       >
-        <Text fontSize="sm" fontWeight="semibold" color="teal.600" mb={2}>
+        <Text fontSize="sm" fontWeight="semibold" color="brand.600" mb={2}>
           {copy.quiz.flashcardQuestion}
         </Text>
         <Text fontWeight="semibold" fontSize="lg">
@@ -50,7 +50,6 @@ export default function FlashcardQuestion({
       {/* Reveal button */}
       {!revealed && knewIt === null && (
         <Button
-          colorScheme="teal"
           variant="outline"
           onClick={() => setRevealed(true)}
           data-testid="reveal-answer-btn"
@@ -63,13 +62,13 @@ export default function FlashcardQuestion({
       <Collapse in={revealed} animateOpacity>
         <Box
           p={6}
-          bg="gray.50"
+          bg="surfaceRaisedBg"
           borderRadius="lg"
           borderWidth="1px"
-          borderColor="gray.200"
+          borderColor="borderSubtle"
           data-testid="flashcard-back"
         >
-          <Text fontSize="sm" fontWeight="semibold" color="gray.600" mb={2}>
+          <Text fontSize="sm" fontWeight="semibold" color="textMuted" mb={2}>
             {copy.quiz.flashcardAnswer}
           </Text>
           <Text>{question.back}</Text>
@@ -80,7 +79,7 @@ export default function FlashcardQuestion({
       {revealed && knewIt === null && (
         <HStack spacing={4} justify="center">
           <Button
-            colorScheme="red"
+            colorScheme="danger"
             variant="outline"
             onClick={() => onAnswer(false)}
             data-testid="didnt-know-btn"
@@ -88,7 +87,7 @@ export default function FlashcardQuestion({
             {copy.quiz.didntKnow}
           </Button>
           <Button
-            colorScheme="green"
+            colorScheme="success"
             onClick={() => onAnswer(true)}
             data-testid="knew-it-btn"
           >
@@ -102,14 +101,14 @@ export default function FlashcardQuestion({
         <Box
           p={3}
           borderRadius="md"
-          bg={knewIt ? 'green.50' : 'red.50'}
+          bg={knewIt ? 'successBg' : 'dangerBg'}
           borderWidth="1px"
-          borderColor={knewIt ? 'green.200' : 'red.200'}
+          borderColor={knewIt ? 'successBorder' : 'dangerBorder'}
           data-testid="question-feedback"
         >
           <Text
             fontWeight="semibold"
-            color={knewIt ? 'green.700' : 'red.700'}
+            color={knewIt ? 'successText' : 'dangerText'}
           >
             {knewIt ? copy.quiz.knewItFeedback : copy.quiz.didntKnowFeedback}
           </Text>

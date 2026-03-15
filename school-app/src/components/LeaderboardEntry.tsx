@@ -29,8 +29,8 @@ export default function LeaderboardEntry({
       p={4}
       borderWidth="1px"
       borderRadius="lg"
-      borderColor={isYou ? 'teal.300' : 'gray.200'}
-      bg={isYou ? 'teal.50' : 'white'}
+      borderColor={isYou ? 'brand.300' : 'borderSubtle'}
+      bg={isYou ? 'surfaceMutedBg' : 'surfaceBg'}
       data-testid={`leaderboard-entry-${rank}`}
     >
       {/* Rank badge */}
@@ -38,13 +38,13 @@ export default function LeaderboardEntry({
         w={8}
         h={8}
         borderRadius="full"
-        bg={rank === 1 ? 'yellow.400' : 'gray.200'}
+        bg={rank === 1 ? 'warning.300' : 'neutral.200'}
         display="flex"
         alignItems="center"
         justifyContent="center"
         flexShrink={0}
       >
-        <Text fontSize="sm" fontWeight="bold" color={rank === 1 ? 'yellow.800' : 'gray.600'}>
+        <Text fontSize="sm" fontWeight="bold" color={rank === 1 ? 'warning.900' : 'textMuted'}>
           {rank}
         </Text>
       </Box>
@@ -53,17 +53,17 @@ export default function LeaderboardEntry({
       <Avatar
         size="sm"
         name={label}
-        bg={isYou ? 'teal.400' : 'gray.400'}
+        bg={isYou ? 'brand.400' : 'neutral.400'}
         color="white"
       />
 
       {/* Label */}
       <Box flex="1">
-        <Text fontWeight={isYou ? 'bold' : 'semibold'} color={isYou ? 'teal.700' : 'gray.700'}>
+        <Text fontWeight={isYou ? 'bold' : 'semibold'} color={isYou ? 'brand.700' : 'textStrong'}>
           {label}
         </Text>
         {isYou && (
-          <Badge colorScheme="teal" fontSize="xs" variant="subtle">
+          <Badge fontSize="xs" variant="subtle">
             {copy.leaderboard.youBadge}
           </Badge>
         )}
@@ -71,10 +71,10 @@ export default function LeaderboardEntry({
 
       {/* Points */}
       <Box textAlign="right">
-        <Text fontWeight="bold" fontSize="lg" color={isYou ? 'teal.600' : 'gray.700'} data-testid={`entry-points-${rank}`}>
+        <Text fontWeight="bold" fontSize="lg" color={isYou ? 'brand.600' : 'textStrong'} data-testid={`entry-points-${rank}`}>
           {totalPoints}
         </Text>
-        <Text fontSize="xs" color="gray.500">
+        <Text fontSize="xs" color="textMuted">
           {copy.leaderboard.pointsUnit}
         </Text>
       </Box>

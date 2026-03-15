@@ -24,13 +24,13 @@ export default function TopicCard({ topic, isSelected, onToggle }: TopicCardProp
   return (
     <Box
       p={5}
-      bg="white"
+      bg="surfaceBg"
       borderRadius="lg"
       shadow="sm"
       borderWidth="2px"
-      borderColor={isSelected ? 'teal.400' : 'gray.200'}
+      borderColor={isSelected ? 'brand.400' : 'borderSubtle'}
       transition="border-color 0.2s, box-shadow 0.2s"
-      _hover={{ shadow: 'md', borderColor: isSelected ? 'teal.500' : 'teal.200' }}
+      _hover={{ shadow: 'md', borderColor: isSelected ? 'brand.500' : 'brand.200' }}
       data-testid={`topic-card-${topic.slug}`}
     >
       <Flex direction="column" h="100%" gap={3}>
@@ -38,13 +38,13 @@ export default function TopicCard({ topic, isSelected, onToggle }: TopicCardProp
           <Heading size="md" mb={1}>
             {topic.title}
           </Heading>
-          <Text color="gray.600" fontSize="sm" mb={3}>
+          <Text color="textMuted" fontSize="sm" mb={3}>
             {topic.description}
           </Text>
           {topic.tags && topic.tags.length > 0 && (
             <HStack flexWrap="wrap" gap={1}>
               {topic.tags.map((tag) => (
-                <Tag key={tag} size="sm" colorScheme="teal" variant="subtle">
+                <Tag key={tag} size="sm" variant="subtle">
                   {tag}
                 </Tag>
               ))}
@@ -56,7 +56,6 @@ export default function TopicCard({ topic, isSelected, onToggle }: TopicCardProp
           <Button
             size="sm"
             variant={isSelected ? 'outline' : 'solid'}
-            colorScheme="teal"
             onClick={() => onToggle(topic.slug)}
             aria-pressed={isSelected}
             data-testid={`toggle-topic-${topic.slug}`}
@@ -66,7 +65,7 @@ export default function TopicCard({ topic, isSelected, onToggle }: TopicCardProp
 
           {isSelected && (
             <NextLink href={`/topic/${topic.slug}`} passHref legacyBehavior>
-              <Button as="a" size="sm" variant="ghost" colorScheme="teal">
+              <Button as="a" size="sm" variant="ghost">
                 {copy.topics.studyNow} →
               </Button>
             </NextLink>

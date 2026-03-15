@@ -2,10 +2,10 @@ import { ChakraProvider } from '@chakra-ui/react';
 import type { AppProps } from 'next/app';
 import Layout from '@/src/components/Layout';
 import { LanguageProvider } from '@/src/context/LanguageContext';
-import { useMoodTheme } from '@/src/hooks/useMoodTheme';
+import { AppThemeProvider, useAppTheme } from '@/src/hooks/useMoodTheme';
 
-export default function App({ Component, pageProps }: AppProps) {
-  const { activeTheme } = useMoodTheme();
+function AppShell({ Component, pageProps }: AppProps) {
+  const { activeTheme } = useAppTheme();
 
   return (
     <ChakraProvider theme={activeTheme}>
@@ -15,5 +15,13 @@ export default function App({ Component, pageProps }: AppProps) {
         </Layout>
       </LanguageProvider>
     </ChakraProvider>
+  );
+}
+
+export default function App(props: AppProps) {
+  return (
+    <AppThemeProvider>
+      <AppShell {...props} />
+    </AppThemeProvider>
   );
 }

@@ -51,9 +51,9 @@ export default function NotesEditorClient({
       {/* Toolbar */}
       <Box
         p={2}
-        bg="gray.50"
+        bg="surfaceMutedBg"
         borderBottomWidth="1px"
-        borderColor="gray.200"
+        borderColor="borderSubtle"
         data-testid="editor-toolbar"
       >
         <HStack spacing={1} flexWrap="wrap">
@@ -178,10 +178,10 @@ export default function NotesEditorClient({
             '& h2': { fontSize: '1.25rem', fontWeight: 'semibold', marginBottom: '0.5rem' },
             '& ul': { paddingLeft: '1.5rem', listStyleType: 'disc' },
             '& ol': { paddingLeft: '1.5rem', listStyleType: 'decimal' },
-            '& a': { color: 'teal.500', textDecoration: 'underline' },
+            '& a': { color: 'brand.500', textDecoration: 'underline' },
             '& p.is-editor-empty:first-child::before': {
               content: '"Start writing your notes here..."',
-              color: 'gray.400',
+              color: 'textMuted',
               pointerEvents: 'none',
               float: 'left',
               height: 0,

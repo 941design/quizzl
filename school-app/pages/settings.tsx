@@ -22,13 +22,14 @@ import {
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import { useCopy, useLanguage } from '@/src/context/LanguageContext';
-import { useMoodTheme } from '@/src/hooks/useMoodTheme';
+import { useAppTheme } from '@/src/hooks/useMoodTheme';
 import { resetAllData } from '@/src/lib/storage';
+import { APP_THEMES } from '@/src/lib/theme';
 
 export default function SettingsPage() {
   const { language, setLanguage } = useLanguage();
   const copy = useCopy();
-  const { mood, setTheme } = useMoodTheme();
+  const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [resetDone, setResetDone] = useState(false);
 
@@ -47,7 +48,7 @@ export default function SettingsPage() {
         <Heading as="h1" size="xl" mb={2}>
           {copy.settings.heading}
         </Heading>
-        <Text color="gray.600" mb={6}>
+        <Text color="textMuted" mb={6}>
           {copy.settings.description}
         </Text>
 
@@ -63,7 +64,7 @@ export default function SettingsPage() {
             <Heading as="h2" size="md" mb={1}>
               {copy.settings.languageHeading}
             </Heading>
-            <Text fontSize="sm" color="gray.500" mb={4}>
+            <Text fontSize="sm" color="textMuted" mb={4}>
               {copy.settings.languageDescription}
             </Text>
 
@@ -72,13 +73,12 @@ export default function SettingsPage() {
                 <Button
                   key={option}
                   variant={language === option ? 'solid' : 'outline'}
-                  colorScheme="teal"
                   onClick={() => setLanguage(option)}
                   size="lg"
                 >
                   {copy.languageNames[option]}
                   {language === option && (
-                    <Badge colorScheme="teal" ml={2} fontSize="xs">
+                    <Badge ml={2} fontSize="xs">
                       {copy.settings.active}
                     </Badge>
                   )}
@@ -92,57 +92,56 @@ export default function SettingsPage() {
           {/* Mood Theme Section */}
           <Box>
             <Heading as="h2" size="md" mb={1}>
-              {copy.settings.moodHeading}
+              {copy.settings.themeHeading}
             </Heading>
-            <Text fontSize="sm" color="gray.500" mb={4}>
-              {copy.settings.moodDescription}
+            <Text fontSize="sm" color="textMuted" mb={4}>
+              {copy.settings.themeDescription}
             </Text>
 
             <HStack spacing={4} flexWrap="wrap">
-              <Button
-                variant={mood === 'calm' ? 'solid' : 'outline'}
-                colorScheme="teal"
-                onClick={() => setTheme('calm')}
-                data-testid="theme-calm-btn"
-                size="lg"
-                leftIcon={mood === 'calm' ? <span>✓</span> : undefined}
-              >
-                {copy.settings.calm}
-                {mood === 'calm' && (
-                  <Badge colorScheme="teal" ml={2} fontSize="xs">
-                    {copy.settings.active}
-                  </Badge>
-                )}
-              </Button>
+              {Object.values(APP_THEMES).map((themeOption) => {
+                const isActive = themeName === themeOption.id;
 
-              <Button
-                variant={mood === 'playful' ? 'solid' : 'outline'}
-                colorScheme="orange"
-                onClick={() => setTheme('playful')}
-                data-testid="theme-playful-btn"
-                size="lg"
-                leftIcon={mood === 'playful' ? <span>✓</span> : undefined}
-              >
-                {copy.settings.playful}
-                {mood === 'playful' && (
-                  <Badge colorScheme="orange" ml={2} fontSize="xs">
-                    {copy.settings.active}
-                  </Badge>
-                )}
-              </Button>
+                return (
+                  <Button
+                    key={themeOption.id}
+                    variant={isActive ? 'solid' : 'outline'}
+                    colorScheme={themeOption.previewColorScheme}
+                    onClick={() => setTheme(themeOption.id)}
+                    data-testid={`theme-${themeOption.id}-btn`}
+                    size="lg"
+                    leftIcon={isActive ? <span>✓</span> : undefined}
+                  >
+                    {copy.settings[themeOption.labelKey]}
+                    {isActive && (
+                      <Badge colorScheme={themeOption.previewColorScheme} ml={2} fontSize="xs">
+                        {copy.settings.active}
+                      </Badge>
+                    )}
+                  </Button>
+                );
+              })}
             </HStack>
 
-            <Box mt={4} p={3} borderRadius="md" bg="gray.50" data-testid="theme-preview">
-              <Text fontSize="sm" color="gray.600">
+            <Box
+              mt={4}
+              p={3}
+              borderRadius="md"
+              bg="surfaceMutedBg"
+              borderWidth="1px"
+              borderColor="borderSubtle"
+              backgroundImage={activeThemeDefinition.backgroundImage}
+              backgroundSize={activeThemeDefinition.backgroundImage ? '120px 120px' : undefined}
+              data-testid="theme-preview"
+            >
+              <Text fontSize="sm" color="textMuted">
                 {copy.settings.currentTheme}:{' '}
                 <Text as="span" fontWeight="semibold" textTransform="capitalize">
-                  {mood === 'calm' ? copy.settings.calm : copy.settings.playful}
+                  {copy.settings[activeThemeDefinition.labelKey]}
                 </Text>
               </Text>
-              <Text fontSize="xs" color="gray.400" mt={1}>
-                {mood === 'calm'
-                  ? copy.settings.calmDescription
-                  : copy.settings.playfulDescription}
+              <Text fontSize="xs" color="textMuted" mt={1}>
+                {copy.settings[activeThemeDefinition.descriptionKey]}
               </Text>
             </Box>
           </Box>
@@ -154,12 +153,12 @@ export default function SettingsPage() {
             <Heading as="h2" size="md" mb={1}>
               {copy.settings.resetHeading}
             </Heading>
-            <Text fontSize="sm" color="gray.500" mb={4}>
+            <Text fontSize="sm" color="textMuted" mb={4}>
               {copy.settings.resetDescription}
             </Text>
 
             <Button
-              colorScheme="red"
+              colorScheme="danger"
               variant="outline"
               onClick={onOpen}
               data-testid="reset-data-btn"
@@ -185,7 +184,7 @@ export default function SettingsPage() {
             <Button variant="ghost" mr={3} onClick={onClose} data-testid="reset-cancel-btn">
               {copy.settings.cancel}
             </Button>
-            <Button colorScheme="red" onClick={handleReset} data-testid="reset-confirm-btn">
+            <Button colorScheme="danger" onClick={handleReset} data-testid="reset-confirm-btn">
               {copy.settings.confirmReset}
             </Button>
           </ModalFooter>

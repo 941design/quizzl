@@ -1,6 +1,11 @@
+import fs from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.BASE_URL || 'http://localhost:3000';
+const bundledChromiumPath = '/opt/playwright-browsers/chromium-1208/chrome-linux/chrome';
+const launchOptions = fs.existsSync(bundledChromiumPath)
+  ? { executablePath: bundledChromiumPath }
+  : undefined;
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -21,9 +26,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        launchOptions: {
-          executablePath: '/opt/playwright-browsers/chromium-1208/chrome-linux/chrome',
-        },
+        launchOptions,
       },
     },
   ],

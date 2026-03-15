@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Story 08: Mood Theming + Settings + Reset', () => {
+test.describe('Story 08: Theme Settings + Reset', () => {
   test.beforeEach(async ({ page }) => {
     // Clear all app data
     await page.goto('/');
@@ -11,18 +11,22 @@ test.describe('Story 08: Mood Theming + Settings + Reset', () => {
     });
   });
 
-  test('1. Settings page renders with mood toggle buttons', async ({ page }) => {
+  test('1. Settings page renders with theme buttons', async ({ page }) => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
     const settingsPage = page.getByTestId('settings-page');
     await expect(settingsPage).toBeVisible();
 
-    // Both mood buttons should be visible
+    // Available theme buttons should be visible
     const calmBtn = page.getByTestId('theme-calm-btn');
     const playfulBtn = page.getByTestId('theme-playful-btn');
+    const legoBtn = page.getByTestId('theme-lego-btn');
+    const minecraftBtn = page.getByTestId('theme-minecraft-btn');
     await expect(calmBtn).toBeVisible();
     await expect(playfulBtn).toBeVisible();
+    await expect(legoBtn).toBeVisible();
+    await expect(minecraftBtn).toBeVisible();
   });
 
   test('2. Switching to playful theme persists in localStorage', async ({ page }) => {
@@ -40,10 +44,10 @@ test.describe('Story 08: Mood Theming + Settings + Reset', () => {
     const stored = await page.evaluate(() => localStorage.getItem('lp_settings_v1'));
     expect(stored).toBeTruthy();
     const parsed = JSON.parse(stored!);
-    expect(parsed.mood).toBe('playful');
+    expect(parsed.theme).toBe('playful');
   });
 
-  test('3. Mood setting persists after page reload', async ({ page }) => {
+  test('3. Theme setting persists after page reload', async ({ page }) => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
@@ -102,7 +106,7 @@ test.describe('Story 08: Mood Theming + Settings + Reset', () => {
     // Set up data in all 4 lp_* keys
     await page.goto('/');
     await page.evaluate(() => {
-      localStorage.setItem('lp_settings_v1', JSON.stringify({ mood: 'playful' }));
+      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'playful' }));
       localStorage.setItem('lp_selectedTopics_v1', JSON.stringify({ slugs: ['javascript-basics'] }));
       localStorage.setItem('lp_progress_v1', JSON.stringify({ byTopicSlug: { 'javascript-basics': { quizPoints: 5 } } }));
       localStorage.setItem('lp_studyTimes_v1', JSON.stringify({ sessions: [{ id: 's1' }] }));

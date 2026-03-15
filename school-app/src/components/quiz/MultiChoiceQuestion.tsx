@@ -49,7 +49,7 @@ export default function MultiChoiceQuestion({
       <Text fontWeight="semibold" fontSize="lg" data-testid="question-prompt">
         {question.prompt}
       </Text>
-      <Text fontSize="sm" color="gray.500">
+      <Text fontSize="sm" color="textMuted">
         {copy.quiz.selectAll}
       </Text>
 
@@ -63,10 +63,10 @@ export default function MultiChoiceQuestion({
               ? selectedOptionIds.includes(option.id)
               : localSelected.includes(option.id);
             const isCorrectOption = correctSet.has(option.id);
-            let bg = 'white';
+            let bg = 'surfaceBg';
             if (showFeedback && isAnswered) {
-              if (isCorrectOption) bg = 'green.50';
-              else if (isSelected && !isCorrectOption) bg = 'red.50';
+              if (isCorrectOption) bg = 'successBg';
+              else if (isSelected && !isCorrectOption) bg = 'dangerBg';
             }
 
             return (
@@ -78,13 +78,13 @@ export default function MultiChoiceQuestion({
                 borderColor={
                   showFeedback && isAnswered
                     ? isCorrectOption
-                      ? 'green.300'
+                      ? 'successBorder'
                       : isSelected
-                      ? 'red.300'
-                      : 'gray.200'
+                      ? 'dangerBorder'
+                      : 'borderSubtle'
                     : isSelected
-                    ? 'teal.400'
-                    : 'gray.200'
+                    ? 'brand.400'
+                    : 'borderSubtle'
                 }
                 bg={bg}
                 transition="all 0.15s"
@@ -105,7 +105,6 @@ export default function MultiChoiceQuestion({
 
       {!isAnswered && (
         <Button
-          colorScheme="teal"
           onClick={handleSubmit}
           isDisabled={localSelected.length === 0}
           data-testid="submit-multi-answer"

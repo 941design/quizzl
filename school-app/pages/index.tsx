@@ -26,7 +26,7 @@ export default function HomePage() {
           <Heading as="h1" size="2xl">
             {copy.home.title}
           </Heading>
-          <Text fontSize="xl" color="gray.600" maxW="600px">
+          <Text fontSize="xl" color="textMuted" maxW="600px">
             {copy.home.description}
           </Text>
           <HStack spacing={4}>
@@ -44,21 +44,21 @@ export default function HomePage() {
         </VStack>
 
         <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} mt={8}>
-          <Box p={6} bg="white" borderRadius="lg" shadow="sm" borderWidth="1px">
+          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle">
             <Heading size="md" mb={2}>{copy.home.featureQuiz}</Heading>
-            <Text color="gray.600">
+            <Text color="textMuted">
               {copy.home.featureQuizBody}
             </Text>
           </Box>
-          <Box p={6} bg="white" borderRadius="lg" shadow="sm" borderWidth="1px">
+          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle">
             <Heading size="md" mb={2}>{copy.home.featureNotes}</Heading>
-            <Text color="gray.600">
+            <Text color="textMuted">
               {copy.home.featureNotesBody}
             </Text>
           </Box>
-          <Box p={6} bg="white" borderRadius="lg" shadow="sm" borderWidth="1px">
+          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle">
             <Heading size="md" mb={2}>{copy.home.featurePlan}</Heading>
-            <Text color="gray.600">
+            <Text color="textMuted">
               {copy.home.featurePlanBody}
             </Text>
           </Box>

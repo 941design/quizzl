@@ -35,11 +35,11 @@ export default function SessionList({ sessions, topicTitleBySlug = {} }: Session
       <Box
         py={8}
         textAlign="center"
-        color="gray.500"
+        color="textMuted"
         data-testid="session-list-empty"
       >
         <Text>{copy.studyTimes.noSessions}</Text>
-        <Text fontSize="sm" mt={1} color="gray.400">
+        <Text fontSize="sm" mt={1} color="textMuted">
           {copy.studyTimes.noSessionsBody}
         </Text>
       </Box>
@@ -77,12 +77,11 @@ export default function SessionList({ sessions, topicTitleBySlug = {} }: Session
               <Text fontWeight="semibold" fontSize="sm">
                 {topicTitle}
               </Text>
-              <Text fontSize="xs" color="gray.500">
+              <Text fontSize="xs" color="textMuted">
                 {formatDateTime(session.startedAt, language)} - {formatDateTime(session.endedAt, language)}
               </Text>
             </Box>
             <Badge
-              colorScheme="teal"
               variant="subtle"
               fontSize="sm"
               data-testid={`session-duration-${session.id}`}

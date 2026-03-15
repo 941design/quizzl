@@ -51,7 +51,6 @@ export default function StudyTimer({ topicSlug }: StudyTimerProps) {
         </Box>
         <ButtonGroup mt={{ base: 2, sm: 0 }} ml={{ base: 0, sm: 4 }} size="sm">
           <Button
-            colorScheme="teal"
             onClick={recoverContinue}
             data-testid="session-recover-continue"
           >
@@ -75,7 +74,7 @@ export default function StudyTimer({ topicSlug }: StudyTimerProps) {
         <Text
           fontSize="sm"
           fontWeight="semibold"
-          color="teal.600"
+          color="brand.600"
           fontFamily="mono"
           data-testid="timer-elapsed"
         >
@@ -84,7 +83,7 @@ export default function StudyTimer({ topicSlug }: StudyTimerProps) {
       )}
       <Button
         size="sm"
-        colorScheme={isRunning ? 'red' : 'teal'}
+        colorScheme={isRunning ? 'danger' : 'brand'}
         variant={isRunning ? 'solid' : 'outline'}
         onClick={isRunning ? stop : start}
         data-testid={isRunning ? 'stop-session-btn' : 'start-session-btn'}

@@ -39,24 +39,24 @@ beforeEach(() => {
 describe('Settings', () => {
   it('returns default settings when nothing stored', () => {
     const settings = readSettings();
-    expect(settings).toEqual({ mood: 'calm', language: 'en' });
+    expect(settings).toEqual({ theme: 'calm', language: 'en' });
   });
 
   it('writes and reads settings', () => {
-    writeSettings({ mood: 'playful', language: 'de' });
-    expect(readSettings()).toEqual({ mood: 'playful', language: 'de' });
+    writeSettings({ theme: 'playful', language: 'de' });
+    expect(readSettings()).toEqual({ theme: 'playful', language: 'de' });
   });
 
   it('fills missing fields for legacy stored settings', () => {
     store[STORAGE_KEYS.settings] = JSON.stringify({ mood: 'playful' });
-    expect(readSettings()).toEqual({ mood: 'playful', language: 'en' });
+    expect(readSettings()).toEqual({ theme: 'playful', language: 'en', mood: 'playful' });
   });
 
   it('uses correct storage key', () => {
-    writeSettings({ mood: 'playful', language: 'de' });
+    writeSettings({ theme: 'playful', language: 'de' });
     expect(store[STORAGE_KEYS.settings]).toBeDefined();
     const parsed = JSON.parse(store[STORAGE_KEYS.settings]);
-    expect(parsed.mood).toBe('playful');
+    expect(parsed.theme).toBe('playful');
     expect(parsed.language).toBe('de');
   });
 });
@@ -134,7 +134,7 @@ describe('StudyTimes', () => {
 
 describe('resetAllData', () => {
   it('clears all lp_* keys', () => {
-    writeSettings({ mood: 'playful', language: 'de' });
+    writeSettings({ theme: 'playful', language: 'de' });
     writeSelectedTopics({ slugs: ['js'] });
     writeTopicProgress('js', { answers: {}, quizPoints: 5, notesHtml: '', completedTaskIds: [] });
     writeStudyTimes({ sessions: [] });
@@ -162,7 +162,7 @@ describe('resetAllData', () => {
 describe('corrupt data handling', () => {
   it('returns default when stored data is invalid JSON', () => {
     store[STORAGE_KEYS.settings] = 'not-json{{{';
-    expect(readSettings()).toEqual({ mood: 'calm', language: 'en' });
+    expect(readSettings()).toEqual({ theme: 'calm', language: 'en' });
   });
 
   it('returns default when stored data is null string', () => {

@@ -5,6 +5,7 @@
 export const SUPPORTED_LANGUAGES = ['en', 'de'] as const;
 
 export type LanguageCode = typeof SUPPORTED_LANGUAGES[number];
+export type AppThemeName = 'calm' | 'playful' | 'lego' | 'minecraft';
 
 export type Option = {
   id: string;
@@ -68,7 +69,8 @@ export type TopicCatalogue = Record<LanguageCode, Topic[]>;
 // ============================
 
 export type Settings = {
-  mood: 'calm' | 'playful';
+  theme: AppThemeName;
+  mood?: AppThemeName;
   language: LanguageCode;
 };
 

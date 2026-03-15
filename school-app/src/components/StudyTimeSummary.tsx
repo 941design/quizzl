@@ -17,7 +17,9 @@ export default function StudyTimeSummary({ sessions }: StudyTimeSummaryProps) {
     <HStack
       spacing={8}
       p={4}
-      bg="gray.50"
+      bg="surfaceMutedBg"
+      borderWidth="1px"
+      borderColor="borderSubtle"
       borderRadius="lg"
       flexWrap="wrap"
       data-testid="study-time-summary"
