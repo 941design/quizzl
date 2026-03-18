@@ -5,7 +5,7 @@
 export const SUPPORTED_LANGUAGES = ['en', 'de'] as const;
 
 export type LanguageCode = typeof SUPPORTED_LANGUAGES[number];
-export type AppThemeName = 'calm' | 'playful' | 'lego' | 'minecraft';
+export type AppThemeName = 'calm' | 'playful' | 'lego' | 'minecraft' | 'flower';
 
 export type Option = {
   id: string;

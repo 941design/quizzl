@@ -23,10 +23,12 @@ test.describe('Story 08: Theme Settings + Reset', () => {
     const playfulBtn = page.getByTestId('theme-playful-btn');
     const legoBtn = page.getByTestId('theme-lego-btn');
     const minecraftBtn = page.getByTestId('theme-minecraft-btn');
+    const flowerBtn = page.getByTestId('theme-flower-btn');
     await expect(calmBtn).toBeVisible();
     await expect(playfulBtn).toBeVisible();
     await expect(legoBtn).toBeVisible();
     await expect(minecraftBtn).toBeVisible();
+    await expect(flowerBtn).toBeVisible();
   });
 
   test('2. Switching to playful theme persists in localStorage', async ({ page }) => {

@@ -98,12 +98,14 @@ type Copy = {
     playful: string;
     lego: string;
     minecraft: string;
+    flower: string;
     active: string;
     currentTheme: string;
     calmDescription: string;
     playfulDescription: string;
     legoDescription: string;
     minecraftDescription: string;
+    flowerDescription: string;
     resetHeading: string;
     resetDescription: string;
     resetButton: string;
@@ -313,12 +315,14 @@ const copy: Record<LanguageCode, Copy> = {
       playful: 'Playful',
       lego: 'Brick Builder',
       minecraft: 'Block World',
+      flower: 'Flower Garden',
       active: 'Active',
       currentTheme: 'Current theme',
       calmDescription: 'Muted blues and greens, minimal animations.',
       playfulDescription: 'Warm oranges and purples, rounded corners.',
       legoDescription: 'Bold brick colors, toy-like contrast, and a stud-patterned background.',
       minecraftDescription: 'Earthy block tones, squared surfaces, and a pixelated backdrop.',
+      flowerDescription: 'Soft blossom tones, petal-like shapes, and a bright floral backdrop.',
       resetHeading: 'Reset All Data',
       resetDescription:
         'Clear all your progress, notes, study sessions, and settings. This cannot be undone.',
@@ -520,12 +524,14 @@ const copy: Record<LanguageCode, Copy> = {
       playful: 'Verspielt',
       lego: 'Baustein',
       minecraft: 'Blockwelt',
+      flower: 'Bluetengarten',
       active: 'Aktiv',
       currentTheme: 'Aktuelles Design',
       calmDescription: 'Gedämpfte Blau- und Grüntöne, minimale Animationen.',
       playfulDescription: 'Warme Orange- und Lilatöne, runde Ecken.',
       legoDescription: 'Kräftige Steinfarben, spielzeughafte Kontraste und ein Noppen-Hintergrund.',
       minecraftDescription: 'Erdige Blockfarben, eckige Flächen und ein verpixelter Hintergrund.',
+      flowerDescription: 'Sanfte Blütentöne, blütenartige Formen und ein heller floraler Hintergrund.',
       resetHeading: 'Alle Daten zurücksetzen',
       resetDescription:
         'Lösche deinen Fortschritt, Notizen, Lernsitzungen und Einstellungen. Das kann nicht rückgängig gemacht werden.',

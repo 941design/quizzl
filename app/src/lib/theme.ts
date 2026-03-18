@@ -6,14 +6,15 @@ const config: ThemeConfig = {
   useSystemColorMode: false,
 };
 
-type ThemeTextKey = 'calm' | 'playful' | 'lego' | 'minecraft';
+type ThemeTextKey = 'calm' | 'playful' | 'lego' | 'minecraft' | 'flower';
 type ThemeDescriptionKey =
   | 'calmDescription'
   | 'playfulDescription'
   | 'legoDescription'
-  | 'minecraftDescription';
+  | 'minecraftDescription'
+  | 'flowerDescription';
 type ThemeColorScheme = 'brand' | 'success' | 'warning' | 'danger';
-export type ThemeVisualStyle = 'soft' | 'rounded' | 'toy' | 'pixel';
+export type ThemeVisualStyle = 'soft' | 'rounded' | 'toy' | 'pixel' | 'floral';
 
 type ColorScale = Record<number, string>;
 
@@ -569,6 +570,103 @@ const minecraftTheme = createTheme({
   },
 });
 
+const flowerThemeBackground =
+  'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.55) 0 14px, transparent 15px), radial-gradient(circle at 80% 24%, rgba(255,255,255,0.45) 0 12px, transparent 13px), radial-gradient(circle at 30% 78%, rgba(255,255,255,0.4) 0 10px, transparent 11px), linear-gradient(180deg, #ffe7f1 0%, #ffd6e7 45%, #ffecc7 100%)';
+
+const flowerTheme = createTheme({
+  brandScale: createScale([
+    '#fff1f7',
+    '#ffdbe9',
+    '#ffc3db',
+    '#ffa7cb',
+    '#ff8abc',
+    '#f468a8',
+    '#db4d8f',
+    '#bd3977',
+    '#98285d',
+    '#68153d',
+  ]),
+  successScale: createScale([
+    '#eef9ea',
+    '#d7efcb',
+    '#bce4aa',
+    '#9fd988',
+    '#84cd68',
+    '#69c149',
+    '#57aa39',
+    '#46912d',
+    '#367221',
+    '#214713',
+  ]),
+  warningScale: createScale([
+    '#fff7e5',
+    '#ffe8bd',
+    '#ffd893',
+    '#ffc968',
+    '#ffbb47',
+    '#f3a723',
+    '#d78f16',
+    '#b7760f',
+    '#915c09',
+    '#603906',
+  ]),
+  dangerScale: createScale([
+    '#ffecef',
+    '#ffcfd9',
+    '#ffb0c1',
+    '#ff91aa',
+    '#f87595',
+    '#ea557d',
+    '#cd3f67',
+    '#ab3154',
+    '#862542',
+    '#5a162b',
+  ]),
+  neutralScale: createScale([
+    '#fffdfc',
+    '#f9f1ef',
+    '#f0e3e0',
+    '#e4d2cf',
+    '#cfb8b4',
+    '#b19894',
+    '#8c7572',
+    '#6a5754',
+    '#473a38',
+    '#2a2120',
+  ]),
+  buttonColorScheme: 'brand',
+  appBg: '#fff3f7',
+  surfaceBg: '#fffdfc',
+  surfaceMutedBg: '#ffe7f0',
+  surfaceRaisedBg: '#fffaf4',
+  borderSubtle: '#f1c6d8',
+  borderStrong: '#d96a9d',
+  textMuted: '#7b5c69',
+  textStrong: '#41222f',
+  successBg: '#eef8eb',
+  successBorder: '#a8d791',
+  successText: '#2f6b28',
+  warningBg: '#fff5df',
+  warningBorder: '#f0c36b',
+  warningText: '#8a5a0f',
+  dangerBg: '#ffeef2',
+  dangerBorder: '#f3a1b8',
+  dangerText: '#94284c',
+  backgroundImage: flowerThemeBackground,
+  fonts: {
+    heading: '"DM Serif Display", Georgia, serif',
+    body: '"Nunito", system-ui, sans-serif',
+  },
+  radii: {
+    sm: '10px',
+    md: '16px',
+    lg: '22px',
+    xl: '28px',
+    '2xl': '34px',
+    full: '9999px',
+  },
+});
+
 export const APP_THEMES: Record<AppThemeName, AppThemeDefinition> = {
   calm: {
     id: 'calm',
@@ -611,6 +709,18 @@ export const APP_THEMES: Record<AppThemeName, AppThemeDefinition> = {
     fontFamily: '"Press Start 2P", "Trebuchet MS", monospace',
     buttonVariant: 'solid',
     chakraTheme: minecraftTheme,
+  },
+  flower: {
+    id: 'flower',
+    labelKey: 'flower',
+    descriptionKey: 'flowerDescription',
+    previewColorScheme: 'brand',
+    visualStyle: 'floral',
+    backgroundImage: flowerThemeBackground,
+    surfacePattern: 'petals',
+    fontFamily: '"DM Serif Display", Georgia, serif',
+    buttonVariant: 'solid',
+    chakraTheme: flowerTheme,
   },
 };
 
