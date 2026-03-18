@@ -1,5 +1,6 @@
 import type {
   Settings,
+  UserProfile,
   SelectedTopics,
   Progress,
   StudyTimes,
@@ -7,6 +8,7 @@ import type {
 } from '@/src/types';
 import { STORAGE_KEYS } from '@/src/types';
 import { DEFAULT_THEME_NAME, normalizeThemeName } from '@/src/lib/theme';
+import { PROFILE_BADGE_LIMIT, PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
 
 // ============================
 // localStorage availability check
@@ -58,6 +60,7 @@ function writeItem<T>(key: string, value: T): void {
 // ============================
 
 const DEFAULT_SETTINGS: Settings = { theme: DEFAULT_THEME_NAME, language: 'en' };
+const DEFAULT_USER_PROFILE: UserProfile = { nickname: '', avatar: null, badgeIds: [] };
 
 export function readSettings(): Settings {
   const stored = readItem<Partial<Settings> | null>(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
@@ -74,6 +77,49 @@ export function writeSettings(settings: Settings): void {
     theme: normalizeThemeName(settings.theme ?? settings.mood),
     language: settings.language,
   });
+}
+
+// ============================
+// User Profile
+// ============================
+
+function normalizeUserProfile(raw: Partial<UserProfile> | null | undefined): UserProfile {
+  const nickname = typeof raw?.nickname === 'string'
+    ? raw.nickname.trim().slice(0, PROFILE_NICKNAME_MAX_LENGTH)
+    : '';
+
+  const avatar = raw?.avatar
+    && typeof raw.avatar.id === 'string'
+    && typeof raw.avatar.imageUrl === 'string'
+    && typeof raw.avatar.subject === 'string'
+    ? {
+        id: raw.avatar.id,
+        imageUrl: raw.avatar.imageUrl,
+        subject: raw.avatar.subject,
+        accessories: Array.isArray(raw.avatar.accessories)
+          ? raw.avatar.accessories.filter((item): item is string => typeof item === 'string')
+          : [],
+      }
+    : null;
+
+  const badgeIds = Array.isArray(raw?.badgeIds)
+    ? raw.badgeIds.filter((item): item is string => typeof item === 'string').slice(0, PROFILE_BADGE_LIMIT)
+    : [];
+
+  return {
+    nickname,
+    avatar,
+    badgeIds,
+  };
+}
+
+export function readUserProfile(): UserProfile {
+  const stored = readItem<Partial<UserProfile> | null>(STORAGE_KEYS.userProfile, DEFAULT_USER_PROFILE);
+  return normalizeUserProfile(stored);
+}
+
+export function writeUserProfile(profile: UserProfile): void {
+  writeItem(STORAGE_KEYS.userProfile, normalizeUserProfile(profile));
 }
 
 // ============================

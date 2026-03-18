@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   readSettings,
   writeSettings,
+  readUserProfile,
+  writeUserProfile,
   readSelectedTopics,
   writeSelectedTopics,
   readProgress,
@@ -72,6 +74,52 @@ describe('SelectedTopics', () => {
   });
 });
 
+describe('UserProfile', () => {
+  it('returns an empty profile when nothing stored', () => {
+    expect(readUserProfile()).toEqual({ nickname: '', avatar: null, badgeIds: [] });
+  });
+
+  it('writes and reads a profile', () => {
+    const profile = {
+      nickname: 'Rocket Reader',
+      avatar: {
+        id: 'berry-1',
+        imageUrl: 'http://example.test/berry.png',
+        subject: 'strawberry',
+        accessories: ['glasses'],
+      },
+      badgeIds: ['quiz-whiz', 'book-buddy'],
+    };
+
+    writeUserProfile(profile);
+    expect(readUserProfile()).toEqual(profile);
+  });
+
+  it('normalizes oversized nickname and badge selection', () => {
+    store[STORAGE_KEYS.userProfile] = JSON.stringify({
+      nickname: 'A very very very long nickname',
+      avatar: {
+        id: 'berry-2',
+        imageUrl: 'http://example.test/apple.png',
+        subject: 'apple',
+        accessories: ['hat'],
+      },
+      badgeIds: ['1', '2', '3', '4'],
+    });
+
+    expect(readUserProfile()).toEqual({
+      nickname: 'A very very very',
+      avatar: {
+        id: 'berry-2',
+        imageUrl: 'http://example.test/apple.png',
+        subject: 'apple',
+        accessories: ['hat'],
+      },
+      badgeIds: ['1', '2', '3'],
+    });
+  });
+});
+
 describe('Progress', () => {
   it('returns empty byTopicSlug when nothing stored', () => {
     expect(readProgress()).toEqual({ byTopicSlug: {} });
@@ -135,12 +183,14 @@ describe('StudyTimes', () => {
 describe('resetAllData', () => {
   it('clears all lp_* keys', () => {
     writeSettings({ theme: 'playful', language: 'de' });
+    writeUserProfile({ nickname: 'Pineapple Pal', avatar: null, badgeIds: ['quiz-whiz'] });
     writeSelectedTopics({ slugs: ['js'] });
     writeTopicProgress('js', { answers: {}, quizPoints: 5, notesHtml: '', completedTaskIds: [] });
     writeStudyTimes({ sessions: [] });
 
     // All keys should exist
     expect(store[STORAGE_KEYS.settings]).toBeDefined();
+    expect(store[STORAGE_KEYS.userProfile]).toBeDefined();
     expect(store[STORAGE_KEYS.selectedTopics]).toBeDefined();
     expect(store[STORAGE_KEYS.progress]).toBeDefined();
     expect(store[STORAGE_KEYS.studyTimes]).toBeDefined();
@@ -149,6 +199,7 @@ describe('resetAllData', () => {
 
     // All keys should be gone
     expect(store[STORAGE_KEYS.settings]).toBeUndefined();
+    expect(store[STORAGE_KEYS.userProfile]).toBeUndefined();
     expect(store[STORAGE_KEYS.selectedTopics]).toBeUndefined();
     expect(store[STORAGE_KEYS.progress]).toBeUndefined();
     expect(store[STORAGE_KEYS.studyTimes]).toBeUndefined();

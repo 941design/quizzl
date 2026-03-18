@@ -16,6 +16,8 @@ import {
 import NextLink from 'next/link';
 import { useRouter } from 'next/router';
 import { useCopy, useLanguage } from '@/src/context/LanguageContext';
+import ProfileSummary from '@/src/components/ProfileSummary';
+import { useProfile } from '@/src/context/ProfileContext';
 import StorageWarning from '@/src/components/StorageWarning';
 
 type LayoutProps = {
@@ -25,6 +27,7 @@ type LayoutProps = {
 export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
   const { language, setLanguage } = useLanguage();
+  const { profile } = useProfile();
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
   const navItems = [
@@ -99,6 +102,25 @@ export default function Layout({ children }: LayoutProps) {
                   );
                 })}
               </HStack>
+              <NextLink href="/settings" passHref legacyBehavior>
+                <Link _hover={{ textDecoration: 'none' }}>
+                  <Box
+                    px={3}
+                    py={2}
+                    borderWidth="1px"
+                    borderRadius="full"
+                    borderColor="borderSubtle"
+                    bg="surfaceMutedBg"
+                    data-testid="header-profile-chip"
+                  >
+                    <ProfileSummary
+                      profile={profile}
+                      fallbackName={copy.layout.profileFallbackName}
+                      size="sm"
+                    />
+                  </Box>
+                </Link>
+              </NextLink>
               {languageToggle}
             </HStack>
 
@@ -128,6 +150,24 @@ export default function Layout({ children }: LayoutProps) {
               data-testid="mobile-nav"
             >
               <Box w="100%" px={3} pb={3}>
+                <NextLink href="/settings" passHref legacyBehavior>
+                  <Link
+                    display="block"
+                    mb={3}
+                    p={3}
+                    borderRadius="lg"
+                    bg="surfaceMutedBg"
+                    data-testid="mobile-header-profile-chip"
+                    _hover={{ textDecoration: 'none' }}
+                    onClick={onToggle}
+                  >
+                    <ProfileSummary
+                      profile={profile}
+                      fallbackName={copy.layout.profileFallbackName}
+                      size="sm"
+                    />
+                  </Link>
+                </NextLink>
                 {languageToggle}
               </Box>
               {navItems.map((item) => {

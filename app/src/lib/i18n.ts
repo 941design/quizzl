@@ -13,12 +13,15 @@ type Copy = {
     };
     languageLabel: string;
     mobileMenuLabel: string;
+    profileFallbackName: string;
   };
   home: {
     title: string;
     description: string;
     browseTopics: string;
     settings: string;
+    profileCardTitle: string;
+    profileCardBody: string;
     featureQuiz: string;
     featureQuizBody: string;
     featureNotes: string;
@@ -58,6 +61,33 @@ type Copy = {
     heading: string;
     description: string;
     resetSuccess: string;
+    profileSaved: string;
+    profileHeading: string;
+    profileDescription: string;
+    nicknameHeading: string;
+    nicknameDescription: string;
+    nicknamePlaceholder: string;
+    nicknameHelper: string;
+    avatarHeading: string;
+    avatarDescription: string;
+    chooseAvatar: string;
+    changeAvatar: string;
+    removeAvatar: string;
+    noAvatarSelected: string;
+    badgesHeading: string;
+    badgesDescription: string;
+    badgesSelected: (count: number, limit: number) => string;
+    saveProfile: string;
+    avatarModalTitle: string;
+    avatarModalDescription: string;
+    avatarSubjectLabel: string;
+    avatarAccessoryLabel: string;
+    clearFilters: string;
+    avatarResults: (count: number) => string;
+    avatarNoResults: string;
+    avatarNoAccessories: string;
+    useThisAvatar: string;
+    showMoreAvatars: string;
     languageHeading: string;
     languageDescription: string;
     themeHeading: string;
@@ -84,6 +114,7 @@ type Copy = {
     pageTitle: string;
     heading: string;
     description: string;
+    profileHeading: string;
     noTopics: string;
     browseTopics: string;
     noPoints: string;
@@ -193,6 +224,7 @@ const copy: Record<LanguageCode, Copy> = {
       },
       languageLabel: 'Language',
       mobileMenuLabel: 'Toggle navigation menu',
+      profileFallbackName: 'Player One',
     },
     home: {
       title: 'Welcome to Quizzl',
@@ -200,6 +232,8 @@ const copy: Record<LanguageCode, Copy> = {
         'Learn with freely selectable topics. Combine quiz, notes, and study plans to master any subject at your own pace.',
       browseTopics: 'Browse Topics',
       settings: 'Settings',
+      profileCardTitle: 'Your learning profile',
+      profileCardBody: 'Your nickname and avatar show up in progress spaces like the leaderboard.',
       featureQuiz: 'Quiz & Flashcards',
       featureQuizBody:
         'Test your knowledge with single-choice, multi-choice, and flashcard questions.',
@@ -240,6 +274,33 @@ const copy: Record<LanguageCode, Copy> = {
       heading: 'Settings',
       description: 'Customize your learning experience.',
       resetSuccess: 'All data has been reset. Start fresh!',
+      profileSaved: 'Your profile look has been saved.',
+      profileHeading: 'My Profile',
+      profileDescription: 'Pick a nickname, an avatar, and a few fun badges.',
+      nicknameHeading: 'Nickname',
+      nicknameDescription: 'Choose a short nickname that feels like you.',
+      nicknamePlaceholder: 'Rocket Reader',
+      nicknameHelper: 'Use a nickname instead of your full real name.',
+      avatarHeading: 'Avatar',
+      avatarDescription: 'Pick a fruit friend for your profile.',
+      chooseAvatar: 'Choose Avatar',
+      changeAvatar: 'Change Avatar',
+      removeAvatar: 'Remove Avatar',
+      noAvatarSelected: 'No avatar picked yet.',
+      badgesHeading: 'Badges',
+      badgesDescription: 'Choose up to 3 badges that show your style.',
+      badgesSelected: (count, limit) => `${count}/${limit} badges selected`,
+      saveProfile: 'Save Profile',
+      avatarModalTitle: 'Choose Your Avatar',
+      avatarModalDescription: 'Pick a fruit, add accessories if you want, and choose a favorite.',
+      avatarSubjectLabel: 'Fruit friend',
+      avatarAccessoryLabel: 'Accessories',
+      clearFilters: 'Clear filters',
+      avatarResults: (count) => `${count} avatar${count !== 1 ? 's' : ''}`,
+      avatarNoResults: 'No avatars match those filters yet. Try fewer accessories.',
+      avatarNoAccessories: 'No accessories',
+      useThisAvatar: 'Use This Avatar',
+      showMoreAvatars: 'Show More',
       languageHeading: 'Language',
       languageDescription: 'Choose which language the app and content catalogue should use.',
       themeHeading: 'Theme',
@@ -268,6 +329,7 @@ const copy: Record<LanguageCode, Copy> = {
       pageTitle: 'Leaderboard',
       heading: 'Leaderboard',
       description: 'Your learning progress. Keep studying to climb the ranks!',
+      profileHeading: 'Your profile',
       noTopics: 'Select some topics to track your quiz points.',
       browseTopics: 'Browse Topics',
       noPoints: 'Complete some quiz questions to earn points and appear on the leaderboard.',
@@ -367,6 +429,7 @@ const copy: Record<LanguageCode, Copy> = {
       },
       languageLabel: 'Sprache',
       mobileMenuLabel: 'Navigationsmenü umschalten',
+      profileFallbackName: 'Spieler Eins',
     },
     home: {
       title: 'Willkommen bei Quizzl',
@@ -374,6 +437,8 @@ const copy: Record<LanguageCode, Copy> = {
         'Lerne mit frei wählbaren Themen. Kombiniere Quiz, Notizen und Lernpläne, um jedes Fach in deinem eigenen Tempo zu meistern.',
       browseTopics: 'Themen ansehen',
       settings: 'Einstellungen',
+      profileCardTitle: 'Dein Lernprofil',
+      profileCardBody: 'Dein Spitzname und Avatar erscheinen in Fortschrittsbereichen wie der Rangliste.',
       featureQuiz: 'Quiz & Karteikarten',
       featureQuizBody:
         'Teste dein Wissen mit Single-Choice-, Multiple-Choice- und Karteikarten-Fragen.',
@@ -414,6 +479,33 @@ const copy: Record<LanguageCode, Copy> = {
       heading: 'Einstellungen',
       description: 'Passe dein Lernerlebnis an.',
       resetSuccess: 'Alle Daten wurden zurückgesetzt. Du kannst neu starten.',
+      profileSaved: 'Dein Profil wurde gespeichert.',
+      profileHeading: 'Mein Profil',
+      profileDescription: 'Wähle einen Spitznamen, einen Avatar und ein paar lustige Badges.',
+      nicknameHeading: 'Spitzname',
+      nicknameDescription: 'Wähle einen kurzen Namen, der zu dir passt.',
+      nicknamePlaceholder: 'Raketenleser',
+      nicknameHelper: 'Nutze lieber einen Spitznamen als deinen vollen echten Namen.',
+      avatarHeading: 'Avatar',
+      avatarDescription: 'Suche dir einen Obstfreund fuer dein Profil aus.',
+      chooseAvatar: 'Avatar waehlen',
+      changeAvatar: 'Avatar aendern',
+      removeAvatar: 'Avatar entfernen',
+      noAvatarSelected: 'Noch kein Avatar ausgewaehlt.',
+      badgesHeading: 'Badges',
+      badgesDescription: 'Waehle bis zu 3 Badges, die zu dir passen.',
+      badgesSelected: (count, limit) => `${count}/${limit} Badges ausgewaehlt`,
+      saveProfile: 'Profil speichern',
+      avatarModalTitle: 'Waehle deinen Avatar',
+      avatarModalDescription: 'Suche dir eine Frucht aus, fuege Accessoires hinzu und nimm deinen Favoriten.',
+      avatarSubjectLabel: 'Fruchtfreund',
+      avatarAccessoryLabel: 'Accessoires',
+      clearFilters: 'Filter loeschen',
+      avatarResults: (count) => `${count} Avatar${count !== 1 ? 'e' : ''}`,
+      avatarNoResults: 'Zu diesen Filtern gibt es noch keine Avatare. Versuche weniger Accessoires.',
+      avatarNoAccessories: 'Keine Accessoires',
+      useThisAvatar: 'Diesen Avatar nehmen',
+      showMoreAvatars: 'Mehr zeigen',
       languageHeading: 'Sprache',
       languageDescription: 'Lege fest, in welcher Sprache App und Inhaltskatalog angezeigt werden.',
       themeHeading: 'Design',
@@ -442,6 +534,7 @@ const copy: Record<LanguageCode, Copy> = {
       pageTitle: 'Rangliste',
       heading: 'Rangliste',
       description: 'Dein Lernfortschritt. Lerne weiter, um aufzusteigen.',
+      profileHeading: 'Dein Profil',
       noTopics: 'Wähle Themen aus, damit deine Quizpunkte verfolgt werden.',
       browseTopics: 'Themen ansehen',
       noPoints: 'Beantworte Quizfragen, um Punkte zu sammeln und in der Rangliste zu erscheinen.',

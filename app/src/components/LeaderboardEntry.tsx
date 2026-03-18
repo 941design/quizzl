@@ -1,18 +1,15 @@
 import React from 'react';
-import {
-  HStack,
-  Box,
-  Text,
-  Badge,
-  Avatar,
-} from '@chakra-ui/react';
+import { HStack, Box, Text, Badge } from '@chakra-ui/react';
 import { useCopy } from '@/src/context/LanguageContext';
+import ProfileSummary from '@/src/components/ProfileSummary';
+import type { UserProfile } from '@/src/types';
 
 type LeaderboardEntryProps = {
   rank: number;
   label: string;
   totalPoints: number;
   isYou?: boolean;
+  profile?: UserProfile | null;
 };
 
 export default function LeaderboardEntry({
@@ -20,6 +17,7 @@ export default function LeaderboardEntry({
   label,
   totalPoints,
   isYou = false,
+  profile = null,
 }: LeaderboardEntryProps) {
   const copy = useCopy();
 
@@ -48,20 +46,13 @@ export default function LeaderboardEntry({
           {rank}
         </Text>
       </Box>
-
-      {/* Avatar */}
-      <Avatar
-        size="sm"
-        name={label}
-        bg={isYou ? 'brand.400' : 'neutral.400'}
-        color="white"
-      />
-
       {/* Label */}
       <Box flex="1">
-        <Text fontWeight={isYou ? 'bold' : 'semibold'} color={isYou ? 'brand.700' : 'textStrong'}>
-          {label}
-        </Text>
+        <ProfileSummary
+          profile={profile ?? { nickname: label, avatar: null, badgeIds: [] }}
+          fallbackName={label}
+          size="sm"
+        />
         {isYou && (
           <Badge fontSize="xs" variant="subtle">
             {copy.leaderboard.youBadge}

@@ -17,6 +17,8 @@ import { Button } from '@chakra-ui/react';
 import { readProgress, readSelectedTopics, readStudyTimes } from '@/src/lib/storage';
 import { useCopy } from '@/src/context/LanguageContext';
 import LeaderboardEntry from '@/src/components/LeaderboardEntry';
+import ProfileSummary from '@/src/components/ProfileSummary';
+import { useProfile } from '@/src/context/ProfileContext';
 
 function calculateStreak(studyTimes: { sessions: { startedAt: string }[] }): number {
   const sessions = studyTimes.sessions;
@@ -54,6 +56,7 @@ function calculateStreak(studyTimes: { sessions: { startedAt: string }[] }): num
 
 export default function LeaderboardPage() {
   const copy = useCopy();
+  const { profile } = useProfile();
   const [totalPoints, setTotalPoints] = useState(0);
   const [streak, setStreak] = useState(0);
   const [selectedCount, setSelectedCount] = useState(0);
@@ -118,12 +121,30 @@ export default function LeaderboardPage() {
             {/* Leaderboard entry */}
             <LeaderboardEntry
               rank={1}
-              label={copy.leaderboard.youLabel}
+              label={profile.nickname || copy.leaderboard.youLabel}
               totalPoints={totalPoints}
               isYou={true}
+              profile={profile}
             />
 
             <Divider />
+
+            <Box
+              p={4}
+              borderWidth="1px"
+              borderRadius="lg"
+              borderColor="borderSubtle"
+              bg="surfaceBg"
+            >
+              <Text fontSize="sm" color="textMuted" mb={3}>
+                {copy.leaderboard.profileHeading}
+              </Text>
+              <ProfileSummary
+                profile={profile}
+                fallbackName={copy.leaderboard.youLabel}
+                showBadges={true}
+              />
+            </Box>
 
             {/* Stats row */}
             <HStack spacing={6} flexWrap="wrap" gap={3}>

@@ -10,9 +10,12 @@ import {
 import Head from 'next/head';
 import NextLink from 'next/link';
 import { useCopy } from '@/src/context/LanguageContext';
+import ProfileSummary from '@/src/components/ProfileSummary';
+import { useProfile } from '@/src/context/ProfileContext';
 
 export default function HomePage() {
   const copy = useCopy();
+  const { profile } = useProfile();
 
   return (
     <>
@@ -42,6 +45,20 @@ export default function HomePage() {
             </NextLink>
           </HStack>
         </VStack>
+
+        <Box p={6} mt={4} bg="surfaceBg" borderRadius="xl" shadow="sm" borderWidth="1px" borderColor="borderSubtle">
+          <Text fontSize="sm" color="textMuted" mb={3}>
+            {copy.home.profileCardTitle}
+          </Text>
+          <ProfileSummary
+            profile={profile}
+            fallbackName={copy.layout.profileFallbackName}
+            showBadges={true}
+          />
+          <Text color="textMuted" mt={3}>
+            {copy.home.profileCardBody}
+          </Text>
+        </Box>
 
         <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} mt={8}>
           <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle">

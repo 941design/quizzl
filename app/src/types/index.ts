@@ -74,6 +74,19 @@ export type Settings = {
   language: LanguageCode;
 };
 
+export type ProfileAvatar = {
+  id: string;
+  imageUrl: string;
+  subject: string;
+  accessories: string[];
+};
+
+export type UserProfile = {
+  nickname: string;
+  avatar: ProfileAvatar | null;
+  badgeIds: string[];
+};
+
 export type SelectedTopics = {
   slugs: string[];
 };
@@ -113,6 +126,7 @@ export type StudyTimes = {
 
 export const STORAGE_KEYS = {
   settings: 'lp_settings_v1',
+  userProfile: 'lp_userProfile_v1',
   selectedTopics: 'lp_selectedTopics_v1',
   progress: 'lp_progress_v1',
   studyTimes: 'lp_studyTimes_v1',
