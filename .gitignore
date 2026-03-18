@@ -9,3 +9,5 @@ implementation-state.json
 
 # Test artifacts
 app/test-results/
+*~
+.mcp.json
