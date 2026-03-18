@@ -1,13 +1,13 @@
 version: '1'
 vm:
-  name: clauded-school-b68a71
+  name: clauded-quizzl-482529
   distro: ubuntu
   cpus: 4
   memory: 8GiB
   disk: 20GiB
 mount:
-  host: /Users/mrother/Projects/941design/school
-  guest: /Users/mrother/Projects/941design/school
+  host: /Users/mrother/Projects/941design/quizzl
+  guest: /Users/mrother/Projects/941design/quizzl
 environment:
   python: null
   node: '22'
@@ -18,7 +18,8 @@ environment:
   dart: null
   c: null
   tools: []
-  databases: []
+  databases:
+  - sqlite
   frameworks:
   - claude-code
   - codex
