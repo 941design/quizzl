@@ -151,18 +151,120 @@ function navOverlay(visualStyle: ThemeVisualStyle): BoxProps {
   }
 }
 
-/** Base64-encoded inline SVG decorations per visual style. */
+/** Inline SVG decorations per visual style, authored as wide compositions with built-in fade. */
 const BANNER_SVG: Record<string, string> = {
-  // Teal leaf silhouette
-  soft: 'PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2NCA2NCc+PHBhdGggZD0nTTggNTZDOCAyNCAyNCA4IDU2IDhDNTYgNDAgNDAgNTYgOCA1NlonIGZpbGw9JyMyYTlkOGEnIG9wYWNpdHk9JzAuMTgnLz48cGF0aCBkPSdNOCA1NlEzMiAzMiA1NiA4JyBzdHJva2U9JyMyYTlkOGEnIHN0cm9rZS13aWR0aD0nMS41JyBmaWxsPSdub25lJyBvcGFjaXR5PScwLjI1Jy8+PC9zdmc+',
-  // Warm orange star
-  rounded: 'PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2NCA2NCc+PHBvbHlnb24gcG9pbnRzPSczMiw0IDM4LDI0IDU4LDI0IDQyLDM2IDQ4LDU2IDMyLDQ0IDE2LDU2IDIyLDM2IDYsMjQgMjYsMjQnIGZpbGw9JyNmNzlhMGQnIG9wYWNpdHk9JzAuMTgnLz48L3N2Zz4=',
-  // Red 2-stud building brick
-  toy: 'PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2NCA1Nic+PHJlY3QgeD0nNCcgeT0nMTYnIHdpZHRoPSc1NicgaGVpZ2h0PSczNicgcng9JzMnIGZpbGw9JyNmMjNiMWYnIG9wYWNpdHk9JzAuMjInLz48Y2lyY2xlIGN4PScxOCcgY3k9JzE2JyByPSc2JyBmaWxsPScjZjIzYjFmJyBvcGFjaXR5PScwLjE4Jy8+PGNpcmNsZSBjeD0nNDYnIGN5PScxNicgcj0nNicgZmlsbD0nI2YyM2IxZicgb3BhY2l0eT0nMC4xOCcvPjwvc3ZnPg==',
-  // Pixel grass/dirt block
-  pixel: 'PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0MCAzMCc+PHJlY3QgeD0nMCcgeT0nMCcgd2lkdGg9JzEwJyBoZWlnaHQ9JzEwJyBmaWxsPScjNzU5YTJmJyBvcGFjaXR5PScwLjI4Jy8+PHJlY3QgeD0nMTAnIHk9JzAnIHdpZHRoPScxMCcgaGVpZ2h0PScxMCcgZmlsbD0nIzc1OWEyZicgb3BhY2l0eT0nMC4yJy8+PHJlY3QgeD0nMjAnIHk9JzAnIHdpZHRoPScxMCcgaGVpZ2h0PScxMCcgZmlsbD0nIzc1OWEyZicgb3BhY2l0eT0nMC4yNCcvPjxyZWN0IHg9JzMwJyB5PScwJyB3aWR0aD0nMTAnIGhlaWdodD0nMTAnIGZpbGw9JyM3NTlhMmYnIG9wYWNpdHk9JzAuMTgnLz48cmVjdCB4PScwJyB5PScxMCcgd2lkdGg9JzEwJyBoZWlnaHQ9JzEwJyBmaWxsPScjNmI0YjJhJyBvcGFjaXR5PScwLjInLz48cmVjdCB4PScxMCcgeT0nMTAnIHdpZHRoPScxMCcgaGVpZ2h0PScxMCcgZmlsbD0nIzZiNGIyYScgb3BhY2l0eT0nMC4yNCcvPjxyZWN0IHg9JzIwJyB5PScxMCcgd2lkdGg9JzEwJyBoZWlnaHQ9JzEwJyBmaWxsPScjNmI0YjJhJyBvcGFjaXR5PScwLjE4Jy8+PHJlY3QgeD0nMzAnIHk9JzEwJyB3aWR0aD0nMTAnIGhlaWdodD0nMTAnIGZpbGw9JyM2YjRiMmEnIG9wYWNpdHk9JzAuMjInLz48cmVjdCB4PScwJyB5PScyMCcgd2lkdGg9JzEwJyBoZWlnaHQ9JzEwJyBmaWxsPScjNmI0YjJhJyBvcGFjaXR5PScwLjE4Jy8+PHJlY3QgeD0nMTAnIHk9JzIwJyB3aWR0aD0nMTAnIGhlaWdodD0nMTAnIGZpbGw9JyM2YjRiMmEnIG9wYWNpdHk9JzAuMjInLz48cmVjdCB4PScyMCcgeT0nMjAnIHdpZHRoPScxMCcgaGVpZ2h0PScxMCcgZmlsbD0nIzZiNGIyYScgb3BhY2l0eT0nMC4yNCcvPjxyZWN0IHg9JzMwJyB5PScyMCcgd2lkdGg9JzEwJyBoZWlnaHQ9JzEwJyBmaWxsPScjNmI0YjJhJyBvcGFjaXR5PScwLjE4Jy8+PC9zdmc+',
-  // Five-petal flower with centre
-  floral: 'PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2NCA2NCc+PGNpcmNsZSBjeD0nMzInIGN5PScxNCcgcj0nMTAnIGZpbGw9JyNmNDY4YTgnIG9wYWNpdHk9JzAuMicvPjxjaXJjbGUgY3g9JzE3JyBjeT0nMjYnIHI9JzEwJyBmaWxsPScjZjQ2OGE4JyBvcGFjaXR5PScwLjE2Jy8+PGNpcmNsZSBjeD0nNDcnIGN5PScyNicgcj0nMTAnIGZpbGw9JyNmNDY4YTgnIG9wYWNpdHk9JzAuMTYnLz48Y2lyY2xlIGN4PScyMScgY3k9JzQyJyByPScxMCcgZmlsbD0nI2Y0NjhhOCcgb3BhY2l0eT0nMC4yJy8+PGNpcmNsZSBjeD0nNDMnIGN5PSc0Micgcj0nMTAnIGZpbGw9JyNmNDY4YTgnIG9wYWNpdHk9JzAuMicvPjxjaXJjbGUgY3g9JzMyJyBjeT0nMzAnIHI9JzYnIGZpbGw9JyNmZmJiNDcnIG9wYWNpdHk9JzAuMjgnLz48L3N2Zz4=',
+  soft: `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 128">
+      <defs>
+        <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="1"/>
+          <stop offset="0.72" stop-color="#ffffff" stop-opacity="0.9"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="leafFill" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#87d7ca" stop-opacity="0.42"/>
+          <stop offset="1" stop-color="#2a9d8a" stop-opacity="0.16"/>
+        </linearGradient>
+      </defs>
+      <rect width="480" height="128" fill="url(#fade)"/>
+      <path d="M24 108c0-44 24-78 76-92 26 30 39 62 39 92H24Z" fill="url(#leafFill)"/>
+      <path d="M88 104c16-38 48-64 103-76-16 36-48 63-96 81" fill="#66c3b2" fill-opacity=".18"/>
+      <path d="M34 106c50-10 93-39 131-87" stroke="#2a9d8a" stroke-width="4" stroke-linecap="round" stroke-opacity=".2" fill="none"/>
+      <circle cx="188" cy="38" r="14" fill="#7cd0c1" fill-opacity=".18"/>
+      <circle cx="226" cy="76" r="10" fill="#7cd0c1" fill-opacity=".14"/>
+    </svg>
+  `,
+  rounded: `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 128">
+      <defs>
+        <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#fff6ec" stop-opacity="1"/>
+          <stop offset="0.72" stop-color="#fff6ec" stop-opacity=".92"/>
+          <stop offset="1" stop-color="#fff6ec" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <rect width="480" height="128" fill="url(#fade)"/>
+      <g fill="#f79a0d" fill-opacity=".18">
+        <path d="M62 18 78 52l38 4-29 24 9 36-34-18-33 18 9-36L9 56l38-4 15-34Z"/>
+        <circle cx="140" cy="46" r="18"/>
+        <circle cx="180" cy="78" r="12" fill-opacity=".12"/>
+        <path d="M118 102c18-18 43-30 74-35" stroke="#f79a0d" stroke-opacity=".18" stroke-width="6" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+  `,
+  toy: `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 128">
+      <defs>
+        <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#fff4ef" stop-opacity="1"/>
+          <stop offset="0.72" stop-color="#fff4ef" stop-opacity=".92"/>
+          <stop offset="1" stop-color="#fff4ef" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <rect width="480" height="128" fill="url(#fade)"/>
+      <g transform="translate(18 20)">
+        <rect x="0" y="24" width="122" height="56" rx="12" fill="#f23b1f" fill-opacity=".24"/>
+        <circle cx="26" cy="24" r="14" fill="#f23b1f" fill-opacity=".19"/>
+        <circle cx="60" cy="24" r="14" fill="#f23b1f" fill-opacity=".19"/>
+        <circle cx="94" cy="24" r="14" fill="#f23b1f" fill-opacity=".19"/>
+        <rect x="78" y="0" width="82" height="42" rx="10" fill="#ffcf3c" fill-opacity=".18"/>
+        <circle cx="102" cy="0" r="12" fill="#ffcf3c" fill-opacity=".15"/>
+        <circle cx="136" cy="0" r="12" fill="#ffcf3c" fill-opacity=".15"/>
+        <rect x="156" y="44" width="92" height="36" rx="10" fill="#2a6ef0" fill-opacity=".16"/>
+        <circle cx="182" cy="44" r="11" fill="#2a6ef0" fill-opacity=".14"/>
+        <circle cx="222" cy="44" r="11" fill="#2a6ef0" fill-opacity=".14"/>
+      </g>
+    </svg>
+  `,
+  pixel: `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 128" shape-rendering="crispEdges">
+      <defs>
+        <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#edf4e8" stop-opacity="1"/>
+          <stop offset="0.72" stop-color="#edf4e8" stop-opacity=".92"/>
+          <stop offset="1" stop-color="#edf4e8" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <rect width="480" height="128" fill="url(#fade)"/>
+      <g transform="translate(14 28)">
+        <rect x="0" y="0" width="24" height="24" fill="#759a2f" fill-opacity=".32"/>
+        <rect x="24" y="0" width="24" height="24" fill="#759a2f" fill-opacity=".24"/>
+        <rect x="48" y="0" width="24" height="24" fill="#759a2f" fill-opacity=".3"/>
+        <rect x="72" y="0" width="24" height="24" fill="#759a2f" fill-opacity=".22"/>
+        <rect x="0" y="24" width="24" height="24" fill="#6b4b2a" fill-opacity=".24"/>
+        <rect x="24" y="24" width="24" height="24" fill="#6b4b2a" fill-opacity=".3"/>
+        <rect x="48" y="24" width="24" height="24" fill="#6b4b2a" fill-opacity=".22"/>
+        <rect x="72" y="24" width="24" height="24" fill="#6b4b2a" fill-opacity=".28"/>
+        <rect x="112" y="12" width="20" height="20" fill="#8bb64a" fill-opacity=".26"/>
+        <rect x="132" y="32" width="20" height="20" fill="#8bb64a" fill-opacity=".18"/>
+        <rect x="168" y="8" width="16" height="16" fill="#759a2f" fill-opacity=".18"/>
+        <rect x="192" y="36" width="16" height="16" fill="#6b4b2a" fill-opacity=".18"/>
+      </g>
+    </svg>
+  `,
+  floral: `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 128">
+      <defs>
+        <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#fff4f8" stop-opacity="1"/>
+          <stop offset="0.72" stop-color="#fff4f8" stop-opacity=".92"/>
+          <stop offset="1" stop-color="#fff4f8" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <rect width="480" height="128" fill="url(#fade)"/>
+      <g transform="translate(24 10)">
+        <circle cx="56" cy="26" r="20" fill="#f468a8" fill-opacity=".2"/>
+        <circle cx="28" cy="48" r="20" fill="#f468a8" fill-opacity=".16"/>
+        <circle cx="84" cy="48" r="20" fill="#f468a8" fill-opacity=".16"/>
+        <circle cx="40" cy="78" r="20" fill="#f468a8" fill-opacity=".2"/>
+        <circle cx="72" cy="78" r="20" fill="#f468a8" fill-opacity=".2"/>
+        <circle cx="56" cy="54" r="12" fill="#ffbb47" fill-opacity=".26"/>
+        <path d="M112 98c20-18 41-27 76-31" stroke="#d75792" stroke-width="5" stroke-linecap="round" stroke-opacity=".14" fill="none"/>
+        <circle cx="150" cy="36" r="12" fill="#f7a2c8" fill-opacity=".16"/>
+        <circle cx="190" cy="68" r="10" fill="#f7a2c8" fill-opacity=".12"/>
+      </g>
+    </svg>
+  `,
 };
 
 export type BannerDecor = {
@@ -173,23 +275,24 @@ export type BannerDecor = {
 };
 
 function navBannerDecor(visualStyle: ThemeVisualStyle): BannerDecor | null {
-  const b64 = BANNER_SVG[visualStyle];
-  if (!b64) return null;
+  const svg = BANNER_SVG[visualStyle]?.replace(/\s+/g, ' ').trim();
+  if (!svg) return null;
 
   return {
     boxProps: {
       position: 'absolute',
-      left: '6px',
+      left: '0',
       top: '50%',
       transform: 'translateY(-50%)',
-      w: '72px',
-      h: '72px',
+      w: 'clamp(220px, 33vw, 420px)',
+      h: '96px',
       pointerEvents: 'none',
       zIndex: 0,
+      opacity: 0.95,
     },
     style: {
-      backgroundImage: `url("data:image/svg+xml;base64,${b64}")`,
-      backgroundSize: 'contain',
+      backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`,
+      backgroundSize: '100% 100%',
       backgroundRepeat: 'no-repeat',
     },
   };

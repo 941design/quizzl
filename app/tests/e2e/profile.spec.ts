@@ -59,4 +59,12 @@ test.describe('Profile updates', () => {
     await expect(mobileProfileChip).toBeVisible();
     await expect(mobileProfileChip.getByTestId('profile-display-name')).toHaveText('Pocket Pear');
   });
+
+  test('settings remain reachable from the header cogwheel', async ({ page }) => {
+    await page.goto('/');
+
+    await page.getByTestId('header-settings-link').click();
+    await expect(page).toHaveURL(/\/settings/);
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  });
 });

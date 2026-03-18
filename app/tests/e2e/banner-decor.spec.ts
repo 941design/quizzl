@@ -56,8 +56,9 @@ test.describe('Nav banner decoration', () => {
     const navBox = await nav.boundingBox();
     expect(navBox).not.toBeNull();
 
-    // Decoration should occupy less than 15% of nav width
-    expect(decorBox!.width).toBeLessThan(navBox!.width * 0.15);
+    // Decoration should occupy roughly one third of the nav width
+    expect(decorBox!.width).toBeGreaterThan(navBox!.width * 0.25);
+    expect(decorBox!.width).toBeLessThan(navBox!.width * 0.4);
   });
 
   for (const theme of THEMES) {

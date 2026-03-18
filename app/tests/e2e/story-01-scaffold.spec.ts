@@ -11,11 +11,13 @@ test.describe('Story 01 - Project Scaffold and Routing', () => {
   test('navigation links are present', async ({ page }) => {
     await page.goto('/');
     const nav = page.getByRole('navigation', { name: 'Main navigation' });
+    const primaryNavList = nav.locator('ul').first();
     await expect(nav).toBeVisible();
-    await expect(nav.getByRole('link', { name: 'Topics' })).toBeVisible();
-    await expect(nav.getByRole('link', { name: 'Leaderboard' })).toBeVisible();
-    await expect(nav.getByRole('link', { name: 'Study Times' })).toBeVisible();
-    await expect(nav.getByRole('link', { name: 'Settings' })).toBeVisible();
+    await expect(primaryNavList.getByRole('link', { name: 'Topics' })).toBeVisible();
+    await expect(primaryNavList.getByRole('link', { name: 'Leaderboard' })).toBeVisible();
+    await expect(primaryNavList.getByRole('link', { name: 'Study Times' })).toBeVisible();
+    await expect(primaryNavList.getByRole('link', { name: 'Settings' })).toHaveCount(0);
+    await expect(page.getByTestId('header-settings-link')).toBeVisible();
   });
 
   test('topics page is accessible via navigation', async ({ page }) => {

@@ -7,19 +7,18 @@ import {
   Link,
   Text,
   Container,
-  IconButton,
   useDisclosure,
   Collapse,
-  ButtonGroup,
-  Button,
+  IconButton,
 } from '@chakra-ui/react';
 import NextLink from 'next/link';
 import { useRouter } from 'next/router';
-import { useCopy, useLanguage } from '@/src/context/LanguageContext';
+import { useCopy } from '@/src/context/LanguageContext';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import { useProfile } from '@/src/context/ProfileContext';
 import StorageWarning from '@/src/components/StorageWarning';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
+import ThemeIcon from '@/src/components/ThemeIcon';
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -27,7 +26,6 @@ type LayoutProps = {
 
 export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
-  const { language, setLanguage } = useLanguage();
   const { profile } = useProfile();
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
@@ -37,28 +35,7 @@ export default function Layout({ children }: LayoutProps) {
     { label: copy.layout.nav.topics, href: '/topics' },
     { label: copy.layout.nav.leaderboard, href: '/leaderboard' },
     { label: copy.layout.nav.studyTimes, href: '/study-times' },
-    { label: copy.layout.nav.settings, href: '/settings' },
   ];
-
-  const languageToggle = (
-    <HStack spacing={2}>
-      <Text fontSize="sm" color="textMuted">
-        {copy.layout.languageLabel}
-      </Text>
-      <ButtonGroup isAttached size="sm" variant="outline">
-        {(['en', 'de'] as const).map((option) => (
-          <Button
-            key={option}
-            onClick={() => setLanguage(option)}
-            variant={language === option ? 'solid' : 'outline'}
-            aria-pressed={language === option}
-          >
-            {option.toUpperCase()}
-          </Button>
-        ))}
-      </ButtonGroup>
-    </HStack>
-  );
 
   return (
     <Box minH="100vh" bg="appBg">
@@ -115,8 +92,8 @@ export default function Layout({ children }: LayoutProps) {
               <NextLink href="/settings" passHref legacyBehavior>
                 <Link _hover={{ textDecoration: 'none' }}>
                   <Box
-                    px={3}
-                    py={2}
+                    px={2}
+                    py={1}
                     borderWidth="1px"
                     borderRadius="full"
                     borderColor="borderSubtle"
@@ -131,22 +108,56 @@ export default function Layout({ children }: LayoutProps) {
                   </Box>
                 </Link>
               </NextLink>
-              {languageToggle}
+              <NextLink href="/settings" passHref legacyBehavior>
+                <Link
+                  aria-label={copy.layout.nav.settings}
+                  display="inline-flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  w={10}
+                  h={10}
+                  borderRadius="md"
+                  color={router.pathname === '/settings' ? 'brand.500' : 'textMuted'}
+                  _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
+                  _focusVisible={{ boxShadow: 'outline' }}
+                  data-testid="header-settings-link"
+                >
+                  <ThemeIcon name="settings" size={20} aria-hidden />
+                </Link>
+              </NextLink>
             </HStack>
 
-            {/* Mobile hamburger */}
-            <IconButton
-              display={{ base: 'flex', md: 'none' }}
-              onClick={onToggle}
-              variant="ghost"
-              aria-label={copy.layout.mobileMenuLabel}
-              data-testid="mobile-menu-btn"
-              icon={
-                <Text fontSize="xl" lineHeight="1">
-                  {isOpen ? '\u2715' : '\u2630'}
-                </Text>
-              }
-            />
+            {/* Mobile actions */}
+            <HStack spacing={1} display={{ base: 'flex', md: 'none' }}>
+              <NextLink href="/settings" passHref legacyBehavior>
+                <Link
+                  aria-label={copy.layout.nav.settings}
+                  display="inline-flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  w={10}
+                  h={10}
+                  borderRadius="md"
+                  color={router.pathname === '/settings' ? 'brand.500' : 'textMuted'}
+                  _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
+                  _focusVisible={{ boxShadow: 'outline' }}
+                  data-testid="mobile-header-settings-link"
+                >
+                  <ThemeIcon name="settings" size={20} aria-hidden />
+                </Link>
+              </NextLink>
+              <IconButton
+                onClick={onToggle}
+                variant="ghost"
+                aria-label={copy.layout.mobileMenuLabel}
+                data-testid="mobile-menu-btn"
+                icon={
+                  <Text fontSize="xl" lineHeight="1">
+                    {isOpen ? '\u2715' : '\u2630'}
+                  </Text>
+                }
+              />
+            </HStack>
           </Flex>
 
           {/* Mobile nav dropdown */}
@@ -178,7 +189,6 @@ export default function Layout({ children }: LayoutProps) {
                     />
                   </Link>
                 </NextLink>
-                {languageToggle}
               </Box>
               {navItems.map((item) => {
                 const isActive = router.pathname === item.href;

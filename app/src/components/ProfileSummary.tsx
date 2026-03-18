@@ -18,11 +18,11 @@ export default function ProfileSummary({
 }: ProfileSummaryProps) {
   const displayName = profile.nickname || fallbackName;
   const selectedBadges = PROFILE_BADGES.filter((badge) => profile.badgeIds.includes(badge.id));
-  const avatarSize = size === 'sm' ? '40px' : '64px';
+  const avatarSize = size === 'sm' ? '44px' : '64px';
   const nameSize = size === 'sm' ? 'sm' : 'lg';
 
   return (
-    <HStack spacing={size === 'sm' ? 3 : 4} align="center">
+    <HStack spacing={size === 'sm' ? 2 : 4} align="center">
       <Box
         w={avatarSize}
         h={avatarSize}
