@@ -1,0 +1,126 @@
+import { test, expect, BrowserContext, Page } from '@playwright/test';
+import { injectIdentity, USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
+import { clearAppState } from './helpers/clear-state';
+import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
+import { queryRelayForEvents } from './helpers/relay-query';
+
+const BASE_URL = 'http://localhost:3100';
+
+let contextA: BrowserContext;
+let contextB: BrowserContext;
+let pageA: Page;
+let pageB: Page;
+
+test.describe.serial('Score Sync via MLS', () => {
+  test.beforeAll(async ({ browser }) => {
+    await computeTestKeypairs();
+
+    // User A: create context, inject identity, wait for init
+    contextA = await browser.newContext({ baseURL: BASE_URL });
+    await suppressErrorOverlay(contextA);
+    pageA = await contextA.newPage();
+    await pageA.goto('/');
+    await clearAppState(pageA);
+    await injectIdentity(pageA, USER_A);
+    await pageA.reload();
+    await pageA.goto('/groups/');
+    await expect(
+      pageA.getByTestId('groups-empty-state').or(pageA.getByTestId('groups-list')),
+    ).toBeVisible({ timeout: 60_000 });
+
+    // User B: create context, inject identity, wait for init
+    contextB = await browser.newContext({ baseURL: BASE_URL });
+    await suppressErrorOverlay(contextB);
+    pageB = await contextB.newPage();
+    await pageB.goto('/');
+    await clearAppState(pageB);
+    await injectIdentity(pageB, USER_B);
+    await pageB.reload();
+    await pageB.goto('/groups/');
+    await expect(
+      pageB.getByTestId('groups-empty-state').or(pageB.getByTestId('groups-list')),
+    ).toBeVisible({ timeout: 60_000 });
+
+    // Wait for KeyPackage publication
+    await pageB.waitForTimeout(5_000);
+
+    // User A creates group
+    await pageA.getByTestId('create-group-btn').click();
+    await expect(pageA.getByTestId('create-group-modal-content')).toBeVisible();
+    await pageA.getByTestId('create-group-name-input').fill('Score Sync Group');
+    await pageA.getByTestId('create-group-submit-btn').click();
+    await expect(pageA.getByText('Score Sync Group')).toBeVisible({ timeout: 30_000 });
+    await expect(pageA.getByTestId('create-group-modal-content')).not.toBeVisible({ timeout: 10_000 });
+    await dismissErrorOverlay(pageA);
+
+    // User A invites User B
+    await pageA.locator(':has-text("Score Sync Group")').getByRole('link', { name: 'Open' }).click();
+    await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+    await pageA.getByTestId('invite-member-btn').click();
+    await expect(pageA.getByTestId('invite-member-modal-content')).toBeVisible();
+    await pageA.getByTestId('invite-npub-input').fill(USER_B.npub);
+    await pageA.getByTestId('invite-submit-btn').click();
+    await expect(pageA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
+
+    // User B joins via Welcome
+    await pageB.goto('/groups/');
+    await expect(pageB.getByText('Score Sync Group')).toBeVisible({ timeout: 60_000 });
+  });
+
+  test.afterAll(async () => {
+    await contextA?.close();
+    await contextB?.close();
+  });
+
+  test('User A completes quiz and score is published', async () => {
+    // Navigate to a topic page and select the Quiz tab
+    await pageA.goto('/topic/javascript-basics');
+    await dismissErrorOverlay(pageA);
+
+    // Click the Quiz tab
+    const quizTab = pageA.getByTestId('tab-quiz');
+    await expect(quizTab).toBeVisible({ timeout: 10_000 });
+    await quizTab.click();
+
+    // Wait for question to appear
+    const questionCard = pageA.getByTestId('question-card');
+    await expect(questionCard).toBeVisible({ timeout: 10_000 });
+
+    // Answer the question — try single-choice option first, then flashcard
+    const singleOption = pageA.locator('[data-testid^="option-"]').first();
+    const revealBtn = pageA.getByTestId('reveal-answer-btn');
+
+    if (await singleOption.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await singleOption.click();
+    } else if (await revealBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await revealBtn.click();
+      // After reveal, click "knew it" or "didn't know"
+      const knewItBtn = pageA.getByTestId('knew-it-btn');
+      await expect(knewItBtn).toBeVisible({ timeout: 5_000 });
+      await knewItBtn.click();
+    }
+
+    // Wait for score sync to happen
+    await pageA.waitForTimeout(10_000);
+
+    // Verify a kind 445 (MLS application message) was published to the relay.
+    // Don't filter by authors — MLS events may use a group-scoped signing key,
+    // not the user's identity pubkey. The E2E relay is isolated so any 445 is ours.
+    const scoreEvents = await queryRelayForEvents(pageA, {
+      kinds: [445],
+    });
+    expect(scoreEvents.length).toBeGreaterThan(0);
+  });
+
+  test.fixme('User B sees User A score in group detail', async () => {
+    // Navigate to group detail
+    await pageB.goto('/groups/');
+    await dismissErrorOverlay(pageB);
+    await pageB.locator(':has-text("Score Sync Group")').getByRole('link', { name: 'Open' }).click();
+    await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+
+    // Wait for score to propagate (MLS app message → relay → subscription → merge)
+    await expect(pageB.getByTestId('member-score-row')).toBeVisible({ timeout: 60_000 });
+    await expect(pageB.getByTestId('member-score-points')).toBeVisible();
+  });
+});

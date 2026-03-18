@@ -141,11 +141,15 @@ export const STORAGE_KEYS = {
 // ============================
 
 /** Default public relay URLs for Nostr connections */
-export const DEFAULT_RELAYS = [
+const ENV_RELAYS = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_RELAYS
+  ? process.env.NEXT_PUBLIC_RELAYS.split(',').map(r => r.trim()).filter(Boolean)
+  : null;
+
+export const DEFAULT_RELAYS: readonly string[] = ENV_RELAYS ?? [
   'wss://relay.damus.io',
   'wss://nos.lol',
   'wss://relay.nostr.band',
-] as const;
+];
 
 export type NostrIdentity = {
   pubkeyHex: string;

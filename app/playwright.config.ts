@@ -1,6 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = process.env.BASE_URL || 'http://localhost:3000';
+const isGroups = !!process.env.E2E_GROUPS;
+
+const baseURL = isGroups
+  ? 'http://localhost:3100'
+  : process.env.BASE_URL || 'http://localhost:3000';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -10,10 +14,24 @@ export default defineConfig({
   workers: 1,
   reporter: 'list',
 
+  ...(isGroups
+    ? {
+        globalSetup: './tests/e2e/global-setup.ts',
+        globalTeardown: './tests/e2e/global-teardown.ts',
+        testMatch: 'groups-*.spec.ts',
+        timeout: 120_000,
+      }
+    : {}),
+
   use: {
     baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    ...(isGroups ? { actionTimeout: 30_000 } : {}),
+  },
+
+  expect: {
+    ...(isGroups ? { timeout: 30_000 } : {}),
   },
 
   projects: [
@@ -22,13 +40,20 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
       },
+      ...(isGroups
+        ? { testMatch: 'groups-*.spec.ts' }
+        : { testIgnore: 'groups-*.spec.ts' }),
     },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  ...(isGroups
+    ? {}
+    : {
+        webServer: {
+          command: 'npm run dev',
+          url: baseURL,
+          reuseExistingServer: !process.env.CI,
+          timeout: 120 * 1000,
+        },
+      }),
 });

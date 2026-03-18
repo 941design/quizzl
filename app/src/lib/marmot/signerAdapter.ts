@@ -10,12 +10,12 @@ import type { EventSigner } from 'applesauce-core';
 
 export function createPrivateKeySigner(privateKeyHex: string): EventSigner {
   let _pubkeyHex: string | null = null;
+  const privBytes = hexToBytes(privateKeyHex);
 
   return {
     getPublicKey: async (): Promise<string> => {
       if (!_pubkeyHex) {
         const { getPublicKey } = await import('nostr-tools/pure');
-        const privBytes = hexToBytes(privateKeyHex);
         _pubkeyHex = getPublicKey(privBytes);
       }
       return _pubkeyHex;
@@ -23,7 +23,6 @@ export function createPrivateKeySigner(privateKeyHex: string): EventSigner {
 
     signEvent: async (draft) => {
       const { finalizeEvent } = await import('nostr-tools/pure');
-      const privBytes = hexToBytes(privateKeyHex);
 
       // finalizeEvent expects: { kind, created_at, tags, content } and adds id, pubkey, sig
       const signed = finalizeEvent(
@@ -37,6 +36,19 @@ export function createPrivateKeySigner(privateKeyHex: string): EventSigner {
       );
 
       return signed;
+    },
+
+    nip44: {
+      encrypt: async (pubkey: string, plaintext: string): Promise<string> => {
+        const nip44 = await import('nostr-tools/nip44');
+        const conversationKey = nip44.v2.utils.getConversationKey(privBytes, pubkey);
+        return nip44.v2.encrypt(plaintext, conversationKey);
+      },
+      decrypt: async (pubkey: string, ciphertext: string): Promise<string> => {
+        const nip44 = await import('nostr-tools/nip44');
+        const conversationKey = nip44.v2.utils.getConversationKey(privBytes, pubkey);
+        return nip44.v2.decrypt(ciphertext, conversationKey);
+      },
     },
   };
 }

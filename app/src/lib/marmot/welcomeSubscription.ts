@@ -1,31 +1,71 @@
 /**
- * Welcome subscription — subscribes to kind 444 (NIP-59 gift-wrapped Welcome messages)
+ * Welcome subscription — subscribes to kind 1059 (NIP-59 gift-wrapped Welcome messages)
  * addressed to the local user's pubkey.
  *
- * On receiving a Welcome, attempts to join the group via MarmotClient.joinGroupFromWelcome().
+ * On receiving a gift wrap, unwraps the NIP-59 envelope to extract the inner kind 444
+ * Welcome rumor, then passes it to MarmotClient.joinGroupFromWelcome().
  * On success, persists the group to overlay storage and notifies the caller.
  */
 
 import type { Group } from '@/src/types';
 import { DEFAULT_RELAYS } from '@/src/types';
 import { saveGroup } from './groupStorage';
+import type { EventSigner } from 'applesauce-core';
 
 export type WelcomeReceivedCallback = (group: Group) => void;
 
 /**
- * Start subscribing to kind 444 events for the given pubkey.
+ * Unwrap a NIP-59 gift wrap event to extract the inner rumor.
+ *
+ * Gift wrap (kind 1059) → decrypt → Seal (kind 13) → decrypt → Rumor (kind 444)
+ */
+export async function unwrapGiftWrap(
+  giftWrapEvent: { pubkey: string; content: string },
+  signer: EventSigner,
+): Promise<{ id: string; pubkey: string; created_at: number; kind: number; tags: string[][]; content: string; sig: string }> {
+  if (!signer.nip44?.decrypt) {
+    throw new Error('Signer does not support NIP-44 decryption');
+  }
+
+  // Two-layer NIP-59 decryption. Each layer uses a different counterparty key:
+  //   Layer 1: gift wrap pubkey is a random ephemeral key (prevents sender identification)
+  //   Layer 2: seal pubkey is the sender's real key (proves authorship to recipient)
+  // nip44.decrypt(theirPubkey, ciphertext) derives a shared secret from our
+  // privkey + their pubkey, so each layer decrypts against a different shared secret.
+  const sealJson = await signer.nip44.decrypt(giftWrapEvent.pubkey, giftWrapEvent.content);
+  const seal = JSON.parse(sealJson);
+
+  const rumorJson = await signer.nip44.decrypt(seal.pubkey, seal.content);
+  const rumor = JSON.parse(rumorJson);
+
+  return {
+    id: rumor.id ?? '',
+    pubkey: rumor.pubkey ?? '',
+    created_at: rumor.created_at ?? 0,
+    kind: rumor.kind ?? 0,
+    tags: rumor.tags ?? [],
+    content: rumor.content ?? '',
+    sig: rumor.sig ?? '',
+  };
+}
+
+/**
+ * Start subscribing to kind 1059 events for the given pubkey.
  * Returns an unsubscribe function.
  */
 export async function subscribeToWelcomes(
   pubkeyHex: string,
   marmotClient: import('@internet-privacy/marmot-ts').MarmotClient,
   ndk: import('@nostr-dev-kit/ndk').default,
+  signer: EventSigner,
   onGroupJoined: WelcomeReceivedCallback
 ): Promise<() => void> {
-  // kind 444 = NIP-59 gift wrap — filter by the recipient's pubkey in the p-tag
+  // Subscribe to kind 1059, NOT kind 444. marmot-ts wraps the kind 444 Welcome
+  // rumor in a NIP-59 gift wrap (kind 1059) before publishing. The inner rumor
+  // is only accessible after two layers of NIP-44 decryption (see unwrapGiftWrap).
   const sub = ndk.subscribe(
     {
-      kinds: [444 as import('@nostr-dev-kit/ndk').NDKKind],
+      kinds: [1059 as import('@nostr-dev-kit/ndk').NDKKind],
       '#p': [pubkeyHex],
     },
     { closeOnEose: false }
@@ -33,15 +73,16 @@ export async function subscribeToWelcomes(
 
   sub.on('event', async (ndkEvent) => {
     try {
-      const welcomeRumor = {
-        id: ndkEvent.id ?? '',
-        pubkey: ndkEvent.pubkey ?? '',
-        created_at: ndkEvent.created_at ?? 0,
-        kind: ndkEvent.kind ?? 0,
-        tags: ndkEvent.tags ?? [],
-        content: ndkEvent.content ?? '',
-        sig: ndkEvent.sig ?? '',
-      };
+      // Unwrap NIP-59: gift wrap → seal → rumor (kind 444)
+      const welcomeRumor = await unwrapGiftWrap(
+        { pubkey: ndkEvent.pubkey ?? '', content: ndkEvent.content ?? '' },
+        signer,
+      );
+
+      if (welcomeRumor.kind !== 444) {
+        console.debug('[welcomeSubscription] Unwrapped event is not kind 444, got:', welcomeRumor.kind);
+        return;
+      }
 
       // Attempt to join from Welcome
       const { group: mlsGroup } = await marmotClient.joinGroupFromWelcome({
@@ -71,7 +112,9 @@ export async function subscribeToWelcomes(
 
       onGroupJoined(group);
     } catch (err) {
-      // Not every kind 444 is a Welcome for us — silently skip
+      // Expected: not every kind 1059 is a Welcome for us. The p-tag filter
+      // matches any gift wrap addressed to us (e.g. DMs). Decryption or
+      // joinGroupFromWelcome will fail for non-Welcome content — that's fine.
       console.debug('[welcomeSubscription] Could not join from event:', err);
     }
   });

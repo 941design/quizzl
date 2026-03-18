@@ -1,0 +1,14 @@
+services:
+  strfry:
+    image: dockurr/strfry:latest
+    ports:
+      - "7777:7777"
+    tmpfs:
+      - /app/strfry-db
+    volumes:
+      - ./strfry.e2e.conf:/etc/strfry.conf:ro
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:7777"]
+      interval: 2s
+      timeout: 5s
+      retries: 10

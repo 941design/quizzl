@@ -40,10 +40,11 @@ async function startWelcomeSubscription(
   pubkeyHex: string,
   marmotClient: MarmotClientType,
   ndk: import('@nostr-dev-kit/ndk').default,
+  signer: import('applesauce-core').EventSigner,
   onGroupJoined: WelcomeReceivedCallback
 ): Promise<void> {
   const { subscribeToWelcomes } = await import('@/src/lib/marmot/welcomeSubscription');
-  await subscribeToWelcomes(pubkeyHex, marmotClient, ndk, onGroupJoined);
+  await subscribeToWelcomes(pubkeyHex, marmotClient, ndk, signer, onGroupJoined);
 }
 import { DEFAULT_RELAYS } from '@/src/types';
 
@@ -156,6 +157,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           pubkeyHex!,
           client,
           ndk,
+          signer,
           (joinedGroup) => {
             // A new group was joined from a Welcome — reload groups
             void reloadGroups();
@@ -357,7 +359,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     if (!client || !pubkeyHex) return null;
 
     try {
-      const mlsGroup = await client.createGroup(name);
+      const mlsGroup = await client.createGroup(name, { relays: [...DEFAULT_RELAYS] });
       const groupId = mlsGroup.idStr;
 
       const group: Group = {
@@ -441,7 +443,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           sig: kpEvent.sig ?? '',
         };
 
-        await mlsGroup.inviteByKeyPackageEvent(nostrEvent);
+        const inviteResult = await mlsGroup.inviteByKeyPackageEvent(nostrEvent);
 
         // Update our overlay group metadata with new member
         const stored = groups.find((g) => g.id === groupId);

@@ -1,11 +1,12 @@
 APP_DIR := app
 PLATFORM_STAMP := $(APP_DIR)/node_modules/.platform_$(shell uname -s)-$(shell uname -m)
+PLAYWRIGHT_STAMP := $(APP_DIR)/node_modules/.playwright_$(shell uname -s)-$(shell uname -m)
 
 # Load environment variables from .env if it exists (for FTP credentials)
 -include .env
 export
 
-.PHONY: help test build test-unit test-e2e run-dev clean install deploy deploy-check deploy-dryrun
+.PHONY: help test build test-unit test-e2e test-e2e-groups e2e-up e2e-down playwright run-dev clean install deploy deploy-check deploy-dryrun
 
 # Default target
 .DEFAULT_GOAL := help
@@ -37,6 +38,13 @@ $(PLATFORM_STAMP): $(APP_DIR)/package.json $(APP_DIR)/package-lock.json
 
 node_modules: $(PLATFORM_STAMP) ## Install deps (auto-reinstalls on platform switch)
 
+## Ensure Playwright browsers match current platform + package version
+$(PLAYWRIGHT_STAMP): $(PLATFORM_STAMP)
+	cd $(APP_DIR) && npx playwright install chromium
+	@touch $(PLAYWRIGHT_STAMP)
+
+playwright: $(PLAYWRIGHT_STAMP) ## Install Playwright browsers (auto-reinstalls on platform/version change)
+
 ## Install dependencies (fresh for current OS/arch)
 install: clean ## Install dependencies (fresh for current OS/arch)
 	cd $(APP_DIR) && npm ci
@@ -44,7 +52,7 @@ install: clean ## Install dependencies (fresh for current OS/arch)
 
 ## Remove node_modules and build artifacts to avoid cross-arch issues
 clean: ## Remove node_modules and build artifacts
-	rm -rf $(APP_DIR)/node_modules $(APP_DIR)/.next $(APP_DIR)/out
+	rm -rf $(APP_DIR)/node_modules $(APP_DIR)/.next $(APP_DIR)/out test-results/
 
 ## Build the Next.js app (installs deps first)
 build: $(PLATFORM_STAMP) ## Build for production (static export)
@@ -59,8 +67,22 @@ test-unit: $(PLATFORM_STAMP) ## Run unit tests (Vitest)
 	cd $(APP_DIR) && npx vitest run
 
 ## Run Playwright E2E tests
-test-e2e: $(PLATFORM_STAMP) ## Run Playwright E2E tests
+test-e2e: $(PLAYWRIGHT_STAMP) ## Run Playwright E2E tests
 	cd $(APP_DIR) && npx playwright test
+
+## E2E groups infrastructure
+e2e-up: ## Start strfry relay for E2E groups tests
+	docker compose -f docker-compose.e2e.yml up -d --wait
+
+e2e-down: ## Stop strfry relay
+	docker compose -f docker-compose.e2e.yml down -v
+
+## Run Playwright E2E tests for learning groups
+test-e2e-groups: $(PLAYWRIGHT_STAMP) e2e-up ## Run groups E2E tests (strfry + static build)
+	cd $(APP_DIR) && E2E_GROUPS=1 npx playwright test; \
+	status=$$?; \
+	cd .. && $(MAKE) e2e-down; \
+	exit $$status
 
 ## Start the dev server
 run-dev: $(PLATFORM_STAMP) ## Start development server
