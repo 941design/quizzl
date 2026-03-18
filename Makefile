@@ -1,4 +1,6 @@
 APP_DIR := app
+PLATFORM_STAMP := $(APP_DIR)/node_modules/.platform_$(shell uname -s)-$(shell uname -m)
+
 # Load environment variables from .env if it exists (for FTP credentials)
 -include .env
 export
@@ -14,7 +16,7 @@ FTP_USER := $(HOSTEUROPE_FTP_USER)
 FTP_PASS := $(HOSTEUROPE_FTP_PASS)
 
 # Remote paths (hosteurope)
-REMOTE_ROOT := /quizzl
+REMOTE_ROOTS := /quizzl /group-learn
 
 # Local paths for deployment
 LOCAL_DIST := $(APP_DIR)/out
@@ -27,16 +29,25 @@ help: ## Show this help message
 	@echo "Targets:"
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
+## Ensure node_modules has correct native binaries for current platform
+$(PLATFORM_STAMP): $(APP_DIR)/package.json $(APP_DIR)/package-lock.json
+	rm -rf $(APP_DIR)/node_modules
+	cd $(APP_DIR) && npm ci
+	@touch $(PLATFORM_STAMP)
+
+node_modules: $(PLATFORM_STAMP) ## Install deps (auto-reinstalls on platform switch)
+
 ## Install dependencies (fresh for current OS/arch)
 install: clean ## Install dependencies (fresh for current OS/arch)
 	cd $(APP_DIR) && npm ci
+	@touch $(PLATFORM_STAMP)
 
 ## Remove node_modules and build artifacts to avoid cross-arch issues
 clean: ## Remove node_modules and build artifacts
 	rm -rf $(APP_DIR)/node_modules $(APP_DIR)/.next $(APP_DIR)/out
 
 ## Build the Next.js app (installs deps first)
-build: install ## Build for production (static export)
+build: $(PLATFORM_STAMP) ## Build for production (static export)
 	cd $(APP_DIR) && npm run build
 	@echo "Static files available in $(LOCAL_DIST)/"
 
@@ -44,15 +55,15 @@ build: install ## Build for production (static export)
 test: test-unit test-e2e ## Run all tests
 
 ## Run unit tests (Vitest)
-test-unit: ## Run unit tests (Vitest)
+test-unit: $(PLATFORM_STAMP) ## Run unit tests (Vitest)
 	cd $(APP_DIR) && npx vitest run
 
 ## Run Playwright E2E tests
-test-e2e: ## Run Playwright E2E tests
-	cd $(APP_DIR) && npx playwright install chromium && npx playwright test
+test-e2e: $(PLATFORM_STAMP) ## Run Playwright E2E tests
+	cd $(APP_DIR) && npx playwright test
 
 ## Start the dev server
-run-dev: ## Start development server
+run-dev: $(PLATFORM_STAMP) ## Start development server
 	cd $(APP_DIR) && npm run dev
 
 # =============================================================================
@@ -70,20 +81,26 @@ deploy-check: ## Verify deployment prerequisites
 	@echo "All prerequisites satisfied."
 
 deploy: deploy-check ## Deploy to production (FTP)
-	@echo "Deploying to $(FTP_HOST)$(REMOTE_ROOT)..."
-	@lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
-		set ssl:verify-certificate no; \
-		mkdir -p $(REMOTE_ROOT); \
-		mirror -R --verbose --only-newer --parallel=4 \
-			$(LOCAL_DIST)/ $(REMOTE_ROOT)/; \
-		bye"
+	@for remote_root in $(REMOTE_ROOTS); do \
+		echo "Deploying to $(FTP_HOST)$$remote_root..."; \
+		lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
+			set ssl:verify-certificate no; \
+			mkdir -p $$remote_root; \
+			mirror -R --verbose --only-newer --parallel=4 \
+				$(LOCAL_DIST)/ $$remote_root/; \
+			bye"; \
+		echo ""; \
+	done
 	@echo ""
 	@echo "Deployment complete!"
 
 deploy-dryrun: ## Show what would be deployed (no upload)
 	@echo "=== Deployment Dry Run ==="
 	@echo ""
-	@echo "Target: $(FTP_HOST)$(REMOTE_ROOT)"
+	@echo "Targets:"
+	@for remote_root in $(REMOTE_ROOTS); do \
+		echo "  $(FTP_HOST)$$remote_root"; \
+	done
 	@echo ""
 	@echo "Local build output: $(LOCAL_DIST)/"
 	@if [ -d $(LOCAL_DIST) ]; then \
