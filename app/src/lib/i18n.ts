@@ -9,6 +9,7 @@ type Copy = {
       topics: string;
       leaderboard: string;
       studyTimes: string;
+      groups: string;
       settings: string;
     };
     languageLabel: string;
@@ -202,6 +203,67 @@ type Copy = {
     description: string;
     dismiss: string;
   };
+  identity: {
+    sectionHeading: string;
+    sectionDescription: string;
+    npubLabel: string;
+    copyNpub: string;
+    copiedNpub: string;
+    backupHeading: string;
+    backupDescription: string;
+    generatePhrase: string;
+    backupWarning: string;
+    backupConfirmCheck: string;
+    backupDone: string;
+    restoreHeading: string;
+    restoreDescription: string;
+    restoreInput: string;
+    restoreButton: string;
+    restoreSuccess: string;
+    restoreError: string;
+    backupReminderTitle: string;
+    backupReminderBody: string;
+    backupReminderAction: string;
+    backupReminderDismiss: string;
+    notReady: string;
+  };
+  groups: {
+    pageTitle: string;
+    heading: string;
+    description: string;
+    noGroups: string;
+    noGroupsBody: string;
+    createGroup: string;
+    createGroupTitle: string;
+    createGroupNameLabel: string;
+    createGroupNamePlaceholder: string;
+    createGroupSubmit: string;
+    cancel: string;
+    memberCount: (count: number) => string;
+    inviteMember: string;
+    inviteTitle: string;
+    inviteNpubLabel: string;
+    inviteNpubPlaceholder: string;
+    inviteSubmit: string;
+    inviteSuccess: string;
+    inviteErrorNoKeyPackage: string;
+    inviteErrorInvalidNpub: string;
+    inviteErrorOffline: string;
+    inviteErrorGeneric: string;
+    leaveGroup: string;
+    leaveGroupTitle: string;
+    leaveGroupBody: string;
+    leaveGroupConfirm: string;
+    loading: string;
+    offlineBanner: string;
+    offlineLastSync: (time: string) => string;
+    syncNow: string;
+    memberScoresHeading: string;
+    noScoresYet: string;
+    fromGroup: (name: string) => string;
+    softLimitWarning: string;
+    navLabel: string;
+  };
 };
 
 export function normalizeLanguage(input?: string | null): LanguageCode {
@@ -224,6 +286,7 @@ const copy: Record<LanguageCode, Copy> = {
         topics: 'Topics',
         leaderboard: 'Leaderboard',
         studyTimes: 'Study Times',
+        groups: 'Groups',
         settings: 'Settings',
       },
       languageLabel: 'Language',
@@ -423,6 +486,71 @@ const copy: Record<LanguageCode, Copy> = {
         "Your browser's local storage is not available (private mode?). The app will work, but your progress and settings won't be saved between sessions.",
       dismiss: 'Dismiss warning',
     },
+    identity: {
+      sectionHeading: 'Nostr Identity',
+      sectionDescription:
+        'Your Quizzl identity is used for learning groups. It is stored in your browser.',
+      npubLabel: 'Your public key (npub)',
+      copyNpub: 'Copy npub',
+      copiedNpub: 'Copied!',
+      backupHeading: 'Back Up Your Identity',
+      backupDescription:
+        'Generate a recovery phrase to restore your identity if you clear browser data.',
+      generatePhrase: 'Generate Backup Phrase',
+      backupWarning:
+        'Write down these 24 words in order and keep them safe. They cannot be recovered if lost.',
+      backupConfirmCheck: 'I have written down my recovery phrase',
+      backupDone: 'Identity backed up successfully.',
+      restoreHeading: 'Restore from Backup',
+      restoreDescription: 'Enter your 24-word recovery phrase to restore your identity.',
+      restoreInput: 'Enter recovery phrase...',
+      restoreButton: 'Restore Identity',
+      restoreSuccess: 'Identity restored successfully.',
+      restoreError: 'Invalid recovery phrase. Please check the words and try again.',
+      backupReminderTitle: 'Back up your identity',
+      backupReminderBody:
+        "You are in a group but haven't backed up your identity. If you clear browser data, you will lose access.",
+      backupReminderAction: 'Back up now',
+      backupReminderDismiss: 'Dismiss',
+      notReady: 'Identity not ready yet',
+    },
+    groups: {
+      pageTitle: 'Groups',
+      heading: 'Learning Groups',
+      description: 'Study together with friends. Share your progress and learn as a team.',
+      noGroups: 'You are not in any groups yet.',
+      noGroupsBody: 'Create a group or wait for an invitation from a friend.',
+      createGroup: 'Create Group',
+      createGroupTitle: 'Create Learning Group',
+      createGroupNameLabel: 'Group Name',
+      createGroupNamePlaceholder: 'e.g. Biology Study Group',
+      createGroupSubmit: 'Create Group',
+      cancel: 'Cancel',
+      memberCount: (count) => `${count} member${count !== 1 ? 's' : ''}`,
+      inviteMember: 'Invite Member',
+      inviteTitle: 'Invite by Npub',
+      inviteNpubLabel: "Member's npub",
+      inviteNpubPlaceholder: 'npub1...',
+      inviteSubmit: 'Send Invite',
+      inviteSuccess: 'Invitation sent successfully.',
+      inviteErrorNoKeyPackage: 'This user has not set up their Quizzl identity yet.',
+      inviteErrorInvalidNpub: 'Invalid npub format.',
+      inviteErrorOffline: 'You are offline. Please connect to invite members.',
+      inviteErrorGeneric: 'Failed to send invitation. Please try again.',
+      leaveGroup: 'Leave Group',
+      leaveGroupTitle: 'Leave Group?',
+      leaveGroupBody: 'You will lose access to this group and its shared progress.',
+      leaveGroupConfirm: 'Leave Group',
+      loading: 'Loading...',
+      offlineBanner: 'Offline — group sync unavailable',
+      offlineLastSync: (time) => `Last synced: ${time}`,
+      syncNow: 'Sync now',
+      memberScoresHeading: 'Group Progress',
+      noScoresYet: 'No quiz scores shared yet.',
+      fromGroup: (name) => `From group: ${name}`,
+      softLimitWarning: 'This group is near the recommended limit of 50 members.',
+      navLabel: 'Groups',
+    },
   },
   de: {
     appName: 'Quizzl',
@@ -433,6 +561,7 @@ const copy: Record<LanguageCode, Copy> = {
         topics: 'Themen',
         leaderboard: 'Rangliste',
         studyTimes: 'Lernzeiten',
+        groups: 'Gruppen',
         settings: 'Einstellungen',
       },
       languageLabel: 'Sprache',
@@ -631,6 +760,71 @@ const copy: Record<LanguageCode, Copy> = {
       description:
         'Der lokale Speicher deines Browsers ist nicht verfügbar (Privatmodus?). Die App funktioniert trotzdem, aber Fortschritt und Einstellungen werden nicht zwischen Sitzungen gespeichert.',
       dismiss: 'Warnung ausblenden',
+    },
+    identity: {
+      sectionHeading: 'Nostr-Identität',
+      sectionDescription:
+        'Deine Quizzl-Identität wird für Lerngruppen verwendet und ist in deinem Browser gespeichert.',
+      npubLabel: 'Dein öffentlicher Schlüssel (npub)',
+      copyNpub: 'npub kopieren',
+      copiedNpub: 'Kopiert!',
+      backupHeading: 'Identität sichern',
+      backupDescription:
+        'Erstelle eine Wiederherstellungsphrase, um deine Identität bei gelöschten Browser-Daten zurückzugewinnen.',
+      generatePhrase: 'Wiederherstellungsphrase erstellen',
+      backupWarning:
+        'Schreibe diese 24 Wörter in der richtigen Reihenfolge auf und bewahre sie sicher auf.',
+      backupConfirmCheck: 'Ich habe meine Wiederherstellungsphrase aufgeschrieben',
+      backupDone: 'Identität erfolgreich gesichert.',
+      restoreHeading: 'Aus Backup wiederherstellen',
+      restoreDescription: 'Gib deine 24-Wort-Phrase ein, um deine Identität wiederherzustellen.',
+      restoreInput: 'Wiederherstellungsphrase eingeben...',
+      restoreButton: 'Identität wiederherstellen',
+      restoreSuccess: 'Identität erfolgreich wiederhergestellt.',
+      restoreError: 'Ungültige Phrase. Bitte Wörter prüfen und erneut versuchen.',
+      backupReminderTitle: 'Identität sichern',
+      backupReminderBody:
+        'Du bist in einer Gruppe, hast deine Identität aber noch nicht gesichert.',
+      backupReminderAction: 'Jetzt sichern',
+      backupReminderDismiss: 'Schließen',
+      notReady: 'Identität wird vorbereitet',
+    },
+    groups: {
+      pageTitle: 'Gruppen',
+      heading: 'Lerngruppen',
+      description: 'Lerne gemeinsam mit Freunden. Teile deinen Fortschritt und lerne als Team.',
+      noGroups: 'Du bist noch in keiner Gruppe.',
+      noGroupsBody: 'Erstelle eine Gruppe oder warte auf eine Einladung von einem Freund.',
+      createGroup: 'Gruppe erstellen',
+      createGroupTitle: 'Lerngruppe erstellen',
+      createGroupNameLabel: 'Gruppenname',
+      createGroupNamePlaceholder: 'z. B. Biologie-Lerngruppe',
+      createGroupSubmit: 'Gruppe erstellen',
+      cancel: 'Abbrechen',
+      memberCount: (count) => `${count} Mitglied${count !== 1 ? 'er' : ''}`,
+      inviteMember: 'Mitglied einladen',
+      inviteTitle: 'Per Npub einladen',
+      inviteNpubLabel: 'Npub des Mitglieds',
+      inviteNpubPlaceholder: 'npub1...',
+      inviteSubmit: 'Einladung senden',
+      inviteSuccess: 'Einladung erfolgreich gesendet.',
+      inviteErrorNoKeyPackage: 'Dieser Nutzer hat seine Quizzl-Identität noch nicht eingerichtet.',
+      inviteErrorInvalidNpub: 'Ungültiges npub-Format.',
+      inviteErrorOffline: 'Du bist offline. Bitte verbinde dich, um Mitglieder einzuladen.',
+      inviteErrorGeneric: 'Einladung fehlgeschlagen. Bitte erneut versuchen.',
+      leaveGroup: 'Gruppe verlassen',
+      leaveGroupTitle: 'Gruppe verlassen?',
+      leaveGroupBody: 'Du verlierst den Zugriff auf diese Gruppe und den gemeinsamen Fortschritt.',
+      leaveGroupConfirm: 'Gruppe verlassen',
+      loading: 'Wird geladen...',
+      offlineBanner: 'Offline — Gruppensynchronisation nicht verfügbar',
+      offlineLastSync: (time) => `Zuletzt synchronisiert: ${time}`,
+      syncNow: 'Jetzt synchronisieren',
+      memberScoresHeading: 'Gruppenfortschritt',
+      noScoresYet: 'Noch keine Quizpunkte geteilt.',
+      fromGroup: (name) => `Aus Gruppe: ${name}`,
+      softLimitWarning: 'Diese Gruppe nähert sich dem empfohlenen Limit von 50 Mitgliedern.',
+      navLabel: 'Gruppen',
     },
   },
 };

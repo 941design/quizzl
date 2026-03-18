@@ -1,0 +1,65 @@
+{
+  "story_id": "07",
+  "story_name": "offline-resilience-polish",
+  "verified_at": "2026-03-18T17:52:00Z",
+  "build": {
+    "status": "pass",
+    "command": "make build"
+  },
+  "tests": {
+    "status": "pass",
+    "command": "npx vitest run",
+    "total": 102,
+    "passed": 102,
+    "failed": 0,
+    "new_tests": 10
+  },
+  "acceptance_criteria": [
+    {
+      "id": "AC-07-1",
+      "description": "When offline, group pages show offline banner",
+      "status": "pass",
+      "notes": "OfflineBanner uses useOnlineStatus hook, shows on groups page when !isOnline"
+    },
+    {
+      "id": "AC-07-2",
+      "description": "Solo learning works fully offline",
+      "status": "pass",
+      "notes": "Quiz, notes, study plan are localStorage-only — no network dependencies. publishScoreUpdate is fire-and-forget + queued on failure"
+    },
+    {
+      "id": "AC-07-3",
+      "description": "Score sync failures queued in localStorage and retried on reconnect",
+      "status": "pass",
+      "notes": "syncQueue.ts enqueue/dequeueAll. MarmotContext drains queue on window 'online' event"
+    },
+    {
+      "id": "AC-07-4",
+      "description": "resetAllData() clears localStorage AND IndexedDB",
+      "status": "pass",
+      "notes": "Was already implemented in Story 02 — storage.ts resetAllData calls clearAllGroupData"
+    },
+    {
+      "id": "AC-07-5",
+      "description": "Group cards show member count badge",
+      "status": "pass",
+      "notes": "Was already implemented in Story 03 — GroupCard has memberCount badge"
+    },
+    {
+      "id": "AC-07-6",
+      "description": "Offline banner shows when offline",
+      "status": "pass",
+      "notes": "OfflineBanner tracks navigator.onLine via event listeners, auto-redisplays on reconnect→disconnect"
+    }
+  ],
+  "files_created": [
+    "app/src/hooks/useOnlineStatus.ts",
+    "app/src/components/groups/OfflineBanner.tsx",
+    "app/src/lib/marmot/syncQueue.ts",
+    "app/tests/unit/syncQueue.test.ts"
+  ],
+  "files_modified": [
+    "app/pages/groups.tsx",
+    "app/src/context/MarmotContext.tsx"
+  ]
+}

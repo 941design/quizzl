@@ -1,0 +1,21 @@
+{
+  "epic_name": "learning-groups-nostr-mls",
+  "created_at": "2026-03-18T09:00:00Z",
+  "updated_at": "2026-03-18T17:52:00Z",
+  "status": "done",
+  "phase": "EPIC_COMPLETE",
+  "current_story": null,
+  "completed_stories": ["01", "02", "03", "04", "05", "06", "07"],
+  "blocked_stories": [],
+  "escalated_stories": [],
+  "phase_history": [
+    {"phase": "STORIES_DEFINED", "timestamp": "2026-03-18T09:00:00Z", "trigger": "stories_created"},
+    {"phase": "STORY_01_COMPLETE", "timestamp": "2026-03-18T09:30:00Z", "trigger": "story_01_done"},
+    {"phase": "STORY_02_COMPLETE", "timestamp": "2026-03-18T10:00:00Z", "trigger": "story_02_done"},
+    {"phase": "STORY_03_COMPLETE", "timestamp": "2026-03-18T10:30:00Z", "trigger": "story_03_done"},
+    {"phase": "STORY_04_COMPLETE", "timestamp": "2026-03-18T17:39:00Z", "trigger": "story_04_done"},
+    {"phase": "STORY_05_COMPLETE", "timestamp": "2026-03-18T17:45:00Z", "trigger": "story_05_done"},
+    {"phase": "STORY_06_COMPLETE", "timestamp": "2026-03-18T17:49:00Z", "trigger": "story_06_done"},
+    {"phase": "EPIC_COMPLETE", "timestamp": "2026-03-18T17:52:00Z", "trigger": "story_07_done"}
+  ]
+}

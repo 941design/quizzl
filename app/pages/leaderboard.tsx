@@ -19,6 +19,11 @@ import { useCopy } from '@/src/context/LanguageContext';
 import LeaderboardEntry from '@/src/components/LeaderboardEntry';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import { useProfile } from '@/src/context/ProfileContext';
+import { useMarmot } from '@/src/context/MarmotContext';
+import MemberScoreRow from '@/src/components/groups/MemberScoreRow';
+import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
+import { totalPointsFromScores } from '@/src/lib/marmot/scoreSync';
+import type { MemberScore } from '@/src/types';
 
 function calculateStreak(studyTimes: { sessions: { startedAt: string }[] }): number {
   const sessions = studyTimes.sessions;
@@ -57,10 +62,14 @@ function calculateStreak(studyTimes: { sessions: { startedAt: string }[] }): num
 export default function LeaderboardPage() {
   const copy = useCopy();
   const { profile } = useProfile();
+  const { groups, getMemberScores, ready: marmotReady } = useMarmot();
+  const { pubkeyHex } = useNostrIdentity();
   const [totalPoints, setTotalPoints] = useState(0);
   const [streak, setStreak] = useState(0);
   const [selectedCount, setSelectedCount] = useState(0);
   const [hydrated, setHydrated] = useState(false);
+  // Aggregated member scores across all groups (deduplicated by pubkeyHex)
+  const [groupMemberScores, setGroupMemberScores] = useState<Array<{ score: MemberScore; groupName: string }>>([]);
 
   useEffect(() => {
     const selected = readSelectedTopics();
@@ -79,6 +88,41 @@ export default function LeaderboardPage() {
     setStreak(calculateStreak(studyTimes));
     setHydrated(true);
   }, []);
+
+  // Load group member scores when marmot is ready
+  useEffect(() => {
+    if (!marmotReady || groups.length === 0) return;
+
+    async function loadGroupScores() {
+      // Collect all member scores across groups, deduplicating by pubkeyHex
+      const seen = new Set<string>();
+      const results: Array<{ score: MemberScore; groupName: string }> = [];
+
+      for (const group of groups) {
+        try {
+          const scores = await getMemberScores(group.id);
+          for (const ms of scores) {
+            if (ms.pubkeyHex === pubkeyHex) continue; // Skip self
+            if (seen.has(ms.pubkeyHex)) continue;
+            seen.add(ms.pubkeyHex);
+            if (Object.keys(ms.scores).length > 0) {
+              results.push({ score: ms, groupName: group.name });
+            }
+          }
+        } catch {
+          // Non-fatal
+        }
+      }
+
+      // Sort by total points descending
+      results.sort(
+        (a, b) => totalPointsFromScores(b.score.scores) - totalPointsFromScores(a.score.scores)
+      );
+      setGroupMemberScores(results);
+    }
+
+    void loadGroupScores();
+  }, [marmotReady, groups, getMemberScores, pubkeyHex]);
 
   return (
     <>
@@ -192,6 +236,29 @@ export default function LeaderboardPage() {
               </Box>
             </HStack>
           </VStack>
+        )}
+
+        {/* Group Members Section */}
+        {hydrated && groupMemberScores.length > 0 && (
+          <Box mt={6}>
+            <Divider mb={4} />
+            <Heading as="h2" size="md" mb={3}>
+              {copy.groups.memberScoresHeading}
+            </Heading>
+            <VStack spacing={2} align="stretch" data-testid="group-members-leaderboard">
+              {groupMemberScores.map(({ score, groupName }, idx) => (
+                <Box key={score.pubkeyHex}>
+                  <MemberScoreRow
+                    memberScore={score}
+                    rank={idx + 2}
+                  />
+                  <Text fontSize="xs" color="textMuted" pl={2} mt={0.5}>
+                    {copy.groups.fromGroup(groupName)}
+                  </Text>
+                </Box>
+              ))}
+            </VStack>
+          </Box>
         )}
 
         {!hydrated && (

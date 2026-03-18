@@ -1,0 +1,25 @@
+{
+  "story_id": "03",
+  "verified_at": "2026-03-18T10:30:00Z",
+  "acceptance_criteria_results": {
+    "groups_page_accessible": "pass — /groups page in nav, shows group list",
+    "create_group_flow": "pass — CreateGroupModal with name input, calls createGroup()",
+    "group_detail_page": "pass — /groups/[id] shows name, member list with npub chips",
+    "empty_state": "pass — Alert shown when groups list is empty",
+    "groups_persist": "pass — via MarmotContext.groups (IndexedDB backed)",
+    "nav_includes_groups": "pass — Layout.tsx updated with Groups nav item",
+    "make_build": "pass",
+    "make_test_unit": "pass (65 tests)"
+  },
+  "files_created": [
+    "app/pages/groups.tsx",
+    "app/pages/groups/[id].tsx",
+    "app/src/components/groups/GroupCard.tsx",
+    "app/src/components/groups/CreateGroupModal.tsx",
+    "app/src/components/groups/MemberList.tsx"
+  ],
+  "files_modified": [
+    "app/src/components/Layout.tsx",
+    "app/src/lib/i18n.ts"
+  ]
+}

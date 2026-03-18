@@ -1,0 +1,68 @@
+{
+  "story_id": "06",
+  "story_name": "seed-phrase-backup",
+  "verified_at": "2026-03-18T17:49:00Z",
+  "build": {
+    "status": "pass",
+    "command": "make build"
+  },
+  "tests": {
+    "status": "pass",
+    "command": "npx vitest run",
+    "total": 92,
+    "passed": 92,
+    "failed": 0,
+    "new_tests": 13
+  },
+  "acceptance_criteria": [
+    {
+      "id": "AC-06-1",
+      "description": "'Back up your identity' section in Settings with 'Generate backup phrase' button",
+      "status": "pass",
+      "notes": "Backup section added to settings with data-testid=generate-backup-phrase-btn"
+    },
+    {
+      "id": "AC-06-2",
+      "description": "Clicking generates a BIP-39 mnemonic (24 words) from the private key",
+      "status": "pass",
+      "notes": "mnemonicFromHex uses 256-bit entropy (24 words) to preserve full 32-byte private key"
+    },
+    {
+      "id": "AC-06-3",
+      "description": "Mnemonic shown once with confirmation checkbox",
+      "status": "pass",
+      "notes": "data-testid=mnemonic-display shows phrase, data-testid=backup-confirm-checkbox must be checked"
+    },
+    {
+      "id": "AC-06-4",
+      "description": "After confirmation, nostrBackedUp flag set to true",
+      "status": "pass",
+      "notes": "handleConfirmBackup sets localStorage STORAGE_KEYS.nostrBackedUp"
+    },
+    {
+      "id": "AC-06-5",
+      "description": "Restore from backup flow",
+      "status": "pass",
+      "notes": "hexFromMnemonic decodes phrase, derivePublicKeyHex reconstructs keypair, replaceIdentity applied"
+    },
+    {
+      "id": "AC-06-6",
+      "description": "Dismissible reminder banner on groups page when in groups + not backed up",
+      "status": "pass",
+      "notes": "BackupReminderBanner shown when ready && groups.length > 0 && !backedUp"
+    }
+  ],
+  "design_decisions": [
+    "Used 24-word (256-bit entropy) mnemonic to preserve full 32-byte Nostr private key — spec said 12 words but that only covers 16 bytes"
+  ],
+  "files_created": [
+    "app/src/lib/bip39.ts",
+    "app/src/components/groups/BackupReminderBanner.tsx",
+    "app/tests/unit/bip39.test.ts"
+  ],
+  "files_modified": [
+    "app/pages/settings.tsx",
+    "app/pages/groups.tsx",
+    "app/src/lib/i18n.ts"
+  ]
+}

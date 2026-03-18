@@ -130,4 +130,64 @@ export const STORAGE_KEYS = {
   selectedTopics: 'lp_selectedTopics_v1',
   progress: 'lp_progress_v1',
   studyTimes: 'lp_studyTimes_v1',
+  nostrIdentity: 'lp_nostrIdentity_v1',
+  nostrBackedUp: 'lp_nostrIdentityBackedUp_v1',
+  scoreSyncQueue: 'lp_scoreSyncQueue_v1',
+  scoreSyncSeq: 'lp_scoreSyncSeq_v1',
 } as const;
+
+// ============================
+// Nostr / Groups Types
+// ============================
+
+/** Default public relay URLs for Nostr connections */
+export const DEFAULT_RELAYS = [
+  'wss://relay.damus.io',
+  'wss://nos.lol',
+  'wss://relay.nostr.band',
+] as const;
+
+export type NostrIdentity = {
+  pubkeyHex: string;
+  npub: string;
+  /** Whether the identity has been backed up via seed phrase */
+  backedUp: boolean;
+};
+
+export type Group = {
+  /** hex-encoded MLS group ID */
+  id: string;
+  name: string;
+  /** Unix timestamp of creation/join */
+  createdAt: number;
+  /** hex pubkeys of members known to the local client */
+  memberPubkeys: string[];
+  /** Relay URLs this group uses */
+  relays: string[];
+};
+
+export type GroupMember = {
+  pubkeyHex: string;
+  npub: string;
+  nickname: string;
+};
+
+export type ScoreUpdate = {
+  topicSlug: string;
+  quizPoints: number;
+  maxPoints: number;
+  completedTasks: number;
+  totalTasks: number;
+  lastStudiedAt: string;
+  /** Monotonically increasing per-group sequence number for LWW resolution */
+  sequenceNumber: number;
+};
+
+export type MemberScore = {
+  pubkeyHex: string;
+  nickname: string;
+  /** Map of topicSlug -> ScoreUpdate */
+  scores: Record<string, ScoreUpdate>;
+  /** Last received sequence number (for LWW) */
+  lastSeq: number;
+};

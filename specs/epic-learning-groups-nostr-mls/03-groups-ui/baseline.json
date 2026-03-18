@@ -1,0 +1,14 @@
+{
+  "story_id": "03",
+  "story_name": "groups-ui",
+  "captured_at": "2026-03-18T10:00:00Z",
+  "files_before": {
+    "app/pages/": "index, topics, topic/[slug], leaderboard, study-times, settings, _app, _document",
+    "app/src/components/": "Layout.tsx (nav: Home, Topics, Leaderboard, Study Times, Settings)",
+    "app/src/lib/i18n.ts": "Has groups and identity copy sections added in story 01"
+  },
+  "test_baseline": {
+    "make_test_unit": "passes (65 tests)",
+    "make_build": "passes"
+  }
+}

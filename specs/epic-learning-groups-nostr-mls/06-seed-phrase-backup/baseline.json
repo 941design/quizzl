@@ -1,0 +1,21 @@
+{
+  "story_id": "06",
+  "story_name": "seed-phrase-backup",
+  "captured_at": "2026-03-18T17:46:00Z",
+  "existing_files": [
+    "app/src/lib/nostrKeys.ts (loadStoredIdentity, saveStoredIdentity, generatePrivateKeyHex, etc.)",
+    "app/pages/settings.tsx (identity section with npub display)",
+    "app/src/context/NostrIdentityContext.tsx (backedUp state, replaceIdentity)",
+    "app/src/types/index.ts (STORAGE_KEYS.nostrBackedUp exists)",
+    "@scure/bip39 installed"
+  ],
+  "missing": [
+    "app/src/lib/bip39.ts",
+    "app/src/components/groups/BackupReminderBanner.tsx",
+    "Seed phrase generation/restore UI in settings",
+    "Backup reminder banner on groups page",
+    "app/tests/unit/bip39.test.ts",
+    "i18n: identity.backup copy section"
+  ],
+  "test_count_before": 79
+}

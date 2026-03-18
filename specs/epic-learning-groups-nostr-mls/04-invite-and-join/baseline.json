@@ -1,0 +1,14 @@
+{
+  "story_id": "04",
+  "story_name": "invite-and-join",
+  "captured_at": "2026-03-18T10:30:00Z",
+  "files_before": {
+    "app/pages/groups/[id].tsx": "Shows name, member list. No invite/leave controls yet.",
+    "app/src/context/MarmotContext.tsx": "Has inviteByNpub, leaveGroup. No Welcome subscription.",
+    "app/src/lib/marmot/": "NdkNetworkAdapter.ts, groupStorage.ts, signerAdapter.ts"
+  },
+  "test_baseline": {
+    "make_test_unit": "passes (65 tests)",
+    "make_build": "passes"
+  }
+}

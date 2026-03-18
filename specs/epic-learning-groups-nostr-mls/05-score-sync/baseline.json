@@ -1,0 +1,23 @@
+{
+  "story_id": "05",
+  "story_name": "score-sync",
+  "captured_at": "2026-03-18T17:40:00Z",
+  "existing_files": [
+    "app/src/types/index.ts (ScoreUpdate, MemberScore types exist)",
+    "app/src/context/MarmotContext.tsx (publishScoreUpdate, onIncomingScore, getMemberScores exist)",
+    "app/src/lib/marmot/groupStorage.ts (mergeMemberScore, loadMemberScores exist)",
+    "app/pages/topic/[slug].tsx (QuizTab integration point)",
+    "app/pages/leaderboard.tsx (existing leaderboard, no group members)",
+    "app/src/components/quiz/QuizTab.tsx (shows complete screen when isQuizComplete)"
+  ],
+  "missing": [
+    "app/src/lib/marmot/scoreSync.ts",
+    "app/src/components/groups/MemberScoreRow.tsx",
+    "app/tests/unit/scoreSync.test.ts",
+    "Score sync triggered on quiz completion",
+    "Group messages subscription started in MarmotContext",
+    "Group detail page shows member scores",
+    "Leaderboard page shows group members"
+  ],
+  "test_count_before": 65
+}

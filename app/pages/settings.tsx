@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box,
   Heading,
@@ -11,6 +11,7 @@ import {
   Divider,
   Badge,
   Input,
+  Textarea,
   Image,
   Alert,
   AlertIcon,
@@ -22,29 +23,135 @@ import {
   ModalBody,
   ModalFooter,
   ModalCloseButton,
+  Checkbox,
   useDisclosure,
   useToast,
+  Code,
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import { useProfile } from '@/src/context/ProfileContext';
 import { useAppTheme } from '@/src/hooks/useMoodTheme';
+import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
 import { PROFILE_BADGES, PROFILE_BADGE_LIMIT, PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
 import { resetAllData } from '@/src/lib/storage';
 import { APP_THEMES } from '@/src/lib/theme';
+import { truncateNpub, derivePublicKeyHex } from '@/src/lib/nostrKeys';
 import type { ProfileAvatar, UserProfile } from '@/src/types';
+import { STORAGE_KEYS } from '@/src/types';
 
 export default function SettingsPage() {
   const { language, setLanguage } = useLanguage();
   const { profile: savedProfile, saveProfile } = useProfile();
   const copy = useCopy();
   const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
+  const { npub, privateKeyHex, seedHex, backedUp, hydrated: identityHydrated, replaceIdentity } = useNostrIdentity();
   const resetDisclosure = useDisclosure();
   const avatarDisclosure = useDisclosure();
   const toast = useToast();
   const [resetDone, setResetDone] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({ nickname: '', avatar: null, badgeIds: [] });
+  const [npubCopied, setNpubCopied] = useState(false);
+
+  // Backup flow state
+  const [mnemonic, setMnemonic] = useState<string | null>(null);
+  const [backupConfirmed, setBackupConfirmed] = useState(false);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupDone, setBackupDone] = useState(backedUp);
+
+  // Restore flow state
+  const [restoreInput, setRestoreInput] = useState('');
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreSuccess, setRestoreSuccess] = useState(false);
+
+  const handleCopyNpub = useCallback(async () => {
+    if (!npub) return;
+    try {
+      await navigator.clipboard.writeText(npub);
+      setNpubCopied(true);
+      setTimeout(() => setNpubCopied(false), 2000);
+    } catch {
+      // Fallback: do nothing silently
+    }
+  }, [npub]);
+
+  const handleGeneratePhrase = useCallback(async () => {
+    if (!privateKeyHex) return;
+    setBackupLoading(true);
+    try {
+      if (seedHex) {
+        // New identity: 12-word mnemonic from 128-bit seed
+        const { mnemonicFromSeed } = await import('@/src/lib/bip39');
+        const phrase = await mnemonicFromSeed(seedHex);
+        setMnemonic(phrase);
+      } else {
+        // Legacy identity (no seed): 24-word mnemonic from raw private key
+        const { mnemonicFromHex } = await import('@/src/lib/bip39');
+        const phrase = await mnemonicFromHex(privateKeyHex);
+        setMnemonic(phrase);
+      }
+      setBackupConfirmed(false);
+    } catch {
+      // Silently fail
+    } finally {
+      setBackupLoading(false);
+    }
+  }, [privateKeyHex, seedHex]);
+
+  const handleConfirmBackup = useCallback(() => {
+    if (!backupConfirmed) return;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.nostrBackedUp, 'true');
+    }
+    setBackupDone(true);
+    setMnemonic(null);
+    toast({ title: copy.identity.backupDone, status: 'success', duration: 3000, isClosable: true });
+  }, [backupConfirmed, copy.identity.backupDone, toast]);
+
+  const handleRestore = useCallback(async () => {
+    setRestoreLoading(true);
+    setRestoreError(null);
+    try {
+      const { identityFromMnemonic, hexFromMnemonic } = await import('@/src/lib/bip39');
+      const wordCount = restoreInput.trim().split(/\s+/).length;
+
+      let restoredIdentity: { privateKeyHex: string; seedHex?: string } | null = null;
+
+      if (wordCount === 12) {
+        // New format: 12-word → seed → derive private key
+        const result = await identityFromMnemonic(restoreInput);
+        if (result) restoredIdentity = result;
+      } else if (wordCount === 24) {
+        // Legacy format: 24-word → raw private key (no seed)
+        const hex = await hexFromMnemonic(restoreInput);
+        if (hex) restoredIdentity = { privateKeyHex: hex };
+      }
+
+      if (!restoredIdentity) {
+        setRestoreError(copy.identity.restoreError);
+        return;
+      }
+
+      const restoredPubkey = await derivePublicKeyHex(restoredIdentity.privateKeyHex);
+      await replaceIdentity({
+        privateKeyHex: restoredIdentity.privateKeyHex,
+        pubkeyHex: restoredPubkey,
+        seedHex: restoredIdentity.seedHex,
+      });
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.nostrBackedUp, 'true');
+      }
+      setRestoreSuccess(true);
+      setRestoreInput('');
+      setBackupDone(true);
+    } catch {
+      setRestoreError(copy.identity.restoreError);
+    } finally {
+      setRestoreLoading(false);
+    }
+  }, [restoreInput, replaceIdentity, copy.identity.restoreError]);
 
   function handleReset() {
     resetAllData();
@@ -354,6 +461,165 @@ export default function SettingsPage() {
                 {copy.settings[activeThemeDefinition.descriptionKey]}
               </Text>
             </Box>
+          </Box>
+
+          <Divider />
+
+          {/* Nostr Identity Section */}
+          <Box>
+            <Heading as="h2" size="md" mb={1}>
+              {copy.identity.sectionHeading}
+            </Heading>
+            <Text fontSize="sm" color="textMuted" mb={4}>
+              {copy.identity.sectionDescription}
+            </Text>
+
+            {identityHydrated && npub ? (
+              <VStack align="stretch" spacing={5}>
+                {/* npub display */}
+                <Box>
+                  <Text fontSize="sm" color="textMuted" mb={1}>
+                    {copy.identity.npubLabel}
+                  </Text>
+                  <HStack spacing={3} flexWrap="wrap">
+                    <Code
+                      fontSize="sm"
+                      px={3}
+                      py={2}
+                      borderRadius="md"
+                      bg="surfaceMutedBg"
+                      userSelect="all"
+                      data-testid="identity-npub-display"
+                    >
+                      {truncateNpub(npub)}
+                    </Code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCopyNpub}
+                      data-testid="copy-npub-btn"
+                    >
+                      {npubCopied ? copy.identity.copiedNpub : copy.identity.copyNpub}
+                    </Button>
+                  </HStack>
+                </Box>
+
+                {/* Backup Section */}
+                <Box>
+                  <Heading as="h3" size="sm" mb={1}>
+                    {copy.identity.backupHeading}
+                  </Heading>
+                  <Text fontSize="sm" color="textMuted" mb={3}>
+                    {copy.identity.backupDescription}
+                  </Text>
+
+                  {backupDone && !mnemonic && (
+                    <Alert status="success" borderRadius="md" mb={3} size="sm">
+                      <AlertIcon />
+                      <AlertDescription fontSize="sm">{copy.identity.backupDone}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {!mnemonic && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleGeneratePhrase()}
+                      isLoading={backupLoading}
+                      data-testid="generate-backup-phrase-btn"
+                    >
+                      {copy.identity.generatePhrase}
+                    </Button>
+                  )}
+
+                  {mnemonic && (
+                    <VStack align="stretch" spacing={3}>
+                      <Alert status="warning" borderRadius="md">
+                        <AlertIcon />
+                        <AlertDescription fontSize="sm">{copy.identity.backupWarning}</AlertDescription>
+                      </Alert>
+                      <Code
+                        p={4}
+                        borderRadius="md"
+                        fontSize="md"
+                        whiteSpace="pre-wrap"
+                        wordBreak="break-word"
+                        bg="surfaceMutedBg"
+                        data-testid="mnemonic-display"
+                      >
+                        {mnemonic}
+                      </Code>
+                      <Checkbox
+                        isChecked={backupConfirmed}
+                        onChange={(e) => setBackupConfirmed(e.target.checked)}
+                        data-testid="backup-confirm-checkbox"
+                      >
+                        <Text fontSize="sm">{copy.identity.backupConfirmCheck}</Text>
+                      </Checkbox>
+                      <Button
+                        size="sm"
+                        isDisabled={!backupConfirmed}
+                        onClick={handleConfirmBackup}
+                        data-testid="backup-done-btn"
+                      >
+                        Done
+                      </Button>
+                    </VStack>
+                  )}
+                </Box>
+
+                {/* Restore Section */}
+                <Box>
+                  <Heading as="h3" size="sm" mb={1}>
+                    {copy.identity.restoreHeading}
+                  </Heading>
+                  <Text fontSize="sm" color="textMuted" mb={3}>
+                    {copy.identity.restoreDescription}
+                  </Text>
+
+                  {restoreSuccess && (
+                    <Alert status="success" borderRadius="md" mb={3}>
+                      <AlertIcon />
+                      <AlertDescription fontSize="sm">{copy.identity.restoreSuccess}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {restoreError && (
+                    <Alert status="error" borderRadius="md" mb={3}>
+                      <AlertIcon />
+                      <AlertDescription fontSize="sm">{restoreError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <VStack align="stretch" spacing={2}>
+                    <Textarea
+                      value={restoreInput}
+                      onChange={(e) => setRestoreInput(e.target.value)}
+                      placeholder={copy.identity.restoreInput}
+                      rows={3}
+                      bg="surfaceBg"
+                      fontSize="sm"
+                      data-testid="restore-phrase-input"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      colorScheme="danger"
+                      onClick={() => void handleRestore()}
+                      isLoading={restoreLoading}
+                      isDisabled={restoreInput.trim().split(/\s+/).length < 12}
+                      data-testid="restore-identity-btn"
+                    >
+                      {copy.identity.restoreButton}
+                    </Button>
+                  </VStack>
+                </Box>
+              </VStack>
+            ) : (
+              <Text fontSize="sm" color="textMuted">
+                {copy.identity.notReady}
+              </Text>
+            )}
           </Box>
 
           <Divider />

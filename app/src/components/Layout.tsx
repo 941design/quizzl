@@ -34,6 +34,7 @@ export default function Layout({ children }: LayoutProps) {
     { label: copy.layout.nav.home, href: '/' },
     { label: copy.layout.nav.topics, href: '/topics' },
     { label: copy.layout.nav.leaderboard, href: '/leaderboard' },
+    { label: copy.layout.nav.groups, href: '/groups' },
     { label: copy.layout.nav.studyTimes, href: '/study-times' },
   ];
 

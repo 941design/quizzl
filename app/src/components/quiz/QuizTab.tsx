@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   VStack,
@@ -30,13 +30,16 @@ type QuizTabProps = {
   answers: Record<string, QuizAnswer>;
   onAnswer: (questionId: string, answer: QuizAnswer, newTotalPoints: number) => void;
   onRetry: () => void;
+  /** Called once when the quiz reaches completion (all questions answered) */
+  onComplete?: (result: { quizPoints: number; maxPoints: number }) => void;
 };
 
-export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabProps) {
+export default function QuizTab({ topic, answers, onAnswer, onRetry, onComplete }: QuizTabProps) {
   const copy = useCopy();
   const questions = topic.quiz;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showFeedback, setShowFeedback] = useState(true);
+  const [completionFired, setCompletionFired] = useState(false);
 
   if (questions.length === 0) {
     return (
@@ -56,6 +59,18 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
   const maxPoints = maxPossiblePoints(questions);
   const answered = answeredCount(questions, answers);
   const complete = isQuizComplete(questions, answers);
+
+  // Fire onComplete callback once when quiz becomes complete
+  useEffect(() => {
+    if (complete && !completionFired && onComplete) {
+      setCompletionFired(true);
+      onComplete({ quizPoints: totalPoints, maxPoints });
+    }
+    if (!complete && completionFired) {
+      // Reset for retry
+      setCompletionFired(false);
+    }
+  }, [complete, completionFired, onComplete, totalPoints, maxPoints]);
 
   // Show summary when complete
   if (complete) {

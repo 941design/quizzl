@@ -1,0 +1,15 @@
+{
+  "story_id": "02",
+  "story_name": "marmot-adapter",
+  "captured_at": "2026-03-18T09:30:00Z",
+  "files_before": {
+    "app/src/lib/": "nostrKeys.ts, ndkClient.ts, keyPackages.ts, i18n.ts, storage.ts, content.ts, scoring.ts, theme.ts",
+    "app/src/context/": "ProfileContext.tsx, LanguageContext.tsx, NostrIdentityContext.tsx",
+    "app/src/types/index.ts": "Has Group, GroupMember, ScoreUpdate, MemberScore types, STORAGE_KEYS with nostrIdentity + nostrBackedUp",
+    "app/pages/_app.tsx": "AppThemeProvider > ChakraProvider > LanguageProvider > ProfileProvider > NostrIdentityProvider > Layout"
+  },
+  "test_baseline": {
+    "make_test_unit": "passes (53 tests)",
+    "make_build": "passes"
+  }
+}

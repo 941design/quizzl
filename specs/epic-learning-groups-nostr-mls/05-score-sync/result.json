@@ -1,0 +1,10 @@
+{
+  "story_id": "05",
+  "story_name": "score-sync",
+  "status": "completed",
+  "completed_at": "2026-03-18T17:45:00Z",
+  "summary": "Score sync implemented end-to-end. Quiz completion triggers fire-and-forget publishScoreUpdate. Group message subscriptions (kind 445) receive and merge incoming scores via LWW by sequenceNumber. Group detail page shows member scores sorted by total points. Leaderboard shows group members with 'From group' labels. scoreSync.ts provides buildScoreUpdate, serialiseScoreUpdate, parseScorePayload, nextSequenceNumber, totalPointsFromScores utilities with 14 unit tests.",
+  "type_fixes": [
+    "StudyPlan has .steps not .tasks"
+  ]
+}

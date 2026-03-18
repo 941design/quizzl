@@ -1,0 +1,6 @@
+{
+  "story_id": "01",
+  "status": "done",
+  "completed_at": "2026-03-18T09:30:00Z",
+  "summary": "Added Nostr/NDK/marmot-ts/idb-keyval/nostr-tools dependencies. Implemented Tier 1 auto-identity: auto-generated keypair persisted to localStorage, NostrIdentityContext providing pubkey/npub/privateKeyHex, background kind-0 publish on startup, settings page identity chip with copy-npub button. All 53 unit tests pass. Build succeeds."
+}

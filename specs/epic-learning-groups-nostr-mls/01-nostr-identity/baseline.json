@@ -1,0 +1,18 @@
+{
+  "story_id": "01",
+  "story_name": "nostr-identity",
+  "captured_at": "2026-03-18T09:01:00Z",
+  "files_before": {
+    "app/package.json": "dependencies: next 14.2.35, react 18, chakra-ui 2, tiptap, framer-motion, iconify. No nostr/marmot deps.",
+    "app/src/types/index.ts": "Has AppThemeName, UserProfile, Settings, Progress, StudyTimes, STORAGE_KEYS. No Nostr types.",
+    "app/src/lib/storage.ts": "Has STORAGE_KEYS, readSettings/writeSettings, readUserProfile, readProgress, resetAllData. No nostr storage.",
+    "app/pages/_app.tsx": "AppThemeProvider > ChakraProvider > LanguageProvider > ProfileProvider > Layout.",
+    "app/pages/settings.tsx": "Profile, language, theme, reset sections. No identity section.",
+    "app/src/context/": "Contains ProfileContext.tsx, LanguageContext.tsx only.",
+    "app/src/lib/": "Contains i18n.ts, storage.ts, content.ts, scoring.ts, theme.ts only."
+  },
+  "test_baseline": {
+    "make_test_unit": "passes",
+    "make_build": "passes"
+  }
+}

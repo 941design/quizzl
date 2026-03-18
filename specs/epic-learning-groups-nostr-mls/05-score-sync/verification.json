@@ -1,0 +1,68 @@
+{
+  "story_id": "05",
+  "story_name": "score-sync",
+  "verified_at": "2026-03-18T17:45:00Z",
+  "build": {
+    "status": "pass",
+    "command": "make build",
+    "notes": "Fixed topic.studyPlan.steps (not .tasks)"
+  },
+  "tests": {
+    "status": "pass",
+    "command": "npx vitest run",
+    "total": 79,
+    "passed": 79,
+    "failed": 0,
+    "new_tests": 14
+  },
+  "acceptance_criteria": [
+    {
+      "id": "AC-05-1",
+      "description": "On quiz completion, a ScoreUpdate is sent to all groups",
+      "status": "pass",
+      "notes": "QuizTab.onComplete callback triggers publishScoreUpdate in topic/[slug].tsx"
+    },
+    {
+      "id": "AC-05-2",
+      "description": "ScoreUpdate includes all required fields including sequenceNumber",
+      "status": "pass",
+      "notes": "buildScoreUpdate() assigns sequenceNumber via nextSequenceNumber()"
+    },
+    {
+      "id": "AC-05-3",
+      "description": "Members receiving ScoreUpdate update local cache (LWW by sequence)",
+      "status": "pass",
+      "notes": "subscribeToGroupMessages processes kind 445 events, parseScorePayload() deserialises, mergeMemberScore() applies LWW"
+    },
+    {
+      "id": "AC-05-4",
+      "description": "Group detail page shows member scores",
+      "status": "pass",
+      "notes": "groups/[id].tsx loads getMemberScores, renders MemberScoreRow sorted by points"
+    },
+    {
+      "id": "AC-05-5",
+      "description": "Leaderboard shows group members alongside own score",
+      "status": "pass",
+      "notes": "leaderboard.tsx adds group members section with fromGroup label, deduped across groups"
+    },
+    {
+      "id": "AC-05-6",
+      "description": "Score sync is non-blocking",
+      "status": "pass",
+      "notes": "publishScoreUpdate called with void + .catch(), never awaited in quiz flow"
+    }
+  ],
+  "files_created": [
+    "app/src/lib/marmot/scoreSync.ts",
+    "app/src/components/groups/MemberScoreRow.tsx",
+    "app/tests/unit/scoreSync.test.ts"
+  ],
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx",
+    "app/src/components/quiz/QuizTab.tsx",
+    "app/pages/topic/[slug].tsx",
+    "app/pages/groups/[id].tsx",
+    "app/pages/leaderboard.tsx"
+  ]
+}

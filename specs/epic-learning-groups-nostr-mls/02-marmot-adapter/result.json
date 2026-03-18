@@ -1,0 +1,6 @@
+{
+  "story_id": "02",
+  "status": "done",
+  "completed_at": "2026-03-18T10:00:00Z",
+  "summary": "Created Marmot adapter layer: NdkNetworkAdapter (NostrNetworkInterface impl), IdbGroupStateBackend + IdbKeyPackageBackend (IndexedDB via idb-keyval), signerAdapter (applesauce-core EventSigner from private key hex), MarmotContext (createGroup, inviteByNpub, leaveGroup, publishScoreUpdate). Resolved SWC crash with custom webpack loader. 65/65 tests pass, build succeeds."
+}

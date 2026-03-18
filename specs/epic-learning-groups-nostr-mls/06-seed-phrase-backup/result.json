@@ -1,0 +1,7 @@
+{
+  "story_id": "06",
+  "story_name": "seed-phrase-backup",
+  "status": "completed",
+  "completed_at": "2026-03-18T17:49:00Z",
+  "summary": "BIP-39 mnemonic backup implemented using 24 words (256-bit entropy) to preserve full 32-byte Nostr private key. Settings page has generate/confirm flow with masking until checkbox checked. Restore flow validates mnemonic, reconstructs keypair, calls replaceIdentity. BackupReminderBanner shows on groups page when user has groups but no backup. 13 unit tests cover round-trip, edge cases."
+}

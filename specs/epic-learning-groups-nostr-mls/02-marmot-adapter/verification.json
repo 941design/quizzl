@@ -1,0 +1,27 @@
+{
+  "story_id": "02",
+  "verified_at": "2026-03-18T10:00:00Z",
+  "acceptance_criteria_results": {
+    "marmot_context_available": "pass — MarmotProvider in _app.tsx (dynamic import with ssr:false), useMarmot hook exported",
+    "ndk_network_adapter": "pass — NdkNetworkAdapter implements NostrNetworkInterface (publish, request, subscription, getUserInboxRelays)",
+    "group_state_persists_indexeddb": "pass — IdbGroupStateBackend, IdbKeyPackageBackend, groupStorage functions",
+    "marmot_initializes_offline": "pass — try/catch around all marmot-ts calls, ready=true even on failure",
+    "typescript_types_defined": "pass — Group, GroupMember, ScoreUpdate, MemberScore in types/index.ts",
+    "make_build": "pass — build passes with custom next-swc-loader for ts-mls/marmot-ts packages",
+    "make_test_unit": "pass — 65/65 tests pass (12 new marmotAdapter tests)"
+  },
+  "files_created": [
+    "app/src/lib/marmot/NdkNetworkAdapter.ts",
+    "app/src/lib/marmot/groupStorage.ts",
+    "app/src/lib/marmot/signerAdapter.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/tests/unit/marmotAdapter.test.ts"
+  ],
+  "files_modified": [
+    "app/next.config.mjs",
+    "app/pages/_app.tsx",
+    "app/src/context/NostrIdentityContext.tsx",
+    "app/src/lib/storage.ts"
+  ],
+  "notes": "Had to add @noble/post-quantum and @hpke/* peer dependencies for ts-mls. SWC FRACTIONAL_BITWISE_OPERAND crash resolved by using next-swc-loader with swcMinify:false for affected packages. Dynamic imports with ssr:false prevent server-side bundling."
+}

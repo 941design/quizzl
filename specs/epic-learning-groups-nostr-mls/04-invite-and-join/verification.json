@@ -1,0 +1,64 @@
+{
+  "story_id": "04",
+  "story_name": "invite-and-join",
+  "verified_at": "2026-03-18T17:39:00Z",
+  "build": {
+    "status": "pass",
+    "command": "make build",
+    "notes": "Fixed AsyncGenerator iteration (for await) and ProcessMessageResult type usage (kind: 'applicationMessage' with .message not .applicationMessage)"
+  },
+  "tests": {
+    "status": "pass",
+    "command": "npx vitest run",
+    "total": 65,
+    "passed": 65,
+    "failed": 0
+  },
+  "acceptance_criteria": [
+    {
+      "id": "AC-04-1",
+      "description": "Invite button opens modal with npub input",
+      "status": "pass",
+      "notes": "InviteMemberModal renders with npub TextInput, calls inviteByNpub on submit"
+    },
+    {
+      "id": "AC-04-2",
+      "description": "Invalid npub shows error message",
+      "status": "pass",
+      "notes": "inviteByNpub returns {ok:false, error:'invalid_npub'} which maps to i18n copy"
+    },
+    {
+      "id": "AC-04-3",
+      "description": "No key package error shown when invitee not on Nostr",
+      "status": "pass",
+      "notes": "error:'no_key_package' mapped to i18n copy.groups.inviteErrorNoKeyPackage"
+    },
+    {
+      "id": "AC-04-4",
+      "description": "Success feedback shown after invite",
+      "status": "pass",
+      "notes": "Modal shows success alert with copy.groups.inviteSuccess"
+    },
+    {
+      "id": "AC-04-5",
+      "description": "Leave group button with confirmation modal",
+      "status": "pass",
+      "notes": "LeaveGroupButton shows confirmation modal, calls leaveGroup, redirects to /groups"
+    },
+    {
+      "id": "AC-04-6",
+      "description": "Welcome subscription auto-joins groups",
+      "status": "pass",
+      "notes": "subscribeToWelcomes subscribes to kind 444 events, calls joinGroupFromWelcome, persists group, calls selfUpdate"
+    }
+  ],
+  "files_created": [
+    "app/src/components/groups/InviteMemberModal.tsx",
+    "app/src/components/groups/LeaveGroupButton.tsx",
+    "app/src/lib/marmot/welcomeSubscription.ts"
+  ],
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx",
+    "app/pages/groups/[id].tsx"
+  ]
+}

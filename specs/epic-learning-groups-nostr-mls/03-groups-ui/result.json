@@ -1,0 +1,6 @@
+{
+  "story_id": "03",
+  "status": "done",
+  "completed_at": "2026-03-18T10:30:00Z",
+  "summary": "Created /groups page with group list, create group modal, and empty state. Created /groups/[id] detail page with member list (npub chips). Added Groups to navigation. GroupCard shows member count badge with soft-limit warning at 45+. 65 tests pass, build succeeds."
+}

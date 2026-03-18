@@ -1,0 +1,27 @@
+{
+  "story_id": "01",
+  "verified_at": "2026-03-18T09:30:00Z",
+  "acceptance_criteria_results": {
+    "keypair_generated_and_persisted": "pass — generatePrivateKeyHex + derivePublicKeyHex, saveStoredIdentity to lp_nostrIdentity_v1",
+    "consistent_across_reloads": "pass — loadStoredIdentity reads from localStorage on every init",
+    "keypackages_published": "pass — publishKeyPackages called in background from NostrIdentityContext (5 packages, non-blocking)",
+    "settings_identity_chip": "pass — settings.tsx adds Nostr Identity section with truncated npub and Copy button",
+    "nostridentitycontext_available": "pass — NostrIdentityProvider in _app.tsx, useNostrIdentity hook exported",
+    "make_build": "pass — static export succeeds with all 10 pages",
+    "make_test_unit": "pass — 53/53 tests pass (12 new nostrKeys tests)"
+  },
+  "files_created": [
+    "app/src/lib/nostrKeys.ts",
+    "app/src/lib/ndkClient.ts",
+    "app/src/lib/keyPackages.ts",
+    "app/src/context/NostrIdentityContext.tsx",
+    "app/tests/unit/nostrKeys.test.ts"
+  ],
+  "files_modified": [
+    "app/package.json",
+    "app/src/types/index.ts",
+    "app/src/lib/i18n.ts",
+    "app/pages/_app.tsx",
+    "app/pages/settings.tsx"
+  ]
+}

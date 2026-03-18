@@ -1,0 +1,265 @@
+{
+  "epic_name": "learning-groups-nostr-mls",
+  "created_at": "2026-03-18T09:00:00Z",
+  "updated_at": "2026-03-18T09:00:00Z",
+  "total_stories": 7,
+  "stories": [
+    {
+      "id": "01",
+      "name": "nostr-identity",
+      "title": "Nostr Identity: Tier 1 Auto-Identity + KeyPackage Publication",
+      "description": "Add dependencies (NDK, nostr-tools, idb-keyval, marmot-ts@0.4.0). On first app load, auto-generate a Nostr keypair and store it encrypted in localStorage (lp_nostrIdentity_v1). Publish kind 0 metadata (nickname from profile) to default relays. Publish 5 initial kind 443 KeyPackages. Expose identity via NostrIdentityContext (pubkey, npub, signer). Add Tier 1 identity chip to the settings page showing npub (truncated) with a 'Copy npub' button.",
+      "acceptance_criteria": [
+        "On first launch, a Nostr keypair is generated and persisted in localStorage under lp_nostrIdentity_v1",
+        "Keypair is consistent across page reloads (same pubkey shown in settings)",
+        "5 kind 443 KeyPackages are published to default relays on first launch",
+        "Settings page shows identity chip with truncated npub and 'Copy npub' button",
+        "NostrIdentityContext is available app-wide and provides pubkey, npub, and signer",
+        "make build succeeds",
+        "make test-unit passes"
+      ],
+      "scope": {
+        "includes": [
+          "app/package.json: add @nostr-dev-kit/ndk@3.0.3, nostr-tools@2.23, idb-keyval@6.2.2, @internet-privacy/marmot-ts@0.4.0",
+          "app/src/lib/nostrKeys.ts: keypair generation, localStorage persistence (lp_nostrIdentity_v1), npub encoding",
+          "app/src/lib/ndkClient.ts: singleton NDK instance, default relay list (relay.damus.io, nos.lol, relay.nostr.band)",
+          "app/src/lib/keyPackages.ts: publish 5 kind 443 KeyPackages via NDK, replenish logic",
+          "app/src/context/NostrIdentityContext.tsx: provider + useNostrIdentity hook",
+          "app/pages/_app.tsx: wrap with NostrIdentityProvider",
+          "app/pages/settings.tsx: add identity section with npub chip and copy button",
+          "app/src/types/index.ts: add NostrIdentity type, default relay constants",
+          "app/tests/unit/nostrKeys.test.ts: keypair generation, persistence, npub encoding"
+        ],
+        "excludes": [
+          "Tier 2 seed phrase backup",
+          "Tier 3 NIP-07/NIP-46 signer",
+          "MLS group operations",
+          "UI for groups"
+        ]
+      },
+      "complexity": "medium",
+      "status": "pending",
+      "notes": "Pin marmot-ts to 0.4.0 exactly (no ^). NDK singleton initialized lazily (not on SSR). KeyPackage publishing happens client-side only. Default relays: wss://relay.damus.io, wss://nos.lol, wss://relay.nostr.band. Store private key as hex in localStorage for simplicity (Tier 1 accepts localStorage loss risk). Use nostr-tools nip19.npubEncode for npub encoding."
+    },
+    {
+      "id": "02",
+      "name": "marmot-adapter",
+      "title": "Marmot Adapter Layer: MarmotClient Context + Group State Storage",
+      "description": "Create the adapter layer wrapping marmot-ts behind a stable interface. Implement MarmotContext providing createGroup, inviteByNpub, leaveGroup, and sendScoreUpdate operations. Use idb-keyval for IndexedDB group state storage (group list, member scores). Groups are persisted across reloads. Implement the NdkNetworkAdapter implementing NostrNetworkInterface for marmot-ts.",
+      "acceptance_criteria": [
+        "MarmotContext is available app-wide and provides group CRUD operations",
+        "NdkNetworkAdapter correctly wraps NDK for marmot-ts relay I/O",
+        "Group state persists to IndexedDB (survives page reload)",
+        "MarmotProvider initializes without throwing when offline",
+        "TypeScript types for Group, GroupMember, ScoreUpdate, MemberScore are defined in src/types/index.ts",
+        "make build succeeds",
+        "make test-unit passes (adapter unit tests with mocked NDK)"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/NdkNetworkAdapter.ts: implements NostrNetworkInterface using NDK",
+          "app/src/lib/marmot/groupStorage.ts: idb-keyval wrappers for group list and member scores",
+          "app/src/context/MarmotContext.tsx: MarmotProvider + useMarmot hook",
+          "app/src/types/index.ts: Group, GroupMember, ScoreUpdate, MemberScore types, STORAGE_KEYS additions",
+          "app/pages/_app.tsx: wrap with MarmotProvider (inside NostrIdentityProvider)",
+          "app/tests/unit/marmotAdapter.test.ts: unit tests for groupStorage, NdkNetworkAdapter"
+        ],
+        "excludes": [
+          "Groups UI page",
+          "Score sync trigger from quiz",
+          "Welcome/invitation receipt (story 04)"
+        ]
+      },
+      "complexity": "high",
+      "status": "pending",
+      "notes": "NdkNetworkAdapter: implement publish(event), subscribe(filter, onEvent), unsubscribe(subId). groupStorage keys: 'quizzl_groups_v1' (list of Group), 'quizzl_member_scores_v1' (map of groupId -> MemberScore[]). MarmotClient is constructed once in MarmotProvider using the NdkNetworkAdapter and an IndexedDB storage backend. Wrap all marmot-ts calls in try/catch — it's alpha. If marmot-ts does not export a usable IndexedDB storage backend, implement a minimal one using idb-keyval."
+    },
+    {
+      "id": "03",
+      "name": "groups-ui",
+      "title": "Groups UI: /groups Page + Create Group + Group Detail",
+      "description": "Add a /groups page to the app. Show list of joined groups (empty state for new users). 'Create Group' button opens a modal for group name input — calls MarmotContext.createGroup(). Each group in the list links to a /groups/[id] detail page showing the group name, member list (npub truncated), and placeholder for member scores. Add 'Groups' to the navigation. Soft-limit: show warning if member count approaches 50.",
+      "acceptance_criteria": [
+        "/groups page is accessible from navigation and shows group list",
+        "'Create Group' flow: modal, name input, submit calls createGroup(), new group appears in list",
+        "/groups/[id] page shows group name and member list",
+        "Empty state shown when user has no groups",
+        "Groups persist after page reload (IndexedDB via MarmotContext)",
+        "Navigation includes 'Groups' link",
+        "make build succeeds",
+        "make test-e2e passes for new story-09-groups-ui.spec.ts"
+      ],
+      "scope": {
+        "includes": [
+          "app/pages/groups.tsx: groups list page",
+          "app/pages/groups/[id].tsx: group detail page",
+          "app/src/components/groups/GroupCard.tsx: group list item",
+          "app/src/components/groups/CreateGroupModal.tsx: create group modal",
+          "app/src/components/groups/MemberList.tsx: member list in detail page",
+          "app/src/components/Layout.tsx: add 'Groups' nav link",
+          "app/src/lib/i18n.ts: add groups copy (EN + DE)",
+          "app/tests/e2e/story-09-groups-ui.spec.ts: E2E tests (mocked MarmotContext)"
+        ],
+        "excludes": [
+          "Invite flow (story 04)",
+          "Leave group (story 04)",
+          "Score display in group detail (story 05)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "pending",
+      "notes": "For E2E tests, mock the MarmotContext at the page level using a localStorage-backed stub so tests don't need a live relay. Group detail page shows members as npub chips. Navigation: add 'Groups' between 'Leaderboard' and 'Study Times' in Layout.tsx."
+    },
+    {
+      "id": "04",
+      "name": "invite-and-join",
+      "title": "Invite by Npub + Auto-Join on Welcome Receipt",
+      "description": "Implement the full invite/join lifecycle. On the group detail page, add 'Invite Member' button. User pastes an npub. App fetches the invitee's kind 443 KeyPackage from relays. If found, calls group.inviteByKeyPackageEvent() which publishes kind 445 Commit + kind 444 Welcome. On the invitee's side, app subscribes to kind 444 Welcomes on startup and auto-joins groups. Add 'Leave Group' functionality. Show clear error messages for missing KeyPackages.",
+      "acceptance_criteria": [
+        "'Invite Member' input accepts npub and shows error for invalid format",
+        "If invitee has no KeyPackage on relays, show 'User has not set up their Quizzl identity yet' error",
+        "If KeyPackage found, invite completes and invitee appears in member list",
+        "On receiving a kind 444 Welcome, the group auto-appears in the invitee's groups list after reload",
+        "'Leave Group' button removes the group from the local groups list",
+        "All operations show loading states and handle errors gracefully",
+        "make build succeeds",
+        "make test-e2e passes for new story-10-invite-join.spec.ts (using local relay stub)"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/components/groups/InviteMemberModal.tsx: npub input, KeyPackage fetch, invite flow",
+          "app/src/components/groups/LeaveGroupButton.tsx: leave group with confirmation",
+          "app/pages/groups/[id].tsx: add invite + leave controls",
+          "app/src/lib/marmot/welcomeSubscription.ts: subscribe to kind 444 Welcomes, process and auto-join",
+          "app/src/context/MarmotContext.tsx: add inviteByNpub, leaveGroup, processIncomingWelcome",
+          "app/src/context/NostrIdentityContext.tsx: expose subscribeToWelcomes trigger",
+          "app/tests/e2e/story-10-invite-join.spec.ts: E2E tests with stubbed relay"
+        ],
+        "excludes": [
+          "QR code scanning",
+          "Multi-device sync (out of scope per spec)",
+          "Score syncing (story 05)"
+        ]
+      },
+      "complexity": "high",
+      "status": "pending",
+      "notes": "WelcomeSubscription: start on app load in NostrIdentityContext. On receiving kind 444 addressed to our pubkey: attempt MarmotClient.processWelcome(), if successful add group to groupStorage and trigger UI refresh. Self-update (leaf key rotation) should be called after joining. For E2E, use a local strfry relay via docker-compose.e2e.yml. Invite error messages should be specific: 'Invalid npub format', 'User not found on relays', 'User has not published a KeyPackage'."
+    },
+    {
+      "id": "05",
+      "name": "score-sync",
+      "title": "Score Sync: Publish ScoreUpdate on Quiz Completion + Receive Member Scores",
+      "description": "After a user completes a quiz (reaches the completion screen), publish a ScoreUpdate MLS application message to each group the user belongs to. The ScoreUpdate contains topicSlug, quizPoints, maxPoints, completedTasks, totalTasks, lastStudiedAt. Other members subscribe to kind 445 group messages and update their local member score cache (IndexedDB). The group detail page and leaderboard page show group members' scores.",
+      "acceptance_criteria": [
+        "On quiz completion, a ScoreUpdate is sent to all groups the user belongs to",
+        "ScoreUpdate includes: topicSlug, quizPoints, maxPoints, completedTasks, totalTasks, lastStudiedAt, sequenceNumber",
+        "Members receiving a ScoreUpdate update their local cache (latest by sequence wins)",
+        "Group detail page shows each member's total quizPoints across all topics",
+        "Leaderboard page: when user is in groups, shows group members alongside the user's own score",
+        "Score sync is non-blocking (failures are silently retried, never break quiz flow)",
+        "make build succeeds",
+        "make test-unit passes (score sync logic)",
+        "make test-e2e passes for new story-11-score-sync.spec.ts"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/scoreSync.ts: buildScoreUpdate(), publishScoreToGroups(), processIncomingScore()",
+          "app/src/context/MarmotContext.tsx: add publishScoreUpdate, onMemberScoreReceived",
+          "app/pages/topic/[slug].tsx: trigger publishScoreUpdate on quiz completion (QuizTab)",
+          "app/src/components/quiz/QuizSummary.tsx (or equivalent): call publishScoreUpdate hook",
+          "app/src/components/groups/MemberScoreRow.tsx: display member name + total points",
+          "app/pages/groups/[id].tsx: show member scores",
+          "app/pages/leaderboard.tsx: add group members section when user is in groups",
+          "app/src/types/index.ts: ScoreUpdate type with sequenceNumber",
+          "app/tests/unit/scoreSync.test.ts: buildScoreUpdate, sequence number logic, score merging",
+          "app/tests/e2e/story-11-score-sync.spec.ts"
+        ],
+        "excludes": [
+          "Periodic heartbeat syncing (spec says quiz completion only for this iteration)",
+          "Collaborative group metrics display (future feature)"
+        ]
+      },
+      "complexity": "high",
+      "status": "pending",
+      "notes": "ScoreUpdate includes a sequenceNumber (monotonically increasing, stored in localStorage per group). On receive: merge with existing cache using last-writer-wins by sequenceNumber. publishScoreToGroups is fire-and-forget (no await in quiz flow). Queue updates if group is mid-epoch-transition (catch MLS errors and retry on next quiz completion). The leaderboard shows group members as additional entries below the user's own entry with a 'From group: {groupName}' label."
+    },
+    {
+      "id": "06",
+      "name": "seed-phrase-backup",
+      "title": "Tier 2: Seed Phrase Backup + Identity Recovery",
+      "description": "Add seed phrase (BIP-39 mnemonic) backup flow to the settings page. User can generate a mnemonic from their existing private key. Show it once with 'Write this down' prompt and a confirmation checkbox. On a fresh install, user can restore identity by entering a mnemonic. Store a flag (lp_nostrIdentityBackedUp_v1) when backup is confirmed. Show a non-intrusive reminder banner when user joins their first group without having backed up.",
+      "acceptance_criteria": [
+        "'Back up your identity' section in Settings shows 'Generate backup phrase' button",
+        "Clicking generates a BIP-39 mnemonic (12 words) derived from the existing private key",
+        "Mnemonic is shown exactly once with a 'I have written this down' checkbox that must be checked to proceed",
+        "After confirmation, lp_nostrIdentityBackedUp_v1 is set to true",
+        "'Restore from backup' flow: enter mnemonic, restores the keypair, re-publishes kind 0 and KeyPackages",
+        "When user is in a group but has not backed up, a dismissible reminder banner appears on the groups page",
+        "make build succeeds",
+        "make test-unit passes (mnemonic generation + restore)",
+        "make test-e2e passes for new story-12-seed-phrase.spec.ts"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/bip39.ts: mnemonicFromHex, hexFromMnemonic (use nostr-tools or implement BIP39 directly)",
+          "app/pages/settings.tsx: add identity backup section",
+          "app/src/components/groups/BackupReminderBanner.tsx: dismissible banner on groups page",
+          "app/pages/groups.tsx: show BackupReminderBanner if in groups + not backed up",
+          "app/src/lib/i18n.ts: add backup copy (EN + DE)",
+          "app/tests/unit/bip39.test.ts: mnemonic round-trip tests",
+          "app/tests/e2e/story-12-seed-phrase.spec.ts"
+        ],
+        "excludes": [
+          "Tier 3 NIP-07/NIP-46 signer (future)",
+          "Encrypted mnemonic export",
+          "Multi-device restoration of MLS group state"
+        ]
+      },
+      "complexity": "medium",
+      "status": "pending",
+      "notes": "For BIP-39: use the @scure/bip39 library (or implement a minimal wordlist). Check if nostr-tools exports BIP39 helpers before adding a new dep. The mnemonic is derived from the 32-byte private key using entropy-to-mnemonic. Restoration: decode mnemonic back to hex private key, replace lp_nostrIdentity_v1, re-run initial setup (kind 0 + KeyPackages). Show mnemonic in a masked/blurred state that requires hover/click to reveal (privacy). STORAGE_KEYS: add nostrIdentity: 'lp_nostrIdentity_v1', nostrBackedUp: 'lp_nostrIdentityBackedUp_v1'."
+    },
+    {
+      "id": "07",
+      "name": "offline-resilience-polish",
+      "title": "Offline Resilience + Groups Polish: Offline Indicators, Error States, UI Polish",
+      "description": "Add online/offline detection for group operations. When offline, group features show a clear 'offline' indicator with a 'last synced' timestamp. Score sync failures are queued and retried when connectivity returns. Ensure all solo learning features (quiz, notes, study plan) work fully offline. Polish the groups UI: member count badge on group cards, soft-limit warning at 45+ members, accessible group list with keyboard navigation, responsive layout on mobile. Extend resetAllData to clear IndexedDB group state.",
+      "acceptance_criteria": [
+        "When offline, group pages show an 'Offline - groups unavailable' banner with last-sync timestamp",
+        "Solo learning (quiz, notes, study plan) works fully offline without any group-related errors",
+        "Score sync failures are queued in localStorage (lp_scoreSyncQueue_v1) and retried on reconnect",
+        "resetAllData() clears lp_* localStorage keys AND IndexedDB group state",
+        "Group cards show member count badge",
+        "Attempting to invite/create while offline shows a clear 'You are offline' message",
+        "All group UI passes mobile layout check at 375px",
+        "make build succeeds",
+        "make test-unit passes",
+        "make test-e2e passes (all specs)"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/hooks/useOnlineStatus.ts: navigator.onLine + online/offline event listeners",
+          "app/src/components/groups/OfflineBanner.tsx: offline indicator with last-sync timestamp",
+          "app/pages/groups.tsx: show OfflineBanner when offline",
+          "app/src/lib/marmot/syncQueue.ts: localStorage-backed queue for failed score syncs",
+          "app/src/lib/storage.ts: extend resetAllData to clear IndexedDB via idb-keyval",
+          "app/src/components/groups/GroupCard.tsx: add member count badge",
+          "app/src/lib/i18n.ts: add offline/polish copy",
+          "app/tests/unit/syncQueue.test.ts: queue enqueue/dequeue/retry logic",
+          "app/tests/e2e/story-13-offline-polish.spec.ts"
+        ],
+        "excludes": [
+          "Service worker / PWA offline caching",
+          "Group chat or messaging",
+          "Advanced retry strategies (exponential backoff)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "pending",
+      "notes": "useOnlineStatus: return { isOnline, lastOnlineAt }. OfflineBanner: dismissible, re-shows when connectivity changes. syncQueue: on reconnect, drain the queue by calling publishScoreToGroups. resetAllData extension: call groupStorage.clearAll() which does idb-keyval del for all group-related keys. Mobile responsive: GroupCard and MemberList already use Chakra VStack/HStack so should be responsive, but audit at 375px."
+    }
+  ],
+  "story_order": ["01", "02", "03", "04", "05", "06", "07"],
+  "dependency_notes": "Story 01 establishes Nostr identity (required by all others). Story 02 creates the Marmot adapter (required by 03-07). Story 03 builds the groups UI shell (required by 04-07 for navigation). Story 04 completes the invite/join lifecycle (required by 05 for multi-user score sync). Story 05 adds score sync (required by 06 for the full groups experience). Story 06 adds backup (independent but builds on identity from 01). Story 07 polishes and hardens the whole feature.",
+  "mock_resolution_plan": "Stories 01-02 have no UI dependencies. Story 03 uses MarmotContext directly (no mocks needed since 02 is done). Stories 04-07 build on the real implementations from prior stories. E2E tests for 04+ use a docker-compose strfry relay."
+}

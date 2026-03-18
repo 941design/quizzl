@@ -200,4 +200,13 @@ export function resetAllData(): void {
       // Silent fail
     }
   });
+
+  // Also clear IndexedDB group data (async, fire-and-forget)
+  if (typeof window !== 'undefined') {
+    import('@/src/lib/marmot/groupStorage')
+      .then(({ clearAllGroupData }) => clearAllGroupData())
+      .catch((err) => {
+        console.warn('[storage] clearAllGroupData failed:', err);
+      });
+  }
 }

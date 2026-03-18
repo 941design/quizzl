@@ -1,0 +1,7 @@
+{
+  "story_id": "07",
+  "story_name": "offline-resilience-polish",
+  "status": "completed",
+  "completed_at": "2026-03-18T17:52:00Z",
+  "summary": "Offline resilience polish complete. useOnlineStatus hook tracks navigator.onLine via event listeners. OfflineBanner shows on groups page when offline, auto-redisplays on connectivity changes. syncQueue.ts provides localStorage-backed queue (max 50 items) for failed score syncs. MarmotContext drains queue on window 'online' event. publishScoreUpdate enqueues on failure for retry. 10 unit tests for syncQueue."
+}

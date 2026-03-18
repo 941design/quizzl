@@ -13,6 +13,7 @@ import {
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import { useCallback } from 'react';
 import type { GetStaticProps, GetStaticPaths } from 'next';
 import NextLink from 'next/link';
 import type { TopicCatalogue } from '@/src/types';
@@ -24,6 +25,7 @@ import {
   calculateTotalPoints,
   maxPossiblePoints,
 } from '@/src/lib/scoring';
+import { useMarmot } from '@/src/context/MarmotContext';
 import QuizTab from '@/src/components/quiz/QuizTab';
 import NotesTab from '@/src/components/NotesTab';
 import StudyPlanTab from '@/src/components/StudyPlanTab';
@@ -45,6 +47,25 @@ export default function TopicPage({ topicsByLanguage }: Props) {
 
   const { progress, hydrated, recordAnswer, updateNotes, toggleTask, resetQuiz } = useTopicProgress(
     topic?.slug ?? slug
+  );
+  const { publishScoreUpdate } = useMarmot();
+
+  // Publish score to groups when quiz completes (fire-and-forget, non-blocking)
+  const handleQuizComplete = useCallback(
+    ({ quizPoints, maxPoints: maxPts }: { quizPoints: number; maxPoints: number }) => {
+      if (!topic) return;
+      void publishScoreUpdate({
+        topicSlug: topic.slug,
+        quizPoints,
+        maxPoints: maxPts,
+        completedTasks: progress.completedTaskIds.length,
+        totalTasks: topic.studyPlan?.steps?.length ?? 0,
+        lastStudiedAt: new Date().toISOString(),
+      }).catch((err: unknown) => {
+        console.warn('[TopicPage] publishScoreUpdate failed:', err);
+      });
+    },
+    [topic, publishScoreUpdate, progress.completedTaskIds.length]
   );
 
   if (!topic) {
@@ -138,6 +159,7 @@ export default function TopicPage({ topicsByLanguage }: Props) {
                   recordAnswer(questionId, answer, newPoints)
                 }
                 onRetry={resetQuiz}
+                onComplete={handleQuizComplete}
               />
             </TabPanel>
 

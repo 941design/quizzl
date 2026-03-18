@@ -1,0 +1,11 @@
+{
+  "story_id": "04",
+  "story_name": "invite-and-join",
+  "status": "completed",
+  "completed_at": "2026-03-18T17:39:00Z",
+  "summary": "Invite by npub and welcome subscription implemented. InviteMemberModal handles npub paste/validation with clear error messages. LeaveGroupButton uses confirmation modal before leaving. Welcome subscription (kind 444) auto-joins groups on incoming invitations and rotates leaf key for forward secrecy.",
+  "type_fixes": [
+    "mlsGroup.ingest() returns AsyncGenerator — must use 'for await' not 'for of'",
+    "ProcessMessageResult has kind:'applicationMessage' with .message field (not .actionTaken === 'application')"
+  ]
+}
