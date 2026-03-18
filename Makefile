@@ -1,4 +1,4 @@
-APP_DIR := school-app
+APP_DIR := app
 PLAYWRIGHT_BROWSERS_PATH ?= /opt/playwright-browsers
 export PLAYWRIGHT_BROWSERS_PATH
 

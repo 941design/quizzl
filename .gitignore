@@ -8,4 +8,4 @@
 implementation-state.json
 
 # Test artifacts
-school-app/test-results/
+app/test-results/
