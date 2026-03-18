@@ -445,6 +445,10 @@ const legoTheme = createTheme({
   dangerBorder: '#ff8f75',
   dangerText: '#8f1f00',
   backgroundImage: legoThemeBackground,
+  fonts: {
+    heading: '"Fredoka", system-ui, sans-serif',
+    body: '"Fredoka", system-ui, sans-serif',
+  },
   radii: {
     sm: '4px',
     md: '6px',
@@ -539,8 +543,8 @@ const minecraftTheme = createTheme({
   dangerText: '#6e2410',
   backgroundImage: minecraftThemeBackground,
   fonts: {
-    heading: '"Trebuchet MS", system-ui, sans-serif',
-    body: '"Trebuchet MS", system-ui, sans-serif',
+    heading: '"Press Start 2P", "Trebuchet MS", monospace',
+    body: '"VT323", "Trebuchet MS", monospace',
   },
   radii: {
     sm: '2px',
@@ -579,7 +583,7 @@ export const APP_THEMES: Record<AppThemeName, AppThemeDefinition> = {
     visualStyle: 'toy',
     backgroundImage: legoThemeBackground,
     surfacePattern: 'studs',
-    fontFamily: 'system-ui, sans-serif',
+    fontFamily: '"Fredoka", system-ui, sans-serif',
     buttonVariant: 'solid',
     chakraTheme: legoTheme,
   },
@@ -591,7 +595,7 @@ export const APP_THEMES: Record<AppThemeName, AppThemeDefinition> = {
     visualStyle: 'pixel',
     backgroundImage: minecraftThemeBackground,
     surfacePattern: 'grid',
-    fontFamily: '"Trebuchet MS", system-ui, sans-serif',
+    fontFamily: '"Press Start 2P", "Trebuchet MS", monospace',
     buttonVariant: 'solid',
     chakraTheme: minecraftTheme,
   },
