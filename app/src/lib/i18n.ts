@@ -209,6 +209,9 @@ type Copy = {
     npubLabel: string;
     copyNpub: string;
     copiedNpub: string;
+    showQr: string;
+    qrModalTitle: string;
+    qrGenerationError: string;
     backupHeading: string;
     backupDescription: string;
     generatePhrase: string;
@@ -244,6 +247,7 @@ type Copy = {
     inviteTitle: string;
     inviteNpubLabel: string;
     inviteNpubPlaceholder: string;
+    inviteHelp: string;
     inviteSubmit: string;
     inviteSuccess: string;
     inviteErrorNoKeyPackage: string;
@@ -263,6 +267,15 @@ type Copy = {
     fromGroup: (name: string) => string;
     softLimitWarning: string;
     navLabel: string;
+    showQr: string;
+    scanQr: string;
+    qrModalTitle: string;
+    qrScannerTitle: string;
+    qrScannerHint: string;
+    qrInvalidPayload: string;
+    cameraPermissionDenied: string;
+    qrUnavailable: string;
+    qrGenerationError: string;
   };
 };
 
@@ -493,6 +506,9 @@ const copy: Record<LanguageCode, Copy> = {
       npubLabel: 'Your public key (npub)',
       copyNpub: 'Copy npub',
       copiedNpub: 'Copied!',
+      showQr: 'Show QR',
+      qrModalTitle: 'Npub QR Code',
+      qrGenerationError: 'Failed to generate QR code.',
       backupHeading: 'Back Up Your Identity',
       backupDescription:
         'Generate a recovery phrase to restore your identity if you clear browser data.',
@@ -531,6 +547,7 @@ const copy: Record<LanguageCode, Copy> = {
       inviteTitle: 'Invite by Npub',
       inviteNpubLabel: "Member's npub",
       inviteNpubPlaceholder: 'npub1...',
+      inviteHelp: 'Enter or scan the npub of the person you want to invite. They must have used Quizzl at least once to appear.',
       inviteSubmit: 'Send Invite',
       inviteSuccess: 'Invitation sent successfully.',
       inviteErrorNoKeyPackage: 'This user has not set up their Quizzl identity yet.',
@@ -550,6 +567,15 @@ const copy: Record<LanguageCode, Copy> = {
       fromGroup: (name) => `From group: ${name}`,
       softLimitWarning: 'This group is near the recommended limit of 50 members.',
       navLabel: 'Groups',
+      showQr: 'Show QR code',
+      scanQr: 'Scan QR code',
+      qrModalTitle: 'Npub QR Code',
+      qrScannerTitle: 'Scan Npub QR Code',
+      qrScannerHint: 'Point the camera at a QR code containing an npub.',
+      qrInvalidPayload: 'This QR code does not contain a valid npub.',
+      cameraPermissionDenied: 'Camera permission was denied.',
+      qrUnavailable: 'QR scanning is unavailable on this device or browser.',
+      qrGenerationError: 'Failed to generate QR code.',
     },
   },
   de: {
@@ -768,6 +794,9 @@ const copy: Record<LanguageCode, Copy> = {
       npubLabel: 'Dein öffentlicher Schlüssel (npub)',
       copyNpub: 'npub kopieren',
       copiedNpub: 'Kopiert!',
+      showQr: 'QR zeigen',
+      qrModalTitle: 'Npub-QR-Code',
+      qrGenerationError: 'QR-Code konnte nicht erstellt werden.',
       backupHeading: 'Identität sichern',
       backupDescription:
         'Erstelle eine Wiederherstellungsphrase, um deine Identität bei gelöschten Browser-Daten zurückzugewinnen.',
@@ -806,6 +835,7 @@ const copy: Record<LanguageCode, Copy> = {
       inviteTitle: 'Per Npub einladen',
       inviteNpubLabel: 'Npub des Mitglieds',
       inviteNpubPlaceholder: 'npub1...',
+      inviteHelp: 'Gib die npub der Person ein oder scanne sie. Die Person muss Quizzl bereits einmal verwendet haben.',
       inviteSubmit: 'Einladung senden',
       inviteSuccess: 'Einladung erfolgreich gesendet.',
       inviteErrorNoKeyPackage: 'Dieser Nutzer hat seine Quizzl-Identität noch nicht eingerichtet.',
@@ -825,6 +855,15 @@ const copy: Record<LanguageCode, Copy> = {
       fromGroup: (name) => `Aus Gruppe: ${name}`,
       softLimitWarning: 'Diese Gruppe nähert sich dem empfohlenen Limit von 50 Mitgliedern.',
       navLabel: 'Gruppen',
+      showQr: 'QR-Code zeigen',
+      scanQr: 'QR-Code scannen',
+      qrModalTitle: 'Npub-QR-Code',
+      qrScannerTitle: 'Npub-QR-Code scannen',
+      qrScannerHint: 'Richte die Kamera auf einen QR-Code mit einer npub.',
+      qrInvalidPayload: 'Dieser QR-Code enthält keine gültige npub.',
+      cameraPermissionDenied: 'Kamerazugriff wurde verweigert.',
+      qrUnavailable: 'QR-Scan ist auf diesem Gerät oder Browser nicht verfügbar.',
+      qrGenerationError: 'QR-Code konnte nicht erstellt werden.',
     },
   },
 };

@@ -34,6 +34,8 @@ import { useProfile } from '@/src/context/ProfileContext';
 import { useAppTheme } from '@/src/hooks/useMoodTheme';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
+import NpubQrButton from '@/src/components/groups/NpubQrButton';
+import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { PROFILE_BADGES, PROFILE_BADGE_LIMIT, PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
 import { resetAllData } from '@/src/lib/storage';
 import { APP_THEMES } from '@/src/lib/theme';
@@ -49,6 +51,7 @@ export default function SettingsPage() {
   const { npub, privateKeyHex, seedHex, backedUp, hydrated: identityHydrated, replaceIdentity } = useNostrIdentity();
   const resetDisclosure = useDisclosure();
   const avatarDisclosure = useDisclosure();
+  const ownQrDisclosure = useDisclosure();
   const toast = useToast();
   const [resetDone, setResetDone] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({ nickname: '', avatar: null, badgeIds: [] });
@@ -493,6 +496,11 @@ export default function SettingsPage() {
                     >
                       {truncateNpub(npub)}
                     </Code>
+                    <NpubQrButton
+                      label={copy.identity.showQr}
+                      onClick={ownQrDisclosure.onOpen}
+                      data-testid="show-own-npub-qr-btn"
+                    />
                     <Button
                       size="sm"
                       variant="outline"
@@ -503,6 +511,15 @@ export default function SettingsPage() {
                     </Button>
                   </HStack>
                 </Box>
+
+                <NpubQrModal
+                  isOpen={ownQrDisclosure.isOpen}
+                  onClose={ownQrDisclosure.onClose}
+                  title={copy.identity.qrModalTitle}
+                  mode="display"
+                  npub={npub}
+                  qrErrorMessage={copy.identity.qrGenerationError}
+                />
 
                 {/* Backup Section */}
                 <Box>

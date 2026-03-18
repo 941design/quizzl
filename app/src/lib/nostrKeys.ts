@@ -33,7 +33,8 @@ export async function generateIdentityFromSeed(): Promise<{ seedHex: string; pri
  */
 export async function derivePrivateKeyFromSeed(seedHex: string): Promise<string> {
   const seedBytes = hexToBytes(seedHex);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', seedBytes);
+  const digestInput = seedBytes as unknown as BufferSource;
+  const hashBuffer = await crypto.subtle.digest('SHA-256', digestInput);
   return bytesToHex(new Uint8Array(hashBuffer));
 }
 

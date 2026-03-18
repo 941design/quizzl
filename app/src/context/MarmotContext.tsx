@@ -300,9 +300,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       if (!client) return { ok: false, error: 'Not initialized' };
 
       try {
+        const { normaliseNpubPayload } = await import('@/src/lib/qr');
         const { npubToPubkeyHex } = await import('@/src/lib/nostrKeys');
-        const inviteePubkey = npubToPubkeyHex(npub);
-        if (!inviteePubkey) {
+        const normalisedNpub = normaliseNpubPayload(npub);
+        const inviteePubkey = normalisedNpub ? npubToPubkeyHex(normalisedNpub) : null;
+        if (!inviteePubkey || !normalisedNpub) {
           return { ok: false, error: 'invalid_npub' };
         }
 
