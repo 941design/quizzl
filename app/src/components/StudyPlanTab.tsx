@@ -14,6 +14,8 @@ import {
 } from '@chakra-ui/react';
 import type { StudyPlan, StudyTask } from '@/src/types';
 import { useCopy } from '@/src/context/LanguageContext';
+import { useThemeStyles } from '@/src/hooks/useThemeStyles';
+import ThemeIcon from '@/src/components/ThemeIcon';
 
 type StudyPlanTabProps = {
   studyPlan: StudyPlan;
@@ -21,17 +23,17 @@ type StudyPlanTabProps = {
   onToggleTask: (taskId: string) => void;
 };
 
-function getTaskIcon(task: StudyTask): string {
+function getTaskIconName(task: StudyTask): string {
   switch (task.type) {
     case 'quiz':
-      return '🎯';
+      return 'quiz';
     case 'flashcards':
-      return '📚';
+      return 'flashcard';
     case 'notes':
-      return '📝';
+      return 'notes';
     case 'custom':
     default:
-      return '✓';
+      return 'task';
   }
 }
 
@@ -124,6 +126,11 @@ function StudyStep({ step, completedTaskIds, onToggleTask, defaultExpanded = tru
                   onChange={() => onToggleTask(task.id)}
                   aria-label={copy.studyPlan.completeTask(task.title)}
                   data-testid={`task-checkbox-${task.id}`}
+                />
+                <ThemeIcon
+                  name={getTaskIconName(task)}
+                  size={16}
+                  color={isTaskDone ? 'var(--chakra-colors-neutral-400)' : 'var(--chakra-colors-brand-500)'}
                 />
                 <Text
                   fontSize="sm"

@@ -88,6 +88,8 @@ type Copy = {
     avatarNoAccessories: string;
     useThisAvatar: string;
     showMoreAvatars: string;
+    selectedAvatarAlt: string;
+    avatarOptionAlt: string;
     languageHeading: string;
     languageDescription: string;
     themeHeading: string;
@@ -282,7 +284,7 @@ const copy: Record<LanguageCode, Copy> = {
       nicknamePlaceholder: 'Rocket Reader',
       nicknameHelper: 'Use a nickname instead of your full real name.',
       avatarHeading: 'Avatar',
-      avatarDescription: 'Pick a fruit friend for your profile.',
+      avatarDescription: 'Pick an avatar for your profile.',
       chooseAvatar: 'Choose Avatar',
       changeAvatar: 'Change Avatar',
       removeAvatar: 'Remove Avatar',
@@ -301,6 +303,8 @@ const copy: Record<LanguageCode, Copy> = {
       avatarNoAccessories: 'No accessories',
       useThisAvatar: 'Use This Avatar',
       showMoreAvatars: 'Show More',
+      selectedAvatarAlt: 'Selected avatar',
+      avatarOptionAlt: 'Avatar option',
       languageHeading: 'Language',
       languageDescription: 'Choose which language the app and content catalogue should use.',
       themeHeading: 'Theme',
@@ -487,7 +491,7 @@ const copy: Record<LanguageCode, Copy> = {
       nicknamePlaceholder: 'Raketenleser',
       nicknameHelper: 'Nutze lieber einen Spitznamen als deinen vollen echten Namen.',
       avatarHeading: 'Avatar',
-      avatarDescription: 'Suche dir einen Obstfreund fuer dein Profil aus.',
+      avatarDescription: 'Waehle einen Avatar fuer dein Profil.',
       chooseAvatar: 'Avatar waehlen',
       changeAvatar: 'Avatar aendern',
       removeAvatar: 'Avatar entfernen',
@@ -506,6 +510,8 @@ const copy: Record<LanguageCode, Copy> = {
       avatarNoAccessories: 'Keine Accessoires',
       useThisAvatar: 'Diesen Avatar nehmen',
       showMoreAvatars: 'Mehr zeigen',
+      selectedAvatarAlt: 'Ausgewaehlter Avatar',
+      avatarOptionAlt: 'Avataroption',
       languageHeading: 'Sprache',
       languageDescription: 'Lege fest, in welcher Sprache App und Inhaltskatalog angezeigt werden.',
       themeHeading: 'Design',

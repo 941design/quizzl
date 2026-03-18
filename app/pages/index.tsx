@@ -12,10 +12,13 @@ import NextLink from 'next/link';
 import { useCopy } from '@/src/context/LanguageContext';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import { useProfile } from '@/src/context/ProfileContext';
+import { useThemeStyles } from '@/src/hooks/useThemeStyles';
+import ThemeIcon from '@/src/components/ThemeIcon';
 
 export default function HomePage() {
   const copy = useCopy();
   const { profile } = useProfile();
+  const { cardStyle, isFunTheme } = useThemeStyles();
 
   return (
     <>
@@ -46,7 +49,7 @@ export default function HomePage() {
           </HStack>
         </VStack>
 
-        <Box p={6} mt={4} bg="surfaceBg" borderRadius="xl" shadow="sm" borderWidth="1px" borderColor="borderSubtle">
+        <Box p={6} mt={4} bg="surfaceBg" borderRadius="xl" shadow="sm" borderWidth="1px" borderColor="borderSubtle" {...cardStyle}>
           <Text fontSize="sm" color="textMuted" mb={3}>
             {copy.home.profileCardTitle}
           </Text>
@@ -61,19 +64,28 @@ export default function HomePage() {
         </Box>
 
         <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} mt={8}>
-          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle">
+          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle" {...cardStyle}>
+            {isFunTheme && (
+              <Box mb={2}><ThemeIcon name="quiz" size={28} color="var(--chakra-colors-brand-500)" /></Box>
+            )}
             <Heading size="md" mb={2}>{copy.home.featureQuiz}</Heading>
             <Text color="textMuted">
               {copy.home.featureQuizBody}
             </Text>
           </Box>
-          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle">
+          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle" {...cardStyle}>
+            {isFunTheme && (
+              <Box mb={2}><ThemeIcon name="notes" size={28} color="var(--chakra-colors-brand-500)" /></Box>
+            )}
             <Heading size="md" mb={2}>{copy.home.featureNotes}</Heading>
             <Text color="textMuted">
               {copy.home.featureNotesBody}
             </Text>
           </Box>
-          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle">
+          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle" {...cardStyle}>
+            {isFunTheme && (
+              <Box mb={2}><ThemeIcon name="task" size={28} color="var(--chakra-colors-brand-500)" /></Box>
+            )}
             <Heading size="md" mb={2}>{copy.home.featurePlan}</Heading>
             <Text color="textMuted">
               {copy.home.featurePlanBody}

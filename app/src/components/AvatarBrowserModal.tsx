@@ -189,7 +189,7 @@ export default function AvatarBrowserModal({
                         <Box p={3}>
                           <Image
                             src={avatar.imageUrl}
-                            alt={`${avatar.subject} avatar`}
+                            alt={copy.settings.avatarOptionAlt}
                             w="100%"
                             aspectRatio={1}
                             objectFit="contain"
@@ -199,16 +199,11 @@ export default function AvatarBrowserModal({
                           />
                         </Box>
                         <VStack align="stretch" spacing={3} p={3} pt={0}>
-                          <Box>
-                            <Text fontWeight="semibold" textTransform="capitalize">
-                              {avatar.subject}
-                            </Text>
-                            <Text fontSize="xs" color="textMuted" noOfLines={2}>
-                              {avatar.accessories.length > 0
-                                ? avatar.accessories.join(', ')
-                                : copy.settings.avatarNoAccessories}
-                            </Text>
-                          </Box>
+                          <Text fontSize="xs" color="textMuted" noOfLines={2}>
+                            {avatar.accessories.length > 0
+                              ? avatar.accessories.join(', ')
+                              : copy.settings.avatarNoAccessories}
+                          </Text>
                           <Button
                             size="sm"
                             onClick={() => onSelect(avatar)}

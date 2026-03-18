@@ -11,6 +11,7 @@ import {
 import NextLink from 'next/link';
 import type { Topic } from '@/src/types';
 import { useCopy } from '@/src/context/LanguageContext';
+import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 
 type TopicCardProps = {
   topic: Topic;
@@ -20,6 +21,7 @@ type TopicCardProps = {
 
 export default function TopicCard({ topic, isSelected, onToggle }: TopicCardProps) {
   const copy = useCopy();
+  const { cardStyle } = useThemeStyles();
 
   return (
     <Box
@@ -32,6 +34,7 @@ export default function TopicCard({ topic, isSelected, onToggle }: TopicCardProp
       transition="border-color 0.2s, box-shadow 0.2s"
       _hover={{ shadow: 'md', borderColor: isSelected ? 'brand.500' : 'brand.200' }}
       data-testid={`topic-card-${topic.slug}`}
+      {...cardStyle}
     >
       <Flex direction="column" h="100%" gap={3}>
         <Box flex="1">

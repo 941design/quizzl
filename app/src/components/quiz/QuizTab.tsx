@@ -19,6 +19,8 @@ import {
   isQuizComplete,
 } from '@/src/lib/scoring';
 import { useCopy } from '@/src/context/LanguageContext';
+import { useThemeStyles } from '@/src/hooks/useThemeStyles';
+import ThemeIcon from '@/src/components/ThemeIcon';
 import SingleChoiceQuestion from './SingleChoiceQuestion';
 import MultiChoiceQuestion from './MultiChoiceQuestion';
 import FlashcardQuestion from './FlashcardQuestion';
@@ -49,6 +51,7 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
     );
   }
 
+  const { cardStyle, isFunTheme } = useThemeStyles();
   const totalPoints = calculateTotalPoints(questions, answers);
   const maxPoints = maxPossiblePoints(questions);
   const answered = answeredCount(questions, answers);
@@ -58,7 +61,12 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
   if (complete) {
     return (
       <Box>
-        <Box p={6} bg="surfaceMutedBg" borderRadius="lg" textAlign="center" mb={6} borderWidth="1px" borderColor="borderSubtle">
+        <Box p={6} bg="surfaceMutedBg" borderRadius="lg" textAlign="center" mb={6} borderWidth="1px" borderColor="borderSubtle" {...cardStyle}>
+          {isFunTheme && (
+            <Box mb={2}>
+              <ThemeIcon name="trophy" size={40} color="var(--chakra-colors-brand-500)" />
+            </Box>
+          )}
           <Heading size="lg" mb={2}>{copy.quiz.completeHeading}</Heading>
           <Text fontSize="xl" fontWeight="bold" color="brand.600">
             {totalPoints} / {maxPoints} points
@@ -163,6 +171,7 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
         borderColor="borderSubtle"
         mb={6}
         data-testid="question-card"
+        {...cardStyle}
       >
         {currentQuestion.type === 'single' && (
           <SingleChoiceQuestion
@@ -207,16 +216,18 @@ export default function QuizTab({ topic, answers, onAnswer, onRetry }: QuizTabPr
           onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
           isDisabled={currentIndex === 0}
           data-testid="prev-question-btn"
+          leftIcon={isFunTheme ? <ThemeIcon name="prev" size={16} /> : undefined}
         >
-          ← {copy.quiz.previous}
+          {isFunTheme ? copy.quiz.previous : `← ${copy.quiz.previous}`}
         </Button>
 
         <Button
           onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
           isDisabled={currentIndex === questions.length - 1}
           data-testid="next-question-btn"
+          rightIcon={isFunTheme ? <ThemeIcon name="next" size={16} /> : undefined}
         >
-          {copy.quiz.next} →
+          {isFunTheme ? copy.quiz.next : `${copy.quiz.next} →`}
         </Button>
       </HStack>
     </Box>

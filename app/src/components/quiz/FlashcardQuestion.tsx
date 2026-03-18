@@ -9,6 +9,8 @@ import {
 } from '@chakra-ui/react';
 import type { QuizQuestion } from '@/src/types';
 import { useCopy } from '@/src/context/LanguageContext';
+import { useThemeStyles } from '@/src/hooks/useThemeStyles';
+import ThemeIcon from '@/src/components/ThemeIcon';
 
 type FlashcardProps = {
   question: Extract<QuizQuestion, { type: 'flashcard' }>;
@@ -22,6 +24,7 @@ export default function FlashcardQuestion({
   onAnswer,
 }: FlashcardProps) {
   const copy = useCopy();
+  const { isFunTheme } = useThemeStyles();
   const [revealed, setRevealed] = useState(knewIt !== null);
 
   useEffect(() => {
@@ -53,6 +56,7 @@ export default function FlashcardQuestion({
           variant="outline"
           onClick={() => setRevealed(true)}
           data-testid="reveal-answer-btn"
+          leftIcon={isFunTheme ? <ThemeIcon name="reveal" size={16} /> : undefined}
         >
           {copy.quiz.revealAnswer}
         </Button>

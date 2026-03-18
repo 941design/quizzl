@@ -40,7 +40,7 @@ export default function ProfileSummary({
         {profile.avatar ? (
           <Image
             src={profile.avatar.imageUrl}
-            alt={`${profile.avatar.subject} avatar`}
+            alt="Profile avatar"
             w="100%"
             h="100%"
             objectFit="cover"
@@ -57,11 +57,6 @@ export default function ProfileSummary({
           <Text fontWeight="bold" fontSize={nameSize} data-testid="profile-display-name">
             {displayName}
           </Text>
-          {profile.avatar && (
-            <Text fontSize="xs" color="textMuted" textTransform="capitalize">
-              {profile.avatar.subject}
-            </Text>
-          )}
         </Box>
 
         {showBadges && selectedBadges.length > 0 && (

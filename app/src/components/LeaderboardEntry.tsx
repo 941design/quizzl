@@ -2,6 +2,8 @@ import React from 'react';
 import { HStack, Box, Text, Badge } from '@chakra-ui/react';
 import { useCopy } from '@/src/context/LanguageContext';
 import ProfileSummary from '@/src/components/ProfileSummary';
+import { useThemeStyles } from '@/src/hooks/useThemeStyles';
+import ThemeIcon from '@/src/components/ThemeIcon';
 import type { UserProfile } from '@/src/types';
 
 type LeaderboardEntryProps = {
@@ -20,6 +22,7 @@ export default function LeaderboardEntry({
   profile = null,
 }: LeaderboardEntryProps) {
   const copy = useCopy();
+  const { cardStyle, isFunTheme } = useThemeStyles();
 
   return (
     <HStack
@@ -30,6 +33,7 @@ export default function LeaderboardEntry({
       borderColor={isYou ? 'brand.300' : 'borderSubtle'}
       bg={isYou ? 'surfaceMutedBg' : 'surfaceBg'}
       data-testid={`leaderboard-entry-${rank}`}
+      {...cardStyle}
     >
       {/* Rank badge */}
       <Box
@@ -42,9 +46,13 @@ export default function LeaderboardEntry({
         justifyContent="center"
         flexShrink={0}
       >
-        <Text fontSize="sm" fontWeight="bold" color={rank === 1 ? 'warning.900' : 'textMuted'}>
-          {rank}
-        </Text>
+        {rank === 1 && isFunTheme ? (
+          <ThemeIcon name="trophy" size={18} color="var(--chakra-colors-warning-900)" />
+        ) : (
+          <Text fontSize="sm" fontWeight="bold" color={rank === 1 ? 'warning.900' : 'textMuted'}>
+            {rank}
+          </Text>
+        )}
       </Box>
       {/* Label */}
       <Box flex="1">

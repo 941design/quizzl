@@ -13,7 +13,7 @@ type ThemeDescriptionKey =
   | 'legoDescription'
   | 'minecraftDescription';
 type ThemeColorScheme = 'brand' | 'success' | 'warning' | 'danger';
-type ThemeVisualStyle = 'soft' | 'rounded' | 'toy' | 'pixel';
+export type ThemeVisualStyle = 'soft' | 'rounded' | 'toy' | 'pixel';
 
 type ColorScale = Record<number, string>;
 
@@ -24,6 +24,7 @@ type ThemeBuildInput = {
   dangerScale: ColorScale;
   neutralScale: ColorScale;
   fonts?: { heading: string; body: string };
+  fontSizes?: Record<string, string>;
   radii?: Record<string, string>;
   buttonColorScheme: ThemeColorScheme;
   appBg: string;
@@ -82,6 +83,7 @@ function createTheme(input: ThemeBuildInput) {
     dangerScale,
     neutralScale,
     fonts,
+    fontSizes,
     radii,
     buttonColorScheme,
     appBg,
@@ -138,6 +140,7 @@ function createTheme(input: ThemeBuildInput) {
       heading: 'system-ui, sans-serif',
       body: 'system-ui, sans-serif',
     },
+    fontSizes,
     radii,
     styles: {
       global: {
@@ -545,6 +548,16 @@ const minecraftTheme = createTheme({
   fonts: {
     heading: '"Press Start 2P", "Trebuchet MS", monospace',
     body: '"VT323", "Trebuchet MS", monospace',
+  },
+  fontSizes: {
+    xs: '0.7rem',
+    sm: '0.85rem',
+    md: '1rem',
+    lg: '1.1rem',
+    xl: '1.2rem',
+    '2xl': '1.35rem',
+    '3xl': '1.6rem',
+    '4xl': '1.9rem',
   },
   radii: {
     sm: '2px',

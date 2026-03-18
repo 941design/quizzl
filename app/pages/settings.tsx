@@ -180,7 +180,7 @@ export default function SettingsPage() {
                     {profile.avatar ? (
                       <Image
                         src={profile.avatar.imageUrl}
-                        alt={`${profile.avatar.subject} avatar`}
+                        alt={copy.settings.selectedAvatarAlt}
                         w="100%"
                         aspectRatio={1}
                         objectFit="contain"
@@ -206,16 +206,11 @@ export default function SettingsPage() {
 
                   <VStack align="stretch" spacing={3} flex={1}>
                     {profile.avatar && (
-                      <Box>
-                        <Badge mb={2} textTransform="capitalize">
-                          {profile.avatar.subject}
-                        </Badge>
-                        <Text fontSize="sm" color="textMuted">
-                          {profile.avatar.accessories.length > 0
-                            ? profile.avatar.accessories.join(', ')
-                            : copy.settings.avatarNoAccessories}
-                        </Text>
-                      </Box>
+                      <Text fontSize="sm" color="textMuted">
+                        {profile.avatar.accessories.length > 0
+                          ? profile.avatar.accessories.join(', ')
+                          : copy.settings.avatarNoAccessories}
+                      </Text>
                     )}
                     <HStack spacing={3} flexWrap="wrap">
                       <Button onClick={avatarDisclosure.onOpen} data-testid="choose-avatar-btn">

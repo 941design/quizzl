@@ -19,6 +19,7 @@ import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import { useProfile } from '@/src/context/ProfileContext';
 import StorageWarning from '@/src/components/StorageWarning';
+import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -30,6 +31,7 @@ export default function Layout({ children }: LayoutProps) {
   const { profile } = useProfile();
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
+  const { navStyle, surfaceStyle } = useThemeStyles();
   const navItems = [
     { label: copy.layout.nav.home, href: '/' },
     { label: copy.layout.nav.topics, href: '/topics' },
@@ -70,6 +72,7 @@ export default function Layout({ children }: LayoutProps) {
         top={0}
         zIndex={10}
         aria-label="Main navigation"
+        {...navStyle}
       >
         <Container maxW="container.xl">
           <Flex h={16} align="center" justify="space-between">
@@ -199,7 +202,7 @@ export default function Layout({ children }: LayoutProps) {
       </Box>
 
       {/* Main Content */}
-      <Container maxW="container.xl" py={8} as="main">
+      <Container maxW="container.xl" py={8} as="main" {...surfaceStyle}>
         <StorageWarning />
         {children}
       </Container>
