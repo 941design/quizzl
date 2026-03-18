@@ -31,7 +31,7 @@ export default function Layout({ children }: LayoutProps) {
   const { profile } = useProfile();
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
-  const { navStyle, surfaceStyle } = useThemeStyles();
+  const { navStyle, surfaceStyle, bannerDecorStyle } = useThemeStyles();
   const navItems = [
     { label: copy.layout.nav.home, href: '/' },
     { label: copy.layout.nav.topics, href: '/topics' },
@@ -74,7 +74,14 @@ export default function Layout({ children }: LayoutProps) {
         aria-label="Main navigation"
         {...navStyle}
       >
-        <Container maxW="container.xl">
+        {bannerDecorStyle && (
+          <Box
+            data-testid="nav-banner-decor"
+            {...bannerDecorStyle.boxProps}
+            style={bannerDecorStyle.style}
+          />
+        )}
+        <Container maxW="container.xl" position="relative" zIndex={1}>
           <Flex h={16} align="center" justify="space-between">
             <NextLink href="/" passHref legacyBehavior>
               <Link _hover={{ textDecoration: 'none' }}>
