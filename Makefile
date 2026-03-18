@@ -1,7 +1,4 @@
 APP_DIR := app
-PLAYWRIGHT_BROWSERS_PATH ?= /opt/playwright-browsers
-export PLAYWRIGHT_BROWSERS_PATH
-
 # Load environment variables from .env if it exists (for FTP credentials)
 -include .env
 export
@@ -52,7 +49,7 @@ test-unit: ## Run unit tests (Vitest)
 
 ## Run Playwright E2E tests
 test-e2e: ## Run Playwright E2E tests
-	cd $(APP_DIR) && npx playwright test
+	cd $(APP_DIR) && npx playwright install chromium && npx playwright test
 
 ## Start the dev server
 run-dev: ## Start development server

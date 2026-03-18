@@ -38,7 +38,7 @@ test.describe('Story 08: Theme Settings + Reset', () => {
 
     // Theme preview should update
     const preview = page.getByTestId('theme-preview');
-    await expect(preview).toContainText('playful');
+    await expect(preview).toContainText('Playful');
 
     // Verify localStorage
     const stored = await page.evaluate(() => localStorage.getItem('lp_settings_v1'));
@@ -53,14 +53,14 @@ test.describe('Story 08: Theme Settings + Reset', () => {
 
     // Switch to playful
     await page.getByTestId('theme-playful-btn').click();
-    await expect(page.getByTestId('theme-preview')).toContainText('playful');
+    await expect(page.getByTestId('theme-preview')).toContainText('Playful');
 
     // Reload
     await page.reload();
     await page.waitForLoadState('networkidle');
 
     // Should still show playful
-    await expect(page.getByTestId('theme-preview')).toContainText('playful');
+    await expect(page.getByTestId('theme-preview')).toContainText('Playful');
   });
 
   test('4. Reset button shows confirmation modal', async ({ page }) => {
