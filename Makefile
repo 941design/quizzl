@@ -14,13 +14,13 @@ FTP_USER := $(HOSTEUROPE_FTP_USER)
 FTP_PASS := $(HOSTEUROPE_FTP_PASS)
 
 # Remote paths (hosteurope)
-REMOTE_ROOT := /group-learn
+REMOTE_ROOT := /quizzl
 
 # Local paths for deployment
 LOCAL_DIST := $(APP_DIR)/out
 
 help: ## Show this help message
-	@echo "Group Learning Prototype"
+	@echo "Quizzl"
 	@echo ""
 	@echo "Usage: make [target]"
 	@echo ""

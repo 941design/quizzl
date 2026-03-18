@@ -181,7 +181,7 @@ export function detectBrowserLanguage(): LanguageCode {
 
 const copy: Record<LanguageCode, Copy> = {
   en: {
-    appName: 'GroupLearn',
+    appName: 'Quizzl',
     languageNames: { en: 'English', de: 'Deutsch' },
     layout: {
       nav: {
@@ -195,7 +195,7 @@ const copy: Record<LanguageCode, Copy> = {
       mobileMenuLabel: 'Toggle navigation menu',
     },
     home: {
-      title: 'Welcome to GroupLearn',
+      title: 'Welcome to Quizzl',
       description:
         'Learn with freely selectable topics. Combine quiz, notes, and study plans to master any subject at your own pace.',
       browseTopics: 'Browse Topics',
@@ -355,7 +355,7 @@ const copy: Record<LanguageCode, Copy> = {
     },
   },
   de: {
-    appName: 'GroupLearn',
+    appName: 'Quizzl',
     languageNames: { en: 'English', de: 'Deutsch' },
     layout: {
       nav: {
@@ -369,7 +369,7 @@ const copy: Record<LanguageCode, Copy> = {
       mobileMenuLabel: 'Navigationsmenü umschalten',
     },
     home: {
-      title: 'Willkommen bei GroupLearn',
+      title: 'Willkommen bei Quizzl',
       description:
         'Lerne mit frei wählbaren Themen. Kombiniere Quiz, Notizen und Lernpläne, um jedes Fach in deinem eigenen Tempo zu meistern.',
       browseTopics: 'Themen ansehen',

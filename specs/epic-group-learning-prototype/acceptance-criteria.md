@@ -1,4 +1,4 @@
-# Acceptance Criteria: Group Learning Prototype
+# Acceptance Criteria: Quizzl
 
 Generated: 2026-02-27T16:00:00Z
 Source: spec.md
