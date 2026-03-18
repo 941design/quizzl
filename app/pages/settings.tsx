@@ -38,6 +38,7 @@ import NpubQrButton from '@/src/components/groups/NpubQrButton';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { PROFILE_BADGES, PROFILE_BADGE_LIMIT, PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
 import { resetAllData } from '@/src/lib/storage';
+import { useMarmot } from '@/src/context/MarmotContext';
 import { APP_THEMES } from '@/src/lib/theme';
 import { truncateNpub, derivePublicKeyHex } from '@/src/lib/nostrKeys';
 import type { ProfileAvatar, UserProfile } from '@/src/types';
@@ -49,6 +50,7 @@ export default function SettingsPage() {
   const copy = useCopy();
   const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
   const { npub, privateKeyHex, seedHex, backedUp, hydrated: identityHydrated, replaceIdentity } = useNostrIdentity();
+  const { publishProfileUpdate } = useMarmot();
   const resetDisclosure = useDisclosure();
   const avatarDisclosure = useDisclosure();
   const ownQrDisclosure = useDisclosure();
@@ -198,6 +200,7 @@ export default function SettingsPage() {
 
   function handleProfileSave() {
     saveProfile(profile);
+    void publishProfileUpdate();
     toast({
       title: copy.settings.profileSaved,
       status: 'success',

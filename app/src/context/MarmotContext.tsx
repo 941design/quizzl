@@ -14,7 +14,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import type { Group, MemberScore, ScoreUpdate } from '@/src/types';
+import type { Group, MemberScore, MemberProfile, ScoreUpdate } from '@/src/types';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import {
   loadAllGroups,
@@ -23,12 +23,18 @@ import {
   loadMemberScores,
   mergeMemberScore,
   clearMemberScores,
+  loadMemberProfiles,
+  mergeMemberProfile,
+  clearMemberProfiles,
+  updateMemberScoreNickname,
   IdbGroupStateBackend,
   IdbKeyPackageBackend,
   clearAllGroupData,
 } from '@/src/lib/marmot/groupStorage';
 import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscription';
 import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload } from '@/src/lib/marmot/scoreSync';
+import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile } from '@/src/lib/marmot/profileSync';
+import { useProfile } from '@/src/context/ProfileContext';
 
 async function startWelcomeSubscription(
   pubkeyHex: string,
@@ -62,6 +68,10 @@ type MarmotContextValue = {
   publishScoreUpdate: (update: Omit<ScoreUpdate, 'sequenceNumber'>) => Promise<void>;
   /** Handle incoming score application message */
   onIncomingScore: (groupId: string, pubkeyHex: string, nickname: string, update: ScoreUpdate) => Promise<void>;
+  /** Publish profile to all groups */
+  publishProfileUpdate: () => Promise<void>;
+  /** Get member profiles for a given group */
+  getMemberProfiles: (groupId: string) => Promise<MemberProfile[]>;
   /** Reload groups from storage */
   reloadGroups: () => Promise<void>;
   /** Clear all group data (for reset) */
@@ -74,6 +84,7 @@ const MarmotContext = createContext<MarmotContextValue | null>(null);
 
 export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const { privateKeyHex, pubkeyHex, hydrated: identityHydrated } = useNostrIdentity();
+  const { profile: localProfile } = useProfile();
   const [ready, setReady] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const clientRef = useRef<MarmotClientType | null>(null);
@@ -149,6 +160,31 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             // A new group was joined from a Welcome — reload groups
             void reloadGroups();
             console.info('[Marmot] Joined group from Welcome:', joinedGroup.name);
+            // Publish profile to the newly joined group (after a short delay for subscription setup)
+            setTimeout(() => {
+              void (async () => {
+                try {
+                  const mlsGroup = await client.getGroup(joinedGroup.id).catch(() => null);
+                  if (!mlsGroup || !pubkeyHex) return;
+                  const { serialiseProfileUpdate: serialise } = await import('@/src/lib/marmot/profileSync');
+                  const { readUserProfile } = await import('@/src/lib/storage');
+                  const payload = serialise(readUserProfile());
+                  const rumor = {
+                    kind: 1,
+                    content: payload,
+                    tags: [['t', 'quizzl-profile']],
+                    created_at: Math.floor(Date.now() / 1000),
+                    pubkey: pubkeyHex,
+                    id: '',
+                  };
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  await mlsGroup.sendApplicationRumor(rumor as any);
+                  console.info('[Marmot] publishProfileUpdate on Welcome join');
+                } catch (err) {
+                  console.warn('[Marmot] publishProfileUpdate on Welcome join failed:', err);
+                }
+              })();
+            }, 1000);
           }
         );
 
@@ -185,6 +221,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           if (!mlsGroup) continue;
 
           const { parseScorePayload } = await import('@/src/lib/marmot/scoreSync');
+          const { parseProfilePayload, payloadToMemberProfile } = await import('@/src/lib/marmot/profileSync');
 
           const unsub = await subscribeToGroupMessages(
             group.id,
@@ -197,6 +234,15 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                 // Merge into local score cache (use truncated pubkey as fallback nickname)
                 void mergeMemberScore(group.id, senderPubkey, senderPubkey.slice(0, 8), update).catch(
                   (err: unknown) => console.warn('[Marmot] mergeMemberScore failed:', err)
+                );
+              }
+              const profilePayload = parseProfilePayload(payload);
+              if (profilePayload && senderPubkey !== pubkeyHex) {
+                void mergeMemberProfile(group.id, payloadToMemberProfile(senderPubkey, profilePayload)).catch(
+                  (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
+                );
+                void updateMemberScoreNickname(group.id, senderPubkey, profilePayload.nickname).catch(
+                  (err: unknown) => console.warn('[Marmot] updateMemberScoreNickname failed:', err)
                 );
               }
             }
@@ -265,6 +311,43 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     };
   }, [ready, groups, pubkeyHex]);
 
+  // Publish profile to all groups on init (2s delay to let subscriptions settle)
+  const profilePublishedRef = useRef(false);
+  useEffect(() => {
+    if (!ready || groups.length === 0 || profilePublishedRef.current) return;
+    if (typeof window === 'undefined') return;
+    const client = clientRef.current;
+    if (!client || !pubkeyHex) return;
+
+    const timer = setTimeout(() => {
+      profilePublishedRef.current = true;
+      const payload = serialiseProfileUpdate(localProfile);
+      void (async () => {
+        for (const group of groups) {
+          try {
+            const mlsGroup = await client.getGroup(group.id).catch(() => null);
+            if (!mlsGroup) continue;
+            const rumor = {
+              kind: 1,
+              content: payload,
+              tags: [['t', 'quizzl-profile']],
+              created_at: Math.floor(Date.now() / 1000),
+              pubkey: pubkeyHex,
+              id: '',
+            };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await mlsGroup.sendApplicationRumor(rumor as any);
+          } catch (err) {
+            console.warn(`[Marmot] init publishProfileUpdate to group ${group.id} failed:`, err);
+          }
+        }
+        console.info('[Marmot] init publishProfileUpdate sent to', groups.length, 'group(s)');
+      })();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [ready, groups, pubkeyHex, localProfile]);
+
   const getMemberScores = useCallback(async (groupId: string): Promise<MemberScore[]> => {
     return loadMemberScores(groupId);
   }, []);
@@ -287,12 +370,30 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
       await persistGroup(group);
       await reloadGroups();
+
+      // Publish profile to the new group
+      try {
+        const payload = serialiseProfileUpdate(localProfile);
+        const rumor = {
+          kind: 1,
+          content: payload,
+          tags: [['t', 'quizzl-profile']],
+          created_at: Math.floor(Date.now() / 1000),
+          pubkey: pubkeyHex,
+          id: '',
+        };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await mlsGroup.sendApplicationRumor(rumor as any);
+      } catch (err) {
+        console.warn('[Marmot] publishProfileUpdate on createGroup failed:', err);
+      }
+
       return group;
     } catch (err) {
       console.error('[Marmot] createGroup failed:', err);
       return null;
     }
-  }, [pubkeyHex, reloadGroups]);
+  }, [pubkeyHex, reloadGroups, localProfile]);
 
   const inviteByNpub = useCallback(
     async (groupId: string, npub: string): Promise<{ ok: boolean; error?: string }> => {
@@ -380,6 +481,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     // Always remove from local storage
     await removeGroupFromStorage(groupId);
     await clearMemberScores(groupId);
+    await clearMemberProfiles(groupId);
     await reloadGroups();
     return true;
   }, [reloadGroups]);
@@ -443,6 +545,38 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const getMemberProfiles = useCallback(async (groupId: string): Promise<MemberProfile[]> => {
+    return loadMemberProfiles(groupId);
+  }, []);
+
+  const publishProfileUpdate = useCallback(async (): Promise<void> => {
+    const client = clientRef.current;
+    if (!client || groups.length === 0 || !pubkeyHex) return;
+
+    const payload = serialiseProfileUpdate(localProfile);
+
+    for (const group of groups) {
+      try {
+        const mlsGroup = await client.getGroup(group.id).catch(() => null);
+        if (!mlsGroup) continue;
+
+        const rumor = {
+          kind: 1,
+          content: payload,
+          tags: [['t', 'quizzl-profile']],
+          created_at: Math.floor(Date.now() / 1000),
+          pubkey: pubkeyHex,
+          id: '',
+        };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await mlsGroup.sendApplicationRumor(rumor as any);
+      } catch (err) {
+        console.warn(`[Marmot] publishProfileUpdate to group ${group.id} failed:`, err);
+      }
+    }
+    console.info('[Marmot] publishProfileUpdate sent to', groups.length, 'group(s)');
+  }, [groups, pubkeyHex, localProfile]);
+
   const clearAll = useCallback(async () => {
     await clearAllGroupData();
     setGroups([]);
@@ -463,6 +597,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       leaveGroup,
       publishScoreUpdate,
       onIncomingScore,
+      publishProfileUpdate,
+      getMemberProfiles,
       reloadGroups,
       clearAll,
       getClient,
@@ -476,6 +612,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       leaveGroup,
       publishScoreUpdate,
       onIncomingScore,
+      publishProfileUpdate,
+      getMemberProfiles,
       reloadGroups,
       clearAll,
       getClient,
@@ -499,6 +637,8 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   leaveGroup: NOOP_BOOL,
   publishScoreUpdate: NOOP_ASYNC,
   onIncomingScore: NOOP_ASYNC,
+  publishProfileUpdate: NOOP_ASYNC,
+  getMemberProfiles: NOOP_ARRAY as () => Promise<MemberProfile[]>,
   reloadGroups: NOOP_ASYNC,
   clearAll: NOOP_ASYNC,
   getClient: () => null,

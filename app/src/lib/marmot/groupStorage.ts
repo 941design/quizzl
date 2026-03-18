@@ -9,7 +9,7 @@
  */
 
 import { createStore, get, set, del, keys, clear } from 'idb-keyval';
-import type { Group, MemberScore, ScoreUpdate } from '@/src/types';
+import type { Group, MemberScore, MemberProfile, ScoreUpdate } from '@/src/types';
 import type { StoredKeyPackage, SerializedClientState } from '@internet-privacy/marmot-ts';
 // KeyValueStoreBackend is an internal utility type — import directly from subpath
 type KeyValueStoreBackend<T> = {
@@ -28,6 +28,7 @@ const groupMetaStore = createStore('quizzl-groups-meta', 'groups');
 const groupStateStore = createStore('quizzl-groups-state', 'state');
 const keyPackageStore = createStore('quizzl-keypackages', 'keypackages');
 const memberScoreStore = createStore('quizzl-member-scores', 'scores');
+const memberProfileStore = createStore('quizzl-member-profiles', 'profiles');
 
 // ---------------------------------------------------------------------------
 // Group metadata (name, members, relays) — our own overlay, not MLS state
@@ -117,6 +118,64 @@ export async function clearMemberScores(groupId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Member profiles
+// ---------------------------------------------------------------------------
+
+const memberProfileKey = (groupId: string) => `group:${groupId}`;
+
+export async function loadMemberProfiles(groupId: string): Promise<MemberProfile[]> {
+  return (await get<MemberProfile[]>(memberProfileKey(groupId), memberProfileStore)) ?? [];
+}
+
+export async function saveMemberProfiles(groupId: string, profiles: MemberProfile[]): Promise<void> {
+  await set(memberProfileKey(groupId), profiles, memberProfileStore);
+}
+
+/**
+ * Merge an incoming MemberProfile using last-writer-wins by updatedAt timestamp.
+ */
+export async function mergeMemberProfile(
+  groupId: string,
+  profile: MemberProfile
+): Promise<void> {
+  const existing = await loadMemberProfiles(groupId);
+  const idx = existing.findIndex((p) => p.pubkeyHex === profile.pubkeyHex);
+
+  if (idx === -1) {
+    existing.push(profile);
+  } else {
+    // LWW by ISO timestamp
+    if (profile.updatedAt > existing[idx].updatedAt) {
+      existing[idx] = profile;
+    }
+  }
+
+  await saveMemberProfiles(groupId, existing);
+}
+
+export async function clearMemberProfiles(groupId: string): Promise<void> {
+  await del(memberProfileKey(groupId), memberProfileStore);
+}
+
+/**
+ * Update the nickname in a MemberScore record so the leaderboard shows real names
+ * without requiring a separate profile lookup.
+ */
+export async function updateMemberScoreNickname(
+  groupId: string,
+  pubkeyHex: string,
+  nickname: string
+): Promise<void> {
+  if (!nickname) return;
+  const scores = await loadMemberScores(groupId);
+  const idx = scores.findIndex((m) => m.pubkeyHex === pubkeyHex);
+  if (idx !== -1) {
+    scores[idx].nickname = nickname;
+    await saveMemberScores(groupId, scores);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Clear all group data (for resetAllData)
 // ---------------------------------------------------------------------------
 
@@ -125,6 +184,7 @@ export async function clearAllGroupData(): Promise<void> {
   await clear(groupStateStore);
   await clear(keyPackageStore);
   await clear(memberScoreStore);
+  await clear(memberProfileStore);
 }
 
 // ---------------------------------------------------------------------------

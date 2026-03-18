@@ -23,7 +23,7 @@ import { useMarmot } from '@/src/context/MarmotContext';
 import MemberScoreRow from '@/src/components/groups/MemberScoreRow';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { totalPointsFromScores } from '@/src/lib/marmot/scoreSync';
-import type { MemberScore } from '@/src/types';
+import type { MemberScore, MemberProfile } from '@/src/types';
 
 function calculateStreak(studyTimes: { sessions: { startedAt: string }[] }): number {
   const sessions = studyTimes.sessions;
@@ -62,7 +62,7 @@ function calculateStreak(studyTimes: { sessions: { startedAt: string }[] }): num
 export default function LeaderboardPage() {
   const copy = useCopy();
   const { profile } = useProfile();
-  const { groups, getMemberScores, ready: marmotReady } = useMarmot();
+  const { groups, getMemberScores, getMemberProfiles, ready: marmotReady } = useMarmot();
   const { pubkeyHex } = useNostrIdentity();
   const [totalPoints, setTotalPoints] = useState(0);
   const [streak, setStreak] = useState(0);
@@ -70,6 +70,7 @@ export default function LeaderboardPage() {
   const [hydrated, setHydrated] = useState(false);
   // Aggregated member scores across all groups (deduplicated by pubkeyHex)
   const [groupMemberScores, setGroupMemberScores] = useState<Array<{ score: MemberScore; groupName: string }>>([]);
+  const [profileMap, setProfileMap] = useState<Record<string, MemberProfile>>({});
 
   useEffect(() => {
     const selected = readSelectedTopics();
@@ -97,10 +98,17 @@ export default function LeaderboardPage() {
       // Collect all member scores across groups, deduplicating by pubkeyHex
       const seen = new Set<string>();
       const results: Array<{ score: MemberScore; groupName: string }> = [];
+      const profiles: Record<string, MemberProfile> = {};
 
       for (const group of groups) {
         try {
-          const scores = await getMemberScores(group.id);
+          const [scores, memberProfiles] = await Promise.all([
+            getMemberScores(group.id),
+            getMemberProfiles(group.id),
+          ]);
+          for (const p of memberProfiles) {
+            if (!profiles[p.pubkeyHex]) profiles[p.pubkeyHex] = p;
+          }
           for (const ms of scores) {
             if (ms.pubkeyHex === pubkeyHex) continue; // Skip self
             if (seen.has(ms.pubkeyHex)) continue;
@@ -119,10 +127,11 @@ export default function LeaderboardPage() {
         (a, b) => totalPointsFromScores(b.score.scores) - totalPointsFromScores(a.score.scores)
       );
       setGroupMemberScores(results);
+      setProfileMap(profiles);
     }
 
     void loadGroupScores();
-  }, [marmotReady, groups, getMemberScores, pubkeyHex]);
+  }, [marmotReady, groups, getMemberScores, getMemberProfiles, pubkeyHex]);
 
   return (
     <>
@@ -251,6 +260,7 @@ export default function LeaderboardPage() {
                   <MemberScoreRow
                     memberScore={score}
                     rank={idx + 2}
+                    avatar={profileMap[score.pubkeyHex]?.avatar}
                   />
                   <Text fontSize="xs" color="textMuted" pl={2} mt={0.5}>
                     {copy.groups.fromGroup(groupName)}

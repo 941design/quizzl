@@ -23,30 +23,36 @@ import MemberList from '@/src/components/groups/MemberList';
 import MemberScoreRow from '@/src/components/groups/MemberScoreRow';
 import InviteMemberModal from '@/src/components/groups/InviteMemberModal';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
-import type { Group, MemberScore } from '@/src/types';
+import type { Group, MemberScore, MemberProfile } from '@/src/types';
 
 export default function GroupDetailPage() {
   const router = useRouter();
   const { id } = router.query;
   const copy = useCopy();
-  const { groups, ready, getMemberScores } = useMarmot();
+  const { groups, ready, getMemberScores, getMemberProfiles } = useMarmot();
   const { pubkeyHex } = useNostrIdentity();
   const inviteDisclosure = useDisclosure();
   const [group, setGroup] = useState<Group | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [memberScores, setMemberScores] = useState<MemberScore[]>([]);
+  const [profileMap, setProfileMap] = useState<Record<string, MemberProfile>>({});
 
   useEffect(() => {
     if (!ready || typeof id !== 'string') return;
     const found = groups.find((g) => g.id === id);
     if (found) {
       setGroup(found);
-      // Load member scores for this group
+      // Load member scores and profiles for this group
       void getMemberScores(id).then(setMemberScores).catch(() => {});
+      void getMemberProfiles(id).then((profiles) => {
+        const map: Record<string, MemberProfile> = {};
+        for (const p of profiles) map[p.pubkeyHex] = p;
+        setProfileMap(map);
+      }).catch(() => {});
     } else {
       setNotFound(true);
     }
-  }, [ready, groups, id, getMemberScores]);
+  }, [ready, groups, id, getMemberScores, getMemberProfiles]);
 
   if (!ready) {
     return (
@@ -128,6 +134,7 @@ export default function GroupDetailPage() {
             <MemberList
               memberPubkeys={group.memberPubkeys}
               ownPubkeyHex={pubkeyHex}
+              memberProfiles={profileMap}
             />
           </Box>
 
@@ -151,6 +158,7 @@ export default function GroupDetailPage() {
                       memberScore={ms}
                       isYou={ms.pubkeyHex === pubkeyHex}
                       rank={idx + 1}
+                      avatar={profileMap[ms.pubkeyHex]?.avatar}
                     />
                   ))}
               </VStack>

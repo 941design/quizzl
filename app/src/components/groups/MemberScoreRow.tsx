@@ -1,16 +1,17 @@
 import React from 'react';
-import { HStack, Text, Badge, Box } from '@chakra-ui/react';
+import { HStack, Text, Badge, Box, Image } from '@chakra-ui/react';
 import { truncateNpub, pubkeyToNpub } from '@/src/lib/nostrKeys';
-import type { MemberScore } from '@/src/types';
+import type { MemberScore, ProfileAvatar } from '@/src/types';
 import { totalPointsFromScores } from '@/src/lib/marmot/scoreSync';
 
 type MemberScoreRowProps = {
   memberScore: MemberScore;
   isYou?: boolean;
   rank?: number;
+  avatar?: ProfileAvatar | null;
 };
 
-export default function MemberScoreRow({ memberScore, isYou, rank }: MemberScoreRowProps) {
+export default function MemberScoreRow({ memberScore, isYou, rank, avatar }: MemberScoreRowProps) {
   const displayName =
     memberScore.nickname && memberScore.nickname.length > 8
       ? memberScore.nickname
@@ -33,6 +34,16 @@ export default function MemberScoreRow({ memberScore, isYou, rank }: MemberScore
           <Text fontSize="sm" color="textMuted" minW="20px">
             #{rank}
           </Text>
+        )}
+        {avatar && (
+          <Image
+            src={avatar.imageUrl}
+            alt={displayName}
+            boxSize="24px"
+            borderRadius="md"
+            objectFit="contain"
+            bg="white"
+          />
         )}
         <Box>
           <Text fontSize="sm" fontWeight={isYou ? 'semibold' : 'normal'}>

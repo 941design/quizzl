@@ -191,3 +191,12 @@ export type MemberScore = {
   /** Last received sequence number (for LWW) */
   lastSeq: number;
 };
+
+export type MemberProfile = {
+  pubkeyHex: string;
+  nickname: string;
+  avatar: ProfileAvatar | null;
+  badgeIds: string[];
+  /** ISO timestamp for LWW resolution */
+  updatedAt: string;
+};
