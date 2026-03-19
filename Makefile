@@ -79,6 +79,8 @@ e2e-down: ## Stop strfry relay
 
 ## Run Playwright E2E tests for learning groups
 test-e2e-groups: $(PLAYWRIGHT_STAMP) e2e-up ## Run groups E2E tests (strfry + static build)
+	@# Kill any orphaned dev server from a previous failed run
+	@-lsof -ti :3100 2>/dev/null | xargs kill 2>/dev/null; true
 	cd $(APP_DIR) && E2E_GROUPS=1 npx playwright test; \
 	status=$$?; \
 	cd .. && $(MAKE) e2e-down; \
