@@ -233,7 +233,8 @@ export async function subscribeToGroupMessages(
   let historicalCount = 0;
   let historicalIngested = 0;
   try {
-    const existingEvents = await ndk.fetchEvents(filter);
+    const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
+    const existingEvents = await fetchEventsWithTimeout(ndk, filter);
     // Sort by created_at to process in chronological order
     const sorted = Array.from(existingEvents).sort(
       (a, b) => (a.created_at ?? 0) - (b.created_at ?? 0)

@@ -409,11 +409,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         const ndk = getNdk();
         if (!ndk) return { ok: false, error: 'offline' };
 
-        const kpEvents = await ndk.fetchEvents(
+        const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
+        const kpEvents = await fetchEventsWithTimeout(
+          ndk,
           // 443 is Marmot KeyPackage kind — cast to NDKKind
           { kinds: [443 as import('@nostr-dev-kit/ndk').NDKKind], authors: [inviteePubkey], limit: 5 },
-          {},
-          undefined
         );
 
         const kpArray = Array.from(kpEvents);

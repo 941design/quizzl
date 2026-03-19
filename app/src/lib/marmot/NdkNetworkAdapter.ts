@@ -121,7 +121,8 @@ export class NdkNetworkAdapter implements NostrNetworkInterface {
   ): Promise<NostrEvent[]> {
     const ndkFilter = toNdkFilter(filters);
     const relaySet = NDKRelaySet.fromRelayUrls(relays, this.ndk);
-    const events = await this.ndk.fetchEvents(ndkFilter, {}, relaySet);
+    const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
+    const events = await fetchEventsWithTimeout(this.ndk, ndkFilter, {}, relaySet);
     return Array.from(events).map(toNostrEvent);
   }
 
@@ -158,11 +159,11 @@ export class NdkNetworkAdapter implements NostrNetworkInterface {
   async getUserInboxRelays(pubkey: string): Promise<string[]> {
     // Fetch kind 10051 (relay list for KeyPackage discovery)
     try {
-      const events = await this.ndk.fetchEvents(
+      const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
+      const events = await fetchEventsWithTimeout(
+        this.ndk,
         // 10051 is the KeyPackage relay list kind — cast to NDKKind
         { kinds: [10051 as import('@nostr-dev-kit/ndk').NDKKind], authors: [pubkey], limit: 1 },
-        {},
-        undefined
       );
       const event = Array.from(events)[0];
       // Fallback to DEFAULT_RELAYS: most users never publish kind 10051.
