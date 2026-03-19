@@ -91,6 +91,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const clientRef = useRef<MarmotClientType | null>(null);
   // Track group message subscription cleanup functions keyed by groupId
   const groupSubsRef = useRef<Map<string, () => void>>(new Map());
+  // Track groups where profile has been published (to avoid re-publishing)
+  const profilePublishedRef = useRef<Set<string>>(new Set());
 
   // Load groups from storage on mount
   const reloadGroups = useCallback(async () => {
@@ -249,6 +251,27 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                 await reloadGroups();
               }
             },
+            // Publish profile after historical sync completes (epoch is up-to-date)
+            () => {
+              if (profilePublishedRef.current.has(group.id)) return;
+              profilePublishedRef.current.add(group.id);
+              const payload = serialiseProfileUpdate(localProfile);
+              console.info(`[Marmot] onHistorySynced: publishing profile for group ${group.id}, nickname="${localProfile.nickname}"`);
+              const rumor = {
+                kind: 1,
+                content: payload,
+                tags: [['t', 'quizzl-profile']],
+                created_at: Math.floor(Date.now() / 1000),
+                pubkey: pubkeyHex ?? '',
+                id: '',
+              };
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              void mlsGroup.sendApplicationRumor(rumor as any).then(() => {
+                console.info(`[Marmot] onHistorySynced: profile published successfully for group ${group.id}`);
+              }).catch((err: unknown) => {
+                console.warn(`[Marmot] onHistorySynced profile publish for ${group.id} failed:`, err);
+              });
+            },
           );
           subsMap.set(group.id, () => {
             unsub();
@@ -316,12 +339,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     };
   }, [ready, groups, pubkeyHex]);
 
-  // Profile updates are published explicitly via publishProfileUpdate (user-initiated).
-  // They are NOT published automatically during subscription setup because
-  // sendApplicationRumor advances the MLS key schedule, which creates a
-  // divergent epoch branch. If another member publishes a commit (e.g. adding
-  // a new member) targeting the pre-update epoch, our advanced state can't
-  // process it — the event appears as "unreadable".
+  // Profile updates are published automatically via the onHistorySynced callback
+  // (once per group, after historical events are ingested and the local epoch is
+  // up-to-date). They can also be published explicitly via publishProfileUpdate.
 
   const getMemberScores = useCallback(async (groupId: string): Promise<MemberScore[]> => {
     return loadMemberScores(groupId);
@@ -557,6 +577,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     await clearAllGroupData();
     setGroups([]);
     clientRef.current = null;
+    profilePublishedRef.current.clear();
   }, []);
 
   const getClient = useCallback((): MarmotClientType | null => {

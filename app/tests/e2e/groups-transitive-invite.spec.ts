@@ -10,6 +10,7 @@ const BASE_URL = 'http://localhost:3100';
 async function bootUser(
   browser: { newContext: (opts: object) => Promise<BrowserContext> },
   user: typeof USER_A,
+  opts?: { nickname?: string },
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ baseURL: BASE_URL });
   await suppressErrorOverlay(context);
@@ -19,9 +20,12 @@ async function bootUser(
   // Only inject identity — don't clear lp_* keys here. clearAppState handles
   // full cleanup during boot. Clearing here would wipe lp_processedGiftWraps
   // which prevents Welcome re-processing on page reload.
-  await context.addInitScript(({ privateKeyHex, pubkeyHex, seedHex }) => {
+  await context.addInitScript(({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
     localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-  }, { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex });
+    if (nickname) {
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+    }
+  }, { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname: opts?.nickname ?? '' });
   const page = await context.newPage();
   // First load: clear IndexedDB (async, but completes before meaningful app init)
   await page.goto('/');
@@ -112,7 +116,7 @@ test.describe.serial('Group of 3 – hub invite (A invites B and C)', () => {
   test.beforeAll(async ({ browser }) => {
     await computeTestKeypairs();
     ({ context: ctxA, page: pageA } = await bootUser(browser, USER_A));
-    ({ context: ctxB, page: pageB } = await bootUser(browser, USER_B));
+    ({ context: ctxB, page: pageB } = await bootUser(browser, USER_B, { nickname: 'TestPlayerB' }));
     ({ context: ctxC, page: pageC } = await bootUser(browser, USER_C));
   });
 
@@ -161,6 +165,19 @@ test.describe.serial('Group of 3 – hub invite (A invites B and C)', () => {
     await expectMemberVisible(pageA, USER_A.pubkeyHex);
     await expectMemberVisible(pageA, USER_B.pubkeyHex);
     await expectMemberVisible(pageA, USER_C.pubkeyHex);
+  });
+
+  test('User B nickname is visible to User A after join', async () => {
+    await pageA.goto('/groups/');
+    await expect(
+      pageA.getByTestId('groups-empty-state').or(pageA.getByTestId('groups-list')),
+    ).toBeVisible({ timeout: 60_000 });
+    await openGroupDetail(pageA, GROUP_NAME);
+
+    const memberTestId = `member-item-${USER_B.pubkeyHex.slice(0, 8)}`;
+    await expect(
+      pageA.getByTestId(memberTestId).getByText('TestPlayerB'),
+    ).toBeVisible({ timeout: 30_000 });
   });
 });
 

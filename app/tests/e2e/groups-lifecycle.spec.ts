@@ -121,4 +121,23 @@ test.describe.serial('Group Lifecycle', () => {
     // Group should be removed from User B's list
     await expect(pageB.getByText('E2E Test Group')).not.toBeVisible({ timeout: 30_000 });
   });
+
+  test('Reset clears processedGiftWraps cache', async () => {
+    // lp_processedGiftWraps should still exist (set during Welcome join, not
+    // cleared by leaveGroup — only resetAllData should remove it).
+    const before = await pageB.evaluate(() => localStorage.getItem('lp_processedGiftWraps'));
+    expect(before).not.toBeNull();
+
+    // Navigate to settings and perform reset
+    await pageB.goto('/settings');
+    await pageB.getByTestId('reset-data-btn').click();
+    await pageB.getByTestId('reset-confirm-btn').click();
+
+    // Wait for reset to complete
+    await pageB.waitForTimeout(2_000);
+
+    // lp_processedGiftWraps must be cleared by resetAllData
+    const after = await pageB.evaluate(() => localStorage.getItem('lp_processedGiftWraps'));
+    expect(after).toBeNull();
+  });
 });

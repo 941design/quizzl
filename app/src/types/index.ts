@@ -134,6 +134,7 @@ export const STORAGE_KEYS = {
   nostrBackedUp: 'lp_nostrIdentityBackedUp_v1',
   scoreSyncQueue: 'lp_scoreSyncQueue_v1',
   scoreSyncSeq: 'lp_scoreSyncSeq_v1',
+  processedGiftWraps: 'lp_processedGiftWraps',
 } as const;
 
 // ============================

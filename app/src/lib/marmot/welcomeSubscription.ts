@@ -8,7 +8,7 @@
  */
 
 import type { Group } from '@/src/types';
-import { DEFAULT_RELAYS } from '@/src/types';
+import { DEFAULT_RELAYS, STORAGE_KEYS } from '@/src/types';
 import { saveGroup } from './groupStorage';
 import type { EventSigner } from 'applesauce-core';
 import { getGroupMembers } from '@internet-privacy/marmot-ts';
@@ -77,7 +77,7 @@ export async function subscribeToWelcomes(
   // joinGroupFromWelcome would run again for the same Welcome (still on the
   // relay), overwriting the MLS state back to the Welcome epoch and making
   // any commits ingested since then (e.g. "add member C") undecryptable.
-  const SEEN_KEY = 'lp_processedGiftWraps';
+  const SEEN_KEY = STORAGE_KEYS.processedGiftWraps;
 
   sub.on('event', async (ndkEvent) => {
     const eventId = ndkEvent.id ?? '';
@@ -160,6 +160,7 @@ export async function subscribeToGroupMessages(
   ndk: import('@nostr-dev-kit/ndk').default,
   onApplicationMessage: (payload: string, senderPubkey: string) => void,
   onMembersChanged?: (members: string[]) => void,
+  onHistorySynced?: () => void,
 ): Promise<() => void> {
   // marmot-ts tags kind 445 events with #h using the Nostr group ID
   // (MarmotGroupData.nostrGroupId), NOT the MLS group context ID (idStr).
@@ -197,8 +198,19 @@ export async function subscribeToGroupMessages(
         if (result.kind === 'processed' && result.result.kind === 'applicationMessage') {
           const appMsg = result.result.message;
           if (appMsg) {
-            const text = new TextDecoder().decode(appMsg);
-            onApplicationMessage(text, nostrEvent.pubkey);
+            const rawText = new TextDecoder().decode(appMsg);
+            // sendApplicationRumor wraps the payload in a Nostr rumor:
+            //   {"kind":1,"content":"<actual payload>","pubkey":"<real sender>",...}
+            // The kind 445 event pubkey may be ephemeral (MLS protocol key),
+            // so extract the real sender pubkey and content from the rumor.
+            let content = rawText;
+            let senderPubkey = nostrEvent.pubkey;
+            try {
+              const rumor = JSON.parse(rawText) as { content?: string; pubkey?: string };
+              if (typeof rumor.content === 'string') content = rumor.content;
+              if (typeof rumor.pubkey === 'string' && rumor.pubkey) senderPubkey = rumor.pubkey;
+            } catch { /* not a rumor wrapper — use raw text */ }
+            onApplicationMessage(content, senderPubkey);
           }
         }
       }
@@ -218,26 +230,39 @@ export async function subscribeToGroupMessages(
 
   // Fetch and ingest all existing kind 445 events (historical sync).
   // This ensures commits published before subscription started are processed.
+  let historicalCount = 0;
+  let historicalIngested = 0;
   try {
     const existingEvents = await ndk.fetchEvents(filter);
     // Sort by created_at to process in chronological order
     const sorted = Array.from(existingEvents).sort(
       (a, b) => (a.created_at ?? 0) - (b.created_at ?? 0)
     );
+    historicalCount = sorted.length;
     for (const ev of sorted) {
+      const before = processedIds.size;
       await ingestNdkEvent(ev);
+      if (processedIds.size > before) historicalIngested++;
     }
   } catch (err) {
     console.debug('[welcomeSubscription] Historical fetch failed:', err);
   }
+  console.info(`[welcomeSubscription] Historical sync: ${historicalIngested}/${historicalCount} events ingested for group ${groupId.slice(0, 16)}`);
 
-  // NOTE: selfUpdate and sendApplicationRumor are intentionally NOT called
-  // here. Both advance the local MLS epoch (creating a divergent branch).
-  // If another member publishes a commit (e.g. "add member C") targeting
-  // the pre-selfUpdate epoch, our advanced state can't process it —
-  // the event appears as "unreadable". Instead, selfUpdate and profile
-  // updates should only happen at controlled moments when no incoming
-  // commits are expected (e.g. explicit user action).
+  // Historical events have been ingested — local epoch is now up-to-date.
+  // Safe to publish profile or other application messages without diverging.
+  if (onHistorySynced) {
+    try {
+      onHistorySynced();
+    } catch (err) {
+      console.debug('[welcomeSubscription] onHistorySynced callback failed:', err);
+    }
+  }
+
+  // NOTE: selfUpdate is intentionally NOT called here — it advances the
+  // local MLS epoch, creating a divergent branch. sendApplicationRumor
+  // (for profile publish) is safe after historical sync because the local
+  // epoch is up-to-date. The onHistorySynced callback handles this.
 
   // Live subscription for future events
   const sub = ndk.subscribe(filter, { closeOnEose: false });
