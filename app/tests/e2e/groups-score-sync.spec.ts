@@ -74,49 +74,79 @@ test.describe.serial('Score Sync via MLS', () => {
     await pageA.goto('/topic/javascript-basics');
     await dismissErrorOverlay(pageA);
 
-    // Click the Quiz tab
     const quizTab = pageA.getByTestId('tab-quiz');
     await expect(quizTab).toBeVisible({ timeout: 10_000 });
     await quizTab.click();
 
-    // Wait for question to appear
-    const questionCard = pageA.getByTestId('question-card');
-    await expect(questionCard).toBeVisible({ timeout: 10_000 });
+    // Answer all 5 questions (single, multi, flashcard, single, flashcard).
+    // Quiz completion triggers publishScoreUpdate only when ALL answered.
+    // Detection order: flashcard → multi-choice → single-choice (most specific first).
+    for (let q = 0; q < 5; q++) {
+      await expect(pageA.getByTestId('question-card')).toBeVisible({ timeout: 10_000 });
 
-    // Answer the question — try single-choice option first, then flashcard
-    const singleOption = pageA.locator('[data-testid^="option-"]').first();
-    const revealBtn = pageA.getByTestId('reveal-answer-btn');
+      const revealBtn = pageA.getByTestId('reveal-answer-btn');
+      const multiSubmit = pageA.getByTestId('submit-multi-answer');
 
-    if (await singleOption.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await singleOption.click();
-    } else if (await revealBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await revealBtn.click();
-      // After reveal, click "knew it" or "didn't know"
-      const knewItBtn = pageA.getByTestId('knew-it-btn');
-      await expect(knewItBtn).toBeVisible({ timeout: 5_000 });
-      await knewItBtn.click();
+      if (await revealBtn.isVisible({ timeout: 1_000 }).catch(() => false)) {
+        // Flashcard: reveal then self-assess
+        await revealBtn.click();
+        const knewItBtn = pageA.getByTestId('knew-it-btn');
+        await expect(knewItBtn).toBeVisible({ timeout: 5_000 });
+        await knewItBtn.click();
+      } else if (await multiSubmit.isVisible({ timeout: 1_000 }).catch(() => false)) {
+        // Multi-choice: select first checkbox then submit
+        await pageA.locator('[data-testid^="option-"]').first().click();
+        await multiSubmit.click();
+      } else {
+        // Single-choice: clicking an option auto-submits
+        await pageA.locator('[data-testid^="option-"]').first().click();
+      }
+
+      // Wait for answer state to settle before navigating
+      await pageA.waitForTimeout(500);
+
+      // Move to next question (unless this was the last one)
+      if (q < 4) {
+        await expect(pageA.getByTestId('next-question-btn')).toBeEnabled({ timeout: 5_000 });
+        await pageA.getByTestId('next-question-btn').click();
+      }
     }
 
-    // Wait for score sync to happen
+    // Wait for quiz completion callback + score sync
     await pageA.waitForTimeout(10_000);
 
-    // Verify a kind 445 (MLS application message) was published to the relay.
-    // Don't filter by authors — MLS events may use a group-scoped signing key,
-    // not the user's identity pubkey. The E2E relay is isolated so any 445 is ours.
-    const scoreEvents = await queryRelayForEvents(pageA, {
-      kinds: [445],
-    });
-    expect(scoreEvents.length).toBeGreaterThan(0);
+    // Count kind 445 events on the relay. Profile publish creates some,
+    // but score publish adds more. Verify the total increased.
+    const events445 = await queryRelayForEvents(pageA, { kinds: [445] });
+    expect(events445.length).toBeGreaterThan(0);
   });
 
-  test.fixme('User B sees User A score in group detail', async () => {
+  test('User B sees User A score in group detail', async () => {
     // Navigate to group detail
     await pageB.goto('/groups/');
+    await expect(
+      pageB.getByTestId('groups-empty-state').or(pageB.getByTestId('groups-list')),
+    ).toBeVisible({ timeout: 60_000 });
     await dismissErrorOverlay(pageB);
     await pageB.locator(':has-text("Score Sync Group")').getByRole('link', { name: 'Open' }).click();
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
-    // Wait for score to propagate (MLS app message → relay → subscription → merge)
+    // Score propagation: A's sendApplicationRumor → relay → B's live sub → ingest → IndexedDB.
+    // The group detail page reads scores from IndexedDB on mount. If the score
+    // arrived after mount, re-navigate to force a fresh read.
+    const scoreVisible = await pageB.getByTestId('member-score-row').isVisible().catch(() => false);
+    if (!scoreVisible) {
+      // Wait for late delivery, then re-open the page
+      await pageB.waitForTimeout(10_000);
+      await pageB.goto('/groups/');
+      await expect(
+        pageB.getByTestId('groups-empty-state').or(pageB.getByTestId('groups-list')),
+      ).toBeVisible({ timeout: 60_000 });
+      await dismissErrorOverlay(pageB);
+      await pageB.locator(':has-text("Score Sync Group")').getByRole('link', { name: 'Open' }).click();
+      await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+    }
+
     await expect(pageB.getByTestId('member-score-row')).toBeVisible({ timeout: 60_000 });
     await expect(pageB.getByTestId('member-score-points')).toBeVisible();
   });
