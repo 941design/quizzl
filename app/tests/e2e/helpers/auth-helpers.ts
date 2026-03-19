@@ -23,6 +23,14 @@ export const USER_B = {
   npub: '',
 };
 
+export const USER_C = {
+  seedHex: 'cc'.repeat(16),
+  // SHA-256(16 bytes of 0xcc) → privateKeyHex
+  privateKeyHex: 'd595a3162141a506924be60c2c75b1cd3c28ef4d4b7f4418705677270e54aedf',
+  pubkeyHex: '',
+  npub: '',
+};
+
 /**
  * Compute pubkeys at runtime using the same derivation as the app.
  * Call this once during global setup.
@@ -32,7 +40,7 @@ export async function computeTestKeypairs(): Promise<void> {
   const { getPublicKey } = await import('nostr-tools/pure');
   const { nip19 } = await import('nostr-tools');
 
-  for (const user of [USER_A, USER_B]) {
+  for (const user of [USER_A, USER_B, USER_C]) {
     const privBytes = hexToBytes(user.privateKeyHex);
     user.pubkeyHex = getPublicKey(privBytes);
     user.npub = nip19.npubEncode(user.pubkeyHex);

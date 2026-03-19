@@ -1,10 +1,31 @@
 import { test, expect, BrowserContext, Page } from '@playwright/test';
-import { injectIdentity, USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
+import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 import { queryRelayForEvents } from './helpers/relay-query';
 
 const BASE_URL = 'http://localhost:3100';
+
+/** Boot a user context: inject identity via init script, navigate to /groups/. */
+async function bootUser(
+  browser: { newContext: (opts: object) => Promise<BrowserContext> },
+  user: typeof USER_A,
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext({ baseURL: BASE_URL });
+  await suppressErrorOverlay(context);
+  await context.addInitScript(({ privateKeyHex, pubkeyHex, seedHex }) => {
+    localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
+  }, { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex });
+  const page = await context.newPage();
+  await page.goto('/');
+  await clearAppState(page);
+  await page.reload();
+  await page.goto('/groups/');
+  await expect(
+    page.getByTestId('groups-empty-state').or(page.getByTestId('groups-list')),
+  ).toBeVisible({ timeout: 60_000 });
+  return { context, page };
+}
 
 let contextA: BrowserContext;
 let contextB: BrowserContext;
@@ -14,32 +35,8 @@ let pageB: Page;
 test.describe.serial('Score Sync via MLS', () => {
   test.beforeAll(async ({ browser }) => {
     await computeTestKeypairs();
-
-    // User A: create context, inject identity, wait for init
-    contextA = await browser.newContext({ baseURL: BASE_URL });
-    await suppressErrorOverlay(contextA);
-    pageA = await contextA.newPage();
-    await pageA.goto('/');
-    await clearAppState(pageA);
-    await injectIdentity(pageA, USER_A);
-    await pageA.reload();
-    await pageA.goto('/groups/');
-    await expect(
-      pageA.getByTestId('groups-empty-state').or(pageA.getByTestId('groups-list')),
-    ).toBeVisible({ timeout: 60_000 });
-
-    // User B: create context, inject identity, wait for init
-    contextB = await browser.newContext({ baseURL: BASE_URL });
-    await suppressErrorOverlay(contextB);
-    pageB = await contextB.newPage();
-    await pageB.goto('/');
-    await clearAppState(pageB);
-    await injectIdentity(pageB, USER_B);
-    await pageB.reload();
-    await pageB.goto('/groups/');
-    await expect(
-      pageB.getByTestId('groups-empty-state').or(pageB.getByTestId('groups-list')),
-    ).toBeVisible({ timeout: 60_000 });
+    ({ context: contextA, page: pageA } = await bootUser(browser, USER_A));
+    ({ context: contextB, page: pageB } = await bootUser(browser, USER_B));
 
     // Wait for KeyPackage publication
     await pageB.waitForTimeout(5_000);

@@ -159,34 +159,13 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           ndk,
           signer,
           (joinedGroup) => {
-            // A new group was joined from a Welcome — reload groups
+            // A new group was joined from a Welcome — reload groups.
+            // NOTE: profile update is NOT done here because sendApplicationRumor
+            // advances the MLS key schedule, which would make pending historical
+            // commits (e.g. "add member C") undecryptable. Profile updates are
+            // deferred to subscribeToGroupMessages's onHistorySynced callback.
             void reloadGroups();
             console.info('[Marmot] Joined group from Welcome:', joinedGroup.name);
-            // Publish profile to the newly joined group (after a short delay for subscription setup)
-            setTimeout(() => {
-              void (async () => {
-                try {
-                  const mlsGroup = await client.getGroup(joinedGroup.id).catch(() => null);
-                  if (!mlsGroup || !pubkeyHex) return;
-                  const { serialiseProfileUpdate: serialise } = await import('@/src/lib/marmot/profileSync');
-                  const { readUserProfile } = await import('@/src/lib/storage');
-                  const payload = serialise(readUserProfile());
-                  const rumor = {
-                    kind: 1,
-                    content: payload,
-                    tags: [['t', 'quizzl-profile']],
-                    created_at: Math.floor(Date.now() / 1000),
-                    pubkey: pubkeyHex,
-                    id: '',
-                  };
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  await mlsGroup.sendApplicationRumor(rumor as any);
-                  console.info('[Marmot] publishProfileUpdate on Welcome join');
-                } catch (err) {
-                  console.warn('[Marmot] publishProfileUpdate on Welcome join failed:', err);
-                }
-              })();
-            }, 1000);
           }
         );
 
@@ -222,6 +201,19 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           const mlsGroup = await client!.getGroup(group.id).catch(() => null);
           if (!mlsGroup) continue;
 
+          // Immediately sync member list from MLS state (authoritative source).
+          // The MLS ratchet tree tracks all members — even commits processed in
+          // a previous session are reflected here. This ensures the overlay store
+          // is up-to-date without needing to re-ingest historical events (which
+          // is impossible after the MLS key schedule advances due to forward secrecy).
+          const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
+          const mlsMembers = getGroupMembers(mlsGroup.state);
+          const stored = groups.find((g) => g.id === group.id);
+          if (stored && mlsMembers.length !== stored.memberPubkeys.length) {
+            await persistGroup({ ...stored, memberPubkeys: mlsMembers });
+            await reloadGroups();
+          }
+
           const { parseScorePayload } = await import('@/src/lib/marmot/scoreSync');
           const { parseProfilePayload, payloadToMemberProfile } = await import('@/src/lib/marmot/profileSync');
 
@@ -247,9 +239,20 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                   (err: unknown) => console.warn('[Marmot] updateMemberScoreNickname failed:', err)
                 );
               }
-            }
+            },
+            // Refresh memberPubkeys from MLS state after ingesting any event
+            // (commits, proposals, etc. — not just application messages)
+            async (currentMembers) => {
+              const stored = groups.find((g) => g.id === group.id);
+              if (stored && currentMembers.length !== stored.memberPubkeys.length) {
+                await persistGroup({ ...stored, memberPubkeys: currentMembers });
+                await reloadGroups();
+              }
+            },
           );
-          subsMap.set(group.id, unsub);
+          subsMap.set(group.id, () => {
+            unsub();
+          });
         } catch (err) {
           console.warn(`[Marmot] subscribeToGroupMessages for ${group.id} failed:`, err);
         }
@@ -313,42 +316,12 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     };
   }, [ready, groups, pubkeyHex]);
 
-  // Publish profile to all groups on init (2s delay to let subscriptions settle)
-  const profilePublishedRef = useRef(false);
-  useEffect(() => {
-    if (!ready || groups.length === 0 || profilePublishedRef.current) return;
-    if (typeof window === 'undefined') return;
-    const client = clientRef.current;
-    if (!client || !pubkeyHex) return;
-
-    const timer = setTimeout(() => {
-      profilePublishedRef.current = true;
-      const payload = serialiseProfileUpdate(localProfile);
-      void (async () => {
-        for (const group of groups) {
-          try {
-            const mlsGroup = await client.getGroup(group.id).catch(() => null);
-            if (!mlsGroup) continue;
-            const rumor = {
-              kind: 1,
-              content: payload,
-              tags: [['t', 'quizzl-profile']],
-              created_at: Math.floor(Date.now() / 1000),
-              pubkey: pubkeyHex,
-              id: '',
-            };
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await mlsGroup.sendApplicationRumor(rumor as any);
-          } catch (err) {
-            console.warn(`[Marmot] init publishProfileUpdate to group ${group.id} failed:`, err);
-          }
-        }
-        console.info('[Marmot] init publishProfileUpdate sent to', groups.length, 'group(s)');
-      })();
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [ready, groups, pubkeyHex, localProfile]);
+  // Profile updates are published explicitly via publishProfileUpdate (user-initiated).
+  // They are NOT published automatically during subscription setup because
+  // sendApplicationRumor advances the MLS key schedule, which creates a
+  // divergent epoch branch. If another member publishes a commit (e.g. adding
+  // a new member) targeting the pre-update epoch, our advanced state can't
+  // process it — the event appears as "unreadable".
 
   const getMemberScores = useCallback(async (groupId: string): Promise<MemberScore[]> => {
     return loadMemberScores(groupId);
@@ -445,12 +418,13 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
         const inviteResult = await mlsGroup.inviteByKeyPackageEvent(nostrEvent);
 
-        // Update our overlay group metadata with new member
+        // Refresh member list from MLS group state (authoritative source)
         const stored = groups.find((g) => g.id === groupId);
-        if (stored && !stored.memberPubkeys.includes(inviteePubkey)) {
+        if (stored) {
+          const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
           const updated: Group = {
             ...stored,
-            memberPubkeys: [...stored.memberPubkeys, inviteePubkey],
+            memberPubkeys: getGroupMembers(mlsGroup.state),
           };
           await persistGroup(updated);
           await reloadGroups();

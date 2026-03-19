@@ -11,6 +11,7 @@ import type { Group } from '@/src/types';
 import { DEFAULT_RELAYS } from '@/src/types';
 import { saveGroup } from './groupStorage';
 import type { EventSigner } from 'applesauce-core';
+import { getGroupMembers } from '@internet-privacy/marmot-ts';
 
 export type WelcomeReceivedCallback = (group: Group) => void;
 
@@ -71,7 +72,23 @@ export async function subscribeToWelcomes(
     { closeOnEose: false }
   );
 
+  // Track successfully processed gift wrap IDs in localStorage so that
+  // Welcome events are not re-processed on page reload. Without this guard,
+  // joinGroupFromWelcome would run again for the same Welcome (still on the
+  // relay), overwriting the MLS state back to the Welcome epoch and making
+  // any commits ingested since then (e.g. "add member C") undecryptable.
+  const SEEN_KEY = 'lp_processedGiftWraps';
+
   sub.on('event', async (ndkEvent) => {
+    const eventId = ndkEvent.id ?? '';
+    if (!eventId) return;
+
+    // Skip gift wraps already processed in this or a previous page session
+    try {
+      const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') as string[];
+      if (seen.includes(eventId)) return;
+    } catch { /* ignore parse errors */ }
+
     try {
       // Unwrap NIP-59: gift wrap → seal → rumor (kind 444)
       const welcomeRumor = await unwrapGiftWrap(
@@ -90,6 +107,15 @@ export async function subscribeToWelcomes(
         welcomeRumor: welcomeRumor as any,
       });
 
+      // Mark as successfully processed BEFORE saving overlay data.
+      // This prevents re-processing even if the page navigates away before
+      // saveGroup completes — a re-join would overwrite MLS state.
+      try {
+        const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') as string[];
+        seen.push(eventId);
+        localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+      } catch { /* ignore */ }
+
       // Build our overlay Group metadata
       const groupData = mlsGroup.groupData;
       const groupName = groupData?.name ?? 'Unnamed Group';
@@ -99,16 +125,15 @@ export async function subscribeToWelcomes(
         id: mlsGroup.idStr,
         name: groupName,
         createdAt: Date.now(),
-        memberPubkeys: [pubkeyHex], // We know we're a member; other members fetched via epoch
+        memberPubkeys: getGroupMembers(mlsGroup.state),
         relays: groupRelays,
       };
 
       await saveGroup(group);
 
-      // Rotate leaf key (self-update) for forward secrecy per MIP-02
-      void mlsGroup.selfUpdate().catch((err) => {
-        console.warn('[welcomeSubscription] selfUpdate failed:', err);
-      });
+      // NOTE: selfUpdate and sendApplicationRumor are intentionally NOT done
+      // here. They advance the local MLS epoch, causing subsequent commits
+      // from other members to become undecryptable.
 
       onGroupJoined(group);
     } catch (err) {
@@ -133,20 +158,32 @@ export async function subscribeToGroupMessages(
   relays: string[],
   mlsGroup: import('@internet-privacy/marmot-ts').MarmotGroup,
   ndk: import('@nostr-dev-kit/ndk').default,
-  onApplicationMessage: (payload: string, senderPubkey: string) => void
+  onApplicationMessage: (payload: string, senderPubkey: string) => void,
+  onMembersChanged?: (members: string[]) => void,
 ): Promise<() => void> {
-  const sub = ndk.subscribe(
-    {
-      kinds: [445 as import('@nostr-dev-kit/ndk').NDKKind],
-      '#e': [groupId], // Group message events reference the group id
-    },
-    { closeOnEose: false }
-  );
+  // marmot-ts tags kind 445 events with #h using the Nostr group ID
+  // (MarmotGroupData.nostrGroupId), NOT the MLS group context ID (idStr).
+  const nostrGroupIdBytes = mlsGroup.groupData?.nostrGroupId;
+  const nostrGroupIdHex = nostrGroupIdBytes
+    ? Array.from(nostrGroupIdBytes).map((b) => b.toString(16).padStart(2, '0')).join('')
+    : groupId; // fallback
 
-  sub.on('event', async (ndkEvent) => {
+  const filter = {
+    kinds: [445 as import('@nostr-dev-kit/ndk').NDKKind],
+    '#h': [nostrGroupIdHex],
+  };
+
+  // Track processed event IDs to avoid double-processing between fetch and subscription
+  const processedIds = new Set<string>();
+
+  async function ingestNdkEvent(ndkEvent: import('@nostr-dev-kit/ndk').NDKEvent) {
+    const eventId = ndkEvent.id ?? '';
+    if (!eventId || processedIds.has(eventId)) return;
+    processedIds.add(eventId);
+
     try {
       const nostrEvent = {
-        id: ndkEvent.id ?? '',
+        id: eventId,
         pubkey: ndkEvent.pubkey ?? '',
         created_at: ndkEvent.created_at ?? 0,
         kind: ndkEvent.kind ?? 0,
@@ -158,7 +195,6 @@ export async function subscribeToGroupMessages(
       const resultsGen = mlsGroup.ingest([nostrEvent]);
       for await (const result of resultsGen) {
         if (result.kind === 'processed' && result.result.kind === 'applicationMessage') {
-          // Application message bytes are in result.result.message
           const appMsg = result.result.message;
           if (appMsg) {
             const text = new TextDecoder().decode(appMsg);
@@ -166,10 +202,46 @@ export async function subscribeToGroupMessages(
           }
         }
       }
+
+      // After ingesting any event (commit, proposal, application message),
+      // check if the member list changed. This handles the case where a
+      // commit adding a new member is ingested — the MLS state is updated
+      // but no applicationMessage callback fires.
+      if (onMembersChanged) {
+        const currentMembers = getGroupMembers(mlsGroup.state);
+        onMembersChanged(currentMembers);
+      }
     } catch (err) {
       console.debug('[welcomeSubscription] Could not ingest group message:', err);
     }
-  });
+  }
+
+  // Fetch and ingest all existing kind 445 events (historical sync).
+  // This ensures commits published before subscription started are processed.
+  try {
+    const existingEvents = await ndk.fetchEvents(filter);
+    // Sort by created_at to process in chronological order
+    const sorted = Array.from(existingEvents).sort(
+      (a, b) => (a.created_at ?? 0) - (b.created_at ?? 0)
+    );
+    for (const ev of sorted) {
+      await ingestNdkEvent(ev);
+    }
+  } catch (err) {
+    console.debug('[welcomeSubscription] Historical fetch failed:', err);
+  }
+
+  // NOTE: selfUpdate and sendApplicationRumor are intentionally NOT called
+  // here. Both advance the local MLS epoch (creating a divergent branch).
+  // If another member publishes a commit (e.g. "add member C") targeting
+  // the pre-selfUpdate epoch, our advanced state can't process it —
+  // the event appears as "unreadable". Instead, selfUpdate and profile
+  // updates should only happen at controlled moments when no incoming
+  // commits are expected (e.g. explicit user action).
+
+  // Live subscription for future events
+  const sub = ndk.subscribe(filter, { closeOnEose: false });
+  sub.on('event', (ndkEvent) => void ingestNdkEvent(ndkEvent));
 
   return () => {
     sub.stop();

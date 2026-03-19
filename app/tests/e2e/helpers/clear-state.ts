@@ -10,9 +10,10 @@ const INDEXEDDB_DATABASES = [
 
 /**
  * Clear all app state: remove lp_* localStorage keys and delete all IndexedDB databases.
+ * IndexedDB deletions are properly awaited to prevent stale data on page reload.
  */
 export async function clearAppState(page: Page): Promise<void> {
-  await page.evaluate((dbNames) => {
+  await page.evaluate(async (dbNames) => {
     // Clear lp_* localStorage keys
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -21,9 +22,17 @@ export async function clearAppState(page: Page): Promise<void> {
     }
     keysToRemove.forEach((k) => localStorage.removeItem(k));
 
-    // Delete IndexedDB databases
-    for (const name of dbNames) {
-      indexedDB.deleteDatabase(name);
-    }
+    // Delete IndexedDB databases — await each deletion
+    await Promise.all(
+      dbNames.map(
+        (name) =>
+          new Promise<void>((resolve) => {
+            const req = indexedDB.deleteDatabase(name);
+            req.onsuccess = () => resolve();
+            req.onerror = () => resolve(); // resolve even on error to not block
+            req.onblocked = () => resolve(); // resolve even if blocked
+          }),
+      ),
+    );
   }, INDEXEDDB_DATABASES);
 }
