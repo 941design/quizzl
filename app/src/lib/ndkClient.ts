@@ -54,6 +54,8 @@ export type FetchResult = {
 /**
  * Fetch events with a hard timeout that actually cancels the underlying
  * NDK subscription (via sub.stop()) so no dangling background work remains.
+ * Deduplicates events by ID (matching NDK.fetchEvents behaviour) so callers
+ * that pick "newest" or assume one event per ID get consistent results.
  * Returns { events, timedOut } so callers can distinguish a clean empty
  * result from an incomplete fetch.
  */
@@ -64,29 +66,33 @@ export function fetchEventsWithTimeout(
   relaySet?: Parameters<NDK['fetchEvents']>[2],
   timeoutMs: number = FETCH_TIMEOUT_MS,
 ): Promise<FetchResult> {
-  const events = new Set<import('@nostr-dev-kit/ndk').NDKEvent>();
+  // Deduplicate by event ID — same logical event may arrive from multiple
+  // relays. NDK.fetchEvents() uses deduplicationKey() internally; for
+  // standard events that key is the event ID.
+  const byId = new Map<string, import('@nostr-dev-kit/ndk').NDKEvent>();
   const sub = ndk.subscribe(filter, { closeOnEose: true, ...opts }, relaySet);
 
   return new Promise<FetchResult>((resolve) => {
     let settled = false;
 
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      sub.stop();
-      resolve({ events, timedOut: true });
-    }, timeoutMs);
-
-    sub.on('event', (event: import('@nostr-dev-kit/ndk').NDKEvent) => {
-      events.add(event);
-    });
-
-    sub.on('eose', () => {
+    function settle(timedOut: boolean) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolve({ events, timedOut: false });
+      sub.stop();
+      resolve({ events: new Set(byId.values()), timedOut });
+    }
+
+    const timer = setTimeout(() => settle(true), timeoutMs);
+
+    sub.on('event', (event: import('@nostr-dev-kit/ndk').NDKEvent) => {
+      const id = event.id;
+      if (id && !byId.has(id)) {
+        byId.set(id, event);
+      }
     });
+
+    sub.on('eose', () => settle(false));
   });
 }
 

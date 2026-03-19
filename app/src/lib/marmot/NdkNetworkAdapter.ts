@@ -122,7 +122,11 @@ export class NdkNetworkAdapter implements NostrNetworkInterface {
     const ndkFilter = toNdkFilter(filters);
     const relaySet = NDKRelaySet.fromRelayUrls(relays, this.ndk);
     const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
-    const { events } = await fetchEventsWithTimeout(this.ndk, ndkFilter, {}, relaySet);
+    const { events, timedOut } = await fetchEventsWithTimeout(this.ndk, ndkFilter, {}, relaySet);
+    if (timedOut) {
+      console.warn('[NdkNetworkAdapter] request() timed out — returning empty to avoid partial results');
+      return [];
+    }
     return Array.from(events).map(toNostrEvent);
   }
 
@@ -160,11 +164,14 @@ export class NdkNetworkAdapter implements NostrNetworkInterface {
     // Fetch kind 10051 (relay list for KeyPackage discovery)
     try {
       const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
-      const { events } = await fetchEventsWithTimeout(
+      const { events, timedOut } = await fetchEventsWithTimeout(
         this.ndk,
         // 10051 is the KeyPackage relay list kind — cast to NDKKind
         { kinds: [10051 as import('@nostr-dev-kit/ndk').NDKKind], authors: [pubkey], limit: 1 },
       );
+      // On timeout, fall back to DEFAULT_RELAYS rather than trusting an
+      // incomplete relay list that may be missing entries.
+      if (timedOut) return [...DEFAULT_RELAYS];
       const event = Array.from(events)[0];
       // Fallback to DEFAULT_RELAYS: most users never publish kind 10051.
       // Returning [] would cause marmot-ts to throw "No relays available

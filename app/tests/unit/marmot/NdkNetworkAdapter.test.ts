@@ -160,6 +160,16 @@ describe('NdkNetworkAdapter — request relay scoping', () => {
       'mock-relay-set',
     );
   });
+
+  it('returns empty array on timeout to avoid partial results', async () => {
+    mockFetchEventsWithTimeout.mockResolvedValue({
+      events: new Set([{ id: 'partial' }]),
+      timedOut: true,
+    });
+
+    const result = await adapter.request(['wss://relay.a'], { kinds: [1] });
+    expect(result).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -209,5 +219,12 @@ describe('NdkNetworkAdapter — getUserInboxRelays', () => {
 
     const relays = await adapter.getUserInboxRelays('somepubkey');
     expect(relays).toEqual(['wss://inbox.relay.one', 'wss://inbox.relay.two']);
+  });
+
+  it('returns DEFAULT_RELAYS on timeout instead of trusting partial results', async () => {
+    mockFetchEventsWithTimeout.mockResolvedValue({ events: new Set(), timedOut: true });
+
+    const relays = await adapter.getUserInboxRelays('somepubkey');
+    expect(relays).toEqual(['wss://relay.damus.io', 'wss://nos.lol']);
   });
 });
