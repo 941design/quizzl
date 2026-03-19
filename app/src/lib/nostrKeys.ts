@@ -7,6 +7,7 @@
  */
 
 import { nip19 } from 'nostr-tools';
+import { sha256 } from '@noble/hashes/sha2.js';
 import { STORAGE_KEYS } from '@/src/types';
 
 export type StoredNostrIdentity = {
@@ -30,12 +31,11 @@ export async function generateIdentityFromSeed(): Promise<{ seedHex: string; pri
 
 /**
  * Derive a 32-byte private key from a 128-bit (16-byte / 32-char hex) seed via SHA-256.
+ * Uses @noble/hashes (pure JS) so it works in non-secure contexts (HTTP).
  */
-export async function derivePrivateKeyFromSeed(seedHex: string): Promise<string> {
+export function derivePrivateKeyFromSeed(seedHex: string): string {
   const seedBytes = hexToBytes(seedHex);
-  const digestInput = seedBytes as unknown as BufferSource;
-  const hashBuffer = await crypto.subtle.digest('SHA-256', digestInput);
-  return bytesToHex(new Uint8Array(hashBuffer));
+  return bytesToHex(sha256(seedBytes));
 }
 
 /** @deprecated Use generateIdentityFromSeed() instead */
