@@ -22,6 +22,7 @@ import { useProfile } from '@/src/context/ProfileContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import MemberScoreRow from '@/src/components/groups/MemberScoreRow';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
+import { truncateNpub } from '@/src/lib/nostrKeys';
 import { totalPointsFromScores } from '@/src/lib/marmot/scoreSync';
 import type { MemberScore, MemberProfile } from '@/src/types';
 
@@ -63,7 +64,8 @@ export default function LeaderboardPage() {
   const copy = useCopy();
   const { profile } = useProfile();
   const { groups, getMemberScores, getMemberProfiles, ready: marmotReady } = useMarmot();
-  const { pubkeyHex } = useNostrIdentity();
+  const { pubkeyHex, npub } = useNostrIdentity();
+  const npubFallback = npub ? truncateNpub(npub) : copy.leaderboard.youLabel;
   const [totalPoints, setTotalPoints] = useState(0);
   const [streak, setStreak] = useState(0);
   const [selectedCount, setSelectedCount] = useState(0);
@@ -174,7 +176,7 @@ export default function LeaderboardPage() {
             {/* Leaderboard entry */}
             <LeaderboardEntry
               rank={1}
-              label={profile.nickname || copy.leaderboard.youLabel}
+              label={profile.nickname || npubFallback}
               totalPoints={totalPoints}
               isYou={true}
               profile={profile}
@@ -194,7 +196,7 @@ export default function LeaderboardPage() {
               </Text>
               <ProfileSummary
                 profile={profile}
-                fallbackName={copy.leaderboard.youLabel}
+                fallbackName={npubFallback}
                 showBadges={true}
               />
             </Box>

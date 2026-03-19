@@ -12,10 +12,9 @@ type MemberScoreRowProps = {
 };
 
 export default function MemberScoreRow({ memberScore, isYou, rank, avatar }: MemberScoreRowProps) {
-  const displayName =
-    memberScore.nickname && memberScore.nickname.length > 8
-      ? memberScore.nickname
-      : truncateNpub(pubkeyToNpub(memberScore.pubkeyHex));
+  const displayName = memberScore.nickname
+    ? memberScore.nickname
+    : truncateNpub(pubkeyToNpub(memberScore.pubkeyHex));
 
   const points = totalPointsFromScores(memberScore.scores);
 

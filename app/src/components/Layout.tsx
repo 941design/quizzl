@@ -16,6 +16,8 @@ import { useRouter } from 'next/router';
 import { useCopy } from '@/src/context/LanguageContext';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import { useProfile } from '@/src/context/ProfileContext';
+import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
+import { truncateNpub } from '@/src/lib/nostrKeys';
 import StorageWarning from '@/src/components/StorageWarning';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 import ThemeIcon from '@/src/components/ThemeIcon';
@@ -27,6 +29,7 @@ type LayoutProps = {
 export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
   const { profile } = useProfile();
+  const { npub } = useNostrIdentity();
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
   const { navStyle, surfaceStyle, bannerDecorStyle } = useThemeStyles();
@@ -103,7 +106,7 @@ export default function Layout({ children }: LayoutProps) {
                   >
                     <ProfileSummary
                       profile={profile}
-                      fallbackName={copy.layout.profileFallbackName}
+                      fallbackName={npub ? truncateNpub(npub) : copy.layout.profileFallbackName}
                       size="sm"
                     />
                   </Box>
@@ -185,7 +188,7 @@ export default function Layout({ children }: LayoutProps) {
                   >
                     <ProfileSummary
                       profile={profile}
-                      fallbackName={copy.layout.profileFallbackName}
+                      fallbackName={npub ? truncateNpub(npub) : copy.layout.profileFallbackName}
                       size="sm"
                     />
                   </Link>
