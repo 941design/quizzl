@@ -253,6 +253,7 @@ type Copy = {
     inviteErrorNoKeyPackage: string;
     inviteErrorInvalidNpub: string;
     inviteErrorOffline: string;
+    inviteErrorTimeout: string;
     inviteErrorGeneric: string;
     leaveGroup: string;
     leaveGroupTitle: string;
@@ -553,6 +554,7 @@ const copy: Record<LanguageCode, Copy> = {
       inviteErrorNoKeyPackage: 'This user has not set up their Quizzl identity yet.',
       inviteErrorInvalidNpub: 'Invalid npub format.',
       inviteErrorOffline: 'You are offline. Please connect to invite members.',
+      inviteErrorTimeout: 'Relay timed out. Please try again.',
       inviteErrorGeneric: 'Failed to send invitation. Please try again.',
       leaveGroup: 'Leave Group',
       leaveGroupTitle: 'Leave Group?',
@@ -841,6 +843,7 @@ const copy: Record<LanguageCode, Copy> = {
       inviteErrorNoKeyPackage: 'Dieser Nutzer hat seine Quizzl-Identität noch nicht eingerichtet.',
       inviteErrorInvalidNpub: 'Ungültiges npub-Format.',
       inviteErrorOffline: 'Du bist offline. Bitte verbinde dich, um Mitglieder einzuladen.',
+      inviteErrorTimeout: 'Relay-Zeitüberschreitung. Bitte erneut versuchen.',
       inviteErrorGeneric: 'Einladung fehlgeschlagen. Bitte erneut versuchen.',
       leaveGroup: 'Gruppe verlassen',
       leaveGroupTitle: 'Gruppe verlassen?',

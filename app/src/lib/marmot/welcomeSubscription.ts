@@ -232,9 +232,15 @@ export async function subscribeToGroupMessages(
   // This ensures commits published before subscription started are processed.
   let historicalCount = 0;
   let historicalIngested = 0;
+  let historySyncComplete = false;
   try {
     const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
-    const existingEvents = await fetchEventsWithTimeout(ndk, filter);
+    const { events: existingEvents, timedOut } = await fetchEventsWithTimeout(ndk, filter);
+    if (timedOut) {
+      console.warn(`[welcomeSubscription] Historical fetch timed out for group ${groupId.slice(0, 16)} — skipping onHistorySynced to avoid epoch divergence`);
+    } else {
+      historySyncComplete = true;
+    }
     // Sort by created_at to process in chronological order
     const sorted = Array.from(existingEvents).sort(
       (a, b) => (a.created_at ?? 0) - (b.created_at ?? 0)
@@ -248,11 +254,13 @@ export async function subscribeToGroupMessages(
   } catch (err) {
     console.debug('[welcomeSubscription] Historical fetch failed:', err);
   }
-  console.info(`[welcomeSubscription] Historical sync: ${historicalIngested}/${historicalCount} events ingested for group ${groupId.slice(0, 16)}`);
+  console.info(`[welcomeSubscription] Historical sync: ${historicalIngested}/${historicalCount} events ingested for group ${groupId.slice(0, 16)}${historySyncComplete ? '' : ' (incomplete)'}`);
 
-  // Historical events have been ingested — local epoch is now up-to-date.
-  // Safe to publish profile or other application messages without diverging.
-  if (onHistorySynced) {
+  // Only fire onHistorySynced when we know ALL historical events were received
+  // (EOSE from relays). On timeout the local epoch may lag behind — publishing
+  // an application rumor now would risk the MLS epoch divergence the surrounding
+  // comment warns about.
+  if (onHistorySynced && historySyncComplete) {
     try {
       onHistorySynced();
     } catch (err) {

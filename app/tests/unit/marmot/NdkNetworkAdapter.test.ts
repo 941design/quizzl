@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ---------------------------------------------------------------------------
 
 const mockFetchEvents = vi.fn();
+const mockFetchEventsWithTimeout = vi.fn();
 
 vi.mock('@nostr-dev-kit/ndk', () => {
   return {
@@ -19,6 +20,10 @@ vi.mock('@nostr-dev-kit/ndk', () => {
 
 vi.mock('@/src/types', () => ({
   DEFAULT_RELAYS: ['wss://relay.damus.io', 'wss://nos.lol'],
+}));
+
+vi.mock('@/src/lib/ndkClient', () => ({
+  fetchEventsWithTimeout: (...args: unknown[]) => mockFetchEventsWithTimeout(...args),
 }));
 
 import { NdkNetworkAdapter } from '@/src/lib/marmot/NdkNetworkAdapter';
@@ -134,21 +139,22 @@ describe('NdkNetworkAdapter — request relay scoping', () => {
   let adapter: NdkNetworkAdapter;
 
   beforeEach(() => {
-    mockFetchEvents.mockReset();
-    mockFetchEvents.mockResolvedValue(new Set());
+    mockFetchEventsWithTimeout.mockReset();
+    mockFetchEventsWithTimeout.mockResolvedValue({ events: new Set(), timedOut: false });
     const mockNdk = { fetchEvents: mockFetchEvents };
     adapter = new NdkNetworkAdapter(mockNdk as never);
     vi.mocked(NDKRelaySet.fromRelayUrls).mockClear();
   });
 
-  it('passes NDKRelaySet built from relays to fetchEvents', async () => {
+  it('passes NDKRelaySet built from relays to fetchEventsWithTimeout', async () => {
     await adapter.request(['wss://relay.a', 'wss://relay.b'], { kinds: [1] });
 
     expect(NDKRelaySet.fromRelayUrls).toHaveBeenCalledWith(
       ['wss://relay.a', 'wss://relay.b'],
       expect.anything(),
     );
-    expect(mockFetchEvents).toHaveBeenCalledWith(
+    expect(mockFetchEventsWithTimeout).toHaveBeenCalledWith(
+      expect.anything(),
       expect.anything(),
       expect.anything(),
       'mock-relay-set',
@@ -164,13 +170,13 @@ describe('NdkNetworkAdapter — getUserInboxRelays', () => {
   let adapter: NdkNetworkAdapter;
 
   beforeEach(() => {
-    mockFetchEvents.mockReset();
+    mockFetchEventsWithTimeout.mockReset();
     const mockNdk = { fetchEvents: mockFetchEvents };
     adapter = new NdkNetworkAdapter(mockNdk as never);
   });
 
   it('returns DEFAULT_RELAYS when no kind 10051 event found', async () => {
-    mockFetchEvents.mockResolvedValue(new Set());
+    mockFetchEventsWithTimeout.mockResolvedValue({ events: new Set(), timedOut: false });
 
     const relays = await adapter.getUserInboxRelays('somepubkey');
     expect(relays).toEqual(['wss://relay.damus.io', 'wss://nos.lol']);
@@ -178,14 +184,14 @@ describe('NdkNetworkAdapter — getUserInboxRelays', () => {
 
   it('returns DEFAULT_RELAYS when event has no relay tags', async () => {
     const event = { tags: [['other', 'value']] };
-    mockFetchEvents.mockResolvedValue(new Set([event]));
+    mockFetchEventsWithTimeout.mockResolvedValue({ events: new Set([event]), timedOut: false });
 
     const relays = await adapter.getUserInboxRelays('somepubkey');
     expect(relays).toEqual(['wss://relay.damus.io', 'wss://nos.lol']);
   });
 
   it('returns DEFAULT_RELAYS on fetch error', async () => {
-    mockFetchEvents.mockRejectedValue(new Error('network error'));
+    mockFetchEventsWithTimeout.mockRejectedValue(new Error('network error'));
 
     const relays = await adapter.getUserInboxRelays('somepubkey');
     expect(relays).toEqual(['wss://relay.damus.io', 'wss://nos.lol']);
@@ -199,7 +205,7 @@ describe('NdkNetworkAdapter — getUserInboxRelays', () => {
         ['other', 'ignored'],
       ],
     };
-    mockFetchEvents.mockResolvedValue(new Set([event]));
+    mockFetchEventsWithTimeout.mockResolvedValue({ events: new Set([event]), timedOut: false });
 
     const relays = await adapter.getUserInboxRelays('somepubkey');
     expect(relays).toEqual(['wss://inbox.relay.one', 'wss://inbox.relay.two']);

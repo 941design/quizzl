@@ -122,7 +122,7 @@ export class NdkNetworkAdapter implements NostrNetworkInterface {
     const ndkFilter = toNdkFilter(filters);
     const relaySet = NDKRelaySet.fromRelayUrls(relays, this.ndk);
     const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
-    const events = await fetchEventsWithTimeout(this.ndk, ndkFilter, {}, relaySet);
+    const { events } = await fetchEventsWithTimeout(this.ndk, ndkFilter, {}, relaySet);
     return Array.from(events).map(toNostrEvent);
   }
 
@@ -160,7 +160,7 @@ export class NdkNetworkAdapter implements NostrNetworkInterface {
     // Fetch kind 10051 (relay list for KeyPackage discovery)
     try {
       const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
-      const events = await fetchEventsWithTimeout(
+      const { events } = await fetchEventsWithTimeout(
         this.ndk,
         // 10051 is the KeyPackage relay list kind — cast to NDKKind
         { kinds: [10051 as import('@nostr-dev-kit/ndk').NDKKind], authors: [pubkey], limit: 1 },

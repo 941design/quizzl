@@ -410,7 +410,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         if (!ndk) return { ok: false, error: 'offline' };
 
         const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
-        const kpEvents = await fetchEventsWithTimeout(
+        const { events: kpEvents, timedOut } = await fetchEventsWithTimeout(
           ndk,
           // 443 is Marmot KeyPackage kind — cast to NDKKind
           { kinds: [443 as import('@nostr-dev-kit/ndk').NDKKind], authors: [inviteePubkey], limit: 5 },
@@ -418,7 +418,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
         const kpArray = Array.from(kpEvents);
         if (kpArray.length === 0) {
-          return { ok: false, error: 'no_key_package' };
+          return { ok: false, error: timedOut ? 'timeout' : 'no_key_package' };
         }
 
         const mlsGroup = await client.getGroup(groupId);

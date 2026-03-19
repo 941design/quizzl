@@ -48,6 +48,8 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
         return copy.groups.inviteErrorNoKeyPackage;
       case 'offline':
         return copy.groups.inviteErrorOffline;
+      case 'timeout':
+        return copy.groups.inviteErrorTimeout;
       default:
         return copy.groups.inviteErrorGeneric;
     }
