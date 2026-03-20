@@ -6,7 +6,7 @@ PLAYWRIGHT_STAMP := $(APP_DIR)/node_modules/.playwright_$(shell uname -s)-$(shel
 -include .env
 export
 
-.PHONY: help test build test-unit test-e2e test-e2e-groups e2e-up e2e-down playwright run-dev clean install deploy deploy-check deploy-dryrun
+.PHONY: help test build test-unit test-e2e test-e2e-groups e2e-up e2e-down playwright run-dev clean install deploy deploy-check deploy-dryrun ssl-cert
 
 # Default target
 .DEFAULT_GOAL := help
@@ -15,9 +15,7 @@ export
 FTP_HOST := $(HOSTEUROPE_FTP_HOST)
 FTP_USER := $(HOSTEUROPE_FTP_USER)
 FTP_PASS := $(HOSTEUROPE_FTP_PASS)
-
-# Remote paths (hosteurope)
-REMOTE_ROOTS := /quizzl /group-learn
+FTP_PATH := $(or $(HOSTEUROPE_FTP_PATH),/)
 
 # Local paths for deployment
 LOCAL_DIST := $(APP_DIR)/out
@@ -106,26 +104,20 @@ deploy-check: ## Verify deployment prerequisites
 	@echo "All prerequisites satisfied."
 
 deploy: build deploy-check ## Deploy to production (FTP)
-	@for remote_root in $(REMOTE_ROOTS); do \
-		echo "Deploying to $(FTP_HOST)$$remote_root..."; \
-		lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
-			set ssl:verify-certificate no; \
-			mkdir -p $$remote_root; \
-			mirror -R --verbose --only-newer --parallel=4 \
-				$(LOCAL_DIST)/ $$remote_root/; \
-			bye"; \
-		echo ""; \
-	done
+	@echo "Deploying to $(FTP_HOST)$(FTP_PATH)..."
+	@lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
+		set ssl:verify-certificate no; \
+		mkdir -p $(FTP_PATH); \
+		mirror -R --verbose --only-newer --parallel=4 \
+			$(LOCAL_DIST)/ $(FTP_PATH)/; \
+		bye"
 	@echo ""
 	@echo "Deployment complete!"
 
 deploy-dryrun: ## Show what would be deployed (no upload)
 	@echo "=== Deployment Dry Run ==="
 	@echo ""
-	@echo "Targets:"
-	@for remote_root in $(REMOTE_ROOTS); do \
-		echo "  $(FTP_HOST)$$remote_root"; \
-	done
+	@echo "Target: $(FTP_HOST)$(FTP_PATH)"
 	@echo ""
 	@echo "Local build output: $(LOCAL_DIST)/"
 	@if [ -d $(LOCAL_DIST) ]; then \
@@ -142,3 +134,58 @@ deploy-dryrun: ## Show what would be deployed (no upload)
 	@echo "  HOSTEUROPE_FTP_HOST=$(FTP_HOST)"
 	@echo "  HOSTEUROPE_FTP_USER=$(FTP_USER)"
 	@if [ -n "$(FTP_PASS)" ]; then echo "  HOSTEUROPE_FTP_PASS=****"; else echo "  HOSTEUROPE_FTP_PASS=[NOT SET]"; fi
+	@echo "  HOSTEUROPE_FTP_PATH=$(FTP_PATH)"
+
+# =============================================================================
+# SSL Certificate (Let's Encrypt for HostEurope)
+# =============================================================================
+# Generates a Let's Encrypt certificate using Certbot DNS manual challenge.
+# Output goes to .ssl/ — upload to HostEurope KIS:
+#   Webhosting → Sicherheit & SSL → SSL Administrieren → Ersetzen
+#
+#   ┌──────────────┬─────────────────────────┬───────────────────────────────┐
+#   │ KIS Field    │ File                    │ Contents                      │
+#   ├──────────────┼─────────────────────────┼───────────────────────────────┤
+#   │ Zertifikat   │ .ssl/fullchain.pem      │ Certificate + intermediates   │
+#   │ Key          │ .ssl/privkey.pem        │ Private key (keep secret!)    │
+#   │ Passwort     │ (leave empty)           │ Not encrypted                 │
+#   │ CA           │ (leave empty)           │ Already in fullchain.pem      │
+#   └──────────────┴─────────────────────────┴───────────────────────────────┘
+#
+# Renewal: re-run every ~60-90 days, then re-upload in KIS.
+# Requires: certbot (brew install certbot / apt install certbot)
+
+SSL_DOMAIN := quizzl.941design.de
+SSL_DIR := .ssl
+
+ssl-cert: ## Generate Let's Encrypt certificate for HostEurope
+	@if ! command -v certbot >/dev/null 2>&1; then \
+		echo "ERROR: certbot not installed."; \
+		echo "  macOS:  brew install certbot"; \
+		echo "  Linux:  sudo apt install certbot"; \
+		exit 1; \
+	fi
+	@echo "Generating Let's Encrypt certificate for $(SSL_DOMAIN)..."
+	@echo ""
+	@echo "This will use a manual DNS challenge — you'll need to create a"
+	@echo "TXT record in your DNS settings when prompted."
+	@echo ""
+	certbot certonly \
+		--manual \
+		--preferred-challenges dns \
+		--key-type rsa \
+		--config-dir $(SSL_DIR)/config \
+		--work-dir $(SSL_DIR)/work \
+		--logs-dir $(SSL_DIR)/logs \
+		-d $(SSL_DOMAIN)
+	@echo ""
+	@echo "=== Certificate generated ==="
+	@echo ""
+	@echo "Files for HostEurope KIS upload:"
+	@echo "  Zertifikat:  $$(find $(SSL_DIR)/config/live/$(SSL_DOMAIN) -name fullchain.pem)"
+	@echo "  Key:         $$(find $(SSL_DIR)/config/live/$(SSL_DOMAIN) -name privkey.pem)"
+	@echo "  Passwort:    (leave empty)"
+	@echo "  CA:          (leave empty)"
+	@echo ""
+	@echo "Upload at: Webhosting → Sicherheit & SSL → SSL Administrieren → Ersetzen"
+	@echo "Renew in ~60-90 days by running: make ssl-cert"

@@ -4,6 +4,9 @@
 # Secrets
 .env
 
+# SSL certificates (private keys!)
+.ssl/
+
 # Project state (session-specific)
 implementation-state.json
 
