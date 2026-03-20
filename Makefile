@@ -104,7 +104,7 @@ deploy-check: ## Verify deployment prerequisites
 	@if ! command -v lftp >/dev/null 2>&1; then echo "ERROR: lftp not installed. Run: brew install lftp"; exit 1; fi
 	@echo "All prerequisites satisfied."
 
-deploy: deploy-check ## Deploy to production (FTP)
+deploy: build deploy-check ## Deploy to production (FTP)
 	@for remote_root in $(REMOTE_ROOTS); do \
 		echo "Deploying to $(FTP_HOST)$$remote_root..."; \
 		lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
