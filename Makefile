@@ -6,7 +6,7 @@ PLAYWRIGHT_STAMP := $(APP_DIR)/node_modules/.playwright_$(shell uname -s)-$(shel
 -include .env
 export
 
-.PHONY: help test build test-unit test-e2e test-e2e-groups e2e-up e2e-down playwright run-dev clean install deploy deploy-check deploy-dryrun ssl-cert
+.PHONY: help test build test-unit test-e2e test-e2e-groups e2e-up e2e-down playwright run-dev clean install deploy deploy-check deploy-dryrun ssl-cert ensure-deps ensure-playwright
 
 # Default target
 .DEFAULT_GOAL := help
@@ -28,33 +28,41 @@ help: ## Show this help message
 	@echo "Targets:"
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
-## Ensure node_modules has correct native binaries for current platform
-$(PLATFORM_STAMP): $(APP_DIR)/package.json $(APP_DIR)/package-lock.json
-	rm -rf $(APP_DIR)/node_modules $(APP_DIR)/.next $(APP_DIR)/out
-	rm -f $(APP_DIR)/node_modules/.platform_* $(APP_DIR)/node_modules/.playwright_*
-	cd $(APP_DIR) && npm ci
-	@touch $(PLATFORM_STAMP)
+## Always-run check: rebuild node_modules if platform stamp is missing or deps changed
+ensure-deps:
+	@if [ ! -f $(PLATFORM_STAMP) ] \
+	  || [ $(APP_DIR)/package.json -nt $(PLATFORM_STAMP) ] \
+	  || [ $(APP_DIR)/package-lock.json -nt $(PLATFORM_STAMP) ]; then \
+		echo "[make] Installing deps for $$(uname -s)-$$(uname -m)..."; \
+		rm -rf $(APP_DIR)/node_modules $(APP_DIR)/.next $(APP_DIR)/out; \
+		cd $(APP_DIR) && npm ci; \
+		touch ../$(PLATFORM_STAMP); \
+	fi
 
-node_modules: $(PLATFORM_STAMP) ## Install deps (auto-reinstalls on platform switch)
+node_modules: ensure-deps ## Install deps (auto-reinstalls on platform switch)
 
-## Ensure Playwright browsers match current platform + package version
-$(PLAYWRIGHT_STAMP): $(PLATFORM_STAMP)
-	cd $(APP_DIR) && npx playwright install chromium
-	@touch $(PLAYWRIGHT_STAMP)
+## Always-run check: install Playwright browsers if stamp is missing
+ensure-playwright: ensure-deps
+	@if [ ! -f $(PLAYWRIGHT_STAMP) ]; then \
+		echo "[make] Installing Playwright browsers for $$(uname -s)-$$(uname -m)..."; \
+		cd $(APP_DIR) && npx playwright install chromium; \
+		touch ../$(PLAYWRIGHT_STAMP); \
+	fi
 
-playwright: $(PLAYWRIGHT_STAMP) ## Install Playwright browsers (auto-reinstalls on platform/version change)
+playwright: ensure-playwright ## Install Playwright browsers (auto-reinstalls on platform/version change)
 
 ## Install dependencies (fresh for current OS/arch)
 install: clean ## Install dependencies (fresh for current OS/arch)
 	cd $(APP_DIR) && npm ci
 	@touch $(PLATFORM_STAMP)
+	@echo "[make] Installed for $$(uname -s)-$$(uname -m)"
 
 ## Remove node_modules and build artifacts to avoid cross-arch issues
 clean: ## Remove node_modules and build artifacts
 	rm -rf $(APP_DIR)/node_modules $(APP_DIR)/.next $(APP_DIR)/out test-results/
 
 ## Build the Next.js app (installs deps first)
-build: $(PLATFORM_STAMP) ## Build for production (static export)
+build: ensure-deps ## Build for production (static export)
 	cd $(APP_DIR) && npm run build
 	@echo "Static files available in $(LOCAL_DIST)/"
 
@@ -62,11 +70,11 @@ build: $(PLATFORM_STAMP) ## Build for production (static export)
 test: test-unit test-e2e ## Run all tests
 
 ## Run unit tests (Vitest)
-test-unit: $(PLATFORM_STAMP) ## Run unit tests (Vitest)
+test-unit: ensure-deps ## Run unit tests (Vitest)
 	cd $(APP_DIR) && npx vitest run
 
 ## Run Playwright E2E tests
-test-e2e: $(PLAYWRIGHT_STAMP) ## Run Playwright E2E tests
+test-e2e: ensure-playwright ## Run Playwright E2E tests
 	cd $(APP_DIR) && npx playwright test
 
 ## E2E groups infrastructure
@@ -77,7 +85,7 @@ e2e-down: ## Stop strfry relay
 	docker compose -f docker-compose.e2e.yml down -v
 
 ## Run Playwright E2E tests for learning groups
-test-e2e-groups: $(PLAYWRIGHT_STAMP) e2e-up ## Run groups E2E tests (strfry + static build)
+test-e2e-groups: ensure-playwright e2e-up ## Run groups E2E tests (strfry + static build)
 	@# Kill any orphaned dev server from a previous failed run
 	@-lsof -ti :3100 2>/dev/null | xargs kill 2>/dev/null; true
 	cd $(APP_DIR) && E2E_GROUPS=1 npx playwright test; \
@@ -86,7 +94,7 @@ test-e2e-groups: $(PLAYWRIGHT_STAMP) e2e-up ## Run groups E2E tests (strfry + st
 	exit $$status
 
 ## Start the dev server
-run-dev: $(PLATFORM_STAMP) ## Start development server
+run-dev: ensure-deps ## Start development server
 	cd $(APP_DIR) && npm run dev
 
 # =============================================================================
