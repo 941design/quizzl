@@ -234,12 +234,21 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               }
               const profilePayload = parseProfilePayload(payload);
               if (profilePayload && senderPubkey !== pubkeyHex) {
-                void mergeMemberProfile(group.id, payloadToMemberProfile(senderPubkey, profilePayload)).catch(
+                const memberProfile = payloadToMemberProfile(senderPubkey, profilePayload);
+                void mergeMemberProfile(group.id, memberProfile).catch(
                   (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
                 );
                 void updateMemberScoreNickname(group.id, senderPubkey, profilePayload.nickname).catch(
                   (err: unknown) => console.warn('[Marmot] updateMemberScoreNickname failed:', err)
                 );
+                // Cache in global contact cache for cross-group availability
+                void import('@/src/lib/contactCache').then(({ writeContactEntry }) => {
+                  writeContactEntry(senderPubkey, {
+                    nickname: memberProfile.nickname,
+                    avatar: memberProfile.avatar,
+                    updatedAt: memberProfile.updatedAt,
+                  });
+                });
               }
             },
             // Refresh memberPubkeys from MLS state after ingesting any event

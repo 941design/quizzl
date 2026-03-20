@@ -135,6 +135,7 @@ export const STORAGE_KEYS = {
   scoreSyncQueue: 'lp_scoreSyncQueue_v1',
   scoreSyncSeq: 'lp_scoreSyncSeq_v1',
   processedGiftWraps: 'lp_processedGiftWraps',
+  contactCache: 'lp_contactCache_v1',
 } as const;
 
 // ============================

@@ -19,6 +19,8 @@ import NextLink from 'next/link';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
+import { useProfile } from '@/src/context/ProfileContext';
+import { readContactCache } from '@/src/lib/contactCache';
 import GroupCard from '@/src/components/groups/GroupCard';
 import CreateGroupModal from '@/src/components/groups/CreateGroupModal';
 import BackupReminderBanner from '@/src/components/groups/BackupReminderBanner';
@@ -35,6 +37,7 @@ function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
   const { groups, ready, getMemberScores, getMemberProfiles } = useMarmot();
   const { pubkeyHex } = useNostrIdentity();
+  const { profile: ownProfile } = useProfile();
   const inviteDisclosure = useDisclosure();
   const [group, setGroup] = useState<Group | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -50,12 +53,38 @@ function GroupDetailView({ id }: { id: string }) {
       void getMemberProfiles(id).then((profiles) => {
         const map: Record<string, MemberProfile> = {};
         for (const p of profiles) map[p.pubkeyHex] = p;
+
+        // Fill gaps from the global contact cache (known from other groups)
+        const contactCache = readContactCache();
+        for (const pk of found.memberPubkeys) {
+          if (!map[pk] && contactCache[pk]?.nickname) {
+            map[pk] = {
+              pubkeyHex: pk,
+              nickname: contactCache[pk].nickname,
+              avatar: contactCache[pk].avatar,
+              badgeIds: [],
+              updatedAt: contactCache[pk].updatedAt,
+            };
+          }
+        }
+
+        // Always overlay own profile from ProfileContext (never depends on MLS)
+        if (pubkeyHex && ownProfile.nickname) {
+          map[pubkeyHex] = {
+            pubkeyHex,
+            nickname: ownProfile.nickname,
+            avatar: ownProfile.avatar,
+            badgeIds: ownProfile.badgeIds,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+
         setProfileMap(map);
       }).catch(() => {});
     } else {
       setNotFound(true);
     }
-  }, [ready, groups, id, getMemberScores, getMemberProfiles]);
+  }, [ready, groups, id, getMemberScores, getMemberProfiles, pubkeyHex, ownProfile]);
 
   if (!ready) {
     return (
