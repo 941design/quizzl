@@ -263,6 +263,7 @@ export default function LeaderboardPage() {
                     memberScore={score}
                     rank={idx + 2}
                     avatar={profileMap[score.pubkeyHex]?.avatar}
+                    profileNickname={profileMap[score.pubkeyHex]?.nickname}
                   />
                   <Text fontSize="xs" color="textMuted" pl={2} mt={0.5}>
                     {copy.groups.fromGroup(groupName)}

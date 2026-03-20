@@ -162,6 +162,7 @@ function GroupDetailView({ id }: { id: string }) {
                       isYou={ms.pubkeyHex === pubkeyHex}
                       rank={idx + 1}
                       avatar={profileMap[ms.pubkeyHex]?.avatar}
+                      profileNickname={profileMap[ms.pubkeyHex]?.nickname}
                     />
                   ))}
               </VStack>

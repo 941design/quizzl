@@ -99,15 +99,10 @@ function MemberListItem({
               />
             )}
             {profile?.nickname ? (
-              <>
-                <Text fontSize="sm" fontWeight="medium">
-                  {profile.nickname}
-                </Text>
-                <Code fontSize="xs" bg="transparent" color="textMuted" userSelect="all"
-                  data-testid={`member-npub-${pubkey.slice(0, 8)}`}>
-                  {truncateNpub(npub)}
-                </Code>
-              </>
+              <Text fontSize="sm" fontWeight="medium"
+                data-testid={`member-name-${pubkey.slice(0, 8)}`}>
+                {profile.nickname}
+              </Text>
             ) : (
               <Code
                 fontSize="xs"

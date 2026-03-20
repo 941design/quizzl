@@ -9,12 +9,12 @@ type MemberScoreRowProps = {
   isYou?: boolean;
   rank?: number;
   avatar?: ProfileAvatar | null;
+  profileNickname?: string;
 };
 
-export default function MemberScoreRow({ memberScore, isYou, rank, avatar }: MemberScoreRowProps) {
-  const displayName = memberScore.nickname
-    ? memberScore.nickname
-    : truncateNpub(pubkeyToNpub(memberScore.pubkeyHex));
+export default function MemberScoreRow({ memberScore, isYou, rank, avatar, profileNickname }: MemberScoreRowProps) {
+  const displayName = profileNickname || memberScore.nickname
+    || truncateNpub(pubkeyToNpub(memberScore.pubkeyHex));
 
   const points = totalPointsFromScores(memberScore.scores);
 
