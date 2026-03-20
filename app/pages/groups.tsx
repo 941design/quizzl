@@ -222,7 +222,7 @@ export default function GroupsPage() {
   const router = useRouter();
   const id = router.query.id as string | undefined;
   const copy = useCopy();
-  const { groups, ready } = useMarmot();
+  const { groups, ready, unsupported } = useMarmot();
   const { backedUp } = useNostrIdentity();
   const createDisclosure = useDisclosure();
 
@@ -253,12 +253,33 @@ export default function GroupsPage() {
             {copy.groups.description}
           </Text>
 
-          <Button onClick={createDisclosure.onOpen} data-testid="create-group-btn">
-            {copy.groups.createGroup}
-          </Button>
+          {!unsupported && (
+            <Button onClick={createDisclosure.onOpen} data-testid="create-group-btn">
+              {copy.groups.createGroup}
+            </Button>
+          )}
         </Box>
 
-        {!ready && (
+        {unsupported && (
+          <Alert
+            status="warning"
+            borderRadius="md"
+            flexDirection="column"
+            alignItems="flex-start"
+            gap={2}
+            data-testid="groups-https-required"
+          >
+            <AlertIcon />
+            <Box>
+              <Text fontWeight="semibold">{copy.groups.httpsRequired}</Text>
+              <AlertDescription>
+                <Text>{copy.groups.httpsRequiredBody}</Text>
+              </AlertDescription>
+            </Box>
+          </Alert>
+        )}
+
+        {!ready && !unsupported && (
           <Box py={8} textAlign="center" color="textMuted">
             <Text>{copy.groups.loading}</Text>
           </Box>

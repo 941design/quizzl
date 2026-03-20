@@ -277,6 +277,8 @@ type Copy = {
     cameraPermissionDenied: string;
     qrUnavailable: string;
     qrGenerationError: string;
+    httpsRequired: string;
+    httpsRequiredBody: string;
   };
 };
 
@@ -578,6 +580,8 @@ const copy: Record<LanguageCode, Copy> = {
       cameraPermissionDenied: 'Camera permission was denied.',
       qrUnavailable: 'QR scanning is unavailable on this device or browser.',
       qrGenerationError: 'Failed to generate QR code.',
+      httpsRequired: 'HTTPS required',
+      httpsRequiredBody: 'Encrypted groups require a secure connection (HTTPS). Please access this site over HTTPS to use groups.',
     },
   },
   de: {
@@ -867,6 +871,8 @@ const copy: Record<LanguageCode, Copy> = {
       cameraPermissionDenied: 'Kamerazugriff wurde verweigert.',
       qrUnavailable: 'QR-Scan ist auf diesem Gerät oder Browser nicht verfügbar.',
       qrGenerationError: 'QR-Code konnte nicht erstellt werden.',
+      httpsRequired: 'HTTPS erforderlich',
+      httpsRequiredBody: 'Verschlüsselte Gruppen erfordern eine sichere Verbindung (HTTPS). Bitte greife über HTTPS auf diese Seite zu, um Gruppen zu nutzen.',
     },
   },
 };

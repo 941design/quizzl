@@ -55,6 +55,8 @@ type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 type MarmotContextValue = {
   /** Whether marmot client has been initialized */
   ready: boolean;
+  /** True when groups are unavailable (e.g. non-HTTPS context) */
+  unsupported: boolean;
   /** All groups the user belongs to */
   groups: Group[];
   /** Get member scores for a given group */
@@ -87,6 +89,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const { privateKeyHex, pubkeyHex, hydrated: identityHydrated } = useNostrIdentity();
   const { profile: localProfile } = useProfile();
   const [ready, setReady] = useState(false);
+  const [unsupported, setUnsupported] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const clientRef = useRef<MarmotClientType | null>(null);
   // Track group message subscription cleanup functions keyed by groupId
@@ -112,11 +115,12 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         // ts-mls / @hpke require crypto.subtle which is only available in
         // secure contexts (HTTPS or localhost). Bail early with a clear
         // message instead of letting the library throw a raw TypeError.
-        if (typeof globalThis.crypto?.subtle?.digest !== 'function') {
+        if (!globalThis.isSecureContext) {
           console.warn(
-            '[Marmot] Web Crypto API (crypto.subtle) is not available. ' +
-            'Groups require a secure context (HTTPS). Skipping MLS init.',
+            '[Marmot] Not a secure context (HTTPS required). ' +
+            'Groups are unavailable. Skipping MLS init.',
           );
+          setUnsupported(true);
           setReady(true);
           return;
         }
@@ -608,6 +612,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<MarmotContextValue>(
     () => ({
       ready,
+      unsupported,
       groups,
       getMemberScores,
       createGroup,
@@ -623,6 +628,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       ready,
+      unsupported,
       groups,
       getMemberScores,
       createGroup,
@@ -648,6 +654,7 @@ const NOOP_ARRAY = async () => [];
 
 const DEFAULT_MARMOT: MarmotContextValue = {
   ready: false,
+  unsupported: false,
   groups: [],
   getMemberScores: NOOP_ARRAY as () => Promise<MemberScore[]>,
   createGroup: NOOP_NULL as () => Promise<null>,

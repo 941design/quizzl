@@ -9,7 +9,7 @@ mount:
   host: /Users/mrother/Projects/941design/quizzl
   guest: /Users/mrother/Projects/941design/quizzl
 environment:
-  python: null
+  python: '3.12'
   node: '22'
   java: null
   kotlin: null
@@ -17,7 +17,8 @@ environment:
   go: null
   dart: null
   c: null
-  tools: []
+  tools:
+  - docker
   databases:
   - sqlite
   frameworks:

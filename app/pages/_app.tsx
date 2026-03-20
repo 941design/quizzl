@@ -1,8 +1,6 @@
-// Must load before any library that uses crypto.subtle (ts-mls, @hpke, etc.)
-import '@/src/lib/cryptoPolyfill';
-
 import { ChakraProvider } from '@chakra-ui/react';
 import type { AppProps } from 'next/app';
+import Head from 'next/head';
 import Layout from '@/src/components/Layout';
 import { LanguageProvider } from '@/src/context/LanguageContext';
 import { ProfileProvider } from '@/src/context/ProfileContext';
@@ -26,6 +24,9 @@ function AppShell({ Component, pageProps }: AppProps) {
 
   return (
     <ChakraProvider theme={activeTheme}>
+      <Head>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       <LanguageProvider>
         <ProfileProvider>
           <NostrIdentityProvider>
