@@ -52,7 +52,7 @@ export default function GroupCard({ group }: GroupCardProps) {
           </HStack>
         </VStack>
 
-        <NextLink href={`/groups/${group.id}`} passHref legacyBehavior>
+        <NextLink href={`/groups?id=${group.id}`} passHref legacyBehavior>
           <Button
             as="a"
             size="sm"
