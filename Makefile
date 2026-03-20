@@ -32,7 +32,8 @@ help: ## Show this help message
 
 ## Ensure node_modules has correct native binaries for current platform
 $(PLATFORM_STAMP): $(APP_DIR)/package.json $(APP_DIR)/package-lock.json
-	rm -rf $(APP_DIR)/node_modules
+	rm -rf $(APP_DIR)/node_modules $(APP_DIR)/.next $(APP_DIR)/out
+	rm -f $(APP_DIR)/node_modules/.platform_* $(APP_DIR)/node_modules/.playwright_*
 	cd $(APP_DIR) && npm ci
 	@touch $(PLATFORM_STAMP)
 
