@@ -1,3 +1,6 @@
+// Must load before any library that uses crypto.subtle (ts-mls, @hpke, etc.)
+import '@/src/lib/cryptoPolyfill';
+
 import { ChakraProvider } from '@chakra-ui/react';
 import type { AppProps } from 'next/app';
 import Layout from '@/src/components/Layout';
