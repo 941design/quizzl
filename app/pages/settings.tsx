@@ -140,6 +140,37 @@ export default function SettingsPage() {
       }
 
       const restoredPubkey = await derivePublicKeyHex(restoredIdentity.privateKeyHex);
+
+      // Fetch profile from Nostr relays (kind 0) BEFORE replaceIdentity,
+      // because replaceIdentity publishes kind 0 with the current (empty) profile.
+      try {
+        const { connectNdk, fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
+        const ndk = await connectNdk(restoredIdentity.privateKeyHex);
+        const { events } = await fetchEventsWithTimeout(ndk, {
+          kinds: [0 as import('@nostr-dev-kit/ndk').NDKKind],
+          authors: [restoredPubkey],
+          limit: 5,
+        });
+        const sorted = Array.from(events).sort(
+          (a, b) => (b.created_at ?? 0) - (a.created_at ?? 0),
+        );
+        if (sorted.length > 0) {
+          const meta = JSON.parse(sorted[0].content ?? '{}');
+          const nickname = meta.name || meta.display_name || '';
+          if (nickname) {
+            const recovered = {
+              nickname,
+              avatar: savedProfile.avatar,
+              badgeIds: savedProfile.badgeIds,
+            };
+            saveProfile(recovered);
+            setProfile(recovered);
+          }
+        }
+      } catch (err) {
+        console.warn('[Settings] Profile recovery from relays failed:', err);
+      }
+
       await replaceIdentity({
         privateKeyHex: restoredIdentity.privateKeyHex,
         pubkeyHex: restoredPubkey,
@@ -148,6 +179,7 @@ export default function SettingsPage() {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(STORAGE_KEYS.nostrBackedUp, 'true');
       }
+
       setRestoreSuccess(true);
       setRestoreInput('');
       setBackupDone(true);
@@ -156,7 +188,7 @@ export default function SettingsPage() {
     } finally {
       setRestoreLoading(false);
     }
-  }, [restoreInput, replaceIdentity, copy.identity.restoreError]);
+  }, [restoreInput, replaceIdentity, copy.identity.restoreError, savedProfile, saveProfile]);
 
   function handleReset() {
     resetAllData();
