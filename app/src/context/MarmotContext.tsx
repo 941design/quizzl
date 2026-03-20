@@ -109,6 +109,18 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
     async function init() {
       try {
+        // ts-mls / @hpke require crypto.subtle which is only available in
+        // secure contexts (HTTPS or localhost). Bail early with a clear
+        // message instead of letting the library throw a raw TypeError.
+        if (typeof globalThis.crypto?.subtle?.digest !== 'function') {
+          console.warn(
+            '[Marmot] Web Crypto API (crypto.subtle) is not available. ' +
+            'Groups require a secure context (HTTPS). Skipping MLS init.',
+          );
+          setReady(true);
+          return;
+        }
+
         const { MarmotClient, KeyPackageStore, KeyValueGroupStateBackend } =
           await import('@internet-privacy/marmot-ts');
         const { connectNdk } = await import('@/src/lib/ndkClient');
