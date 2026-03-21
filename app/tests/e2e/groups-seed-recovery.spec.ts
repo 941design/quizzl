@@ -2,7 +2,7 @@ import { test, expect, BrowserContext, Page } from '@playwright/test';
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay, dismissErrorOverlay } from './helpers/dismiss-error-overlay';
 
-const BASE_URL = 'http://localhost:3100';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
 test.describe.serial('Seed phrase recovery — profile and groups', () => {
   let contextA: BrowserContext;

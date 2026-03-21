@@ -3,7 +3,7 @@ import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 
-const BASE_URL = 'http://localhost:3100';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
 /** Boot a user with identity AND profile nickname pre-set in localStorage. */
 async function bootUserWithProfile(

@@ -4,7 +4,7 @@ import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 import { queryRelayForEvents } from './helpers/relay-query';
 
-const BASE_URL = 'http://localhost:3100';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
 /** Boot a user context: inject identity via init script, navigate to /groups/. */
 async function bootUser(

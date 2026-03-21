@@ -75,7 +75,7 @@ test-unit: ensure-deps ## Run unit tests (Vitest)
 
 ## Run Playwright E2E tests
 test-e2e: ensure-playwright ## Run Playwright E2E tests
-	cd $(APP_DIR) && npx playwright test
+	cd $(APP_DIR) && node scripts/run-e2e.mjs
 
 ## E2E groups infrastructure
 e2e-up: ## Start strfry relay for E2E groups tests
@@ -86,9 +86,7 @@ e2e-down: ## Stop strfry relay
 
 ## Run Playwright E2E tests for learning groups
 test-e2e-groups: ensure-playwright e2e-up ## Run groups E2E tests (strfry + static build)
-	@# Kill any orphaned dev server from a previous failed run
-	@-lsof -ti :3100 2>/dev/null | xargs kill 2>/dev/null; true
-	cd $(APP_DIR) && E2E_GROUPS=1 npx playwright test; \
+	cd $(APP_DIR) && E2E_GROUPS=1 node scripts/run-e2e.mjs; \
 	status=$$?; \
 	cd .. && $(MAKE) e2e-down; \
 	exit $$status
