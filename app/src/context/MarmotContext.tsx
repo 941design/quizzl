@@ -96,11 +96,26 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const groupSubsRef = useRef<Map<string, () => void>>(new Map());
   // Track groups where profile has been published (to avoid re-publishing)
   const profilePublishedRef = useRef<Set<string>>(new Set());
+  // Track discoverability status
+  const [discoverable, setDiscoverable] = useState(false);
 
   // Load groups from storage on mount
   const reloadGroups = useCallback(async () => {
     const loaded = await loadAllGroups();
     setGroups(loaded);
+  }, []);
+
+  // Check and update discoverability status based on available key packages
+  const updateDiscoverability = useCallback(async (client: MarmotClientType) => {
+    try {
+      const packages = await client.keyPackages.list();
+      const hasDiscoverable = packages.some(
+        (p) => !p.used && p.published && p.published.length > 0
+      );
+      setDiscoverable(hasDiscoverable);
+    } catch (err) {
+      console.debug('[Marmot] updateDiscoverability failed:', err);
+    }
   }, []);
 
   // Initialize MarmotClient once identity is ready
@@ -187,6 +202,116 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           }
         );
 
+        // Listen for group join events to rotate consumed key packages
+        client.on('groupJoined', async () => {
+          if (!cancelled) {
+            try {
+              const packages = await client.keyPackages.list();
+              for (const pkg of packages.filter((p) => p.used)) {
+                await client.keyPackages.rotate(pkg.keyPackageRef, { relays: [...DEFAULT_RELAYS] });
+              }
+              // Re-evaluate discoverability after rotation
+              await updateDiscoverability(client);
+            } catch (err) {
+              console.debug('[Marmot] Key package rotation failed:', err);
+            }
+          }
+        });
+
+        // --- Background: key package readiness, relay list publish & cleanup ---
+        (async () => {
+          try {
+            const existingPackages = await client.keyPackages.list();
+            const hasUsable = existingPackages.some(
+              (p) => !p.used && p.published && p.published.length > 0,
+            );
+
+            if (!hasUsable && DEFAULT_RELAYS.length > 0) {
+              await client.keyPackages.create({ relays: [...DEFAULT_RELAYS] });
+            }
+
+            // Delete stale kind 443 events from relays whose private keys are
+            // no longer in local IndexedDB (e.g. after clearing browser data).
+            // With kind 30443, each client gets its own addressable slot, so
+            // cross-app conflicts are avoided. But old kind 443 events from
+            // previous sessions must still be cleaned up.
+            if (DEFAULT_RELAYS.length > 0 && ndk) {
+              try {
+                const remoteKPs = await network.request(DEFAULT_RELAYS, [
+                  { kinds: [443 as any], authors: [pubkeyHex!] } as any,
+                ]);
+                const localList = await client.keyPackages.list();
+                const localPublishedIds = new Set(
+                  localList.flatMap((kp) => kp.published.map((e) => e.id)),
+                );
+                const staleIds = remoteKPs
+                  .map((e) => e.id as string)
+                  .filter((id) => !localPublishedIds.has(id));
+
+                if (staleIds.length > 0) {
+                  console.debug('[Marmot] deleting', staleIds.length, 'stale kind 443 KP events from relays');
+                  const deleteEvent = {
+                    kind: 5,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                      ...staleIds.map((id) => ['e', id]),
+                      ['k', '443'],
+                    ],
+                    content: '',
+                    pubkey: pubkeyHex!,
+                  };
+                  const signed = await signer.signEvent(deleteEvent as any);
+                  const { NDKEvent, NDKRelaySet } = await import('@nostr-dev-kit/ndk');
+                  const ndkEvent = new NDKEvent(ndk, signed as any);
+                  const relaySet = NDKRelaySet.fromRelayUrls(DEFAULT_RELAYS, ndk);
+                  await ndkEvent.publish(relaySet).catch(() => {});
+                }
+              } catch {
+                // Non-fatal: stale KP cleanup is best-effort
+              }
+            }
+
+            // Publish kind 30051 relay list for key package discovery (addressable with d tag)
+            if (DEFAULT_RELAYS.length > 0 && ndk) {
+              try {
+                const { NDKEvent, NDKRelaySet } = await import('@nostr-dev-kit/ndk');
+                const existing30051 = await network.request(DEFAULT_RELAYS, [
+                  { kinds: [30051 as any], authors: [pubkeyHex!], limit: 1 } as any,
+                ]);
+
+                if (existing30051.length === 0) {
+                  // Create kind 30051 event with d tag for addressable relay list
+                  const unsigned = {
+                    kind: 30051,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                      ['d', 'marmot'],
+                      ...DEFAULT_RELAYS.map((url) => ['relay', url]),
+                    ],
+                    content: '',
+                    pubkey: pubkeyHex!,
+                  };
+                  const signed = await signer.signEvent(unsigned as any);
+                  const ndkEvent = new NDKEvent(ndk, signed);
+                  const relaySet = NDKRelaySet.fromRelayUrls(DEFAULT_RELAYS, ndk);
+                  await ndkEvent.publish(relaySet).catch(() => {
+                    // Non-fatal: invite flow degrades gracefully
+                  });
+                }
+              } catch {
+                // Non-fatal: relay list publish is best-effort
+              }
+            }
+
+            if (!cancelled) {
+              // Re-evaluate after background work completes
+              await updateDiscoverability(client);
+            }
+          } catch {
+            // Non-fatal: discoverability degrades gracefully
+          }
+        })();
+
         setReady(true);
       } catch (err) {
         console.error('[Marmot] Initialization failed:', err);
@@ -197,7 +322,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
     void init();
     return () => { cancelled = true; };
-  }, [identityHydrated, privateKeyHex, pubkeyHex, reloadGroups]);
+  }, [identityHydrated, privateKeyHex, pubkeyHex, reloadGroups, updateDiscoverability]);
 
   // Subscribe to group messages for each group (for incoming score updates)
   useEffect(() => {
@@ -298,9 +423,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               });
             },
           );
-          subsMap.set(group.id, () => {
-            unsub();
-          });
+          subsMap.set(group.id, unsub);
         } catch (err) {
           console.warn(`[Marmot] subscribeToGroupMessages for ${group.id} failed:`, err);
         }
