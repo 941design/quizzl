@@ -91,10 +91,9 @@ export function ChatStoreProvider({
         const { deserializeApplicationData } = await import('@internet-privacy/marmot-ts');
         const rumor = deserializeApplicationData(data);
         if (rumor.kind !== CHAT_MESSAGE_KIND) return;
-        const raw = JSON.parse(rumor.content);
         const msg: ChatMessage = {
-          id: raw.id ?? rumor.id ?? `${rumor.pubkey}-${rumor.created_at}`,
-          content: raw.content ?? rumor.content,
+          id: rumor.id,
+          content: rumor.content,
           senderPubkey: rumor.pubkey,
           groupId,
           createdAt: rumor.created_at * 1000,
@@ -127,10 +126,11 @@ export function ChatStoreProvider({
     async (content: string) => {
       if (!groupId || !group || !content.trim()) return;
 
-      const id = crypto.randomUUID();
       const now = Math.floor(Date.now() / 1000);
+      // Use a temporary ID for optimistic display; replaced after send
+      const tempId = crypto.randomUUID();
       const optimistic: ChatMessage = {
-        id,
+        id: tempId,
         content,
         senderPubkey: pubkey,
         groupId,
@@ -140,26 +140,12 @@ export function ChatStoreProvider({
       setMessages((prev) => [...prev, optimistic]);
 
       try {
-        const rumor = {
-          kind: CHAT_MESSAGE_KIND,
-          pubkey,
-          created_at: now,
-          tags: [],
-          content: JSON.stringify({
-            kind: CHAT_MESSAGE_KIND,
-            id,
-            content,
-            pubkey,
-            created_at: now,
-          }),
-          id,
-        };
-        await group.sendApplicationRumor(rumor as any);
+        await group.sendChatMessage(content);
         appendMessage(groupId, optimistic).catch((err) => {
           console.error('[chat-store] Failed to persist sent message:', err);
         });
       } catch (err) {
-        setMessages((prev) => prev.filter((m) => m.id !== id));
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
         throw err;
       }
     },

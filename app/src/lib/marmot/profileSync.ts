@@ -9,7 +9,8 @@
 import type { UserProfile, ProfileAvatar, MemberProfile } from '@/src/types';
 import { AVATAR_BROWSER_CONFIG } from '@/src/config/profile';
 
-const PROFILE_PAYLOAD_TYPE = 'quizzl-profile-v1';
+/** MLS application-message rumor kind for profile updates (kind 0 = metadata). */
+export const PROFILE_RUMOR_KIND = 0;
 
 /** Wire format for the profile data section */
 export type ProfilePayload = {
@@ -19,7 +20,7 @@ export type ProfilePayload = {
   updatedAt: string;
 };
 
-/** Serialise a UserProfile to JSON payload for MLS application messages */
+/** Serialise a UserProfile to JSON content for MLS application rumor. */
 export function serialiseProfileUpdate(profile: UserProfile): string {
   const data: ProfilePayload = {
     nickname: profile.nickname,
@@ -29,15 +30,13 @@ export function serialiseProfileUpdate(profile: UserProfile): string {
     badgeIds: profile.badgeIds,
     updatedAt: new Date().toISOString(),
   };
-  return JSON.stringify({ type: PROFILE_PAYLOAD_TYPE, data });
+  return JSON.stringify(data);
 }
 
-/** Parse raw MLS application message text. Returns null if not a profile message. */
-export function parseProfilePayload(text: string): ProfilePayload | null {
+/** Parse rumor content as a ProfilePayload. Returns null if not valid. */
+export function parseProfilePayload(content: string): ProfilePayload | null {
   try {
-    const parsed = JSON.parse(text) as { type?: string; data?: ProfilePayload };
-    if (parsed.type !== PROFILE_PAYLOAD_TYPE || !parsed.data) return null;
-    const d = parsed.data;
+    const d = JSON.parse(content) as ProfilePayload;
     if (typeof d.nickname !== 'string' || !Array.isArray(d.badgeIds) || typeof d.updatedAt !== 'string') {
       return null;
     }

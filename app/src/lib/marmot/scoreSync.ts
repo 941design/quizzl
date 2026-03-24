@@ -11,20 +11,18 @@
 import type { ScoreUpdate } from '@/src/types';
 import { STORAGE_KEYS } from '@/src/types';
 
-const SCORE_PAYLOAD_TYPE = 'quizzl-score-v1';
+/** MLS application-message rumor kind for score updates (kind 1 = short text note). */
+export const SCORE_RUMOR_KIND = 1;
 
-/** Serialise a ScoreUpdate to JSON payload for MLS application messages */
+/** Serialise a ScoreUpdate to JSON content for MLS application rumor. */
 export function serialiseScoreUpdate(update: ScoreUpdate): string {
-  return JSON.stringify({ type: SCORE_PAYLOAD_TYPE, data: update });
+  return JSON.stringify(update);
 }
 
-/** Parse raw MLS application message text. Returns null if not a score message. */
-export function parseScorePayload(text: string): ScoreUpdate | null {
+/** Parse rumor content as a ScoreUpdate. Returns null if not valid. */
+export function parseScorePayload(content: string): ScoreUpdate | null {
   try {
-    const parsed = JSON.parse(text) as { type?: string; data?: ScoreUpdate };
-    if (parsed.type !== SCORE_PAYLOAD_TYPE || !parsed.data) return null;
-    const d = parsed.data;
-    // Minimal validation
+    const d = JSON.parse(content) as ScoreUpdate;
     if (
       typeof d.topicSlug !== 'string' ||
       typeof d.quizPoints !== 'number' ||

@@ -32,8 +32,8 @@ import {
   clearAllGroupData,
 } from '@/src/lib/marmot/groupStorage';
 import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscription';
-import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload } from '@/src/lib/marmot/scoreSync';
-import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile } from '@/src/lib/marmot/profileSync';
+import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
+import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
 import { useProfile } from '@/src/context/ProfileContext';
 
 async function startWelcomeSubscription(
@@ -47,6 +47,21 @@ async function startWelcomeSubscription(
   await subscribeToWelcomes(pubkeyHex, marmotClient, ndk, signer, onGroupJoined);
 }
 import { DEFAULT_RELAYS } from '@/src/types';
+import { getEventHash } from 'applesauce-core/helpers/event';
+
+/** Build a properly-hashed MIP-03 rumor for sendApplicationRumor. */
+function buildRumor(kind: number, content: string, pubkey: string, tags: string[][] = []) {
+  const rumor = {
+    id: '',
+    kind,
+    pubkey,
+    created_at: Math.floor(Date.now() / 1000),
+    content,
+    tags,
+  };
+  rumor.id = getEventHash(rumor);
+  return rumor;
+}
 
 // We import marmot types lazily to avoid SSR issues
 type MarmotClientType = import('@internet-privacy/marmot-ts').MarmotClient;
@@ -359,8 +374,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             await reloadGroups();
           }
 
-          const { parseScorePayload } = await import('@/src/lib/marmot/scoreSync');
-          const { parseProfilePayload, payloadToMemberProfile } = await import('@/src/lib/marmot/profileSync');
+          const { SCORE_RUMOR_KIND, parseScorePayload } = await import('@/src/lib/marmot/scoreSync');
+          const { PROFILE_RUMOR_KIND, parseProfilePayload, payloadToMemberProfile } = await import('@/src/lib/marmot/profileSync');
 
           // BUG FIX: track member count at subscription time so onMembersChanged
           // can detect when new members join and republish the local profile.
@@ -373,31 +388,36 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             group.relays,
             mlsGroup,
             ndk,
-            (payload, senderPubkey) => {
-              const update = parseScorePayload(payload);
-              if (update && senderPubkey !== pubkeyHex) {
-                // Merge into local score cache (use truncated pubkey as fallback nickname)
-                void mergeMemberScore(group.id, senderPubkey, senderPubkey.slice(0, 8), update).catch(
-                  (err: unknown) => console.warn('[Marmot] mergeMemberScore failed:', err)
-                );
-              }
-              const profilePayload = parseProfilePayload(payload);
-              if (profilePayload && senderPubkey !== pubkeyHex) {
-                const memberProfile = payloadToMemberProfile(senderPubkey, profilePayload);
-                void mergeMemberProfile(group.id, memberProfile).catch(
-                  (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
-                );
-                void updateMemberScoreNickname(group.id, senderPubkey, profilePayload.nickname).catch(
-                  (err: unknown) => console.warn('[Marmot] updateMemberScoreNickname failed:', err)
-                );
-                // Cache in global contact cache for cross-group availability
-                void import('@/src/lib/contactCache').then(({ writeContactEntry }) => {
-                  writeContactEntry(senderPubkey, {
-                    nickname: memberProfile.nickname,
-                    avatar: memberProfile.avatar,
-                    updatedAt: memberProfile.updatedAt,
+            (rumor) => {
+              const senderPubkey = rumor.pubkey;
+              if (senderPubkey === pubkeyHex) return; // skip own messages
+
+              if (rumor.kind === SCORE_RUMOR_KIND) {
+                const update = parseScorePayload(rumor.content);
+                if (update) {
+                  void mergeMemberScore(group.id, senderPubkey, senderPubkey.slice(0, 8), update).catch(
+                    (err: unknown) => console.warn('[Marmot] mergeMemberScore failed:', err)
+                  );
+                }
+              } else if (rumor.kind === PROFILE_RUMOR_KIND) {
+                const profilePayload = parseProfilePayload(rumor.content);
+                if (profilePayload) {
+                  const memberProfile = payloadToMemberProfile(senderPubkey, profilePayload);
+                  void mergeMemberProfile(group.id, memberProfile).catch(
+                    (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
+                  );
+                  void updateMemberScoreNickname(group.id, senderPubkey, profilePayload.nickname).catch(
+                    (err: unknown) => console.warn('[Marmot] updateMemberScoreNickname failed:', err)
+                  );
+                  // Cache in global contact cache for cross-group availability
+                  void import('@/src/lib/contactCache').then(({ writeContactEntry }) => {
+                    writeContactEntry(senderPubkey, {
+                      nickname: memberProfile.nickname,
+                      avatar: memberProfile.avatar,
+                      updatedAt: memberProfile.updatedAt,
+                    });
                   });
-                });
+                }
               }
             },
             // Refresh memberPubkeys from MLS state after ingesting any event
@@ -415,15 +435,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               // Bug report: bug-reports/profile-propagation-new-members.md
               if (currentMembers.length > prevMemberCount) {
                 const payload = serialiseProfileUpdate(localProfile);
-                const rumor = {
-                  kind: 1,
-                  content: payload,
-                  tags: [['t', 'quizzl-profile']],
-                  created_at: Math.floor(Date.now() / 1000),
-                  pubkey: pubkeyHex ?? '',
-                  id: '',
-                };
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
                 void mlsGroup.sendApplicationRumor(rumor as any).catch((err: unknown) => {
                   console.warn(`[Marmot] onMembersChanged profile republish for ${group.id} failed:`, err);
                 });
@@ -436,15 +448,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               profilePublishedRef.current.add(group.id);
               const payload = serialiseProfileUpdate(localProfile);
               console.info(`[Marmot] onHistorySynced: publishing profile for group ${group.id}, nickname="${localProfile.nickname}"`);
-              const rumor = {
-                kind: 1,
-                content: payload,
-                tags: [['t', 'quizzl-profile']],
-                created_at: Math.floor(Date.now() / 1000),
-                pubkey: pubkeyHex ?? '',
-                id: '',
-              };
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
               void mlsGroup.sendApplicationRumor(rumor as any).then(() => {
                 console.info(`[Marmot] onHistorySynced: profile published successfully for group ${group.id}`);
               }).catch((err: unknown) => {
@@ -487,21 +491,13 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       if (!client || groups.length === 0) return;
       for (const item of queued) {
         try {
-          const { nextSequenceNumber: nextSeq, serialiseScoreUpdate: serialise } = await import('@/src/lib/marmot/scoreSync');
+          const { nextSequenceNumber: nextSeq, serialiseScoreUpdate: serialise, SCORE_RUMOR_KIND: scoreKind } = await import('@/src/lib/marmot/scoreSync');
           const fullUpdate = { ...item.update, sequenceNumber: nextSeq() };
           const payload = serialise(fullUpdate);
           for (const group of groups) {
             const mlsGroup = await client.getGroup(group.id).catch(() => null);
             if (!mlsGroup) continue;
-            const rumor = {
-              kind: 1,
-              content: payload,
-              tags: [['t', 'quizzl-score']],
-              created_at: Math.floor(Date.now() / 1000),
-              pubkey: pubkeyHex ?? '',
-              id: '',
-            };
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const rumor = buildRumor(scoreKind, payload, pubkeyHex ?? '');
             await mlsGroup.sendApplicationRumor(rumor as any).catch(() => {});
           }
         } catch {
@@ -546,15 +542,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       // Publish profile to the new group
       try {
         const payload = serialiseProfileUpdate(localProfile);
-        const rumor = {
-          kind: 1,
-          content: payload,
-          tags: [['t', 'quizzl-profile']],
-          created_at: Math.floor(Date.now() / 1000),
-          pubkey: pubkeyHex,
-          id: '',
-        };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex);
         await mlsGroup.sendApplicationRumor(rumor as any);
       } catch (err) {
         console.warn('[Marmot] publishProfileUpdate on createGroup failed:', err);
@@ -683,16 +671,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           const mlsGroup = await client.getGroup(group.id).catch(() => null);
           if (!mlsGroup) continue;
 
-          // Build a Rumor (UnsignedEvent with id field) for the application message
-          const rumor = {
-            kind: 1,
-            content: payload,
-            tags: [['t', 'quizzl-score']],
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: pubkeyHex ?? '',
-            id: '',  // marmot-ts will compute or ignore this for application messages
-          };
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const rumor = buildRumor(SCORE_RUMOR_KIND, payload, pubkeyHex ?? '');
           await mlsGroup.sendApplicationRumor(rumor as any);
         } catch (err) {
           console.warn(`[Marmot] publishScoreUpdate to group ${group.id} failed:`, err);
@@ -736,15 +715,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         const mlsGroup = await client.getGroup(group.id).catch(() => null);
         if (!mlsGroup) continue;
 
-        const rumor = {
-          kind: 1,
-          content: payload,
-          tags: [['t', 'quizzl-profile']],
-          created_at: Math.floor(Date.now() / 1000),
-          pubkey: pubkeyHex,
-          id: '',
-        };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex);
         await mlsGroup.sendApplicationRumor(rumor as any);
       } catch (err) {
         console.warn(`[Marmot] publishProfileUpdate to group ${group.id} failed:`, err);

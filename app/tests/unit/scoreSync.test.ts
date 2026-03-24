@@ -101,18 +101,13 @@ describe('scoreSync', () => {
       expect(parseScorePayload('hello world')).toBeNull();
     });
 
-    it('returns null for wrong type field', () => {
-      const payload = JSON.stringify({ type: 'wrong-type', data: sampleUpdate });
-      expect(parseScorePayload(payload)).toBeNull();
-    });
-
-    it('returns null for missing data', () => {
-      const payload = JSON.stringify({ type: 'quizzl-score-v1' });
+    it('returns null for unrelated JSON object', () => {
+      const payload = JSON.stringify({ foo: 'bar' });
       expect(parseScorePayload(payload)).toBeNull();
     });
 
     it('returns null for invalid data shape', () => {
-      const payload = JSON.stringify({ type: 'quizzl-score-v1', data: { topicSlug: 123 } });
+      const payload = JSON.stringify({ topicSlug: 123 });
       expect(parseScorePayload(payload)).toBeNull();
     });
   });

@@ -119,11 +119,12 @@ describe('onMembersChanged profile republish logic (MarmotContext)', () => {
     return async (currentMembers: string[]) => {
       // (storage update omitted — not relevant to the fix being tested)
       if (currentMembers.length > prevMemberCount) {
-        const payload = JSON.stringify({ type: 'quizzl-profile-v1', data: { ...localProfile, updatedAt: new Date().toISOString() } });
+        const payload = JSON.stringify({ ...localProfile, updatedAt: new Date().toISOString() });
+        // kind 0 = PROFILE_RUMOR_KIND, matching MIP-03 standard
         const rumor = {
-          kind: 1,
+          kind: 0,
           content: payload,
-          tags: [['t', 'quizzl-profile']],
+          tags: [],
           created_at: Math.floor(Date.now() / 1000),
           pubkey: pubkeyHex,
           id: '',
@@ -145,9 +146,9 @@ describe('onMembersChanged profile republish logic (MarmotContext)', () => {
 
     expect(sendApplicationRumor).toHaveBeenCalledTimes(1);
     const [rumor] = sendApplicationRumor.mock.calls[0] as [{ kind: number; pubkey: string; tags: string[][] }];
-    expect(rumor.kind).toBe(1);
+    expect(rumor.kind).toBe(0);
     expect(rumor.pubkey).toBe('aabbcc');
-    expect(rumor.tags).toEqual([['t', 'quizzl-profile']]);
+    expect(rumor.tags).toEqual([]);
   });
 
   it('does NOT call sendApplicationRumor when member count stays the same', async () => {

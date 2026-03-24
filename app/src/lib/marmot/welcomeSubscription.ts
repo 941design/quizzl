@@ -158,7 +158,7 @@ export async function subscribeToGroupMessages(
   relays: string[],
   mlsGroup: import('@internet-privacy/marmot-ts').MarmotGroup,
   ndk: import('@nostr-dev-kit/ndk').default,
-  onApplicationMessage: (payload: string, senderPubkey: string) => void,
+  onApplicationMessage: (rumor: { id: string; kind: number; pubkey: string; created_at: number; content: string; tags: string[][] }) => void,
   onMembersChanged?: (members: string[]) => void,
   onHistorySynced?: () => void,
 ): Promise<() => void> {
@@ -193,24 +193,14 @@ export async function subscribeToGroupMessages(
         sig: ndkEvent.sig ?? '',
       };
 
+      const { deserializeApplicationData } = await import('@internet-privacy/marmot-ts');
       const resultsGen = mlsGroup.ingest([nostrEvent]);
       for await (const result of resultsGen) {
         if (result.kind === 'processed' && result.result.kind === 'applicationMessage') {
           const appMsg = result.result.message;
           if (appMsg) {
-            const rawText = new TextDecoder().decode(appMsg);
-            // sendApplicationRumor wraps the payload in a Nostr rumor:
-            //   {"kind":1,"content":"<actual payload>","pubkey":"<real sender>",...}
-            // The kind 445 event pubkey may be ephemeral (MLS protocol key),
-            // so extract the real sender pubkey and content from the rumor.
-            let content = rawText;
-            let senderPubkey = nostrEvent.pubkey;
-            try {
-              const rumor = JSON.parse(rawText) as { content?: string; pubkey?: string };
-              if (typeof rumor.content === 'string') content = rumor.content;
-              if (typeof rumor.pubkey === 'string' && rumor.pubkey) senderPubkey = rumor.pubkey;
-            } catch { /* not a rumor wrapper — use raw text */ }
-            onApplicationMessage(content, senderPubkey);
+            const rumor = deserializeApplicationData(appMsg);
+            onApplicationMessage(rumor);
           }
         }
       }
