@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const BASE_URL = 'http://wp10665333.server-he.de';
-const SEARCH_URL = `${BASE_URL}/cgi/search`;
+const FETCH_BASE_URL = 'https://wp10665333.server-he.de';
+const STORED_BASE_URL = '//wp10665333.server-he.de';
+const SEARCH_URL = `${FETCH_BASE_URL}/cgi/search`;
 const PAGE_SIZE = 500;
 const CONCURRENCY = 8;
 
@@ -94,7 +95,7 @@ async function buildManifest() {
   const items = await mapWithConcurrency(
     urls,
     async (relativeUrl, index) => {
-      const response = await fetch(`${BASE_URL}${relativeUrl}`);
+      const response = await fetch(`${FETCH_BASE_URL}${relativeUrl}`);
       if (!response.ok) {
         if (response.status === 404) {
           console.warn(`Skipping missing avatar ${relativeUrl}`);
@@ -116,7 +117,7 @@ async function buildManifest() {
 
       return {
         id: fileName.replace(/\.png$/i, ''),
-        imageUrl: `${BASE_URL}${relativeUrl}`,
+        imageUrl: `${STORED_BASE_URL}${relativeUrl}`,
         subject,
         accessories: normalizeAccessories(metadata.var_accessories),
         sortOrder: index,
