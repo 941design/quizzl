@@ -204,32 +204,32 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
                 >
                   {/* Avatar */}
                   {!grouped ? (
-                    avatarImage ? (
-                      <Image
-                        src={avatarImage}
-                        alt={displayName}
-                        boxSize="28px"
-                        flexShrink={0}
-                        borderRadius="full"
-                        objectFit="contain"
-                        bg="white"
-                      />
-                    ) : (
-                      <Flex
-                        w="28px"
-                        h="28px"
-                        flexShrink={0}
-                        align="center"
-                        justify="center"
-                        borderRadius="full"
-                        bg={avatarColor}
-                        color="white"
-                        fontSize="xs"
-                        fontWeight="semibold"
-                      >
-                        {avatarInitial}
-                      </Flex>
-                    )
+                    <Flex
+                      w="28px"
+                      h="28px"
+                      flexShrink={0}
+                      align="center"
+                      justify="center"
+                      borderRadius="full"
+                      bg={avatarImage ? 'white' : avatarColor}
+                      color="white"
+                      fontSize="xs"
+                      fontWeight="semibold"
+                      borderWidth={avatarImage ? '1px' : 0}
+                      borderColor="borderSubtle"
+                      overflow="hidden"
+                    >
+                      {avatarImage ? (
+                        <Image
+                          src={avatarImage}
+                          alt={displayName}
+                          boxSize="22px"
+                          objectFit="contain"
+                        />
+                      ) : (
+                        avatarInitial
+                      )}
+                    </Flex>
                   ) : (
                     <Box w="28px" flexShrink={0} />
                   )}
