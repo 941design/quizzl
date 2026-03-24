@@ -79,6 +79,8 @@ type MarmotContextValue = {
   reloadGroups: () => Promise<void>;
   /** Clear all group data (for reset) */
   clearAll: () => Promise<void>;
+  /** Get a MarmotGroup by ID (for chat, etc.) */
+  getGroup: (groupId: string) => Promise<MarmotGroupType | null>;
   /** Access to the underlying MarmotClient (for advanced use) */
   getClient: () => MarmotClientType | null;
 };
@@ -653,6 +655,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     await removeGroupFromStorage(groupId);
     await clearMemberScores(groupId);
     await clearMemberProfiles(groupId);
+    // Clear chat messages
+    const { clearMessages } = await import('@/src/lib/marmot/chatPersistence');
+    await clearMessages(groupId);
     await reloadGroups();
     return true;
   }, [reloadGroups]);
@@ -755,6 +760,16 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     profilePublishedRef.current.clear();
   }, []);
 
+  const getGroup = useCallback(async (groupId: string): Promise<MarmotGroupType | null> => {
+    const client = clientRef.current;
+    if (!client) return null;
+    try {
+      return await client.getGroup(groupId) ?? null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const getClient = useCallback((): MarmotClientType | null => {
     return clientRef.current;
   }, []);
@@ -774,6 +789,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       getMemberProfiles,
       reloadGroups,
       clearAll,
+      getGroup,
       getClient,
     }),
     [
@@ -790,6 +806,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       getMemberProfiles,
       reloadGroups,
       clearAll,
+      getGroup,
       getClient,
     ]
   );
@@ -816,6 +833,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   getMemberProfiles: NOOP_ARRAY as () => Promise<MemberProfile[]>,
   reloadGroups: NOOP_ASYNC,
   clearAll: NOOP_ASYNC,
+  getGroup: NOOP_NULL as () => Promise<null>,
   getClient: () => null,
 };
 

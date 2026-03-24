@@ -29,13 +29,17 @@ import MemberList from '@/src/components/groups/MemberList';
 import MemberScoreRow from '@/src/components/groups/MemberScoreRow';
 import InviteMemberModal from '@/src/components/groups/InviteMemberModal';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
+import GroupChat from '@/src/components/groups/GroupChat';
+import { ChatStoreProvider } from '@/src/context/ChatStoreContext';
 import type { Group, MemberScore, MemberProfile } from '@/src/types';
 
 /* ---------- Detail view (shown when ?id=xxx is present) ---------- */
 
+type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
+
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
-  const { groups, ready, getMemberScores, getMemberProfiles } = useMarmot();
+  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup } = useMarmot();
   const { pubkeyHex } = useNostrIdentity();
   const { profile: ownProfile } = useProfile();
   const inviteDisclosure = useDisclosure();
@@ -43,12 +47,14 @@ function GroupDetailView({ id }: { id: string }) {
   const [notFound, setNotFound] = useState(false);
   const [memberScores, setMemberScores] = useState<MemberScore[]>([]);
   const [profileMap, setProfileMap] = useState<Record<string, MemberProfile>>({});
+  const [mlsGroup, setMlsGroup] = useState<MarmotGroupType | null>(null);
 
   useEffect(() => {
     if (!ready) return;
     const found = groups.find((g) => g.id === id);
     if (found) {
       setGroup(found);
+      void getMarmotGroup(id).then(setMlsGroup).catch(() => {});
       void getMemberScores(id).then(setMemberScores).catch(() => {});
       void getMemberProfiles(id).then((profiles) => {
         const map: Record<string, MemberProfile> = {};
@@ -168,6 +174,20 @@ function GroupDetailView({ id }: { id: string }) {
               ownPubkeyHex={pubkeyHex}
               memberProfiles={profileMap}
             />
+          </Box>
+
+          {/* Chat Section */}
+          <Box>
+            <Heading as="h2" size="md" mb={3}>
+              Chat
+            </Heading>
+            <ChatStoreProvider
+              groupId={group.id}
+              group={mlsGroup}
+              pubkey={pubkeyHex ?? ''}
+            >
+              <GroupChat pubkey={pubkeyHex ?? ''} profileMap={profileMap} />
+            </ChatStoreProvider>
           </Box>
 
           {/* Member Scores Section */}
