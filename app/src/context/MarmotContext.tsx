@@ -237,7 +237,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             // previous sessions must still be cleaned up.
             if (DEFAULT_RELAYS.length > 0 && ndk) {
               try {
-                const remoteKPs = await network.request(DEFAULT_RELAYS, [
+                const remoteKPs = await network.request([...DEFAULT_RELAYS], [
                   { kinds: [443 as any], authors: [pubkeyHex!] } as any,
                 ]);
                 const localList = await client.keyPackages.list();
@@ -275,7 +275,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             if (DEFAULT_RELAYS.length > 0 && ndk) {
               try {
                 const { NDKEvent, NDKRelaySet } = await import('@nostr-dev-kit/ndk');
-                const existing30051 = await network.request(DEFAULT_RELAYS, [
+                const existing30051 = await network.request([...DEFAULT_RELAYS], [
                   { kinds: [30051 as any], authors: [pubkeyHex!], limit: 1 } as any,
                 ]);
 
