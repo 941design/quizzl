@@ -360,6 +360,12 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           const { parseScorePayload } = await import('@/src/lib/marmot/scoreSync');
           const { parseProfilePayload, payloadToMemberProfile } = await import('@/src/lib/marmot/profileSync');
 
+          // BUG FIX: track member count at subscription time so onMembersChanged
+          // can detect when new members join and republish the local profile.
+          // Bug report: bug-reports/profile-propagation-new-members.md
+          // Date: 2026-03-24
+          let prevMemberCount = mlsMembers.length;
+
           const unsub = await subscribeToGroupMessages(
             group.id,
             group.relays,
@@ -400,6 +406,27 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                 await persistGroup({ ...stored, memberPubkeys: currentMembers });
                 await reloadGroups();
               }
+              // BUG FIX: when new members join (count increases), republish local
+              // profile so they receive current profile data without relying on
+              // historical messages alone. Do not gate on profilePublishedRef —
+              // this must fire on every join regardless of prior publish.
+              // Bug report: bug-reports/profile-propagation-new-members.md
+              if (currentMembers.length > prevMemberCount) {
+                const payload = serialiseProfileUpdate(localProfile);
+                const rumor = {
+                  kind: 1,
+                  content: payload,
+                  tags: [['t', 'quizzl-profile']],
+                  created_at: Math.floor(Date.now() / 1000),
+                  pubkey: pubkeyHex ?? '',
+                  id: '',
+                };
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                void mlsGroup.sendApplicationRumor(rumor as any).catch((err: unknown) => {
+                  console.warn(`[Marmot] onMembersChanged profile republish for ${group.id} failed:`, err);
+                });
+              }
+              prevMemberCount = currentMembers.length;
             },
             // Publish profile after historical sync completes (epoch is up-to-date)
             () => {

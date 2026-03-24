@@ -83,7 +83,11 @@ test.describe.serial('Group member profiles — names instead of npubs', () => {
     await pageB.goto('/groups/');
     await expect(pageB.getByText('Profile Test Group')).toBeVisible({ timeout: 60_000 });
 
-    // Wait for User B's profile to be published and User A to receive it
+    // Wait for User B's profile to be published and User A to receive it.
+    // TODO: This 10-second timeout is a conservative workaround added during initial
+    // E2E validation of the profile-propagation fix (bug-reports/profile-propagation-new-members.md).
+    // Once the fix has been validated in production, this can be reduced or replaced with
+    // a deterministic poll (e.g. waitForSelector on the member-name test-id).
     await pageB.waitForTimeout(10_000);
 
     // User A navigates back to group detail to see updated member list
