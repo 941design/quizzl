@@ -23,24 +23,23 @@ type BackupContextValue = {
 const BackupContext = createContext<BackupContextValue | null>(null);
 
 export function BackupProvider({ children }: { children: React.ReactNode }) {
-  const { signer, identity } = useNostrIdentity();
+  const { privateKeyHex, pubkeyHex } = useNostrIdentity();
   const schedulerRef = useRef<BackupScheduler | null>(null);
 
   useEffect(() => {
-    if (!signer || !identity?.pubkeyHex) return;
+    if (!privateKeyHex || !pubkeyHex) return;
 
-    const pubkeyHex = identity.pubkeyHex;
-    const currentSigner = signer;
+    const currentPubkey = pubkeyHex;
+    const currentPrivKey = privateKeyHex;
 
     const scheduler = new BackupScheduler(async () => {
-      const { connectNdk } = await import('@/src/lib/ndkClient');
-      // We need the private key for NDK connection, but we only have the signer.
-      // publishBackup uses the signer for encryption and NDK for relay publishing.
+      const { createPrivateKeySigner } = await import('@/src/lib/marmot/signerAdapter');
+      const signer = createPrivateKeySigner(currentPrivKey);
       // Get NDK instance (should already be connected if groups are active)
       const { getNdk } = await import('@/src/lib/ndkClient');
       const ndk = getNdk();
       if (!ndk) return;
-      await publishBackup(currentSigner, pubkeyHex, ndk);
+      await publishBackup(signer, currentPubkey, ndk);
     });
 
     schedulerRef.current = scheduler;
@@ -58,7 +57,7 @@ export function BackupProvider({ children }: { children: React.ReactNode }) {
       scheduler.dispose();
       schedulerRef.current = null;
     };
-  }, [signer, identity?.pubkeyHex]);
+  }, [privateKeyHex, pubkeyHex]);
 
   const markDirty = useCallback((immediate?: boolean) => {
     schedulerRef.current?.markDirty(immediate);

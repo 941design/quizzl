@@ -316,7 +316,7 @@ export async function getBackupRelays(
   pubkeyHex: string,
 ): Promise<string[]> {
   const { events } = await fetchEventsWithTimeout(ndk, {
-    kinds: [RELAY_LIST_KIND],
+    kinds: [RELAY_LIST_KIND as import('@nostr-dev-kit/ndk').NDKKind],
     authors: [pubkeyHex],
   });
 
