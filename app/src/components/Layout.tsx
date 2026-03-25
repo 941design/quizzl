@@ -21,6 +21,7 @@ import { truncateNpub } from '@/src/lib/nostrKeys';
 import StorageWarning from '@/src/components/StorageWarning';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 import ThemeIcon from '@/src/components/ThemeIcon';
+import NotificationBell from '@/src/components/NotificationBell';
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -112,6 +113,7 @@ export default function Layout({ children }: LayoutProps) {
                   </Box>
                 </Link>
               </NextLink>
+              <NotificationBell />
               <NextLink href="/settings" passHref legacyBehavior>
                 <Link
                   aria-label={copy.layout.nav.settings}
@@ -133,6 +135,7 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Mobile actions */}
             <HStack spacing={1} display={{ base: 'flex', md: 'none' }}>
+              <NotificationBell />
               <NextLink href="/settings" passHref legacyBehavior>
                 <Link
                   aria-label={copy.layout.nav.settings}

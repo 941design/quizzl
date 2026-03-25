@@ -110,6 +110,11 @@ const ICON_MAP: Record<string, Record<string, string>> = {
     toy: 'ph:caret-right-fill',
     default: 'ph:caret-right-bold',
   },
+  bell: {
+    pixel: 'pixelarticons:notification',
+    toy: 'ph:bell-ringing-fill',
+    default: 'ph:bell-bold',
+  },
 };
 
 type ThemeIconProps = {

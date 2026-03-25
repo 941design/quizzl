@@ -31,6 +31,7 @@ import InviteMemberModal from '@/src/components/groups/InviteMemberModal';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
 import GroupChat from '@/src/components/groups/GroupChat';
 import { ChatStoreProvider } from '@/src/context/ChatStoreContext';
+import { markAsRead } from '@/src/lib/unreadStore';
 import type { Group, MemberScore, MemberProfile } from '@/src/types';
 
 /* ---------- Detail view (shown when ?id=xxx is present) ---------- */
@@ -54,6 +55,7 @@ function GroupDetailView({ id }: { id: string }) {
     const found = groups.find((g) => g.id === id);
     if (found) {
       setGroup(found);
+      markAsRead(id);
       void getMarmotGroup(id).then(setMlsGroup).catch(() => {});
       void getMemberScores(id).then(setMemberScores).catch(() => {});
       void getMemberProfiles(id).then((profiles) => {

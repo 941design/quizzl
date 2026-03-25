@@ -34,6 +34,8 @@ import {
 import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscription';
 import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
 import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
+import { incrementUnread, initUnreadCounts, clearUnreadGroup } from '@/src/lib/unreadStore';
+import { CHAT_MESSAGE_KIND } from '@/src/lib/marmot/chatPersistence';
 import { useProfile } from '@/src/context/ProfileContext';
 import { useBackup } from '@/src/context/BackupContext';
 
@@ -353,6 +355,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     const subsMap = groupSubsRef.current;
 
     async function subscribeNewGroups() {
+      // Initialise unread counts from persisted messages on first run
+      if (pubkeyHex) {
+        void initUnreadCounts(groups.map((g) => g.id), pubkeyHex);
+      }
+
       const { subscribeToGroupMessages } = await import('@/src/lib/marmot/welcomeSubscription');
       const { getNdk } = await import('@/src/lib/ndkClient');
       const ndk = getNdk();
@@ -421,6 +428,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                     });
                   });
                 }
+              } else if (rumor.kind === CHAT_MESSAGE_KIND) {
+                incrementUnread(group.id);
               }
             },
             // Refresh memberPubkeys from MLS state after ingesting any event
@@ -651,6 +660,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     // Clear chat messages
     const { clearMessages } = await import('@/src/lib/marmot/chatPersistence');
     await clearMessages(groupId);
+    clearUnreadGroup(groupId);
     await reloadGroups();
     markBackupDirty(true);
     return true;

@@ -15,6 +15,9 @@ type Copy = {
     languageLabel: string;
     mobileMenuLabel: string;
     profileFallbackName: string;
+    notificationsLabel: string;
+    noNotifications: string;
+    unreadMessages: (count: number) => string;
   };
   home: {
     title: string;
@@ -308,6 +311,9 @@ const copy: Record<LanguageCode, Copy> = {
       languageLabel: 'Language',
       mobileMenuLabel: 'Toggle navigation menu',
       profileFallbackName: 'Player One',
+      notificationsLabel: 'Notifications',
+      noNotifications: 'No new messages',
+      unreadMessages: (count: number) => count === 1 ? '1 new message' : `${count} new messages`,
     },
     home: {
       title: 'Welcome to Quizzl',
@@ -599,6 +605,9 @@ const copy: Record<LanguageCode, Copy> = {
       languageLabel: 'Sprache',
       mobileMenuLabel: 'Navigationsmenü umschalten',
       profileFallbackName: 'Spieler Eins',
+      notificationsLabel: 'Benachrichtigungen',
+      noNotifications: 'Keine neuen Nachrichten',
+      unreadMessages: (count: number) => count === 1 ? '1 neue Nachricht' : `${count} neue Nachrichten`,
     },
     home: {
       title: 'Willkommen bei Quizzl',
