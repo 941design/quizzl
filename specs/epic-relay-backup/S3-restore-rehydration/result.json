@@ -1,0 +1,21 @@
+{
+  "story": "S3",
+  "status": "done",
+  "implementedAt": "2026-03-25",
+  "final_outcome": "accepted",
+  "files": {
+    "created": [],
+    "modified": [
+      "app/src/lib/backup/relayBackup.ts",
+      "app/tests/unit/backup/relayBackup.test.ts"
+    ]
+  },
+  "testResults": {
+    "totalFiles": 12,
+    "totalTests": 179,
+    "newTests": 15,
+    "allPassing": true
+  },
+  "summary": "Added restoreFromBackup() that clears all localStorage and IDB state, then rehydrates from a BackupPayload. 15 new tests cover clearing, rehydration of every data type including scoreSyncSeq=0, MLS state base64 decode, nostrBackedUp flag, and a full collect-restore round-trip.",
+  "verification_notes": "Fixed chat clearing order (loadAllGroups before clearAllGroupData) and scoreSyncSeq guard (changed from falsy check to !== undefined). All verification questions passed."
+}

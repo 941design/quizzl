@@ -1,0 +1,47 @@
+{
+  "story": "S1",
+  "questions": [
+    {
+      "id": "V1",
+      "question": "Does BackupPayload have version:1 and createdAt fields?",
+      "check": "type_definition",
+      "file": "app/src/lib/backup/relayBackup.ts"
+    },
+    {
+      "id": "V2",
+      "question": "Does collectBackupPayload read all required localStorage keys (settings, userProfile, selectedTopics, progress, studyTimes, scoreSyncSeq)?",
+      "check": "implementation",
+      "file": "app/src/lib/backup/relayBackup.ts"
+    },
+    {
+      "id": "V3",
+      "question": "Does collectBackupPayload load groups from IDB and include member scores, profiles, and chat messages per group?",
+      "check": "implementation",
+      "file": "app/src/lib/backup/relayBackup.ts"
+    },
+    {
+      "id": "V4",
+      "question": "Are chat messages truncated to the last 10 per group?",
+      "check": "test_coverage",
+      "file": "app/tests/unit/backup/relayBackup.test.ts"
+    },
+    {
+      "id": "V5",
+      "question": "Do uint8ArrayToBase64 and base64ToUint8Array round-trip correctly?",
+      "check": "test_coverage",
+      "file": "app/tests/unit/backup/relayBackup.test.ts"
+    },
+    {
+      "id": "V6",
+      "question": "Is MLS group state base64-encoded in groupStates?",
+      "check": "test_coverage",
+      "file": "app/tests/unit/backup/relayBackup.test.ts"
+    },
+    {
+      "id": "V7",
+      "question": "Do all baseline tests (129) plus new tests pass?",
+      "check": "test_run",
+      "expected": "148 tests passing across 12 files"
+    }
+  ]
+}

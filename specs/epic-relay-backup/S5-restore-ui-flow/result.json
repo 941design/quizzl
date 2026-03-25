@@ -1,0 +1,21 @@
+{
+  "story": "S5",
+  "status": "done",
+  "implementedAt": "2026-03-25",
+  "final_outcome": "accepted",
+  "files": {
+    "created": [],
+    "modified": [
+      "app/pages/settings.tsx"
+    ]
+  },
+  "testResults": {
+    "totalFiles": 12,
+    "totalTests": 179,
+    "newTests": 0,
+    "allPassing": true,
+    "note": "S5 is UI integration — tested via existing unit tests for fetchBackup/restoreFromBackup (S2/S3). UI dialog behavior is a visual integration concern."
+  },
+  "summary": "Integrated relay backup restore into the mnemonic recovery flow in settings.tsx. After identity derivation, fetchBackup() checks for an existing backup via getBackupRelays(). If found, a Chakra UI Modal dialog warns that restore replaces all local data. On confirm, restoreFromBackup() is called and the page reloads. On skip/dismiss, identity-only recovery continues. If no backup exists or fetch fails, the flow proceeds as before.",
+  "verification_notes": "All verification questions passed on first review. Minor note: dialog text is hardcoded English instead of using i18n copy system."
+}

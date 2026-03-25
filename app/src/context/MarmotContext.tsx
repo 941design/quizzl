@@ -35,6 +35,7 @@ import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscripti
 import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
 import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
 import { useProfile } from '@/src/context/ProfileContext';
+import { useBackup } from '@/src/context/BackupContext';
 
 async function startWelcomeSubscription(
   pubkeyHex: string,
@@ -105,6 +106,7 @@ const MarmotContext = createContext<MarmotContextValue | null>(null);
 export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const { privateKeyHex, pubkeyHex, hydrated: identityHydrated } = useNostrIdentity();
   const { profile: localProfile } = useProfile();
+  const { markDirty: markBackupDirty } = useBackup();
   const [ready, setReady] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -215,6 +217,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             // commits (e.g. "add member C") undecryptable. Profile updates are
             // deferred to subscribeToGroupMessages's onHistorySynced callback.
             void reloadGroups();
+            markBackupDirty(true);
             console.info('[Marmot] Joined group from Welcome:', joinedGroup.name);
           }
         );
@@ -538,6 +541,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
       await persistGroup(group);
       await reloadGroups();
+      markBackupDirty(true);
 
       // Publish profile to the new group
       try {
@@ -553,7 +557,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       console.error('[Marmot] createGroup failed:', err);
       return null;
     }
-  }, [pubkeyHex, reloadGroups, localProfile]);
+  }, [pubkeyHex, reloadGroups, localProfile, markBackupDirty]);
 
   const inviteByNpub = useCallback(
     async (groupId: string, npub: string): Promise<{ ok: boolean; error?: string }> => {
@@ -615,13 +619,14 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           await reloadGroups();
         }
 
+        markBackupDirty(true);
         return { ok: true };
       } catch (err) {
         console.error('[Marmot] inviteByNpub failed:', err);
         return { ok: false, error: 'generic' };
       }
     },
-    [groups, reloadGroups]
+    [groups, reloadGroups, markBackupDirty]
   );
 
   const leaveGroup = useCallback(async (groupId: string): Promise<boolean> => {
@@ -647,8 +652,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     const { clearMessages } = await import('@/src/lib/marmot/chatPersistence');
     await clearMessages(groupId);
     await reloadGroups();
+    markBackupDirty(true);
     return true;
-  }, [reloadGroups]);
+  }, [reloadGroups, markBackupDirty]);
 
   const publishScoreUpdate = useCallback(
     async (update: Omit<ScoreUpdate, 'sequenceNumber'>): Promise<void> => {

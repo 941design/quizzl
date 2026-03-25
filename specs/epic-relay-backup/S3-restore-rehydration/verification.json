@@ -1,0 +1,35 @@
+{
+  "story": "S3",
+  "questions": [
+    {
+      "id": "V1",
+      "question": "Does restoreFromBackup clear all STORAGE_KEYS from localStorage?",
+      "check": "test_coverage"
+    },
+    {
+      "id": "V2",
+      "question": "Does restoreFromBackup clear all IDB stores (clearAllGroupData + chat messages)?",
+      "check": "implementation"
+    },
+    {
+      "id": "V3",
+      "question": "Does it rehydrate settings, userProfile, selectedTopics, progress, studyTimes, scoreSyncSeq?",
+      "check": "test_coverage"
+    },
+    {
+      "id": "V4",
+      "question": "Does it rehydrate groups, MLS state, member scores, member profiles, and chat messages in IDB?",
+      "check": "test_coverage"
+    },
+    {
+      "id": "V5",
+      "question": "Does it set nostrBackedUp to 'true' after restore?",
+      "check": "test_coverage"
+    },
+    {
+      "id": "V6",
+      "question": "Does a collect-then-restore round-trip produce equivalent state?",
+      "check": "test_coverage"
+    }
+  ]
+}

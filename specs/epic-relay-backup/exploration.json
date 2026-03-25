@@ -1,0 +1,49 @@
+{
+  "language": "typescript",
+  "framework": "next.js",
+  "test_framework": "vitest",
+  "test_command": "cd app && npx vitest run",
+  "make_test_command": "make test-unit",
+  "key_files": {
+    "signer": "app/src/lib/marmot/signerAdapter.ts",
+    "storage": "app/src/lib/storage.ts",
+    "group_storage": "app/src/lib/marmot/groupStorage.ts",
+    "chat_persistence": "app/src/lib/marmot/chatPersistence.ts",
+    "ndk_client": "app/src/lib/ndkClient.ts",
+    "types": "app/src/types/index.ts",
+    "marmot_context": "app/src/context/MarmotContext.tsx",
+    "nostr_identity_context": "app/src/context/NostrIdentityContext.tsx",
+    "profile_context": "app/src/context/ProfileContext.tsx",
+    "vitest_config": "app/vitest.config.ts",
+    "test_dir": "app/tests/unit/"
+  },
+  "key_functions": {
+    "createPrivateKeySigner": { "module": "signerAdapter.ts", "signature": "(hex: string) => EventSigner" },
+    "signer.nip44.encrypt": { "signature": "(pubkey: string, plaintext: string) => Promise<string>" },
+    "signer.nip44.decrypt": { "signature": "(pubkey: string, ciphertext: string) => Promise<string>" },
+    "loadAllGroups": { "module": "groupStorage.ts", "signature": "() => Promise<Group[]>" },
+    "IdbGroupStateBackend.getItem": { "module": "groupStorage.ts", "signature": "(groupId: string) => Promise<Uint8Array | null>" },
+    "IdbGroupStateBackend.keys": { "module": "groupStorage.ts", "signature": "() => Promise<string[]>" },
+    "loadMemberScores": { "module": "groupStorage.ts", "signature": "(groupId) => Promise<MemberScore[]>" },
+    "loadMemberProfiles": { "module": "groupStorage.ts", "signature": "(groupId) => Promise<MemberProfile[]>" },
+    "loadMessages": { "module": "chatPersistence.ts", "signature": "(groupId) => Promise<ChatMessage[]>" },
+    "getNdk": { "module": "ndkClient.ts", "signature": "(hex?: string) => NDK | null" },
+    "fetchEventsWithTimeout": { "module": "ndkClient.ts", "signature": "(ndk, filter, opts?, relaySet?, timeoutMs?) => Promise<{events, timedOut}>" }
+  },
+  "storage_keys": {
+    "localStorage": ["lp_settings_v1", "lp_userProfile_v1", "lp_selectedTopics_v1", "lp_progress_v1", "lp_studyTimes_v1", "lp_scoreSyncSeq_v1"],
+    "idb_stores": ["quizzl-groups-meta", "quizzl-groups-state", "quizzl-member-scores", "quizzl-member-profiles", "quizzl-keypackages"],
+    "chat_pattern": "quizzl:messages:{groupId}"
+  },
+  "relay_list": {
+    "kind": 30051,
+    "d_tag": "marmot",
+    "fallback": "DEFAULT_RELAYS from types/index.ts"
+  },
+  "existing_test_files": ["scoreSync.test.ts", "storage.test.ts", "welcomeSubscription.test.ts"],
+  "conventions": {
+    "new_module_location": "app/src/lib/backup/relayBackup.ts",
+    "event_publishing": "NDKEvent + NDKRelaySet.fromRelayUrls",
+    "idb_library": "idb-keyval"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "story": "S2",
+  "questions": [
+    {
+      "id": "V1",
+      "question": "Does createBackupEvent encrypt with NIP-44 and produce kind 30078 with d:quizzl tag?",
+      "check": "implementation"
+    },
+    {
+      "id": "V2",
+      "question": "Does publishBackup collect payload, encrypt, sign, and publish via NDK?",
+      "check": "implementation"
+    },
+    {
+      "id": "V3",
+      "question": "Does fetchBackup fetch kind 30078, decrypt with NIP-44, and validate version:1?",
+      "check": "test_coverage"
+    },
+    {
+      "id": "V4",
+      "question": "Does fetchBackup return null when no backup exists on relays?",
+      "check": "test_coverage"
+    },
+    {
+      "id": "V5",
+      "question": "Does fetchBackup pick the newest event when multiple are returned?",
+      "check": "test_coverage"
+    },
+    {
+      "id": "V6",
+      "question": "Does getBackupRelays read from kind 30051 and fall back to DEFAULT_RELAYS?",
+      "check": "test_coverage"
+    },
+    {
+      "id": "V7",
+      "question": "Do all tests pass (baseline + S1 + S2)?",
+      "check": "test_run",
+      "expected": "156 tests passing across 12 files"
+    }
+  ]
+}

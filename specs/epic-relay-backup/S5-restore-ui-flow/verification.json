@@ -1,0 +1,41 @@
+{
+  "story": "S5",
+  "questions": [
+    {
+      "id": "V1",
+      "question": "After mnemonic restore, does handleRestore call fetchBackup to check for an existing backup?",
+      "check": "implementation",
+      "file": "app/pages/settings.tsx"
+    },
+    {
+      "id": "V2",
+      "question": "If a backup is found, is a confirmation dialog shown before restoring?",
+      "check": "implementation",
+      "file": "app/pages/settings.tsx"
+    },
+    {
+      "id": "V3",
+      "question": "Does the dialog warn that restore replaces all local data?",
+      "check": "implementation",
+      "file": "app/pages/settings.tsx"
+    },
+    {
+      "id": "V4",
+      "question": "On confirm, does it call restoreFromBackup() and then window.location.reload()?",
+      "check": "implementation",
+      "file": "app/pages/settings.tsx"
+    },
+    {
+      "id": "V5",
+      "question": "On dismiss/skip, does it continue with identity-only recovery (setRestoreSuccess)?",
+      "check": "implementation",
+      "file": "app/pages/settings.tsx"
+    },
+    {
+      "id": "V6",
+      "question": "If no backup is found or fetchBackup fails, does the flow continue normally?",
+      "check": "implementation",
+      "file": "app/pages/settings.tsx"
+    }
+  ]
+}

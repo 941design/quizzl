@@ -1,0 +1,35 @@
+{
+  "story": "S4",
+  "questions": [
+    {
+      "id": "V1",
+      "question": "Does BackupScheduler enforce a 5-minute debounce between publishes?",
+      "check": "test_coverage"
+    },
+    {
+      "id": "V2",
+      "question": "Does markDirty(true) publish immediately when outside the debounce window?",
+      "check": "test_coverage"
+    },
+    {
+      "id": "V3",
+      "question": "Does dispose() clean up timers and prevent further publishes?",
+      "check": "test_coverage"
+    },
+    {
+      "id": "V4",
+      "question": "Does MarmotContext call markDirty(true) after createGroup, leaveGroup, inviteByNpub?",
+      "check": "implementation"
+    },
+    {
+      "id": "V5",
+      "question": "Does ProfileContext call markDirty(true) after saveProfile?",
+      "check": "implementation"
+    },
+    {
+      "id": "V6",
+      "question": "Does BackupContext set up a visibilitychange listener to trigger backup on page hide?",
+      "check": "implementation"
+    }
+  ]
+}

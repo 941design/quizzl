@@ -1,0 +1,21 @@
+{
+  "story": "S2",
+  "status": "done",
+  "implementedAt": "2026-03-25",
+  "final_outcome": "accepted",
+  "files": {
+    "created": [],
+    "modified": [
+      "app/src/lib/backup/relayBackup.ts",
+      "app/tests/unit/backup/relayBackup.test.ts"
+    ]
+  },
+  "testResults": {
+    "totalFiles": 12,
+    "totalTests": 179,
+    "newTests": 10,
+    "allPassing": true
+  },
+  "summary": "Added createBackupEvent (NIP-44 encrypt + kind 30078), publishBackup (collect + encrypt + sign + publish via getBackupRelays relay set, returns {ok,error}), fetchBackup (fetch + decrypt + version validate), and getBackupRelays (kind 30051 with DEFAULT_RELAYS fallback). 10 new tests cover encryption, publish flow, failure indicator, missing backup, newest-event selection, version validation, and relay list resolution.",
+  "verification_notes": "Fixed publishBackup to use getBackupRelays() for relay selection, return {ok,error} failure indicator, and added 2 tests for publishBackup. All verification questions passed."
+}

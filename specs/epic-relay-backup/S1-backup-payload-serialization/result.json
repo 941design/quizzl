@@ -1,0 +1,21 @@
+{
+  "story": "S1",
+  "status": "done",
+  "implementedAt": "2026-03-25",
+  "final_outcome": "accepted",
+  "files": {
+    "created": [
+      "app/src/lib/backup/relayBackup.ts",
+      "app/tests/unit/backup/relayBackup.test.ts"
+    ],
+    "modified": []
+  },
+  "testResults": {
+    "totalFiles": 12,
+    "totalTests": 179,
+    "newTests": 19,
+    "allPassing": true
+  },
+  "summary": "Created BackupPayload interface and collectBackupPayload() function that reads all localStorage keys and IDB stores. Includes base64 encode/decode helpers for MLS state. Chat messages are truncated to last 10 per group. createdAt uses Unix seconds. 19 unit tests cover empty state, populated data, truncation, base64 round-trip, MLS encoding, multiple groups, and malformed data.",
+  "verification_notes": "Fixed createdAt from Date.now() (ms) to Math.floor(Date.now()/1000) (Unix seconds). All verification questions passed."
+}

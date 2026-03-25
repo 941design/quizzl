@@ -1,0 +1,71 @@
+{
+  "epic": "relay-backup",
+  "stories": [
+    {
+      "id": "S1",
+      "name": "backup-payload-serialization",
+      "title": "Backup Payload Assembly and Serialization",
+      "description": "Implement collectBackupPayload() that reads all localStorage keys and IDB stores (groups, MLS state, member scores/profiles, chat messages) and assembles a BackupPayload v1 object. MLS SerializedClientState is base64-encoded. Chat messages are limited to last 10 per group.",
+      "acceptance_criteria": ["AC-1"],
+      "status": "done",
+      "story_order": 1,
+      "scope": {
+        "in": ["BackupPayload type definition", "collectBackupPayload() function", "base64 encode/decode helpers", "unit tests for payload assembly"],
+        "out": ["Encryption", "Publishing", "Restore", "UI"]
+      }
+    },
+    {
+      "id": "S2",
+      "name": "encrypt-publish-fetch-decrypt",
+      "title": "NIP-44 Encrypt, Publish, Fetch, and Decrypt",
+      "description": "Implement createBackupEvent() to encrypt payload with NIP-44 and build kind 30078 event. Implement publishBackup() to publish to relays (from kind 30051 list or DEFAULT_RELAYS fallback). Implement fetchBackup() to fetch, decrypt, and parse the backup. Handle version validation and missing backup.",
+      "acceptance_criteria": ["AC-2", "AC-3", "AC-4"],
+      "status": "done",
+      "story_order": 2,
+      "scope": {
+        "in": ["createBackupEvent()", "publishBackup()", "fetchBackup()", "relay list resolution", "version validation", "unit tests"],
+        "out": ["Restore/rehydration", "Debounce/triggers", "UI"]
+      }
+    },
+    {
+      "id": "S3",
+      "name": "restore-rehydration",
+      "title": "Restore State from Backup Payload",
+      "description": "Implement restoreFromBackup(payload) that clears all local state and rehydrates localStorage keys, IDB group metadata, MLS state (base64-decoded), member scores/profiles, and chat messages. Sets lp_nostrIdentityBackedUp_v1 to 'true' after restore.",
+      "acceptance_criteria": ["AC-5"],
+      "status": "done",
+      "story_order": 3,
+      "scope": {
+        "in": ["restoreFromBackup()", "clear existing state", "rehydrate all data stores", "unit tests"],
+        "out": ["UI flow", "Trigger integration"]
+      }
+    },
+    {
+      "id": "S4",
+      "name": "debounce-and-triggers",
+      "title": "Backup Scheduler with Debounce and Context Integration",
+      "description": "Implement BackupScheduler class with markDirty(immediate?) that enforces a 5-minute debounce window. Integrate triggers: MarmotContext calls markDirty(true) on group create/join/leave/invite; ProfileContext calls markDirty(true) on profile save; visibilitychange listener calls markDirty(true) on page hidden; deferred triggers for quiz/settings/study.",
+      "acceptance_criteria": ["AC-6", "AC-7"],
+      "status": "done",
+      "story_order": 4,
+      "scope": {
+        "in": ["BackupScheduler class", "debounce logic", "MarmotContext integration", "ProfileContext integration", "visibilitychange listener", "unit tests for scheduler"],
+        "out": ["Restore UI"]
+      }
+    },
+    {
+      "id": "S5",
+      "name": "restore-ui-flow",
+      "title": "Restore UI During Mnemonic Recovery",
+      "description": "During mnemonic restore flow, after identity derivation, fetch backup from relays. If found, show confirmation dialog warning that restore replaces all data. On confirm, call restoreFromBackup() and reload the app. If no backup, continue with identity-only recovery.",
+      "acceptance_criteria": ["AC-8"],
+      "status": "done",
+      "story_order": 5,
+      "scope": {
+        "in": ["Restore flow integration in identity recovery", "confirmation dialog", "app reload after restore"],
+        "out": ["Backup publishing", "New backup triggers"]
+      }
+    }
+  ],
+  "story_order": ["S1", "S2", "S3", "S4", "S5"]
+}

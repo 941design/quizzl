@@ -1,0 +1,25 @@
+{
+  "story": "S4",
+  "status": "done",
+  "implementedAt": "2026-03-25",
+  "final_outcome": "accepted",
+  "files": {
+    "created": [
+      "app/src/context/BackupContext.tsx"
+    ],
+    "modified": [
+      "app/src/lib/backup/relayBackup.ts",
+      "app/src/context/MarmotContext.tsx",
+      "app/src/context/ProfileContext.tsx",
+      "app/tests/unit/backup/relayBackup.test.ts"
+    ]
+  },
+  "testResults": {
+    "totalFiles": 12,
+    "totalTests": 179,
+    "newTests": 6,
+    "allPassing": true
+  },
+  "summary": "Added BackupScheduler class with 5-minute debounce, markDirty(immediate?), and dispose(). Created BackupContext with visibilitychange listener. Integrated markDirty(true) triggers in MarmotContext (createGroup, inviteByNpub, leaveGroup, Welcome/group joined) and ProfileContext (saveProfile). 6 new tests cover immediate publish, debounce enforcement, post-window publish, dispose cleanup, deferred scheduling, and coalescing.",
+  "verification_notes": "Fixed missing markBackupDirty(true) in Welcome (group joined) callback in MarmotContext. All verification questions passed."
+}

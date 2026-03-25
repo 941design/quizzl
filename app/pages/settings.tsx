@@ -71,6 +71,10 @@ export default function SettingsPage() {
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [restoreSuccess, setRestoreSuccess] = useState(false);
 
+  // Relay backup restore state
+  const [pendingBackupPayload, setPendingBackupPayload] = useState<import('@/src/lib/backup/relayBackup').BackupPayload | null>(null);
+  const backupRestoreDisclosure = useDisclosure();
+
   const handleCopyNpub = useCallback(async () => {
     if (!npub) return;
     try {
@@ -180,6 +184,28 @@ export default function SettingsPage() {
         localStorage.setItem(STORAGE_KEYS.nostrBackedUp, 'true');
       }
 
+      // Check for relay backup
+      try {
+        const { fetchBackup, getBackupRelays } = await import('@/src/lib/backup/relayBackup');
+        const { createPrivateKeySigner } = await import('@/src/lib/marmot/signerAdapter');
+        const { connectNdk: connectForBackup } = await import('@/src/lib/ndkClient');
+        const backupNdk = await connectForBackup(restoredIdentity.privateKeyHex);
+        const backupSigner = createPrivateKeySigner(restoredIdentity.privateKeyHex);
+        const backupRelays = await getBackupRelays(backupNdk, restoredPubkey);
+        const backup = await fetchBackup(backupSigner, restoredPubkey, backupNdk, backupRelays);
+        if (backup) {
+          setPendingBackupPayload(backup);
+          backupRestoreDisclosure.onOpen();
+          // Don't set restoreSuccess yet — user needs to confirm or dismiss
+          setRestoreInput('');
+          setBackupDone(true);
+          return; // Exit early; success is set after dialog resolution
+        }
+      } catch (err) {
+        console.warn('[Settings] Relay backup check failed:', err);
+        // Non-fatal — continue with identity-only restore
+      }
+
       setRestoreSuccess(true);
       setRestoreInput('');
       setBackupDone(true);
@@ -188,7 +214,27 @@ export default function SettingsPage() {
     } finally {
       setRestoreLoading(false);
     }
-  }, [restoreInput, replaceIdentity, copy.identity.restoreError, savedProfile, saveProfile]);
+  }, [restoreInput, replaceIdentity, copy.identity.restoreError, savedProfile, saveProfile, backupRestoreDisclosure]);
+
+  const handleConfirmBackupRestore = useCallback(async () => {
+    if (!pendingBackupPayload) return;
+    try {
+      const { restoreFromBackup } = await import('@/src/lib/backup/relayBackup');
+      await restoreFromBackup(pendingBackupPayload);
+      window.location.reload();
+    } catch (err) {
+      console.error('[Settings] Backup restore failed:', err);
+      backupRestoreDisclosure.onClose();
+      setPendingBackupPayload(null);
+      setRestoreSuccess(true);
+    }
+  }, [pendingBackupPayload, backupRestoreDisclosure]);
+
+  const handleDismissBackupRestore = useCallback(() => {
+    backupRestoreDisclosure.onClose();
+    setPendingBackupPayload(null);
+    setRestoreSuccess(true);
+  }, [backupRestoreDisclosure]);
 
   function handleReset() {
     resetAllData();
@@ -731,6 +777,38 @@ export default function SettingsPage() {
             </Button>
             <Button colorScheme="danger" onClick={handleReset} data-testid="reset-confirm-btn">
               {copy.settings.confirmReset}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Relay backup restore confirmation dialog */}
+      <Modal
+        isOpen={backupRestoreDisclosure.isOpen}
+        onClose={handleDismissBackupRestore}
+        isCentered
+      >
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Restore from backup?</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text>
+              A backup was found on the relay network. Restoring will replace all
+              local data (topics, progress, groups, and chat messages) with the
+              backed-up version. This cannot be undone.
+            </Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="ghost"
+              mr={3}
+              onClick={handleDismissBackupRestore}
+            >
+              Skip
+            </Button>
+            <Button colorScheme="blue" onClick={handleConfirmBackupRestore}>
+              Restore
             </Button>
           </ModalFooter>
         </ModalContent>

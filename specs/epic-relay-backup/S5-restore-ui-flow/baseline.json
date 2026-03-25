@@ -1,0 +1,10 @@
+{
+  "story": "S5",
+  "baseline": {
+    "testFiles": 12,
+    "testCount": 176,
+    "allPassing": true,
+    "capturedAt": "2026-03-25",
+    "note": "After S4 completion"
+  }
+}
