@@ -14,7 +14,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import type { Group, MemberScore, MemberProfile, ScoreUpdate } from '@/src/types';
+import type { Group, MemberScore, MemberProfile, ScoreUpdate, UserProfile } from '@/src/types';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import {
   loadAllGroups,
@@ -89,8 +89,8 @@ type MarmotContextValue = {
   publishScoreUpdate: (update: Omit<ScoreUpdate, 'sequenceNumber'>) => Promise<void>;
   /** Handle incoming score application message */
   onIncomingScore: (groupId: string, pubkeyHex: string, nickname: string, update: ScoreUpdate) => Promise<void>;
-  /** Publish profile to all groups */
-  publishProfileUpdate: () => Promise<void>;
+  /** Publish profile to all groups. Pass profileOverride to avoid stale-closure race. */
+  publishProfileUpdate: (profileOverride?: UserProfile) => Promise<void>;
   /** Get member profiles for a given group */
   getMemberProfiles: (groupId: string) => Promise<MemberProfile[]>;
   /** Reload groups from storage */
@@ -720,11 +720,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     return loadMemberProfiles(groupId);
   }, []);
 
-  const publishProfileUpdate = useCallback(async (): Promise<void> => {
+  const publishProfileUpdate = useCallback(async (profileOverride?: UserProfile): Promise<void> => {
     const client = clientRef.current;
     if (!client || groups.length === 0 || !pubkeyHex) return;
 
-    const payload = serialiseProfileUpdate(localProfile);
+    const payload = serialiseProfileUpdate(profileOverride ?? localProfile);
 
     for (const group of groups) {
       try {

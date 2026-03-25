@@ -278,7 +278,7 @@ export default function SettingsPage() {
 
   function handleProfileSave() {
     saveProfile(profile);
-    void publishProfileUpdate();
+    void publishProfileUpdate(profile);
     toast({
       title: copy.settings.profileSaved,
       status: 'success',
