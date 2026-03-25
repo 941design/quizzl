@@ -101,6 +101,8 @@ type MarmotContextValue = {
   getGroup: (groupId: string) => Promise<MarmotGroupType | null>;
   /** Access to the underlying MarmotClient (for advanced use) */
   getClient: () => MarmotClientType | null;
+  /** Monotonically increasing counter bumped on each received profile message */
+  profileVersion: number;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -117,8 +119,17 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const groupSubsRef = useRef<Map<string, () => void>>(new Map());
   // Track groups where profile has been published (to avoid re-publishing)
   const profilePublishedRef = useRef<Set<string>>(new Set());
+  // Ref for localProfile to avoid stale closures in subscription callbacks
+  const localProfileRef = useRef(localProfile);
+  // Bumped on every incoming profile message so UI can re-read from IDB
+  const [profileVersion, setProfileVersion] = useState(0);
   // Track discoverability status
   const [discoverable, setDiscoverable] = useState(false);
+
+  // Keep localProfileRef in sync so subscription callbacks always use the latest profile
+  useEffect(() => {
+    localProfileRef.current = localProfile;
+  }, [localProfile]);
 
   // Load groups from storage on mount
   const reloadGroups = useCallback(async () => {
@@ -413,7 +424,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                 const profilePayload = parseProfilePayload(rumor.content);
                 if (profilePayload) {
                   const memberProfile = payloadToMemberProfile(senderPubkey, profilePayload);
-                  void mergeMemberProfile(group.id, memberProfile).catch(
+                  // Write to IDB first, THEN bump profileVersion so GroupDetailView
+                  // re-reads after the write has landed (avoids stale-read race).
+                  void mergeMemberProfile(group.id, memberProfile).then(() => {
+                    setProfileVersion((v) => v + 1);
+                  }).catch(
                     (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
                   );
                   void updateMemberScoreNickname(group.id, senderPubkey, profilePayload.nickname).catch(
@@ -444,9 +459,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               // profile so they receive current profile data without relying on
               // historical messages alone. Do not gate on profilePublishedRef —
               // this must fire on every join regardless of prior publish.
+              // Uses localProfileRef to avoid stale-closure race when the user
+              // changes their nickname between subscription creation and member join.
               // Bug report: bug-reports/profile-propagation-new-members.md
               if (currentMembers.length > prevMemberCount) {
-                const payload = serialiseProfileUpdate(localProfile);
+                const payload = serialiseProfileUpdate(localProfileRef.current);
                 const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
                 void mlsGroup.sendApplicationRumor(rumor as any).catch((err: unknown) => {
                   console.warn(`[Marmot] onMembersChanged profile republish for ${group.id} failed:`, err);
@@ -454,12 +471,14 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               }
               prevMemberCount = currentMembers.length;
             },
-            // Publish profile after historical sync completes (epoch is up-to-date)
+            // Publish profile after historical sync completes (epoch is up-to-date).
+            // Uses localProfileRef to avoid stale-closure race.
             () => {
               if (profilePublishedRef.current.has(group.id)) return;
               profilePublishedRef.current.add(group.id);
-              const payload = serialiseProfileUpdate(localProfile);
-              console.info(`[Marmot] onHistorySynced: publishing profile for group ${group.id}, nickname="${localProfile.nickname}"`);
+              const currentProfile = localProfileRef.current;
+              const payload = serialiseProfileUpdate(currentProfile);
+              console.info(`[Marmot] onHistorySynced: publishing profile for group ${group.id}, nickname="${currentProfile.nickname}"`);
               const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
               void mlsGroup.sendApplicationRumor(rumor as any).then(() => {
                 console.info(`[Marmot] onHistorySynced: profile published successfully for group ${group.id}`);
@@ -778,6 +797,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       clearAll,
       getGroup,
       getClient,
+      profileVersion,
     }),
     [
       ready,
@@ -795,6 +815,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       clearAll,
       getGroup,
       getClient,
+      profileVersion,
     ]
   );
 
@@ -822,6 +843,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   clearAll: NOOP_ASYNC,
   getGroup: NOOP_NULL as () => Promise<null>,
   getClient: () => null,
+  profileVersion: 0,
 };
 
 export function useMarmot(): MarmotContextValue {

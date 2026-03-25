@@ -5,6 +5,7 @@ import {
   Text,
   Code,
   Box,
+  Badge,
   Image,
   useDisclosure,
 } from '@chakra-ui/react';
@@ -18,9 +19,11 @@ type MemberListProps = {
   memberPubkeys: string[];
   ownPubkeyHex: string | null;
   memberProfiles?: Record<string, MemberProfile>;
+  /** Pubkeys that have confirmed membership (sent a profile in this group) */
+  confirmedPubkeys?: Set<string>;
 };
 
-export default function MemberList({ memberPubkeys, ownPubkeyHex, memberProfiles }: MemberListProps) {
+export default function MemberList({ memberPubkeys, ownPubkeyHex, memberProfiles, confirmedPubkeys }: MemberListProps) {
   const copy = useCopy();
 
   if (memberPubkeys.length === 0) {
@@ -37,6 +40,7 @@ export default function MemberList({ memberPubkeys, ownPubkeyHex, memberProfiles
         const npub = pubkeyToNpub(pubkey);
         const isYou = pubkey === ownPubkeyHex;
         const profile = memberProfiles?.[pubkey];
+        const isPending = confirmedPubkeys ? !confirmedPubkeys.has(pubkey) && !isYou : false;
 
         return (
           <MemberListItem
@@ -44,6 +48,7 @@ export default function MemberList({ memberPubkeys, ownPubkeyHex, memberProfiles
             pubkey={pubkey}
             npub={npub}
             isYou={isYou}
+            isPending={isPending}
             profile={profile}
             showQrLabel={copy.groups.showQr}
             qrTitle={copy.groups.qrModalTitle}
@@ -59,6 +64,7 @@ type MemberListItemProps = {
   pubkey: string;
   npub: string;
   isYou: boolean;
+  isPending: boolean;
   profile?: MemberProfile;
   showQrLabel: string;
   qrTitle: string;
@@ -69,6 +75,7 @@ function MemberListItem({
   pubkey,
   npub,
   isYou,
+  isPending,
   profile,
   showQrLabel,
   qrTitle,
@@ -84,6 +91,7 @@ function MemberListItem({
         bg="surfaceMutedBg"
         borderWidth="1px"
         borderColor="borderSubtle"
+        opacity={isPending ? 0.6 : 1}
         data-testid={`member-item-${pubkey.slice(0, 8)}`}
       >
         <HStack justify="space-between" flexWrap="wrap" gap={2}>
@@ -112,6 +120,16 @@ function MemberListItem({
               >
                 {truncateNpub(npub)}
               </Code>
+            )}
+            {isPending && (
+              <Badge
+                colorScheme="yellow"
+                variant="subtle"
+                fontSize="2xs"
+                data-testid={`member-pending-${pubkey.slice(0, 8)}`}
+              >
+                Pending
+              </Badge>
             )}
             <NpubQrButton
               label={showQrLabel}

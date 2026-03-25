@@ -40,7 +40,7 @@ type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
-  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup } = useMarmot();
+  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion } = useMarmot();
   const { pubkeyHex } = useNostrIdentity();
   const { profile: ownProfile } = useProfile();
   const inviteDisclosure = useDisclosure();
@@ -48,6 +48,7 @@ function GroupDetailView({ id }: { id: string }) {
   const [notFound, setNotFound] = useState(false);
   const [memberScores, setMemberScores] = useState<MemberScore[]>([]);
   const [profileMap, setProfileMap] = useState<Record<string, MemberProfile>>({});
+  const [confirmedPubkeys, setConfirmedPubkeys] = useState<Set<string>>(new Set());
   const [mlsGroup, setMlsGroup] = useState<MarmotGroupType | null>(null);
 
   useEffect(() => {
@@ -60,9 +61,15 @@ function GroupDetailView({ id }: { id: string }) {
       void getMemberScores(id).then(setMemberScores).catch(() => {});
       void getMemberProfiles(id).then((profiles) => {
         const map: Record<string, MemberProfile> = {};
-        for (const p of profiles) map[p.pubkeyHex] = p;
+        // Track members who have sent a profile in this group (confirmed membership)
+        const confirmed = new Set<string>();
+        for (const p of profiles) {
+          map[p.pubkeyHex] = p;
+          confirmed.add(p.pubkeyHex);
+        }
 
         // Fill gaps from the global contact cache (known from other groups)
+        // Note: contact cache entries do NOT confirm membership in this group
         const contactCache = readContactCache();
         for (const pk of found.memberPubkeys) {
           if (!map[pk] && contactCache[pk]?.nickname) {
@@ -77,22 +84,26 @@ function GroupDetailView({ id }: { id: string }) {
         }
 
         // Always overlay own profile from ProfileContext (never depends on MLS)
-        if (pubkeyHex && ownProfile.nickname) {
-          map[pubkeyHex] = {
-            pubkeyHex,
-            nickname: ownProfile.nickname,
-            avatar: ownProfile.avatar,
-            badgeIds: ownProfile.badgeIds,
-            updatedAt: new Date().toISOString(),
-          };
+        if (pubkeyHex) {
+          confirmed.add(pubkeyHex);
+          if (ownProfile.nickname) {
+            map[pubkeyHex] = {
+              pubkeyHex,
+              nickname: ownProfile.nickname,
+              avatar: ownProfile.avatar,
+              badgeIds: ownProfile.badgeIds,
+              updatedAt: new Date().toISOString(),
+            };
+          }
         }
 
         setProfileMap(map);
+        setConfirmedPubkeys(confirmed);
       }).catch(() => {});
     } else {
       setNotFound(true);
     }
-  }, [ready, groups, id, getMemberScores, getMemberProfiles, pubkeyHex, ownProfile]);
+  }, [ready, groups, id, getMemberScores, getMemberProfiles, pubkeyHex, ownProfile, profileVersion]);
 
   if (!ready) {
     return (
@@ -175,6 +186,7 @@ function GroupDetailView({ id }: { id: string }) {
               memberPubkeys={group.memberPubkeys}
               ownPubkeyHex={pubkeyHex}
               memberProfiles={profileMap}
+              confirmedPubkeys={confirmedPubkeys}
             />
           </Box>
 
