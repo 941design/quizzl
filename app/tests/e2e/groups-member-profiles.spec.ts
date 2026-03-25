@@ -1,5 +1,5 @@
 import { test, expect, BrowserContext, Page } from '@playwright/test';
-import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
+import { USER_A, USER_B, USER_C, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 
@@ -99,5 +99,102 @@ test.describe.serial('Group member profiles — names instead of npubs', () => {
     const bobPrefix = USER_B.pubkeyHex.slice(0, 8);
     await expect(pageA.getByTestId(`member-name-${bobPrefix}`)).toBeVisible({ timeout: 30_000 });
     await expect(pageA.getByTestId(`member-name-${bobPrefix}`)).toHaveText('Bob');
+  });
+});
+
+test.describe.serial('New member receives all existing member profiles', () => {
+  let ctxA: BrowserContext;
+  let ctxB: BrowserContext;
+  let ctxC: BrowserContext;
+  let pgA: Page;
+  let pgB: Page;
+  let pgC: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    await computeTestKeypairs();
+    ({ context: ctxA, page: pgA } = await bootUserWithProfile(browser, USER_A, 'Alice'));
+    ({ context: ctxB, page: pgB } = await bootUserWithProfile(browser, USER_B, 'Bob'));
+    ({ context: ctxC, page: pgC } = await bootUserWithProfile(browser, USER_C, 'Carol'));
+  });
+
+  test.afterAll(async () => {
+    await ctxA?.close();
+    await ctxB?.close();
+    await ctxC?.close();
+  });
+
+  test('A creates group and invites B', async () => {
+    // Create group
+    await pgA.getByTestId('create-group-btn').click();
+    await expect(pgA.getByTestId('create-group-modal-content')).toBeVisible();
+    await pgA.getByTestId('create-group-name-input').fill('Three Member Profile Group');
+    await pgA.getByTestId('create-group-submit-btn').click();
+    await expect(pgA.getByText('Three Member Profile Group')).toBeVisible({ timeout: 30_000 });
+    await expect(pgA.getByTestId('create-group-modal-content')).not.toBeVisible({ timeout: 10_000 });
+    await dismissErrorOverlay(pgA);
+
+    // Open group detail
+    await pgA.locator(':has-text("Three Member Profile Group")').getByRole('link', { name: 'Open' }).click();
+    await expect(pgA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+
+    // Wait for B to publish KeyPackages
+    await pgB.waitForTimeout(5_000);
+
+    // Invite B
+    await dismissErrorOverlay(pgA);
+    await pgA.getByTestId('invite-member-btn').click();
+    await expect(pgA.getByTestId('invite-member-modal-content')).toBeVisible();
+    await pgA.getByTestId('invite-npub-input').fill(USER_B.npub);
+    await pgA.getByTestId('invite-submit-btn').click();
+    await expect(pgA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
+
+    // B receives Welcome and joins
+    await pgB.goto('/groups/');
+    await expect(pgB.getByText('Three Member Profile Group')).toBeVisible({ timeout: 60_000 });
+
+    // Wait for profile exchange between A and B
+    await pgB.waitForTimeout(10_000);
+  });
+
+  test('A invites C — C sees both Alice and Bob profiles', async () => {
+    // Wait for C to publish KeyPackages
+    await pgC.waitForTimeout(5_000);
+
+    // A invites C
+    await dismissErrorOverlay(pgA);
+    await pgA.goto('/groups/');
+    await pgA.locator(':has-text("Three Member Profile Group")').getByRole('link', { name: 'Open' }).click();
+    await expect(pgA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+    await pgA.getByTestId('invite-member-btn').click();
+    await expect(pgA.getByTestId('invite-member-modal-content')).toBeVisible();
+    await pgA.getByTestId('invite-npub-input').fill(USER_C.npub);
+    await pgA.getByTestId('invite-submit-btn').click();
+    await expect(pgA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
+
+    // C receives Welcome and joins
+    await pgC.goto('/groups/');
+    await expect(pgC.getByText('Three Member Profile Group')).toBeVisible({ timeout: 60_000 });
+
+    // Wait for A and B to republish profiles after detecting new member
+    await pgC.waitForTimeout(10_000);
+
+    // C opens group detail
+    await pgC.locator(':has-text("Three Member Profile Group")').getByRole('link', { name: 'Open' }).click();
+    await expect(pgC.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+
+    // C should see Alice's profile
+    const alicePrefix = USER_A.pubkeyHex.slice(0, 8);
+    await expect(pgC.getByTestId(`member-name-${alicePrefix}`)).toBeVisible({ timeout: 30_000 });
+    await expect(pgC.getByTestId(`member-name-${alicePrefix}`)).toHaveText('Alice');
+
+    // C should see Bob's profile
+    const bobPrefix = USER_B.pubkeyHex.slice(0, 8);
+    await expect(pgC.getByTestId(`member-name-${bobPrefix}`)).toBeVisible({ timeout: 30_000 });
+    await expect(pgC.getByTestId(`member-name-${bobPrefix}`)).toHaveText('Bob');
+
+    // C should see own profile
+    const carolPrefix = USER_C.pubkeyHex.slice(0, 8);
+    await expect(pgC.getByTestId(`member-name-${carolPrefix}`)).toBeVisible({ timeout: 30_000 });
+    await expect(pgC.getByTestId(`member-name-${carolPrefix}`)).toHaveText('Carol');
   });
 });
