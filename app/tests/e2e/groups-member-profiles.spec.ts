@@ -6,7 +6,7 @@ import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-err
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 const TEST_AVATAR = {
   id: 'apple',
-  imageUrl: '//wp10665333.server-he.de/avatars/apple.png',
+  imageUrl: '//assets.941design.de/apple.png',
   subject: 'apple',
   accessories: [] as string[],
 };

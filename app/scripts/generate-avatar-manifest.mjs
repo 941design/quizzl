@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const FETCH_BASE_URL = 'https://wp10665333.server-he.de';
-const STORED_BASE_URL = '//wp10665333.server-he.de';
+const FETCH_BASE_URL = 'https://assets.941design.de';
+const STORED_BASE_URL = '//assets.941design.de';
 const SEARCH_URL = `${FETCH_BASE_URL}/cgi/search`;
 const PAGE_SIZE = 500;
 const CONCURRENCY = 8;
@@ -117,7 +117,7 @@ async function buildManifest() {
 
       return {
         id: fileName.replace(/\.png$/i, ''),
-        imageUrl: `${STORED_BASE_URL}${relativeUrl}`,
+        imageUrl: `${STORED_BASE_URL}/${fileName}`,
         subject,
         accessories: normalizeAccessories(metadata.var_accessories),
         sortOrder: index,

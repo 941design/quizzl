@@ -13,5 +13,5 @@ export const PROFILE_BADGES = [
 export const AVATAR_BROWSER_CONFIG = {
   resultPageSize: 18,
   defaultSubjects: ['strawberry', 'banana', 'apple', 'carrot', 'watermelon', 'pineapple'],
-  endpointBaseUrl: '//wp10665333.server-he.de',
+  endpointBaseUrl: '//assets.941design.de',
 } as const;

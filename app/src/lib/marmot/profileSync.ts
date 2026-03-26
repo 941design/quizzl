@@ -54,7 +54,7 @@ export function payloadToMemberProfile(pubkeyHex: string, payload: ProfilePayloa
       id: payload.avatar.id,
       subject: payload.avatar.subject,
       accessories: payload.avatar.accessories,
-      imageUrl: `${AVATAR_BROWSER_CONFIG.endpointBaseUrl}/avatars/${payload.avatar.id}.png`,
+      imageUrl: `${AVATAR_BROWSER_CONFIG.endpointBaseUrl}/${payload.avatar.id}.png`,
     };
   }
   return {
