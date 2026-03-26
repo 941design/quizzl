@@ -6,7 +6,7 @@ PLAYWRIGHT_STAMP := $(APP_DIR)/node_modules/.playwright_$(shell uname -s)-$(shel
 -include .env
 export
 
-.PHONY: help test build test-unit test-e2e test-e2e-groups e2e-up e2e-down playwright run-dev clean install deploy deploy-check deploy-dryrun ssl-cert ensure-deps ensure-playwright
+.PHONY: help test build test-unit test-e2e test-e2e-groups e2e-up e2e-down playwright run-dev clean install deploy deploy-check deploy-dryrun ssl-cert ssl-cert-assets ensure-deps ensure-playwright
 
 # Default target
 .DEFAULT_GOAL := help
@@ -162,6 +162,7 @@ deploy-dryrun: ## Show what would be deployed (no upload)
 # Requires: certbot (brew install certbot / apt install certbot)
 
 SSL_DOMAIN := quizzl.941design.de
+SSL_ASSETS_DOMAIN := assets.941design.de
 SSL_DIR := .ssl
 
 ssl-cert: ## Generate Let's Encrypt certificate for HostEurope
@@ -195,3 +196,35 @@ ssl-cert: ## Generate Let's Encrypt certificate for HostEurope
 	@echo ""
 	@echo "Upload at: Webhosting → Sicherheit & SSL → SSL Administrieren → Ersetzen"
 	@echo "Renew in ~60-90 days by running: make ssl-cert"
+
+ssl-cert-assets: ## Generate Let's Encrypt certificate for assets subdomain
+	@if ! command -v certbot >/dev/null 2>&1; then \
+		echo "ERROR: certbot not installed."; \
+		echo "  macOS:  brew install certbot"; \
+		echo "  Linux:  sudo apt install certbot"; \
+		exit 1; \
+	fi
+	@echo "Generating Let's Encrypt certificate for $(SSL_ASSETS_DOMAIN)..."
+	@echo ""
+	@echo "This will use a manual DNS challenge — you'll need to create a"
+	@echo "TXT record in your DNS settings when prompted."
+	@echo ""
+	certbot certonly \
+		--manual \
+		--preferred-challenges dns \
+		--key-type rsa \
+		--config-dir $(SSL_DIR)/config \
+		--work-dir $(SSL_DIR)/work \
+		--logs-dir $(SSL_DIR)/logs \
+		-d $(SSL_ASSETS_DOMAIN)
+	@echo ""
+	@echo "=== Certificate generated ==="
+	@echo ""
+	@echo "Files for HostEurope KIS upload:"
+	@echo "  Zertifikat:  $$(find $(SSL_DIR)/config/live/$(SSL_ASSETS_DOMAIN) -name fullchain.pem)"
+	@echo "  Key:         $$(find $(SSL_DIR)/config/live/$(SSL_ASSETS_DOMAIN) -name privkey.pem)"
+	@echo "  Passwort:    (leave empty)"
+	@echo "  CA:          (leave empty)"
+	@echo ""
+	@echo "Upload at: Webhosting → Sicherheit & SSL → SSL Administrieren → Ersetzen"
+	@echo "Renew in ~60-90 days by running: make ssl-cert-assets"
