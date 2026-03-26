@@ -4,20 +4,27 @@ import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
+const TEST_AVATAR = {
+  id: 'apple',
+  imageUrl: '//wp10665333.server-he.de/avatars/apple.png',
+  subject: 'apple',
+  accessories: [] as string[],
+};
 
 /** Boot a user with identity AND profile nickname pre-set in localStorage. */
 async function bootUserWithProfile(
   browser: { newContext: (opts: object) => Promise<BrowserContext> },
   user: typeof USER_A,
   nickname: string,
+  avatar: { id: string; imageUrl: string; subject: string; accessories: string[] } | null = null,
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ baseURL: BASE_URL });
   await suppressErrorOverlay(context);
   // Inject identity + profile via init script BEFORE any page JavaScript runs.
-  await context.addInitScript(({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
+  await context.addInitScript(({ privateKeyHex, pubkeyHex, seedHex, nickname, avatar }) => {
     localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-    localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
-  }, { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname });
+    localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar, badgeIds: [] }));
+  }, { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname, avatar });
   const page = await context.newPage();
   await page.goto('/');
   await clearAppState(page);
@@ -39,7 +46,7 @@ test.describe.serial('Group member profiles — names instead of npubs', () => {
   test.beforeAll(async ({ browser }) => {
     await computeTestKeypairs();
     ({ context: contextA, page: pageA } = await bootUserWithProfile(browser, USER_A, 'Alice'));
-    ({ context: contextB, page: pageB } = await bootUserWithProfile(browser, USER_B, 'Bob'));
+    ({ context: contextB, page: pageB } = await bootUserWithProfile(browser, USER_B, 'Bob', TEST_AVATAR));
   });
 
   test.afterAll(async () => {
@@ -67,7 +74,7 @@ test.describe.serial('Group member profiles — names instead of npubs', () => {
     await expect(pageA.getByTestId(`member-name-${ownPrefix}`)).toHaveText('Alice');
   });
 
-  test('Invited member profile name is shown after join', async () => {
+  test('Invited member profile replaces npub and shows avatar after join', async () => {
     // Wait for User B to publish KeyPackages
     await pageB.waitForTimeout(5_000);
 
@@ -99,6 +106,10 @@ test.describe.serial('Group member profiles — names instead of npubs', () => {
     const bobPrefix = USER_B.pubkeyHex.slice(0, 8);
     await expect(pageA.getByTestId(`member-name-${bobPrefix}`)).toBeVisible({ timeout: 30_000 });
     await expect(pageA.getByTestId(`member-name-${bobPrefix}`)).toHaveText('Bob');
+    await expect(pageA.getByTestId(`member-npub-${bobPrefix}`)).toHaveCount(0);
+    await expect(
+      pageA.locator(`[data-testid="member-item-${bobPrefix}"] img[alt="Bob"]`),
+    ).toHaveCount(1);
   });
 });
 

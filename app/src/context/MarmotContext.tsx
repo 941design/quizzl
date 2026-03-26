@@ -103,6 +103,8 @@ type MarmotContextValue = {
   getClient: () => MarmotClientType | null;
   /** Monotonically increasing counter bumped on each received profile message */
   profileVersion: number;
+  /** Monotonically increasing counter bumped on each received chat message */
+  chatVersion: number;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -123,6 +125,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const localProfileRef = useRef(localProfile);
   // Bumped on every incoming profile message so UI can re-read from IDB
   const [profileVersion, setProfileVersion] = useState(0);
+  // Bumped on every incoming chat message so ChatStoreContext can re-read from IDB
+  const [chatVersion, setChatVersion] = useState(0);
   // Track discoverability status
   const [discoverable, setDiscoverable] = useState(false);
 
@@ -444,6 +448,18 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                   });
                 }
               } else if (rumor.kind === CHAT_MESSAGE_KIND) {
+                void import('@/src/lib/marmot/chatPersistence').then(({ appendMessage }) => {
+                  const msg = {
+                    id: rumor.id,
+                    content: rumor.content,
+                    senderPubkey: rumor.pubkey,
+                    groupId: group.id,
+                    createdAt: rumor.created_at * 1000,
+                  };
+                  void appendMessage(group.id, msg).then(() => {
+                    setChatVersion((v) => v + 1);
+                  }).catch((err: unknown) => console.warn('[Marmot] chat appendMessage failed:', err));
+                });
                 incrementUnread(group.id);
               }
             },
@@ -665,6 +681,19 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           await reloadGroups();
         }
 
+        // Ensure the inviter also re-sends its current profile immediately
+        // after the invite commit lands. Relying only on onMembersChanged is
+        // insufficient here because the local overlay can refresh member count
+        // before the subscription callback observes the join, which prevents
+        // the inviter from sending its "welcome" profile to the new member.
+        try {
+          const payload = serialiseProfileUpdate(localProfileRef.current);
+          const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
+          await mlsGroup.sendApplicationRumor(rumor as any);
+        } catch (profileErr) {
+          console.warn('[Marmot] inviter profile publish after invite failed:', profileErr);
+        }
+
         markBackupDirty(true);
         return { ok: true };
       } catch (err) {
@@ -672,7 +701,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, error: 'generic' };
       }
     },
-    [groups, reloadGroups, markBackupDirty]
+    [groups, reloadGroups, markBackupDirty, pubkeyHex]
   );
 
   const leaveGroup = useCallback(async (groupId: string): Promise<boolean> => {
@@ -816,6 +845,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       getGroup,
       getClient,
       profileVersion,
+      chatVersion,
     }),
     [
       ready,
@@ -834,6 +864,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       getGroup,
       getClient,
       profileVersion,
+      chatVersion,
     ]
   );
 
@@ -862,6 +893,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   getGroup: NOOP_NULL as () => Promise<null>,
   getClient: () => null,
   profileVersion: 0,
+  chatVersion: 0,
 };
 
 export function useMarmot(): MarmotContextValue {
