@@ -184,6 +184,9 @@ export default function AvatarBrowserModal({
                         overflow="hidden"
                         bg="surfaceBg"
                         borderColor={initialAvatar?.id === avatar.id ? 'brand.500' : 'borderSubtle'}
+                        cursor="pointer"
+                        _hover={{ borderColor: 'brand.400' }}
+                        onClick={() => onSelect(avatar)}
                         data-testid={`avatar-card-${avatar.id}`}
                       >
                         <Box p={3}>
@@ -206,7 +209,10 @@ export default function AvatarBrowserModal({
                           </Text>
                           <Button
                             size="sm"
-                            onClick={() => onSelect(avatar)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelect(avatar);
+                            }}
                             data-testid={`select-avatar-${avatar.id}`}
                           >
                             {copy.settings.useThisAvatar}
