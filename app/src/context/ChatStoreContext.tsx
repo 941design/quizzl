@@ -38,6 +38,8 @@ interface ChatStoreProviderProps {
   groupId: string | null;
   group: MarmotGroupType | null;
   pubkey: string;
+  /** Bumped by MarmotContext when a chat message is persisted to IDB */
+  chatVersion?: number;
   children: React.ReactNode;
 }
 
@@ -45,6 +47,7 @@ export function ChatStoreProvider({
   groupId,
   group,
   pubkey,
+  chatVersion,
   children,
 }: ChatStoreProviderProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -121,6 +124,21 @@ export function ChatStoreProvider({
       groupRef.current = null;
     };
   }, [groupId, group]);
+
+  // Re-read from IDB when MarmotContext persists a new chat message.
+  // This handles messages that arrive via the Nostr subscription while
+  // ChatStoreContext may or may not have received the MarmotGroup event.
+  useEffect(() => {
+    if (!groupId || chatVersion === undefined || chatVersion === 0) return;
+    loadMessages(groupId).then((stored) => {
+      setMessages((prev) => {
+        const prevIds = new Set(prev.map((m) => m.id));
+        const newFromStore = stored.filter((m) => !prevIds.has(m.id));
+        if (newFromStore.length === 0) return prev;
+        return [...prev, ...newFromStore].sort((a, b) => a.createdAt - b.createdAt);
+      });
+    }).catch(() => {});
+  }, [groupId, chatVersion]);
 
   const sendMessage = useCallback(
     async (content: string) => {

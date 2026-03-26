@@ -40,7 +40,7 @@ type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
-  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion } = useMarmot();
+  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion } = useMarmot();
   const { pubkeyHex } = useNostrIdentity();
   const { profile: ownProfile } = useProfile();
   const inviteDisclosure = useDisclosure();
@@ -206,6 +206,7 @@ function GroupDetailView({ id }: { id: string }) {
               groupId={group.id}
               group={mlsGroup}
               pubkey={pubkeyHex ?? ''}
+              chatVersion={chatVersion}
             >
               <GroupChat pubkey={pubkeyHex ?? ''} profileMap={profileMap} />
             </ChatStoreProvider>
