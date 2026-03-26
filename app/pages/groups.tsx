@@ -134,6 +134,12 @@ function GroupDetailView({ id }: { id: string }) {
   if (!group) return null;
 
   const memberCount = group.memberPubkeys.length;
+  const isAdmin = !!(
+    pubkeyHex &&
+    mlsGroup?.groupData?.adminPubkeys?.some(
+      (pk: string) => pk.toLowerCase() === pubkeyHex.toLowerCase(),
+    )
+  );
 
   return (
     <>
@@ -166,6 +172,7 @@ function GroupDetailView({ id }: { id: string }) {
             <Button
               size="sm"
               onClick={inviteDisclosure.onOpen}
+              isDisabled={!isAdmin}
               data-testid="invite-member-btn"
             >
               {copy.groups.inviteMember}

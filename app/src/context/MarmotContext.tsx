@@ -635,6 +635,24 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
         const inviteResult = await mlsGroup.inviteByKeyPackageEvent(nostrEvent);
 
+        // Promote the new member to admin so they can also invite others.
+        // This commits a GroupContextExtensions proposal updating adminPubkeys.
+        try {
+          const currentAdmins = mlsGroup.groupData?.adminPubkeys ?? [];
+          if (!currentAdmins.some(pk => pk.toLowerCase() === inviteePubkey.toLowerCase())) {
+            const { Proposals } = await import('@internet-privacy/marmot-ts');
+            await mlsGroup.commit({
+              extraProposals: [
+                Proposals.proposeUpdateMetadata({
+                  adminPubkeys: [...currentAdmins, inviteePubkey],
+                }),
+              ],
+            });
+          }
+        } catch (adminErr) {
+          console.warn('[Marmot] promote-to-admin commit failed (non-fatal):', adminErr);
+        }
+
         // Refresh member list from MLS group state (authoritative source)
         const stored = groups.find((g) => g.id === groupId);
         if (stored) {
