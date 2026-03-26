@@ -40,7 +40,7 @@ type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
-  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion } = useMarmot();
+  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion } = useMarmot();
   const { pubkeyHex } = useNostrIdentity();
   const { profile: ownProfile } = useProfile();
   const inviteDisclosure = useDisclosure();
@@ -61,11 +61,11 @@ function GroupDetailView({ id }: { id: string }) {
       void getMemberScores(id).then(setMemberScores).catch(() => {});
       void getMemberProfiles(id).then((profiles) => {
         const map: Record<string, MemberProfile> = {};
-        // Track members who have sent a profile in this group (confirmed membership)
-        const confirmed = new Set<string>();
+        // All MLS members are confirmed — seed from the authoritative member list.
+        // Profile receipt only enhances display, it does not determine membership.
+        const confirmed = new Set<string>(found.memberPubkeys);
         for (const p of profiles) {
           map[p.pubkeyHex] = p;
-          confirmed.add(p.pubkeyHex);
         }
 
         // Fill gaps from the global contact cache (known from other groups)
@@ -103,7 +103,7 @@ function GroupDetailView({ id }: { id: string }) {
     } else {
       setNotFound(true);
     }
-  }, [ready, groups, id, getMemberScores, getMemberProfiles, pubkeyHex, ownProfile, profileVersion]);
+  }, [ready, groups, id, getMemberScores, getMemberProfiles, pubkeyHex, ownProfile, profileVersion, groupDataVersion]);
 
   if (!ready) {
     return (

@@ -253,6 +253,7 @@ type Copy = {
     inviteHelp: string;
     inviteSubmit: string;
     inviteSuccess: string;
+    inviteWarningAdminPromotion: string;
     inviteErrorNoKeyPackage: string;
     inviteErrorInvalidNpub: string;
     inviteErrorOffline: string;
@@ -559,6 +560,7 @@ const copy: Record<LanguageCode, Copy> = {
       inviteHelp: 'Enter or scan the npub of the person you want to invite. They must have used Quizzl at least once to appear.',
       inviteSubmit: 'Send Invite',
       inviteSuccess: 'Invitation sent successfully.',
+      inviteWarningAdminPromotion: 'Invited, but admin promotion failed. The new member may not be able to invite others.',
       inviteErrorNoKeyPackage: 'This user has not set up their Quizzl identity yet.',
       inviteErrorInvalidNpub: 'Invalid npub format.',
       inviteErrorOffline: 'You are offline. Please connect to invite members.',
@@ -853,6 +855,7 @@ const copy: Record<LanguageCode, Copy> = {
       inviteHelp: 'Gib die npub der Person ein oder scanne sie. Die Person muss Quizzl bereits einmal verwendet haben.',
       inviteSubmit: 'Einladung senden',
       inviteSuccess: 'Einladung erfolgreich gesendet.',
+      inviteWarningAdminPromotion: 'Eingeladen, aber Admin-Beförderung fehlgeschlagen. Das neue Mitglied kann möglicherweise keine anderen einladen.',
       inviteErrorNoKeyPackage: 'Dieser Nutzer hat seine Quizzl-Identität noch nicht eingerichtet.',
       inviteErrorInvalidNpub: 'Ungültiges npub-Format.',
       inviteErrorOffline: 'Du bist offline. Bitte verbinde dich, um Mitglieder einzuladen.',

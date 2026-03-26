@@ -39,6 +39,7 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null);
 
   function getErrorMessage(errorCode: string | undefined): string {
     switch (errorCode) {
@@ -61,6 +62,7 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
 
     setIsLoading(true);
     setError(null);
+    setWarning(null);
     setSuccess(false);
 
     try {
@@ -68,10 +70,14 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
       if (result.ok) {
         setSuccess(true);
         setNpubInput('');
+        if (result.warning === 'admin_promotion_failed') {
+          setWarning(copy.groups.inviteWarningAdminPromotion);
+        }
         setTimeout(() => {
           setSuccess(false);
+          setWarning(null);
           onClose();
-        }, 1500);
+        }, result.warning ? 3000 : 1500);
       } else {
         setError(getErrorMessage(result.error));
       }
@@ -86,6 +92,7 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
   function handleClose() {
     setNpubInput('');
     setError(null);
+    setWarning(null);
     setSuccess(false);
     scanDisclosure.onClose();
     onClose();
@@ -110,6 +117,12 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
                 <Alert status="success" borderRadius="md" data-testid="invite-success">
                   <AlertIcon />
                   <AlertDescription>{copy.groups.inviteSuccess}</AlertDescription>
+                </Alert>
+              )}
+              {warning && (
+                <Alert status="warning" borderRadius="md" data-testid="invite-warning">
+                  <AlertIcon />
+                  <AlertDescription>{warning}</AlertDescription>
                 </Alert>
               )}
               <FormControl isRequired>

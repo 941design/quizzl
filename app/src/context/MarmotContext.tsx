@@ -82,7 +82,7 @@ type MarmotContextValue = {
   /** Create a new group */
   createGroup: (name: string) => Promise<Group | null>;
   /** Invite a user by npub to a group */
-  inviteByNpub: (groupId: string, npub: string) => Promise<{ ok: boolean; error?: string }>;
+  inviteByNpub: (groupId: string, npub: string) => Promise<{ ok: boolean; error?: string; warning?: string }>;
   /** Leave a group */
   leaveGroup: (groupId: string) => Promise<boolean>;
   /** Publish a ScoreUpdate to all groups */
@@ -105,6 +105,8 @@ type MarmotContextValue = {
   profileVersion: number;
   /** Monotonically increasing counter bumped on each received chat message */
   chatVersion: number;
+  /** Monotonically increasing counter bumped when group metadata (e.g. adminPubkeys) may change */
+  groupDataVersion: number;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -127,6 +129,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const [profileVersion, setProfileVersion] = useState(0);
   // Bumped on every incoming chat message so ChatStoreContext can re-read from IDB
   const [chatVersion, setChatVersion] = useState(0);
+  // Bumped when group metadata (e.g. adminPubkeys) may have changed via MLS commit
+  const [groupDataVersion, setGroupDataVersion] = useState(0);
   // Track discoverability status
   const [discoverable, setDiscoverable] = useState(false);
 
@@ -466,6 +470,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             // Refresh memberPubkeys from MLS state after ingesting any event
             // (commits, proposals, etc. — not just application messages)
             async (currentMembers) => {
+              // Always bump groupDataVersion so consumers (e.g. isAdmin) re-read
+              // group metadata after any MLS commit, even when member count is unchanged.
+              setGroupDataVersion((v) => v + 1);
               const stored = groups.find((g) => g.id === group.id);
               if (stored && currentMembers.length !== stored.memberPubkeys.length) {
                 await persistGroup({ ...stored, memberPubkeys: currentMembers });
@@ -604,7 +611,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   }, [pubkeyHex, reloadGroups, localProfile, markBackupDirty]);
 
   const inviteByNpub = useCallback(
-    async (groupId: string, npub: string): Promise<{ ok: boolean; error?: string }> => {
+    async (groupId: string, npub: string): Promise<{ ok: boolean; error?: string; warning?: string }> => {
       const client = clientRef.current;
       if (!client) return { ok: false, error: 'Not initialized' };
 
@@ -653,6 +660,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
         // Promote the new member to admin so they can also invite others.
         // This commits a GroupContextExtensions proposal updating adminPubkeys.
+        let adminPromotionFailed = false;
         try {
           const currentAdmins = mlsGroup.groupData?.adminPubkeys ?? [];
           if (!currentAdmins.some(pk => pk.toLowerCase() === inviteePubkey.toLowerCase())) {
@@ -666,7 +674,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             });
           }
         } catch (adminErr) {
-          console.warn('[Marmot] promote-to-admin commit failed (non-fatal):', adminErr);
+          console.warn('[Marmot] promote-to-admin commit failed:', adminErr);
+          adminPromotionFailed = true;
         }
 
         // Refresh member list from MLS group state (authoritative source)
@@ -695,7 +704,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         }
 
         markBackupDirty(true);
-        return { ok: true };
+        return adminPromotionFailed
+          ? { ok: true, warning: 'admin_promotion_failed' }
+          : { ok: true };
       } catch (err) {
         console.error('[Marmot] inviteByNpub failed:', err);
         return { ok: false, error: 'generic' };
@@ -846,6 +857,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       getClient,
       profileVersion,
       chatVersion,
+      groupDataVersion,
     }),
     [
       ready,
@@ -865,6 +877,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       getClient,
       profileVersion,
       chatVersion,
+      groupDataVersion,
     ]
   );
 
@@ -894,6 +907,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   getClient: () => null,
   profileVersion: 0,
   chatVersion: 0,
+  groupDataVersion: 0,
 };
 
 export function useMarmot(): MarmotContextValue {
