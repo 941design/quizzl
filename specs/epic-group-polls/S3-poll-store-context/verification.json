@@ -1,0 +1,10 @@
+{
+  "questions": [
+    {"q": "Does PollStoreContext re-read from IDB when pollVersion changes?", "answer": "YES"},
+    {"q": "Does createPoll send kind 10 + kind 9 chat announcement?", "answer": "YES"},
+    {"q": "Does castVote send kind 11 and persist vote locally?", "answer": "YES"},
+    {"q": "Does closePoll tally votes, send kind 12 + kind 9 results, and update poll?", "answer": "YES"},
+    {"q": "Does closePoll check that caller pubkey matches creatorPubkey?", "answer": "YES"},
+    {"q": "Does PollStoreProvider mirror ChatStoreProvider's interface pattern?", "answer": "YES"}
+  ]
+}

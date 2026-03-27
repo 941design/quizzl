@@ -1,0 +1,10 @@
+{
+  "questions": [
+    {"q": "Does MarmotContext expose pollVersion as a monotonically increasing counter?", "answer": "YES"},
+    {"q": "Does the rumor handler dispatch kind 10 to savePoll with closed:false?", "answer": "YES"},
+    {"q": "Does kind 11 handler ignore votes for closed polls?", "answer": "YES"},
+    {"q": "Does kind 12 handler verify sender matches creatorPubkey before closing?", "answer": "YES"},
+    {"q": "Does leaveGroup call clearPollData?", "answer": "YES"},
+    {"q": "Does pollVersion increment after each successful IDB write?", "answer": "YES"}
+  ]
+}

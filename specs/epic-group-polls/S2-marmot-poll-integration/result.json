@@ -1,0 +1,10 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "files_created": [],
+  "files_modified": ["app/src/context/MarmotContext.tsx"],
+  "tests_added": 0,
+  "tests_total": 228,
+  "all_passing": true,
+  "completed_at": "2026-03-27T00:00:00Z"
+}

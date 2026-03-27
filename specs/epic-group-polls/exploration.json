@@ -1,0 +1,66 @@
+{
+  "language": "typescript",
+  "framework": "next.js 14 (static export)",
+  "ui_library": "chakra-ui v2",
+  "test_framework": "vitest (unit), playwright (e2e)",
+  "test_command": "make test-unit",
+  "baseline": {
+    "test_files": 13,
+    "tests": 193,
+    "all_passing": true
+  },
+  "architecture": {
+    "persistence": {
+      "pattern": "idb-keyval (get/set/del) with storageKey pattern",
+      "chat_persistence": "app/src/lib/marmot/chatPersistence.ts",
+      "group_storage": "app/src/lib/marmot/groupStorage.ts",
+      "notes": "Messages stored per-group under 'quizzl:messages:{groupId}'. Uses append serialization queues to avoid race conditions."
+    },
+    "sync_modules": {
+      "pattern": "serialize/parse functions + rumor kind constant",
+      "score_sync": "app/src/lib/marmot/scoreSync.ts (kind 1)",
+      "profile_sync": "app/src/lib/marmot/profileSync.ts (kind 0)",
+      "chat": "app/src/lib/marmot/chatPersistence.ts (kind 9)"
+    },
+    "marmot_context": {
+      "file": "app/src/context/MarmotContext.tsx",
+      "message_handler_location": "lines 437-485 (rumor kind dispatch)",
+      "version_counters": ["profileVersion", "chatVersion", "groupDataVersion"],
+      "pattern": "New kind handlers go in the subscription callback at line 437, adding elif branch for the new kind. New version counter follows chatVersion pattern."
+    },
+    "chat_store_context": {
+      "file": "app/src/context/ChatStoreContext.tsx",
+      "pattern": "Receives groupId, mlsGroup, pubkey, chatVersion. Loads from IDB, listens to applicationMessage events, provides sendMessage. Poll store will mirror this pattern."
+    },
+    "group_detail_view": {
+      "file": "app/pages/groups.tsx",
+      "component": "GroupDetailView (line 41)",
+      "layout": "VStack with Members, Chat (ChatStoreProvider > GroupChat), Scores sections",
+      "chat_section": "lines 200-213 - ChatStoreProvider wrapping GroupChat"
+    },
+    "mls_message_pattern": {
+      "send": "buildRumor(kind, content, pubkey) -> mlsGroup.sendApplicationRumor(rumor)",
+      "receive": "rumor callback in subscribeToGroupMessages, dispatch by rumor.kind",
+      "existing_kinds": {
+        "0": "profile",
+        "1": "score",
+        "9": "chat"
+      },
+      "new_kinds": {
+        "10": "poll_open",
+        "11": "poll_vote",
+        "12": "poll_close"
+      }
+    }
+  },
+  "similar_features": {
+    "chat_flow": "Best analog - ChatStoreContext + GroupChat + chatPersistence.ts forms the complete pattern. Poll implementation mirrors: PollStoreContext + PollPanel + pollPersistence.ts",
+    "modal_pattern": "CreateGroupModal, InviteMemberModal - Chakra useDisclosure + Modal component"
+  },
+  "integration_points": [
+    "MarmotContext.tsx:437 - Add kind 10/11/12 handlers in rumor dispatch",
+    "MarmotContext.tsx:107 - Add pollVersion counter",
+    "pages/groups.tsx:200-213 - Add PollPanel alongside GroupChat",
+    "GroupChat.tsx - Detect structured poll messages in chat rendering"
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "epic": "group-polls",
+  "stories": [
+    {
+      "id": "S1",
+      "name": "poll-persistence-and-sync",
+      "title": "Poll persistence layer and sync module",
+      "status": "done",
+      "story_order": 1,
+      "acceptance_criteria": ["AC-1", "AC-2"],
+      "scope": "Create pollPersistence.ts (IDB CRUD for polls/votes) and pollSync.ts (serialize/parse for kinds 10, 11, 12). No UI, no context integration.",
+      "depends_on": []
+    },
+    {
+      "id": "S2",
+      "name": "marmot-poll-integration",
+      "title": "MarmotContext poll message handling",
+      "status": "done",
+      "story_order": 2,
+      "acceptance_criteria": ["AC-3"],
+      "scope": "Add pollVersion counter and kind 10/11/12 dispatch in MarmotContext rumor handler. Clear poll data on leaveGroup. No new UI.",
+      "depends_on": ["S1"]
+    },
+    {
+      "id": "S3",
+      "name": "poll-store-context",
+      "title": "PollStoreContext with create, vote, close actions",
+      "status": "done",
+      "story_order": 3,
+      "acceptance_criteria": ["AC-4"],
+      "scope": "Create PollStoreContext mirroring ChatStoreContext. Provides polls, votes, createPoll, castVote, closePoll. Sends MLS application messages and chat announcements.",
+      "depends_on": ["S2"]
+    },
+    {
+      "id": "S4",
+      "name": "create-poll-modal",
+      "title": "CreatePollModal UI component",
+      "status": "done",
+      "story_order": 4,
+      "acceptance_criteria": ["AC-5"],
+      "scope": "Modal with title, description, options, poll type inputs. Validates and calls createPoll from PollStoreContext.",
+      "depends_on": ["S3"]
+    },
+    {
+      "id": "S5",
+      "name": "poll-cards-and-panel",
+      "title": "PollCard, PollResultsCard, and PollPanel",
+      "status": "done",
+      "story_order": 5,
+      "acceptance_criteria": ["AC-6", "AC-7"],
+      "scope": "Side panel with active/closed poll cards. Vote controls, close button, results display. Layout change in GroupDetailView.",
+      "depends_on": ["S3"]
+    },
+    {
+      "id": "S6",
+      "name": "chat-poll-messages",
+      "title": "Chat rendering for poll announcements and results",
+      "status": "done",
+      "story_order": 6,
+      "acceptance_criteria": ["AC-8", "AC-9"],
+      "scope": "GroupChat detects structured poll messages and renders PollChatAnnouncement/PollChatResults. Edge case handling for out-of-order messages.",
+      "depends_on": ["S3"]
+    }
+  ],
+  "story_order": ["S1", "S2", "S3", "S4", "S5", "S6"]
+}

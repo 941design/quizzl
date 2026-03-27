@@ -36,6 +36,9 @@ import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload, SCORE_RUMO
 import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
 import { incrementUnread, initUnreadCounts, clearUnreadGroup } from '@/src/lib/unreadStore';
 import { CHAT_MESSAGE_KIND } from '@/src/lib/marmot/chatPersistence';
+import { POLL_OPEN_KIND, POLL_VOTE_KIND, POLL_CLOSE_KIND, parsePollOpen, parsePollVote, parsePollClose } from '@/src/lib/marmot/pollSync';
+import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
+import type { Poll, PollVote } from '@/src/lib/marmot/pollPersistence';
 import { useProfile } from '@/src/context/ProfileContext';
 import { useBackup } from '@/src/context/BackupContext';
 
@@ -107,6 +110,8 @@ type MarmotContextValue = {
   chatVersion: number;
   /** Monotonically increasing counter bumped when group metadata (e.g. adminPubkeys) may change */
   groupDataVersion: number;
+  /** Monotonically increasing counter bumped on each received poll message */
+  pollVersion: number;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -133,6 +138,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const [chatVersion, setChatVersion] = useState(0);
   // Bumped when group metadata (e.g. adminPubkeys) may have changed via MLS commit
   const [groupDataVersion, setGroupDataVersion] = useState(0);
+  // Bumped on every incoming poll message so PollStoreContext can re-read from IDB
+  const [pollVersion, setPollVersion] = useState(0);
   // Track discoverability status
   const [discoverable, setDiscoverable] = useState(false);
 
@@ -482,6 +489,60 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                   }).catch((err: unknown) => console.warn('[Marmot] chat appendMessage failed:', err));
                 });
                 incrementUnread(group.id);
+              } else if (rumor.kind === POLL_OPEN_KIND) {
+                const payload = parsePollOpen(rumor.content);
+                if (payload) {
+                  const poll: Poll = {
+                    id: payload.id,
+                    groupId: group.id,
+                    title: payload.title,
+                    description: payload.description,
+                    options: payload.options,
+                    pollType: payload.pollType,
+                    creatorPubkey: payload.creatorPubkey,
+                    createdAt: rumor.created_at * 1000,
+                    closed: false,
+                  };
+                  void savePoll(poll).then(() => {
+                    setPollVersion((v) => v + 1);
+                  }).catch((err: unknown) => console.warn('[Marmot] savePoll failed:', err));
+                }
+              } else if (rumor.kind === POLL_VOTE_KIND) {
+                const payload = parsePollVote(rumor.content);
+                if (payload) {
+                  // Ignore votes for closed polls
+                  void getPoll(group.id, payload.pollId).then((existingPoll) => {
+                    if (existingPoll?.closed) return;
+                    const vote: PollVote = {
+                      id: `${payload.pollId}:${senderPubkey}`,
+                      pollId: payload.pollId,
+                      voterPubkey: senderPubkey,
+                      responses: payload.responses,
+                      votedAt: rumor.created_at * 1000,
+                    };
+                    return saveVote(vote).then(() => {
+                      setPollVersion((v) => v + 1);
+                    });
+                  }).catch((err: unknown) => console.warn('[Marmot] saveVote failed:', err));
+                }
+              } else if (rumor.kind === POLL_CLOSE_KIND) {
+                const payload = parsePollClose(rumor.content);
+                if (payload) {
+                  // Only the poll creator can close
+                  void getPoll(group.id, payload.pollId).then((existingPoll) => {
+                    if (!existingPoll) return;
+                    if (existingPoll.creatorPubkey !== senderPubkey) return;
+                    const updated: Poll = {
+                      ...existingPoll,
+                      closed: true,
+                      results: payload.results,
+                      totalVoters: payload.totalVoters,
+                    };
+                    return savePoll(updated).then(() => {
+                      setPollVersion((v) => v + 1);
+                    });
+                  }).catch((err: unknown) => console.warn('[Marmot] poll close failed:', err));
+                }
               }
             },
             // Refresh memberPubkeys from MLS state after ingesting any event
@@ -757,6 +818,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     // Clear chat messages
     const { clearMessages } = await import('@/src/lib/marmot/chatPersistence');
     await clearMessages(groupId);
+    // Clear poll data
+    await clearPollData(groupId);
     clearUnreadGroup(groupId);
     await reloadGroups();
     markBackupDirty(true);
@@ -878,6 +941,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       profileVersion,
       chatVersion,
       groupDataVersion,
+      pollVersion,
     }),
     [
       ready,
@@ -898,6 +962,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       profileVersion,
       chatVersion,
       groupDataVersion,
+      pollVersion,
     ]
   );
 
@@ -928,6 +993,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   profileVersion: 0,
   chatVersion: 0,
   groupDataVersion: 0,
+  pollVersion: 0,
 };
 
 export function useMarmot(): MarmotContextValue {

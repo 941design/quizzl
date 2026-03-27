@@ -1,0 +1,156 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Poll, PollVote } from '@/src/lib/marmot/pollPersistence';
+
+// Mock idb-keyval — in-memory store
+const store = new Map<string, unknown>();
+vi.mock('idb-keyval', () => ({
+  get: vi.fn(async (key: string) => store.get(key) ?? undefined),
+  set: vi.fn(async (key: string, value: unknown) => { store.set(key, value); }),
+  del: vi.fn(async (key: string) => { store.delete(key); }),
+}));
+
+// Import after mock is set up
+const {
+  loadPolls,
+  savePoll,
+  getPoll,
+  loadVotes,
+  saveVote,
+  clearPollData,
+} = await import('@/src/lib/marmot/pollPersistence');
+
+function makePoll(overrides: Partial<Poll> = {}): Poll {
+  return {
+    id: 'poll-1',
+    groupId: 'group-1',
+    title: 'Test poll',
+    options: [
+      { id: 'A', label: 'Option A' },
+      { id: 'B', label: 'Option B' },
+    ],
+    pollType: 'singlechoice',
+    creatorPubkey: 'pk-creator',
+    createdAt: 1000,
+    closed: false,
+    ...overrides,
+  };
+}
+
+function makeVote(overrides: Partial<PollVote> = {}): PollVote {
+  return {
+    id: 'poll-1:pk-voter',
+    pollId: 'poll-1',
+    voterPubkey: 'pk-voter',
+    responses: ['A'],
+    votedAt: 2000,
+    ...overrides,
+  };
+}
+
+describe('pollPersistence', () => {
+  beforeEach(() => {
+    store.clear();
+  });
+
+  describe('loadPolls', () => {
+    it('returns empty array when no polls exist', async () => {
+      const polls = await loadPolls('group-1');
+      expect(polls).toEqual([]);
+    });
+
+    it('returns polls sorted newest-first', async () => {
+      await savePoll(makePoll({ id: 'p1', createdAt: 100 }));
+      await savePoll(makePoll({ id: 'p2', createdAt: 300 }));
+      await savePoll(makePoll({ id: 'p3', createdAt: 200 }));
+      const polls = await loadPolls('group-1');
+      expect(polls.map((p) => p.id)).toEqual(['p2', 'p3', 'p1']);
+    });
+  });
+
+  describe('savePoll', () => {
+    it('persists a new poll', async () => {
+      await savePoll(makePoll());
+      const polls = await loadPolls('group-1');
+      expect(polls).toHaveLength(1);
+      expect(polls[0].title).toBe('Test poll');
+    });
+
+    it('upserts existing poll by id', async () => {
+      await savePoll(makePoll({ title: 'Original' }));
+      await savePoll(makePoll({ title: 'Updated' }));
+      const polls = await loadPolls('group-1');
+      expect(polls).toHaveLength(1);
+      expect(polls[0].title).toBe('Updated');
+    });
+
+    it('stores multiple polls for the same group', async () => {
+      await savePoll(makePoll({ id: 'p1' }));
+      await savePoll(makePoll({ id: 'p2' }));
+      const polls = await loadPolls('group-1');
+      expect(polls).toHaveLength(2);
+    });
+  });
+
+  describe('getPoll', () => {
+    it('returns null for non-existent poll', async () => {
+      const poll = await getPoll('group-1', 'nonexistent');
+      expect(poll).toBeNull();
+    });
+
+    it('returns the matching poll', async () => {
+      await savePoll(makePoll({ id: 'target', title: 'Found it' }));
+      const poll = await getPoll('group-1', 'target');
+      expect(poll).not.toBeNull();
+      expect(poll!.title).toBe('Found it');
+    });
+  });
+
+  describe('loadVotes / saveVote', () => {
+    it('returns empty array when no votes exist', async () => {
+      const votes = await loadVotes('poll-1');
+      expect(votes).toEqual([]);
+    });
+
+    it('persists a vote', async () => {
+      await saveVote(makeVote());
+      const votes = await loadVotes('poll-1');
+      expect(votes).toHaveLength(1);
+      expect(votes[0].responses).toEqual(['A']);
+    });
+
+    it('replaces existing vote by compound key', async () => {
+      await saveVote(makeVote({ responses: ['A'] }));
+      await saveVote(makeVote({ responses: ['B'], votedAt: 3000 }));
+      const votes = await loadVotes('poll-1');
+      expect(votes).toHaveLength(1);
+      expect(votes[0].responses).toEqual(['B']);
+    });
+
+    it('stores votes from different voters', async () => {
+      await saveVote(makeVote({ id: 'poll-1:voter1', voterPubkey: 'voter1' }));
+      await saveVote(makeVote({ id: 'poll-1:voter2', voterPubkey: 'voter2' }));
+      const votes = await loadVotes('poll-1');
+      expect(votes).toHaveLength(2);
+    });
+  });
+
+  describe('clearPollData', () => {
+    it('removes all polls and votes for a group', async () => {
+      await savePoll(makePoll({ id: 'p1' }));
+      await savePoll(makePoll({ id: 'p2' }));
+      await saveVote(makeVote({ id: 'p1:v', pollId: 'p1' }));
+      await saveVote(makeVote({ id: 'p2:v', pollId: 'p2' }));
+
+      await clearPollData('group-1');
+
+      expect(await loadPolls('group-1')).toEqual([]);
+      expect(await loadVotes('p1')).toEqual([]);
+      expect(await loadVotes('p2')).toEqual([]);
+    });
+
+    it('is a no-op for non-existent group', async () => {
+      await clearPollData('nonexistent');
+      // No error thrown
+    });
+  });
+});

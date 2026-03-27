@@ -1,0 +1,73 @@
+# Acceptance Criteria: Group Polls
+
+## AC-1: Poll and Vote Persistence
+- `pollPersistence.ts` exports `loadPolls(groupId)`, `savePoll(poll)`, `loadVotes(pollId)`, `saveVote(vote)`, `clearPollData(groupId)` functions
+- Polls are stored under IDB key `quizzl:polls:{groupId}` using idb-keyval
+- Votes are stored under IDB key `quizzl:poll-votes:{pollId}` using idb-keyval
+- `savePoll` deduplicates by poll `id` (upsert semantics)
+- `saveVote` uses compound key `{pollId}:{voterPubkey}` — latest vote replaces previous
+- `clearPollData(groupId)` removes all polls and their votes for the group
+
+## AC-2: Poll Sync Module
+- `pollSync.ts` exports constants `POLL_OPEN_KIND = 10`, `POLL_VOTE_KIND = 11`, `POLL_CLOSE_KIND = 12`
+- `serialisePollOpen(payload: PollOpenPayload)` returns JSON string
+- `parsePollOpen(content: string)` returns `PollOpenPayload | null` with validation
+- `serialisePollVote(payload: PollVotePayload)` returns JSON string
+- `parsePollVote(content: string)` returns `PollVotePayload | null` with validation
+- `serialisePollClose(payload: PollClosePayload)` returns JSON string
+- `parsePollClose(content: string)` returns `PollClosePayload | null` with validation
+- All parse functions return `null` for malformed input
+
+## AC-3: MarmotContext Poll Integration
+- MarmotContext exposes a `pollVersion` counter (number, starts at 0)
+- The subscription rumor callback dispatches kind 10 to `savePoll` (converting PollOpenPayload to Poll record with `closed: false`)
+- The subscription rumor callback dispatches kind 11 to `saveVote` (converting PollVotePayload to PollVote record)
+- The subscription rumor callback dispatches kind 12: verifies sender matches poll's `creatorPubkey`, then updates poll with `closed: true` and final results
+- After each successful IDB write, `pollVersion` increments by 1
+- Kind 11 messages for closed polls are silently ignored
+- Kind 12 from non-creator senders are silently ignored
+
+## AC-4: PollStoreContext
+- `PollStoreContext` provides: `polls` (Poll[]), `votes` (Record<string, PollVote[]>), `createPoll`, `castVote`, `closePoll`, `loading`
+- `polls` re-reads from IDB when `pollVersion` changes (same pattern as chatVersion in ChatStoreContext)
+- `createPoll(title, description, options, pollType)` sends kind 10 + kind 9 chat announcement, persists poll locally, returns poll ID
+- `castVote(pollId, responses)` sends kind 11, persists vote locally
+- `closePoll(pollId)` tallies votes from IDB, sends kind 12 + kind 9 chat results, updates poll record
+- `closePoll` is a no-op if caller's pubkey !== poll's creatorPubkey
+- Active polls are sorted by createdAt descending (newest first)
+
+## AC-5: CreatePollModal
+- Modal opens from a "Poll" button in the chat section
+- Title input: required, max 200 chars
+- Description textarea: optional, max 500 chars
+- Options: minimum 2, maximum 10 text inputs. "Add option" button appends a row; remove icon deletes a row
+- Poll type toggle: "Single choice" (default) / "Multiple choice"
+- "Create" button disabled until title and >= 2 non-empty options exist
+- On create: generates UUID, assigns sequential option IDs (A, B, C...), calls `createPoll`, closes modal
+
+## AC-6: PollCard and PollResultsCard
+- `PollCard` (active poll): shows title, description, options as radio/checkbox inputs, "Vote"/"Update Vote" button, participant count
+- Radio buttons for singlechoice, checkboxes for multiplechoice
+- After voting, pre-selects previous choices and shows check mark
+- Participant count visible but per-option tallies hidden while poll is open
+- Creator sees a "Close Poll" button; non-creators do not
+- `PollResultsCard` (closed poll): shows title, option bars with counts and percentages, total voter count
+
+## AC-7: PollPanel and Layout
+- `PollPanel` renders as a collapsible side panel listing active polls (newest first) then closed polls
+- Panel header shows count of active polls: "Polls (N)"
+- `GroupDetailView` places `PollPanel` beside `GroupChat` in an HStack layout
+- A toggle button shows/hides the poll panel
+
+## AC-8: Chat Poll Messages
+- `GroupChat` detects structured chat messages with `type: "poll_open"` and renders `PollChatAnnouncement` instead of plain text bubble
+- `PollChatAnnouncement` shows: "{Creator} started a poll: {title}"
+- `GroupChat` detects structured chat messages with `type: "poll_close"` and renders `PollChatResults` with horizontal bars, percentages, and total voter count
+- Plain text messages continue to render normally
+
+## AC-9: Edge Cases
+- Vote arriving after poll close is silently dropped
+- Vote referencing unknown poll ID is queued and applied when poll-open arrives
+- Close payload's `results` and `totalVoters` replace any local tally
+- Option text truncated at 100 chars in PollCard; full text accessible
+- leaveGroup clears poll data for that group (clearPollData called)

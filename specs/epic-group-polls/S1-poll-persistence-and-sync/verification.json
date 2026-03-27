@@ -1,0 +1,10 @@
+{
+  "questions": [
+    {"q": "Does pollPersistence.ts use idb-keyval with the key pattern quizzl:polls:{groupId}?", "answer": "YES"},
+    {"q": "Does savePoll perform upsert (not duplicate) by poll id?", "answer": "YES"},
+    {"q": "Does saveVote use compound key {pollId}:{voterPubkey} for LWW?", "answer": "YES"},
+    {"q": "Do all parsePollX functions return null for malformed input?", "answer": "YES"},
+    {"q": "Does clearPollData remove both polls and associated votes?", "answer": "YES"},
+    {"q": "Are write operations serialized per-key to avoid race conditions?", "answer": "YES"}
+  ]
+}

@@ -12,6 +12,8 @@ import { useChatStore } from '@/src/context/ChatStoreContext';
 import { truncateNpub, pubkeyToNpub } from '@/src/lib/nostrKeys';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import type { MemberProfile } from '@/src/types';
+import PollChatAnnouncement from './PollChatAnnouncement';
+import PollChatResults from './PollChatResults';
 
 /** Messages from the same sender within this window are grouped (inclusive). */
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
@@ -58,6 +60,22 @@ function formatTimestamp(ms: number): string {
 function isGrouped(prev: ChatMessage, curr: ChatMessage): boolean {
   const delta = curr.createdAt - prev.createdAt;
   return prev.senderPubkey === curr.senderPubkey && delta >= 0 && delta <= GROUP_WINDOW_MS;
+}
+
+type StructuredContent =
+  | { type: 'poll_open'; pollId: string; title: string; creatorPubkey: string }
+  | { type: 'poll_close'; pollId: string; title: string; results: any[]; totalVoters: number }
+  | null;
+
+function parseStructured(content: string): StructuredContent {
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed?.type === 'poll_open' && parsed.pollId && parsed.title) return parsed;
+    if (parsed?.type === 'poll_close' && parsed.pollId && parsed.title && Array.isArray(parsed.results)) return parsed;
+  } catch {
+    // Not JSON — plain text message
+  }
+  return null;
 }
 
 type GroupChatProps = {
@@ -255,22 +273,44 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
                     )}
 
                     {/* Bubble */}
-                    <Box
-                      px={3}
-                      py={1.5}
-                      borderRadius="lg"
-                      bg={isSelf ? 'brand.500' : 'surfaceMutedBg'}
-                      color={isSelf ? 'white' : 'text'}
-                      fontSize="sm"
-                      {...(grouped && {
-                        borderTopRightRadius: isSelf ? 'sm' : undefined,
-                        borderTopLeftRadius: !isSelf ? 'sm' : undefined,
-                      })}
-                    >
-                      <Text whiteSpace="pre-wrap" wordBreak="break-word">
-                        {msg.content}
-                      </Text>
-                    </Box>
+                    {(() => {
+                      const structured = parseStructured(msg.content);
+                      if (structured?.type === 'poll_open') {
+                        const creatorDisplay = profileMap[structured.creatorPubkey]?.nickname
+                          ?? truncateNpub(pubkeyToNpub(structured.creatorPubkey));
+                        return <PollChatAnnouncement creatorName={creatorDisplay} title={structured.title} />;
+                      }
+                      if (structured?.type === 'poll_close') {
+                        const creatorDisplay = profileMap[msg.senderPubkey]?.nickname
+                          ?? truncateNpub(pubkeyToNpub(msg.senderPubkey));
+                        return (
+                          <PollChatResults
+                            creatorName={creatorDisplay}
+                            title={structured.title}
+                            results={structured.results}
+                            totalVoters={structured.totalVoters}
+                          />
+                        );
+                      }
+                      return (
+                        <Box
+                          px={3}
+                          py={1.5}
+                          borderRadius="lg"
+                          bg={isSelf ? 'brand.500' : 'surfaceMutedBg'}
+                          color={isSelf ? 'white' : 'text'}
+                          fontSize="sm"
+                          {...(grouped && {
+                            borderTopRightRadius: isSelf ? 'sm' : undefined,
+                            borderTopLeftRadius: !isSelf ? 'sm' : undefined,
+                          })}
+                        >
+                          <Text whiteSpace="pre-wrap" wordBreak="break-word">
+                            {msg.content}
+                          </Text>
+                        </Box>
+                      );
+                    })()}
                   </Flex>
                 </Flex>
               );

@@ -1,0 +1,1 @@
+{"story_id":"S6","status":"done","files_created":["app/src/components/groups/PollChatAnnouncement.tsx","app/src/components/groups/PollChatResults.tsx"],"files_modified":["app/src/components/groups/GroupChat.tsx"],"tests_added":0,"tests_total":228,"all_passing":true,"completed_at":"2026-03-27T00:00:00Z"}

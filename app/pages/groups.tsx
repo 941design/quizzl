@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box,
+  Flex,
   Heading,
   Text,
   VStack,
@@ -31,6 +32,9 @@ import InviteMemberModal from '@/src/components/groups/InviteMemberModal';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
 import GroupChat from '@/src/components/groups/GroupChat';
 import { ChatStoreProvider } from '@/src/context/ChatStoreContext';
+import { PollStoreProvider } from '@/src/context/PollStoreContext';
+import PollPanel from '@/src/components/groups/PollPanel';
+import CreatePollModal from '@/src/components/groups/CreatePollModal';
 import { markAsRead } from '@/src/lib/unreadStore';
 import type { Group, MemberScore, MemberProfile } from '@/src/types';
 
@@ -40,10 +44,12 @@ type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
-  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion } = useMarmot();
+  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion } = useMarmot();
   const { pubkeyHex } = useNostrIdentity();
   const { profile: ownProfile } = useProfile();
   const inviteDisclosure = useDisclosure();
+  const pollDisclosure = useDisclosure();
+  const [pollPanelOpen, setPollPanelOpen] = useState(true);
   const [group, setGroup] = useState<Group | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [memberScores, setMemberScores] = useState<MemberScore[]>([]);
@@ -197,19 +203,55 @@ function GroupDetailView({ id }: { id: string }) {
             />
           </Box>
 
-          {/* Chat Section */}
+          {/* Chat + Polls Section */}
           <Box>
-            <Heading as="h2" size="md" mb={3}>
-              Chat
-            </Heading>
-            <ChatStoreProvider
+            <HStack mb={3} justify="space-between">
+              <Heading as="h2" size="md">
+                Chat
+              </Heading>
+              <HStack spacing={2}>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => setPollPanelOpen((v) => !v)}
+                  data-testid="toggle-poll-panel-btn"
+                >
+                  {pollPanelOpen ? 'Hide Polls' : 'Show Polls'}
+                </Button>
+                <Button
+                  size="xs"
+                  onClick={pollDisclosure.onOpen}
+                  data-testid="create-poll-btn"
+                >
+                  Poll
+                </Button>
+              </HStack>
+            </HStack>
+            <PollStoreProvider
               groupId={group.id}
               group={mlsGroup}
               pubkey={pubkeyHex ?? ''}
-              chatVersion={chatVersion}
+              pollVersion={pollVersion}
             >
-              <GroupChat pubkey={pubkeyHex ?? ''} profileMap={profileMap} />
-            </ChatStoreProvider>
+              <Flex gap={4} direction={{ base: 'column', md: 'row' }}>
+                <Box flex="1" minW={0}>
+                  <ChatStoreProvider
+                    groupId={group.id}
+                    group={mlsGroup}
+                    pubkey={pubkeyHex ?? ''}
+                    chatVersion={chatVersion}
+                  >
+                    <GroupChat pubkey={pubkeyHex ?? ''} profileMap={profileMap} />
+                  </ChatStoreProvider>
+                </Box>
+                {pollPanelOpen && (
+                  <Box w={{ base: '100%', md: '280px' }} flexShrink={0}>
+                    <PollPanel pubkey={pubkeyHex ?? ''} profileMap={profileMap} />
+                  </Box>
+                )}
+              </Flex>
+              <CreatePollModal isOpen={pollDisclosure.isOpen} onClose={pollDisclosure.onClose} />
+            </PollStoreProvider>
           </Box>
 
           {/* Member Scores Section */}
