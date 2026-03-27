@@ -218,6 +218,13 @@ export async function subscribeToGroupMessages(
     }
   }
 
+  // Build a relay set scoped to this group's relays so that traffic and
+  // group activity are not leaked to the full default relay pool.
+  const { NDKRelaySet } = await import('@nostr-dev-kit/ndk');
+  const relaySet = relays.length > 0
+    ? NDKRelaySet.fromRelayUrls(relays, ndk)
+    : undefined;
+
   // Fetch and ingest all existing kind 445 events (historical sync).
   // This ensures commits published before subscription started are processed.
   let historicalCount = 0;
@@ -225,7 +232,7 @@ export async function subscribeToGroupMessages(
   let historySyncComplete = false;
   try {
     const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
-    const { events: existingEvents, timedOut } = await fetchEventsWithTimeout(ndk, filter);
+    const { events: existingEvents, timedOut } = await fetchEventsWithTimeout(ndk, filter, {}, relaySet);
     if (timedOut) {
       console.warn(`[welcomeSubscription] Historical fetch timed out for group ${groupId.slice(0, 16)} — skipping onHistorySynced to avoid epoch divergence`);
     } else {
@@ -263,8 +270,8 @@ export async function subscribeToGroupMessages(
   // (for profile publish) is safe after historical sync because the local
   // epoch is up-to-date. The onHistorySynced callback handles this.
 
-  // Live subscription for future events
-  const sub = ndk.subscribe(filter, { closeOnEose: false });
+  // Live subscription for future events, scoped to the group's relays
+  const sub = ndk.subscribe(filter, { closeOnEose: false }, relaySet);
   sub.on('event', (ndkEvent) => void ingestNdkEvent(ndkEvent));
 
   return () => {

@@ -45,9 +45,9 @@ async function startWelcomeSubscription(
   ndk: import('@nostr-dev-kit/ndk').default,
   signer: import('applesauce-core').EventSigner,
   onGroupJoined: WelcomeReceivedCallback
-): Promise<void> {
+): Promise<() => void> {
   const { subscribeToWelcomes } = await import('@/src/lib/marmot/welcomeSubscription');
-  await subscribeToWelcomes(pubkeyHex, marmotClient, ndk, signer, onGroupJoined);
+  return subscribeToWelcomes(pubkeyHex, marmotClient, ndk, signer, onGroupJoined);
 }
 import { DEFAULT_RELAYS } from '@/src/types';
 import { getEventHash } from 'applesauce-core/helpers/event';
@@ -119,6 +119,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const [unsupported, setUnsupported] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const clientRef = useRef<MarmotClientType | null>(null);
+  // Track welcome subscription cleanup so it can be stopped on remount/identity change
+  const welcomeSubRef = useRef<(() => void) | null>(null);
   // Track group message subscription cleanup functions keyed by groupId
   const groupSubsRef = useRef<Map<string, () => void>>(new Map());
   // Track groups where profile has been published (to avoid re-publishing)
@@ -226,7 +228,10 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         await reloadGroups();
 
         // Start Welcome subscription (listen for incoming invitations)
-        void startWelcomeSubscription(
+        // Stop any previous welcome subscription before starting a new one
+        welcomeSubRef.current?.();
+        welcomeSubRef.current = null;
+        startWelcomeSubscription(
           pubkeyHex!,
           client,
           ndk,
@@ -241,7 +246,15 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             markBackupDirty(true);
             console.info('[Marmot] Joined group from Welcome:', joinedGroup.name);
           }
-        );
+        ).then((unsub) => {
+          if (cancelled) {
+            unsub();
+          } else {
+            welcomeSubRef.current = unsub;
+          }
+        }).catch((err) => {
+          console.warn('[Marmot] Welcome subscription failed:', err);
+        });
 
         // Listen for group join events to rotate consumed key packages
         client.on('groupJoined', async () => {
@@ -362,7 +375,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     }
 
     void init();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      welcomeSubRef.current?.();
+      welcomeSubRef.current = null;
+    };
   }, [identityHydrated, privateKeyHex, pubkeyHex, reloadGroups, updateDiscoverability]);
 
   // Subscribe to group messages for each group (for incoming score updates)
@@ -519,14 +536,16 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
     void subscribeNewGroups();
 
-    // Cleanup subscriptions for groups that no longer exist
+    // Cleanup: unsubscribe ALL tracked group subscriptions on unmount or
+    // dependency change. The next effect run will re-subscribe as needed.
+    // Previously only groups that disappeared were cleaned up, leaving
+    // duplicate subscriptions alive across re-renders.
     return () => {
       for (const [groupId, unsub] of Array.from(subsMap.entries())) {
-        if (!groups.find((g) => g.id === groupId)) {
-          unsub();
-          subsMap.delete(groupId);
-        }
+        unsub();
+        subsMap.delete(groupId);
       }
+      profilePublishedRef.current.clear();
     };
   }, [ready, groups, pubkeyHex]);
 
@@ -560,9 +579,10 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    window.addEventListener('online', () => void drainQueue());
+    const handler = () => void drainQueue();
+    window.addEventListener('online', handler);
     return () => {
-      window.removeEventListener('online', () => void drainQueue());
+      window.removeEventListener('online', handler);
     };
   }, [ready, groups, pubkeyHex]);
 
