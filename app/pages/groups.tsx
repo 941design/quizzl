@@ -227,31 +227,31 @@ function GroupDetailView({ id }: { id: string }) {
                 </Button>
               </HStack>
             </HStack>
-            <PollStoreProvider
+            <ChatStoreProvider
               groupId={group.id}
               group={mlsGroup}
               pubkey={pubkeyHex ?? ''}
-              pollVersion={pollVersion}
+              chatVersion={chatVersion}
             >
-              <Flex gap={4} direction={{ base: 'column', md: 'row' }}>
-                <Box flex="1" minW={0}>
-                  <ChatStoreProvider
-                    groupId={group.id}
-                    group={mlsGroup}
-                    pubkey={pubkeyHex ?? ''}
-                    chatVersion={chatVersion}
-                  >
+              <PollStoreProvider
+                groupId={group.id}
+                group={mlsGroup}
+                pubkey={pubkeyHex ?? ''}
+                pollVersion={pollVersion}
+              >
+                <Flex gap={4} direction={{ base: 'column', md: 'row' }}>
+                  <Box flex="1" minW={0}>
                     <GroupChat pubkey={pubkeyHex ?? ''} profileMap={profileMap} />
-                  </ChatStoreProvider>
-                </Box>
-                {pollPanelOpen && (
-                  <Box w={{ base: '100%', md: '280px' }} flexShrink={0}>
-                    <PollPanel pubkey={pubkeyHex ?? ''} profileMap={profileMap} />
                   </Box>
-                )}
-              </Flex>
-              <CreatePollModal isOpen={pollDisclosure.isOpen} onClose={pollDisclosure.onClose} />
-            </PollStoreProvider>
+                  {pollPanelOpen && (
+                    <Box w={{ base: '100%', md: '280px' }} flexShrink={0}>
+                      <PollPanel pubkey={pubkeyHex ?? ''} profileMap={profileMap} />
+                    </Box>
+                  )}
+                </Flex>
+                <CreatePollModal isOpen={pollDisclosure.isOpen} onClose={pollDisclosure.onClose} />
+              </PollStoreProvider>
+            </ChatStoreProvider>
           </Box>
 
           {/* Member Scores Section */}

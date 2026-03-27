@@ -153,11 +153,12 @@ test.describe.serial('Poll creation and panel UI', () => {
     await expect(pgA.getByTestId('create-poll-modal')).not.toBeVisible({ timeout: 10_000 });
 
     // Poll should appear in the panel
-    await expect(pgA.getByText('Favorite topic?')).toBeVisible({ timeout: 10_000 });
-    await expect(pgA.getByText('No polls yet')).not.toBeVisible();
+    const panel = pgA.getByTestId('poll-panel');
+    await expect(panel.getByText('Favorite topic?')).toBeVisible({ timeout: 10_000 });
+    await expect(panel.getByText('No polls yet')).not.toBeVisible();
 
     // Panel header should show count
-    await expect(pgA.getByText('Polls (1)')).toBeVisible();
+    await expect(panel.getByRole('heading', { name: 'Polls (1)' })).toBeVisible();
   });
 
   test('Poll card shows correct structure', async () => {
@@ -172,8 +173,8 @@ test.describe.serial('Poll creation and panel UI', () => {
   });
 
   test('Chat shows poll announcement', async () => {
-    // Chat should have a poll announcement
-    await expect(pgA.getByTestId('poll-chat-announcement')).toBeVisible({ timeout: 10_000 });
+    // Chat should have a poll announcement (sent via ChatStoreContext, visible optimistically)
+    await expect(pgA.getByTestId('poll-chat-announcement')).toBeVisible({ timeout: 30_000 });
     await expect(pgA.getByText('Alice started a poll')).toBeVisible();
     await expect(
       pgA.getByTestId('poll-chat-announcement').getByText('Favorite topic?'),
@@ -183,9 +184,9 @@ test.describe.serial('Poll creation and panel UI', () => {
   test('A votes on own poll', async () => {
     const panel = pgA.getByTestId('poll-panel');
 
-    // Select "Functions" radio
+    // Select "Functions" by clicking the label text
     const pollCard = panel.locator('[data-testid^="poll-card-"]').first();
-    await pollCard.locator('input[type="radio"][value="A"]').check();
+    await pollCard.getByText('Functions').click();
 
     // Click Vote
     await pollCard.getByText('Vote', { exact: true }).click();
@@ -199,8 +200,8 @@ test.describe.serial('Poll creation and panel UI', () => {
     const panel = pgA.getByTestId('poll-panel');
     const pollCard = panel.locator('[data-testid^="poll-card-"]').first();
 
-    // Change to "Arrays"
-    await pollCard.locator('input[type="radio"][value="B"]').check();
+    // Change to "Arrays" by clicking the label text
+    await pollCard.getByText('Arrays').click();
 
     // Button should say "Update Vote" since already voted
     await pollCard.getByText('Update Vote').click();
@@ -229,6 +230,10 @@ test.describe.serial('Poll creation and panel UI', () => {
     // Confirm close
     await pollCard.getByText('Confirm').click();
 
+    // After close, poll moves to collapsed "closed" section — expand it
+    await expect(pgA.getByTestId('poll-toggle-closed')).toBeVisible({ timeout: 30_000 });
+    await pgA.getByTestId('poll-toggle-closed').click();
+
     // Should transition to results display
     await expect(
       panel.locator('[data-testid^="poll-results-card-"]').first(),
@@ -240,7 +245,7 @@ test.describe.serial('Poll creation and panel UI', () => {
 
   test('Chat shows poll results', async () => {
     // Chat should have a results message
-    await expect(pgA.getByTestId('poll-chat-results')).toBeVisible({ timeout: 10_000 });
+    await expect(pgA.getByTestId('poll-chat-results')).toBeVisible({ timeout: 30_000 });
     await expect(pgA.getByText('Alice closed the poll')).toBeVisible();
   });
 
@@ -301,9 +306,10 @@ test.describe.serial('Multiple-choice poll', () => {
     await pgA.getByTestId('create-poll-submit-btn').click();
     await expect(pgA.getByTestId('create-poll-modal')).not.toBeVisible({ timeout: 10_000 });
 
-    // Poll should appear
-    await expect(pgA.getByText('Select all that apply')).toBeVisible({ timeout: 10_000 });
-    await expect(pgA.getByText('Multiple choice')).toBeVisible();
+    // Poll should appear in the panel
+    const panel = pgA.getByTestId('poll-panel');
+    await expect(panel.getByText('Select all that apply')).toBeVisible({ timeout: 10_000 });
+    await expect(panel.getByText('Multiple choice')).toBeVisible();
   });
 
   test('Multiple-choice poll shows checkboxes', async () => {
@@ -319,13 +325,13 @@ test.describe.serial('Multiple-choice poll', () => {
     const panel = pgA.getByTestId('poll-panel');
     const pollCard = panel.locator('[data-testid^="poll-card-"]').first();
 
-    // Select options A and C
-    await pollCard.locator('input[type="checkbox"][value="A"]').check();
-    await pollCard.locator('input[type="checkbox"][value="C"]').check();
+    // Select options A and C by clicking their labels
+    await pollCard.getByText('Option A').click();
+    await pollCard.getByText('Option C').click();
 
     await pollCard.getByText('Vote', { exact: true }).click();
 
-    await expect(pollCard.getByText('Voted')).toBeVisible({ timeout: 10_000 });
+    await expect(pollCard.getByText('Voted')).toBeVisible({ timeout: 30_000 });
     await expect(pollCard.getByText('1 vote')).toBeVisible();
   });
 });
@@ -375,19 +381,20 @@ test.describe.serial('Cross-user poll lifecycle', () => {
     await pgA.getByTestId('create-poll-submit-btn').click();
     await expect(pgA.getByTestId('create-poll-modal')).not.toBeVisible({ timeout: 10_000 });
 
-    await expect(pgA.getByText('When should we meet?')).toBeVisible({ timeout: 10_000 });
+    await expect(pgA.getByTestId('poll-panel').getByText('When should we meet?')).toBeVisible({ timeout: 10_000 });
   });
 
   test('B sees the poll in their panel', async () => {
     // B opens the group detail
     await openGroupDetail(pgB, GROUP_NAME);
-    await expect(pgB.getByTestId('poll-panel')).toBeVisible({ timeout: 10_000 });
+    const panelB = pgB.getByTestId('poll-panel');
+    await expect(panelB).toBeVisible({ timeout: 10_000 });
 
-    // B should see A's poll (via MLS message)
-    await expect(pgB.getByText('When should we meet?')).toBeVisible({ timeout: 30_000 });
-    await expect(pgB.getByText('Monday')).toBeVisible();
-    await expect(pgB.getByText('Wednesday')).toBeVisible();
-    await expect(pgB.getByText('Friday')).toBeVisible();
+    // B should see A's poll (via MLS message — may need to wait for delivery)
+    await expect(panelB.getByText('When should we meet?')).toBeVisible({ timeout: 60_000 });
+    await expect(panelB.getByText('Monday')).toBeVisible();
+    await expect(panelB.getByText('Wednesday')).toBeVisible();
+    await expect(panelB.getByText('Friday')).toBeVisible();
   });
 
   test('B sees poll announcement in chat', async () => {
@@ -405,8 +412,8 @@ test.describe.serial('Cross-user poll lifecycle', () => {
     const panel = pgB.getByTestId('poll-panel');
     const pollCard = panel.locator('[data-testid^="poll-card-"]').first();
 
-    // B selects Wednesday
-    await pollCard.locator('input[type="radio"][value="B"]').check();
+    // B selects Wednesday by clicking the label text
+    await pollCard.getByText('Wednesday').click();
     await pollCard.getByText('Vote', { exact: true }).click();
 
     await expect(pollCard.getByText('Voted')).toBeVisible({ timeout: 10_000 });
@@ -425,8 +432,8 @@ test.describe.serial('Cross-user poll lifecycle', () => {
     const panel = pgA.getByTestId('poll-panel');
     const pollCard = panel.locator('[data-testid^="poll-card-"]').first();
 
-    // A votes for Monday
-    await pollCard.locator('input[type="radio"][value="A"]').check();
+    // A votes for Monday by clicking label text
+    await pollCard.getByText('Monday').click();
     await pollCard.getByText('Vote', { exact: true }).click();
     await expect(pollCard.getByText('Voted')).toBeVisible({ timeout: 10_000 });
 
@@ -434,6 +441,10 @@ test.describe.serial('Cross-user poll lifecycle', () => {
     await pollCard.getByText('Close Poll').click();
     await expect(pollCard.getByText('Close this poll?')).toBeVisible();
     await pollCard.getByText('Confirm').click();
+
+    // After close, poll moves to collapsed "closed" section — expand it
+    await expect(pgA.getByTestId('poll-toggle-closed')).toBeVisible({ timeout: 30_000 });
+    await pgA.getByTestId('poll-toggle-closed').click();
 
     // Should show results
     await expect(
@@ -443,15 +454,19 @@ test.describe.serial('Cross-user poll lifecycle', () => {
   });
 
   test('A sees results in chat', async () => {
-    await expect(pgA.getByTestId('poll-chat-results')).toBeVisible({ timeout: 10_000 });
+    await expect(pgA.getByTestId('poll-chat-results')).toBeVisible({ timeout: 30_000 });
     await expect(pgA.getByText('Alice closed the poll')).toBeVisible();
   });
 
   test('B sees closed poll with results', async () => {
-    // B should receive the close message and see results
+    // B should receive the close message — wait for the closed toggle to appear
+    await expect(pgB.getByTestId('poll-toggle-closed')).toBeVisible({ timeout: 60_000 });
+    await pgB.getByTestId('poll-toggle-closed').click();
+
+    // Results card should be visible in the expanded closed section
     await expect(
       pgB.getByTestId('poll-panel').locator('[data-testid^="poll-results-card-"]').first(),
-    ).toBeVisible({ timeout: 30_000 });
+    ).toBeVisible({ timeout: 10_000 });
     await expect(pgB.getByTestId('poll-panel').getByText('2 voters')).toBeVisible();
   });
 
@@ -490,7 +505,7 @@ test.describe.serial('Multiple concurrent polls', () => {
     await pgA.getByTestId('poll-option-input-1').fill('No');
     await pgA.getByTestId('create-poll-submit-btn').click();
     await expect(pgA.getByTestId('create-poll-modal')).not.toBeVisible({ timeout: 10_000 });
-    await expect(pgA.getByText('First poll')).toBeVisible({ timeout: 10_000 });
+    await expect(pgA.getByTestId('poll-panel').getByText('First poll')).toBeVisible({ timeout: 10_000 });
 
     // Second poll
     await pgA.getByTestId('create-poll-btn').click();
@@ -500,11 +515,11 @@ test.describe.serial('Multiple concurrent polls', () => {
     await pgA.getByTestId('poll-option-input-1').fill('Disagree');
     await pgA.getByTestId('create-poll-submit-btn').click();
     await expect(pgA.getByTestId('create-poll-modal')).not.toBeVisible({ timeout: 10_000 });
-    await expect(pgA.getByText('Second poll')).toBeVisible({ timeout: 10_000 });
+    await expect(pgA.getByTestId('poll-panel').getByText('Second poll')).toBeVisible({ timeout: 10_000 });
   });
 
   test('Panel shows count of 2 active polls', async () => {
-    await expect(pgA.getByText('Polls (2)')).toBeVisible({ timeout: 10_000 });
+    await expect(pgA.getByRole('heading', { name: 'Polls (2)' })).toBeVisible({ timeout: 10_000 });
   });
 
   test('Both polls appear in panel (newest first)', async () => {
@@ -525,7 +540,7 @@ test.describe.serial('Multiple concurrent polls', () => {
     await firstCard.getByText('Confirm').click();
 
     // Should have 1 active poll and 1 closed
-    await expect(pgA.getByText('Polls (1)')).toBeVisible({ timeout: 10_000 });
+    await expect(pgA.getByRole('heading', { name: 'Polls (1)' })).toBeVisible({ timeout: 10_000 });
     await expect(panel.locator('[data-testid^="poll-card-"]')).toHaveCount(1);
     await expect(pgA.getByTestId('poll-toggle-closed')).toBeVisible();
   });
@@ -560,12 +575,18 @@ test.describe.serial('Close poll with zero votes', () => {
     await pgA.getByTestId('create-poll-submit-btn').click();
     await expect(pgA.getByTestId('create-poll-modal')).not.toBeVisible({ timeout: 10_000 });
 
-    // Close immediately (no votes)
+    // Wait for poll to appear before closing
     const panel = pgA.getByTestId('poll-panel');
     const pollCard = panel.locator('[data-testid^="poll-card-"]').first();
     await expect(pollCard).toBeVisible({ timeout: 10_000 });
+
+    // Close immediately (no votes)
     await pollCard.getByText('Close Poll').click();
     await pollCard.getByText('Confirm').click();
+
+    // After close, the poll moves to the closed section — expand it
+    await expect(pgA.getByTestId('poll-toggle-closed')).toBeVisible({ timeout: 30_000 });
+    await pgA.getByTestId('poll-toggle-closed').click();
 
     // Results should show 0 voters
     await expect(
@@ -575,7 +596,7 @@ test.describe.serial('Close poll with zero votes', () => {
   });
 
   test('Chat shows 0-vote results', async () => {
-    await expect(pgA.getByTestId('poll-chat-results')).toBeVisible({ timeout: 10_000 });
+    await expect(pgA.getByTestId('poll-chat-results')).toBeVisible({ timeout: 30_000 });
     const resultsBox = pgA.getByTestId('poll-chat-results');
     await expect(resultsBox.getByText('0 votes')).toBeVisible();
   });

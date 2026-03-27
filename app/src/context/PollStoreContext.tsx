@@ -28,7 +28,7 @@ import {
   serialisePollClose,
 } from '@/src/lib/marmot/pollSync';
 import type { PollOpenPayload, PollVotePayload, PollClosePayload } from '@/src/lib/marmot/pollSync';
-import { CHAT_MESSAGE_KIND } from '@/src/lib/marmot/chatPersistence';
+import { useChatStore } from './ChatStoreContext';
 
 type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 
@@ -87,6 +87,7 @@ export function PollStoreProvider({
   pollVersion,
   children,
 }: PollStoreProviderProps) {
+  const { sendMessage: sendChatMessage } = useChatStore();
   const [polls, setPolls] = useState<Poll[]>([]);
   const [votes, setVotes] = useState<Record<string, PollVote[]>>({});
   const [loading, setLoading] = useState(false);
@@ -168,15 +169,14 @@ export function PollStoreProvider({
       const openRumor = await buildRumor(POLL_OPEN_KIND, serialisePollOpen(openPayload), pubkey);
       await group.sendApplicationRumor(openRumor as any);
 
-      // Send chat announcement (kind 9)
+      // Send chat announcement via ChatStoreContext (handles optimistic UI + MLS send)
       const chatContent = JSON.stringify({
         type: 'poll_open',
         pollId,
         title,
         creatorPubkey: pubkey,
       });
-      const chatRumor = await buildRumor(CHAT_MESSAGE_KIND, chatContent, pubkey);
-      await group.sendApplicationRumor(chatRumor as any);
+      await sendChatMessage(chatContent);
 
       // Persist locally
       const poll: Poll = {
@@ -195,19 +195,9 @@ export function PollStoreProvider({
       // Optimistically update state
       setPolls((prev) => [poll, ...prev]);
 
-      // Persist the chat announcement too
-      const { appendMessage } = await import('@/src/lib/marmot/chatPersistence');
-      await appendMessage(groupId, {
-        id: chatRumor.id,
-        content: chatContent,
-        senderPubkey: pubkey,
-        groupId,
-        createdAt: Date.now(),
-      });
-
       return pollId;
     },
-    [groupId, group, pubkey],
+    [groupId, group, pubkey, sendChatMessage],
   );
 
   const castVote = useCallback(
@@ -272,7 +262,7 @@ export function PollStoreProvider({
       const closeRumor = await buildRumor(POLL_CLOSE_KIND, serialisePollClose(closePayload), pubkey);
       await group.sendApplicationRumor(closeRumor as any);
 
-      // Send chat results message (kind 9)
+      // Send chat results message via ChatStoreContext (handles optimistic UI + MLS send)
       const chatContent = JSON.stringify({
         type: 'poll_close',
         pollId,
@@ -280,8 +270,7 @@ export function PollStoreProvider({
         results,
         totalVoters,
       });
-      const chatRumor = await buildRumor(CHAT_MESSAGE_KIND, chatContent, pubkey);
-      await group.sendApplicationRumor(chatRumor as any);
+      await sendChatMessage(chatContent);
 
       // Update local poll record
       const updated: Poll = { ...poll, closed: true, results, totalVoters };
@@ -289,18 +278,8 @@ export function PollStoreProvider({
 
       // Optimistically update state
       setPolls((prev) => prev.map((p) => (p.id === pollId ? updated : p)));
-
-      // Persist the chat results too
-      const { appendMessage } = await import('@/src/lib/marmot/chatPersistence');
-      await appendMessage(groupId, {
-        id: chatRumor.id,
-        content: chatContent,
-        senderPubkey: pubkey,
-        groupId,
-        createdAt: Date.now(),
-      });
     },
-    [groupId, group, pubkey, polls, votes],
+    [groupId, group, pubkey, polls, votes, sendChatMessage],
   );
 
   return (
