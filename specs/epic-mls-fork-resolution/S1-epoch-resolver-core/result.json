@@ -1,0 +1,26 @@
+{
+  "story": "S1-epoch-resolver-core",
+  "status": "done",
+  "completed_at": "2026-03-27T19:10:00Z",
+  "verified_at": "2026-03-27T19:12:00Z",
+  "final_outcome": "accepted",
+  "summary": "EpochResolver class created with deterministic fork resolution, state snapshot/rollback, future-epoch buffering, grace window, and serialised processing lock",
+  "files_created": [
+    "app/src/lib/marmot/epochResolver.ts",
+    "app/tests/unit/marmot/epochResolver.test.ts"
+  ],
+  "files_modified": [],
+  "test_results": {
+    "total_files": 13,
+    "total_tests": 193,
+    "new_tests": 14,
+    "all_passing": true
+  },
+  "verification_notes": [
+    "commitIsLower matches marmot-ts sortGroupCommits: created_at ascending, then lexicographic id",
+    "clientConfig confirmed absent from ts-mls TLS encoder/decoder; re-injection after deserializeClientState is correct and necessary",
+    "Processing lock uses promise-chain pattern verified with async mock showing strict serialization",
+    "All 11 ACs verified against source code and test evidence",
+    "rollbackAndReplay is public (no private modifier) — minor style nit, does not affect correctness"
+  ]
+}

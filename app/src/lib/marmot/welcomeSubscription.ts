@@ -12,6 +12,7 @@ import { DEFAULT_RELAYS, STORAGE_KEYS } from '@/src/types';
 import { saveGroup } from './groupStorage';
 import type { EventSigner } from 'applesauce-core';
 import { getGroupMembers } from '@internet-privacy/marmot-ts';
+import { EpochResolver } from './epochResolver';
 
 export type WelcomeReceivedCallback = (group: Group) => void;
 
@@ -177,6 +178,14 @@ export async function subscribeToGroupMessages(
   // Track processed event IDs to avoid double-processing between fetch and subscription
   const processedIds = new Set<string>();
 
+  // EpochResolver wraps mlsGroup.ingest() with fork resolution, rollback,
+  // and future-epoch buffering. Application messages and member-change
+  // notifications are dispatched via its callbacks.
+  const resolver = new EpochResolver(
+    mlsGroup,
+    { onApplicationMessage, onMembersChanged },
+  );
+
   async function ingestNdkEvent(ndkEvent: import('@nostr-dev-kit/ndk').NDKEvent) {
     const eventId = ndkEvent.id ?? '';
     if (!eventId || processedIds.has(eventId)) return;
@@ -193,26 +202,7 @@ export async function subscribeToGroupMessages(
         sig: ndkEvent.sig ?? '',
       };
 
-      const { deserializeApplicationData } = await import('@internet-privacy/marmot-ts');
-      const resultsGen = mlsGroup.ingest([nostrEvent]);
-      for await (const result of resultsGen) {
-        if (result.kind === 'processed' && result.result.kind === 'applicationMessage') {
-          const appMsg = result.result.message;
-          if (appMsg) {
-            const rumor = deserializeApplicationData(appMsg);
-            onApplicationMessage(rumor);
-          }
-        }
-      }
-
-      // After ingesting any event (commit, proposal, application message),
-      // check if the member list changed. This handles the case where a
-      // commit adding a new member is ingested — the MLS state is updated
-      // but no applicationMessage callback fires.
-      if (onMembersChanged) {
-        const currentMembers = getGroupMembers(mlsGroup.state);
-        onMembersChanged(currentMembers);
-      }
+      await resolver.ingestEvent(nostrEvent);
     } catch (err) {
       console.debug('[welcomeSubscription] Could not ingest group message:', err);
     }
@@ -275,6 +265,7 @@ export async function subscribeToGroupMessages(
   sub.on('event', (ndkEvent) => void ingestNdkEvent(ndkEvent));
 
   return () => {
+    resolver.dispose();
     sub.stop();
   };
 }

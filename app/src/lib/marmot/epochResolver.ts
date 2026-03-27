@@ -1,0 +1,351 @@
+/**
+ * EpochResolver — deterministic MLS fork resolution and message buffering.
+ *
+ * Wraps `mlsGroup.ingest()` with:
+ * - Competing-commit detection (lowest event ID wins)
+ * - State snapshot + rollback on fork
+ * - Future-epoch buffering with automatic retry
+ * - Grace window before finalising a commit
+ */
+
+import {
+  serializeClientState,
+  deserializeClientState,
+  getEpoch,
+  defaultMarmotClientConfig,
+  getGroupMembers,
+} from '@internet-privacy/marmot-ts';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type NostrEvent = {
+  id: string;
+  pubkey: string;
+  created_at: number;
+  kind: number;
+  tags: string[][];
+  content: string;
+  sig: string;
+};
+
+type EpochSnapshot = {
+  epoch: number;
+  stateBytes: Uint8Array;
+  commitEventId: string;
+  commitCreatedAt: number;
+  takenAt: number;
+  replayQueue: NostrEvent[];
+};
+
+type EpochResolverConfig = {
+  graceWindowMs?: number; // default 3000
+  maxBufferSize?: number; // default 50
+};
+
+type EpochResolverCallbacks = {
+  onApplicationMessage: (rumor: {
+    id: string;
+    kind: number;
+    pubkey: string;
+    created_at: number;
+    content: string;
+    tags: string[][];
+  }) => void;
+  onMembersChanged?: (members: string[]) => void;
+};
+
+/** Minimal interface for the MarmotGroup methods we use. */
+interface MlsGroupLike {
+  state: import('ts-mls').ClientState;
+  ingest(
+    events: NostrEvent[],
+    options?: { retryCount?: number; maxRetries?: number; _errors?: Array<{ eventId: string; error: unknown }> },
+  ): AsyncGenerator<
+    | { kind: 'processed'; result: { kind: 'applicationMessage'; message: Uint8Array } | { kind: 'newState' }; event: NostrEvent }
+    | { kind: 'unreadable'; event: NostrEvent; errors: unknown[] }
+    | { kind: 'skipped'; event: NostrEvent; reason: string }
+    | { kind: 'rejected'; result: unknown; event: NostrEvent }
+  >;
+  save(): Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Deterministic comparison: lower `created_at` wins; tie-break by
+ * lexicographic `id`. Matches marmot-ts `sortGroupCommits`.
+ */
+export function commitIsLower(
+  a: { created_at: number; id: string },
+  b: { created_at: number; id: string },
+): boolean {
+  if (a.created_at !== b.created_at) return a.created_at < b.created_at;
+  return a.id < b.id;
+}
+
+// ---------------------------------------------------------------------------
+// EpochResolver
+// ---------------------------------------------------------------------------
+
+export class EpochResolver {
+  private readonly mlsGroup: MlsGroupLike;
+  private readonly callbacks: EpochResolverCallbacks;
+  private readonly graceWindowMs: number;
+  private readonly maxBufferSize: number;
+
+  private snapshot: EpochSnapshot | null = null;
+  private futureBuffer: NostrEvent[] = [];
+  private graceTimer: ReturnType<typeof setTimeout> | null = null;
+  private disposed = false;
+
+  /** Promise-chain lock to serialise concurrent `ingestEvent` calls. */
+  private lockChain: Promise<void> = Promise.resolve();
+
+  constructor(
+    mlsGroup: MlsGroupLike,
+    callbacks: EpochResolverCallbacks,
+    config?: EpochResolverConfig,
+  ) {
+    this.mlsGroup = mlsGroup;
+    this.callbacks = callbacks;
+    this.graceWindowMs = config?.graceWindowMs ?? 3000;
+    this.maxBufferSize = config?.maxBufferSize ?? 50;
+  }
+
+  // -----------------------------------------------------------------------
+  // Public API
+  // -----------------------------------------------------------------------
+
+  async ingestEvent(event: NostrEvent): Promise<void> {
+    // Acquire serialised lock
+    const prevLock = this.lockChain;
+    let releaseLock!: () => void;
+    this.lockChain = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+
+    try {
+      await prevLock;
+      if (this.disposed) return;
+      await this.processEvent(event);
+    } finally {
+      releaseLock();
+    }
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    if (this.graceTimer !== null) {
+      clearTimeout(this.graceTimer);
+      this.graceTimer = null;
+    }
+    this.futureBuffer = [];
+    this.snapshot = null;
+  }
+
+  // -----------------------------------------------------------------------
+  // Internal processing
+  // -----------------------------------------------------------------------
+
+  private async processEvent(event: NostrEvent): Promise<void> {
+    // Snapshot state before first event per epoch (if no active snapshot)
+    const currentEpoch = getEpoch(this.mlsGroup.state);
+    if (!this.snapshot) {
+      this.takeSnapshot(currentEpoch);
+    }
+
+    const results = this.mlsGroup.ingest([event]);
+
+    for await (const result of results) {
+      if (this.disposed) return;
+
+      if (result.kind === 'processed') {
+        if (result.result.kind === 'applicationMessage') {
+          // Dispatch application message immediately
+          const { deserializeApplicationData } = await import('@internet-privacy/marmot-ts');
+          const rumor = deserializeApplicationData(
+            (result.result as { kind: 'applicationMessage'; message: Uint8Array }).message,
+          );
+          this.callbacks.onApplicationMessage(rumor);
+
+          // Add to replay queue if grace window is active
+          if (this.snapshot) {
+            this.snapshot.replayQueue.push(event);
+          }
+        } else if (result.result.kind === 'newState') {
+          // Commit detected
+          await this.handleCommit(event);
+        }
+      } else if (result.kind === 'unreadable') {
+        this.futureBuffer.push(event);
+        this.capBuffer();
+      } else if (result.kind === 'skipped' && result.reason === 'past-epoch') {
+        // A commit for a past epoch was skipped. If we have an active snapshot
+        // with a recorded commit, this might be a competing commit that was
+        // lower — meaning we accepted the wrong one first.
+        await this.handleSkippedPastEpoch(event);
+      }
+      // other skipped / rejected: log and drop
+    }
+
+    // After processing, notify members changed
+    if (!this.disposed && this.callbacks.onMembersChanged) {
+      const currentMembers = getGroupMembers(this.mlsGroup.state);
+      this.callbacks.onMembersChanged(currentMembers);
+    }
+  }
+
+  private async handleCommit(event: NostrEvent): Promise<void> {
+    // Record commit in snapshot and start/reset grace timer
+    if (this.snapshot) {
+      this.snapshot.commitEventId = event.id;
+      this.snapshot.commitCreatedAt = event.created_at;
+    }
+
+    this.startGraceTimer();
+    await this.flushFutureBuffer();
+  }
+
+  /**
+   * A commit for a past epoch was skipped by marmot-ts. If we have an active
+   * snapshot recording a different commit, and the skipped event is
+   * deterministically lower, we need to rollback and replay with the lower one.
+   */
+  private async handleSkippedPastEpoch(event: NostrEvent): Promise<void> {
+    if (
+      !this.snapshot ||
+      this.snapshot.commitEventId === '' ||
+      this.snapshot.commitEventId === event.id
+    ) {
+      return;
+    }
+
+    const existing = {
+      created_at: this.snapshot.commitCreatedAt,
+      id: this.snapshot.commitEventId,
+    };
+
+    if (commitIsLower(event, existing)) {
+      // Skipped event was actually lower — it should have won. Rollback.
+      await this.rollbackAndReplay(event);
+    }
+    // If existing is lower, it correctly won. Do nothing.
+  }
+
+  private async rollbackAndReplay(winningEvent: NostrEvent): Promise<void> {
+    if (!this.snapshot) return;
+
+    // Restore state from snapshot
+    const restoredState = deserializeClientState(this.snapshot.stateBytes);
+
+    // Re-inject clientConfig — it's NOT included in serialization
+    const clientConfig = this.mlsGroup.state.clientConfig ?? defaultMarmotClientConfig;
+    restoredState.clientConfig = clientConfig;
+
+    // Set state (setter marks dirty, fires stateChanged)
+    this.mlsGroup.state = restoredState;
+
+    // Build replay: winning event + queued events, minus the losing commit
+    const losingCommitId = this.snapshot.commitEventId;
+    const replayList = [
+      winningEvent,
+      ...this.snapshot.replayQueue.filter((e) => e.id !== losingCommitId),
+    ];
+
+    // Ingest replay batch
+    const replayResults = this.mlsGroup.ingest(replayList);
+    for await (const result of replayResults) {
+      if (this.disposed) return;
+
+      if (result.kind === 'processed' && result.result.kind === 'applicationMessage') {
+        const { deserializeApplicationData } = await import('@internet-privacy/marmot-ts');
+        const rumor = deserializeApplicationData(
+          (result.result as { kind: 'applicationMessage'; message: Uint8Array }).message,
+        );
+        this.callbacks.onApplicationMessage(rumor);
+      }
+    }
+
+    // Take fresh snapshot for the new epoch
+    const newEpoch = getEpoch(this.mlsGroup.state);
+    this.takeSnapshot(newEpoch);
+    this.snapshot!.commitEventId = winningEvent.id;
+    this.snapshot!.commitCreatedAt = winningEvent.created_at;
+
+    this.startGraceTimer();
+    await this.mlsGroup.save();
+  }
+
+  private async flushFutureBuffer(): Promise<void> {
+    if (this.futureBuffer.length === 0) return;
+
+    const toRetry = [...this.futureBuffer];
+    this.futureBuffer = [];
+
+    const results = this.mlsGroup.ingest(toRetry);
+    for await (const result of results) {
+      if (this.disposed) return;
+
+      if (result.kind === 'processed') {
+        if (result.result.kind === 'applicationMessage') {
+          const { deserializeApplicationData } = await import('@internet-privacy/marmot-ts');
+          const rumor = deserializeApplicationData(
+            (result.result as { kind: 'applicationMessage'; message: Uint8Array }).message,
+          );
+          this.callbacks.onApplicationMessage(rumor);
+        }
+        // Processed — don't re-add to buffer
+      } else if (result.kind === 'unreadable') {
+        // Still unreadable — keep in buffer
+        this.futureBuffer.push(result.event);
+      }
+      // skipped / rejected: drop
+    }
+
+    this.capBuffer();
+  }
+
+  // -----------------------------------------------------------------------
+  // Snapshot & timer helpers
+  // -----------------------------------------------------------------------
+
+  private takeSnapshot(epoch: number): void {
+    this.snapshot = {
+      epoch,
+      stateBytes: serializeClientState(this.mlsGroup.state),
+      commitEventId: '',
+      commitCreatedAt: 0,
+      takenAt: Date.now(),
+      replayQueue: [],
+    };
+  }
+
+  private startGraceTimer(): void {
+    if (this.graceTimer !== null) {
+      clearTimeout(this.graceTimer);
+    }
+    this.graceTimer = setTimeout(() => {
+      this.onGraceWindowExpired();
+    }, this.graceWindowMs);
+  }
+
+  private onGraceWindowExpired(): void {
+    if (this.disposed) return;
+    this.graceTimer = null;
+    this.snapshot = null;
+    void this.mlsGroup.save();
+  }
+
+  private capBuffer(): void {
+    if (this.futureBuffer.length > this.maxBufferSize) {
+      this.futureBuffer.sort((a, b) => a.created_at - b.created_at);
+      this.futureBuffer = this.futureBuffer.slice(-this.maxBufferSize);
+    }
+  }
+}
+
+export type { NostrEvent, EpochSnapshot, EpochResolverConfig, EpochResolverCallbacks, MlsGroupLike };

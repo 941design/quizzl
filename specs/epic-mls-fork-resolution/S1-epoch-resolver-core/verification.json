@@ -1,0 +1,56 @@
+{
+  "story": "S1-epoch-resolver-core",
+  "verified_at": "2026-03-27T19:10:00Z",
+  "questions": [
+    {
+      "id": "V1",
+      "question": "Does commitIsLower correctly implement deterministic comparison matching marmot-ts sortGroupCommits?",
+      "expected": "Lower created_at wins; equal timestamps tie-break by lexicographic event ID comparison",
+      "evidence": "4 test cases in 'commitIsLower' describe block: lower/higher created_at, tie-break by id, identical events",
+      "pass": true
+    },
+    {
+      "id": "V2",
+      "question": "Does EpochResolver dispatch application messages immediately and add to replay queue during grace window?",
+      "expected": "onApplicationMessage callback fires with deserialized rumor; event added to snapshot.replayQueue",
+      "evidence": "Test 'dispatches application message immediately via callback' verifies onApplicationMessage called with correct rumor",
+      "pass": true
+    },
+    {
+      "id": "V3",
+      "question": "Does competing-commit detection trigger rollback when a lower commit arrives as past-epoch skip?",
+      "expected": "When a skipped past-epoch commit is deterministically lower than the recorded commit, rollbackAndReplay restores snapshot, replays with winner, and calls save()",
+      "evidence": "Test 'lower event ID wins via rollback' verifies save() is called; test 'higher event ID is discarded' verifies no rollback for higher ID",
+      "pass": true
+    },
+    {
+      "id": "V4",
+      "question": "Does the future buffer correctly store unreadable events and retry them after epoch advance?",
+      "expected": "Unreadable events go to futureBuffer; after commit processes, flushFutureBuffer retries and dispatches now-readable messages",
+      "evidence": "Test 'buffers unreadable events and retries after commit' verifies buffering then successful dispatch; 'caps buffer at maxBufferSize' verifies oldest eviction",
+      "pass": true
+    },
+    {
+      "id": "V5",
+      "question": "Does the processing lock serialize concurrent ingestEvent calls?",
+      "expected": "Second ingestEvent waits for first to complete before starting processEvent",
+      "evidence": "Test 'serialises concurrent ingestEvent calls' tracks call ordering with promise blocking, confirms start-1/end-1/start-2/end-2 sequence",
+      "pass": true
+    },
+    {
+      "id": "V6",
+      "question": "Does grace window expiry finalize state and does dispose() prevent further callbacks?",
+      "expected": "Grace timer expiry clears snapshot and calls mlsGroup.save(); dispose() clears timers and no-ops further ingestEvent calls",
+      "evidence": "Test 'calls mlsGroup.save() when grace window expires' with fake timers; 'clears timers and prevents further callbacks' verifies post-dispose behavior",
+      "pass": true
+    },
+    {
+      "id": "V7",
+      "question": "Does rollbackAndReplay re-inject clientConfig after deserializeClientState?",
+      "expected": "After deserialization, clientConfig is copied from current state (or defaultMarmotClientConfig) before overwriting mlsGroup.state",
+      "evidence": "Source code at epochResolver.ts rollbackAndReplay method explicitly copies clientConfig before state assignment",
+      "pass": true
+    }
+  ],
+  "all_pass": true
+}

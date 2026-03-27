@@ -1,0 +1,63 @@
+{
+  "project": {
+    "language": "TypeScript",
+    "framework": "Next.js 14.2 (static export)",
+    "test_framework": "Vitest (unit), Playwright (E2E)",
+    "test_command": "cd app && npx vitest run",
+    "build_command": "make build",
+    "test_dir": "app/tests/unit/",
+    "vitest_config": "app/vitest.config.ts",
+    "path_alias": "@ → app/"
+  },
+  "baseline": {
+    "test_files": 12,
+    "test_count": 179,
+    "all_passing": true
+  },
+  "key_files": {
+    "to_create": [
+      "app/src/lib/marmot/epochResolver.ts",
+      "app/tests/unit/marmot/epochResolver.test.ts"
+    ],
+    "to_modify": [
+      "app/src/lib/marmot/welcomeSubscription.ts"
+    ],
+    "reference": [
+      "app/node_modules/@internet-privacy/marmot-ts/dist/client/group/marmot-group.d.ts",
+      "app/node_modules/@internet-privacy/marmot-ts/dist/core/client-state.d.ts",
+      "app/node_modules/@internet-privacy/marmot-ts/dist/core/client-state.js",
+      "app/node_modules/ts-mls/dist/src/keyRetentionConfig.d.ts"
+    ]
+  },
+  "marmot_api": {
+    "ingest_results": {
+      "processed": "{ kind: 'processed', result: ProcessMessageResult, event: NostrEvent }",
+      "skipped": "{ kind: 'skipped', event: NostrEvent, reason: 'past-epoch' | 'wrong-wireformat' | 'self-echo' }",
+      "rejected": "{ kind: 'rejected', result: ProcessMessageResult, event: NostrEvent }",
+      "unreadable": "{ kind: 'unreadable', event: NostrEvent, errors: unknown[] }"
+    },
+    "process_message_result": "{ kind: 'newState' | 'applicationMessage', ... }",
+    "state_serialization": "serializeClientState(state: ClientState): Uint8Array, deserializeClientState(bytes: Uint8Array): ClientState",
+    "epoch_access": "getEpoch(clientState: ClientState | GroupInfo): number",
+    "state_setter": "mlsGroup.state = newState (marks dirty=true)",
+    "save": "mlsGroup.save(): Promise<void>",
+    "sort_commits": "sortGroupCommits sorts by (created_at, event.id) lexicographically",
+    "client_state_type": "ClientState = GroupState & PublicGroupState — no clientConfig included",
+    "retain_keys_for_epochs_default": 4
+  },
+  "testing_patterns": {
+    "mock_style": "vi.fn() + mockResolvedValue, inline mock objects cast with 'as never'",
+    "describe_it_pattern": "describe/it/expect/vi from vitest",
+    "no_setup_files": true,
+    "existing_marmot_tests": "app/tests/unit/marmot/welcomeSubscription.test.ts (9 tests), app/tests/unit/marmot/NdkNetworkAdapter.test.ts (10 tests)"
+  },
+  "integration_points": {
+    "subscribe_call_site": "MarmotContext.tsx subscribeNewGroups() calls subscribeToGroupMessages()",
+    "callbacks": {
+      "onApplicationMessage": "receives rumor: { id, kind, pubkey, created_at, content, tags }",
+      "onMembersChanged": "receives members: string[] (pubkey hex array)",
+      "onHistorySynced": "no args, fires after historical events processed"
+    },
+    "cleanup": "returned unsubscribe function called on group removal or context teardown"
+  }
+}

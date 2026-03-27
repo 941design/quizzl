@@ -1,0 +1,26 @@
+{
+  "story": "S2-welcome-subscription-integration",
+  "status": "done",
+  "completed_at": "2026-03-27T19:16:00Z",
+  "verified_at": "2026-03-27T19:17:00Z",
+  "final_outcome": "accepted",
+  "summary": "Integrated EpochResolver into subscribeToGroupMessages — ingestNdkEvent delegates to resolver.ingestEvent(), cleanup calls resolver.dispose(), historical sync flow unchanged",
+  "files_created": [],
+  "files_modified": [
+    "app/src/lib/marmot/welcomeSubscription.ts"
+  ],
+  "test_results": {
+    "total_files": 13,
+    "total_tests": 193,
+    "new_tests": 0,
+    "all_passing": true
+  },
+  "verification_notes": [
+    "No direct mlsGroup.ingest() calls remain in ingestNdkEvent (only a comment reference at line 181)",
+    "deserializeApplicationData import fully removed from welcomeSubscription.ts",
+    "resolver.dispose() called before sub.stop() in cleanup function",
+    "Historical sync code (lines 218-256) verified unchanged — fetch, sort, sequential processing, processedIds dedup, onHistorySynced all intact",
+    "S1 nit fixed: rollbackAndReplay and flushFutureBuffer now private in epochResolver.ts",
+    "All 4 ACs verified against source code and test evidence"
+  ]
+}

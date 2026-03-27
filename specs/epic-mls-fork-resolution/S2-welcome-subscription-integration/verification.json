@@ -1,0 +1,42 @@
+{
+  "story": "S2-welcome-subscription-integration",
+  "verified_at": "2026-03-27T19:16:00Z",
+  "questions": [
+    {
+      "id": "V1",
+      "question": "Does ingestNdkEvent delegate to resolver.ingestEvent() instead of calling mlsGroup.ingest() directly?",
+      "expected": "The body of ingestNdkEvent builds a NostrEvent and calls await resolver.ingestEvent(nostrEvent); no direct mlsGroup.ingest() call remains",
+      "evidence": "welcomeSubscription.ts line 205: await resolver.ingestEvent(nostrEvent); — direct ingest() call and deserializeApplicationData import removed from ingestNdkEvent",
+      "pass": true
+    },
+    {
+      "id": "V2",
+      "question": "Is the EpochResolver instantiated with the correct callbacks?",
+      "expected": "EpochResolver constructor receives mlsGroup and { onApplicationMessage, onMembersChanged } callbacks",
+      "evidence": "welcomeSubscription.ts lines 184-187: new EpochResolver(mlsGroup, { onApplicationMessage, onMembersChanged })",
+      "pass": true
+    },
+    {
+      "id": "V3",
+      "question": "Does the cleanup function call resolver.dispose()?",
+      "expected": "The returned unsubscribe function calls resolver.dispose() before sub.stop()",
+      "evidence": "welcomeSubscription.ts lines 267-270: return () => { resolver.dispose(); sub.stop(); }",
+      "pass": true
+    },
+    {
+      "id": "V4",
+      "question": "Is the historical sync flow unchanged?",
+      "expected": "Historical fetch, sort by created_at, sequential processing via ingestNdkEvent, processedIds dedup, and onHistorySynced logic remain identical",
+      "evidence": "Lines 218-256 are unchanged from pre-S2; only ingestNdkEvent internals changed (delegates to resolver instead of direct ingest)",
+      "pass": true
+    },
+    {
+      "id": "V5",
+      "question": "Do all existing tests still pass?",
+      "expected": "193 tests across 13 files, all passing",
+      "evidence": "npx vitest run: 13 passed test files, 193 passed tests, 0 failures",
+      "pass": true
+    }
+  ],
+  "all_pass": true
+}

@@ -1,0 +1,21 @@
+{
+  "captured_at": "2026-03-27T19:08:00Z",
+  "test_command": "cd app && npx vitest run",
+  "baseline": {
+    "test_files": 12,
+    "test_count": 179,
+    "all_passing": true
+  },
+  "post_implementation": {
+    "test_files": 13,
+    "test_count": 193,
+    "all_passing": true,
+    "new_test_file": "app/tests/unit/marmot/epochResolver.test.ts",
+    "new_test_count": 14
+  },
+  "files_created": [
+    "app/src/lib/marmot/epochResolver.ts",
+    "app/tests/unit/marmot/epochResolver.test.ts"
+  ],
+  "files_modified": []
+}

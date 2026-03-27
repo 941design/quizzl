@@ -1,0 +1,39 @@
+{
+  "stories": [
+    {
+      "id": "S1",
+      "name": "epoch-resolver-core",
+      "title": "Implement EpochResolver with fork detection, rollback, and message buffering",
+      "description": "Create the EpochResolver class in app/src/lib/marmot/epochResolver.ts. It wraps mlsGroup.ingest() with: (1) snapshot capture before each epoch's first commit, (2) deterministic commit comparison using (created_at, id) tuples, (3) rollback-and-replay when a lower-ranked competing commit arrives (CRITICAL: rollback must re-inject defaultMarmotClientConfig into the deserialized state since clientConfig is not preserved by serialization), (4) future-epoch message buffering with retry after epoch advance (note: marmot-ts already retries unreadable events 5 times internally; our buffer catches events that exhaust all retries), (5) grace window timer that finalizes state, and (6) a processing lock to serialize concurrent ingestEvent() calls. Includes the commitIsLower() pure function and all internal types (EpochSnapshot, EpochResolverConfig). Unit tests cover all six behaviors plus edge cases (buffer cap, dispose cleanup, clientConfig re-injection).",
+      "acceptance_criteria": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11"],
+      "status": "done",
+      "story_order": 1,
+      "depends_on": [],
+      "scope": {
+        "files_to_create": [
+          "app/src/lib/marmot/epochResolver.ts",
+          "app/tests/unit/marmot/epochResolver.test.ts"
+        ],
+        "files_to_modify": [],
+        "out_of_scope": "Does NOT modify welcomeSubscription.ts or any other existing file. Does NOT include E2E tests. Does NOT change marmot-ts configuration or retainKeysForEpochs."
+      }
+    },
+    {
+      "id": "S2",
+      "name": "welcome-subscription-integration",
+      "title": "Integrate EpochResolver into welcomeSubscription.ts",
+      "description": "Replace the direct mlsGroup.ingest() call inside ingestNdkEvent (line 197-206) with delegation to EpochResolver.ingestEvent(). Instantiate EpochResolver with the existing onApplicationMessage and onMembersChanged callbacks. Add resolver.dispose() to the returned cleanup function. Historical sync flow (fetch, sort, sequential processing) remains unchanged — the resolver's processing lock handles serialization. Verify all existing unit and E2E tests still pass.",
+      "acceptance_criteria": ["AC-12", "AC-13", "AC-14", "AC-15"],
+      "status": "done",
+      "story_order": 2,
+      "depends_on": ["S1"],
+      "scope": {
+        "files_to_create": [],
+        "files_to_modify": [
+          "app/src/lib/marmot/welcomeSubscription.ts"
+        ],
+        "out_of_scope": "Does NOT change the historical sync fetch logic, relay scoping, or gift-wrap unwrapping. Does NOT add new E2E tests for fork resolution (that is a manual test per the spec). Does NOT modify epochResolver.ts."
+      }
+    }
+  ]
+}
