@@ -673,7 +673,6 @@ describe('getBackupRelays', () => {
     expect(relays).toEqual([
       'wss://relay.damus.io',
       'wss://nos.lol',
-      'wss://relay.nostr.band',
     ]);
   });
 
@@ -711,7 +710,6 @@ describe('getBackupRelays', () => {
     expect(relays).toEqual([
       'wss://relay.damus.io',
       'wss://nos.lol',
-      'wss://relay.nostr.band',
     ]);
   });
 });

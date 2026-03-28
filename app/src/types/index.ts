@@ -150,7 +150,6 @@ const ENV_RELAYS = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_REL
 export const DEFAULT_RELAYS: readonly string[] = ENV_RELAYS ?? [
   'wss://relay.damus.io',
   'wss://nos.lol',
-  'wss://relay.nostr.band',
 ];
 
 export type NostrIdentity = {
