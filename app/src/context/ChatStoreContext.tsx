@@ -23,15 +23,22 @@ import {
 type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 
 /**
- * Commit any pending MLS proposals so that sendChatMessage won't throw
- * "Cannot send application message with unapplied proposals".
+ * Send a chat message, auto-committing pending proposals on failure.
+ *
+ * ts-mls forbids application messages when unappliedProposals is non-empty.
+ * When that specific error occurs we commit all pending proposals and retry
+ * the send exactly once.
  */
-async function commitPendingProposals(group: MarmotGroupType): Promise<void> {
-  if (Object.keys(group.unappliedProposals).length === 0) return;
+async function sendChatSafe(group: MarmotGroupType, content: string): Promise<void> {
   try {
-    await group.commit();
-  } catch {
-    // Not an admin or commit failed — let the send surface the original error.
+    await group.sendChatMessage(content);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('unapplied proposals')) {
+      await group.commit();          // throws if not admin — intentional
+      await group.sendChatMessage(content);
+      return;
+    }
+    throw err;
   }
 }
 
@@ -171,8 +178,7 @@ export function ChatStoreProvider({
       setMessages((prev) => [...prev, optimistic]);
 
       try {
-        await commitPendingProposals(group);
-        await group.sendChatMessage(content);
+        await sendChatSafe(group, content);
         appendMessage(groupId, optimistic).catch((err) => {
           console.error('[chat-store] Failed to persist sent message:', err);
         });

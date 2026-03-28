@@ -66,16 +66,26 @@ interface PollStoreProviderProps {
 }
 
 /**
- * Commit any pending MLS proposals so that sendApplicationRumor won't throw
- * "Cannot send application message with unapplied proposals".
+ * Send an application rumor, auto-committing pending proposals on failure.
+ *
+ * ts-mls forbids application messages when unappliedProposals is non-empty.
+ * When that specific error occurs we commit all pending proposals and retry
+ * the send exactly once.  The commit-then-retry is atomic (no await gap
+ * between them that could let more proposals slip in).
  */
-async function commitPendingProposals(group: MarmotGroupType): Promise<void> {
-  if (Object.keys(group.unappliedProposals).length === 0) return;
+async function sendRumorSafe(
+  group: MarmotGroupType,
+  rumor: Parameters<MarmotGroupType['sendApplicationRumor']>[0],
+): Promise<void> {
   try {
-    await group.commit();
-  } catch {
-    // Not an admin or commit failed — the subsequent send will also fail
-    // and surface the original error to the caller.
+    await group.sendApplicationRumor(rumor);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('unapplied proposals')) {
+      await group.commit();          // throws if not admin — intentional
+      await group.sendApplicationRumor(rumor);
+      return;
+    }
+    throw err;
   }
 }
 
@@ -179,12 +189,9 @@ export function PollStoreProvider({
         creatorPubkey: pubkey,
       };
 
-      // Commit any pending proposals so the send doesn't fail
-      await commitPendingProposals(group);
-
       // Send poll-open MLS message (kind 10)
       const openRumor = await buildRumor(POLL_OPEN_KIND, serialisePollOpen(openPayload), pubkey);
-      await group.sendApplicationRumor(openRumor as any);
+      await sendRumorSafe(group, openRumor as any);
 
       // Send chat announcement via ChatStoreContext (handles optimistic UI + MLS send)
       const chatContent = JSON.stringify({
@@ -223,12 +230,9 @@ export function PollStoreProvider({
 
       const votePayload: PollVotePayload = { pollId, responses };
 
-      // Commit any pending proposals so the send doesn't fail
-      await commitPendingProposals(group);
-
       // Send vote MLS message (kind 11)
       const rumor = await buildRumor(POLL_VOTE_KIND, serialisePollVote(votePayload), pubkey);
-      await group.sendApplicationRumor(rumor as any);
+      await sendRumorSafe(group, rumor as any);
 
       // Persist locally
       const vote: PollVote = {
@@ -278,12 +282,9 @@ export function PollStoreProvider({
 
       const closePayload: PollClosePayload = { pollId, results, totalVoters };
 
-      // Commit any pending proposals so the send doesn't fail
-      await commitPendingProposals(group);
-
       // Send close MLS message (kind 12)
       const closeRumor = await buildRumor(POLL_CLOSE_KIND, serialisePollClose(closePayload), pubkey);
-      await group.sendApplicationRumor(closeRumor as any);
+      await sendRumorSafe(group, closeRumor as any);
 
       // Send chat results message via ChatStoreContext (handles optimistic UI + MLS send)
       const chatContent = JSON.stringify({
