@@ -12,7 +12,6 @@ import {
   serializeClientState,
   deserializeClientState,
   getEpoch,
-  defaultMarmotClientConfig,
   getGroupMembers,
 } from '@internet-privacy/marmot-ts';
 
@@ -241,10 +240,6 @@ export class EpochResolver {
 
     // Restore state from snapshot
     const restoredState = deserializeClientState(this.snapshot.stateBytes);
-
-    // Re-inject clientConfig — it's NOT included in serialization
-    const clientConfig = this.mlsGroup.state.clientConfig ?? defaultMarmotClientConfig;
-    restoredState.clientConfig = clientConfig;
 
     // Set state (setter marks dirty, fires stateChanged)
     this.mlsGroup.state = restoredState;
