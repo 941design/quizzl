@@ -842,22 +842,12 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     [groups, reloadGroups, markBackupDirty, pubkeyHex]
   );
 
+  // Soft-leave: purge local state only. No MLS Remove proposal is sent,
+  // so the group is never blocked by an unapplied proposal that needs an
+  // admin commit. The member simply disappears from the local UI.
+  // See specs/out-of-band-leave.md for the planned protocol-level solution.
   const leaveGroup = useCallback(async (groupId: string): Promise<boolean> => {
-    const client = clientRef.current;
-    try {
-      if (client) {
-        const mlsGroup = await client.getGroup(groupId).catch(() => null);
-        if (mlsGroup) {
-          await mlsGroup.leave().catch((err) => {
-            console.warn('[Marmot] leave() failed:', err);
-          });
-        }
-      }
-    } catch (err) {
-      console.warn('[Marmot] leaveGroup MLS op failed:', err);
-    }
-
-    // Always remove from local storage
+    // Always remove from local storage — no MLS leave() call.
     await removeGroupFromStorage(groupId);
     await clearMemberScores(groupId);
     await clearMemberProfiles(groupId);
