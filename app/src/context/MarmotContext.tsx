@@ -55,6 +55,19 @@ async function startWelcomeSubscription(
 import { DEFAULT_RELAYS } from '@/src/types';
 import { getEventHash } from 'applesauce-core/helpers/event';
 
+/**
+ * Commit any pending MLS proposals so that sendApplicationRumor won't throw
+ * "Cannot send application message with unapplied proposals".
+ */
+async function commitPendingProposals(group: MarmotGroupType): Promise<void> {
+  if (Object.keys(group.unappliedProposals).length === 0) return;
+  try {
+    await group.commit();
+  } catch {
+    // Not an admin or commit failed — caller should handle the send error.
+  }
+}
+
 /** Build a properly-hashed MIP-03 rumor for sendApplicationRumor. */
 function buildRumor(kind: number, content: string, pubkey: string, tags: string[][] = []) {
   const rumor = {
@@ -566,7 +579,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               if (currentMembers.length > prevMemberCount) {
                 const payload = serialiseProfileUpdate(localProfileRef.current);
                 const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
-                void mlsGroup.sendApplicationRumor(rumor as any).catch((err: unknown) => {
+                void commitPendingProposals(mlsGroup).then(() =>
+                  mlsGroup.sendApplicationRumor(rumor as any)
+                ).catch((err: unknown) => {
                   console.warn(`[Marmot] onMembersChanged profile republish for ${group.id} failed:`, err);
                 });
               }
@@ -581,7 +596,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               const payload = serialiseProfileUpdate(currentProfile);
               console.info(`[Marmot] onHistorySynced: publishing profile for group ${group.id}, nickname="${currentProfile.nickname}"`);
               const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
-              void mlsGroup.sendApplicationRumor(rumor as any).then(() => {
+              void commitPendingProposals(mlsGroup).then(() =>
+                mlsGroup.sendApplicationRumor(rumor as any)
+              ).then(() => {
                 console.info(`[Marmot] onHistorySynced: profile published successfully for group ${group.id}`);
               }).catch((err: unknown) => {
                 console.warn(`[Marmot] onHistorySynced profile publish for ${group.id} failed:`, err);
@@ -632,6 +649,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             const mlsGroup = await client.getGroup(group.id).catch(() => null);
             if (!mlsGroup) continue;
             const rumor = buildRumor(scoreKind, payload, pubkeyHex ?? '');
+            await commitPendingProposals(mlsGroup);
             await mlsGroup.sendApplicationRumor(rumor as any).catch(() => {});
           }
         } catch {
@@ -679,6 +697,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       try {
         const payload = serialiseProfileUpdate(localProfile);
         const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex);
+        await commitPendingProposals(mlsGroup);
         await mlsGroup.sendApplicationRumor(rumor as any);
       } catch (err) {
         console.warn('[Marmot] publishProfileUpdate on createGroup failed:', err);
@@ -779,6 +798,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         try {
           const payload = serialiseProfileUpdate(localProfileRef.current);
           const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
+          await commitPendingProposals(mlsGroup);
           await mlsGroup.sendApplicationRumor(rumor as any);
         } catch (profileErr) {
           console.warn('[Marmot] inviter profile publish after invite failed:', profileErr);
@@ -848,6 +868,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           if (!mlsGroup) continue;
 
           const rumor = buildRumor(SCORE_RUMOR_KIND, payload, pubkeyHex ?? '');
+          await commitPendingProposals(mlsGroup);
           await mlsGroup.sendApplicationRumor(rumor as any);
         } catch (err) {
           console.warn(`[Marmot] publishScoreUpdate to group ${group.id} failed:`, err);
@@ -892,6 +913,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         if (!mlsGroup) continue;
 
         const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex);
+        await commitPendingProposals(mlsGroup);
         await mlsGroup.sendApplicationRumor(rumor as any);
       } catch (err) {
         console.warn(`[Marmot] publishProfileUpdate to group ${group.id} failed:`, err);

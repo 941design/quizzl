@@ -65,6 +65,20 @@ interface PollStoreProviderProps {
   children: React.ReactNode;
 }
 
+/**
+ * Commit any pending MLS proposals so that sendApplicationRumor won't throw
+ * "Cannot send application message with unapplied proposals".
+ */
+async function commitPendingProposals(group: MarmotGroupType): Promise<void> {
+  if (Object.keys(group.unappliedProposals).length === 0) return;
+  try {
+    await group.commit();
+  } catch {
+    // Not an admin or commit failed — the subsequent send will also fail
+    // and surface the original error to the caller.
+  }
+}
+
 /** Build a properly-hashed MIP-03 rumor for sendApplicationRumor. */
 async function buildRumor(kind: number, content: string, pubkey: string, tags: string[][] = []) {
   const { getEventHash } = await import('applesauce-core/helpers/event');
@@ -165,6 +179,9 @@ export function PollStoreProvider({
         creatorPubkey: pubkey,
       };
 
+      // Commit any pending proposals so the send doesn't fail
+      await commitPendingProposals(group);
+
       // Send poll-open MLS message (kind 10)
       const openRumor = await buildRumor(POLL_OPEN_KIND, serialisePollOpen(openPayload), pubkey);
       await group.sendApplicationRumor(openRumor as any);
@@ -205,6 +222,9 @@ export function PollStoreProvider({
       if (!groupId || !group) return;
 
       const votePayload: PollVotePayload = { pollId, responses };
+
+      // Commit any pending proposals so the send doesn't fail
+      await commitPendingProposals(group);
 
       // Send vote MLS message (kind 11)
       const rumor = await buildRumor(POLL_VOTE_KIND, serialisePollVote(votePayload), pubkey);
@@ -257,6 +277,9 @@ export function PollStoreProvider({
       const totalVoters = pollVotes.length;
 
       const closePayload: PollClosePayload = { pollId, results, totalVoters };
+
+      // Commit any pending proposals so the send doesn't fail
+      await commitPendingProposals(group);
 
       // Send close MLS message (kind 12)
       const closeRumor = await buildRumor(POLL_CLOSE_KIND, serialisePollClose(closePayload), pubkey);
