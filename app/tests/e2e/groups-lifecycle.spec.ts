@@ -108,17 +108,18 @@ test.describe.serial('Group Lifecycle', () => {
     await expect(pageB.getByText('E2E Test Group')).toBeVisible({ timeout: 60_000 });
   });
 
-  test('User B leaves group', async () => {
+  test('User B leaves group (soft-leave, no MLS proposal)', async () => {
     await dismissErrorOverlay(pageB);
     // Click on the group
     await pageB.locator(':has-text("E2E Test Group")').getByRole('link', { name: 'Open' }).click();
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
-    // Leave the group
+    // Soft-leave: purges local state only — no MLS Remove proposal is sent,
+    // so the group is never blocked by unapplied proposals.
     await pageB.getByTestId('leave-group-btn').click();
     await pageB.getByTestId('leave-group-confirm-btn').click();
 
-    // Group should be removed from User B's list
+    // Group should be removed from User B's local list
     await expect(pageB.getByText('E2E Test Group')).not.toBeVisible({ timeout: 30_000 });
   });
 

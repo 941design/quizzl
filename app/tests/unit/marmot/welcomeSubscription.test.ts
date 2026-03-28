@@ -162,13 +162,16 @@ describe('onMembersChanged profile republish logic (MarmotContext)', () => {
     expect(sendApplicationRumor).not.toHaveBeenCalled();
   });
 
-  it('does NOT call sendApplicationRumor when a member leaves (count decreases)', async () => {
+  it('does NOT call sendApplicationRumor when a member is removed (count decreases)', async () => {
+    // Member count can decrease when an admin commits a Remove (e.g. after
+    // processing a kind 13 leave-intent, or a forced kick). Profile should
+    // NOT be republished in that case — only on joins (count increase).
     const sendApplicationRumor = vi.fn().mockResolvedValue(undefined);
     const mlsGroup = { sendApplicationRumor };
     const localProfile = { nickname: 'Alice', avatar: null, badgeIds: [] };
 
     const onMembersChanged = makeOnMembersChangedCallback(3, mlsGroup, 'aabbcc', localProfile);
-    await onMembersChanged(['aabbcc', 'ddeeff']); // member left: 3 → 2
+    await onMembersChanged(['aabbcc', 'ddeeff']); // member removed: 3 → 2
 
     expect(sendApplicationRumor).not.toHaveBeenCalled();
   });
@@ -189,21 +192,21 @@ describe('onMembersChanged profile republish logic (MarmotContext)', () => {
     expect(sendApplicationRumor).toHaveBeenCalledTimes(2);
   });
 
-  it('does NOT call sendApplicationRumor when re-joining after a leave does not exceed prior peak', async () => {
+  it('does NOT call sendApplicationRumor when re-joining after a removal does not exceed prior peak', async () => {
     const sendApplicationRumor = vi.fn().mockResolvedValue(undefined);
     const mlsGroup = { sendApplicationRumor };
     const localProfile = { nickname: 'Alice', avatar: null, badgeIds: [] };
 
-    // Start with 2, drop to 1, then back to 2 — count goes 2→1→2
-    // The second fire (back to 2) DOES exceed the prevMemberCount of 1, so it
-    // should call sendApplicationRumor (this is acceptable: re-joining member
-    // also needs a fresh profile).
+    // Start with 2, drop to 1 (admin committed Remove), then back to 2
+    // (new invite) — count goes 2→1→2. The second fire (back to 2) DOES
+    // exceed prevMemberCount of 1, so it should call sendApplicationRumor
+    // (re-joining member needs a fresh profile).
     const onMembersChanged = makeOnMembersChangedCallback(2, mlsGroup, 'aabbcc', localProfile);
 
-    await onMembersChanged(['aabbcc']); // leave: 2→1 — no publish
+    await onMembersChanged(['aabbcc']); // removal committed: 2→1 — no publish
     expect(sendApplicationRumor).toHaveBeenCalledTimes(0);
 
-    await onMembersChanged(['aabbcc', 'ddeeff']); // rejoin: 1→2 — publishes
+    await onMembersChanged(['aabbcc', 'ddeeff']); // new member joins: 1→2 — publishes
     expect(sendApplicationRumor).toHaveBeenCalledTimes(1);
   });
 });

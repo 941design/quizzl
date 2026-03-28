@@ -67,11 +67,12 @@ function GroupDetailView({ id }: { id: string }) {
       void getMemberScores(id).then(setMemberScores).catch(() => {});
       void getMemberProfiles(id).then((profiles) => {
         const map: Record<string, MemberProfile> = {};
-        // All MLS members are confirmed — seed from the authoritative member list.
-        // Profile receipt only enhances display, it does not determine membership.
-        const confirmed = new Set<string>(found.memberPubkeys);
+        // Track members who have sent a profile in this group (confirmed membership).
+        // Members added to the MLS tree but not yet joined (no profile) show as pending.
+        const confirmed = new Set<string>();
         for (const p of profiles) {
           map[p.pubkeyHex] = p;
+          confirmed.add(p.pubkeyHex);
         }
 
         // Fill gaps from the global contact cache (known from other groups)

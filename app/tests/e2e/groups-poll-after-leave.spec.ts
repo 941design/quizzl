@@ -1,15 +1,12 @@
 /**
- * Regression test for: "Cannot send application message with unapplied proposals"
+ * Soft-leave: verify the group keeps working after a member leaves.
  *
- * When a member leaves a group they send a self-remove *proposal* (not a
- * commit). The remaining admin receives this proposal, and it sits in
- * `unappliedProposals` until someone commits it. Before the fix, any
- * attempt to send an application message (poll, chat, score, profile)
- * would throw a UsageError from ts-mls.
+ * Leave is a client-side-only operation (no MLS Remove proposal). The
+ * departing member purges local state; the remaining members' MLS state
+ * is unaffected. This test confirms that polls, chat, voting, and poll
+ * close all work normally after a soft-leave.
  *
- * The fix adds `commitPendingProposals()` before every `sendApplicationRumor`
- * / `sendChatMessage` call, auto-committing pending proposals when the
- * current user is an admin.
+ * See specs/out-of-band-leave.md for the planned protocol-level solution.
  */
 
 import { test, expect, BrowserContext, Page } from '@playwright/test';
@@ -87,15 +84,15 @@ async function openGroupDetail(page: Page, groupName: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Test: poll creation + chat after a member leave proposal
+// Test: group functionality continues after soft-leave
 // ---------------------------------------------------------------------------
 
-test.describe.serial('Poll and chat with unapplied leave proposal', () => {
+test.describe.serial('Group works after soft-leave', () => {
   let ctxA: BrowserContext;
   let ctxB: BrowserContext;
   let pgA: Page;
   let pgB: Page;
-  const GROUP_NAME = 'Unapplied Proposal Test';
+  const GROUP_NAME = 'Soft Leave Test';
 
   test.beforeAll(async ({ browser }) => {
     await computeTestKeypairs();
@@ -114,21 +111,19 @@ test.describe.serial('Poll and chat with unapplied leave proposal', () => {
     await inviteAndJoin(pgA, USER_B.npub, pgB, GROUP_NAME);
   });
 
-  test('B leaves the group (sends self-remove proposal)', async () => {
+  test('B soft-leaves the group (local purge only, no MLS proposal)', async () => {
     await openGroupDetail(pgB, GROUP_NAME);
     await pgB.getByTestId('leave-group-btn').click();
     await pgB.getByTestId('leave-group-confirm-btn').click();
+
+    // Group disappears from B's local list
     await expect(pgB.getByText(GROUP_NAME)).not.toBeVisible({ timeout: 30_000 });
   });
 
-  test('A creates a poll after leave proposal arrives (was: unapplied proposals error)', async () => {
-    // Wait for B's self-remove proposal to propagate via relay to A's
-    // subscription. The proposal goes into A's unappliedProposals — before
-    // the fix, any sendApplicationRumor call here would throw UsageError.
+  test('A can create a poll immediately (no unapplied proposals)', async () => {
+    // No need to wait for proposal propagation — soft-leave sends nothing.
     await openGroupDetail(pgA, GROUP_NAME);
-    await pgA.waitForTimeout(15_000);
 
-    // Create a poll — this exercises commitPendingProposals() + sendApplicationRumor()
     await pgA.getByTestId('create-poll-btn').click();
     await expect(pgA.getByTestId('create-poll-modal')).toBeVisible();
 
@@ -137,23 +132,18 @@ test.describe.serial('Poll and chat with unapplied leave proposal', () => {
     await pgA.getByTestId('poll-option-input-1').fill('Option Y');
     await pgA.getByTestId('create-poll-submit-btn').click();
 
-    // Modal should close (no error thrown)
     await expect(pgA.getByTestId('create-poll-modal')).not.toBeVisible({ timeout: 30_000 });
 
-    // Poll should appear in the panel
     const panel = pgA.getByTestId('poll-panel');
     await expect(panel.getByText('Post-leave poll')).toBeVisible({ timeout: 10_000 });
   });
 
-  test('Chat announcement was also sent successfully', async () => {
-    // The poll-open flow sends a chat announcement via sendChatMessage —
-    // this also exercises the commitPendingProposals guard in ChatStoreContext.
+  test('Chat announcement sent successfully', async () => {
     await expect(pgA.getByTestId('poll-chat-announcement')).toBeVisible({ timeout: 30_000 });
     await expect(pgA.getByText('Alice started a poll')).toBeVisible();
   });
 
-  test('A can send a standalone chat message', async () => {
-    // Send a regular chat message to confirm sendChatMessage also works
+  test('A can send a chat message', async () => {
     const chatInput = pgA.getByTestId('chat-input');
     await chatInput.fill('Hello after leave');
     await pgA.getByTestId('chat-send-btn').click();
@@ -177,7 +167,6 @@ test.describe.serial('Poll and chat with unapplied leave proposal', () => {
     await expect(pollCard.getByText('Close this poll?')).toBeVisible();
     await pollCard.getByText('Confirm').click();
 
-    // After close, poll moves to collapsed "closed" section
     await expect(pgA.getByTestId('poll-toggle-closed')).toBeVisible({ timeout: 30_000 });
     await pgA.getByTestId('poll-toggle-closed').click();
 

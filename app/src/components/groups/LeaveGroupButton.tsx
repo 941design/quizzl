@@ -19,6 +19,17 @@ type LeaveGroupButtonProps = {
   groupId: string;
 };
 
+/**
+ * Soft-leave: purges local state only — no MLS Remove proposal is sent.
+ *
+ * An MLS Remove proposal would block the entire group from sending
+ * messages until an admin commits it (ts-mls enforces this per RFC 9420).
+ * Instead we just delete local data and navigate away. The member becomes
+ * a "ghost leaf" in the ratchet tree but cannot decrypt future messages.
+ *
+ * See specs/out-of-band-leave.md for the planned protocol-level solution
+ * (kind 13 leave-intent application message + admin auto-remove).
+ */
 export default function LeaveGroupButton({ groupId }: LeaveGroupButtonProps) {
   const copy = useCopy();
   const { leaveGroup } = useMarmot();
