@@ -59,29 +59,33 @@ import { getEventHash } from 'applesauce-core/helpers/event';
  * Send an application rumor, auto-committing pending proposals on failure.
  *
  * ts-mls forbids application messages when unappliedProposals is non-empty.
- * On that specific error we commit all pending proposals and retry once.
- * For fire-and-forget callers, pass `softFail: true` to swallow errors.
+ * On that specific error we commit all pending proposals and retry up to
+ * MAX_RETRIES times. For fire-and-forget callers, pass `softFail: true`.
  */
+const MAX_RETRIES = 3;
 async function sendRumorSafe(
   group: MarmotGroupType,
   rumor: Parameters<MarmotGroupType['sendApplicationRumor']>[0],
   opts?: { softFail?: boolean },
 ): Promise<void> {
-  try {
-    await group.sendApplicationRumor(rumor);
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('unapplied proposals')) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await group.sendApplicationRumor(rumor);
+      return;
+    } catch (err) {
+      const isUnapplied = err instanceof Error && err.message.includes('unapplied proposals');
+      if (!isUnapplied || attempt === MAX_RETRIES) {
+        if (opts?.softFail) return;
+        throw err;
+      }
+      console.warn(`[sendRumorSafe] unapplied proposals (attempt ${attempt + 1}/${MAX_RETRIES + 1}), committing…`);
       try {
         await group.commit();
-        await group.sendApplicationRumor(rumor);
-        return;
-      } catch (retryErr) {
+      } catch (commitErr) {
         if (opts?.softFail) return;
-        throw retryErr;
+        throw commitErr;
       }
     }
-    if (opts?.softFail) return;
-    throw err;
   }
 }
 
@@ -585,6 +589,13 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               if (stored && currentMembers.length !== stored.memberPubkeys.length) {
                 await persistGroup({ ...stored, memberPubkeys: currentMembers });
                 await reloadGroups();
+              }
+              // Auto-commit any unapplied proposals (e.g. leave proposals)
+              // so that all members can immediately send application messages.
+              if (Object.keys(mlsGroup.unappliedProposals).length > 0) {
+                void mlsGroup.commit().catch((err: unknown) => {
+                  console.debug('[Marmot] auto-commit unapplied proposals failed:', err);
+                });
               }
               // BUG FIX: when new members join (count increases), republish local
               // profile so they receive current profile data without relying on

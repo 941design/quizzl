@@ -69,23 +69,25 @@ interface PollStoreProviderProps {
  * Send an application rumor, auto-committing pending proposals on failure.
  *
  * ts-mls forbids application messages when unappliedProposals is non-empty.
- * When that specific error occurs we commit all pending proposals and retry
- * the send exactly once.  The commit-then-retry is atomic (no await gap
- * between them that could let more proposals slip in).
+ * When that specific error occurs we commit all pending proposals and retry.
+ * Loops up to {@link MAX_RETRIES} times in case new proposals arrive between
+ * the commit and the send.
  */
+const MAX_RETRIES = 3;
 async function sendRumorSafe(
   group: MarmotGroupType,
   rumor: Parameters<MarmotGroupType['sendApplicationRumor']>[0],
 ): Promise<void> {
-  try {
-    await group.sendApplicationRumor(rumor);
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('unapplied proposals')) {
-      await group.commit();          // throws if not admin — intentional
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
       await group.sendApplicationRumor(rumor);
       return;
+    } catch (err) {
+      const isUnapplied = err instanceof Error && err.message.includes('unapplied proposals');
+      if (!isUnapplied || attempt === MAX_RETRIES) throw err;
+      console.warn(`[sendRumorSafe] unapplied proposals (attempt ${attempt + 1}/${MAX_RETRIES + 1}), committing…`);
+      await group.commit();
     }
-    throw err;
   }
 }
 

@@ -26,19 +26,20 @@ type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
  * Send a chat message, auto-committing pending proposals on failure.
  *
  * ts-mls forbids application messages when unappliedProposals is non-empty.
- * When that specific error occurs we commit all pending proposals and retry
- * the send exactly once.
+ * When that specific error occurs we commit all pending proposals and retry.
  */
+const MAX_RETRIES = 3;
 async function sendChatSafe(group: MarmotGroupType, content: string): Promise<void> {
-  try {
-    await group.sendChatMessage(content);
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('unapplied proposals')) {
-      await group.commit();          // throws if not admin — intentional
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
       await group.sendChatMessage(content);
       return;
+    } catch (err) {
+      const isUnapplied = err instanceof Error && err.message.includes('unapplied proposals');
+      if (!isUnapplied || attempt === MAX_RETRIES) throw err;
+      console.warn(`[sendChatSafe] unapplied proposals (attempt ${attempt + 1}/${MAX_RETRIES + 1}), committing…`);
+      await group.commit();
     }
-    throw err;
   }
 }
 
