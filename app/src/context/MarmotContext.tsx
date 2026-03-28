@@ -56,11 +56,14 @@ import { DEFAULT_RELAYS } from '@/src/types';
 import { getEventHash } from 'applesauce-core/helpers/event';
 
 /**
- * Send an application rumor, auto-committing pending proposals on failure.
+ * WORKAROUND: ts-mls forbids application messages when unappliedProposals
+ * is non-empty. This catches the error, commits pending proposals, and
+ * retries. Requires the sender to be an admin (commit() has an admin check).
+ * For fire-and-forget callers, pass `softFail: true`.
  *
- * ts-mls forbids application messages when unappliedProposals is non-empty.
- * On that specific error we commit all pending proposals and retry up to
- * MAX_RETRIES times. For fire-and-forget callers, pass `softFail: true`.
+ * Root cause: admin promotion during invite can silently fail, leaving
+ * members unable to commit. The real fix is to guarantee admin promotion
+ * succeeds (retry / block invite until confirmed).
  */
 const MAX_RETRIES = 3;
 async function sendRumorSafe(
@@ -590,8 +593,10 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                 await persistGroup({ ...stored, memberPubkeys: currentMembers });
                 await reloadGroups();
               }
-              // Auto-commit any unapplied proposals (e.g. leave proposals)
-              // so that all members can immediately send application messages.
+              // WORKAROUND: auto-commit unapplied proposals (e.g. leave
+              // proposals) so all members can send application messages.
+              // Only works when the local user is admin. Fails silently
+              // if admin promotion was lost — see sendRumorSafe comment.
               if (Object.keys(mlsGroup.unappliedProposals).length > 0) {
                 void mlsGroup.commit().catch((err: unknown) => {
                   console.debug('[Marmot] auto-commit unapplied proposals failed:', err);

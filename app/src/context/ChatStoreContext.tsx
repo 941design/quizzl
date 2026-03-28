@@ -23,10 +23,13 @@ import {
 type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 
 /**
- * Send a chat message, auto-committing pending proposals on failure.
+ * WORKAROUND: ts-mls forbids application messages when unappliedProposals
+ * is non-empty. This catches the error, commits pending proposals, and
+ * retries. Requires the sender to be an admin (commit() has an admin check).
  *
- * ts-mls forbids application messages when unappliedProposals is non-empty.
- * When that specific error occurs we commit all pending proposals and retry.
+ * Root cause: admin promotion during invite can silently fail, leaving
+ * members unable to commit. The real fix is to guarantee admin promotion
+ * succeeds (retry / block invite until confirmed).
  */
 const MAX_RETRIES = 3;
 async function sendChatSafe(group: MarmotGroupType, content: string): Promise<void> {

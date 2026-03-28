@@ -66,12 +66,16 @@ interface PollStoreProviderProps {
 }
 
 /**
- * Send an application rumor, auto-committing pending proposals on failure.
+ * WORKAROUND: ts-mls forbids application messages when unappliedProposals
+ * is non-empty. This catches the error, commits pending proposals, and
+ * retries. Requires the sender to be an admin (commit() has an admin check).
  *
- * ts-mls forbids application messages when unappliedProposals is non-empty.
- * When that specific error occurs we commit all pending proposals and retry.
- * Loops up to {@link MAX_RETRIES} times in case new proposals arrive between
- * the commit and the send.
+ * Root cause: admin promotion during invite can silently fail, leaving
+ * members unable to commit. The real fix is to guarantee admin promotion
+ * succeeds (retry / block invite until confirmed).
+ *
+ * See also: MarmotContext onMembersChanged auto-commit, ChatStoreContext
+ * sendChatSafe — same workaround applied there.
  */
 const MAX_RETRIES = 3;
 async function sendRumorSafe(
