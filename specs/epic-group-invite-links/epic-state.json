@@ -1,0 +1,13 @@
+{
+  "epic_name": "group-invite-links",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-03-28T00:00:00Z",
+  "updated_at": "2026-03-29T15:45:00Z",
+  "completed_stories": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9"],
+  "escalated_stories": [],
+  "phase_history": [
+    {"phase": "SPEC_VALIDATED", "timestamp": "2026-03-28T00:00:00Z", "trigger": "validation_passed"},
+    {"phase": "STORIES_PLANNED", "timestamp": "2026-03-28T00:00:00Z", "trigger": "story_planning_complete"}
+  ]
+}

@@ -19,6 +19,8 @@ import {
 } from '@/src/lib/marmot/groupStorage';
 import { loadMessages, clearMessages } from '@/src/lib/marmot/chatPersistence';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
+import { loadAllInviteLinks, saveInviteLink } from '@/src/lib/marmot/inviteLinkStorage';
+import type { InviteLink } from '@/src/lib/marmot/inviteLinkStorage';
 import type { EventSigner } from 'applesauce-core';
 import type NDK from '@nostr-dev-kit/ndk';
 import { fetchEventsWithTimeout } from '@/src/lib/ndkClient';
@@ -60,6 +62,7 @@ export interface BackupPayload {
       createdAt: number;
     }>
   >;
+  inviteLinks: InviteLink[];
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +177,9 @@ export async function collectBackupPayload(): Promise<BackupPayload> {
     chatMessages[group.id] = messages.slice(-MAX_CHAT_MESSAGES);
   }
 
+  // Invite links (all groups)
+  const inviteLinks = await loadAllInviteLinks();
+
   return {
     version: 1,
     createdAt: Math.floor(Date.now() / 1000),
@@ -194,6 +200,7 @@ export async function collectBackupPayload(): Promise<BackupPayload> {
     memberScores,
     memberProfiles,
     chatMessages,
+    inviteLinks,
   };
 }
 
@@ -423,7 +430,14 @@ export async function restoreFromBackup(payload: BackupPayload): Promise<void> {
     await idbSet(`quizzl:messages:${groupId}`, messages);
   }
 
-  // 9. Mark identity as backed up
+  // 9. Rehydrate invite links
+  if (payload.inviteLinks) {
+    for (const link of payload.inviteLinks) {
+      await saveInviteLink(link);
+    }
+  }
+
+  // 10. Mark identity as backed up
   localStorage.setItem(STORAGE_KEYS.nostrBackedUp, 'true');
 }
 

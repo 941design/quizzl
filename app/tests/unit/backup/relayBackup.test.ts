@@ -64,6 +64,10 @@ vi.mock('idb-keyval', () => ({
     const obj = getOrCreateStore(s);
     Object.keys(obj).forEach((k) => delete obj[k]);
   }),
+  entries: vi.fn(async (store?: string) => {
+    const s = store ?? 'default';
+    return Object.entries(getOrCreateStore(s));
+  }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -122,6 +126,11 @@ import type { Group, MemberScore, MemberProfile } from '@/src/types';
 import { loadMessages } from '@/src/lib/marmot/chatPersistence';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import { set } from 'idb-keyval';
+import {
+  saveInviteLink,
+  loadAllInviteLinks,
+} from '@/src/lib/marmot/inviteLinkStorage';
+import type { InviteLink } from '@/src/lib/marmot/inviteLinkStorage';
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -179,6 +188,7 @@ describe('collectBackupPayload', () => {
     expect(payload.memberScores).toEqual({});
     expect(payload.memberProfiles).toEqual({});
     expect(payload.chatMessages).toEqual({});
+    expect(payload.inviteLinks).toEqual([]);
   });
 
   // -----------------------------------------------------------------------
@@ -463,6 +473,38 @@ describe('collectBackupPayload', () => {
     expect(payload.createdAt).toBeGreaterThanOrEqual(before);
     expect(payload.createdAt).toBeLessThanOrEqual(after);
   });
+
+  // -----------------------------------------------------------------------
+  // Invite links
+  // -----------------------------------------------------------------------
+
+  it('collects invite links from IDB', async () => {
+    const link: InviteLink = {
+      nonce: 'n1',
+      groupId: 'g1',
+      createdAt: 1700000000000,
+      label: 'Class chat',
+      muted: false,
+    };
+    await saveInviteLink(link);
+
+    const payload = await collectBackupPayload();
+    expect(payload.inviteLinks).toHaveLength(1);
+    expect(payload.inviteLinks[0]).toEqual(link);
+  });
+
+  it('collects invite links across multiple groups', async () => {
+    await saveInviteLink({ nonce: 'n1', groupId: 'g1', createdAt: 1000, muted: false });
+    await saveInviteLink({ nonce: 'n2', groupId: 'g2', createdAt: 2000, label: 'Email', muted: true });
+
+    const payload = await collectBackupPayload();
+    expect(payload.inviteLinks).toHaveLength(2);
+  });
+
+  it('returns empty inviteLinks when none exist', async () => {
+    const payload = await collectBackupPayload();
+    expect(payload.inviteLinks).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -733,6 +775,7 @@ function makeEmptyPayload(overrides?: Partial<BackupPayload>): BackupPayload {
     memberScores: {},
     memberProfiles: {},
     chatMessages: {},
+    inviteLinks: [],
     ...overrides,
   };
 }
@@ -927,6 +970,53 @@ describe('restoreFromBackup', () => {
     const groups = await loadAllGroups();
     expect(groups).toHaveLength(1);
     expect(groups[0].name).toBe('Bio');
+  });
+
+  it('rehydrates invite links from payload', async () => {
+    const links: InviteLink[] = [
+      { nonce: 'n1', groupId: 'g1', createdAt: 1000, label: 'Class chat', muted: false },
+      { nonce: 'n2', groupId: 'g2', createdAt: 2000, muted: true },
+    ];
+
+    await restoreFromBackup(makeEmptyPayload({ inviteLinks: links }));
+
+    const restored = await loadAllInviteLinks();
+    expect(restored).toHaveLength(2);
+    expect(restored.find((l) => l.nonce === 'n1')?.label).toBe('Class chat');
+    expect(restored.find((l) => l.nonce === 'n2')?.muted).toBe(true);
+  });
+
+  it('handles payload without inviteLinks field (backwards compat)', async () => {
+    const payload = makeEmptyPayload();
+    delete (payload as Record<string, unknown>).inviteLinks;
+
+    await restoreFromBackup(payload);
+
+    const restored = await loadAllInviteLinks();
+    expect(restored).toEqual([]);
+  });
+
+  it('round-trips invite links through collect and restore', async () => {
+    const link: InviteLink = {
+      nonce: 'n-rt',
+      groupId: 'g-rt',
+      createdAt: 5000,
+      label: 'Round trip',
+      muted: true,
+    };
+    await saveInviteLink(link);
+
+    const payload = await collectBackupPayload();
+
+    // Clear everything
+    localStorageMock.clear();
+    Object.keys(stores).forEach((k) => delete stores[k]);
+
+    await restoreFromBackup(payload);
+
+    const restored = await loadAllInviteLinks();
+    expect(restored).toHaveLength(1);
+    expect(restored[0]).toEqual(link);
   });
 });
 

@@ -6,6 +6,8 @@ const INDEXEDDB_DATABASES = [
   'quizzl-keypackages',
   'quizzl-member-scores',
   'quizzl-member-profiles',
+  'quizzl-invite-links',
+  'quizzl-join-requests',
 ];
 
 /**

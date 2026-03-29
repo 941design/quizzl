@@ -1,0 +1,13 @@
+{
+  "story": "S4",
+  "name": "join-request-receiving",
+  "baseline": {
+    "timestamp": "2026-03-28T19:04:47Z",
+    "test_command": "make test-unit",
+    "test_files_passed": 19,
+    "test_files_total": 19,
+    "tests_passed": 268,
+    "tests_total": 268,
+    "status": "all_passing"
+  }
+}

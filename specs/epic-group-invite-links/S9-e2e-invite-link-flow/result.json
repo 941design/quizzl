@@ -1,0 +1,42 @@
+{
+  "story": "S9",
+  "name": "e2e-invite-link-flow",
+  "status": "done",
+  "final_outcome": "accepted",
+  "date": "2026-03-29",
+  "test_result": {
+    "command": "make test-unit",
+    "total_files": 23,
+    "total_tests": 314,
+    "passed": 314,
+    "failed": 0,
+    "note": "Unit tests unaffected. E2E test not runnable without Docker infrastructure but code-reviewed for correctness."
+  },
+  "build_result": "pass",
+  "files_created": [
+    "app/tests/e2e/groups-invite-link.spec.ts"
+  ],
+  "files_modified": [
+    "app/tests/e2e/helpers/clear-state.ts"
+  ],
+  "acceptance_criteria": ["AC-11"],
+  "verification": {
+    "verifier": "independent-verifier",
+    "tests_run": true,
+    "revision": "re-verified after fixing 2 test ID mismatches (join-request-btn -> join-request-send-btn, approve-request-btn -> prefix locator)",
+    "test_results": {
+      "total": 314,
+      "passed": 314,
+      "failed": 0
+    },
+    "ac_checklist": {
+      "serial_test_with_user_a_and_b": "PASS — test.describe.serial block (line 55) with bootUser for USER_A and USER_B (lines 65-66)",
+      "user_a_creates_group_generates_link": "PASS — createGroup helper (line 75), clicks invite-link-btn, reads invite-link-url, clicks invite-link-copy-btn (lines 78-97)",
+      "user_b_opens_link_sends_request": "PASS — navigates to path+query, verifies join-request-card visible, clicks join-request-send-btn, verifies join-request-sent (lines 100-117)",
+      "user_a_bell_increments_pending_section": "PASS — polls for notification-badge visibility, opens group detail, verifies pending-requests-section visible (lines 119-143)",
+      "user_a_approves_user_b_sees_group": "PASS — clicks approve via prefix locator, pending section disappears; User B navigates to /groups/, verifies group name visible (lines 145-168)",
+      "clear_app_state_includes_new_databases": "PASS — clear-state.ts:9-10 includes quizzl-invite-links and quizzl-join-requests in INDEXEDDB_DATABASES",
+      "no_production_code_changes": "PASS — only test files created/modified"
+    }
+  }
+}

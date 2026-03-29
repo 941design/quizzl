@@ -18,6 +18,7 @@ type Copy = {
     notificationsLabel: string;
     noNotifications: string;
     unreadMessages: (count: number) => string;
+    joinRequestNotification: (count: number) => string;
   };
   home: {
     title: string;
@@ -283,6 +284,29 @@ type Copy = {
     qrGenerationError: string;
     httpsRequired: string;
     httpsRequiredBody: string;
+    inviteLinkButton: string;
+    inviteLinkTitle: string;
+    inviteLinkCopy: string;
+    inviteLinkCopied: string;
+    inviteLinkCopyError: string;
+    inviteLinkLabelField: string;
+    inviteLinkLabelPlaceholder: string;
+    joinRequestHeading: string;
+    joinRequestDescription: string;
+    joinRequestButton: string;
+    joinRequestSent: string;
+    joinRequestError: string;
+    joinRequestAlreadyMember: string;
+    joinRequestGoToGroup: string;
+    pendingRequestsHeading: string;
+    pendingRequestsApprove: string;
+    pendingRequestsDeny: string;
+    pendingRequestsApproveError: string;
+    pendingRequestsEmpty: string;
+    manageLinksButton: string;
+    manageLinksTitle: string;
+    manageLinksMuteLabel: string;
+    manageLinksUntitled: string;
   };
 };
 
@@ -315,6 +339,7 @@ const copy: Record<LanguageCode, Copy> = {
       notificationsLabel: 'Notifications',
       noNotifications: 'No new messages',
       unreadMessages: (count: number) => count === 1 ? '1 new message' : `${count} new messages`,
+      joinRequestNotification: (count: number) => count === 1 ? '1 join request' : `${count} join requests`,
     },
     home: {
       title: 'Welcome to Quizzl',
@@ -590,6 +615,29 @@ const copy: Record<LanguageCode, Copy> = {
       qrGenerationError: 'Failed to generate QR code.',
       httpsRequired: 'HTTPS required',
       httpsRequiredBody: 'Encrypted groups require a secure connection (HTTPS). Please access this site over HTTPS to use groups.',
+      inviteLinkButton: 'Invite Link',
+      inviteLinkTitle: 'Generate Invite Link',
+      inviteLinkCopy: 'Copy Link',
+      inviteLinkCopied: 'Link copied to clipboard',
+      inviteLinkCopyError: 'Failed to copy link',
+      inviteLinkLabelField: 'Label (optional)',
+      inviteLinkLabelPlaceholder: 'e.g. Sent to class chat',
+      joinRequestHeading: "You've been invited to join a group",
+      joinRequestDescription: 'Send a join request to the group admin?',
+      joinRequestButton: 'Request to Join',
+      joinRequestSent: "Request sent! You'll be added once the admin approves.",
+      joinRequestError: 'Failed to send join request. Please try again.',
+      joinRequestAlreadyMember: "You're already a member of this group.",
+      joinRequestGoToGroup: 'Go to group',
+      pendingRequestsHeading: 'Pending Join Requests',
+      pendingRequestsApprove: 'Approve',
+      pendingRequestsDeny: 'Deny',
+      pendingRequestsApproveError: 'Failed to approve request. Please try again.',
+      pendingRequestsEmpty: 'No pending requests.',
+      manageLinksButton: 'Manage Links',
+      manageLinksTitle: 'Manage Invite Links',
+      manageLinksMuteLabel: 'Muted',
+      manageLinksUntitled: 'Untitled',
     },
   },
   de: {
@@ -610,6 +658,7 @@ const copy: Record<LanguageCode, Copy> = {
       notificationsLabel: 'Benachrichtigungen',
       noNotifications: 'Keine neuen Nachrichten',
       unreadMessages: (count: number) => count === 1 ? '1 neue Nachricht' : `${count} neue Nachrichten`,
+      joinRequestNotification: (count: number) => count === 1 ? '1 Beitrittsanfrage' : `${count} Beitrittsanfragen`,
     },
     home: {
       title: 'Willkommen bei Quizzl',
@@ -885,6 +934,29 @@ const copy: Record<LanguageCode, Copy> = {
       qrGenerationError: 'QR-Code konnte nicht erstellt werden.',
       httpsRequired: 'HTTPS erforderlich',
       httpsRequiredBody: 'Verschlüsselte Gruppen erfordern eine sichere Verbindung (HTTPS). Bitte greife über HTTPS auf diese Seite zu, um Gruppen zu nutzen.',
+      inviteLinkButton: 'Einladungslink',
+      inviteLinkTitle: 'Einladungslink erstellen',
+      inviteLinkCopy: 'Link kopieren',
+      inviteLinkCopied: 'Link in Zwischenablage kopiert',
+      inviteLinkCopyError: 'Link konnte nicht kopiert werden',
+      inviteLinkLabelField: 'Bezeichnung (optional)',
+      inviteLinkLabelPlaceholder: 'z. B. An Klassen-Chat gesendet',
+      joinRequestHeading: 'Du wurdest zu einer Gruppe eingeladen',
+      joinRequestDescription: 'Beitrittsanfrage an den Gruppenadmin senden?',
+      joinRequestButton: 'Beitritt anfragen',
+      joinRequestSent: 'Anfrage gesendet! Du wirst hinzugefügt, sobald der Admin zustimmt.',
+      joinRequestError: 'Beitrittsanfrage fehlgeschlagen. Bitte erneut versuchen.',
+      joinRequestAlreadyMember: 'Du bist bereits Mitglied dieser Gruppe.',
+      joinRequestGoToGroup: 'Zur Gruppe',
+      pendingRequestsHeading: 'Offene Beitrittsanfragen',
+      pendingRequestsApprove: 'Genehmigen',
+      pendingRequestsDeny: 'Ablehnen',
+      pendingRequestsApproveError: 'Anfrage konnte nicht genehmigt werden. Bitte erneut versuchen.',
+      pendingRequestsEmpty: 'Keine offenen Anfragen.',
+      manageLinksButton: 'Links verwalten',
+      manageLinksTitle: 'Einladungslinks verwalten',
+      manageLinksMuteLabel: 'Stummgeschaltet',
+      manageLinksUntitled: 'Ohne Titel',
     },
   },
 };

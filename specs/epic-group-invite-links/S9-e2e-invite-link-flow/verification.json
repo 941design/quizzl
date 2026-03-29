@@ -1,0 +1,48 @@
+{
+  "story": "S9",
+  "name": "e2e-invite-link-flow",
+  "verification_questions": [
+    {
+      "id": "V1",
+      "question": "Does the E2E test use test.describe.serial() with User A (admin) and User B (invitee)?",
+      "expected": "Yes — test.describe.serial block with bootUser for USER_A and USER_B",
+      "files": ["app/tests/e2e/groups-invite-link.spec.ts"]
+    },
+    {
+      "id": "V2",
+      "question": "Does User A create a group and generate an invite link via GenerateInviteLinkModal?",
+      "expected": "Yes — createGroup() then clicks invite-link-btn, reads URL from invite-link-url test ID, copies link",
+      "files": ["app/tests/e2e/groups-invite-link.spec.ts"]
+    },
+    {
+      "id": "V3",
+      "question": "Does User B navigate to the invite link URL, see JoinRequestCard, and click 'Request to Join'?",
+      "expected": "Yes — navigates to the path+query extracted from inviteUrl, verifies join-request-card visible, clicks join-request-btn",
+      "files": ["app/tests/e2e/groups-invite-link.spec.ts"]
+    },
+    {
+      "id": "V4",
+      "question": "Does User A see the bell counter increment and PendingRequestsSection with User B's request?",
+      "expected": "Yes — polls for notification-badge visibility, opens group detail, verifies pending-requests-section visible",
+      "files": ["app/tests/e2e/groups-invite-link.spec.ts"]
+    },
+    {
+      "id": "V5",
+      "question": "Does User A click Approve and User B receive a Welcome with the group appearing in their list?",
+      "expected": "Yes — clicks approve-request-btn, waits for section to disappear; User B navigates to /groups/ and verifies group name visible",
+      "files": ["app/tests/e2e/groups-invite-link.spec.ts"]
+    },
+    {
+      "id": "V6",
+      "question": "Does clearAppState include quizzl-invite-links and quizzl-join-requests databases?",
+      "expected": "Yes — both added to the INDEXEDDB_DATABASES array",
+      "files": ["app/tests/e2e/helpers/clear-state.ts"]
+    },
+    {
+      "id": "V7",
+      "question": "Are there any production code changes in S9?",
+      "expected": "No — only test files and helpers modified",
+      "files": ["app/tests/e2e/groups-invite-link.spec.ts", "app/tests/e2e/helpers/clear-state.ts"]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "story": "S8",
+  "name": "backup-integration",
+  "verification_questions": [
+    {
+      "id": "V1",
+      "question": "Does BackupPayload type include inviteLinks: InviteLink[]?",
+      "expected": "Yes — added as the last field in the BackupPayload interface",
+      "files": ["app/src/lib/backup/relayBackup.ts"]
+    },
+    {
+      "id": "V2",
+      "question": "Does collectBackupPayload() read all invite links from IDB via loadAllInviteLinks()?",
+      "expected": "Yes — calls loadAllInviteLinks() and includes the result in the payload",
+      "files": ["app/src/lib/backup/relayBackup.ts"]
+    },
+    {
+      "id": "V3",
+      "question": "Does restoreFromBackup() write invite links back to IDB?",
+      "expected": "Yes — iterates payload.inviteLinks and calls saveInviteLink() for each",
+      "files": ["app/src/lib/backup/relayBackup.ts"]
+    },
+    {
+      "id": "V4",
+      "question": "Does restoreFromBackup() handle missing inviteLinks field (backwards compat)?",
+      "expected": "Yes — checks if (payload.inviteLinks) before iterating",
+      "files": ["app/src/lib/backup/relayBackup.ts"]
+    },
+    {
+      "id": "V5",
+      "question": "Are PendingJoinRequests NOT included in the backup?",
+      "expected": "Yes — no reference to joinRequestStorage in backup code, only inviteLinkStorage",
+      "files": ["app/src/lib/backup/relayBackup.ts"]
+    },
+    {
+      "id": "V6",
+      "question": "Do collect and restore round-trip correctly for invite links?",
+      "expected": "Yes — verified by test 'round-trips invite links through collect and restore'",
+      "files": ["app/tests/unit/backup/relayBackup.test.ts"]
+    },
+    {
+      "id": "V7",
+      "question": "Do all unit tests pass including the new backup invite link tests?",
+      "expected": "Yes — 23 test files, 314 tests, all passing",
+      "files": ["app/tests/unit/backup/relayBackup.test.ts"]
+    }
+  ]
+}

@@ -34,7 +34,7 @@ import {
 import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscription';
 import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
 import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
-import { incrementUnread, initUnreadCounts, clearUnreadGroup } from '@/src/lib/unreadStore';
+import { incrementUnread, initUnreadCounts, clearUnreadGroup, incrementJoinRequest, markJoinRequestsRead } from '@/src/lib/unreadStore';
 import { CHAT_MESSAGE_KIND } from '@/src/lib/marmot/chatPersistence';
 import { POLL_OPEN_KIND, POLL_VOTE_KIND, POLL_CLOSE_KIND, parsePollOpen, parsePollVote, parsePollClose } from '@/src/lib/marmot/pollSync';
 import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
@@ -47,10 +47,12 @@ async function startWelcomeSubscription(
   marmotClient: MarmotClientType,
   ndk: import('@nostr-dev-kit/ndk').default,
   signer: import('applesauce-core').EventSigner,
-  onGroupJoined: WelcomeReceivedCallback
+  onGroupJoined: WelcomeReceivedCallback,
+  onJoinRequestReceived?: import('@/src/lib/marmot/joinRequestHandler').JoinRequestReceivedCallback,
+  groupMemberPubkeys?: (groupId: string) => string[],
 ): Promise<() => void> {
   const { subscribeToWelcomes } = await import('@/src/lib/marmot/welcomeSubscription');
-  return subscribeToWelcomes(pubkeyHex, marmotClient, ndk, signer, onGroupJoined);
+  return subscribeToWelcomes(pubkeyHex, marmotClient, ndk, signer, onGroupJoined, onJoinRequestReceived, groupMemberPubkeys);
 }
 import { DEFAULT_RELAYS } from '@/src/types';
 import { getEventHash } from 'applesauce-core/helpers/event';
@@ -149,6 +151,14 @@ type MarmotContextValue = {
   groupDataVersion: number;
   /** Monotonically increasing counter bumped on each received poll message */
   pollVersion: number;
+  /** Pending join requests per group (loaded on demand) */
+  pendingRequests: Record<string, import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest[]>;
+  /** Load pending join requests for a group from IDB into state */
+  loadPendingRequestsForGroup: (groupId: string) => Promise<void>;
+  /** Approve a join request: invite by npub, remove request, decrement bell */
+  approveJoinRequest: (request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest) => Promise<{ ok: boolean; error?: string }>;
+  /** Deny a join request: remove request, decrement bell */
+  denyJoinRequest: (request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest) => Promise<void>;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -175,6 +185,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const [chatVersion, setChatVersion] = useState(0);
   // Bumped when group metadata (e.g. adminPubkeys) may have changed via MLS commit
   const [groupDataVersion, setGroupDataVersion] = useState(0);
+  // Pending join requests per group (loaded on demand from IDB)
+  const [pendingRequests, setPendingRequests] = useState<Record<string, import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest[]>>({});
   // Bumped on every incoming poll message so PollStoreContext can re-read from IDB
   const [pollVersion, setPollVersion] = useState(0);
   // Track discoverability status
@@ -289,7 +301,18 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             void reloadGroups();
             markBackupDirty(true);
             console.info('[Marmot] Joined group from Welcome:', joinedGroup.name);
-          }
+          },
+          (request) => {
+            // A join request was received and persisted — increment bell counter.
+            incrementJoinRequest(request.groupId);
+            console.info('[Marmot] Join request received from:', request.pubkeyHex, 'for group:', request.groupId);
+          },
+          (groupId) => {
+            // Look up current group member pubkeys for dedup/membership check.
+            // Uses the latest groups state via the ref-like closure over loadAllGroups.
+            const group = groups.find((g) => g.id === groupId);
+            return group?.memberPubkeys ?? [];
+          },
         ).then((unsub) => {
           if (cancelled) {
             unsub();
@@ -957,6 +980,48 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     return clientRef.current;
   }, []);
 
+  const loadPendingRequestsForGroup = useCallback(async (groupId: string): Promise<void> => {
+    const { loadPendingJoinRequests } = await import('@/src/lib/marmot/joinRequestStorage');
+    const requests = await loadPendingJoinRequests(groupId);
+    setPendingRequests((prev) => ({ ...prev, [groupId]: requests }));
+  }, []);
+
+  const approveJoinRequest = useCallback(
+    async (request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest): Promise<{ ok: boolean; error?: string }> => {
+      const { pubkeyToNpub } = await import('@/src/lib/nostrKeys');
+      const npub = pubkeyToNpub(request.pubkeyHex);
+      const result = await inviteByNpub(request.groupId, npub);
+      if (!result.ok) {
+        return { ok: false, error: result.error };
+      }
+      // Remove the request from IDB and update local state
+      const { deletePendingJoinRequest } = await import('@/src/lib/marmot/joinRequestStorage');
+      await deletePendingJoinRequest(request.eventId);
+      markJoinRequestsRead(request.groupId);
+      // Update local pending requests state
+      setPendingRequests((prev) => {
+        const current = prev[request.groupId] ?? [];
+        return { ...prev, [request.groupId]: current.filter((r) => r.eventId !== request.eventId) };
+      });
+      return { ok: true };
+    },
+    [inviteByNpub],
+  );
+
+  const denyJoinRequest = useCallback(
+    async (request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest): Promise<void> => {
+      const { deletePendingJoinRequest } = await import('@/src/lib/marmot/joinRequestStorage');
+      await deletePendingJoinRequest(request.eventId);
+      markJoinRequestsRead(request.groupId);
+      // Update local pending requests state
+      setPendingRequests((prev) => {
+        const current = prev[request.groupId] ?? [];
+        return { ...prev, [request.groupId]: current.filter((r) => r.eventId !== request.eventId) };
+      });
+    },
+    [],
+  );
+
   const value = useMemo<MarmotContextValue>(
     () => ({
       ready,
@@ -978,6 +1043,10 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       chatVersion,
       groupDataVersion,
       pollVersion,
+      pendingRequests,
+      loadPendingRequestsForGroup,
+      approveJoinRequest,
+      denyJoinRequest,
     }),
     [
       ready,
@@ -999,6 +1068,10 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       chatVersion,
       groupDataVersion,
       pollVersion,
+      pendingRequests,
+      loadPendingRequestsForGroup,
+      approveJoinRequest,
+      denyJoinRequest,
     ]
   );
 
@@ -1030,6 +1103,10 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   chatVersion: 0,
   groupDataVersion: 0,
   pollVersion: 0,
+  pendingRequests: {},
+  loadPendingRequestsForGroup: NOOP_ASYNC,
+  approveJoinRequest: async () => ({ ok: false, error: 'not_ready' }),
+  denyJoinRequest: NOOP_ASYNC,
 };
 
 export function useMarmot(): MarmotContextValue {

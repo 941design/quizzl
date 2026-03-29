@@ -1,0 +1,19 @@
+{
+  "story_id": "S5",
+  "story_name": "bell-integration",
+  "status": "done",
+  "timestamp": "2026-03-28T19:18:00Z",
+  "summary": "Added joinRequests dimension to UnreadState with increment/mark-read/clear functions. Updated totalUnread to sum both chat and join request counts. Extended NotificationBell to render join request entries with distinct orange badge. Wired incrementJoinRequest into MarmotContext's onJoinRequestReceived callback. Added i18n strings (en/de) for join request notification format.",
+  "test_results": {
+    "total_tests": 291,
+    "passed": 291,
+    "failed": 0,
+    "new_tests_added": 8,
+    "test_command": "make test-unit",
+    "build_verified": true
+  },
+  "acceptance_criteria_covered": ["AC-6", "AC-7"],
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-03-28T19:20:00Z"
+}

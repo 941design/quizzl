@@ -1,0 +1,13 @@
+{
+  "story": "S3",
+  "name": "join-request-sending",
+  "baseline": {
+    "timestamp": "2026-03-28T18:58:46Z",
+    "test_command": "make test-unit",
+    "test_files_passed": 18,
+    "test_files_total": 18,
+    "tests_passed": 260,
+    "tests_total": 260,
+    "status": "all_passing"
+  }
+}

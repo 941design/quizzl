@@ -1,0 +1,119 @@
+{
+  "timestamp": "2026-03-28T00:00:00Z",
+  "project": {
+    "language": "TypeScript",
+    "framework": "Next.js 14 (static export)",
+    "ui": "Chakra UI v2",
+    "test_unit": "Vitest (make test-unit)",
+    "test_e2e": "Playwright (make test-e2e-groups, requires Docker strfry relay)",
+    "package_manager": "npm",
+    "build": "make build"
+  },
+  "similar_features": {
+    "invite_by_npub": {
+      "file": "app/src/context/MarmotContext.tsx",
+      "lines": "740-843",
+      "description": "Existing flow: normalize npub, fetch kind 443 KeyPackage, inviteByKeyPackageEvent(), promote to admin, refresh members, republish profile, mark backup dirty. Returns {ok, error?, warning?}."
+    },
+    "invite_modal": {
+      "file": "app/src/components/groups/InviteMemberModal.tsx",
+      "lines": "1-196",
+      "description": "Modal with npub input + QR scanner. Calls inviteByNpub(groupId, npub) from MarmotContext."
+    }
+  },
+  "gift_wrap_handling": {
+    "subscription": {
+      "file": "app/src/lib/marmot/welcomeSubscription.ts",
+      "lines": "58-146",
+      "description": "subscribeToWelcomes() subscribes to kind 1059 with #p filter. On event: check processed set, unwrap NIP-59 two layers, verify inner kind 444, call joinGroupFromWelcome(), mark processed, save group metadata, callback onGroupJoined."
+    },
+    "unwrap": {
+      "file": "app/src/lib/marmot/welcomeSubscription.ts",
+      "lines": "24-52",
+      "description": "unwrapGiftWrap() two-layer NIP-44 decrypt: gift wrap ephemeral pubkey -> seal -> sender real pubkey -> rumor."
+    },
+    "processed_tracking": {
+      "storage_key": "lp_processedGiftWraps",
+      "description": "Set of event IDs in localStorage to prevent reprocessing on reload."
+    },
+    "extension_point": "The sub.on('event') handler at line 83 currently checks for kind 444. Can be extended to also handle kind 21059 join requests."
+  },
+  "indexeddb_patterns": {
+    "library": "idb-keyval",
+    "stores": {
+      "quizzl-groups-meta": "Group metadata (groupStorage.ts:27)",
+      "quizzl-groups-state": "MLS state bytes (groupStorage.ts:28)",
+      "quizzl-keypackages": "Key packages (groupStorage.ts:29)",
+      "quizzl-member-scores": "Member scores (groupStorage.ts:30)",
+      "quizzl-member-profiles": "Member profiles (groupStorage.ts:31)"
+    },
+    "new_stores_needed": [
+      "quizzl-invite-links (keyed by nonce)",
+      "quizzl-join-requests (keyed by eventId)"
+    ],
+    "concurrency_pattern": "Per-key promise queue (chatPersistence.ts:32-50)",
+    "upsert_pattern": "Load array, findIndex, update or push (pollPersistence.ts:81-93)"
+  },
+  "query_param_routing": {
+    "file": "app/pages/groups.tsx",
+    "lines": "307-316",
+    "description": "Currently checks router.query.id to switch between list and detail views. Invite links will add router.query.join, router.query.admin, router.query.name detection."
+  },
+  "unread_store": {
+    "file": "app/src/lib/unreadStore.ts",
+    "lines": "1-144",
+    "description": "External store using useSyncExternalStore. State: { counts: Record<string, number> }. API: incrementUnread, markAsRead, clearUnreadGroup, initUnreadCounts. Spec extends with joinRequests: Record<string, number>.",
+    "react_hook": "useUnreadCounts() returns { counts, totalUnread }"
+  },
+  "notification_bell": {
+    "file": "app/src/components/NotificationBell.tsx",
+    "lines": "1-157",
+    "description": "Red badge with count (99+ cap), popover with per-group unread links. markAsRead on click."
+  },
+  "backup": {
+    "file": "app/src/lib/backup/relayBackup.ts",
+    "lines": "1-491",
+    "description": "BackupPayload type at lines 30-63. collectBackupPayload() at 107-198 gathers all state. restoreFromBackup() at 354-428 rehydrates. BackupScheduler with 5min debounce. Kind 30078 with d-tag 'quizzl'. NIP-44 encrypted.",
+    "extension": "Add inviteLinks: InviteLink[] to BackupPayload, collect from IDB, restore to IDB."
+  },
+  "component_patterns": {
+    "modals": "Chakra Modal/ModalOverlay/ModalContent/ModalHeader/ModalBody/ModalFooter",
+    "state": "useState + useMarmot() context calls",
+    "i18n": "useCopy() hook from app/src/lib/i18n.ts, supports en/de",
+    "test_ids": "data-testid attributes for Playwright selectors"
+  },
+  "e2e_patterns": {
+    "helpers": {
+      "auth": "app/tests/e2e/helpers/auth-helpers.ts — deterministic keypairs USER_A/B/C from fixed seeds",
+      "relay": "app/tests/e2e/helpers/relay-query.ts — queryRelayForEvents() via WebSocket",
+      "state": "app/tests/e2e/helpers/clear-state.ts — clears lp_* localStorage + 5 IDB databases",
+      "overlay": "app/tests/e2e/helpers/dismiss-error-overlay.ts — suppress Next.js error portal"
+    },
+    "boot_pattern": "newContext → suppressErrorOverlay → addInitScript(injectIdentity) → newPage → goto → clearAppState → reload",
+    "structure": "test.describe.serial() blocks with beforeAll/afterAll",
+    "polling": "expect.poll() with custom intervals for async Nostr events",
+    "clear_state_dbs": "Must add quizzl-invite-links and quizzl-join-requests to clearAppState"
+  },
+  "marmot_context": {
+    "file": "app/src/context/MarmotContext.tsx",
+    "lines": "1-1039",
+    "key_functions": {
+      "createGroup": "704-738",
+      "inviteByNpub": "740-843",
+      "leaveGroup": "849-863",
+      "publishScoreUpdate": "865-901",
+      "publishProfileUpdate": "919-937"
+    },
+    "extension_points": [
+      "Add pendingRequests state + CRUD functions",
+      "Add generateInviteLink, muteInviteLink functions",
+      "Add approveJoinRequest (calls existing inviteByNpub), denyJoinRequest",
+      "Extend gift-wrap handler for kind 21059"
+    ]
+  },
+  "ndk_adapter": {
+    "file": "app/src/lib/marmot/NdkNetworkAdapter.ts",
+    "lines": "1-191",
+    "description": "rawPublish() uses custom WebSocket to preserve pre-signed gift wraps. publish() maps to rawPublish for each relay."
+  }
+}

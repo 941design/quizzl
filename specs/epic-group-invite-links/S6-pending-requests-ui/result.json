@@ -1,0 +1,27 @@
+{
+  "story_id": "S6",
+  "story_name": "pending-requests-ui",
+  "status": "done",
+  "final_outcome": "accepted",
+  "timestamp": "2026-03-29T14:24:00Z",
+  "summary": "Created PendingRequestsSection and PendingRequestRow components. Section renders above Members in GroupDetailView (admin-only, conditional on pending requests). Approve calls inviteByNpub then removes request from IDB and decrements bell. Deny removes request and decrements bell. Error handling for failed approvals shown inline. pendingRequests state, loadPendingRequestsForGroup, approveJoinRequest, denyJoinRequest wired through MarmotContext. i18n strings added in en/de.",
+  "verification": {
+    "verifier": "independent-verifier",
+    "tests_run": true,
+    "test_results": {
+      "total": 298,
+      "passed": 298,
+      "failed": 0
+    },
+    "ac_checklist": {
+      "renders_above_members_admin_only": "PASS — groups.tsx:207 guards with isAdmin, placed before Members section at line 209",
+      "hidden_when_no_requests": "PASS — PendingRequestsSection.tsx:88 returns null if requests.length === 0",
+      "shows_truncated_npub_and_nickname": "PASS — PendingRequestsSection.tsx:34 shows nickname or truncated npub, lines 36-39 show truncated npub below nickname",
+      "approve_calls_inviteByNpub": "PASS — MarmotContext.tsx:993 calls inviteByNpub(request.groupId, npub)",
+      "approve_removes_from_idb_and_decrements_bell": "PASS — MarmotContext.tsx:998-1000 deletePendingJoinRequest then markJoinRequestsRead",
+      "deny_removes_from_idb_and_decrements_bell": "PASS — MarmotContext.tsx:1013-1015 deletePendingJoinRequest then markJoinRequestsRead, no outgoing event",
+      "error_displayed_inline_on_approve_failure": "PASS — MarmotContext.tsx:994-995 returns error, PendingRequestsSection.tsx:63-68 renders Alert inline",
+      "i18n_keys_en_de": "PASS — i18n.ts types at 301-305, English at 628-632, German at 943-947"
+    }
+  }
+}

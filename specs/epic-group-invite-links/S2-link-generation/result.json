@@ -1,0 +1,39 @@
+{
+  "story": "S2",
+  "name": "link-generation",
+  "status": "done",
+  "files_created": [
+    "app/src/lib/marmot/inviteLinkGeneration.ts",
+    "app/src/components/groups/GenerateInviteLinkModal.tsx",
+    "app/tests/unit/marmot/inviteLinkGeneration.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/i18n.ts",
+    "app/pages/groups.tsx"
+  ],
+  "functions_exported": {
+    "inviteLinkGeneration": ["generateNonce", "buildInviteUrl"]
+  },
+  "components_created": ["GenerateInviteLinkModal"],
+  "i18n_keys_added": [
+    "inviteLinkButton",
+    "inviteLinkTitle",
+    "inviteLinkCopy",
+    "inviteLinkCopied",
+    "inviteLinkCopyError",
+    "inviteLinkLabelField",
+    "inviteLinkLabelPlaceholder"
+  ],
+  "tests": {
+    "new_test_files": 1,
+    "new_tests": 7,
+    "total_tests_after": 260,
+    "total_files_after": 18,
+    "all_passing": true
+  },
+  "build_passes": true,
+  "acceptance_criteria_covered": ["AC-3"],
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-03-28T19:01:00Z"
+}

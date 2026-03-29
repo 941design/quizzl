@@ -5,6 +5,9 @@
  * On receiving a gift wrap, unwraps the NIP-59 envelope to extract the inner kind 444
  * Welcome rumor, then passes it to MarmotClient.joinGroupFromWelcome().
  * On success, persists the group to overlay storage and notifies the caller.
+ *
+ * Also handles kind 21059 (join request) rumors after unwrapping — dispatches to
+ * the join request handler for nonce validation, dedup, and persistence.
  */
 
 import type { Group } from '@/src/types';
@@ -13,6 +16,8 @@ import { saveGroup } from './groupStorage';
 import type { EventSigner } from 'applesauce-core';
 import { getGroupMembers } from '@internet-privacy/marmot-ts';
 import { EpochResolver } from './epochResolver';
+import { handleJoinRequest, JOIN_REQUEST_KIND } from './joinRequestHandler';
+import type { JoinRequestReceivedCallback } from './joinRequestHandler';
 
 export type WelcomeReceivedCallback = (group: Group) => void;
 
@@ -60,7 +65,9 @@ export async function subscribeToWelcomes(
   marmotClient: import('@internet-privacy/marmot-ts').MarmotClient,
   ndk: import('@nostr-dev-kit/ndk').default,
   signer: EventSigner,
-  onGroupJoined: WelcomeReceivedCallback
+  onGroupJoined: WelcomeReceivedCallback,
+  onJoinRequestReceived?: JoinRequestReceivedCallback,
+  groupMemberPubkeys?: (groupId: string) => string[],
 ): Promise<() => void> {
   // Subscribe to kind 1059, NOT kind 444. marmot-ts wraps the kind 444 Welcome
   // rumor in a NIP-59 gift wrap (kind 1059) before publishing. The inner rumor
@@ -96,6 +103,27 @@ export async function subscribeToWelcomes(
         { pubkey: ndkEvent.pubkey ?? '', content: ndkEvent.content ?? '' },
         signer,
       );
+
+      // Dispatch kind 21059 join requests to the handler
+      if (welcomeRumor.kind === JOIN_REQUEST_KIND) {
+        if (onJoinRequestReceived && groupMemberPubkeys) {
+          const request = await handleJoinRequest(
+            welcomeRumor,
+            eventId,
+            groupMemberPubkeys,
+          );
+          if (request) {
+            // Mark as processed so we don't re-handle on reload
+            try {
+              const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') as string[];
+              seen.push(eventId);
+              localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+            } catch { /* ignore */ }
+            onJoinRequestReceived(request);
+          }
+        }
+        return;
+      }
 
       if (welcomeRumor.kind !== 444) {
         console.debug('[welcomeSubscription] Unwrapped event is not kind 444, got:', welcomeRumor.kind);

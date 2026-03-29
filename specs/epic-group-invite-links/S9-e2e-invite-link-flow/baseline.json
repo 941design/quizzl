@@ -1,0 +1,13 @@
+{
+  "story": "S9",
+  "name": "e2e-invite-link-flow",
+  "baseline": {
+    "date": "2026-03-29",
+    "testCommand": "make test-unit",
+    "result": "pass",
+    "totalFiles": 23,
+    "totalTests": 314,
+    "failures": 0,
+    "note": "E2E test — no unit test changes expected; baseline tracks unit test integrity"
+  }
+}

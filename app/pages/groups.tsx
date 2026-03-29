@@ -29,6 +29,10 @@ import OfflineBanner from '@/src/components/groups/OfflineBanner';
 import MemberList from '@/src/components/groups/MemberList';
 import MemberScoreRow from '@/src/components/groups/MemberScoreRow';
 import InviteMemberModal from '@/src/components/groups/InviteMemberModal';
+import GenerateInviteLinkModal from '@/src/components/groups/GenerateInviteLinkModal';
+import ManageInviteLinksModal from '@/src/components/groups/ManageInviteLinksModal';
+import JoinRequestCard from '@/src/components/groups/JoinRequestCard';
+import PendingRequestsSection from '@/src/components/groups/PendingRequestsSection';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
 import GroupChat from '@/src/components/groups/GroupChat';
 import { ChatStoreProvider } from '@/src/context/ChatStoreContext';
@@ -48,6 +52,8 @@ function GroupDetailView({ id }: { id: string }) {
   const { pubkeyHex } = useNostrIdentity();
   const { profile: ownProfile } = useProfile();
   const inviteDisclosure = useDisclosure();
+  const inviteLinkDisclosure = useDisclosure();
+  const manageLinksDisclosure = useDisclosure();
   const pollDisclosure = useDisclosure();
   const [pollPanelOpen, setPollPanelOpen] = useState(true);
   const [group, setGroup] = useState<Group | null>(null);
@@ -184,6 +190,24 @@ function GroupDetailView({ id }: { id: string }) {
             >
               {copy.groups.inviteMember}
             </Button>
+            <Button
+              size="sm"
+              onClick={inviteLinkDisclosure.onOpen}
+              isDisabled={!isAdmin}
+              data-testid="invite-link-btn"
+            >
+              {copy.groups.inviteLinkButton}
+            </Button>
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={manageLinksDisclosure.onOpen}
+                data-testid="manage-links-btn"
+              >
+                {copy.groups.manageLinksButton}
+              </Button>
+            )}
             <LeaveGroupButton groupId={group.id} />
           </HStack>
         </HStack>
@@ -191,6 +215,9 @@ function GroupDetailView({ id }: { id: string }) {
         <Divider mb={6} />
 
         <VStack spacing={6} align="stretch">
+          {/* Pending Join Requests (admin-only) */}
+          {isAdmin && <PendingRequestsSection groupId={group.id} />}
+
           {/* Members Section */}
           <Box>
             <Heading as="h2" size="md" mb={3}>
@@ -297,6 +324,19 @@ function GroupDetailView({ id }: { id: string }) {
         onClose={inviteDisclosure.onClose}
         groupId={group.id}
       />
+
+      <GenerateInviteLinkModal
+        isOpen={inviteLinkDisclosure.isOpen}
+        onClose={inviteLinkDisclosure.onClose}
+        groupId={group.id}
+        groupName={group.name}
+      />
+
+      <ManageInviteLinksModal
+        isOpen={manageLinksDisclosure.isOpen}
+        onClose={manageLinksDisclosure.onClose}
+        groupId={group.id}
+      />
     </>
   );
 }
@@ -306,10 +346,18 @@ function GroupDetailView({ id }: { id: string }) {
 export default function GroupsPage() {
   const router = useRouter();
   const id = router.query.id as string | undefined;
+  const joinNonce = router.query.join as string | undefined;
+  const joinAdmin = router.query.admin as string | undefined;
+  const joinName = router.query.name as string | undefined;
   const copy = useCopy();
   const { groups, ready, unsupported } = useMarmot();
   const { backedUp } = useNostrIdentity();
   const createDisclosure = useDisclosure();
+
+  // When ?join=xxx is present, show the join request card
+  if (joinNonce && joinAdmin && joinName) {
+    return <JoinRequestCard nonce={joinNonce} adminNpub={joinAdmin} groupName={joinName} />;
+  }
 
   // When ?id=xxx is present, show the detail view
   if (id) {

@@ -1,0 +1,38 @@
+{
+  "story": "S8",
+  "name": "backup-integration",
+  "status": "done",
+  "final_outcome": "accepted",
+  "date": "2026-03-29",
+  "test_result": {
+    "command": "make test-unit",
+    "total_files": 23,
+    "total_tests": 314,
+    "passed": 314,
+    "failed": 0
+  },
+  "build_result": "pass",
+  "files_created": [],
+  "files_modified": [
+    "app/src/lib/backup/relayBackup.ts",
+    "app/tests/unit/backup/relayBackup.test.ts"
+  ],
+  "acceptance_criteria": ["AC-10"],
+  "verification": {
+    "verifier": "independent-verifier",
+    "tests_run": true,
+    "test_results": {
+      "total": 314,
+      "passed": 314,
+      "failed": 0
+    },
+    "ac_checklist": {
+      "backup_payload_has_inviteLinks_field": "PASS — relayBackup.ts:65 inviteLinks: InviteLink[] in BackupPayload",
+      "collect_reads_all_invite_links": "PASS — relayBackup.ts:181 calls loadAllInviteLinks(), included in payload at line 203",
+      "restore_writes_invite_links_to_idb": "PASS — relayBackup.ts:434-437 iterates payload.inviteLinks, calls saveInviteLink for each",
+      "backwards_compat_missing_field": "PASS — relayBackup.ts:434 guards with if (payload.inviteLinks), test at line 989 confirms",
+      "pending_requests_not_backed_up": "PASS — no reference to joinRequestStorage in relayBackup.ts",
+      "round_trip_collect_restore": "PASS — test at line 999 verifies full round-trip, test at line 979 verifies multi-link restore"
+    }
+  }
+}

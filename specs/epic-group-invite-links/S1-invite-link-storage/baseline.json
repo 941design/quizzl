@@ -1,0 +1,13 @@
+{
+  "story": "S1",
+  "name": "invite-link-storage",
+  "baseline": {
+    "timestamp": "2026-03-28T18:52:50Z",
+    "test_command": "make test-unit",
+    "test_files_passed": 15,
+    "test_files_total": 15,
+    "tests_passed": 228,
+    "tests_total": 228,
+    "status": "all_passing"
+  }
+}

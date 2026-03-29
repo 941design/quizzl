@@ -13,9 +13,11 @@ const STORAGE_KEY = 'lp_unreadLastRead_v1';
 type UnreadState = {
   /** Unread message count per groupId */
   counts: Record<string, number>;
+  /** Pending join request count per groupId */
+  joinRequests: Record<string, number>;
 };
 
-let state: UnreadState = { counts: {} };
+let state: UnreadState = { counts: {}, joinRequests: {} };
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -32,7 +34,7 @@ function getSnapshot(): UnreadState {
 }
 
 function getServerSnapshot(): UnreadState {
-  return { counts: {} };
+  return { counts: {}, joinRequests: {} };
 }
 
 // --- Persistence helpers ---
@@ -60,7 +62,7 @@ function saveLastReadTimestamps(timestamps: Record<string, number>) {
 export function incrementUnread(groupId: string) {
   const next = { ...state.counts };
   next[groupId] = (next[groupId] ?? 0) + 1;
-  state = { counts: next };
+  state = { ...state, counts: next };
   emit();
 }
 
@@ -73,7 +75,7 @@ export function markAsRead(groupId: string) {
   if (state.counts[groupId]) {
     const next = { ...state.counts };
     delete next[groupId];
-    state = { counts: next };
+    state = { ...state, counts: next };
     emit();
   }
 }
@@ -87,7 +89,7 @@ export function clearUnreadGroup(groupId: string) {
   if (state.counts[groupId]) {
     const next = { ...state.counts };
     delete next[groupId];
-    state = { counts: next };
+    state = { ...state, counts: next };
     emit();
   }
 }
@@ -118,14 +120,47 @@ export async function initUnreadCounts(groupIds: string[], ownPubkey: string) {
     }
   }
 
-  state = { counts: next };
+  state = { ...state, counts: next };
   emit();
+}
+
+// --- Join request counter API ---
+
+/** Increment join request counter for a group. */
+export function incrementJoinRequest(groupId: string) {
+  const next = { ...state.joinRequests };
+  next[groupId] = (next[groupId] ?? 0) + 1;
+  state = { ...state, joinRequests: next };
+  emit();
+}
+
+/** Reset join request counter for a group to 0. */
+export function markJoinRequestsRead(groupId: string) {
+  if (state.joinRequests[groupId]) {
+    const next = { ...state.joinRequests };
+    delete next[groupId];
+    state = { ...state, joinRequests: next };
+    emit();
+  }
+}
+
+/** Remove join request tracking for a group (called on group leave). */
+export function clearJoinRequestGroup(groupId: string) {
+  if (state.joinRequests[groupId]) {
+    const next = { ...state.joinRequests };
+    delete next[groupId];
+    state = { ...state, joinRequests: next };
+    emit();
+  }
 }
 
 // --- Test bridge ---
 // Expose store functions on window so e2e tests can inject unread state.
 if (typeof window !== 'undefined') {
-  (window as any).__quizzlUnread = { incrementUnread, markAsRead, clearUnreadGroup };
+  (window as any).__quizzlUnread = {
+    incrementUnread, markAsRead, clearUnreadGroup,
+    incrementJoinRequest, markJoinRequestsRead, clearJoinRequestGroup,
+  };
 }
 
 // --- React hook ---
@@ -134,10 +169,13 @@ if (typeof window !== 'undefined') {
 export function useUnreadCounts() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  const totalUnread = Object.values(snapshot.counts).reduce((sum, n) => sum + n, 0);
+  const totalUnread =
+    Object.values(snapshot.counts).reduce((sum, n) => sum + n, 0) +
+    Object.values(snapshot.joinRequests).reduce((sum, n) => sum + n, 0);
 
   return {
     counts: snapshot.counts,
+    joinRequests: snapshot.joinRequests,
     totalUnread,
   };
 }

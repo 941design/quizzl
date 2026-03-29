@@ -1,0 +1,45 @@
+{
+  "story": "S7",
+  "name": "invite-link-muting",
+  "status": "done",
+  "final_outcome": "accepted",
+  "date": "2026-03-29",
+  "test_result": {
+    "command": "make test-unit",
+    "total_files": 23,
+    "total_tests": 308,
+    "passed": 308,
+    "failed": 0
+  },
+  "build_result": "pass",
+  "files_created": [
+    "app/src/components/groups/ManageInviteLinksModal.tsx",
+    "app/tests/unit/manageInviteLinksModal.test.ts"
+  ],
+  "files_modified": [
+    "app/pages/groups.tsx",
+    "app/src/lib/i18n.ts"
+  ],
+  "acceptance_criteria": ["AC-9"],
+  "verification": {
+    "verifier": "independent-verifier",
+    "tests_run": true,
+    "test_results": {
+      "total": 308,
+      "passed": 308,
+      "failed": 0
+    },
+    "ac_checklist": {
+      "modal_lists_links_via_loadInviteLinks": "PASS — ManageInviteLinksModal.tsx:37 calls loadInviteLinks(groupId) on open",
+      "row_shows_label_or_untitled": "PASS — ManageInviteLinksModal.tsx:67 uses label || manageLinksUntitled fallback",
+      "row_shows_creation_date": "PASS — ManageInviteLinksModal.tsx:70 formats createdAt via toLocaleDateString()",
+      "row_has_mute_toggle_switch": "PASS — ManageInviteLinksModal.tsx:77-84 Chakra Switch with isChecked={link.muted}",
+      "toggle_calls_updateInviteLinkMuted": "PASS — ManageInviteLinksModal.tsx:42 calls updateInviteLinkMuted(nonce, muted)",
+      "toggle_updates_local_state": "PASS — ManageInviteLinksModal.tsx:43-44 setLinks updates the muted field",
+      "muted_nonces_discard_requests": "PASS — joinRequestHandler.test.ts:114 test 'discards when invite link is muted' (S4)",
+      "unmute_resumes_acceptance": "PASS — manageInviteLinksModal.test.ts:63-69 test 'unmutes a muted link'",
+      "manage_links_button_admin_only": "PASS — groups.tsx:201 wraps button in {isAdmin && ...}",
+      "i18n_keys_en_de": "PASS — i18n.ts types:306-309, en:637-640, de:956-959 (manageLinksButton, manageLinksTitle, manageLinksMuteLabel, manageLinksUntitled)"
+    }
+  }
+}

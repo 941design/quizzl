@@ -1,0 +1,13 @@
+{
+  "story": "S5",
+  "name": "bell-integration",
+  "baseline": {
+    "timestamp": "2026-03-28T19:10:00Z",
+    "test_command": "make test-unit",
+    "test_files_passed": 20,
+    "test_files_total": 20,
+    "tests_passed": 283,
+    "tests_total": 283,
+    "status": "all_passing"
+  }
+}

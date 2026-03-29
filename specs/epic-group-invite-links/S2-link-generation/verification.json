@@ -1,0 +1,55 @@
+{
+  "story": "S2",
+  "name": "link-generation",
+  "verification_questions": [
+    {
+      "id": "V1",
+      "category": "spec_alignment",
+      "question": "Does generateNonce() produce a 16-byte (32-char hex) random nonce using crypto.getRandomValues?",
+      "expected": "yes",
+      "evidence": "inviteLinkGeneration.ts: creates Uint8Array(16), calls crypto.getRandomValues, converts to hex. Test confirms 32-char hex and correct buffer size."
+    },
+    {
+      "id": "V2",
+      "category": "spec_alignment",
+      "question": "Does buildInviteUrl() construct the correct URL format: https://quizzl.941design.de/groups?join={nonce}&admin={npub}&name={encodedName}?",
+      "expected": "yes",
+      "evidence": "inviteLinkGeneration.ts uses URL API with searchParams.set for join, admin, name. Tests verify all params round-trip correctly including special characters."
+    },
+    {
+      "id": "V3",
+      "category": "spec_alignment",
+      "question": "Does GenerateInviteLinkModal have Copy Link button, optional label input, and persist InviteLink on copy/close?",
+      "expected": "yes",
+      "evidence": "GenerateInviteLinkModal.tsx: Copy Link button calls handleCopy (clipboard + persist), label Input field, handleClose persists if not already copied. data-testid attributes present."
+    },
+    {
+      "id": "V4",
+      "category": "spec_alignment",
+      "question": "Is the 'Invite Link' button added to GroupDetailView, admin-only, next to existing 'Invite Member' button?",
+      "expected": "yes",
+      "evidence": "pages/groups.tsx: Button with data-testid='invite-link-btn', isDisabled={!isAdmin}, placed in same HStack as invite-member-btn. GenerateInviteLinkModal rendered with inviteLinkDisclosure."
+    },
+    {
+      "id": "V5",
+      "category": "code_quality",
+      "question": "Are all UI strings added to both en and de translations in i18n.ts via useCopy()?",
+      "expected": "yes",
+      "evidence": "i18n.ts: 7 new keys (inviteLinkButton, inviteLinkTitle, inviteLinkCopy, inviteLinkCopied, inviteLinkCopyError, inviteLinkLabelField, inviteLinkLabelPlaceholder) in type, en, and de objects."
+    },
+    {
+      "id": "V6",
+      "category": "testing",
+      "question": "Are nonce generation and URL formatting covered by unit tests?",
+      "expected": "yes",
+      "evidence": "inviteLinkGeneration.test.ts: 7 tests covering hex length, crypto.getRandomValues usage, URL construction with all params, URL encoding of special chars, base URL correctness."
+    },
+    {
+      "id": "V7",
+      "category": "architecture",
+      "question": "Does the build pass with all changes?",
+      "expected": "yes",
+      "evidence": "make build succeeds, static export generated. make test-unit: 18 files, 260 tests all passing."
+    }
+  ]
+}

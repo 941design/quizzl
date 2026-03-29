@@ -1,0 +1,39 @@
+{
+  "story": "S3",
+  "name": "join-request-sending",
+  "status": "done",
+  "files_created": [
+    "app/src/lib/marmot/joinRequestSender.ts",
+    "app/src/components/groups/JoinRequestCard.tsx",
+    "app/tests/unit/marmot/joinRequestSender.test.ts"
+  ],
+  "files_modified": [
+    "app/pages/groups.tsx",
+    "app/src/lib/i18n.ts"
+  ],
+  "functions_exported": {
+    "joinRequestSender": ["buildJoinRequestRumor", "buildGiftWrap", "sendJoinRequest", "JOIN_REQUEST_RUMOR_KIND"]
+  },
+  "components_created": ["JoinRequestCard"],
+  "i18n_keys_added": [
+    "joinRequestHeading",
+    "joinRequestDescription",
+    "joinRequestButton",
+    "joinRequestSent",
+    "joinRequestError",
+    "joinRequestAlreadyMember",
+    "joinRequestGoToGroup"
+  ],
+  "tests": {
+    "new_test_files": 1,
+    "new_tests": 8,
+    "total_tests_after": 268,
+    "total_files_after": 19,
+    "all_passing": true
+  },
+  "build_passes": true,
+  "acceptance_criteria_covered": ["AC-4"],
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-03-28T19:07:00Z"
+}

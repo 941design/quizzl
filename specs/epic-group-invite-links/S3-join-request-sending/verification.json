@@ -1,0 +1,62 @@
+{
+  "story": "S3",
+  "name": "join-request-sending",
+  "verification_questions": [
+    {
+      "id": "V1",
+      "category": "spec_alignment",
+      "question": "Does pages/groups.tsx detect join, admin, and name query params and render JoinRequestCard instead of the normal groups view?",
+      "expected": "yes",
+      "evidence": "groups.tsx extracts joinNonce, joinAdmin, joinName from router.query. If all three are present, renders <JoinRequestCard> before checking for id param."
+    },
+    {
+      "id": "V2",
+      "category": "spec_alignment",
+      "question": "Does JoinRequestCard show the group name and a 'Request to Join' button?",
+      "expected": "yes",
+      "evidence": "JoinRequestCard.tsx renders groupName in bold, copy.groups.joinRequestButton on the button, with data-testid='join-request-send-btn'."
+    },
+    {
+      "id": "V3",
+      "category": "spec_alignment",
+      "question": "Does buildJoinRequestRumor construct a kind 21059 rumor with correct content (type, nonce, name) and p-tag targeting the admin?",
+      "expected": "yes",
+      "evidence": "joinRequestSender.ts buildJoinRequestRumor sets kind: 21059, tags: [['p', adminPubkeyHex]], content: JSON.stringify({ type: 'join_request', nonce, name }). 6 unit tests confirm."
+    },
+    {
+      "id": "V4",
+      "category": "spec_alignment",
+      "question": "Does the NIP-59 gift wrap use two-layer encryption (seal with real key, wrap with ephemeral key)?",
+      "expected": "yes",
+      "evidence": "buildGiftWrap() encrypts rumor→seal (kind 13) using signer.nip44.encrypt, then encrypts seal→giftWrap (kind 1059) using ephemeral key via nip44.v2.encrypt with getConversationKey."
+    },
+    {
+      "id": "V5",
+      "category": "spec_alignment",
+      "question": "Does JoinRequestCard handle already-a-member and identity-not-ready edge cases?",
+      "expected": "yes",
+      "evidence": "Component checks hydrated/pubkeyHex for identity readiness, checks groups for matching admin+self membership to show 'already a member' with link to group."
+    },
+    {
+      "id": "V6",
+      "category": "code_quality",
+      "question": "Are all UI strings added to both en and de translations in i18n.ts?",
+      "expected": "yes",
+      "evidence": "7 new keys (joinRequestHeading, joinRequestDescription, joinRequestButton, joinRequestSent, joinRequestError, joinRequestAlreadyMember, joinRequestGoToGroup) in type, en, and de."
+    },
+    {
+      "id": "V7",
+      "category": "testing",
+      "question": "Are rumor construction and query param detection covered by unit tests?",
+      "expected": "yes",
+      "evidence": "joinRequestSender.test.ts: 8 tests covering kind, pubkey, p-tag, content JSON, created_at, type field, and query param detection."
+    },
+    {
+      "id": "V8",
+      "category": "architecture",
+      "question": "Does the build pass with all changes?",
+      "expected": "yes",
+      "evidence": "make build succeeds, static export generated. make test-unit: 19 files, 268 tests all passing."
+    }
+  ]
+}

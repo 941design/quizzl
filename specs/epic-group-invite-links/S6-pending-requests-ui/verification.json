@@ -1,0 +1,38 @@
+{
+  "story_id": "S6",
+  "story_name": "pending-requests-ui",
+  "verification_timestamp": "2026-03-28T00:17:00Z",
+  "test_results": {
+    "total_tests": 298,
+    "passed": 298,
+    "failed": 0,
+    "new_tests_added": 7,
+    "test_command": "make test-unit",
+    "build_verified": true
+  },
+  "acceptance_criteria": {
+    "AC-8": {
+      "status": "met",
+      "evidence": [
+        "PendingRequestsSection renders above Members section in GroupDetailView, visible only to admins (groups.tsx:208)",
+        "PendingRequestsSection conditional on pending requests existing (PendingRequestsSection.tsx:90 — returns null if empty)",
+        "PendingRequestRow shows requester npub (truncated) and nickname if available (PendingRequestsSection.tsx:33-42)",
+        "Approve button calls inviteByNpub(groupId, requesterNpub) via MarmotContext.approveJoinRequest (MarmotContext.tsx approveJoinRequest callback)",
+        "After approve: removes PendingJoinRequest from IDB via deletePendingJoinRequest, decrements bell via markJoinRequestsRead",
+        "Deny button removes PendingJoinRequest from IDB and decrements bell via markJoinRequestsRead (MarmotContext.tsx denyJoinRequest callback)",
+        "If inviteByNpub returns error on approve, error displayed inline and request remains pending (PendingRequestsSection.tsx:66-68)",
+        "i18n keys added: pendingRequestsHeading, pendingRequestsApprove, pendingRequestsDeny, pendingRequestsApproveError, pendingRequestsEmpty (en/de)",
+        "pendingRequests state and approve/deny actions wired through MarmotContext (MarmotContextValue type, provider value, loadPendingRequestsForGroup, approveJoinRequest, denyJoinRequest)"
+      ]
+    }
+  },
+  "files_modified": [
+    "app/pages/groups.tsx",
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/i18n.ts"
+  ],
+  "files_created": [
+    "app/src/components/groups/PendingRequestsSection.tsx",
+    "app/tests/unit/pendingRequestsSection.test.ts"
+  ]
+}

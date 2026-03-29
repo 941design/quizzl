@@ -1,0 +1,39 @@
+{
+  "story": "S1",
+  "name": "invite-link-storage",
+  "status": "done",
+  "files_created": [
+    "app/src/lib/marmot/inviteLinkStorage.ts",
+    "app/src/lib/marmot/joinRequestStorage.ts",
+    "app/tests/unit/marmot/inviteLinkStorage.test.ts",
+    "app/tests/unit/marmot/joinRequestStorage.test.ts"
+  ],
+  "files_modified": [],
+  "types_defined": [
+    {
+      "name": "InviteLink",
+      "file": "app/src/lib/marmot/inviteLinkStorage.ts",
+      "fields": ["nonce", "groupId", "createdAt", "label?", "muted"]
+    },
+    {
+      "name": "PendingJoinRequest",
+      "file": "app/src/lib/marmot/joinRequestStorage.ts",
+      "fields": ["pubkeyHex", "nonce", "groupId", "receivedAt", "nickname?", "eventId"]
+    }
+  ],
+  "functions_exported": {
+    "inviteLinkStorage": ["createInviteLinkStore", "saveInviteLink", "getInviteLink", "loadInviteLinks", "loadAllInviteLinks", "updateInviteLinkMuted", "deleteInviteLink"],
+    "joinRequestStorage": ["createJoinRequestStore", "savePendingJoinRequest", "loadPendingJoinRequests", "deletePendingJoinRequest", "clearPendingJoinRequestsForGroup"]
+  },
+  "tests": {
+    "new_test_files": 2,
+    "new_tests": 25,
+    "total_tests_after": 253,
+    "total_files_after": 17,
+    "all_passing": true
+  },
+  "acceptance_criteria_covered": ["AC-1", "AC-2"],
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-03-28T18:56:00Z"
+}

@@ -1,0 +1,62 @@
+{
+  "story": "S4",
+  "name": "join-request-receiving",
+  "verification_questions": [
+    {
+      "id": "V1",
+      "category": "spec_alignment",
+      "question": "Does the gift-wrap handler in welcomeSubscription.ts dispatch kind 21059 to the join request handler after unwrapping?",
+      "expected": "yes",
+      "evidence": "welcomeSubscription.ts line ~100: after unwrapGiftWrap, checks if welcomeRumor.kind === JOIN_REQUEST_KIND (21059). If so, calls handleJoinRequest() and returns. Kind 444 Welcomes continue unchanged."
+    },
+    {
+      "id": "V2",
+      "category": "spec_alignment",
+      "question": "Does handleJoinRequest validate nonce against inviteLinkStorage and discard if not found?",
+      "expected": "yes",
+      "evidence": "joinRequestHandler.ts: calls getInviteLink(payload.nonce), returns null if undefined. Test confirms: 'discards when nonce is not found'."
+    },
+    {
+      "id": "V3",
+      "category": "spec_alignment",
+      "question": "Does handleJoinRequest check mute status and discard if muted?",
+      "expected": "yes",
+      "evidence": "joinRequestHandler.ts: if (inviteLink.muted) return null. Test confirms: 'discards when invite link is muted'."
+    },
+    {
+      "id": "V4",
+      "category": "spec_alignment",
+      "question": "Does handleJoinRequest check for existing membership and discard if requester is already a member?",
+      "expected": "yes",
+      "evidence": "joinRequestHandler.ts: calls groupMemberPubkeys(groupId), checks if members.includes(rumor.pubkey). Test confirms: 'discards when requester is already a group member'."
+    },
+    {
+      "id": "V5",
+      "category": "spec_alignment",
+      "question": "Does handleJoinRequest deduplicate by pubkeyHex+groupId?",
+      "expected": "yes",
+      "evidence": "joinRequestHandler.ts: loads existing requests, checks existingRequests.some(r => r.pubkeyHex === rumor.pubkey). Test confirms: 'discards duplicate request (same pubkey + groupId already pending)'."
+    },
+    {
+      "id": "V6",
+      "category": "spec_alignment",
+      "question": "Is the processed gift-wrap event ID added to lp_processedGiftWraps?",
+      "expected": "yes",
+      "evidence": "welcomeSubscription.ts: after successful handleJoinRequest, pushes eventId to localStorage SEEN_KEY (same as for kind 444 Welcomes)."
+    },
+    {
+      "id": "V7",
+      "category": "architecture",
+      "question": "Is the handler exposed via MarmotContext callback?",
+      "expected": "yes",
+      "evidence": "MarmotContext.tsx: startWelcomeSubscription now receives onJoinRequestReceived and groupMemberPubkeys callbacks, passed through to subscribeToWelcomes."
+    },
+    {
+      "id": "V8",
+      "category": "testing",
+      "question": "Are all discard conditions covered by unit tests?",
+      "expected": "yes",
+      "evidence": "joinRequestHandler.test.ts: 15 tests covering parseJoinRequestContent (6 cases), handleJoinRequest (8 cases: valid, invalid content, unknown nonce, muted, already member, duplicate, different groups, groupId resolution), JOIN_REQUEST_KIND constant."
+    }
+  ]
+}

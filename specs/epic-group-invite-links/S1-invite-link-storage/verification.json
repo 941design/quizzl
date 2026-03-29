@@ -1,0 +1,55 @@
+{
+  "story": "S1",
+  "name": "invite-link-storage",
+  "verification_questions": [
+    {
+      "id": "V1",
+      "category": "spec_alignment",
+      "question": "Does InviteLink type have all required fields (nonce, groupId, createdAt, label?, muted)?",
+      "expected": "yes",
+      "evidence": "inviteLinkStorage.ts defines InviteLink with nonce: string, groupId: string, createdAt: number, label?: string, muted: boolean"
+    },
+    {
+      "id": "V2",
+      "category": "spec_alignment",
+      "question": "Does PendingJoinRequest type have all required fields (pubkeyHex, nonce, groupId, receivedAt, nickname?, eventId)?",
+      "expected": "yes",
+      "evidence": "joinRequestStorage.ts defines PendingJoinRequest with pubkeyHex: string, nonce: string, groupId: string, receivedAt: number, nickname?: string, eventId: string"
+    },
+    {
+      "id": "V3",
+      "category": "architecture",
+      "question": "Do the storage modules use idb-keyval with separate IDB databases matching the spec (quizzl-invite-links/links, quizzl-join-requests/requests)?",
+      "expected": "yes",
+      "evidence": "inviteLinkStorage.ts: createStore('quizzl-invite-links', 'links'), joinRequestStorage.ts: createStore('quizzl-join-requests', 'requests')"
+    },
+    {
+      "id": "V4",
+      "category": "code_quality",
+      "question": "Does savePendingJoinRequest deduplicate by pubkeyHex + groupId as specified in AC-2?",
+      "expected": "yes",
+      "evidence": "joinRequestStorage.ts savePendingJoinRequest checks all entries for matching pubkeyHex + groupId before inserting; test confirms second request with same combo is a no-op"
+    },
+    {
+      "id": "V5",
+      "category": "testing",
+      "question": "Are all CRUD operations (save, load, get, update, delete, clear) covered by unit tests?",
+      "expected": "yes",
+      "evidence": "inviteLinkStorage.test.ts: 14 tests covering save, get, loadByGroup, loadAll, updateMuted, delete. joinRequestStorage.test.ts: 11 tests covering save, dedup, loadByGroup, delete, clearForGroup"
+    },
+    {
+      "id": "V6",
+      "category": "testing",
+      "question": "Do all existing tests still pass alongside the new tests?",
+      "expected": "yes",
+      "evidence": "make test-unit: 17 files passed (253 tests) vs baseline 15 files (228 tests)"
+    },
+    {
+      "id": "V7",
+      "category": "architecture",
+      "question": "Do the modules follow existing codebase patterns (idb-keyval imports, createStore pattern, async CRUD)?",
+      "expected": "yes",
+      "evidence": "Pattern matches groupStorage.ts: createStore() for IDB database isolation, get/set/del for CRUD, entries() for filtered queries"
+    }
+  ]
+}

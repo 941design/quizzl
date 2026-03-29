@@ -1,0 +1,45 @@
+{
+  "story_id": "S5",
+  "story_name": "bell-integration",
+  "verification_timestamp": "2026-03-28T19:18:00Z",
+  "test_results": {
+    "total_tests": 291,
+    "passed": 291,
+    "failed": 0,
+    "new_tests_added": 8,
+    "test_command": "make test-unit",
+    "build_verified": true
+  },
+  "acceptance_criteria": {
+    "AC-6": {
+      "status": "met",
+      "evidence": [
+        "UnreadState type extended with joinRequests: Record<string, number> (unreadStore.ts:17)",
+        "incrementJoinRequest(groupId) increments and calls emit() (unreadStore.ts:130-135)",
+        "markJoinRequestsRead(groupId) resets counter and calls emit() (unreadStore.ts:138-145)",
+        "clearJoinRequestGroup(groupId) removes group key and calls emit() (unreadStore.ts:148-155)",
+        "totalUnread in useUnreadCounts() sums both counts and joinRequests (unreadStore.ts:170-172)",
+        "useUnreadCounts() returns joinRequests alongside counts (unreadStore.ts:176)",
+        "Test bridge on window.__quizzlUnread exposes all 3 new functions (unreadStore.ts:161-164)"
+      ]
+    },
+    "AC-7": {
+      "status": "met",
+      "evidence": [
+        "NotificationBell badge count reflects combined total from chat messages and join requests (via totalUnread from useUnreadCounts)",
+        "Bell popover renders join request entries as '{group name} -- {n} join requests' (NotificationBell.tsx:109-148)",
+        "Clicking a join request entry navigates to group detail and calls markJoinRequestsRead(groupId) (NotificationBell.tsx:122-125)",
+        "i18n keys added: joinRequestNotification with en/de translations (i18n.ts)"
+      ]
+    }
+  },
+  "files_modified": [
+    "app/src/lib/unreadStore.ts",
+    "app/src/components/NotificationBell.tsx",
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/i18n.ts"
+  ],
+  "files_created": [
+    "app/tests/unit/unreadStore.test.ts"
+  ]
+}

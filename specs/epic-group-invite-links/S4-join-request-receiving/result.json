@@ -1,0 +1,31 @@
+{
+  "story": "S4",
+  "name": "join-request-receiving",
+  "status": "done",
+  "files_created": [
+    "app/src/lib/marmot/joinRequestHandler.ts",
+    "app/tests/unit/marmot/joinRequestHandler.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/welcomeSubscription.ts",
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "functions_exported": {
+    "joinRequestHandler": ["handleJoinRequest", "parseJoinRequestContent", "JOIN_REQUEST_KIND"]
+  },
+  "types_exported": {
+    "joinRequestHandler": ["JoinRequestReceivedCallback", "JoinRequestPayload"]
+  },
+  "tests": {
+    "new_test_files": 1,
+    "new_tests": 15,
+    "total_tests_after": 283,
+    "total_files_after": 20,
+    "all_passing": true
+  },
+  "build_passes": true,
+  "acceptance_criteria_covered": ["AC-5"],
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-03-28T19:12:00Z"
+}

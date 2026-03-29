@@ -1,0 +1,48 @@
+{
+  "story": "S7",
+  "name": "invite-link-muting",
+  "verification_questions": [
+    {
+      "id": "V1",
+      "question": "Does ManageInviteLinksModal list all invite links for the group via loadInviteLinks(groupId)?",
+      "expected": "Yes — the modal calls loadInviteLinks(groupId) on open and renders each link as a row",
+      "files": ["app/src/components/groups/ManageInviteLinksModal.tsx"]
+    },
+    {
+      "id": "V2",
+      "question": "Does each row show label (or 'Untitled'), creation date, and a mute toggle switch?",
+      "expected": "Yes — label falls back to copy.groups.manageLinksUntitled, createdAt is formatted via toLocaleDateString(), and a Chakra Switch controls the muted state",
+      "files": ["app/src/components/groups/ManageInviteLinksModal.tsx"]
+    },
+    {
+      "id": "V3",
+      "question": "Does toggling mute call updateInviteLinkMuted(nonce, muted) and update the local UI state?",
+      "expected": "Yes — handleToggleMute calls updateInviteLinkMuted then updates the links state array",
+      "files": ["app/src/components/groups/ManageInviteLinksModal.tsx"]
+    },
+    {
+      "id": "V4",
+      "question": "Is the 'Manage Links' button in GroupDetailView admin-only?",
+      "expected": "Yes — it is wrapped in {isAdmin && ...} and only renders when the user is a group admin",
+      "files": ["app/pages/groups.tsx"]
+    },
+    {
+      "id": "V5",
+      "question": "Are i18n keys (manageLinksButton, manageLinksTitle, manageLinksMuteLabel, manageLinksUntitled) added for both en and de?",
+      "expected": "Yes — all four keys are defined in both the Copy type and both language objects",
+      "files": ["app/src/lib/i18n.ts"]
+    },
+    {
+      "id": "V6",
+      "question": "Do muted nonces cause the join-request handler to discard incoming requests?",
+      "expected": "Yes — this was already implemented in S4 (joinRequestHandler.ts checks muted === true) and verified by the existing test 'discards when invite link is muted'",
+      "files": ["app/src/lib/marmot/joinRequestHandler.ts", "app/tests/unit/marmot/joinRequestHandler.test.ts"]
+    },
+    {
+      "id": "V7",
+      "question": "Do all unit tests pass including the new manageInviteLinksModal tests?",
+      "expected": "Yes — 23 test files, 308 tests, all passing",
+      "files": ["app/tests/unit/manageInviteLinksModal.test.ts"]
+    }
+  ]
+}

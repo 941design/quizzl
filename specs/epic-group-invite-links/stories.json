@@ -1,0 +1,96 @@
+{
+  "epic": "group-invite-links",
+  "stories": [
+    {
+      "id": "S1",
+      "name": "invite-link-storage",
+      "title": "IndexedDB storage for invite links and pending join requests",
+      "status": "done",
+      "story_order": 1,
+      "acceptance_criteria": ["AC-1", "AC-2"],
+      "scope": "Create inviteLinkStorage.ts and joinRequestStorage.ts with IDB CRUD using idb-keyval. Define InviteLink and PendingJoinRequest types. Unit tests for all storage operations including deduplication. No UI, no context integration.",
+      "depends_on": []
+    },
+    {
+      "id": "S2",
+      "name": "link-generation",
+      "title": "GenerateInviteLinkModal and nonce creation",
+      "status": "done",
+      "story_order": 2,
+      "acceptance_criteria": ["AC-3"],
+      "scope": "Create GenerateInviteLinkModal component with 16-byte nonce generation, URL construction, clipboard copy, optional label input. Add 'Invite Link' button to GroupDetailView (admin-only). Add i18n strings to useCopy(). Unit tests for nonce generation and URL formatting.",
+      "depends_on": ["S1"]
+    },
+    {
+      "id": "S3",
+      "name": "join-request-sending",
+      "title": "JoinRequestCard and gift-wrap construction for invitees",
+      "status": "done",
+      "story_order": 3,
+      "acceptance_criteria": ["AC-4"],
+      "scope": "Detect join/admin/name query params in pages/groups.tsx. Create JoinRequestCard component. Build kind 21059 inner rumor, NIP-59 gift wrap (kind 1059), publish to relays. Handle identity-not-ready and already-a-member edge cases. Add i18n strings. Unit tests for rumor construction and query param detection.",
+      "depends_on": ["S1"]
+    },
+    {
+      "id": "S4",
+      "name": "join-request-receiving",
+      "title": "Gift-wrap handler extension for kind 21059 join requests",
+      "status": "done",
+      "story_order": 4,
+      "acceptance_criteria": ["AC-5"],
+      "scope": "Extend the existing kind 1059 handler in welcomeSubscription.ts to detect kind 21059 after unwrapping. Validate nonce against inviteLinkStorage, check mute status, check for existing membership, deduplicate by pubkey+groupId, persist PendingJoinRequest. Expose handler via MarmotContext callback. Unit tests for all discard conditions (unknown nonce, muted, duplicate, already member).",
+      "depends_on": ["S1"]
+    },
+    {
+      "id": "S5",
+      "name": "bell-integration",
+      "title": "Unread store join request counters and NotificationBell update",
+      "status": "done",
+      "story_order": 5,
+      "acceptance_criteria": ["AC-6", "AC-7"],
+      "scope": "Add joinRequests dimension to UnreadState. Add incrementJoinRequest, markJoinRequestsRead, clearJoinRequestGroup functions. Update totalUnread to sum both dimensions. Update NotificationBell popover to render join request entries. Add i18n strings. Unit tests for counter arithmetic and combined totals.",
+      "depends_on": ["S4"]
+    },
+    {
+      "id": "S6",
+      "name": "pending-requests-ui",
+      "title": "PendingRequestsSection with approve/deny in group detail",
+      "status": "done",
+      "story_order": 6,
+      "acceptance_criteria": ["AC-8"],
+      "scope": "Create PendingRequestsSection and PendingRequestRow components. Add above Members section in GroupDetailView (admin-only, conditional on pending requests). Approve calls inviteByNpub then removes request and decrements bell. Deny removes request and decrements bell. Error handling for failed approvals. Add i18n strings. Wire pendingRequests state and approve/deny actions through MarmotContext.",
+      "depends_on": ["S4", "S5"]
+    },
+    {
+      "id": "S7",
+      "name": "invite-link-muting",
+      "title": "ManageInviteLinksModal with mute toggles",
+      "status": "done",
+      "story_order": 7,
+      "acceptance_criteria": ["AC-9"],
+      "scope": "Create ManageInviteLinksModal listing all invite links for a group. Mute toggle calls updateInviteLinkMuted. Add 'Manage Links' button to GroupDetailView (admin-only). Add i18n strings. Unit test that muted nonces cause join-request handler to discard.",
+      "depends_on": ["S1", "S4"]
+    },
+    {
+      "id": "S8",
+      "name": "backup-integration",
+      "title": "Include invite links in relay backup payload",
+      "status": "done",
+      "story_order": 8,
+      "acceptance_criteria": ["AC-10"],
+      "scope": "Add inviteLinks field to BackupPayload type. collectBackupPayload reads all invite links from IDB. restoreFromBackup writes invite links back to IDB. PendingJoinRequests are not backed up. Unit tests for collect and restore round-trip.",
+      "depends_on": ["S1"]
+    },
+    {
+      "id": "S9",
+      "name": "e2e-invite-link-flow",
+      "title": "End-to-end test for full invite link lifecycle",
+      "status": "done",
+      "story_order": 9,
+      "acceptance_criteria": ["AC-11"],
+      "scope": "Playwright serial test: User A creates group, generates invite link, User B opens link, sends join request, User A approves, User B receives Welcome. Update clearAppState to include quizzl-invite-links and quizzl-join-requests databases. No production code changes.",
+      "depends_on": ["S1", "S2", "S3", "S4", "S5", "S6"]
+    }
+  ],
+  "story_order": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9"]
+}

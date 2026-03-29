@@ -12,13 +12,13 @@ import {
   useDisclosure,
 } from '@chakra-ui/react';
 import NextLink from 'next/link';
-import { useUnreadCounts, markAsRead } from '@/src/lib/unreadStore';
+import { useUnreadCounts, markAsRead, markJoinRequestsRead } from '@/src/lib/unreadStore';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useCopy } from '@/src/context/LanguageContext';
 import ThemeIcon from '@/src/components/ThemeIcon';
 
 export default function NotificationBell() {
-  const { counts, totalUnread } = useUnreadCounts();
+  const { counts, joinRequests, totalUnread } = useUnreadCounts();
   const { groups } = useMarmot();
   const copy = useCopy();
   const { isOpen, onToggle, onClose } = useDisclosure();
@@ -28,6 +28,11 @@ export default function NotificationBell() {
   const unreadGroups = groups
     .filter((g) => (counts[g.id] ?? 0) > 0)
     .map((g) => ({ ...g, unread: counts[g.id] }));
+
+  // Build list of groups with pending join requests
+  const joinRequestGroups = groups
+    .filter((g) => (joinRequests[g.id] ?? 0) > 0)
+    .map((g) => ({ ...g, requestCount: joinRequests[g.id] }));
 
   return (
     <Popover
@@ -88,7 +93,7 @@ export default function NotificationBell() {
       >
         <PopoverArrow bg="surfaceBg" />
         <PopoverBody p={0}>
-          {unreadGroups.length === 0 ? (
+          {unreadGroups.length === 0 && joinRequestGroups.length === 0 ? (
             <Box p={4} textAlign="center">
               <Text fontSize="sm" color="textMuted">
                 {copy.layout.noNotifications}
@@ -143,6 +148,57 @@ export default function NotificationBell() {
                       flexShrink={0}
                     >
                       {g.unread > 99 ? '99+' : g.unread}
+                    </Box>
+                  </HStack>
+                </NextLink>
+              ))}
+              {joinRequestGroups.map((g) => (
+                <NextLink
+                  key={`jr-${g.id}`}
+                  href={`/groups?id=${g.id}`}
+                  passHref
+                  legacyBehavior
+                >
+                  <HStack
+                    as="a"
+                    px={4}
+                    py={3}
+                    spacing={3}
+                    _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
+                    cursor="pointer"
+                    onClick={() => {
+                      markJoinRequestsRead(g.id);
+                      onClose();
+                    }}
+                    data-testid={`notification-join-request-${g.id}`}
+                  >
+                    <Box flex="1" minW={0}>
+                      <Text
+                        fontSize="sm"
+                        fontWeight="semibold"
+                        isTruncated
+                      >
+                        {g.name}
+                      </Text>
+                      <Text fontSize="xs" color="textMuted">
+                        {copy.layout.joinRequestNotification(g.requestCount)}
+                      </Text>
+                    </Box>
+                    <Box
+                      bg="orange.500"
+                      color="white"
+                      fontSize="xs"
+                      fontWeight="bold"
+                      minW="20px"
+                      h="20px"
+                      borderRadius="full"
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="center"
+                      px="6px"
+                      flexShrink={0}
+                    >
+                      {g.requestCount > 99 ? '99+' : g.requestCount}
                     </Box>
                   </HStack>
                 </NextLink>

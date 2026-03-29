@@ -1,0 +1,12 @@
+{
+  "story": "S8",
+  "name": "backup-integration",
+  "baseline": {
+    "date": "2026-03-29",
+    "testCommand": "make test-unit",
+    "result": "pass",
+    "totalFiles": 23,
+    "totalTests": 308,
+    "failures": 0
+  }
+}
