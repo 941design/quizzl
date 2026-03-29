@@ -132,10 +132,10 @@ function GroupDetailView({ id }: { id: string }) {
         <Alert status="warning" borderRadius="md">
           <AlertIcon />
           <AlertDescription>
-            Group not found.{' '}
+            {copy.groups.groupNotFound}{' '}
             <NextLink href="/groups" passHref legacyBehavior>
               <Button as="a" variant="link" size="sm">
-                Back to Groups
+                {copy.groups.backToGroups}
               </Button>
             </NextLink>
           </AlertDescription>
@@ -221,7 +221,7 @@ function GroupDetailView({ id }: { id: string }) {
           {/* Members Section */}
           <Box>
             <Heading as="h2" size="md" mb={3}>
-              Members
+              {copy.groups.membersHeading}
             </Heading>
             <MemberList
               memberPubkeys={group.memberPubkeys}
@@ -235,7 +235,7 @@ function GroupDetailView({ id }: { id: string }) {
           <Box>
             <HStack mb={3} justify="space-between">
               <Heading as="h2" size="md">
-                Chat
+                {copy.groups.chatHeading}
               </Heading>
               <HStack spacing={2}>
                 <Button
@@ -244,14 +244,14 @@ function GroupDetailView({ id }: { id: string }) {
                   onClick={() => setPollPanelOpen((v) => !v)}
                   data-testid="toggle-poll-panel-btn"
                 >
-                  {pollPanelOpen ? 'Hide Polls' : 'Show Polls'}
+                  {pollPanelOpen ? copy.polls.hidePolls : copy.polls.showPolls}
                 </Button>
                 <Button
                   size="xs"
                   onClick={pollDisclosure.onOpen}
                   data-testid="create-poll-btn"
                 >
-                  Poll
+                  {copy.polls.pollButton}
                 </Button>
               </HStack>
             </HStack>

@@ -307,6 +307,56 @@ type Copy = {
     manageLinksTitle: string;
     manageLinksMuteLabel: string;
     manageLinksUntitled: string;
+    membersHeading: string;
+    chatHeading: string;
+    groupNotFound: string;
+    backToGroups: string;
+    openGroup: string;
+    noMembersYet: string;
+    memberPending: string;
+    memberYou: string;
+    chatLoading: string;
+    chatEmpty: string;
+    chatPlaceholder: string;
+    chatNewMessages: string;
+    chatJustNow: string;
+    chatMinutesAgo: (minutes: number) => string;
+    createGroupError: string;
+  };
+  polls: {
+    heading: (count: number) => string;
+    noPolls: string;
+    showClosed: (count: number) => string;
+    hideClosed: (count: number) => string;
+    showPolls: string;
+    hidePolls: string;
+    createPoll: string;
+    pollButton: string;
+    singleChoice: string;
+    multipleChoice: string;
+    vote: string;
+    updateVote: string;
+    voted: string;
+    voteCount: (count: number) => string;
+    voterCount: (count: number) => string;
+    closePoll: string;
+    closeConfirm: string;
+    confirm: string;
+    cancel: string;
+    closed: string;
+    pollLabel: string;
+    pollResultsLabel: string;
+    startedPoll: (name: string) => string;
+    closedPoll: (name: string) => string;
+    questionLabel: string;
+    questionPlaceholder: string;
+    descriptionLabel: string;
+    descriptionPlaceholder: string;
+    optionsLabel: string;
+    optionPlaceholder: (letter: string) => string;
+    addOption: string;
+    pollTypeLabel: string;
+    createError: string;
   };
 };
 
@@ -638,6 +688,56 @@ const copy: Record<LanguageCode, Copy> = {
       manageLinksTitle: 'Manage Invite Links',
       manageLinksMuteLabel: 'Muted',
       manageLinksUntitled: 'Untitled',
+      membersHeading: 'Members',
+      chatHeading: 'Chat',
+      groupNotFound: 'Group not found.',
+      backToGroups: 'Back to Groups',
+      openGroup: 'Open',
+      noMembersYet: 'No members yet.',
+      memberPending: 'Pending',
+      memberYou: 'You',
+      chatLoading: 'Loading messages...',
+      chatEmpty: 'No messages yet. Say hello!',
+      chatPlaceholder: 'Type a message...',
+      chatNewMessages: 'New messages',
+      chatJustNow: 'just now',
+      chatMinutesAgo: (minutes: number) => `${minutes}m ago`,
+      createGroupError: 'Failed to create group. Please try again.',
+    },
+    polls: {
+      heading: (count: number) => count > 0 ? `Polls (${count})` : 'Polls',
+      noPolls: 'No polls yet',
+      showClosed: (count: number) => `Show closed polls (${count})`,
+      hideClosed: (count: number) => `Hide closed polls (${count})`,
+      showPolls: 'Show Polls',
+      hidePolls: 'Hide Polls',
+      createPoll: 'Create Poll',
+      pollButton: 'Poll',
+      singleChoice: 'Single choice',
+      multipleChoice: 'Multiple choice',
+      vote: 'Vote',
+      updateVote: 'Update Vote',
+      voted: 'Voted',
+      voteCount: (count: number) => count === 1 ? '1 vote' : `${count} votes`,
+      voterCount: (count: number) => count === 1 ? '1 voter' : `${count} voters`,
+      closePoll: 'Close Poll',
+      closeConfirm: 'Close this poll? Results will be shared in the chat.',
+      confirm: 'Confirm',
+      cancel: 'Cancel',
+      closed: 'Closed',
+      pollLabel: 'Poll',
+      pollResultsLabel: 'Poll Results',
+      startedPoll: (name: string) => `${name} started a poll`,
+      closedPoll: (name: string) => `${name} closed the poll`,
+      questionLabel: 'Question',
+      questionPlaceholder: 'What would you like to ask?',
+      descriptionLabel: 'Description (optional)',
+      descriptionPlaceholder: 'Add more context...',
+      optionsLabel: 'Options',
+      optionPlaceholder: (letter: string) => `Option ${letter}`,
+      addOption: '+ Add option',
+      pollTypeLabel: 'Poll type',
+      createError: 'Failed to create poll. Please try again.',
     },
   },
   de: {
@@ -957,6 +1057,56 @@ const copy: Record<LanguageCode, Copy> = {
       manageLinksTitle: 'Einladungslinks verwalten',
       manageLinksMuteLabel: 'Stummgeschaltet',
       manageLinksUntitled: 'Ohne Titel',
+      membersHeading: 'Mitglieder',
+      chatHeading: 'Chat',
+      groupNotFound: 'Gruppe nicht gefunden.',
+      backToGroups: 'Zurück zu Gruppen',
+      openGroup: 'Öffnen',
+      noMembersYet: 'Noch keine Mitglieder.',
+      memberPending: 'Ausstehend',
+      memberYou: 'Du',
+      chatLoading: 'Nachrichten werden geladen...',
+      chatEmpty: 'Noch keine Nachrichten. Sag Hallo!',
+      chatPlaceholder: 'Nachricht eingeben...',
+      chatNewMessages: 'Neue Nachrichten',
+      chatJustNow: 'gerade eben',
+      chatMinutesAgo: (minutes: number) => `vor ${minutes} Min.`,
+      createGroupError: 'Gruppe konnte nicht erstellt werden. Bitte erneut versuchen.',
+    },
+    polls: {
+      heading: (count: number) => count > 0 ? `Umfragen (${count})` : 'Umfragen',
+      noPolls: 'Noch keine Umfragen',
+      showClosed: (count: number) => `Geschlossene Umfragen anzeigen (${count})`,
+      hideClosed: (count: number) => `Geschlossene Umfragen ausblenden (${count})`,
+      showPolls: 'Umfragen anzeigen',
+      hidePolls: 'Umfragen ausblenden',
+      createPoll: 'Umfrage erstellen',
+      pollButton: 'Umfrage',
+      singleChoice: 'Einzelauswahl',
+      multipleChoice: 'Mehrfachauswahl',
+      vote: 'Abstimmen',
+      updateVote: 'Stimme ändern',
+      voted: 'Abgestimmt',
+      voteCount: (count: number) => count === 1 ? '1 Stimme' : `${count} Stimmen`,
+      voterCount: (count: number) => count === 1 ? '1 Teilnehmer' : `${count} Teilnehmer`,
+      closePoll: 'Umfrage schließen',
+      closeConfirm: 'Umfrage schließen? Ergebnisse werden im Chat geteilt.',
+      confirm: 'Bestätigen',
+      cancel: 'Abbrechen',
+      closed: 'Geschlossen',
+      pollLabel: 'Umfrage',
+      pollResultsLabel: 'Umfrageergebnisse',
+      startedPoll: (name: string) => `${name} hat eine Umfrage gestartet`,
+      closedPoll: (name: string) => `${name} hat die Umfrage geschlossen`,
+      questionLabel: 'Frage',
+      questionPlaceholder: 'Was möchtest du fragen?',
+      descriptionLabel: 'Beschreibung (optional)',
+      descriptionPlaceholder: 'Mehr Kontext hinzufügen...',
+      optionsLabel: 'Optionen',
+      optionPlaceholder: (letter: string) => `Option ${letter}`,
+      addOption: '+ Option hinzufügen',
+      pollTypeLabel: 'Umfragetyp',
+      createError: 'Umfrage konnte nicht erstellt werden. Bitte erneut versuchen.',
     },
   },
 };

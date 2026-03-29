@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Flex, Text, VStack } from '@chakra-ui/react';
 import type { PollResult } from '@/src/lib/marmot/pollPersistence';
+import { useCopy } from '@/src/context/LanguageContext';
 
 type PollChatResultsProps = {
   creatorName: string;
@@ -15,6 +16,7 @@ export default function PollChatResults({
   results,
   totalVoters,
 }: PollChatResultsProps) {
+  const copy = useCopy();
   const totalVotes = results.reduce((sum, r) => sum + r.count, 0);
 
   return (
@@ -30,11 +32,11 @@ export default function PollChatResults({
     >
       <Flex gap={2} align="center" mb={1}>
         <Text fontSize="xs" fontWeight="bold" color="green.600" _dark={{ color: 'green.200' }}>
-          Poll Results
+          {copy.polls.pollResultsLabel}
         </Text>
       </Flex>
       <Text fontSize="sm" fontWeight="medium">
-        {creatorName} closed the poll
+        {copy.polls.closedPoll(creatorName)}
       </Text>
       <Text fontSize="sm" color="textMuted" mt={0.5} mb={2}>
         &ldquo;{title}&rdquo;
@@ -58,7 +60,7 @@ export default function PollChatResults({
       </VStack>
 
       <Text fontSize="xs" color="textMuted" mt={2}>
-        {totalVoters} {totalVoters === 1 ? 'vote' : 'votes'}
+        {copy.polls.voteCount(totalVoters)}
       </Text>
     </Box>
   );

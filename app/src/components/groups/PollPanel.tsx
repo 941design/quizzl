@@ -8,6 +8,7 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import { usePollStore } from '@/src/context/PollStoreContext';
+import { useCopy } from '@/src/context/LanguageContext';
 import type { MemberProfile } from '@/src/types';
 import PollCard from './PollCard';
 import PollResultsCard from './PollResultsCard';
@@ -19,6 +20,7 @@ type PollPanelProps = {
 
 export default function PollPanel({ pubkey, profileMap }: PollPanelProps) {
   const { polls, votes } = usePollStore();
+  const copy = useCopy();
   const [showClosed, setShowClosed] = useState(false);
 
   const activePolls = polls.filter((p) => !p.closed);
@@ -35,13 +37,13 @@ export default function PollPanel({ pubkey, profileMap }: PollPanelProps) {
       data-testid="poll-panel"
     >
       <Heading as="h3" size="sm" mb={3}>
-        Polls{activePolls.length > 0 && ` (${activePolls.length})`}
+        {copy.polls.heading(activePolls.length)}
       </Heading>
 
       {polls.length === 0 ? (
         <Flex align="center" justify="center" py={6}>
           <Text fontSize="sm" color="textMuted">
-            No polls yet
+            {copy.polls.noPolls}
           </Text>
         </Flex>
       ) : (
@@ -66,7 +68,7 @@ export default function PollPanel({ pubkey, profileMap }: PollPanelProps) {
                 onClick={() => setShowClosed((v) => !v)}
                 data-testid="poll-toggle-closed"
               >
-                {showClosed ? 'Hide' : 'Show'} closed polls ({closedPolls.length})
+                {showClosed ? copy.polls.hideClosed(closedPolls.length) : copy.polls.showClosed(closedPolls.length)}
               </Button>
               {showClosed &&
                 closedPolls.map((poll) => (

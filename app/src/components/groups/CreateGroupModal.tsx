@@ -42,10 +42,10 @@ export default function CreateGroupModal({ isOpen, onClose }: CreateGroupModalPr
         setName('');
         onClose();
       } else {
-        setError('Failed to create group. Please try again.');
+        setError(copy.groups.createGroupError);
       }
     } catch (err) {
-      setError('Failed to create group. Please try again.');
+      setError(copy.groups.createGroupError);
       console.error('[CreateGroupModal] createGroup failed:', err);
     } finally {
       setIsLoading(false);

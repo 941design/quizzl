@@ -29,7 +29,7 @@ export default function MemberList({ memberPubkeys, ownPubkeyHex, memberProfiles
   if (memberPubkeys.length === 0) {
     return (
       <Text color="textMuted" fontSize="sm">
-        No members yet.
+        {copy.groups.noMembersYet}
       </Text>
     );
   }
@@ -53,6 +53,8 @@ export default function MemberList({ memberPubkeys, ownPubkeyHex, memberProfiles
             showQrLabel={copy.groups.showQr}
             qrTitle={copy.groups.qrModalTitle}
             qrErrorMessage={copy.groups.qrGenerationError}
+            pendingLabel={copy.groups.memberPending}
+            youLabel={copy.groups.memberYou}
           />
         );
       })}
@@ -69,6 +71,8 @@ type MemberListItemProps = {
   showQrLabel: string;
   qrTitle: string;
   qrErrorMessage: string;
+  pendingLabel: string;
+  youLabel: string;
 };
 
 function MemberListItem({
@@ -80,6 +84,8 @@ function MemberListItem({
   showQrLabel,
   qrTitle,
   qrErrorMessage,
+  pendingLabel,
+  youLabel,
 }: MemberListItemProps) {
   const qrDisclosure = useDisclosure();
 
@@ -128,7 +134,7 @@ function MemberListItem({
                 fontSize="2xs"
                 data-testid={`member-pending-${pubkey.slice(0, 8)}`}
               >
-                Pending
+                {pendingLabel}
               </Badge>
             )}
             <NpubQrButton
@@ -144,7 +150,7 @@ function MemberListItem({
               color="brand.500"
               data-testid="member-you-badge"
             >
-              You
+              {youLabel}
             </Text>
           )}
         </HStack>

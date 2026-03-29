@@ -23,6 +23,7 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { usePollStore } from '@/src/context/PollStoreContext';
+import { useCopy } from '@/src/context/LanguageContext';
 
 type CreatePollModalProps = {
   isOpen: boolean;
@@ -37,6 +38,7 @@ const MAX_OPTION_LEN = 100;
 
 export default function CreatePollModal({ isOpen, onClose }: CreatePollModalProps) {
   const { createPoll } = usePollStore();
+  const copy = useCopy();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [options, setOptions] = useState(['', '']);
@@ -77,10 +79,10 @@ export default function CreatePollModal({ isOpen, onClose }: CreatePollModalProp
       if (pollId) {
         handleClose();
       } else {
-        setError('Failed to create poll. Please try again.');
+        setError(copy.polls.createError);
       }
     } catch (err) {
-      setError('Failed to create poll. Please try again.');
+      setError(copy.polls.createError);
       console.error('[CreatePollModal] createPoll failed:', err);
     } finally {
       setIsLoading(false);
@@ -100,7 +102,7 @@ export default function CreatePollModal({ isOpen, onClose }: CreatePollModalProp
     <Modal isOpen={isOpen} onClose={handleClose} isCentered size="lg">
       <ModalOverlay />
       <ModalContent data-testid="create-poll-modal">
-        <ModalHeader>Create Poll</ModalHeader>
+        <ModalHeader>{copy.polls.createPoll}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <VStack spacing={4} align="stretch">
@@ -112,11 +114,11 @@ export default function CreatePollModal({ isOpen, onClose }: CreatePollModalProp
             )}
 
             <FormControl isRequired>
-              <FormLabel>Question</FormLabel>
+              <FormLabel>{copy.polls.questionLabel}</FormLabel>
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="What would you like to ask?"
+                placeholder={copy.polls.questionPlaceholder}
                 maxLength={MAX_TITLE_LEN}
                 data-testid="poll-title-input"
                 bg="surfaceBg"
@@ -124,11 +126,11 @@ export default function CreatePollModal({ isOpen, onClose }: CreatePollModalProp
             </FormControl>
 
             <FormControl>
-              <FormLabel>Description (optional)</FormLabel>
+              <FormLabel>{copy.polls.descriptionLabel}</FormLabel>
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Add more context..."
+                placeholder={copy.polls.descriptionPlaceholder}
                 maxLength={MAX_DESC_LEN}
                 rows={2}
                 resize="none"
@@ -137,14 +139,14 @@ export default function CreatePollModal({ isOpen, onClose }: CreatePollModalProp
             </FormControl>
 
             <FormControl isRequired>
-              <FormLabel>Options</FormLabel>
+              <FormLabel>{copy.polls.optionsLabel}</FormLabel>
               <VStack spacing={2} align="stretch">
                 {options.map((opt, i) => (
                   <HStack key={i}>
                     <Input
                       value={opt}
                       onChange={(e) => updateOption(i, e.target.value)}
-                      placeholder={`Option ${String.fromCharCode(65 + i)}`}
+                      placeholder={copy.polls.optionPlaceholder(String.fromCharCode(65 + i))}
                       maxLength={MAX_OPTION_LEN}
                       data-testid={`poll-option-input-${i}`}
                       bg="surfaceBg"
@@ -168,24 +170,24 @@ export default function CreatePollModal({ isOpen, onClose }: CreatePollModalProp
                     onClick={addOption}
                     data-testid="poll-add-option-btn"
                   >
-                    + Add option
+                    {copy.polls.addOption}
                   </Button>
                 )}
               </VStack>
             </FormControl>
 
             <FormControl>
-              <FormLabel>Poll type</FormLabel>
+              <FormLabel>{copy.polls.pollTypeLabel}</FormLabel>
               <RadioGroup
                 value={pollType}
                 onChange={(val) => setPollType(val as 'singlechoice' | 'multiplechoice')}
               >
                 <HStack spacing={4}>
                   <Radio value="singlechoice" data-testid="poll-type-single">
-                    Single choice
+                    {copy.polls.singleChoice}
                   </Radio>
                   <Radio value="multiplechoice" data-testid="poll-type-multi">
-                    Multiple choice
+                    {copy.polls.multipleChoice}
                   </Radio>
                 </HStack>
               </RadioGroup>
@@ -194,7 +196,7 @@ export default function CreatePollModal({ isOpen, onClose }: CreatePollModalProp
         </ModalBody>
         <ModalFooter>
           <Button variant="ghost" mr={3} onClick={handleClose} isDisabled={isLoading}>
-            Cancel
+            {copy.polls.cancel}
           </Button>
           <Button
             colorScheme="brand"
@@ -203,7 +205,7 @@ export default function CreatePollModal({ isOpen, onClose }: CreatePollModalProp
             isDisabled={!canSubmit}
             data-testid="create-poll-submit-btn"
           >
-            Create Poll
+            {copy.polls.createPoll}
           </Button>
         </ModalFooter>
       </ModalContent>

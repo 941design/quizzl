@@ -16,3 +16,12 @@ The app uses `output: 'export'` (fully static) and is hosted on GitHub Pages. Dy
 - Use **query parameters** (`/groups?id=xxx`) instead of path segments for client-side dynamic data.
 - Keep all views for a route in a single page file (e.g. `pages/groups.tsx` renders both the list and detail views based on `router.query.id`).
 - Do not create `[param].tsx` files unless `getStaticPaths` can enumerate all values at build time (like `topic/[slug].tsx` does).
+
+## Translations
+
+All user-facing UI text must be translated. The app supports English (`en`) and German (`de`).
+
+- Translations are defined in `app/src/lib/i18n.ts`, separate from component code.
+- Never hardcode user-visible strings in components. Use `useCopy()` from `@/src/context/LanguageContext` and reference the appropriate key.
+- When adding new UI text, add both `en` and `de` entries to the `Copy` type and both language objects in `i18n.ts`.
+- Dynamic strings use functions (e.g. `(count: number) => string`). Use the same pattern for new entries.

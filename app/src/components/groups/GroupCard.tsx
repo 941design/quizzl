@@ -59,7 +59,7 @@ export default function GroupCard({ group }: GroupCardProps) {
             variant="outline"
             data-testid={`group-card-open-${group.id}`}
           >
-            Open
+            {copy.groups.openGroup}
           </Button>
         </NextLink>
       </HStack>

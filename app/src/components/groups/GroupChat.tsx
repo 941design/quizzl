@@ -9,6 +9,7 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import { useChatStore } from '@/src/context/ChatStoreContext';
+import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import { truncateNpub, pubkeyToNpub } from '@/src/lib/nostrKeys';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import type { MemberProfile } from '@/src/types';
@@ -39,21 +40,21 @@ function getAvatarColor(pubkey: string): string {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
-function formatTimestamp(ms: number): string {
+function formatTimestamp(ms: number, locale: string, justNow: string, minutesAgo: (m: number) => string): string {
   const now = Date.now();
   const diff = Math.max(0, now - ms);
-  if (diff < 60_000) return 'just now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 60_000) return justNow;
+  if (diff < 3_600_000) return minutesAgo(Math.floor(diff / 60_000));
   const d = new Date(ms);
   const today = new Date();
   const isToday =
     d.getDate() === today.getDate() &&
     d.getMonth() === today.getMonth() &&
     d.getFullYear() === today.getFullYear();
-  const timeStr = d.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' });
+  const timeStr = d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
   if (isToday) return timeStr;
-  const dayStr = d.toLocaleDateString('en', { weekday: 'short' });
-  const timeStr24 = d.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const dayStr = d.toLocaleDateString(locale, { weekday: 'short' });
+  const timeStr24 = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
   return `${dayStr} ${timeStr24}`;
 }
 
@@ -85,6 +86,8 @@ type GroupChatProps = {
 
 export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
   const { messages, sendMessage, loading } = useChatStore();
+  const copy = useCopy();
+  const { language } = useLanguage();
   const [inputValue, setInputValue] = useState('');
   const [showBadge, setShowBadge] = useState(false);
 
@@ -192,12 +195,12 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
       >
         {loading && messages.length === 0 ? (
           <Flex align="center" justify="center" py={8}>
-            <Text fontSize="sm" color="textMuted">Loading messages...</Text>
+            <Text fontSize="sm" color="textMuted">{copy.groups.chatLoading}</Text>
           </Flex>
         ) : messages.length === 0 ? (
           <Flex align="center" justify="center" py={8} data-testid="chat-empty-state">
             <Text fontSize="sm" color="textMuted">
-              No messages yet. Say hello!
+              {copy.groups.chatEmpty}
             </Text>
           </Flex>
         ) : (
@@ -267,7 +270,7 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
                           {displayName}
                         </Text>
                         <Text title={new Date(msg.createdAt).toLocaleString()}>
-                          {formatTimestamp(msg.createdAt)}
+                          {formatTimestamp(msg.createdAt, language, copy.groups.chatJustNow, copy.groups.chatMinutesAgo)}
                         </Text>
                       </Flex>
                     )}
@@ -340,7 +343,7 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
               boxShadow="lg"
               _hover={{ opacity: 0.9 }}
             >
-              New messages
+              {copy.groups.chatNewMessages}
             </Box>
           </Flex>
         )}
@@ -358,7 +361,7 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
         <Textarea
           ref={textareaRef}
           data-testid="chat-input"
-          placeholder="Type a message..."
+          placeholder={copy.groups.chatPlaceholder}
           value={inputValue}
           onChange={handleChange}
           onKeyDown={handleKeyDown}

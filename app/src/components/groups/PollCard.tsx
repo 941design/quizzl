@@ -13,6 +13,7 @@ import {
 } from '@chakra-ui/react';
 import type { Poll, PollVote } from '@/src/lib/marmot/pollPersistence';
 import { usePollStore } from '@/src/context/PollStoreContext';
+import { useCopy } from '@/src/context/LanguageContext';
 
 type PollCardProps = {
   poll: Poll;
@@ -23,6 +24,7 @@ type PollCardProps = {
 
 export default function PollCard({ poll, votes, pubkey, profileMap }: PollCardProps) {
   const { castVote, closePoll } = usePollStore();
+  const copy = useCopy();
   const [isVoting, setIsVoting] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -87,7 +89,7 @@ export default function PollCard({ poll, votes, pubkey, profileMap }: PollCardPr
         </Text>
       )}
       <Text fontSize="xs" color="textMuted" mb={2}>
-        by {creatorName} &middot; {poll.pollType === 'singlechoice' ? 'Single choice' : 'Multiple choice'}
+        by {creatorName} &middot; {poll.pollType === 'singlechoice' ? copy.polls.singleChoice : copy.polls.multipleChoice}
       </Text>
 
       {/* Vote controls */}
@@ -123,17 +125,17 @@ export default function PollCard({ poll, votes, pubkey, profileMap }: PollCardPr
             isDisabled={selected.length === 0}
             data-testid={`poll-vote-btn-${poll.id}`}
           >
-            {hasVoted ? 'Update Vote' : 'Vote'}
+            {hasVoted ? copy.polls.updateVote : copy.polls.vote}
           </Button>
           {hasVoted && (
             <Text fontSize="xs" color="green.500">
-              Voted
+              {copy.polls.voted}
             </Text>
           )}
         </Flex>
 
         <Text fontSize="xs" color="textMuted">
-          {participantCount} {participantCount === 1 ? 'vote' : 'votes'}
+          {copy.polls.voteCount(participantCount)}
         </Text>
       </Flex>
 
@@ -147,17 +149,17 @@ export default function PollCard({ poll, votes, pubkey, profileMap }: PollCardPr
           onClick={() => setConfirmClose(true)}
           data-testid={`poll-close-btn-${poll.id}`}
         >
-          Close Poll
+          {copy.polls.closePoll}
         </Button>
       )}
       {isCreator && confirmClose && (
         <Flex mt={2} gap={2} align="center">
-          <Text fontSize="xs" color="textMuted">Close this poll? Results will be shared in the chat.</Text>
+          <Text fontSize="xs" color="textMuted">{copy.polls.closeConfirm}</Text>
           <Button size="xs" colorScheme="red" onClick={() => void handleClose()} isLoading={isClosing}>
-            Confirm
+            {copy.polls.confirm}
           </Button>
           <Button size="xs" variant="ghost" onClick={() => setConfirmClose(false)}>
-            Cancel
+            {copy.polls.cancel}
           </Button>
         </Flex>
       )}

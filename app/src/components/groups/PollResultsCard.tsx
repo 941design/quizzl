@@ -7,6 +7,7 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import type { Poll } from '@/src/lib/marmot/pollPersistence';
+import { useCopy } from '@/src/context/LanguageContext';
 
 type PollResultsCardProps = {
   poll: Poll;
@@ -14,6 +15,7 @@ type PollResultsCardProps = {
 };
 
 export default function PollResultsCard({ poll, profileMap }: PollResultsCardProps) {
+  const copy = useCopy();
   const results = poll.results ?? [];
   const totalVoters = poll.totalVoters ?? 0;
   const totalVotes = results.reduce((sum, r) => sum + r.count, 0);
@@ -33,7 +35,7 @@ export default function PollResultsCard({ poll, profileMap }: PollResultsCardPro
         {poll.title}
       </Heading>
       <Text fontSize="xs" color="textMuted" mb={2}>
-        by {creatorName} &middot; Closed
+        by {creatorName} &middot; {copy.polls.closed}
       </Text>
 
       <VStack spacing={2} align="stretch">
@@ -70,7 +72,7 @@ export default function PollResultsCard({ poll, profileMap }: PollResultsCardPro
       </VStack>
 
       <Text fontSize="xs" color="textMuted" mt={2}>
-        {totalVoters} {totalVoters === 1 ? 'voter' : 'voters'}
+        {copy.polls.voterCount(totalVoters)}
       </Text>
     </Box>
   );
