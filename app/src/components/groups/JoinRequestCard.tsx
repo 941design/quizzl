@@ -33,9 +33,11 @@ export default function JoinRequestCard({ nonce, adminNpub, groupName }: JoinReq
 
   const adminPubkeyHex = npubToPubkeyHex(adminNpub);
 
-  // Check if the user is already a member of any group where the admin is also a member
+  // Check if the user is already a member of the specific group referenced by this invite link.
+  // Match on both admin membership AND group name to avoid blocking joins to a different group
+  // when the admin runs multiple groups.
   const alreadyMemberGroupId = adminPubkeyHex
-    ? groups.find((g) => g.memberPubkeys.includes(adminPubkeyHex) && pubkeyHex && g.memberPubkeys.includes(pubkeyHex))?.id
+    ? groups.find((g) => g.name === groupName && g.memberPubkeys.includes(adminPubkeyHex) && pubkeyHex && g.memberPubkeys.includes(pubkeyHex))?.id
     : null;
 
   if (!hydrated) {

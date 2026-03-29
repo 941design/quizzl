@@ -168,6 +168,24 @@ export function markJoinRequestsRead(groupId: string) {
   }
 }
 
+/** Decrement join request counter for a group by 1. */
+export function decrementJoinRequest(groupId: string) {
+  const current = state.joinRequests[groupId] ?? 0;
+  if (current <= 1) {
+    // Drop to zero — remove the entry entirely
+    if (state.joinRequests[groupId]) {
+      const next = { ...state.joinRequests };
+      delete next[groupId];
+      state = { ...state, joinRequests: next };
+      emit();
+    }
+  } else {
+    const next = { ...state.joinRequests, [groupId]: current - 1 };
+    state = { ...state, joinRequests: next };
+    emit();
+  }
+}
+
 /** Remove join request tracking for a group (called on group leave). */
 export function clearJoinRequestGroup(groupId: string) {
   if (state.joinRequests[groupId]) {
@@ -183,7 +201,7 @@ export function clearJoinRequestGroup(groupId: string) {
 if (typeof window !== 'undefined') {
   (window as any).__quizzlUnread = {
     incrementUnread, markAsRead, clearUnreadGroup,
-    incrementJoinRequest, markJoinRequestsRead, clearJoinRequestGroup,
+    incrementJoinRequest, markJoinRequestsRead, decrementJoinRequest, clearJoinRequestGroup,
   };
 }
 

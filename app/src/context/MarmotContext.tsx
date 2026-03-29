@@ -34,7 +34,7 @@ import {
 import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscription';
 import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
 import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
-import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, markJoinRequestsRead } from '@/src/lib/unreadStore';
+import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, decrementJoinRequest } from '@/src/lib/unreadStore';
 import { CHAT_MESSAGE_KIND } from '@/src/lib/marmot/chatPersistence';
 import { POLL_OPEN_KIND, POLL_VOTE_KIND, POLL_CLOSE_KIND, parsePollOpen, parsePollVote, parsePollClose } from '@/src/lib/marmot/pollSync';
 import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
@@ -179,6 +179,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const profilePublishedRef = useRef<Set<string>>(new Set());
   // Ref for localProfile to avoid stale closures in subscription callbacks
   const localProfileRef = useRef(localProfile);
+  // Ref for groups to avoid stale closures in welcome subscription callbacks
+  const groupsRef = useRef(groups);
   // Bumped on every incoming profile message so UI can re-read from IDB
   const [profileVersion, setProfileVersion] = useState(0);
   // Bumped on every incoming chat message so ChatStoreContext can re-read from IDB
@@ -196,6 +198,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localProfileRef.current = localProfile;
   }, [localProfile]);
+
+  // Keep groupsRef in sync so welcome subscription callbacks see current membership
+  useEffect(() => {
+    groupsRef.current = groups;
+  }, [groups]);
 
   // Load groups from storage on mount
   const reloadGroups = useCallback(async () => {
@@ -309,8 +316,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           },
           (groupId) => {
             // Look up current group member pubkeys for dedup/membership check.
-            // Uses the latest groups state via the ref-like closure over loadAllGroups.
-            const group = groups.find((g) => g.id === groupId);
+            // Uses groupsRef to always read the latest groups state.
+            const group = groupsRef.current.find((g) => g.id === groupId);
             return group?.memberPubkeys ?? [];
           },
         ).then((unsub) => {
@@ -999,7 +1006,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       // Remove the request from IDB and update local state
       const { deletePendingJoinRequest } = await import('@/src/lib/marmot/joinRequestStorage');
       await deletePendingJoinRequest(request.eventId);
-      markJoinRequestsRead(request.groupId);
+      decrementJoinRequest(request.groupId);
       // Update local pending requests state
       setPendingRequests((prev) => {
         const current = prev[request.groupId] ?? [];
@@ -1014,7 +1021,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     async (request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest): Promise<void> => {
       const { deletePendingJoinRequest } = await import('@/src/lib/marmot/joinRequestStorage');
       await deletePendingJoinRequest(request.eventId);
-      markJoinRequestsRead(request.groupId);
+      decrementJoinRequest(request.groupId);
       // Update local pending requests state
       setPendingRequests((prev) => {
         const current = prev[request.groupId] ?? [];

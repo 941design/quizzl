@@ -132,7 +132,12 @@ export async function sendJoinRequest(params: {
 
   // Publish to default relays via raw WebSocket (same pattern as NdkNetworkAdapter)
   const relays = [...DEFAULT_RELAYS];
-  await Promise.all(relays.map((relay) => rawPublish(relay, giftWrap)));
+  const results = await Promise.all(relays.map((relay) => rawPublish(relay, giftWrap)));
+  const accepted = results.filter((r) => r.ok);
+  if (accepted.length === 0) {
+    const reasons = results.map((r) => `${r.from}: ${r.message ?? 'rejected'}`).join('; ');
+    throw new Error(`All relays rejected the join request: ${reasons}`);
+  }
 }
 
 function rawPublish(

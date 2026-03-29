@@ -19,7 +19,7 @@ import {
 } from '@/src/lib/marmot/groupStorage';
 import { loadMessages, clearMessages } from '@/src/lib/marmot/chatPersistence';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
-import { loadAllInviteLinks, saveInviteLink } from '@/src/lib/marmot/inviteLinkStorage';
+import { loadAllInviteLinks, saveInviteLink, clearAllInviteLinks } from '@/src/lib/marmot/inviteLinkStorage';
 import type { InviteLink } from '@/src/lib/marmot/inviteLinkStorage';
 import type { EventSigner } from 'applesauce-core';
 import type NDK from '@nostr-dev-kit/ndk';
@@ -430,7 +430,8 @@ export async function restoreFromBackup(payload: BackupPayload): Promise<void> {
     await idbSet(`quizzl:messages:${groupId}`, messages);
   }
 
-  // 9. Rehydrate invite links
+  // 9. Rehydrate invite links (clear first to avoid merging stale local data)
+  await clearAllInviteLinks();
   if (payload.inviteLinks) {
     for (const link of payload.inviteLinks) {
       await saveInviteLink(link);

@@ -4,7 +4,7 @@
  * Each invite link is keyed by its nonce in the 'quizzl-invite-links' database.
  */
 
-import { createStore, get, set, del, entries } from 'idb-keyval';
+import { createStore, get, set, del, entries, clear } from 'idb-keyval';
 
 export interface InviteLink {
   /** Hex nonce — primary key */
@@ -61,4 +61,8 @@ export async function updateInviteLinkMuted(nonce: string, muted: boolean): Prom
 
 export async function deleteInviteLink(nonce: string): Promise<void> {
   await del(nonce, inviteLinkStore);
+}
+
+export async function clearAllInviteLinks(): Promise<void> {
+  await clear(inviteLinkStore);
 }
