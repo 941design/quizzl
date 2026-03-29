@@ -34,7 +34,7 @@ import {
 import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscription';
 import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
 import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
-import { incrementUnread, initUnreadCounts, clearUnreadGroup, incrementJoinRequest, markJoinRequestsRead } from '@/src/lib/unreadStore';
+import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, markJoinRequestsRead } from '@/src/lib/unreadStore';
 import { CHAT_MESSAGE_KIND } from '@/src/lib/marmot/chatPersistence';
 import { POLL_OPEN_KIND, POLL_VOTE_KIND, POLL_CLOSE_KIND, parsePollOpen, parsePollVote, parsePollClose } from '@/src/lib/marmot/pollSync';
 import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
@@ -459,9 +459,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
     async function subscribeNewGroups() {
       // Initialise unread counts from persisted messages on first run
+      const gids = groups.map((g) => g.id);
       if (pubkeyHex) {
-        void initUnreadCounts(groups.map((g) => g.id), pubkeyHex);
+        void initUnreadCounts(gids, pubkeyHex);
       }
+      void initJoinRequestCounts(gids);
 
       const { subscribeToGroupMessages } = await import('@/src/lib/marmot/welcomeSubscription');
       const { getNdk } = await import('@/src/lib/ndkClient');

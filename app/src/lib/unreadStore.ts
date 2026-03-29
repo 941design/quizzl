@@ -124,6 +124,30 @@ export async function initUnreadCounts(groupIds: string[], ownPubkey: string) {
   emit();
 }
 
+/**
+ * Initialise join request counts from persisted pending requests in IDB.
+ * Called once after MarmotContext loads groups.
+ */
+export async function initJoinRequestCounts(groupIds: string[]) {
+  const { entries } = await import('idb-keyval');
+  const { createJoinRequestStore } = await import('@/src/lib/marmot/joinRequestStorage');
+  const store = createJoinRequestStore();
+
+  try {
+    const all = await entries<string, { groupId: string }>(store);
+    const next: Record<string, number> = {};
+    for (const [, req] of all) {
+      if (groupIds.includes(req.groupId)) {
+        next[req.groupId] = (next[req.groupId] ?? 0) + 1;
+      }
+    }
+    state = { ...state, joinRequests: next };
+    emit();
+  } catch {
+    // Non-fatal — join request store may not exist yet
+  }
+}
+
 // --- Join request counter API ---
 
 /** Increment join request counter for a group. */

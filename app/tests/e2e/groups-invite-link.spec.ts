@@ -92,8 +92,8 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
     await pageA.getByTestId('invite-link-copy-btn').click();
     await pageA.waitForTimeout(1_000);
 
-    // Close the modal
-    await pageA.locator('[aria-label="Close"]').first().click();
+    // Close the modal (scope to modal so we don't hit a toast close button)
+    await pageA.getByTestId('generate-invite-link-modal').locator('[aria-label="Close"]').click();
     await expect(pageA.getByTestId('generate-invite-link-modal')).not.toBeVisible({ timeout: 5_000 });
   });
 
@@ -128,7 +128,7 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
       .poll(
         async () => {
           await dismissErrorOverlay(pageA);
-          const badge = pageA.getByTestId('notification-badge');
+          const badge = pageA.getByTestId('notification-badge').first();
           return badge.isVisible();
         },
         { timeout: 60_000, intervals: [3_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000] },
