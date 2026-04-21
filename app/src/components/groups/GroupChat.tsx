@@ -3,6 +3,7 @@ import {
   Box,
   Flex,
   Image,
+  Link,
   Text,
   Textarea,
   IconButton,
@@ -11,6 +12,7 @@ import {
 import { useChatStore } from '@/src/context/ChatStoreContext';
 import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import { truncateNpub, pubkeyToNpub } from '@/src/lib/nostrKeys';
+import { splitLinks } from '@/src/lib/linkify';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import type { MemberProfile } from '@/src/types';
 import PollChatAnnouncement from './PollChatAnnouncement';
@@ -309,7 +311,22 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
                           })}
                         >
                           <Text whiteSpace="pre-wrap" wordBreak="break-word">
-                            {msg.content}
+                            {splitLinks(msg.content).map((token, i) =>
+                              token.type === 'link' ? (
+                                <Link
+                                  key={i}
+                                  href={token.value}
+                                  isExternal
+                                  color="inherit"
+                                  textDecoration="underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {token.value}
+                                </Link>
+                              ) : (
+                                token.value
+                              ),
+                            )}
                           </Text>
                         </Box>
                       );
