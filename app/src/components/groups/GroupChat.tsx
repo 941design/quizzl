@@ -8,6 +8,7 @@ import {
   Textarea,
   IconButton,
   VStack,
+  CloseButton,
 } from '@chakra-ui/react';
 import { useChatStore } from '@/src/context/ChatStoreContext';
 import { useCopy, useLanguage } from '@/src/context/LanguageContext';
@@ -17,6 +18,8 @@ import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import type { MemberProfile } from '@/src/types';
 import PollChatAnnouncement from './PollChatAnnouncement';
 import PollChatResults from './PollChatResults';
+import ImageAttachmentButton from './ImageAttachmentButton';
+import ImageMessageBubble from './ImageMessageBubble';
 
 /** Messages from the same sender within this window are grouped (inclusive). */
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
@@ -68,6 +71,7 @@ function isGrouped(prev: ChatMessage, curr: ChatMessage): boolean {
 type StructuredContent =
   | { type: 'poll_open'; pollId: string; title: string; creatorPubkey: string }
   | { type: 'poll_close'; pollId: string; title: string; results: any[]; totalVoters: number }
+  | { type: 'image'; version: 1; caption: string }
   | null;
 
 function parseStructured(content: string): StructuredContent {
@@ -75,6 +79,9 @@ function parseStructured(content: string): StructuredContent {
     const parsed = JSON.parse(content);
     if (parsed?.type === 'poll_open' && parsed.pollId && parsed.title) return parsed;
     if (parsed?.type === 'poll_close' && parsed.pollId && parsed.title && Array.isArray(parsed.results)) return parsed;
+    if (parsed?.type === 'image' && parsed.version !== undefined) {
+      return { type: 'image', version: 1, caption: typeof parsed.caption === 'string' ? parsed.caption : '' };
+    }
   } catch {
     // Not JSON — plain text message
   }
@@ -87,17 +94,49 @@ type GroupChatProps = {
 };
 
 export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
-  const { messages, sendMessage, loading } = useChatStore();
+  const { messages, sendMessage, sendImageMessage, loading } = useChatStore();
   const copy = useCopy();
   const { language } = useLanguage();
   const [inputValue, setInputValue] = useState('');
   const [showBadge, setShowBadge] = useState(false);
+
+  // Image attachment state
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [imageSendFailed, setImageSendFailed] = useState(false);
+  const [imageTooLarge, setImageTooLarge] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isNearBottomRef = useRef(true);
   const prevMsgCountRef = useRef(messages.length);
   const groupInitializedRef = useRef(false);
+  const prevPreviewUrl = useRef<string | null>(null);
+
+  // Revoke object URL when preview changes
+  useEffect(() => {
+    if (prevPreviewUrl.current && prevPreviewUrl.current !== previewUrl) {
+      URL.revokeObjectURL(prevPreviewUrl.current);
+    }
+    prevPreviewUrl.current = previewUrl;
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const attachFile = useCallback((file: File) => {
+    setAttachedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setImageSendFailed(false);
+    setImageTooLarge(false);
+  }, []);
+
+  const removeAttachment = useCallback(() => {
+    setAttachedFile(null);
+    setPreviewUrl(null);
+    setImageSendFailed(false);
+    setImageTooLarge(false);
+  }, []);
 
   // Mark initialized when IDB load completes
   useEffect(() => {
@@ -145,6 +184,26 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
   }, []);
 
   const handleSend = useCallback(async () => {
+    if (attachedFile) {
+      const caption = inputValue;
+      setInputValue('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      setImageSendFailed(false);
+      setImageTooLarge(false);
+      try {
+        const { ImageTooLargeError } = await import('@/src/lib/media/imageProcessing');
+        await sendImageMessage(attachedFile, caption);
+        removeAttachment();
+      } catch (err) {
+        const { ImageTooLargeError } = await import('@/src/lib/media/imageProcessing');
+        if (err instanceof ImageTooLargeError) {
+          setImageTooLarge(true);
+        } else {
+          setImageSendFailed(true);
+        }
+      }
+      return;
+    }
     if (!inputValue.trim()) return;
     const content = inputValue;
     setInputValue('');
@@ -154,7 +213,7 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
     } catch {
       setInputValue(content);
     }
-  }, [inputValue, sendMessage]);
+  }, [inputValue, sendMessage, sendImageMessage, attachedFile, removeAttachment]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -172,6 +231,26 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
     ta.style.height = 'auto';
     ta.style.height = `${ta.scrollHeight}px`;
   }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file?.type.startsWith('image/')) attachFile(file);
+  }, [attachFile]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const item = Array.from(e.clipboardData.items).find(
+      (i) => i.kind === 'file' && i.type.startsWith('image/'),
+    );
+    if (item) {
+      const file = item.getAsFile();
+      if (file) attachFile(file);
+    }
+  }, [attachFile]);
 
   function getDisplayName(senderPubkey: string): string {
     const profile = profileMap[senderPubkey];
@@ -297,6 +376,17 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
                           />
                         );
                       }
+                      if (structured?.type === 'image') {
+                        return (
+                          <ImageMessageBubble
+                            groupId={msg.groupId}
+                            caption={structured.caption}
+                            attachments={msg.attachments ?? { full: null, thumb: null }}
+                            senderPubkey={msg.senderPubkey}
+                            createdAt={msg.createdAt}
+                          />
+                        );
+                      }
                       return (
                         <Box
                           px={3}
@@ -367,41 +457,107 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
       </Box>
 
       {/* Input bar */}
-      <Flex
+      <Box
         borderTopWidth="1px"
         borderColor="borderSubtle"
-        p={2}
-        gap={2}
-        align="flex-end"
         bg="surfaceMutedBg"
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       >
-        <Textarea
-          ref={textareaRef}
-          data-testid="chat-input"
-          placeholder={copy.groups.chatPlaceholder}
-          value={inputValue}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          rows={1}
-          minH="36px"
-          maxH="128px"
-          resize="none"
-          overflowY="auto"
-          fontSize="sm"
-          bg="white"
-          _dark={{ bg: 'gray.800' }}
-          borderColor="borderSubtle"
-        />
-        <IconButton
-          data-testid="chat-send-btn"
-          aria-label="Send message"
-          icon={<SendIcon />}
-          size="sm"
-          colorScheme="brand"
-          isDisabled={!inputValue.trim()}
-          onClick={handleSend}
-        />
-      </Flex>
+        {/* Image preview */}
+        {previewUrl && (
+          <Flex px={2} pt={2} align="center" gap={2}>
+            <Box position="relative" display="inline-block">
+              <Image
+                data-testid="image-preview-thumbnail"
+                src={previewUrl}
+                alt="preview"
+                maxH="80px"
+                maxW="120px"
+                objectFit="cover"
+                borderRadius="md"
+              />
+              <CloseButton
+                data-testid="image-preview-remove"
+                size="sm"
+                position="absolute"
+                top="-1"
+                right="-1"
+                bg="blackAlpha.600"
+                color="white"
+                borderRadius="full"
+                aria-label={copy.groups.imageRemove}
+                onClick={removeAttachment}
+              />
+            </Box>
+          </Flex>
+        )}
+
+        {/* Error states */}
+        {imageTooLarge && (
+          <Text
+            data-testid="image-too-large-error"
+            px={2}
+            pt={1}
+            fontSize="xs"
+            color="red.500"
+          >
+            {copy.groups.imageTooLarge}
+          </Text>
+        )}
+        {imageSendFailed && (
+          <Flex px={2} pt={1} gap={2} align="center">
+            <Text
+              data-testid="image-send-failed"
+              fontSize="xs"
+              color="red.500"
+            >
+              {copy.groups.imageSendFailed}
+            </Text>
+            <Box
+              as="button"
+              data-testid="image-retry-button"
+              fontSize="xs"
+              color="brand.500"
+              onClick={handleSend}
+              _hover={{ textDecoration: 'underline' }}
+            >
+              {copy.groups.imageRetry}
+            </Box>
+          </Flex>
+        )}
+
+        <Flex p={2} gap={2} align="flex-end">
+          <ImageAttachmentButton onFileSelected={attachFile} />
+          <Textarea
+            ref={textareaRef}
+            data-testid="chat-input"
+            placeholder={copy.groups.chatPlaceholder}
+            value={inputValue}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            rows={1}
+            minH="36px"
+            maxH="128px"
+            resize="none"
+            overflowY="auto"
+            fontSize="sm"
+            bg="white"
+            _dark={{ bg: 'gray.800' }}
+            borderColor="borderSubtle"
+          />
+          <IconButton
+            data-testid="chat-send-btn"
+            aria-label="Send message"
+            icon={<SendIcon />}
+            size="sm"
+            colorScheme="brand"
+            isDisabled={!inputValue.trim() && !attachedFile}
+            onClick={handleSend}
+          />
+        </Flex>
+      </Box>
     </Flex>
   );
 }

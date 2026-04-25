@@ -1,0 +1,21 @@
+{
+  "story_id": "story-03-imeta-envelope",
+  "status": "done",
+  "files_created": [
+    "app/src/lib/media/imetaTag.ts",
+    "app/src/lib/media/imageMessage.ts",
+    "app/tests/unit/media/imetaTag.test.ts",
+    "app/tests/unit/media/imageMessage.test.ts"
+  ],
+  "files_modified": [],
+  "test_counts": {
+    "vitest_passed": 361,
+    "vitest_failed": 0,
+    "new_tests": 24,
+    "tsc_errors": 0
+  },
+  "summary": "Created imetaTag.ts with buildImetaTag(attachment, role): string[] — hand-rolled NIP-92 serialiser with role field, no applesauce-common dependency. Created imageMessage.ts with buildImageMessageContent(caption), parseImageMessageContent(content), and extractAttachmentsByRole(tags). Null-safe: parseImageMessageContent returns null for non-JSON, wrong type, missing version, and poll discriminators. extractAttachmentsByRole handles missing role (treated as full), ignores non-imeta tags. 24 unit tests cover all round-trips and null paths. Imports use @internet-privacy/marmot-ts package root (exports-map compliant).",
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-04-25T13:29:00Z"
+}

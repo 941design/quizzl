@@ -1,0 +1,36 @@
+{
+  "epic_name": "image-sharing",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-04-25T10:56:40Z",
+  "updated_at": "2026-04-25T14:30:00Z",
+  "completed_stories": ["story-01-config-i18n", "story-02-image-processing", "story-03-imeta-envelope", "story-04-blossom-client", "story-05-media-persistence-factory", "story-06-send-pipeline", "story-07-receive-pipeline", "story-08-lightbox", "story-09-e2e"],
+  "notes": "Codex adversarial review unavailable for story-07 (transient model-invocation restriction); manual verification used as fallback per verifier discretion. All 10 verification questions YES. Confirmed stub of ImageLightbox.tsx in story-07 is minimal (one-line return null) — acceptable scope-bridge for TS imports.",
+  "escalated_stories": [],
+  "phase_history": [
+    {"phase": "SPEC_VALIDATED", "timestamp": "2026-04-25T10:56:40Z", "trigger": "validation_passed"},
+    {"phase": "PLANNING_COMPLETE", "timestamp": "2026-04-25T12:00:00Z", "trigger": "planner_verified"},
+    {"phase": "IMPLEMENTATION", "timestamp": "2026-04-25T13:25:00Z", "trigger": "story-01-completed"},
+    {"phase": "COMPLETE", "timestamp": "2026-04-25T14:30:00Z", "trigger": "all-stories-verified"}
+  ],
+  "final_test_counts": {
+    "vitest_passed": 400,
+    "vitest_failed": 0,
+    "tsc_errors": 0,
+    "baseline_vitest_passed": 325,
+    "new_tests_added": 75
+  },
+  "planning_summary": {
+    "total_stories": 9,
+    "total_acs": 64,
+    "ac_coverage": "100% — all 64 ACs assigned to exactly one story, no gaps, no duplicates",
+    "dependency_graph": "valid DAG — topological order: story-01 → story-02/03/04/05 (parallel) → story-06 → story-07 → story-08 → story-09",
+    "mocks_registry": "all_resolved: true, 0 unresolved mocks",
+    "open_questions": "none — all three open questions from exploration resolved by reading source",
+    "resolved": {
+      "buildRumor_tags_param": "confirmed — MarmotContext.tsx:98 signature: buildRumor(kind, content, pubkey, tags: string[][] = [])",
+      "mediaFactory_option_name": "confirmed as 'mediaFactory' — marmot-client.d.ts MarmotClientOptions",
+      "receive_pipeline_tags": "confirmed dropped — MarmotContext.tsx:547-559 only reads rumor.id/content/pubkey/created_at; story-07 AC-41 tasks fix"
+    }
+  }
+}

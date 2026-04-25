@@ -1,0 +1,133 @@
+{
+  "story_id": "story-03-imeta-envelope",
+  "questions": [
+    {
+      "id": "Q1",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does buildImetaTag(attachment, role) return a string[] whose first element is 'imeta', and includes entries for url, m, x, size, dim, blurhash, filename, n, v, and role when all fields are populated per AC-10?"
+    },
+    {
+      "id": "Q2",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does parseMediaImetaTag(buildImetaTag(attachment, 'full')) return a MediaAttachment whose url, sha256, type, filename, nonce, and version equal the original attachment per AC-11?"
+    },
+    {
+      "id": "Q3",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does buildImetaTag(attachment, 'thumb') produce a tag containing 'role thumb', and buildImetaTag(attachment, 'full') produce a tag containing 'role full' per AC-12?"
+    },
+    {
+      "id": "Q4",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does buildImageMessageContent(caption) return a JSON string that JSON.parse decodes to { type: 'image', version: 1, caption } per AC-13?"
+    },
+    {
+      "id": "Q5",
+      "category": "spec-alignment",
+      "severity": 8,
+      "question": "Does buildImageMessageContent('') produce caption: '', and does parseImageMessageContent applied to that string return { type: 'image', version: 1, caption: '' } per AC-14?"
+    },
+    {
+      "id": "Q6",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does parseImageMessageContent return null for non-JSON, for type !== 'image', for missing version, and for existing poll_open/poll_close discriminators per AC-15?"
+    },
+    {
+      "id": "Q7",
+      "category": "architecture",
+      "severity": 7,
+      "question": "Does extractAttachmentsByRole correctly identify full vs thumb by reading the 'role <value>' entry within each imeta tag, treating missing role as 'full' per spec?"
+    },
+    {
+      "id": "Q8",
+      "category": "testing",
+      "severity": 8,
+      "question": "Do the 24 unit tests (8 for imetaTag, 16 for imageMessage) all pass in Node environment without any browser API stubs required?"
+    },
+    {
+      "id": "Q9",
+      "category": "code-quality",
+      "severity": 7,
+      "question": "Are all imports from @internet-privacy/marmot-ts using the package root (not deep subpaths like /dist/core/media.js) to comply with the package's exports map?"
+    },
+    {
+      "id": "Q10",
+      "category": "architecture",
+      "severity": 6,
+      "question": "Is imetaTag.ts a hand-rolled NIP-92 serialiser (no applesauce-common dependency) as required by the spec to avoid adding the entire applesauce stack?"
+    }
+  ],
+  "answers": [
+    {
+      "id": "Q1",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "buildImetaTag() returns ['imeta'] at imetaTag.ts:4 with entries for url, m, x, size (optional), dim (optional), blurhash (optional), filename, n, v, role. Test imetaTag.test.ts:27–39 verifies all required entries present."
+    },
+    {
+      "id": "Q2",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "Test imetaTag.test.ts:57–68 verifies round-trip: buildImetaTag(attachment, 'full') → parseMediaImetaTag() recovers url, sha256, type, filename, nonce, version with exact equality."
+    },
+    {
+      "id": "Q3",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "buildImetaTag at imetaTag.ts:23 pushes `role ${role}` directly. Test imetaTag.test.ts:41–48 verify 'role full' for full and 'role thumb' for thumb. Test imetaTag.test.ts:85–91 verify role entries preserved."
+    },
+    {
+      "id": "Q4",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "buildImageMessageContent at imageMessage.ts:9–12 returns JSON.stringify({ type: 'image', version: 1, caption }). Test imageMessage.test.ts:25–36 verifies JSON.parse round-trip produces correct structure."
+    },
+    {
+      "id": "Q5",
+      "answer": "YES",
+      "severity": 8,
+      "evidence": "Test imageMessage.test.ts:32–36 verifies buildImageMessageContent('') produces caption: ''. Test lines 46–50 verify parseImageMessageContent round-trip returns { type: 'image', version: 1, caption: '' }."
+    },
+    {
+      "id": "Q6",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "parseImageMessageContent at imageMessage.ts:14–33 returns null for: non-JSON (catch), type !== 'image', missing version. Tests imageMessage.test.ts:52–80 verify all null cases: non-JSON (52), wrong type (56), missing version (60), poll_open (64), poll_close (69), empty string (74), null JSON (78)."
+    },
+    {
+      "id": "Q7",
+      "answer": "YES",
+      "severity": 7,
+      "evidence": "extractAttachmentsByRole at imageMessage.ts:52–57 reads 'role ' entry from tag. Line 66 extracts thumb, lines 69–70 treat missing/other as full per spec. Test imageMessage.test.ts:93–99 verifies both roles extracted correctly."
+    },
+    {
+      "id": "Q8",
+      "answer": "YES",
+      "severity": 8,
+      "evidence": "24 unit tests pass (8 imetaTag + 16 imageMessage) in Node environment with no browser API stubs required. Test output: 24 passed (0 failed)."
+    },
+    {
+      "id": "Q9",
+      "answer": "YES",
+      "severity": 7,
+      "evidence": "Imports at imetaTag.ts:1 and imageMessage.ts:1 use '@internet-privacy/marmot-ts' root, not subpaths. Complies with exports map."
+    },
+    {
+      "id": "Q10",
+      "answer": "YES",
+      "severity": 6,
+      "evidence": "imetaTag.ts:3–26 is hand-rolled NIP-92 serializer (no applesauce-common dependency). Builds tag array manually per spec."
+    }
+  ],
+  "test_results": {
+    "unit_tests": "361 passed (337 baseline + 24 new)",
+    "tsc": "Pass (0 errors)",
+    "lint": "Not required (utility modules only)"
+  },
+  "codex_findings": "Codex unavailable (disable-model-invocation). Manual verification: all 10 questions pass. No critical/high issues. Note: extractAttachmentsByRole uses lazy require() to avoid circular deps (acceptable pattern). Module-scoped _parseTagImpl caching is appropriate for production."
+}

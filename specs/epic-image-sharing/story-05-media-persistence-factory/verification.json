@@ -1,0 +1,133 @@
+{
+  "story_id": "story-05-media-persistence-factory",
+  "questions": [
+    {
+      "id": "Q1",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does mediaPersistence.setBlob(groupId, plaintextSha256, data) store {bytes, type} such that a subsequent getBlob returns the same bytes and type per AC-21?"
+    },
+    {
+      "id": "Q2",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does mediaPersistence.addMessageRef + clearGroupMedia result in getBlob returning null after clearGroupMedia is called per AC-22? Does clearGroupMedia also clear meta refs?"
+    },
+    {
+      "id": "Q3",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Is MarmotClient constructed in MarmotContext.tsx with a mediaFactory option using GroupMediaStore backed by the quizzl-media-blobs/blobs IDB store via IdbKeyValueStoreBackend per AC-23?"
+    },
+    {
+      "id": "Q4",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does the leaveGroup function in MarmotContext.tsx call clearGroupMedia(groupId) between clearPollData and clearUnreadGroup per AC-24?"
+    },
+    {
+      "id": "Q5",
+      "category": "spec-alignment",
+      "severity": 8,
+      "question": "Are both 'quizzl-media-blobs' and 'quizzl-media-meta' added to the INDEXEDDB_DATABASES array in app/tests/e2e/helpers/clear-state.ts per AC-25?"
+    },
+    {
+      "id": "Q6",
+      "category": "architecture",
+      "severity": 7,
+      "question": "Does the IDB key format use '{groupId}:{plaintextSha256}' for both blob and meta stores, ensuring group-scoped isolation (blobs for g1 don't affect g2)?"
+    },
+    {
+      "id": "Q7",
+      "category": "architecture",
+      "severity": 7,
+      "question": "Does clearGroupMedia use a prefix filter ('{groupId}:') on the keys() list rather than a full clear(), so blobs from other groups are preserved?"
+    },
+    {
+      "id": "Q8",
+      "category": "testing",
+      "severity": 8,
+      "question": "Do the 12 unit tests cover: set/get round-trip, get returns null for missing key, group scoping, deleteBlob nullifies getBlob, addMessageRef round-trip, deduplication, removeMessageRef, clearGroupMedia removes blobs and meta but preserves other groups?"
+    },
+    {
+      "id": "Q9",
+      "category": "code-quality",
+      "severity": 6,
+      "question": "Does the test use the inline Map-backed idb-keyval mock pattern (consistent with pollPersistence.test.ts) rather than importing a mock library?"
+    },
+    {
+      "id": "Q10",
+      "category": "architecture",
+      "severity": 6,
+      "question": "Is IdbKeyValueStoreBackend a separate adapter class (app/src/lib/marmot/idbKeyValueStoreBackend.ts) that bridges idb-keyval UseStore to KeyValueStoreBackend<T>, keeping mediaPersistence.ts and MarmotContext.tsx cleanly separated?"
+    }
+  ],
+  "answers": [
+    {
+      "id": "Q1",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "setBlob at mediaPersistence.ts:13–19 stores {bytes, type} via set(blobKey(...), data). getBlob at lines 21–27 retrieves and returns same. Test mediaPersistence.test.ts:48–55 verifies round-trip with exact equality on bytes and type."
+    },
+    {
+      "id": "Q2",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "clearGroupMedia at mediaPersistence.ts:68–77 deletes keys from both blobStore and metaStore matching prefix. Test line 118–125 verifies blobs deleted, line 134–140 verifies meta refs cleared alongside blobs."
+    },
+    {
+      "id": "Q3",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "MarmotContext.tsx wires mediaFactory = () => new GroupMediaStore(new IdbKeyValueStoreBackend(mediaBlobStore)) into MarmotClient constructor. Uses quizzl-media-blobs IDB store via adapter."
+    },
+    {
+      "id": "Q4",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "MarmotContext.tsx leaveGroup function calls clearGroupMedia(groupId) between clearPollData and clearUnreadGroup, as verified by grep output."
+    },
+    {
+      "id": "Q5",
+      "answer": "YES",
+      "severity": 8,
+      "evidence": "clear-state.ts INDEXEDDB_DATABASES array includes both 'quizzl-media-blobs' and 'quizzl-media-meta', as verified by grep output."
+    },
+    {
+      "id": "Q6",
+      "answer": "YES",
+      "severity": 7,
+      "evidence": "blobKey() at mediaPersistence.ts:9–11 returns `${groupId}:${plaintextSha256}`. Test mediaPersistence.test.ts:62–66 verifies g1 and g2 blobs are isolated (g2 missing for same sha256)."
+    },
+    {
+      "id": "Q7",
+      "answer": "YES",
+      "severity": 7,
+      "evidence": "clearGroupMedia at mediaPersistence.ts:68–77 uses prefix filter `k.startsWith(prefix)` then deletes individual keys. Preserves blobs from other groups. Test line 127–132 confirms."
+    },
+    {
+      "id": "Q8",
+      "answer": "YES",
+      "severity": 8,
+      "evidence": "12 tests cover: setBlob/getBlob round-trip (Q1, lines 47–66), deleteBlob (lines 69–76), addMessageRef/getMessageRefs round-trip + deduplication (lines 78–104), removeMessageRef (lines 106–115), clearGroupMedia removes all for groupId (lines 118–125), preserves other groups (lines 127–132), clears meta (lines 134–140)."
+    },
+    {
+      "id": "Q9",
+      "answer": "YES",
+      "severity": 6,
+      "evidence": "Test mediaPersistence.test.ts uses inline Map-backed idb-keyval mock at lines 3–26 via vi.mock pattern. Consistent with pollPersistence.test.ts pattern (no external mock library)."
+    },
+    {
+      "id": "Q10",
+      "answer": "YES",
+      "severity": 6,
+      "evidence": "IdbKeyValueStoreBackend is separate file at idbKeyValueStoreBackend.ts implementing getItem/setItem/removeItem/clear/keys. mediaPersistence.ts and MarmotContext.tsx import independently, clean separation."
+    }
+  ],
+  "test_results": {
+    "unit_tests": "385 passed (373 baseline + 12 new)",
+    "tsc": "Pass (0 errors)",
+    "lint": "Not required (persistence utility modules only)"
+  },
+  "codex_findings": "Codex unavailable (disable-model-invocation). Manual verification: all 10 questions pass. No critical/high issues. Note: KeyValueStoreBackend is not in marmot-ts main index exports (deep subpath, type-only), so IdbKeyValueStoreBackend implements structurally without explicit implements clause—TypeScript structural typing ensures runtime compatibility."
+}

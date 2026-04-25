@@ -8,6 +8,8 @@ const INDEXEDDB_DATABASES = [
   'quizzl-member-profiles',
   'quizzl-invite-links',
   'quizzl-join-requests',
+  'quizzl-media-blobs',
+  'quizzl-media-meta',
 ];
 
 /**

@@ -6,6 +6,7 @@
  */
 
 import { get, set, del } from 'idb-keyval';
+import type { RoledAttachments } from '@/src/lib/media/imageMessage';
 
 /** MLS application-message kind discriminator for chat messages. */
 export const CHAT_MESSAGE_KIND = 9;
@@ -17,6 +18,13 @@ export interface ChatMessage {
   groupId: string;
   /** Unix milliseconds */
   createdAt: number;
+  /**
+   * Image-message attachments parsed from the rumor's `imeta` tags, keyed by
+   * the `role` field. Storing the role here keeps full vs thumb selection
+   * deterministic — the bubble must not re-derive it from filename or index.
+   */
+  attachments?: RoledAttachments;
+  localMediaRefs?: string[];
 }
 
 function storageKey(groupId: string): string {

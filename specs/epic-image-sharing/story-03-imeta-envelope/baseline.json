@@ -1,0 +1,7 @@
+{
+  "story_id": "story-03-imeta-envelope",
+  "ran_at": "2026-04-25T13:31:00Z",
+  "vitest": { "passed": 337, "failed": 0, "tests": 337, "duration_ms": 2010 },
+  "tsc": { "passed": true, "errors": [] },
+  "all_clean": true
+}

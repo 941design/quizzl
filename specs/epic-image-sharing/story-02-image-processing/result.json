@@ -1,0 +1,21 @@
+{
+  "story_id": "story-02-image-processing",
+  "status": "done",
+  "files_created": [
+    "app/src/lib/media/imageProcessing.ts",
+    "app/tests/unit/media/imageProcessing.test.ts"
+  ],
+  "files_modified": [
+    "app/package.json"
+  ],
+  "test_counts": {
+    "vitest_passed": 337,
+    "vitest_failed": 0,
+    "new_tests": 12,
+    "tsc_errors": 0
+  },
+  "summary": "Created app/src/lib/media/imageProcessing.ts with processImage(blob): Promise<ProcessedImage> — main-thread only, using OffscreenCanvas with HTMLCanvasElement fallback. Implements resize-to-MAX_EDGE, WebP re-encode (EXIF stripped), thumbnail at THUMB_MAX_EDGE, blurhash via the blurhash package (32x32 sample, [4,3] components), and SHA-256 via crypto.subtle. ImageTooLargeError thrown before any canvas work when input exceeds MAX_INPUT_BYTES. Chunked yields between heavy steps. Added 12 unit tests in Node environment with inline stubs for OffscreenCanvas/createImageBitmap and webcrypto polyfill. Added 'blurhash' to app/package.json dependencies.",
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-04-25T13:27:00Z"
+}

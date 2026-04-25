@@ -49,12 +49,14 @@ async function sendChatSafe(group: MarmotGroupType, content: string): Promise<vo
 interface ChatStoreContextValue {
   messages: ChatMessage[];
   sendMessage: (content: string) => Promise<void>;
+  sendImageMessage: (file: File, caption: string) => Promise<void>;
   loading: boolean;
 }
 
 const ChatStoreContext = createContext<ChatStoreContextValue>({
   messages: [],
   sendMessage: async () => {},
+  sendImageMessage: async () => {},
   loading: false,
 });
 
@@ -62,6 +64,7 @@ interface ChatStoreProviderProps {
   groupId: string | null;
   group: MarmotGroupType | null;
   pubkey: string;
+  signer?: import('applesauce-core').EventSigner | null;
   /** Bumped by MarmotContext when a chat message is persisted to IDB */
   chatVersion?: number;
   children: React.ReactNode;
@@ -71,6 +74,7 @@ export function ChatStoreProvider({
   groupId,
   group,
   pubkey,
+  signer,
   chatVersion,
   children,
 }: ChatStoreProviderProps) {
@@ -194,8 +198,54 @@ export function ChatStoreProvider({
     [groupId, group, pubkey],
   );
 
+  const sendImageMessage = useCallback(
+    async (file: File, caption: string) => {
+      if (!groupId || !group || !signer) return;
+
+      const tempId = crypto.randomUUID();
+      const now = Math.floor(Date.now() / 1000);
+      const { buildImageMessageContent } = await import('@/src/lib/media/imageMessage');
+      const optimistic: ChatMessage = {
+        id: tempId,
+        content: buildImageMessageContent(caption),
+        senderPubkey: pubkey,
+        groupId,
+        createdAt: now * 1000,
+        attachments: { full: null, thumb: null },
+        localMediaRefs: [],
+      };
+      setMessages((prev) => [...prev, optimistic]);
+
+      const { sendImageMessage: doSend } = await import('@/src/hooks/useImageSend');
+      try {
+        const { fullAttachment, thumbAttachment } = await doSend(file, caption, {
+          groupId,
+          group: group as any,
+          pubkey,
+          signer,
+          onProgress: () => {},
+        });
+
+        const finalMsg: ChatMessage = {
+          ...optimistic,
+          attachments: { full: fullAttachment, thumb: thumbAttachment },
+          localMediaRefs: [fullAttachment.sha256, thumbAttachment.sha256],
+        };
+        appendMessage(groupId, finalMsg).catch((err) => {
+          console.error('[chat-store] Failed to persist image message:', err);
+        });
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? finalMsg : m)),
+        );
+      } catch {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      }
+    },
+    [groupId, group, pubkey, signer],
+  );
+
   return (
-    <ChatStoreContext.Provider value={{ messages, sendMessage, loading }}>
+    <ChatStoreContext.Provider value={{ messages, sendMessage, sendImageMessage, loading }}>
       {children}
     </ChatStoreContext.Provider>
   );

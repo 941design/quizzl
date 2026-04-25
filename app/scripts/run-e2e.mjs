@@ -4,6 +4,7 @@ import { createServer, createConnection } from "node:net";
 const npxCommand = process.platform === "win32" ? "npx.cmd" : "npx";
 const isGroups = !!process.env.E2E_GROUPS;
 const RELAY_PORT = 7777;
+const BLOSSOM_MOCK_PORT = 3001;
 
 async function getFreePort() {
   return await new Promise((resolve, reject) => {
@@ -38,11 +39,14 @@ function waitForPort(port, host = "localhost", timeoutMs = 60_000) {
   });
 }
 
-// Groups mode: wait for strfry relay first
+// Groups mode: wait for strfry relay and blossom-mock
 if (isGroups) {
   console.log(`[e2e] Waiting for strfry relay on port ${RELAY_PORT}`);
   await waitForPort(RELAY_PORT);
   console.log("[e2e] Relay ready");
+  console.log(`[e2e] Waiting for blossom-mock on port ${BLOSSOM_MOCK_PORT}`);
+  await waitForPort(BLOSSOM_MOCK_PORT);
+  console.log("[e2e] Blossom mock ready");
 }
 
 const port = await getFreePort();
@@ -51,6 +55,7 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const serverEnv = { ...process.env };
 if (isGroups) {
   serverEnv.NEXT_PUBLIC_RELAYS = `ws://localhost:${RELAY_PORT}`;
+  serverEnv.NEXT_PUBLIC_BLOSSOM_BASE_URL = `http://localhost:${BLOSSOM_MOCK_PORT}`;
 }
 
 const devServer = spawn(npxCommand, ["next", "dev", "--port", String(port)], {
@@ -96,7 +101,12 @@ try {
 
   const runner = spawn(npxCommand, ["playwright", "test", ...process.argv.slice(2)], {
     stdio: "inherit",
-    env: { ...process.env, BASE_URL: baseUrl, E2E_GROUPS: process.env.E2E_GROUPS || "" },
+    env: {
+      ...process.env,
+      BASE_URL: baseUrl,
+      E2E_GROUPS: process.env.E2E_GROUPS || "",
+      BLOSSOM_BASE_URL: isGroups ? `http://localhost:${BLOSSOM_MOCK_PORT}` : "",
+    },
   });
 
   const exitCode = await new Promise((resolve, reject) => {

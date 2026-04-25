@@ -1,0 +1,24 @@
+{
+  "story_id": "story-06-send-pipeline",
+  "status": "done",
+  "files_created": [
+    "app/src/hooks/useImageSend.ts",
+    "app/src/components/groups/ImageAttachmentButton.tsx",
+    "app/tests/unit/hooks/useImageSend.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/chatPersistence.ts",
+    "app/src/context/ChatStoreContext.tsx",
+    "app/src/components/groups/GroupChat.tsx"
+  ],
+  "test_counts": {
+    "vitest_passed": 392,
+    "vitest_failed": 0,
+    "new_tests": 7,
+    "tsc_errors": 0
+  },
+  "summary": "Implemented full send pipeline: useImageSend.ts orchestrates processImage→encryptMedia×2→blossomClient.put×2→setBlob×2→buildRumor(kind:9)→sendApplicationRumor with progress callbacks. ChatMessage extended with optional attachments and localMediaRefs. ChatStoreContext gains sendImageMessage(file,caption) with optimistic UI (tempId pattern, updates to final after send). ImageAttachmentButton renders paperclip icon + hidden file input with capture='environment'. GroupChat gains ImageAttachmentButton in composer, preview thumbnail with remove button, drag/drop+paste handlers, image-too-large-error, image-send-failed, image-retry-button error states. 7 unit tests cover pipeline order, progress sequence, failure path, setBlob before rumor, kind:9 rumor, imeta tag roles.",
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-04-25T13:44:00Z"
+}

@@ -1,0 +1,19 @@
+{
+  "story_id": "story-01-config-i18n",
+  "status": "done",
+  "files_created": [
+    "app/src/config/blossom.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/i18n.ts"
+  ],
+  "test_counts": {
+    "vitest_passed": 325,
+    "vitest_failed": 0,
+    "tsc_errors": 0
+  },
+  "summary": "Created app/src/config/blossom.ts with all 9 constants per AC-01. Extended the Copy type in app/src/lib/i18n.ts with 10 new groups.image* keys, and added both en and de string values including imageUploading as a function. TypeScript compilation passes with zero errors. No runtime behaviour changes — purely additive.",
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-04-25T13:25:00Z"
+}

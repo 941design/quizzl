@@ -322,6 +322,16 @@ type Copy = {
     chatJustNow: string;
     chatMinutesAgo: (minutes: number) => string;
     createGroupError: string;
+    imageAttachmentLabel: string;
+    imageProcessing: string;
+    imageUploading: (pct: number) => string;
+    imageSendFailed: string;
+    imageRetry: string;
+    imageDecryptFailed: string;
+    imageUnavailable: string;
+    imageDownload: string;
+    imageTooLarge: string;
+    imageRemove: string;
   };
   polls: {
     heading: (count: number) => string;
@@ -703,6 +713,16 @@ const copy: Record<LanguageCode, Copy> = {
       chatJustNow: 'just now',
       chatMinutesAgo: (minutes: number) => `${minutes}m ago`,
       createGroupError: 'Failed to create group. Please try again.',
+      imageAttachmentLabel: 'Attach image',
+      imageProcessing: 'Processing image…',
+      imageUploading: (pct: number) => `Uploading ${pct}%`,
+      imageSendFailed: 'Failed to send image',
+      imageRetry: 'Retry',
+      imageDecryptFailed: "Couldn't decrypt this image",
+      imageUnavailable: 'Image is no longer available',
+      imageDownload: 'Download',
+      imageTooLarge: 'Image is too large',
+      imageRemove: 'Remove image',
     },
     polls: {
       heading: (count: number) => count > 0 ? `Polls (${count})` : 'Polls',
@@ -1072,6 +1092,16 @@ const copy: Record<LanguageCode, Copy> = {
       chatJustNow: 'gerade eben',
       chatMinutesAgo: (minutes: number) => `vor ${minutes} Min.`,
       createGroupError: 'Gruppe konnte nicht erstellt werden. Bitte erneut versuchen.',
+      imageAttachmentLabel: 'Bild anhängen',
+      imageProcessing: 'Bild wird verarbeitet…',
+      imageUploading: (pct: number) => `Wird hochgeladen ${pct} %`,
+      imageSendFailed: 'Bild konnte nicht gesendet werden',
+      imageRetry: 'Erneut versuchen',
+      imageDecryptFailed: 'Bild konnte nicht entschlüsselt werden',
+      imageUnavailable: 'Bild ist nicht mehr verfügbar',
+      imageDownload: 'Herunterladen',
+      imageTooLarge: 'Bild ist zu groß',
+      imageRemove: 'Bild entfernen',
     },
     polls: {
       heading: (count: number) => count > 0 ? `Umfragen (${count})` : 'Umfragen',

@@ -38,6 +38,7 @@ import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGr
 import { CHAT_MESSAGE_KIND } from '@/src/lib/marmot/chatPersistence';
 import { POLL_OPEN_KIND, POLL_VOTE_KIND, POLL_CLOSE_KIND, parsePollOpen, parsePollVote, parsePollClose } from '@/src/lib/marmot/pollSync';
 import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
+import { clearGroupMedia } from '@/src/lib/marmot/mediaPersistence';
 import type { Poll, PollVote } from '@/src/lib/marmot/pollPersistence';
 import { useProfile } from '@/src/context/ProfileContext';
 import { useBackup } from '@/src/context/BackupContext';
@@ -245,12 +246,14 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const { MarmotClient, KeyPackageStore, KeyValueGroupStateBackend } =
+        const { MarmotClient, KeyPackageStore, KeyValueGroupStateBackend, GroupMediaStore } =
           await import('@internet-privacy/marmot-ts');
         const { connectNdk } = await import('@/src/lib/ndkClient');
         const { NdkNetworkAdapter } = await import('@/src/lib/marmot/NdkNetworkAdapter');
         const { createPrivateKeySigner } = await import('@/src/lib/marmot/signerAdapter');
         const { publishKeyPackages } = await import('@/src/lib/keyPackages');
+        const { createStore: idbCreateStore } = await import('idb-keyval');
+        const { IdbKeyValueStoreBackend } = await import('@/src/lib/marmot/idbKeyValueStoreBackend');
 
         const ndk = await connectNdk(privateKeyHex!);
         const signer = createPrivateKeySigner(privateKeyHex!);
@@ -260,11 +263,15 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         const keyPkgStore = new KeyPackageStore(keyPackageBackend);
         const network = new NdkNetworkAdapter(ndk);
 
+        const mediaBlobStore = idbCreateStore('quizzl-media-blobs', 'blobs');
+        const mediaFactory = () => new GroupMediaStore(new IdbKeyValueStoreBackend(mediaBlobStore));
+
         const client = new MarmotClient({
           signer,
           groupStateBackend,
           keyPackageStore: keyPkgStore,
           network,
+          mediaFactory,
         });
 
         if (cancelled) return;
@@ -545,18 +552,29 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                   });
                 }
               } else if (rumor.kind === CHAT_MESSAGE_KIND) {
-                void import('@/src/lib/marmot/chatPersistence').then(({ appendMessage }) => {
+                void (async () => {
+                  const { appendMessage } = await import('@/src/lib/marmot/chatPersistence');
+                  const { parseImageMessageContent, extractAttachmentsByRole } = await import('@/src/lib/media/imageMessage');
+                  const parsed = parseImageMessageContent(rumor.content);
+                  // Preserve the role classification from the original imeta
+                  // tags so the bubble/lightbox don't have to guess full vs
+                  // thumb from filename or array index downstream.
+                  const attachments = (parsed?.type === 'image' && rumor.tags?.length)
+                    ? extractAttachmentsByRole(rumor.tags)
+                    : null;
+                  const hasAttachment = attachments && (attachments.full || attachments.thumb);
                   const msg = {
                     id: rumor.id,
                     content: rumor.content,
                     senderPubkey: rumor.pubkey,
                     groupId: group.id,
                     createdAt: rumor.created_at * 1000,
+                    ...(hasAttachment ? { attachments } : {}),
                   };
                   void appendMessage(group.id, msg).then(() => {
                     setChatVersion((v) => v + 1);
                   }).catch((err: unknown) => console.warn('[Marmot] chat appendMessage failed:', err));
-                });
+                })();
                 incrementUnread(group.id);
               } else if (rumor.kind === POLL_OPEN_KIND) {
                 const payload = parsePollOpen(rumor.content);
@@ -888,6 +906,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     await clearMessages(groupId);
     // Clear poll data
     await clearPollData(groupId);
+    await clearGroupMedia(groupId);
     clearUnreadGroup(groupId);
     await reloadGroups();
     markBackupDirty(true);

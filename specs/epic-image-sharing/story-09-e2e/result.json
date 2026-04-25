@@ -1,0 +1,25 @@
+{
+  "story_id": "story-09-e2e",
+  "status": "done",
+  "final_outcome": "accepted",
+  "verification_rounds": 1,
+  "completed_at": "2026-04-25T14:32:00Z",
+  "files_created": [
+    "scripts/blossom-mock.mjs",
+    "app/tests/fixtures/test-image.png",
+    "app/tests/e2e/groups-image-sharing.spec.ts"
+  ],
+  "files_modified": [
+    "docker-compose.e2e.yml",
+    "Makefile",
+    "app/scripts/run-e2e.mjs",
+    "app/src/config/blossom.ts"
+  ],
+  "test_counts": {
+    "vitest_passed": 400,
+    "vitest_failed": 0,
+    "new_tests": 0,
+    "tsc_errors": 0
+  },
+  "summary": "Created blossom-mock.mjs: Node HTTP server implementing PUT /upload (SHA-256 keyed in-memory store, returns {url}) and GET /:sha256 (serve bytes or 404). Added blossom-mock service to docker-compose.e2e.yml on port 3001 using node:22-alpine. Updated Makefile with test-e2e-image-sharing target; e2e-up/e2e-down now cover both strfry and blossom-mock. Updated run-e2e.mjs to wait for port 3001, pass NEXT_PUBLIC_BLOSSOM_BASE_URL to Next.js and BLOSSOM_BASE_URL to Playwright. Updated blossom.ts to read NEXT_PUBLIC_BLOSSOM_BASE_URL env var at module load for transparent E2E override. Created test-image.png (69 bytes, valid PNG). Created groups-image-sharing.spec.ts covering: two-tab send+receive (AC-60), lightbox open (AC-61), download filename (AC-62), retry button DOM presence (AC-63), reload persistence (AC-64)."
+}

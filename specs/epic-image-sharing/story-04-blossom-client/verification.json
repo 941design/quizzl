@@ -1,0 +1,133 @@
+{
+  "story_id": "story-04-blossom-client",
+  "questions": [
+    {
+      "id": "Q1",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does buildBlossomAuthEvent(signer, ciphertextSha256) return an event draft with kind:24242, ['t','upload'] tag, ['x',ciphertextSha256] tag, and ['expiration', timestamp] where expiration is approximately now+300 seconds (within ±5s) per AC-16?"
+    },
+    {
+      "id": "Q2",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does blossomClient.put(encryptedBytes, signer) send a PUT request to BLOSSOM_BASE_URL/upload with Authorization: Nostr <base64-encoded-auth> header and return the url field from the server response per AC-17?"
+    },
+    {
+      "id": "Q3",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does blossomClient.put retry up to 3 times on HTTP 5xx (confirmed by test showing 4 total fetch calls) and throw BlossomUploadError after exhausting retries per AC-18?"
+    },
+    {
+      "id": "Q4",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does blossomClient.put throw BlossomUploadError immediately on HTTP 4xx without retrying (confirmed by test showing exactly 1 fetch call) per AC-19?"
+    },
+    {
+      "id": "Q5",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does blossomClient.get(blobUrl) return the response body as Uint8Array on success and throw BlossomNotFoundError on HTTP 404 per AC-20?"
+    },
+    {
+      "id": "Q6",
+      "category": "architecture",
+      "severity": 7,
+      "question": "Is BLOSSOM_BASE_URL sourced from app/src/config/blossom.ts (the single config constant), not hardcoded inline in blossomClient.ts?"
+    },
+    {
+      "id": "Q7",
+      "category": "architecture",
+      "severity": 7,
+      "question": "Does each call to put re-sign a fresh auth event (no auth caching), consistent with the v1 spec decision to re-sign per upload?"
+    },
+    {
+      "id": "Q8",
+      "category": "testing",
+      "severity": 8,
+      "question": "Do the 12 unit tests cover auth event structure (Q1), PUT request shape (Q2), 4xx no-retry (Q4), 5xx retry exhaustion (Q3), 5xx recovery on second attempt, onProgress callback, GET success, GET 404, and GET non-404 error?"
+    },
+    {
+      "id": "Q9",
+      "category": "code-quality",
+      "severity": 6,
+      "question": "Are RETRY_DELAYS exported so tests can override them to 0ms for instant retry tests without needing fake timers?"
+    },
+    {
+      "id": "Q10",
+      "category": "architecture",
+      "severity": 7,
+      "question": "Does get() throw BlossomNotFoundError specifically for 404 and BlossomUploadError for other non-OK responses, with distinct error types for distinct failure modes?"
+    }
+  ],
+  "answers": [
+    {
+      "id": "Q1",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "buildBlossomAuthEvent at blossomClient.ts:20–38 returns event with kind 24242 (line 27), ['t','upload'] (line 31), ['x',ciphertextSha256] (line 32), ['expiration',String(now+300)] (line 33). Test blossomClient.test.ts:71–81 verifies expiration is within ±5s of now+300."
+    },
+    {
+      "id": "Q2",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "put() sends PUT to `${BLOSSOM_BASE_URL}/upload` (line 62) with Authorization header via encodeAuthHeader(authEvent) (line 65) and returns json.url on success (line 92). Test line 89–104 verifies PUT method, Authorization: Nostr prefix, and url return."
+    },
+    {
+      "id": "Q3",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "Retry loop at blossomClient.ts:55–102: attempt 0 to RETRY_DELAYS.length (3 retries). 5xx response (line 78) retries at line 84–85. Test blossomClient.test.ts:116–123 verifies 4 total fetch calls (1 initial + 3 retries) on 5xx exhaustion."
+    },
+    {
+      "id": "Q4",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "4xx guard at blossomClient.ts:71–76 throws BlossomUploadError immediately without retry. Test blossomClient.test.ts:106–114 verifies exactly 1 fetch call on 400 status."
+    },
+    {
+      "id": "Q5",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "get() at blossomClient.ts:109–126 returns Uint8Array on success (line 125). 404 throws BlossomNotFoundError (line 114). Test line 152–178 verify both paths with correct error types."
+    },
+    {
+      "id": "Q6",
+      "answer": "YES",
+      "severity": 7,
+      "evidence": "Import at blossomClient.ts:2 `import { BLOSSOM_BASE_URL } from '@/src/config/blossom'`. Used at line 62 in fetch URL. Not hardcoded inline."
+    },
+    {
+      "id": "Q7",
+      "answer": "YES",
+      "severity": 7,
+      "evidence": "buildBlossomAuthEvent() called fresh on each retry loop iteration (lines 56–59). No auth caching per v1 spec decision."
+    },
+    {
+      "id": "Q8",
+      "answer": "YES",
+      "severity": 8,
+      "evidence": "12 tests cover: auth event kind/tags/expiration (Q1, lines 51–82), PUT request/Authorization/url (Q2, lines 89–104), 4xx no-retry (Q4, lines 106–114), 5xx retry exhaustion (Q3, lines 116–123), retry recovery on 2nd attempt (lines 125–135), onProgress callback (lines 137–146), GET success (lines 152–164), GET 404 (lines 166–178), GET non-404 error (lines 180–185)."
+    },
+    {
+      "id": "Q9",
+      "answer": "YES",
+      "severity": 6,
+      "evidence": "RETRY_DELAYS exported at blossomClient.ts:18. Test blossomClient.test.ts:23 overrides to [0,0,0] for instant retries without fake timers."
+    },
+    {
+      "id": "Q10",
+      "answer": "YES",
+      "severity": 7,
+      "evidence": "Distinct error types: BlossomNotFoundError for 404 (blossomClient.ts:114), BlossomUploadError for other non-OK (line 118). Test verifies both throw different error classes."
+    }
+  ],
+  "test_results": {
+    "unit_tests": "373 passed (361 baseline + 12 new)",
+    "tsc": "Pass (0 errors)",
+    "lint": "Not required (client module only)"
+  },
+  "codex_findings": "Codex unavailable (disable-model-invocation). Manual verification: all 10 questions pass. No critical/high issues. Note: body sent as encryptedBytes.buffer (ArrayBuffer cast) for BodyInit compatibility—correct at runtime. sha256Hex similarly casts to ArrayBuffer for crypto.subtle."
+}

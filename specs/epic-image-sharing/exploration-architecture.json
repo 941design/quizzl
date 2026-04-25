@@ -1,0 +1,71 @@
+{
+  "focus": "architecture",
+  "summary": "quizzl uses pure React Context + idb-keyval with no Zustand, no service worker, and no Web Workers. MarmotClient is constructed in MarmotContext.tsx with signer/groupStateBackend/keyPackageStore/network params; a `media` factory is the obvious extension point. The signer path is useNostrIdentity().privateKeyHex -> createPrivateKeySigner (signerAdapter.ts:11), already used by BackupContext for signing relay events — same pattern fits kind 24242 Blossom auth events.",
+  "key_files": [
+    {"path": "app/src/context/MarmotContext.tsx", "lines": "263-268", "purpose": "MarmotClient construction, storage factory wiring point"},
+    {"path": "app/src/context/MarmotContext.tsx", "lines": "881-895", "purpose": "leaveGroup() cleanup hooks - where clearMediaRefs goes"},
+    {"path": "app/src/context/ChatStoreContext.tsx", "lines": "173-190", "purpose": "Optimistic send pattern with crypto.randomUUID() tempId, no reconciliation"},
+    {"path": "app/src/context/ChatStoreContext.tsx", "lines": "116-138", "purpose": "applicationMessage receive handler"},
+    {"path": "app/src/context/NostrIdentityContext.tsx", "lines": "40,174", "purpose": "Sole source of privateKeyHex"},
+    {"path": "app/src/lib/marmot/signerAdapter.ts", "lines": "11,63", "purpose": "createPrivateKeySigner returns applesauce-core EventSigner"},
+    {"path": "app/src/lib/marmot/groupStorage.ts", "lines": "27-31,195-241", "purpose": "Per-domain IDB store declarations and Backend classes"},
+    {"path": "app/src/lib/marmot/chatPersistence.ts", "lines": "8,65", "purpose": "Per-group IDB store pattern, appendMessage queue, clearMessages"},
+    {"path": "app/src/components/groups/LeaveGroupButton.tsx", "lines": "43,95", "purpose": "UI entry for leaveGroup"},
+    {"path": "app/next.config.mjs", "lines": "3,41", "purpose": "output:'export', trailingSlash, swcMinify:false (Terser), no worker config"},
+    {"path": "app/pages/_app.tsx", "lines": "12-20,52", "purpose": "Context nesting; dynamic({ssr:false}) wrappers for crypto providers"},
+    {"path": "app/src/config/profile.ts", "lines": "18", "purpose": "Constants-only config module pattern to mirror for config/blossom.ts"},
+    {"path": "app/pages/groups.tsx", "lines": "258-282", "purpose": "Per-group ChatStoreProvider/PollStoreProvider mounting"}
+  ],
+  "module_layout": {
+    "components": "Flat root (Layout, ProfileSummary, etc.) plus components/groups/ (16 files, 50-416 lines, modals colocated) and components/quiz/. PascalCase, one component per file.",
+    "context": "Six providers: LanguageContext, ProfileContext, BackupContext, NostrIdentityContext, MarmotContext, ChatStoreContext, PollStoreContext. First four are app-wide; ChatStoreProvider+PollStoreProvider are mounted per-group-detail in pages/groups.tsx:258-282.",
+    "hooks": "Six existing: useMoodTheme, useOnlineStatus, useSelectedTopics, useStudyTimer, useThemeStyles, useTopicProgress. useXxx naming.",
+    "lib": "Domain modules at root (ndkClient, storage, nostrKeys, linkify, i18n, scoring, etc.); lib/marmot/ for group logic (12 files). NO lib/media/ or lib/files/ — clean slate for the feature.",
+    "config": "Only config/profile.ts (constants only). New config/blossom.ts follows same pattern."
+  },
+  "static_export_constraints": "next.config.mjs:3 sets output:'export', trailingSlash:true, swcMinify:false (Terser, kept for ts-mls/marmot-ts bitwise ops). NO next/image anywhere — all images use Chakra UI <Image> which renders as plain <img>. Blob URLs work in static export. Image lightbox + bubble can use Chakra <Image src={blobUrl}> directly.",
+  "marmot_group_lifecycle": {
+    "where_constructed": "app/src/context/MarmotContext.tsx:263-268",
+    "constructor_signature": "new MarmotClient({ signer, groupStateBackend: new KeyValueGroupStateBackend(new IdbGroupStateBackend()), keyPackageStore: new KeyPackageStore(new IdbKeyPackageBackend()), network: new NdkNetworkAdapter(ndk) })",
+    "existing_storage_factories": ["IdbGroupStateBackend (groupStorage.ts:195-240)", "IdbKeyPackageBackend (groupStorage.ts:195-240)"],
+    "where_to_wire_media_factory": "app/src/context/MarmotContext.tsx:259 (immediately after IdbKeyPackageBackend instantiation, within init() scope)",
+    "idb_store_declaration_pattern": "app/src/lib/marmot/groupStorage.ts:27-31 — module-scope createStore('quizzl-{domain}', '{domain}')"
+  },
+  "ndk_signer_access": {
+    "context": "useNostrIdentity() from app/src/context/NostrIdentityContext.tsx:40",
+    "signer_construction": "createPrivateKeySigner(privateKeyHex) from app/src/lib/marmot/signerAdapter.ts:11 returns applesauce-core EventSigner",
+    "signer_api": "signer.signEvent(draft) => Promise<SignedEvent>",
+    "example_call_in_codebase": "BackupContext.tsx:36-42 — already does exactly this pattern for signing backup events",
+    "ndk_singleton_signer": "lib/ndkClient.ts:9,29 also exposes ndkInstance.signer (NDKPrivateKeySigner) but codebase consistently prefers createPrivateKeySigner for the applesauce-core interface"
+  },
+  "web_worker_support": "ZERO Web Workers used today. vitest.config.ts has no worker config. next.config.mjs has no webpack worker rules. `new Worker(new URL(..., import.meta.url))` with Next 14 + output:'export' is untested and would be NEW infrastructure. Spec-noted fallback (main-thread processing in requestIdleCallback) is recommended for v1 to avoid scope creep, with feature detection at module load.",
+  "optimistic_ui_pattern": {
+    "dedup_key": "tempId = crypto.randomUUID() (ChatStoreContext.tsx:173)",
+    "send_path": "1) optimistic added to state immediately (line 182), 2) sendChatSafe() awaited, 3) on success: persisted to IDB via appendMessage (line 186), 4) on failure: filtered out by tempId (line 190)",
+    "important_caveat": "Optimistic message is NEVER replaced by the real rumor ID. id stays = tempId in memory and IDB. Real rumor (when echoed back) would be a separate message — but the sender's own message is filtered at MarmotContext.tsx:515 (`if (senderPubkey === pubkeyHex) return`). Image send pipeline must follow same convention.",
+    "reconciliation_path": "ChatStoreContext.tsx:116-138 (applicationMessage handler dedupes by rumor.id)"
+  },
+  "state_management": "Pure React Context + useState/useRef/useCallback/useMemo. No Zustand, Redux, reducers. setMessages functional updates throughout. Re-render efficiency via useMemo at context value level (MarmotContext.tsx:1034). unreadStore.ts uses module-level variable (lightweight non-context global).",
+  "group_leave_path": {
+    "ui_entry": "app/src/components/groups/LeaveGroupButton.tsx:43 — calls leaveGroup(groupId) from useMarmot()",
+    "implementation": "MarmotContext.tsx:881-895",
+    "current_steps": ["removeGroupFromStorage", "clearMemberScores", "clearMemberProfiles", "clearMessages (lazy import)", "clearPollData", "clearUnreadGroup"],
+    "hook_for_clearMediaRefs": "MarmotContext.tsx:891-892 (between clearPollData and clearUnreadGroup)",
+    "note": "There is no MLS group.leave() — soft-leave only. Spec text 'group.leave()' refers to this leaveGroup function."
+  },
+  "pwa_status": "NO service worker. app/public/ contains favicon.ico, robots.txt, content/ only — no sw.js, no workbox-*.js, no manifest.json. _app.tsx registers no SW. Blossom fetches will not be intercepted.",
+  "bundle_conventions": "next.config.mjs has no experimental.optimizePackageImports, no bundlePages, no size budgets. Only webpack customization is a next-swc-loader passthrough for 4 packages that crash SWC. blurhash (~5KB gzipped) is fine.",
+  "established_patterns": {
+    "idb_store_per_domain": "createStore('quizzl-{domain}', '{domain}') at module scope in the relevant persistence file",
+    "version_counter_bump": "MarmotContext bumps chatVersion/profileVersion/pollVersion after IDB writes; downstream contexts re-read IDB reactively",
+    "lazy_dynamic_import": "MarmotContext.tsx:249-253 uses await import(...) inside useEffect to avoid SSR crashes; all marmot-ts and NDK imports follow this",
+    "soft_error_handling": "every marmot-ts call in try/catch with console.warn; opts.softFail pattern for fire-and-forget paths (sendRumorSafe, MarmotContext.tsx:71-95)",
+    "buildRumor_helper": "MarmotContext.tsx:98-109 builds MIP-03 application message rumors with getEventHash; all message kinds (score, profile, chat, poll) use this helper. Image rumor MUST use buildRumor too."
+  },
+  "open_questions": [
+    "Does buildRumor accept arbitrary tags or does it only set kind+content+pubkey+created_at? Architect must verify before implementing the imeta tags path.",
+    "Does the existing MarmotClient construction expect a `media` factory at v0.4.0 or a different parameter name? Verify against marmot-ts/dist/client/marmot-client.d.ts before wiring.",
+    "Will Next 14 dev mode show CORS issues against blossom.band from localhost? May need to test early.",
+    "Should clearMediaRefs run async-fire-and-forget (current convention) or block leaveGroup completion?"
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "story_id": "story-01-config-i18n",
+  "questions": [
+    {
+      "id": "Q1",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does app/src/config/blossom.ts export all 9 constants with exact values per AC-01: BLOSSOM_BASE_URL='https://blossom.band', MAX_EDGE=2048, THUMB_MAX_EDGE=320, MAX_INPUT_BYTES=26214400, MAX_OUTPUT_BYTES=5242880, OUTPUT_MIME='image/webp', FULL_QUALITY=0.85, THUMB_QUALITY=0.6, BLURHASH_COMPONENTS=[4,3]?"
+    },
+    {
+      "id": "Q2",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does the Copy type in app/src/lib/i18n.ts now include all 10 new groups.image* keys from AC-02: imageAttachmentLabel, imageProcessing, imageUploading (function), imageSendFailed, imageRetry, imageDecryptFailed, imageUnavailable, imageDownload, imageTooLarge, imageRemove?"
+    },
+    {
+      "id": "Q3",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Do both the en and de objects in i18n.ts have non-empty values for all 10 keys, and is imageUploading a function accepting a number and returning a localised string per AC-03?"
+    },
+    {
+      "id": "Q4",
+      "category": "testing",
+      "severity": 8,
+      "question": "Does npx tsc --noEmit pass with zero errors after the changes, confirming the Copy type extension is structurally valid and both language objects satisfy the type?"
+    },
+    {
+      "id": "Q5",
+      "category": "code-quality",
+      "severity": 6,
+      "question": "Is BLURHASH_COMPONENTS typed as [number, number] (tuple) rather than number[] to preserve the exact tuple semantics expected by the blurhash library API?"
+    },
+    {
+      "id": "Q6",
+      "category": "architecture",
+      "severity": 7,
+      "question": "Are all constants in blossom.ts exported as named exports (not a default object), consistent with the pattern used in app/src/config/profile.ts?"
+    }
+  ],
+  "answers": [
+    {
+      "id": "Q1",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "blossom.ts exports all 9 constants with exact AC-01 values: BLOSSOM_BASE_URL='https://blossom.band', MAX_EDGE=2048, THUMB_MAX_EDGE=320, MAX_INPUT_BYTES=26214400, MAX_OUTPUT_BYTES=5242880, OUTPUT_MIME='image/webp', FULL_QUALITY=0.85, THUMB_QUALITY=0.6, BLURHASH_COMPONENTS=[4,3]"
+    },
+    {
+      "id": "Q2",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "Copy type in i18n.ts includes all 10 groups.image* keys at lines 325-334: imageAttachmentLabel, imageProcessing, imageUploading (function), imageSendFailed, imageRetry, imageDecryptFailed, imageUnavailable, imageDownload, imageTooLarge, imageRemove"
+    },
+    {
+      "id": "Q3",
+      "answer": "YES",
+      "severity": 9,
+      "evidence": "Both en and de objects in i18n.ts contain non-empty values for all 10 keys. imageUploading is (pct: number) => string in both languages: en: `Uploading ${pct}%`, de: `Wird hochgeladen ${pct} %`"
+    },
+    {
+      "id": "Q4",
+      "answer": "YES",
+      "severity": 8,
+      "evidence": "npx tsc --noEmit passes with zero errors after changes, confirming Copy type extension is structurally valid and both language objects satisfy the type"
+    },
+    {
+      "id": "Q5",
+      "answer": "YES",
+      "severity": 6,
+      "evidence": "BLURHASH_COMPONENTS is explicitly typed as [number, number] tuple at blossom.ts:9, preserving tuple semantics for blurhash library API"
+    },
+    {
+      "id": "Q6",
+      "answer": "YES",
+      "severity": 7,
+      "evidence": "All 9 constants in blossom.ts are exported as named exports (export const), consistent with app/src/config/profile.ts pattern"
+    }
+  ],
+  "test_results": {
+    "unit_tests": "325 passed (24 test files)",
+    "tsc": "Pass (0 errors)",
+    "lint": "Not required (config + i18n only)"
+  },
+  "codex_findings": "Codex review unavailable (disable-model-invocation). Manual verification: all 6 questions pass. No critical/high issues. Config constants exact, i18n keys complete with correct function signature, tuple typing preserved, named exports pattern consistent."
+}

@@ -1,0 +1,7 @@
+{
+  "story_id": "story-08-lightbox",
+  "ran_at": "2026-04-25T13:52:00Z",
+  "vitest": { "passed": 400, "failed": 0, "tests": 400, "duration_ms": 2650 },
+  "tsc": { "passed": true, "errors": [] },
+  "all_clean": true
+}

@@ -1,0 +1,37 @@
+{
+  "merged_at": "2026-04-25T11:05:00Z",
+  "sub_explorations": [
+    "exploration-similar-features.json",
+    "exploration-architecture.json",
+    "exploration-testing.json"
+  ],
+  "executive_summary": "quizzl uses pure React Context + idb-keyval (no Zustand, no SW, no Web Workers, no jsdom). Group chat send/receive flows through MLS application rumors with a JSON-discriminated content field that parseStructured() in GroupChat.tsx dispatches to bubble components — polls established the exact pattern image-sharing must follow. The marmot-ts v0.4.0 library ships MIP-04 v2 helpers (encryptMedia/decryptMedia, parseMediaImetaTag, getMediaAttachments) AND an optional `media` factory on MarmotClient construction (currently NOT supplied at MarmotContext.tsx:262-268). Three real gaps require structural changes: (1) ChatMessage drops rumor.tags before IDB persistence — must be extended OR a parallel media-attachment store must be populated; (2) MarmotClient must be reconstructed with a GroupMediaFactory backed by idb-keyval to persist decrypted blobs across reloads; (3) tags must be extracted in the receive pipeline (currently only rumor.content/pubkey are read). No file picker, no Blossom client, no fullscreen modal, and no fixture images exist — all built from scratch.",
+  "critical_facts_for_planner": {
+    "kind": "9 (CHAT_MESSAGE_KIND), reuses chat envelope with new {type:'image_share', version:1, caption?} discriminator",
+    "wire_format": "kind 9 rumor; content = JSON discriminator; tags = [imetaFull, imetaThumb] each carrying role:full or role:thumb (a quizzl-private NIP-92 keyValuePair)",
+    "send_model": "Polls show the pattern: buildRumor(...) + sendRumorSafe / sendApplicationRumor with custom tags. group.sendChatMessage() also accepts an optional tags param (marmot-group.d.ts:250) — could be used as alternative.",
+    "marmot_signer_path": "useNostrIdentity().privateKeyHex -> createPrivateKeySigner(privateKeyHex) (signerAdapter.ts:11) — already used by BackupContext for signing — same pattern works for kind 24242 Blossom auth events.",
+    "media_factory_wiring": "Add to MarmotClient construction at MarmotContext.tsx:259-268. GroupMediaFactory<TMedia> = (groupId: Uint8Array) => TMedia where TMedia extends BaseGroupMedia. Use the shipped GroupMediaStore class with an idb-keyval KeyValueStoreBackend.",
+    "leave_group_cleanup": "MarmotContext.tsx:881-895 leaveGroup() — add clearMediaRefs(groupId) between clearPollData and clearUnreadGroup.",
+    "i18n_path": "app/src/lib/i18n.ts — extend Copy type AND both en/de objects under groups namespace (matches spec).",
+    "idb_keyval_conventions": "Two patterns coexist: (a) default store with namespaced string keys ('quizzl:messages:{groupId}'), used by chat/poll persistence; (b) named stores via createStore('quizzl-{domain}', '{domain}'), used by groupStorage/inviteLink/joinRequest. For media blobs (potentially large): use createStore('quizzl-media-blobs', 'blobs') keyed by `{groupId}:{plaintextSha256}` to keep blobs out of the default store.",
+    "static_export": "output:'export' means no server routes. All fetches client-direct. Chakra Image (= <img>) only. Blob URLs work fine.",
+    "web_worker_decision": "ZERO Web Workers in codebase today. Adding one is new infrastructure for Next 14 + static export. Recommendation: implement processing on the main thread for v1 (per spec's stated fallback) using `requestIdleCallback`-friendly chunking. Defer worker as a follow-up if needed.",
+    "optimistic_ui_convention": "tempId = crypto.randomUUID(); message added optimistically with tempId; on success persisted with tempId (NEVER reconciled to canonical rumor id); on failure removed by tempId. Sender does not receive own messages back (filter at MarmotContext.tsx:515).",
+    "test_environment": "Vitest in NODE (no jsdom). Inline IDB mocks per file with closure Map. Polyfill globalThis.crypto with Object.defineProperty for SubtleCrypto APIs. fetch mocking absent — DI the upload fn or vi.mock the module.",
+    "e2e_environment": "Two BrowserContext per user, describe.serial, bootUser inline, real strfry via Docker. NO page.route ever used — image-sharing will be the first; use page.route to mock Blossom upload/download endpoints. Add fixture: app/tests/fixtures/test-image.png. Add new IDB DB names to clear-state.ts:3-11."
+  },
+  "decisions_for_planner_to_make": [
+    "Whether to bundle 'wire MarmotClient media factory + IDB blob store' as one foundational story OR split persistence from factory wiring.",
+    "Whether to ship Web Worker now OR fall back to main-thread processing for v1 (recommendation: defer Web Worker; spec calls this acceptable).",
+    "Whether 'attachment storage on ChatMessage' means extending ChatMessage shape OR a parallel sha256-keyed store. Recommendation: extend ChatMessage with optional `attachments: MediaAttachment[]` and `localMediaRefs?: string[]` fields per spec — non-breaking optional fields keep dedup logic stable.",
+    "Whether the unit-test surface for blossomClient is realistic without a fetch mock — recommend extracting BUD-01 auth-event construction and retry-policy as pure functions for unit testing, with integration coverage from E2E using page.route.",
+    "Story granularity — recommended split: (1) image-processing utility, (2) blossom client + auth, (3) MarmotClient media factory + persistence, (4) wire format / imeta builder + envelope codec, (5) composer UI (attachment button + drag/drop/paste), (6) inbound bubble + lightbox, (7) i18n + config, (8) E2E + fixture."
+  ],
+  "open_questions_to_resolve_in_planning": [
+    "Confirm buildRumor accepts arbitrary tags param (verify against MarmotContext.tsx:97-109 source).",
+    "Confirm whether marmot-ts MarmotClient v0.4.0 actually accepts a `media` constructor option or if it's named differently — read app/node_modules/@internet-privacy/marmot-ts/dist/client/marmot-client.d.ts.",
+    "Confirm whether the receive pipeline at MarmotContext.tsx:547-559 needs to be extended to plumb rumor.tags through to ChatStoreContext.",
+    "Pick the default Blossom server: spec suggests https://blossom.band; planner should propose final and have lead confirm. Architect can begin work behind a config constant either way."
+  ]
+}

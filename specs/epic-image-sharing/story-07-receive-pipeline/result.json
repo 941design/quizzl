@@ -1,0 +1,24 @@
+{
+  "story_id": "story-07-receive-pipeline",
+  "status": "done",
+  "final_outcome": "accepted",
+  "verification_rounds": 1,
+  "completed_at": "2026-04-25T14:05:00Z",
+  "files_created": [
+    "app/src/hooks/useDecryptedImage.ts",
+    "app/src/components/groups/ImageMessageBubble.tsx",
+    "app/src/components/groups/ImageLightbox.tsx",
+    "app/tests/unit/hooks/useDecryptedImage.test.ts"
+  ],
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx",
+    "app/src/components/groups/GroupChat.tsx"
+  ],
+  "test_counts": {
+    "vitest_passed": 400,
+    "vitest_failed": 0,
+    "new_tests": 8,
+    "tsc_errors": 0
+  },
+  "summary": "Extended kind-9 receive handler in MarmotContext.tsx to call parseImageMessageContent+getMediaAttachments and populate ChatMessage.attachments from rumor.tags when content is type:'image'. Extended parseStructured in GroupChat.tsx with image discriminator. Added ImageMessageBubble dispatch in render loop. Created useDecryptedImage hook: mediaPersistence cache-first, then blossomGet+decryptMedia+setBlob on miss; in-flight deduplication; states: loading/ready/decrypt-failed/not-found. Created ImageMessageBubble with image-blurhash-placeholder, image-thumbnail, image-decrypt-failed, image-unavailable, image-caption testids. Created ImageLightbox stub (full implementation in story-08). 8 unit tests pass."
+}

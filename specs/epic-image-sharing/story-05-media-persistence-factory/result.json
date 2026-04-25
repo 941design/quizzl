@@ -1,0 +1,23 @@
+{
+  "story_id": "story-05-media-persistence-factory",
+  "status": "done",
+  "files_created": [
+    "app/src/lib/marmot/mediaPersistence.ts",
+    "app/src/lib/marmot/idbKeyValueStoreBackend.ts",
+    "app/tests/unit/marmot/mediaPersistence.test.ts"
+  ],
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx",
+    "app/tests/e2e/helpers/clear-state.ts"
+  ],
+  "test_counts": {
+    "vitest_passed": 385,
+    "vitest_failed": 0,
+    "new_tests": 12,
+    "tsc_errors": 0
+  },
+  "summary": "Created mediaPersistence.ts with setBlob/getBlob/deleteBlob (quizzl-media-blobs/blobs store keyed by '{groupId}:{sha256}'), addMessageRef/removeMessageRef/getMessageRefs (quizzl-media-meta/meta store), and clearGroupMedia (prefix-filtered delete on both stores). Created IdbKeyValueStoreBackend adapter bridging idb-keyval UseStore to KeyValueStoreBackend<T> interface. MarmotContext.tsx: added GroupMediaStore+IdbKeyValueStoreBackend mediaFactory to MarmotClient constructor and clearGroupMedia(groupId) call in leaveGroup between clearPollData and clearUnreadGroup. clear-state.ts: added quizzl-media-blobs and quizzl-media-meta to INDEXEDDB_DATABASES. 12 unit tests with inline Map mock pass.",
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-04-25T13:37:00Z"
+}

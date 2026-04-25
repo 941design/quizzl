@@ -6,7 +6,7 @@ PLAYWRIGHT_STAMP := $(APP_DIR)/node_modules/.playwright_$(shell uname -s)-$(shel
 -include .env
 export
 
-.PHONY: help test build test-unit test-e2e test-e2e-groups e2e-up e2e-down playwright run-dev clean install deploy deploy-check deploy-dryrun ssl-cert ssl-cert-assets ensure-deps ensure-playwright
+.PHONY: help test build test-unit test-e2e test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check deploy-dryrun ssl-cert ssl-cert-assets ensure-deps ensure-playwright
 
 # Default target
 .DEFAULT_GOAL := help
@@ -87,6 +87,13 @@ e2e-down: ## Stop strfry relay
 ## Run Playwright E2E tests for learning groups
 test-e2e-groups: ensure-playwright e2e-up ## Run groups E2E tests (strfry + static build)
 	cd $(APP_DIR) && E2E_GROUPS=1 node scripts/run-e2e.mjs; \
+	status=$$?; \
+	cd .. && $(MAKE) e2e-down; \
+	exit $$status
+
+## Run image-sharing E2E tests (strfry + blossom-mock)
+test-e2e-image-sharing: ensure-playwright e2e-up ## Run image-sharing E2E tests
+	cd $(APP_DIR) && E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-image-sharing.spec.ts; \
 	status=$$?; \
 	cd .. && $(MAKE) e2e-down; \
 	exit $$status

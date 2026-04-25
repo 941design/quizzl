@@ -1,0 +1,79 @@
+{
+  "story_id": "story-08-lightbox",
+  "questions": [
+    {
+      "id": "Q1",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does clicking data-testid='image-thumbnail' inside ImageMessageBubble open ImageLightbox as a fullscreen Chakra modal (size='full') per AC-51?"
+    },
+    {
+      "id": "Q2",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does ImageLightbox render the full-resolution decrypted image via useDecryptedImage(groupId, fullAttachment) as an <img> element with data-testid='lightbox-image' once the blob resolves per AC-52?"
+    },
+    {
+      "id": "Q3",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does ImageLightbox render a download button with data-testid='lightbox-download' that, when clicked, triggers a file download with filename matching <sender-shortid>-<YYYYMMDD-HHmm>.<ext> per AC-53?"
+    },
+    {
+      "id": "Q4",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does ImageLightbox render a close button with data-testid='lightbox-close' that dismisses the modal per AC-54?"
+    },
+    {
+      "id": "Q5",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does pressing Escape while ImageLightbox is open close the modal (via Chakra Modal closeOnEsc default) per AC-55?"
+    },
+    {
+      "id": "Q6",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does clicking the modal overlay (outside the image content area) close the modal (via Chakra Modal closeOnOverlayClick) per AC-56?"
+    },
+    {
+      "id": "Q7",
+      "category": "spec-alignment",
+      "severity": 8,
+      "question": "Does ImageLightbox use copy.groups.imageDownload for the download button aria-label, consistent with the i18n key added in story-01 per spec?"
+    },
+    {
+      "id": "Q8",
+      "category": "architecture",
+      "severity": 7,
+      "question": "Does ImageMessageBubble accept senderPubkey and createdAt props and pass them as senderShortId (via truncateNpub/pubkeyToNpub) and createdAt to ImageLightbox for filename generation?"
+    },
+    {
+      "id": "Q9",
+      "category": "architecture",
+      "severity": 7,
+      "question": "Does the download handler create an <a> element with the correct href and download filename, click it programmatically, then remove it — the standard browser-native download pattern?"
+    },
+    {
+      "id": "Q10",
+      "category": "testing",
+      "severity": 6,
+      "question": "Per the story test strategy: TypeScript compilation confirms prop contracts (no isolated unit test warranted for a thin modal wrapper); interaction coverage comes from E2E story-09. Does tsc --noEmit pass with zero errors?"
+    }
+  ],
+  "answers": [
+    {"id": "Q1", "answer": "YES", "severity": 9, "evidence": "ImageMessageBubble.tsx:49 onClick handler sets lightboxOpen=true when thumb status is 'ready'. Lines 134-142 conditionally render ImageLightbox. ImageLightbox uses Chakra Modal with size='full' (line 58)."},
+    {"id": "Q2", "answer": "YES", "severity": 9, "evidence": "ImageLightbox.tsx:44 calls useDecryptedImage(groupId, attachment). Lines 103-112 render <Image data-testid='lightbox-image' src={imageState.url} /> when status==='ready'."},
+    {"id": "Q3", "answer": "YES", "severity": 9, "evidence": "formatFilename() (lines 26-34) constructs ${senderShortId}-${YYYYMMDD}-${HHmm}.${ext}. handleDownload (lines 46-55) creates anchor element with a.download=filename attribute, appends, clicks, removes. Download button disabled while loading (isDisabled on line 84)."},
+    {"id": "Q4", "answer": "YES", "severity": 9, "evidence": "ImageLightbox.tsx lines 87-96: IconButton with data-testid='lightbox-close' calls onClick={onClose}."},
+    {"id": "Q5", "answer": "YES", "severity": 9, "evidence": "ImageLightbox.tsx line 63: Chakra Modal closeOnEsc prop set (default true for Chakra modals)."},
+    {"id": "Q6", "answer": "YES", "severity": 9, "evidence": "ImageLightbox.tsx line 62: Chakra Modal closeOnOverlayClick prop set (default true for Chakra modals)."},
+    {"id": "Q7", "answer": "YES", "severity": 8, "evidence": "ImageLightbox.tsx line 78: IconButton aria-label={copy.groups.imageDownload}. copy from useCopy() hook; key defined in story-01 i18n.ts for en/de."},
+    {"id": "Q8", "answer": "YES", "severity": 7, "evidence": "ImageMessageBubble.tsx lines 14-15 accept senderPubkey and createdAt. Line 33 derives senderShortId via truncateNpub(pubkeyToNpub(senderPubkey)). Lines 138-139 pass both to ImageLightbox. GroupChat.tsx passes msg.senderPubkey and msg.createdAt to ImageMessageBubble."},
+    {"id": "Q9", "answer": "YES", "severity": 7, "evidence": "ImageLightbox.tsx lines 49-54: handleDownload creates <a> element, sets a.href=imageState.url and a.download=filename, appends to document.body, clicks, removes from body. Standard browser-native download pattern."},
+    {"id": "Q10", "answer": "YES", "severity": 6, "evidence": "result.json tsc_errors: 0. No new unit tests (per story test strategy — thin modal wrapper; interaction coverage deferred to E2E story-09). All prop contracts verified via TypeScript compilation."}
+  ],
+  "test_results": {"unit_tests": "400 passed (400 baseline, 0 new)", "tsc": "Pass (0 errors)"},
+  "codex_findings": "Codex review gate unavailable (disable-model-invocation). Manual review: all 10 ACs pass. No critical/high issues. Notes: (1) Download button correctly disabled while imageState.status !== 'ready' to prevent empty download. (2) Lightbox uses useDecryptedImage for full-res attachment independently of thumbnail — both share in-flight Promise deduplication map, so no double-fetch. (3) Filename format correct: createdAt is milliseconds timestamp, padded date/time extraction per spec."
+}

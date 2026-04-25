@@ -1,0 +1,283 @@
+{
+  "epic_name": "image-sharing",
+  "stories": [
+    {
+      "id": "story-01-config-i18n",
+      "title": "Add Blossom config constants and image i18n strings",
+      "story_order": 1,
+      "status": "done",
+      "summary": "Creates `app/src/config/blossom.ts` with all processing constants and the default Blossom server URL, and extends `app/src/lib/i18n.ts` with the ten image-related `groups.*` strings (en + de). This tiny prep story unblocks all downstream stories that reference either the config constants or the UI copy keys. No runtime behaviour changes; purely additive.",
+      "in_scope": [
+        "New file app/src/config/blossom.ts with BLOSSOM_BASE_URL, MAX_EDGE, THUMB_MAX_EDGE, MAX_INPUT_BYTES, MAX_OUTPUT_BYTES, OUTPUT_MIME, FULL_QUALITY, THUMB_QUALITY, BLURHASH_COMPONENTS",
+        "Extend Copy type in app/src/lib/i18n.ts with 10 new groups.image* keys",
+        "Add en and de string values for all 10 keys including the imageUploading function"
+      ],
+      "out_of_scope": [
+        "Any runtime code that consumes these constants",
+        "Any UI components",
+        "Any tests beyond TypeScript compilation verification"
+      ],
+      "acceptance_criteria_ids": ["AC-01", "AC-02", "AC-03"],
+      "files_new": [
+        "app/src/config/blossom.ts"
+      ],
+      "files_modified": [
+        "app/src/lib/i18n.ts"
+      ],
+      "depends_on": [],
+      "test_strategy": "TypeScript compilation (`npx tsc --noEmit`) verifies the Copy type extension. No vitest tests needed for constants-only files."
+    },
+    {
+      "id": "story-02-image-processing",
+      "title": "Implement image processing utility (resize, WebP re-encode, blurhash, SHA-256)",
+      "story_order": 2,
+      "status": "done",
+      "summary": "Creates `app/src/lib/media/imageProcessing.ts` — a pure main-thread utility that decodes any raster input via `createImageBitmap`, resizes to `MAX_EDGE` if needed, re-encodes to WebP via canvas `toBlob` (stripping EXIF), generates a thumbnail at `THUMB_MAX_EDGE`, computes blurhash using the `blurhash` npm package, and computes SHA-256 of plaintext bytes via `crypto.subtle`. All constants come from `config/blossom.ts`. Includes vitest unit tests with inline Web Crypto polyfill.",
+      "in_scope": [
+        "New file app/src/lib/media/imageProcessing.ts with processImage(blob: Blob): Promise<ProcessedImage>",
+        "ProcessedImage type: { full: { blob: Blob, dimensions: string, sha256: string }, thumb: { blob: Blob, dimensions: string, sha256: string }, blurhash: string }",
+        "ImageTooLargeError thrown when input exceeds MAX_INPUT_BYTES",
+        "Chunked yield between heavy steps via setTimeout(0) for main-thread responsiveness",
+        "New vitest unit test: app/tests/unit/media/imageProcessing.test.ts",
+        "Add blurhash package to app/package.json"
+      ],
+      "out_of_scope": [
+        "Web Worker — main thread only in v1",
+        "Upload, encryption, or any network calls",
+        "UI integration"
+      ],
+      "acceptance_criteria_ids": ["AC-04", "AC-05", "AC-06", "AC-07", "AC-08", "AC-09"],
+      "files_new": [
+        "app/src/lib/media/imageProcessing.ts",
+        "app/tests/unit/media/imageProcessing.test.ts"
+      ],
+      "files_modified": [
+        "app/package.json"
+      ],
+      "depends_on": ["story-01-config-i18n"],
+      "test_strategy": "Unit tests in node environment; polyfill globalThis.crypto via Object.defineProperty; polyfill createImageBitmap via vi.stubGlobal; polyfill HTMLCanvasElement.toBlob with a function returning a minimal WebP Blob stub. Test: dimensions ≤ MAX_EDGE, blurhash format, EXIF absence (check for FF E1 marker), ImageTooLargeError on oversized input, SHA-256 round-trip."
+    },
+    {
+      "id": "story-03-imeta-envelope",
+      "title": "Build imeta tag builder and image message envelope codec",
+      "story_order": 3,
+      "status": "done",
+      "summary": "Creates two pure-function modules: `imetaTag.ts` which builds NIP-92-compliant `imeta` tag arrays (including the quizzl-private `role full`/`role thumb` key-value pair) from a `MediaAttachment`, and `imageMessage.ts` which serialises/deserialises the `{type:'image', version:1, caption}` JSON content discriminator and extracts the two attachments + roles from `rumor.tags`. Unit-testable with zero runtime deps beyond marmot-ts.",
+      "in_scope": [
+        "New file app/src/lib/media/imetaTag.ts with buildImetaTag(attachment: MediaAttachment, role: 'full' | 'thumb'): string[]",
+        "New file app/src/lib/media/imageMessage.ts with buildImageMessageContent(caption: string): string, parseImageMessageContent(content: string): ImageMessageContent | null, and extractAttachmentsByRole(tags: string[][]): { full: MediaAttachment | null, thumb: MediaAttachment | null }",
+        "ImageMessageContent type: { type: 'image'; version: 1; caption: string }",
+        "New vitest unit tests: app/tests/unit/media/imetaTag.test.ts and app/tests/unit/media/imageMessage.test.ts"
+      ],
+      "out_of_scope": [
+        "Any UI or context integration",
+        "Network or IDB operations",
+        "GroupChat.tsx parseStructured extension (that is story 07)"
+      ],
+      "acceptance_criteria_ids": ["AC-10", "AC-11", "AC-12", "AC-13", "AC-14", "AC-15"],
+      "files_new": [
+        "app/src/lib/media/imetaTag.ts",
+        "app/src/lib/media/imageMessage.ts",
+        "app/tests/unit/media/imetaTag.test.ts",
+        "app/tests/unit/media/imageMessage.test.ts"
+      ],
+      "files_modified": [],
+      "depends_on": ["story-01-config-i18n"],
+      "test_strategy": "Pure unit tests; no mocks needed beyond a MediaAttachment fixture. Round-trip: buildImetaTag → parseMediaImetaTag (from marmot-ts) for both roles. JSON envelope: round-trip + null cases + coexistence with poll_open discriminator string."
+    },
+    {
+      "id": "story-04-blossom-client",
+      "title": "Implement Blossom upload/download client with BUD-01 auth",
+      "story_order": 4,
+      "status": "done",
+      "summary": "Creates `app/src/lib/media/blossomClient.ts` providing `put(encryptedBytes, signer)` and `get(sha256)`. Auth events (kind 24242) are built by a pure `buildBlossomAuthEvent` helper — unit-testable in isolation. The retry policy (3×, 500/1500/5000 ms) is also implemented as a testable pure function. The HTTP layer uses `fetch`. Unit tests cover auth event construction and retry logic with vi.mock for fetch; full round-trip coverage comes from the E2E story.",
+      "in_scope": [
+        "New file app/src/lib/media/blossomClient.ts",
+        "Exported: buildBlossomAuthEvent(signer: EventSigner, ciphertextSha256: string): Promise<UnsignedEvent>",
+        "Exported: put(encryptedBytes: Uint8Array, signer: EventSigner, onProgress?: (pct: number) => void): Promise<string> (returns canonical URL)",
+        "Exported: get(blobUrl: string): Promise<Uint8Array>",
+        "BlossomUploadError and BlossomNotFoundError custom error classes",
+        "Re-sign per upload (no auth caching in v1 per spec)",
+        "New vitest unit test: app/tests/unit/media/blossomClient.test.ts covering auth event structure and retry behaviour"
+      ],
+      "out_of_scope": [
+        "Auth caching / TTL management (v1 re-signs per upload)",
+        "Any UI integration",
+        "IDB persistence",
+        "Full HTTP round-trip test (covered by E2E story 09)"
+      ],
+      "acceptance_criteria_ids": ["AC-16", "AC-17", "AC-18", "AC-19", "AC-20"],
+      "files_new": [
+        "app/src/lib/media/blossomClient.ts",
+        "app/tests/unit/media/blossomClient.test.ts"
+      ],
+      "files_modified": [],
+      "depends_on": ["story-01-config-i18n"],
+      "test_strategy": "Unit tests mock fetch via vi.mock('node-fetch') or globalThis.fetch override; test auth event kind/tags/expiration; test that 5xx triggers retry up to 3× with correct delay sequence; test that 4xx throws immediately; test that 404 on get() throws BlossomNotFoundError. Polyfill crypto.subtle for base64 encoding in node test environment."
+    },
+    {
+      "id": "story-05-media-persistence-factory",
+      "title": "Wire media persistence IDB store and MarmotClient mediaFactory",
+      "story_order": 5,
+      "status": "done",
+      "summary": "Creates `app/src/lib/marmot/mediaPersistence.ts` — an IDB-backed store (createStore('quizzl-media-blobs', 'blobs')) for decrypted plaintext blobs, keyed by `{groupId}:{plaintextSha256}` — and wires a `GroupMediaFactory` backed by this store into the `MarmotClient` constructor in `MarmotContext.tsx`. Also adds `clearGroupMedia(groupId)` to the `leaveGroup` cleanup sequence. Adds the new IDB database name to `clear-state.ts`. This story is foundational: without it, `group.media` is in-memory only and blobs vanish on reload. NOTE: the `mediaFactory` constructor option name is confirmed as `mediaFactory` per `marmot-client.d.ts`.",
+      "in_scope": [
+        "New file app/src/lib/marmot/mediaPersistence.ts with: setBlob, getBlob, deleteBlob, addMessageRef, removeMessageRef, getMessageRefs, clearGroupMedia",
+        "IDB store: createStore('quizzl-media-blobs', 'blobs') keyed by '{groupId}:{plaintextSha256}'",
+        "Meta store: createStore('quizzl-media-meta', 'meta') keyed by '{groupId}:{plaintextSha256}' → { messageIds: string[] }",
+        "MarmotContext.tsx: add mediaFactory wiring at line 259 using GroupMediaStore from marmot-ts with IdbKeyValueStoreBackend backed by quizzl-media-blobs",
+        "MarmotContext.tsx leaveGroup: call clearGroupMedia(groupId) between clearPollData and clearUnreadGroup",
+        "Add 'quizzl-media-blobs' and 'quizzl-media-meta' to clear-state.ts INDEXEDDB_DATABASES array",
+        "New vitest unit test: app/tests/unit/marmot/mediaPersistence.test.ts"
+      ],
+      "out_of_scope": [
+        "Any UI or hook integration",
+        "blossomClient or imageProcessing integration",
+        "GroupMediaStore's internal eviction/size policies"
+      ],
+      "acceptance_criteria_ids": ["AC-21", "AC-22", "AC-23", "AC-24", "AC-25"],
+      "files_new": [
+        "app/src/lib/marmot/mediaPersistence.ts",
+        "app/tests/unit/marmot/mediaPersistence.test.ts"
+      ],
+      "files_modified": [
+        "app/src/context/MarmotContext.tsx",
+        "app/tests/e2e/helpers/clear-state.ts"
+      ],
+      "depends_on": ["story-01-config-i18n"],
+      "test_strategy": "Unit tests use inline Map-backed idb-keyval mock per established pattern (pollPersistence.test.ts). Test: set/get round-trip, getBlob returns null after deleteBlob, clearGroupMedia removes all blobs for that group but not other groups, addMessageRef/getMessageRefs round-trip. No MarmotContext tests — structural wiring verified via TypeScript compilation."
+    },
+    {
+      "id": "story-06-send-pipeline",
+      "title": "Implement send pipeline: useImageSend hook, sendImageMessage, composer UI",
+      "story_order": 6,
+      "status": "done",
+      "summary": "Wires together the full outbound image path: the `useImageSend` hook orchestrates processImage → encryptMedia → blossomClient.put → buildRumor → sendApplicationRumor with progress callbacks. `ChatStoreContext` gains `sendImageMessage(file, caption)` following the existing optimistic-tempId pattern. `GroupChat` gains the `ImageAttachmentButton` component (file input, drag/drop, paste) plus a preview thumbnail with remove. On upload failure, the composer shows an error with a retry affordance. The `ChatMessage` type is extended with optional `attachments` and `localMediaRefs` fields. NOTE: this story depends on stories 02–05 but can mock blossomClient, encryptMedia, and mediaPersistence for unit testing.",
+      "in_scope": [
+        "New file app/src/hooks/useImageSend.ts",
+        "New file app/src/components/groups/ImageAttachmentButton.tsx with data-testid='image-attachment-button' and hidden file input data-testid='image-file-input'",
+        "Extend ChatMessage in app/src/lib/marmot/chatPersistence.ts with optional attachments?: MediaAttachment[] and localMediaRefs?: string[]",
+        "ChatStoreContext: add sendImageMessage(file, caption) method, optimistic ChatMessage with attachments",
+        "GroupChat: render ImageAttachmentButton, preview thumbnail (data-testid='image-preview-thumbnail'), remove button (data-testid='image-preview-remove'), image-too-large error (data-testid='image-too-large-error'), send-failed state (data-testid='image-send-failed'), retry button (data-testid='image-retry-button')",
+        "Drag-and-drop and paste handling in GroupChat composer",
+        "useImageSend progress callback: 'processing' | { status: 'uploading', pct: number } | 'sent' | 'failed'",
+        "Call mediaPersistence.setBlob for both blobs after encrypt, before sendApplicationRumor",
+        "Unit tests for useImageSend (mocking blossomClient, group.encryptMedia, group.sendApplicationRumor)"
+      ],
+      "out_of_scope": [
+        "Receive pipeline and image bubble rendering (story 07)",
+        "Lightbox (story 08)",
+        "E2E test (story 09)"
+      ],
+      "acceptance_criteria_ids": ["AC-26", "AC-27", "AC-28", "AC-29", "AC-30", "AC-31", "AC-32", "AC-33", "AC-34", "AC-35", "AC-36", "AC-37", "AC-38", "AC-39"],
+      "files_new": [
+        "app/src/hooks/useImageSend.ts",
+        "app/src/components/groups/ImageAttachmentButton.tsx",
+        "app/tests/unit/hooks/useImageSend.test.ts"
+      ],
+      "files_modified": [
+        "app/src/lib/marmot/chatPersistence.ts",
+        "app/src/context/ChatStoreContext.tsx",
+        "app/src/components/groups/GroupChat.tsx"
+      ],
+      "depends_on": ["story-02-image-processing", "story-03-imeta-envelope", "story-04-blossom-client", "story-05-media-persistence-factory"],
+      "test_strategy": "Unit tests for useImageSend: vi.mock the blossomClient module, stub group.encryptMedia and group.sendApplicationRumor via a mock MarmotGroup. Test progress sequence, failure path, retry logic. For GroupChat composer UI: DOM-less test via extracting logic from component, or defer UI assertion to E2E story 09."
+    },
+    {
+      "id": "story-07-receive-pipeline",
+      "title": "Implement receive pipeline: useDecryptedImage hook, ImageMessageBubble, GroupChat dispatch extension",
+      "story_order": 7,
+      "status": "done",
+      "summary": "Builds the full inbound image rendering path: extends the kind-9 receive handler in `MarmotContext.tsx` to extract `rumor.tags` and populate `attachments` on the persisted `ChatMessage`; extends `parseStructured` in `GroupChat.tsx` to recognise `type:'image'`; adds `ImageMessageBubble` which renders blurhash → thumbnail → full-res progressively; and creates `useDecryptedImage` which checks `mediaPersistence` first and falls back to Blossom download + `group.decryptMedia`. Caption is rendered via `splitLinks`. Error tiles handle decrypt failure and Blossom 404.",
+      "in_scope": [
+        "New file app/src/hooks/useDecryptedImage.ts",
+        "New file app/src/components/groups/ImageMessageBubble.tsx with data-testids: image-blurhash-placeholder, image-thumbnail, image-decrypt-failed, image-unavailable, image-caption",
+        "MarmotContext.tsx: extend kind-9 handler (line 547) to call getMediaAttachments(rumor.tags) and store result in ChatMessage.attachments when content parses as type:'image'",
+        "GroupChat.tsx: extend StructuredContent type with { type: 'image'; version: 1; caption: string }; extend parseStructured() to recognise type:'image'; dispatch to ImageMessageBubble in message render loop",
+        "useDecryptedImage: mediaPersistence cache-first, then blossomClient.get → group.decryptMedia → setBlob → objectURL",
+        "Deduplication of in-flight downloads (multiple callers for same sha256 share one Promise)",
+        "Unit tests for useDecryptedImage (mocking mediaPersistence and blossomClient)"
+      ],
+      "out_of_scope": [
+        "Lightbox (story 08)",
+        "E2E test (story 09)",
+        "Full-res eager download (lightbox triggers that; this story only handles thumbnail auto-load)"
+      ],
+      "acceptance_criteria_ids": ["AC-40", "AC-41", "AC-42", "AC-43", "AC-44", "AC-45", "AC-46", "AC-47", "AC-48", "AC-49", "AC-50"],
+      "files_new": [
+        "app/src/hooks/useDecryptedImage.ts",
+        "app/src/components/groups/ImageMessageBubble.tsx",
+        "app/tests/unit/hooks/useDecryptedImage.test.ts"
+      ],
+      "files_modified": [
+        "app/src/context/MarmotContext.tsx",
+        "app/src/components/groups/GroupChat.tsx"
+      ],
+      "depends_on": ["story-05-media-persistence-factory", "story-06-send-pipeline"],
+      "test_strategy": "Unit tests for useDecryptedImage: mock mediaPersistence.getBlob to return null (miss), then a value (hit); mock blossomClient.get + group.decryptMedia; verify objectURL returned and setBlob called on miss but not hit. GroupChat dispatch: unit-test parseStructured extension for type:'image' return and null for unknown types. ImageMessageBubble rendering: verified via E2E story 09."
+    },
+    {
+      "id": "story-08-lightbox",
+      "title": "Implement ImageLightbox fullscreen modal with download",
+      "story_order": 8,
+      "status": "done",
+      "summary": "Creates `ImageLightbox.tsx` — a fullscreen Chakra modal (`size='full'`) that opens when the user taps an image bubble. It calls `useDecryptedImage` for the full-resolution attachment, displays the decrypted image, provides a download button that writes a file named `<sender-shortid>-<YYYYMMDD-HHmm>.<ext>` to the user's device, and closes on Escape, close button, or overlay tap. The thumbnail tap in `ImageMessageBubble` is wired to open the lightbox via a prop callback.",
+      "in_scope": [
+        "New file app/src/components/groups/ImageLightbox.tsx with data-testids: lightbox-image, lightbox-download, lightbox-close",
+        "ImageMessageBubble updated to accept onOpenLightbox callback and fire it on image click",
+        "Download filename format: <sender-shortid>-<YYYYMMDD-HHmm>.<ext>",
+        "Escape key and overlay tap close the modal (Chakra Modal closeOnOverlayClick, closeOnEsc defaults)",
+        "Uses useCopy() for copy.groups.imageDownload button label"
+      ],
+      "out_of_scope": [
+        "Pan/pinch zoom (deferred to v2 — no touch gesture library in current stack)",
+        "E2E test (story 09)",
+        "Any new i18n keys (imageDownload already added in story 01)"
+      ],
+      "acceptance_criteria_ids": ["AC-51", "AC-52", "AC-53", "AC-54", "AC-55", "AC-56"],
+      "files_new": [
+        "app/src/components/groups/ImageLightbox.tsx"
+      ],
+      "files_modified": [
+        "app/src/components/groups/ImageMessageBubble.tsx"
+      ],
+      "depends_on": ["story-07-receive-pipeline"],
+      "test_strategy": "Lightbox rendering and interaction verified via E2E story 09. TypeScript compilation confirms prop contracts. No isolated unit test warranted for a thin modal wrapper; interaction coverage comes from E2E."
+    },
+    {
+      "id": "story-09-e2e",
+      "title": "Add Blossom mock server, Make targets, fixture image, and E2E test suite",
+      "story_order": 9,
+      "status": "done",
+      "summary": "Adds a tiny Node-based Blossom mock server to `docker-compose.e2e.yml` (BUD-02 PUT /upload + GET /:sha256), Make targets to start/stop it alongside strfry, a fixture PNG image, and the full `groups-image-sharing.spec.ts` E2E suite. The E2E covers the two-tab happy path (send → receive → lightbox → download), reload persistence, and the retry failure mode. This story has no unit tests; it is purely verification infrastructure.",
+      "in_scope": [
+        "New file scripts/blossom-mock.mjs — Node HTTP server implementing PUT /upload (store by ciphertext-sha256) and GET /:sha256 (serve or 404)",
+        "docker-compose.e2e.yml: add blossom-mock service on port 3001 using a node image running blossom-mock.mjs",
+        "Makefile: fold blossom-mock into e2e-up and e2e-down targets (or add dedicated e2e-blossom-up / e2e-blossom-down)",
+        "New fixture: app/tests/fixtures/test-image.png (≤ 50 KB valid PNG)",
+        "New E2E test: app/tests/e2e/groups-image-sharing.spec.ts",
+        "E2E test covers: two-tab send+receive happy path, lightbox open + download, reload persistence (AC-64), retry failure mode (AC-63)",
+        "E2E test follows inline bootUser + clearAppState pattern from existing groups specs",
+        "Configure Playwright to pass BLOSSOM_BASE_URL=http://localhost:3001 env var to the app during test run"
+      ],
+      "out_of_scope": [
+        "Mobile viewport camera-capture test (verified manually)",
+        "Any new application code changes",
+        "CI pipeline integration (no GitHub Actions exist per exploration)"
+      ],
+      "acceptance_criteria_ids": ["AC-57", "AC-58", "AC-59", "AC-60", "AC-61", "AC-62", "AC-63", "AC-64"],
+      "files_new": [
+        "scripts/blossom-mock.mjs",
+        "app/tests/fixtures/test-image.png",
+        "app/tests/e2e/groups-image-sharing.spec.ts"
+      ],
+      "files_modified": [
+        "docker-compose.e2e.yml",
+        "Makefile",
+        "scripts/run-e2e.mjs"
+      ],
+      "depends_on": ["story-08-lightbox"],
+      "test_strategy": "This story IS the E2E test. Run with `make test-e2e-groups`. The mock server replaces the real blossom.band — no external network required. Retry failure mode uses page.route to intercept or temporarily disable the mock service for specific requests."
+    }
+  ]
+}

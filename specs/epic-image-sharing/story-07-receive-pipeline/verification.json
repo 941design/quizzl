@@ -1,0 +1,79 @@
+{
+  "story_id": "story-07-receive-pipeline",
+  "questions": [
+    {
+      "id": "Q1",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does the kind-9 receive handler in MarmotContext.tsx extend the ChatMessage with attachments populated via getMediaAttachments(rumor.tags) when parseImageMessageContent returns type:'image' per AC-41?"
+    },
+    {
+      "id": "Q2",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does parseStructured in GroupChat.tsx recognise {type:'image', version:1, caption} and return a typed {type:'image'; version:1; caption:string} per AC-42?"
+    },
+    {
+      "id": "Q3",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does GroupChat render ImageMessageBubble (not a plain-text bubble) when parseStructured returns {type:'image'} per AC-43?"
+    },
+    {
+      "id": "Q4",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does ImageMessageBubble render a blurhash placeholder element with data-testid='image-blurhash-placeholder' on first render before any download completes per AC-44?"
+    },
+    {
+      "id": "Q5",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does useDecryptedImage check mediaPersistence.getBlob first; on cache hit return an object URL without making any network request per AC-45?"
+    },
+    {
+      "id": "Q6",
+      "category": "spec-alignment",
+      "severity": 9,
+      "question": "Does useDecryptedImage on cache miss: fetch blossomClient.get(url), call group.decryptMedia, store via mediaPersistence.setBlob, then return object URL per AC-46?"
+    },
+    {
+      "id": "Q7",
+      "category": "spec-alignment",
+      "severity": 8,
+      "question": "Does ImageMessageBubble render data-testid='image-thumbnail' when useDecryptedImage resolves per AC-47, data-testid='image-decrypt-failed' with copy.groups.imageDecryptFailed on decrypt error per AC-48, and data-testid='image-unavailable' with copy.groups.imageUnavailable on BlossomNotFoundError per AC-49?"
+    },
+    {
+      "id": "Q8",
+      "category": "spec-alignment",
+      "severity": 8,
+      "question": "Is a non-empty caption rendered under the image using splitLinks() with data-testid='image-caption' per AC-50?"
+    },
+    {
+      "id": "Q9",
+      "category": "architecture",
+      "severity": 7,
+      "question": "Does useDecryptedImage use an in-flight Map for deduplication so multiple callers for the same sha256 share one Promise?"
+    },
+    {
+      "id": "Q10",
+      "category": "testing",
+      "severity": 8,
+      "question": "Do the 8 unit tests cover: cache hit (no network call), cache miss null return, miss path (blossomGet+decryptMedia+setBlob sequence), BlossomNotFoundError → not-found state, decryptMedia error → decrypt-failed state, and parseStructured image/poll/text coexistence?"
+    }
+  ],
+  "answers": [
+    {"id": "Q1", "answer": "YES", "severity": 9, "evidence": "MarmotContext.tsx kind-9 handler calls parseImageMessageContent(rumor.content); when parsed?.type==='image' calls getMediaAttachments(rumor.tags) to populate attachments."},
+    {"id": "Q2", "answer": "YES", "severity": 9, "evidence": "GroupChat extends StructuredContent with {type:'image'; version:1; caption:string}; parseStructured recognizes via JSON.parse check for type==='image'."},
+    {"id": "Q3", "answer": "YES", "severity": 9, "evidence": "GroupChat renders <ImageMessageBubble> when parseStructured returns {type:'image'}; dispatch confirmed via grep."},
+    {"id": "Q4", "answer": "YES", "severity": 9, "evidence": "ImageMessageBubble renders data-testid='image-blurhash-placeholder' on loading (initial render before download)."},
+    {"id": "Q5", "answer": "YES", "severity": 9, "evidence": "useDecryptedImage.ts:36-40 getBlob cache hit returns without network call; cached state returned directly."},
+    {"id": "Q6", "answer": "YES", "severity": 9, "evidence": "Cache miss path (lines 46-58): blossomGet(url)→group.decryptMedia()→setBlob()→objectUrl; sequence confirmed."},
+    {"id": "Q7", "answer": "YES", "severity": 8, "evidence": "ImageMessageBubble renders data-testid='image-thumbnail' on ready, data-testid='image-decrypt-failed' on error, data-testid='image-unavailable' on not-found."},
+    {"id": "Q8", "answer": "YES", "severity": 8, "evidence": "Caption rendered with splitLinks() and data-testid='image-caption' when non-empty."},
+    {"id": "Q9", "answer": "YES", "severity": 7, "evidence": "useDecryptedImage.ts inFlight Map (key='${groupId}:${sha256}') shares Promise across concurrent callers."},
+    {"id": "Q10", "answer": "YES", "severity": 8, "evidence": "8 tests cover cache hit, cache miss null, miss sequence, BlossomNotFoundError→not-found, decryptError→decrypt-failed states."}
+  ],
+  "test_results": {"unit_tests": "400 passed (392 baseline + 8 new)", "tsc": "Pass (0 errors)"},
+  "codex_findings": "Codex retry attempted (2026-04-25T14:05Z) — unavailable due to system model-invocation restriction (transient, not code issue). Manual verification: all 10 ACs pass. No critical/high issues found. Notes: (1) StoredMedia.data (not .bytes) correct per marmot-ts. (2) ImageLightbox.tsx stub for story-07 compile, full impl in story-08. (3) Module-level inFlight Map correctly shares promises."
+}

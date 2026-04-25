@@ -1,0 +1,19 @@
+{
+  "story_id": "story-04-blossom-client",
+  "status": "done",
+  "files_created": [
+    "app/src/lib/media/blossomClient.ts",
+    "app/tests/unit/media/blossomClient.test.ts"
+  ],
+  "files_modified": [],
+  "test_counts": {
+    "vitest_passed": 373,
+    "vitest_failed": 0,
+    "new_tests": 12,
+    "tsc_errors": 0
+  },
+  "summary": "Created blossomClient.ts with buildBlossomAuthEvent(signer, ciphertextSha256) producing kind-24242 BUD-01 auth events, put(encryptedBytes, signer, onProgress?) with 3-retry exponential backoff (RETRY_DELAYS=[500,1500,5000]ms), and get(blobUrl) returning Uint8Array. BlossomUploadError thrown on 4xx immediately and after 3 retries on 5xx. BlossomNotFoundError thrown specifically on 404. Auth header encoded as 'Nostr <base64(JSON)>'. BLOSSOM_BASE_URL sourced from config/blossom.ts. RETRY_DELAYS exported for test override. 12 unit tests cover all AC paths using vi.stubGlobal fetch mock and 0ms override for retry delays.",
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-04-25T13:32:00Z"
+}

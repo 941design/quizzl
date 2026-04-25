@@ -1,0 +1,72 @@
+{
+  "focus": "testing-and-conventions",
+  "summary": "Vitest runs in Node (no jsdom/happy-dom, no setupFiles) — every test is self-contained; IDB is mocked inline per file via vi.mock('idb-keyval', ...) with a closure-scoped Map; Web Crypto polyfilled via Object.defineProperty(globalThis, 'crypto', ...). E2E uses two BrowserContexts per user with describe.serial, bootUser+clearAppState helpers, real strfry relay via Docker. No fetch mocking (MSW absent), no page.route ever used — image-sharing will be the first.",
+  "vitest": {
+    "config_path": "app/vitest.config.ts",
+    "environment": "node (default — NO jsdom, NO happy-dom)",
+    "setup_files": [],
+    "alias": "@ -> app/ root",
+    "include": "tests/unit/**/*.test.ts",
+    "indexeddb_setup": "NO fake-indexeddb. Each test file mocks idb-keyval inline at top: `vi.mock('idb-keyval', () => { const store = new Map(); return { get: ..., set: ..., del: ..., keys: ..., entries: ..., createStore: () => ({}) }; });` then `beforeEach(() => store.clear())`. For multi-store callers (createStore-based), use a Record<storeName, Record<key, value>> backing.",
+    "subtle_crypto_setup": "Not currently used in tests. Pattern for future: `Object.defineProperty(globalThis, 'crypto', { value: { getRandomValues: vi.fn(...), subtle: { digest: vi.fn(...), encrypt: vi.fn(...) } }, writable: true })` BEFORE `await import` of the SUT.",
+    "fetch_mocking_pattern": "NONE in tests/unit/ today — codebase avoids direct fetch in unit-tested code paths. For image-sharing: dependency-inject the upload function into useImageSend OR mock the wrapper module via vi.mock('@/src/lib/media/blossomClient', ...). Do NOT introduce MSW.",
+    "example_unit_test": "app/tests/unit/linkify.test.ts:1 (pure utility — no mocks)",
+    "example_persistence_test": "app/tests/unit/marmot/pollPersistence.test.ts:1 (canonical Map-backed idb-keyval mock)",
+    "example_complex_persistence_test": "app/tests/unit/backup/relayBackup.test.ts:1 (multi-store IDB + NDK mock + localStorage mock)",
+    "example_crypto_polyfill": "app/tests/unit/marmot/inviteLinkGeneration.test.ts:11 (Object.defineProperty pattern)",
+    "dynamic_import_after_mock": "Standard pattern: top-level `await import(...)` AFTER all vi.mock(...) calls (pollPersistence.test.ts:13)"
+  },
+  "playwright": {
+    "config_paths": ["app/playwright.config.ts", "app/playwright.local.config.ts"],
+    "config_logic": "playwright.config.ts:3 detects E2E_GROUPS=1 to switch testMatch to groups-*.spec.ts only with raised timeouts (120s test, 30s action, 30s expect). Single chromium project, workers:1, fullyParallel:false, retries 2 on CI. baseURL from BASE_URL env injected by scripts/run-e2e.mjs.",
+    "two_tab_pattern": "app/tests/e2e/groups-invite-link.spec.ts:9 (bootUser inline). Each logical user = one BrowserContext + one Page; contexts created in test.beforeAll; closed in test.afterAll. test.describe.serial for ordered tests sharing state.",
+    "boot_user_helper": "Each spec defines bootUser inline (not imported). Calls browser.newContext({baseURL}) -> context.addInitScript(injectIdentity) -> page.goto('/') -> clearAppState(page) -> page.reload() -> page.goto('/groups/').",
+    "auth_helpers": "app/tests/e2e/helpers/auth-helpers.ts:1 — deterministic USER_A/USER_B/USER_C keypairs (seedHex 'aa'.repeat(16) etc.); computeTestKeypairs() + context.addInitScript for identity injection.",
+    "clear_state_helper": "app/tests/e2e/helpers/clear-state.ts:1 — deletes all named IndexedDB databases and lp_* localStorage keys via page.evaluate. Lists known DB names at lines 3-11 — NEW media IDB stores MUST be added there.",
+    "group_invite_join_helper": "app/tests/e2e/groups-polls.spec.ts:47 — inviteAndJoin(inviterPage, inviteeNpub, inviteePage, groupName). Defined inline per spec, not centralized. Image-sharing E2E should follow same inline-helper convention.",
+    "network_intercept_pattern": "ZERO uses of page.route or context.route exist anywhere. First user will establish the pattern. Image-sharing failure-mode E2E will be the first to use page.route('**/upload', route => route.fulfill({status: 500})).",
+    "fixtures_dir": "DOES NOT EXIST. Need to create app/tests/fixtures/ with a known image (e.g., test-image.png). Use a small PNG so test runs are fast.",
+    "expect_poll_pattern": "groups-invite-link.spec.ts:128 — `await expect.poll(async () => { ... }, { timeout, intervals })` for relay-delivered events without hard waits.",
+    "selectors": "data-testid exclusively via getByTestId() or locator('[data-testid^=...]'). No CSS classes or text in selectors except for content assertions. New components MUST add data-testid attributes."
+  },
+  "ci": "NONE. No .github/workflows/. All test gates are local only.",
+  "typecheck_cmd": "cd app && npx tsc --noEmit (no script in package.json, not in Makefile). tsconfig excludes playwright.config.ts and tests/.",
+  "lint_cmd": "cd app && npm run lint (= next lint, eslint-config-next defaults, no .eslintrc, no Prettier).",
+  "make_targets": {
+    "dev": "make dev — starts Next dev server with platform stamping (CLAUDE.md: must go through make)",
+    "test_unit": "make test-unit — runs vitest run via app/",
+    "test_e2e": "make test-e2e — non-groups e2e (no relay)",
+    "test_e2e_groups": "make test-e2e-groups — runs `make e2e-up` (Docker strfry on :7777), then E2E_GROUPS=1 via scripts/run-e2e.mjs, then `make e2e-down`",
+    "typecheck": "NOT a Makefile target — use `cd app && npx tsc --noEmit` manually",
+    "lint": "NOT a top-level Makefile target — use `cd app && npm run lint`"
+  },
+  "scripts_run_e2e": "scripts/run-e2e.mjs finds free port, starts next dev, waits, spawns playwright with BASE_URL injected. In groups mode also waits for strfry on 7777.",
+  "language_skills_guidance": "absent — /Users/mrother/Projects/941design/quizzl/skills/ does not exist",
+  "established_patterns": [
+    "Inline IDB mock per file (Map closure)",
+    "globalThis polyfill via Object.defineProperty for Web APIs (crypto, localStorage)",
+    "Top-level await import AFTER vi.mock() calls",
+    "test.describe.serial + beforeAll context creation + afterAll cleanup",
+    "bootUser helper inline per spec",
+    "expect.poll for relay delivery",
+    "data-testid selectors only"
+  ],
+  "image_sharing_test_strategy": {
+    "unit_tests_needed": [
+      "imageProcessing.test.ts — verify dimensions <= MAX_EDGE, blurhash format, EXIF stripping (will need Web Worker fallback path tested OR move processing to main thread for v1)",
+      "imetaTag.test.ts — round-trip build -> parseMediaImetaTag — verify both role:full and role:thumb",
+      "imageMessage.test.ts — JSON envelope round-trip, malformed input rejection, coexistence with poll discriminator",
+      "mediaPersistence.test.ts — set/get/del with Map mock; cleanup on group leave; per-group keying"
+    ],
+    "blossom_client_test_strategy": "Cannot unit-test fetch directly. Either: (a) inject upload fn into useImageSend, OR (b) mock the blossomClient module in callers' tests. Recommend (b) — keep unit-testable helpers (BUD-01 auth event construction, retry policy) as pure functions in their own file, test those.",
+    "e2e_test_needed": "groups-image-sharing.spec.ts — two-tab scenario hitting Docker strfry. NEEDS new tests/fixtures/test-image.png. NEEDS first use of page.route to mock /upload (Blossom is external network) — either intercept and serve from in-memory map, or run a tiny local Blossom mock server. Likely simpler: page.route to capture PUT, store in memory, intercept GET to return it.",
+    "fixtures_to_create": [
+      "app/tests/fixtures/test-image.png (small valid PNG ~10KB)"
+    ]
+  },
+  "open_questions": [
+    "How should blossom uploads be intercepted in E2E given no real Blossom server is in Docker compose? Options: (1) page.route in-memory store, (2) add a tiny blossom mock to docker-compose.e2e.yml. (1) is faster to ship.",
+    "Should we add a typecheck Makefile target as part of this epic? Currently manual. Recommend yes for verifier gate.",
+    "Where do clear-state.ts IDB DB names get added — manually each time? Architect must remember to update it for the new media DB."
+  ]
+}

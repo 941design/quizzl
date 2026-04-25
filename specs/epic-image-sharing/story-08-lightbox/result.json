@@ -1,0 +1,20 @@
+{
+  "story_id": "story-08-lightbox",
+  "status": "done",
+  "final_outcome": "accepted",
+  "verification_rounds": 1,
+  "completed_at": "2026-04-25T14:22:00Z",
+  "files_created": [],
+  "files_modified": [
+    "app/src/components/groups/ImageLightbox.tsx",
+    "app/src/components/groups/ImageMessageBubble.tsx",
+    "app/src/components/groups/GroupChat.tsx"
+  ],
+  "test_counts": {
+    "vitest_passed": 400,
+    "vitest_failed": 0,
+    "new_tests": 0,
+    "tsc_errors": 0
+  },
+  "summary": "Replaced ImageLightbox.tsx stub with full Chakra Modal (size='full', closeOnEsc, closeOnOverlayClick). Renders full-res image via useDecryptedImage with data-testid='lightbox-image'. Download button (data-testid='lightbox-download') constructs filename as <senderShortId>-<YYYYMMDD-HHmm>.<ext> using senderPubkey+createdAt passed from ImageMessageBubble. Close button (data-testid='lightbox-close') calls onClose. ImageMessageBubble updated to accept senderPubkey and createdAt props and pass them through. GroupChat updated to pass msg.senderPubkey and msg.createdAt to ImageMessageBubble. No new unit tests per story test strategy (thin modal wrapper; interaction coverage from E2E story-09). tsc clean, 400/400 tests passing."
+}

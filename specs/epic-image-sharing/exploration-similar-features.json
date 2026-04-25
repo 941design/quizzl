@@ -1,0 +1,142 @@
+{
+  "focus": "similar-features",
+  "summary": "The group chat send/receive pipeline uses MLS application rumors (kind 9 for text, kind 10/11/12 for polls) with a JSON discriminated-union content field that parseStructured() dispatches to dedicated bubble components. Polls establish the complete pattern for adding a new message type: a new kind constant, a serialise/parse module, a persistence module, a context action, and a new arm in parseStructured plus a matching bubble component. The marmot-ts library already ships MIP-04 v2 encrypt/decrypt helpers (MarmotGroup.encryptMedia / decryptMedia) and the full MediaAttachment type; no media pipeline exists in the app yet so there is nothing to reconcile.",
+  "key_files": [
+    {
+      "path": "app/src/components/groups/GroupChat.tsx",
+      "lines": "68-82",
+      "purpose": "Defines StructuredContent discriminated union and parseStructured(); this is where a new image_share arm must be added to dispatch to an ImageBubble component"
+    },
+    {
+      "path": "app/src/context/ChatStoreContext.tsx",
+      "lines": "116-138",
+      "purpose": "Receives applicationMessage events, calls deserializeApplicationData, filters on CHAT_MESSAGE_KIND, persists to IDB and deduplicates by id; also owns the optimistic send path with tempId (lines 167-195)"
+    },
+    {
+      "path": "app/src/lib/marmot/chatPersistence.ts",
+      "lines": "1-65",
+      "purpose": "idb-keyval persistence for chat messages; defines ChatMessage shape, keying convention (quizzl:messages:{groupId}), dedup-safe serial appendMessage queue"
+    },
+    {
+      "path": "app/src/context/MarmotContext.tsx",
+      "lines": "71-109",
+      "purpose": "buildRumor() helper (lines 97-109) that produces hashed MIP-03 rumors; sendRumorSafe() wrapper; group subscription dispatch switch (lines 547-614) where new kinds are handled"
+    },
+    {
+      "path": "app/src/lib/marmot/pollSync.ts",
+      "lines": "1-112",
+      "purpose": "Reference implementation of the serialise/parse pattern for a non-chat kind (10/11/12); the image module should mirror this structure"
+    },
+    {
+      "path": "app/src/context/PollStoreContext.tsx",
+      "lines": "98-111",
+      "purpose": "Shows how buildRumor + sendRumorSafe are used for non-chat kinds; also shows how sendChatMessage is called to post the JSON-discriminated chat announcement alongside the MLS message"
+    },
+    {
+      "path": "app/node_modules/@internet-privacy/marmot-ts/dist/client/group/marmot-group.d.ts",
+      "lines": "331-365",
+      "purpose": "Exact signatures for MarmotGroup.encryptMedia and decryptMedia; defines BaseGroupMedia interface and StoredMedia type; documents that media factory param is optional"
+    },
+    {
+      "path": "app/node_modules/@internet-privacy/marmot-ts/dist/core/media.d.ts",
+      "lines": "1-210",
+      "purpose": "MediaAttachment type, MIP04_VERSION constant, parseMediaImetaTag, getMediaAttachments, encryptMediaFile, decryptMediaFile — all low-level helpers available for direct use if not using the MarmotGroup wrappers"
+    },
+    {
+      "path": "app/src/lib/i18n.ts",
+      "lines": "1-362",
+      "purpose": "Copy type definition and both en/de implementations; new image-sharing strings must be added as a new groups.image* or top-level images section following the same pattern"
+    },
+    {
+      "path": "app/src/components/groups/CreatePollModal.tsx",
+      "lines": "1-224",
+      "purpose": "Reference Chakra Modal pattern with isCentered, size=lg, ModalOverlay/ModalContent/ModalHeader/ModalBody/ModalFooter/ModalCloseButton, useCopy, error Alert"
+    }
+  ],
+  "send_pipeline_trace": [
+    "1. User types text in GroupChat.tsx Textarea, presses Enter or Send button",
+    "2. handleSend() calls sendMessage(content) from useChatStore() [GroupChat.tsx:153]",
+    "3. ChatStoreContext.sendMessage(): creates optimistic ChatMessage with tempId = crypto.randomUUID(), pushes it to messages state immediately [ChatStoreContext.tsx:173-181]",
+    "4. Calls sendChatSafe(group, content) which calls group.sendChatMessage(content) [ChatStoreContext.tsx:35-47] — this is the MarmotGroup convenience wrapper that builds a kind 9 rumor internally",
+    "5. On success, calls appendMessage(groupId, optimistic) to persist the optimistic record to IDB [ChatStoreContext.tsx:186]",
+    "6. On failure, removes the optimistic message from state and rethrows so GroupChat can restore the input [ChatStoreContext.tsx:189-192]",
+    "NOTE for polls/images (non-text kinds): PollStoreContext builds a rumor manually via buildRumor(kind, JSON.stringify(payload), pubkey, tags), then calls sendRumorSafe(group, rumor) which calls group.sendApplicationRumor(rumor) [PollStoreContext.tsx:81-96, 199-200]. After that it calls sendChatMessage(JSON.stringify({type:'poll_open',...})) to create the chat bubble [PollStoreContext.tsx:202-209]"
+  ],
+  "receive_pipeline_trace": [
+    "1. Nostr relay delivers encrypted kind 445 event to the NdkNetworkAdapter",
+    "2. MarmotGroup.ingest() processes the MLS ciphertext and, on success, emits 'applicationMessage' with the raw Uint8Array payload [marmot-group.d.ts:141-143]",
+    "3. ChatStoreContext handler (registered via group.on('applicationMessage', handler)) [ChatStoreContext.tsx:116-138] calls deserializeApplicationData(data) to decode the Rumor",
+    "4. If rumor.kind === CHAT_MESSAGE_KIND (9): builds ChatMessage, calls appendMessage for IDB persistence, then deduplicates by id before pushing to messages state",
+    "5. Additionally, MarmotContext.subscribeToGroupMessages callback receives the same decoded rumor [MarmotContext.tsx:512-614]: dispatches by kind — CHAT (9) goes to appendMessage + setChatVersion bump; POLL_OPEN (10), POLL_VOTE (11), POLL_CLOSE (12) go to poll persistence + setPollVersion bump",
+    "6. ChatStoreContext also listens on chatVersion prop (from MarmotContext): whenever it bumps, it re-reads IDB and merges any newly persisted messages [ChatStoreContext.tsx:155-165]",
+    "7. GroupChat.tsx renders messages array: for each message, calls parseStructured(msg.content); if poll_open -> PollChatAnnouncement; if poll_close -> PollChatResults; else -> plain text bubble with splitLinks() [GroupChat.tsx:281-333]"
+  ],
+  "discriminated_content_pattern": {
+    "where_defined": "app/src/components/groups/GroupChat.tsx:68-82 — StructuredContent type union and parseStructured() function. The union currently has two members: {type:'poll_open'; pollId; title; creatorPubkey} and {type:'poll_close'; pollId; title; results; totalVoters}. Non-JSON content falls through to null (plain text path).",
+    "how_polls_use_it": "PollStoreContext.createPoll() serialises {type:'poll_open', pollId, title, creatorPubkey} as JSON and passes it to sendChatMessage() [PollStoreContext.tsx:202-209]. closePoll() serialises {type:'poll_close', pollId, title, results, totalVoters} [PollStoreContext.tsx:295-303]. GroupChat.tsx parseStructured() parses these and dispatches to PollChatAnnouncement / PollChatResults components.",
+    "how_to_extend_for_image": "Add a third arm to StructuredContent in GroupChat.tsx: {type:'image_share'; sha256: string; caption?: string} (or include enough metadata for the bubble to fetch+decrypt). Add a matching parseStructured case and render an ImageBubble component. The chat message carrying the imeta tag would be a kind 9 rumor where content is the JSON discriminator and the imeta tag is in rumor.tags — note the existing handler in ChatStoreContext only stores rumor.content, so tags would need to be preserved in ChatMessage or the image bubble must look up the MediaAttachment from a separate store keyed by sha256."
+  },
+  "marmot_ts_apis": {
+    "encryptMedia": {
+      "signature": "encryptMedia(blob: Blob, metadata: { filename: string; type?: string; dimensions?: string; blurhash?: string; alt?: string; size?: number }): Promise<{ encrypted: Uint8Array; attachment: MediaAttachment }>",
+      "file": "app/node_modules/@internet-privacy/marmot-ts/dist/client/group/marmot-group.d.ts:343-353",
+      "notes": "Instance method on MarmotGroup. Derives per-file key from current MLS epoch exporter secret (MIP-04 v2 ChaCha20-Poly1305). Returns encrypted bytes for Blossom upload and a fully populated MediaAttachment with nonce and plaintext sha256. Caller must set attachment.url after upload then pass to createImetaTagForAttachment."
+    },
+    "decryptMedia": {
+      "signature": "decryptMedia(encrypted: Uint8Array, attachment: MediaAttachment): Promise<StoredMedia>",
+      "file": "app/node_modules/@internet-privacy/marmot-ts/dist/client/group/marmot-group.d.ts:356-363",
+      "notes": "Instance method on MarmotGroup. Caches plaintext in group.media (GroupMediaStore). Returns StoredMedia = { data: Uint8Array; attachment: MediaAttachment }. Subsequent calls for same sha256 served from cache without re-deriving key."
+    },
+    "parseMediaImetaTag": {
+      "signature": "parseMediaImetaTag(tag: string[]): MediaAttachment | null",
+      "file": "app/node_modules/@internet-privacy/marmot-ts/dist/core/media.d.ts:179",
+      "notes": "Parses a raw imeta tag array. Returns null if v field is absent/not 'mip04-v2', n (nonce) is absent/not 24 hex chars, filename absent/empty, x (sha256) absent/not 64 hex chars, or m (MIME type) invalid. Rejects deprecated mip04-v1."
+    },
+    "getMediaAttachments": {
+      "signature": "getMediaAttachments(tags: string[][]): MediaAttachment[]",
+      "file": "app/node_modules/@internet-privacy/marmot-ts/dist/core/media.d.ts:189",
+      "notes": "Filters a full rumor.tags array, applies parseMediaImetaTag to each, silently skips non-imeta and invalid MIP-04 tags. Returns possibly-empty array."
+    },
+    "MediaAttachment_type": "Omit<FileMetadata, 'sha256' | 'type'> & Required<Pick<FileMetadata, 'sha256' | 'type'>> & { filename: string; nonce: string; version: 'mip04-v2' }. Fields: url (set after Blossom upload), type (MIME, required), sha256 (plaintext hex, required), filename (required, used in key derivation), nonce (12-byte hex, required for decryption), version='mip04-v2', plus optional FileMetadata fields: size, dimensions, blurhash, alt, thumbnail, etc. Defined at app/node_modules/@internet-privacy/marmot-ts/dist/core/media.d.ts:30-47.",
+    "MarmotGroup_media_factory": "Optional constructor option: media?: TMedia | GroupMediaFactory<TMedia> where GroupMediaFactory<TMedia> = (groupId: Uint8Array) => TMedia and TMedia extends BaseGroupMedia. BaseGroupMedia interface: { addMedia(sha256, entry): Promise<void>; getMedia(sha256): Promise<StoredMedia|null>; removeMedia(sha256): Promise<void>; listMedia(): Promise<MediaAttachment[]>; clearMedia(): Promise<void> }. The shipped GroupMediaStore class (dist/client/group/group-media-store.d.ts) implements BaseGroupMedia with an optional KeyValueStoreBackend — pass an idb-keyval backend for persistence. Defaults to in-memory cache when not provided.",
+    "applesauce_helpers": "createImetaTagForAttachment(attachment: FileMetadata): string[] and getFileMetadataFromImetaTag(tag: string[]): FileMetadata — from applesauce-common/dist/helpers/file-metadata.d.ts:41-52. Note: applesauce's FileMetadata does NOT include MIP-04 fields (filename, nonce, version); use marmot-ts's parseMediaImetaTag for MIP-04-aware parsing."
+  },
+  "send_application_rumor": {
+    "signature": "sendApplicationRumor(rumor: Rumor): Promise<Record<string, PublishResponse>>",
+    "file": "app/node_modules/@internet-privacy/marmot-ts/dist/client/group/marmot-group.d.ts:232",
+    "rumor_type": "Rumor = UnsignedEvent & { id: string } where UnsignedEvent = { kind: number; pubkey: string; created_at: number; tags: string[][]; content: string }. The id must be a valid Nostr event hash (getEventHash from applesauce-core/helpers/event).",
+    "how_app_builds_it": "buildRumor() helper in MarmotContext.tsx:97-109 and PollStoreContext.tsx:99-111 builds { id:'', kind, pubkey, created_at, content, tags }, then sets id = getEventHash(rumor). The app casts to any when calling sendApplicationRumor due to minor type mismatch. For image messages, tags would include the imeta tag array built by createImetaTagForAttachment."
+  },
+  "i18n_pattern": "All user-visible strings are defined in app/src/lib/i18n.ts in the Copy type (lines 3-361) with both en and de objects (lines 373-1112). Components import useCopy() from @/src/context/LanguageContext (line 60-63) which calls getCopy(language) and returns the full Copy object. Access via copy.groups.xxx, copy.polls.xxx etc. Dynamic strings use function signatures e.g. (count: number) => string. New image strings must be added to the Copy type, and to both the en and de objects. The groups section already has 50+ keys; a new 'images' top-level section or extension of 'groups' would follow the same pattern.",
+  "idb_keyval_conventions": "Two patterns are used: (1) Default idb-keyval store with namespaced string keys — used by chatPersistence (quizzl:messages:{groupId}), pollPersistence (quizzl:polls:{groupId}, quizzl:poll-votes:{pollId}). Direct import of { get, set, del } from 'idb-keyval'. (2) Named IDB stores via createStore() — used by groupStorage.ts (quizzl-groups-meta, quizzl-groups-state, quizzl-keypackages, quizzl-member-scores, quizzl-member-profiles), inviteLinkStorage (quizzl-invite-links), joinRequestStorage (quizzl-join-requests). For new media blob persistence, pattern (2) with createStore('quizzl-media-blobs', 'blobs') would match groupStorage convention; pattern (1) with key quizzl:media:{groupId}:{sha256} would match chatPersistence convention. Concurrent write serialization via a Promise queue map is established in chatPersistence.ts:34-50 and reused in pollPersistence.ts:67-78.",
+  "linkify_api": "app/src/lib/linkify.ts exports: type LinkifyToken = {type:'text';value:string} | {type:'link';value:string}; function splitLinks(text: string): LinkifyToken[]. Splits a string on http(s) URLs, strips trailing punctuation from URLs, returns array of text and link tokens. Used in GroupChat.tsx:314-329 to render plain-text bubbles with clickable links. The image bubble caption should pass its text through splitLinks() the same way.",
+  "chakra_modal_examples": [
+    {
+      "path": "app/src/components/groups/CreatePollModal.tsx",
+      "purpose": "Standard Modal pattern: Modal isOpen/onClose/isCentered/size='lg', ModalOverlay, ModalContent, ModalHeader, ModalCloseButton, ModalBody with VStack, ModalFooter with cancel+submit buttons, error Alert with AlertIcon/AlertDescription, useCopy for all strings"
+    },
+    {
+      "path": "app/src/components/groups/InviteMemberModal.tsx",
+      "purpose": "Shows useDisclosure() hook for nested modals (scan QR), pattern for loading/error/success states within a modal"
+    },
+    {
+      "path": "app/src/components/groups/NpubQrModal.tsx",
+      "purpose": "Modal that displays an image (QR code) with Image component inside ModalBody VStack — closest analog to a lightbox displaying a decrypted image; uses size default (not fullscreen)"
+    },
+    {
+      "path": "app/src/components/groups/GenerateInviteLinkModal.tsx",
+      "purpose": "Another Modal example with async submit flow and copy-to-clipboard button; shows isCentered pattern"
+    }
+  ],
+  "existing_file_handling": "None. No file picker (input[type=file]), no Blob upload, no image upload flow exists anywhere in app/src/. The only image rendering in GroupChat is the sender avatar (Chakra Image component from a URL string in profileMap). There is no Blossom client, no multipart form POST, no FileReader usage. The feature must be built from scratch.",
+  "open_questions": [
+    "ChatMessage shape only stores content (string) and no tags field — a kind 9 image rumor would carry the imeta tag in rumor.tags, which is currently dropped before IDB persistence (ChatStoreContext.tsx:121-127). The ChatMessage type and appendMessage must be extended to persist tags, OR a separate mediaAttachments store keyed by sha256 must be populated in parallel.",
+    "The optimistic send path (ChatStoreContext sendMessage) calls group.sendChatMessage(content) which builds the rumor internally with no tags parameter — for image messages a custom rumor built via buildRumor + sendApplicationRumor (as polls do) would be needed. sendChatMessage does accept an optional tags param (marmot-group.d.ts:250), so it could be used with the imeta tag passed as tags.",
+    "MarmotClient is constructed without a mediaFactory in MarmotContext.tsx:262-268 — group.media will default to an in-memory cache. To persist decrypted blobs across page reloads, a GroupMediaFactory backed by an idb-keyval KeyValueStoreBackend must be created and passed at construction time. This requires changing the MarmotClient instantiation.",
+    "Blossom upload: the app has no Blossom client. The feature needs to choose a Blossom server URL (user-configurable? hardcoded default?) and implement a fetch-based upload of the encrypted Uint8Array. The Blossom SHA-256 URL scheme requires the URL to be deterministic from the encrypted blob hash, not the plaintext hash.",
+    "The media factory/store for GroupMediaStore uses sha256 of PLAINTEXT as the key (per marmot-group.d.ts comments) but Blossom URLs are addressed by sha256 of the ENCRYPTED blob. Both hashes need to be tracked: plaintext sha256 is in attachment.sha256 (for IDB cache key), encrypted sha256 is needed to construct the Blossom URL.",
+    "Does the receive pipeline in MarmotContext subscribeToGroupMessages already handle kind 9 rumors with imeta tags, or does the kind 9 branch only extract rumor.content? Currently it only reads rumor.content and rumor.pubkey (MarmotContext.tsx:547-559). Tag extraction would need to be added.",
+    "No fullscreen/lightbox modal example exists — the largest modal is size='lg'. A lightbox for viewing a full-size image would need size='full' or 'xl' with a custom layout. Chakra supports size='full' but no example is in the codebase yet.",
+    "The quizzl static export (output: 'export') means no server-side API routes are available. Blossom upload must be a direct client-to-server fetch without a proxy. Auth token (NIP-98) signing must happen in the browser using the existing signerAdapter."
+  ]
+}
