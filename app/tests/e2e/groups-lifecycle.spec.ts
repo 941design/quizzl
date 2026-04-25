@@ -75,7 +75,7 @@ test.describe.serial('Group Lifecycle', () => {
   test('User A invites User B by npub', async () => {
     await dismissErrorOverlay(pageA);
     // Click on the group to open detail
-    await pageA.locator(':has-text("E2E Test Group")').getByRole('link', { name: 'Open' }).click();
+    await pageA.locator(`[data-testid^="group-card-"]`, { hasText: 'E2E Test Group' }).click();
     await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
     // Open invite modal
@@ -111,7 +111,7 @@ test.describe.serial('Group Lifecycle', () => {
   test('User B leaves group (soft-leave, no MLS proposal)', async () => {
     await dismissErrorOverlay(pageB);
     // Click on the group
-    await pageB.locator(':has-text("E2E Test Group")').getByRole('link', { name: 'Open' }).click();
+    await pageB.locator(`[data-testid^="group-card-"]`, { hasText: 'E2E Test Group' }).click();
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
     // Soft-leave: purges local state only — no MLS Remove proposal is sent,

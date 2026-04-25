@@ -51,7 +51,7 @@ test.describe.serial('Score Sync via MLS', () => {
     await dismissErrorOverlay(pageA);
 
     // User A invites User B
-    await pageA.locator(':has-text("Score Sync Group")').getByRole('link', { name: 'Open' }).click();
+    await pageA.locator(`[data-testid^="group-card-"]`, { hasText: 'Score Sync Group' }).click();
     await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
     await pageA.getByTestId('invite-member-btn').click();
     await expect(pageA.getByTestId('invite-member-modal-content')).toBeVisible();
@@ -128,7 +128,7 @@ test.describe.serial('Score Sync via MLS', () => {
       pageB.getByTestId('groups-empty-state').or(pageB.getByTestId('groups-list')),
     ).toBeVisible({ timeout: 60_000 });
     await dismissErrorOverlay(pageB);
-    await pageB.locator(':has-text("Score Sync Group")').getByRole('link', { name: 'Open' }).click();
+    await pageB.locator(`[data-testid^="group-card-"]`, { hasText: 'Score Sync Group' }).click();
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
     // Score propagation: A's sendApplicationRumor → relay → B's live sub → ingest → IndexedDB.
@@ -143,7 +143,7 @@ test.describe.serial('Score Sync via MLS', () => {
         pageB.getByTestId('groups-empty-state').or(pageB.getByTestId('groups-list')),
       ).toBeVisible({ timeout: 60_000 });
       await dismissErrorOverlay(pageB);
-      await pageB.locator(':has-text("Score Sync Group")').getByRole('link', { name: 'Open' }).click();
+      await pageB.locator(`[data-testid^="group-card-"]`, { hasText: 'Score Sync Group' }).click();
       await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
     }
 

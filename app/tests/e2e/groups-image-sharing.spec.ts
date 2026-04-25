@@ -73,7 +73,7 @@ test.describe.serial('Image Sharing', () => {
 
   test('User A invites User B', async () => {
     await dismissErrorOverlay(pageA);
-    await pageA.locator(':has-text("Image Test Group")').getByRole('link', { name: 'Open' }).click();
+    await pageA.locator(`[data-testid^="group-card-"]`, { hasText: 'Image Test Group' }).click();
     await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
     await pageA.getByTestId('invite-member-btn').click();
     await expect(pageA.getByTestId('invite-member-modal-content')).toBeVisible();
@@ -90,7 +90,7 @@ test.describe.serial('Image Sharing', () => {
       pageB.getByTestId('groups-empty-state').or(pageB.getByTestId('groups-list')),
     ).toBeVisible({ timeout: 60_000 });
     await expect(pageB.getByText('Image Test Group')).toBeVisible({ timeout: 60_000 });
-    await pageB.locator(':has-text("Image Test Group")').getByRole('link', { name: 'Open' }).click();
+    await pageB.locator(`[data-testid^="group-card-"]`, { hasText: 'Image Test Group' }).click();
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
     await dismissErrorOverlay(pageB);
   });
@@ -156,8 +156,8 @@ test.describe.serial('Image Sharing', () => {
     await pageA.goto('/groups/');
     await pageB.goto('/groups/');
 
-    await pageA.locator(':has-text("Image Test Group")').getByRole('link', { name: 'Open' }).click();
-    await pageB.locator(':has-text("Image Test Group")').getByRole('link', { name: 'Open' }).click();
+    await pageA.locator(`[data-testid^="group-card-"]`, { hasText: 'Image Test Group' }).click();
+    await pageB.locator(`[data-testid^="group-card-"]`, { hasText: 'Image Test Group' }).click();
 
     await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });

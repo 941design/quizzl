@@ -65,7 +65,7 @@ test.describe.serial('Group member profiles — names instead of npubs', () => {
     await dismissErrorOverlay(pageA);
 
     // Open group detail
-    await pageA.locator(':has-text("Profile Test Group")').getByRole('link', { name: 'Open' }).click();
+    await pageA.locator(`[data-testid^="group-card-"]`, { hasText: 'Profile Test Group' }).click();
     await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
     // Verify own member entry shows nickname "Alice", not a truncated npub
@@ -99,7 +99,7 @@ test.describe.serial('Group member profiles — names instead of npubs', () => {
 
     // User A navigates back to group detail to see updated member list
     await pageA.goto('/groups/');
-    await pageA.locator(':has-text("Profile Test Group")').getByRole('link', { name: 'Open' }).click();
+    await pageA.locator(`[data-testid^="group-card-"]`, { hasText: 'Profile Test Group' }).click();
     await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
     // Verify User B's member entry shows "Bob"
@@ -145,7 +145,7 @@ test.describe.serial('New member receives all existing member profiles', () => {
     await dismissErrorOverlay(pgA);
 
     // Open group detail
-    await pgA.locator(':has-text("Three Member Profile Group")').getByRole('link', { name: 'Open' }).click();
+    await pgA.locator(`[data-testid^="group-card-"]`, { hasText: 'Three Member Profile Group' }).click();
     await expect(pgA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
     // Wait for B to publish KeyPackages
@@ -174,7 +174,7 @@ test.describe.serial('New member receives all existing member profiles', () => {
     // A invites C
     await dismissErrorOverlay(pgA);
     await pgA.goto('/groups/');
-    await pgA.locator(':has-text("Three Member Profile Group")').getByRole('link', { name: 'Open' }).click();
+    await pgA.locator(`[data-testid^="group-card-"]`, { hasText: 'Three Member Profile Group' }).click();
     await expect(pgA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
     await pgA.getByTestId('invite-member-btn').click();
     await expect(pgA.getByTestId('invite-member-modal-content')).toBeVisible();
@@ -190,7 +190,7 @@ test.describe.serial('New member receives all existing member profiles', () => {
     await pgC.waitForTimeout(10_000);
 
     // C opens group detail
-    await pgC.locator(':has-text("Three Member Profile Group")').getByRole('link', { name: 'Open' }).click();
+    await pgC.locator(`[data-testid^="group-card-"]`, { hasText: 'Three Member Profile Group' }).click();
     await expect(pgC.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
     // C should see Alice's profile

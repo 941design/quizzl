@@ -45,7 +45,7 @@ async function createGroup(page: Page, name: string): Promise<void> {
 /** Navigate to a group's detail page. */
 async function openGroupDetail(page: Page, groupName: string): Promise<void> {
   await dismissErrorOverlay(page);
-  await page.locator(`:has-text("${groupName}")`).getByRole('link', { name: 'Open' }).click();
+  await page.locator(`[data-testid^="group-card-"]`, { hasText: groupName }).click();
   await expect(page.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 }
 

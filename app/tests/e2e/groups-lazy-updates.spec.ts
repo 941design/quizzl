@@ -40,7 +40,7 @@ async function createGroupAndOpen(page: Page, groupName: string): Promise<void> 
   await expect(page.getByText(groupName)).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('create-group-modal-content')).not.toBeVisible({ timeout: 10_000 });
   await dismissErrorOverlay(page);
-  await page.locator(`[data-testid^="group-card-"]`, { hasText: groupName }).getByRole('link', { name: 'Open' }).click();
+  await page.locator(`[data-testid^="group-card-"]`, { hasText: groupName }).click();
   await expect(page.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 }
 
@@ -67,7 +67,7 @@ async function inviteAndJoin(
 
 async function openGroupDetail(page: Page, groupName: string): Promise<void> {
   await page.goto('/groups/');
-  await page.locator(`[data-testid^="group-card-"]`, { hasText: groupName }).getByRole('link', { name: 'Open' }).click();
+  await page.locator(`[data-testid^="group-card-"]`, { hasText: groupName }).click();
   await expect(page.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 }
 

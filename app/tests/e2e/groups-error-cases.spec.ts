@@ -28,7 +28,7 @@ test.describe('Groups Error Cases', () => {
     await expect(page.getByTestId('create-group-modal-content')).not.toBeVisible({ timeout: 10_000 });
 
     // Open group detail and try to invite a random npub (no KeyPackages on relay)
-    await page.locator(':has-text("Error Test Group")').getByRole('link', { name: 'Open' }).click();
+    await page.locator(`[data-testid^="group-card-"]`, { hasText: 'Error Test Group' }).click();
     await expect(page.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
     await page.getByTestId('invite-member-btn').click();
     await expect(page.getByTestId('invite-member-modal-content')).toBeVisible();
@@ -51,7 +51,7 @@ test.describe('Groups Error Cases', () => {
     await expect(page.getByText('Invalid Npub Group')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('create-group-modal-content')).not.toBeVisible({ timeout: 10_000 });
 
-    await page.locator(':has-text("Invalid Npub Group")').getByRole('link', { name: 'Open' }).click();
+    await page.locator(`[data-testid^="group-card-"]`, { hasText: 'Invalid Npub Group' }).click();
     await expect(page.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
     await page.getByTestId('invite-member-btn').click();
     await expect(page.getByTestId('invite-member-modal-content')).toBeVisible();

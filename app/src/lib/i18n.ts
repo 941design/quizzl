@@ -311,7 +311,6 @@ type Copy = {
     chatHeading: string;
     groupNotFound: string;
     backToGroups: string;
-    openGroup: string;
     noMembersYet: string;
     memberPending: string;
     memberYou: string;
@@ -702,7 +701,6 @@ const copy: Record<LanguageCode, Copy> = {
       chatHeading: 'Chat',
       groupNotFound: 'Group not found.',
       backToGroups: 'Back to Groups',
-      openGroup: 'Open',
       noMembersYet: 'No members yet.',
       memberPending: 'Pending',
       memberYou: 'You',
@@ -1081,7 +1079,6 @@ const copy: Record<LanguageCode, Copy> = {
       chatHeading: 'Chat',
       groupNotFound: 'Gruppe nicht gefunden.',
       backToGroups: 'Zurück zu Gruppen',
-      openGroup: 'Öffnen',
       noMembersYet: 'Noch keine Mitglieder.',
       memberPending: 'Ausstehend',
       memberYou: 'Du',

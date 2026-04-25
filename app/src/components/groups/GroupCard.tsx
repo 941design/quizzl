@@ -5,7 +5,8 @@ import {
   VStack,
   Text,
   Badge,
-  Button,
+  LinkBox,
+  LinkOverlay,
 } from '@chakra-ui/react';
 import NextLink from 'next/link';
 import type { Group } from '@/src/types';
@@ -21,21 +22,27 @@ export default function GroupCard({ group }: GroupCardProps) {
   const nearLimit = memberCount >= 45;
 
   return (
-    <Box
+    <LinkBox
+      as="article"
       p={4}
       borderWidth="1px"
       borderRadius="lg"
       borderColor="borderSubtle"
       bg="surfaceBg"
+      cursor="pointer"
       _hover={{ borderColor: 'brand.400', bg: 'surfaceMutedBg' }}
       transition="all 0.15s"
       data-testid={`group-card-${group.id}`}
     >
       <HStack justify="space-between" align="flex-start" flexWrap="wrap" gap={2}>
         <VStack align="flex-start" spacing={1} flex={1} minW={0}>
-          <Text fontWeight="semibold" fontSize="md" noOfLines={1}>
-            {group.name}
-          </Text>
+          <NextLink href={`/groups?id=${group.id}`} passHref legacyBehavior>
+            <LinkOverlay>
+              <Text fontWeight="semibold" fontSize="md" noOfLines={1}>
+                {group.name}
+              </Text>
+            </LinkOverlay>
+          </NextLink>
           <HStack spacing={2}>
             <Badge
               colorScheme={nearLimit ? 'warning' : 'brand'}
@@ -51,18 +58,7 @@ export default function GroupCard({ group }: GroupCardProps) {
             )}
           </HStack>
         </VStack>
-
-        <NextLink href={`/groups?id=${group.id}`} passHref legacyBehavior>
-          <Button
-            as="a"
-            size="sm"
-            variant="outline"
-            data-testid={`group-card-open-${group.id}`}
-          >
-            {copy.groups.openGroup}
-          </Button>
-        </NextLink>
       </HStack>
-    </Box>
+    </LinkBox>
   );
 }
