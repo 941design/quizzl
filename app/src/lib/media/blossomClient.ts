@@ -1,5 +1,8 @@
 import type { EventSigner } from 'applesauce-core';
 import { BLOSSOM_BASE_URL } from '@/src/config/blossom';
+import { createLogger } from '@/src/lib/logger';
+
+const log = createLogger('blossom');
 
 export class BlossomUploadError extends Error {
   constructor(message: string, public readonly status?: number) {
@@ -184,8 +187,14 @@ export async function put(
   ) as ArrayBuffer;
   const bodyHash = await sha256Hex(new Uint8Array(bodyBuffer));
 
+  const totalAttempts = RETRY_DELAYS.length + 1;
+  log.debug(
+    `upload start: ${encryptedBytes.byteLength} bytes, sha256=${bodyHash.slice(0, 16)}…, server=${BLOSSOM_BASE_URL}`,
+  );
+
   for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
     const authEvent = await buildBlossomAuthEvent(signer, bodyHash);
+    log.debug(`upload attempt ${attempt + 1}/${totalAttempts}`);
 
     try {
       const response = await fetchWithTimeout(
@@ -202,7 +211,10 @@ export async function put(
         'upload',
       );
 
+      log.debug(`upload response: ${response.status} ${response.statusText}`);
+
       if (response.status >= 400 && response.status < 500) {
+        log.debug(`upload terminal 4xx — not retrying (status=${response.status})`);
         throw new BlossomUploadError(
           `Upload rejected: ${response.status} ${response.statusText}`,
           response.status,
@@ -215,9 +227,11 @@ export async function put(
           response.status,
         );
         if (attempt < RETRY_DELAYS.length) {
+          log.debug(`upload http ${response.status} — retrying in ${RETRY_DELAYS[attempt]}ms`);
           await sleep(RETRY_DELAYS[attempt]);
           continue;
         }
+        log.debug(`upload exhausted retries (last status=${response.status})`);
         throw lastError;
       }
 
@@ -229,6 +243,7 @@ export async function put(
       // produce attachments every receiver rejects as BlossomOriginError.
       assertAllowedBlossomUrl(rawUrl);
       onProgress?.(100);
+      log.debug(`upload success on attempt ${attempt + 1}: ${rawUrl}`);
       return rawUrl;
     } catch (err) {
       if (err instanceof BlossomUploadError && err.status !== undefined && err.status < 500) {
@@ -237,11 +252,17 @@ export async function put(
       // Origin mismatch in the upload response is a server-config bug,
       // not a transient failure — fail immediately rather than retry.
       if (err instanceof BlossomOriginError) {
+        log.debug(`upload origin mismatch — not retrying: ${err.message}`);
         throw err;
       }
       lastError = err;
       if (attempt < RETRY_DELAYS.length) {
+        const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+        log.debug(`upload error — retrying in ${RETRY_DELAYS[attempt]}ms (${reason})`);
         await sleep(RETRY_DELAYS[attempt]);
+      } else {
+        const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+        log.debug(`upload exhausted retries (${reason})`);
       }
     }
   }
