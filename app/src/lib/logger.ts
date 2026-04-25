@@ -1,3 +1,5 @@
+import { getNextPublicLogLevel } from '@/src/lib/publicEnv';
+
 /**
  * Minimal namespaced logger. The active level is read from
  * `NEXT_PUBLIC_LOG_LEVEL` (one of: silent | error | warn | info | debug).
@@ -13,8 +15,7 @@ export type LogLevel = keyof typeof LEVELS;
 const DEFAULT_LEVEL: LogLevel = 'warn';
 
 function currentLevelValue(): number {
-  const raw =
-    (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_LOG_LEVEL) || DEFAULT_LEVEL;
+  const raw = getNextPublicLogLevel() || DEFAULT_LEVEL;
   const key = raw.toLowerCase() as LogLevel;
   return key in LEVELS ? LEVELS[key] : LEVELS[DEFAULT_LEVEL];
 }

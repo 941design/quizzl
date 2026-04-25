@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Flex,
@@ -36,6 +36,7 @@ import PendingRequestsSection from '@/src/components/groups/PendingRequestsSecti
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
 import GroupChat from '@/src/components/groups/GroupChat';
 import { ChatStoreProvider } from '@/src/context/ChatStoreContext';
+import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { PollStoreProvider } from '@/src/context/PollStoreContext';
 import PollPanel from '@/src/components/groups/PollPanel';
 import CreatePollModal from '@/src/components/groups/CreatePollModal';
@@ -49,7 +50,11 @@ type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
   const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion } = useMarmot();
-  const { pubkeyHex } = useNostrIdentity();
+  const { pubkeyHex, privateKeyHex } = useNostrIdentity();
+  const signer = useMemo(
+    () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
+    [privateKeyHex],
+  );
   const { profile: ownProfile } = useProfile();
   const inviteDisclosure = useDisclosure();
   const inviteLinkDisclosure = useDisclosure();
@@ -259,6 +264,7 @@ function GroupDetailView({ id }: { id: string }) {
               groupId={group.id}
               group={mlsGroup}
               pubkey={pubkeyHex ?? ''}
+              signer={signer}
               chatVersion={chatVersion}
             >
               <PollStoreProvider

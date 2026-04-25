@@ -53,7 +53,9 @@ function makeResponse(status: number, body: unknown = {}): Response {
     ok: status >= 200 && status < 300,
     status,
     statusText: String(status),
+    headers: { get: (_name: string) => null },
     json: async () => body,
+    text: async () => (typeof body === 'string' ? body : ''),
     arrayBuffer: async () => new ArrayBuffer(4),
   } as unknown as Response;
 }
@@ -379,7 +381,10 @@ describe('put — timeout on stalled requests', () => {
     // Each timed-out attempt counts as a retryable failure, so all four
     // attempts run before the final rejection.
     expect(fetchMock.mock.calls.length).toBe(4);
-  });
+    // Bumped from default 5s — `advanceTimersByTimeAsync` drains microtasks
+    // each iteration, and the 5-iteration loop edges past 5s of wall time on
+    // slower runners (covered/instrumented or under load).
+  }, 30_000);
 
   it('clears the timeout timer when the request resolves normally', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(

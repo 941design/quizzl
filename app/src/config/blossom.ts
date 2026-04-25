@@ -1,6 +1,6 @@
-export const BLOSSOM_BASE_URL =
-  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_BLOSSOM_BASE_URL) ||
-  'https://blossom.band';
+import { getNextPublicBlossomBaseUrl } from '@/src/lib/publicEnv';
+
+export const BLOSSOM_BASE_URL = getNextPublicBlossomBaseUrl() || 'https://blossom.band';
 export const MAX_EDGE = 2048;
 export const THUMB_MAX_EDGE = 320;
 export const MAX_INPUT_BYTES = 26214400; // 25 MB

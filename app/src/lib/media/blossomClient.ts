@@ -1,6 +1,7 @@
 import type { EventSigner } from 'applesauce-core';
 import { BLOSSOM_BASE_URL } from '@/src/config/blossom';
 import { createLogger } from '@/src/lib/logger';
+import { getNextPublicBlossomTrustedHosts } from '@/src/lib/publicEnv';
 
 const log = createLogger('blossom');
 
@@ -63,8 +64,7 @@ function getTrustedOrigins(): Set<string> {
     // BLOSSOM_BASE_URL itself is invalid — origin set stays empty, every
     // download fails closed until the operator fixes the config.
   }
-  const extra =
-    (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_BLOSSOM_TRUSTED_HOSTS) || '';
+  const extra = getNextPublicBlossomTrustedHosts() || '';
   for (const raw of extra.split(',')) {
     const trimmed = raw.trim();
     if (!trimmed) continue;
@@ -204,6 +204,10 @@ export async function put(
           headers: {
             Authorization: encodeAuthHeader(authEvent),
             'Content-Type': 'application/octet-stream',
+            // route96 requires the body hash in this header in addition to the
+            // `x` tag in the auth event. Other Blossom servers ignore it, so
+            // sending it unconditionally is safe.
+            'X-SHA-256': bodyHash,
           },
           body: bodyBuffer,
         },
@@ -214,7 +218,14 @@ export async function put(
       log.debug(`upload response: ${response.status} ${response.statusText}`);
 
       if (response.status >= 400 && response.status < 500) {
-        log.debug(`upload terminal 4xx — not retrying (status=${response.status})`);
+        // route96 (and some other Blossom servers) return the rejection reason
+        // in the `x-reason` response header rather than the body — surface
+        // both so any server's diagnostic surface is visible in the console.
+        const reason = response.headers.get('x-reason') || '';
+        const body = await response.text().catch(() => '');
+        log.debug(
+          `upload terminal 4xx — not retrying (status=${response.status}, x-reason=${reason}, body=${body.slice(0, 500)})`,
+        );
         throw new BlossomUploadError(
           `Upload rejected: ${response.status} ${response.statusText}`,
           response.status,

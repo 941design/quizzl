@@ -237,8 +237,9 @@ export function ChatStoreProvider({
         setMessages((prev) =>
           prev.map((m) => (m.id === tempId ? finalMsg : m)),
         );
-      } catch {
+      } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        throw err;
       }
     },
     [groupId, group, pubkey, signer],
