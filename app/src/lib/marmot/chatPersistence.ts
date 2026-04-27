@@ -5,7 +5,7 @@
  * in the default idb-keyval store.
  */
 
-import { get, set, del } from 'idb-keyval';
+import { get, set, del, keys, delMany } from 'idb-keyval';
 import type { RoledAttachments } from '@/src/lib/media/imageMessage';
 
 /** MLS application-message kind discriminator for chat messages. */
@@ -69,4 +69,23 @@ export function clearMessages(groupId: string): Promise<void> {
   );
   appendQueues.set(key, settled);
   return next;
+}
+
+/**
+ * Remove every persisted chat message across all groups. Used by
+ * resetAllData / backup-restore so messages from the previous identity do
+ * not survive on the device. Drains the in-memory append queue first to
+ * avoid racing a delete against a concurrent append.
+ */
+export async function clearAllMessages(): Promise<void> {
+  const inflight = Array.from(appendQueues.values());
+  await Promise.allSettled(inflight);
+  appendQueues.clear();
+  const allKeys = await keys();
+  const messageKeys = allKeys.filter(
+    (k): k is string => typeof k === 'string' && k.startsWith('quizzl:messages:'),
+  );
+  if (messageKeys.length > 0) {
+    await delMany(messageKeys);
+  }
 }

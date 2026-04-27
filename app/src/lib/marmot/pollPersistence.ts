@@ -5,7 +5,7 @@
  * Votes are stored per-poll under the key `quizzl:poll-votes:{pollId}`.
  */
 
-import { get, set, del } from 'idb-keyval';
+import { get, set, del, keys, delMany } from 'idb-keyval';
 
 // ---- Types ----
 
@@ -130,4 +130,22 @@ export async function clearPollData(groupId: string): Promise<void> {
   }
   // Delete the polls list
   await del(pollsKey(groupId));
+}
+
+/**
+ * Clear every poll list and every vote list across all groups. Used by
+ * resetAllData / backup-restore — scans the default idb-keyval store by key
+ * prefix instead of iterating known groups, so orphaned poll/vote rows from
+ * deleted groups are also removed.
+ */
+export async function clearAllPollData(): Promise<void> {
+  const allKeys = await keys();
+  const targets = allKeys.filter(
+    (k): k is string =>
+      typeof k === 'string' &&
+      (k.startsWith('quizzl:polls:') || k.startsWith('quizzl:poll-votes:')),
+  );
+  if (targets.length > 0) {
+    await delMany(targets);
+  }
 }

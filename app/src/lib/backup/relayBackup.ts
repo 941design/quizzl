@@ -17,10 +17,13 @@ import {
   clearAllGroupData,
   IdbGroupStateBackend,
 } from '@/src/lib/marmot/groupStorage';
-import { loadMessages, clearMessages } from '@/src/lib/marmot/chatPersistence';
+import { loadMessages, clearAllMessages } from '@/src/lib/marmot/chatPersistence';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import { loadAllInviteLinks, saveInviteLink, clearAllInviteLinks } from '@/src/lib/marmot/inviteLinkStorage';
 import type { InviteLink } from '@/src/lib/marmot/inviteLinkStorage';
+import { clearAllPendingJoinRequests } from '@/src/lib/marmot/joinRequestStorage';
+import { clearAllPollData } from '@/src/lib/marmot/pollPersistence';
+import { clearAllMedia } from '@/src/lib/marmot/mediaPersistence';
 import type { EventSigner } from 'applesauce-core';
 import type NDK from '@nostr-dev-kit/ndk';
 import { fetchEventsWithTimeout } from '@/src/lib/ndkClient';
@@ -368,13 +371,16 @@ export async function restoreFromBackup(payload: BackupPayload): Promise<void> {
     }
   }
 
-  // 2. Clear all IDB stores
-  // Load groups first so we can clear their chat messages (stored in default idb-keyval store)
-  const existingGroups = await loadAllGroups();
+  // 2. Clear all IDB stores. clearAllMessages, clearAllPollData,
+  // clearAllPendingJoinRequests, clearAllInviteLinks, and clearAllMedia
+  // wipe account-scoped state by key prefix / store-level clear, so they
+  // catch orphaned rows that no longer have a matching group meta entry.
   await clearAllGroupData();
-  for (const group of existingGroups) {
-    await clearMessages(group.id);
-  }
+  await clearAllMessages();
+  await clearAllPollData();
+  await clearAllPendingJoinRequests();
+  await clearAllInviteLinks();
+  await clearAllMedia();
 
   // 3. Rehydrate localStorage
   if (payload.settings) {
@@ -430,8 +436,7 @@ export async function restoreFromBackup(payload: BackupPayload): Promise<void> {
     await idbSet(`quizzl:messages:${groupId}`, messages);
   }
 
-  // 9. Rehydrate invite links (clear first to avoid merging stale local data)
-  await clearAllInviteLinks();
+  // 9. Rehydrate invite links (already cleared in step 2 above).
   if (payload.inviteLinks) {
     for (const link of payload.inviteLinks) {
       await saveInviteLink(link);

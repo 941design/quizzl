@@ -8,25 +8,31 @@ import { DEFAULT_RELAYS } from '@/src/types';
 
 let ndkInstance: NDK | null = null;
 
+/** Track the private key currently bound to ndkInstance.signer. */
+let signerPrivateKeyHex: string | null = null;
+
+function applySigner(ndk: NDK, privateKeyHex: string): void {
+  if (signerPrivateKeyHex === privateKeyHex && ndk.signer) return;
+  ndk.signer = new NDKPrivateKeySigner(privateKeyHex);
+  signerPrivateKeyHex = privateKeyHex;
+}
+
 /**
  * Get or create the global NDK singleton.
- * Pass a privateKeyHex to use a specific signer.
+ * Pass a privateKeyHex to bind/rebind the signer to that key.
  * Returns null on server (SSR safety).
  */
 export function getNdk(privateKeyHex?: string): NDK | null {
   if (typeof window === 'undefined') return null;
 
   if (!ndkInstance) {
-    const signer = privateKeyHex
-      ? new NDKPrivateKeySigner(privateKeyHex)
-      : undefined;
-
     ndkInstance = new NDK({
       explicitRelayUrls: [...DEFAULT_RELAYS],
-      signer,
     });
-  } else if (privateKeyHex && !ndkInstance.signer) {
-    ndkInstance.signer = new NDKPrivateKeySigner(privateKeyHex);
+  }
+
+  if (privateKeyHex) {
+    applySigner(ndkInstance, privateKeyHex);
   }
 
   return ndkInstance;
@@ -34,12 +40,11 @@ export function getNdk(privateKeyHex?: string): NDK | null {
 
 /**
  * Connect the NDK singleton to relays. Safe to call multiple times.
+ * Always rebinds the signer to the supplied key — callers that pass a new
+ * privateKeyHex (e.g. after identity restore) get traffic signed with that key.
  */
 export async function connectNdk(privateKeyHex: string): Promise<NDK> {
   const ndk = getNdk(privateKeyHex)!;
-  if (!ndk.signer) {
-    ndk.signer = new NDKPrivateKeySigner(privateKeyHex);
-  }
   await ndk.connect(2500);
   return ndk;
 }
@@ -99,4 +104,5 @@ export function fetchEventsWithTimeout(
 /** Reset the NDK singleton (for testing). */
 export function _resetNdkSingleton(): void {
   ndkInstance = null;
+  signerPrivateKeyHex = null;
 }

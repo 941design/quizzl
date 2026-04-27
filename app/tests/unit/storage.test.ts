@@ -216,11 +216,15 @@ describe('corrupt data handling', () => {
     expect(readSettings()).toEqual({ theme: 'calm', language: 'en' });
   });
 
-  it('returns default when stored data is null string', () => {
+  it('returns empty selected topics when stored data is the literal string "null"', () => {
     store[STORAGE_KEYS.selectedTopics] = 'null';
-    expect(readSelectedTopics()).toBeNull; // JSON.parse('null') returns null, fallback doesn't trigger since raw !== null
-    // Actually the function checks raw === null (from getItem), not parsed.
-    // JSON.parse('null') returns null, which is returned as-is.
-    // This is acceptable behavior — the app handles it gracefully.
+    // readSelectedTopics must coerce parsed null into the default-shaped
+    // object so `.slugs` is always safe to dereference.
+    expect(readSelectedTopics()).toEqual({ slugs: [] });
+  });
+
+  it('returns empty selected topics when stored data has wrong shape', () => {
+    store[STORAGE_KEYS.selectedTopics] = JSON.stringify({ slugs: 'not-an-array' });
+    expect(readSelectedTopics()).toEqual({ slugs: [] });
   });
 });

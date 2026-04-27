@@ -1,4 +1,4 @@
-import { createStore, get, set, del, keys } from 'idb-keyval';
+import { createStore, get, set, del, keys, clear } from 'idb-keyval';
 
 const blobStore = createStore('quizzl-media-blobs', 'blobs');
 const metaStore = createStore('quizzl-media-meta', 'meta');
@@ -92,4 +92,13 @@ export async function clearGroupMedia(groupId: string): Promise<void> {
     ...blobKeys.filter((k) => k.startsWith(prefix)).map((k) => del(k, blobStore)),
     ...metaKeys.filter((k) => k.startsWith(prefix)).map((k) => del(k, metaStore)),
   ]);
+}
+
+/**
+ * Clear every cached media blob and metadata entry across all groups.
+ * Used by resetAllData / backup-restore so decrypted attachments do not
+ * survive an identity reset on shared devices.
+ */
+export async function clearAllMedia(): Promise<void> {
+  await Promise.all([clear(blobStore), clear(metaStore)]);
 }

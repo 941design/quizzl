@@ -6,7 +6,7 @@
  * pubkeyHex + groupId already exists.
  */
 
-import { createStore, get, set, del, entries } from 'idb-keyval';
+import { createStore, get, set, del, entries, clear } from 'idb-keyval';
 
 export interface PendingJoinRequest {
   /** Requester's pubkey (hex) */
@@ -66,4 +66,9 @@ export async function clearPendingJoinRequestsForGroup(groupId: string): Promise
   const all = await entries<string, PendingJoinRequest>(joinRequestStore);
   const toDelete = all.filter(([, req]) => req.groupId === groupId);
   await Promise.all(toDelete.map(([key]) => del(key, joinRequestStore)));
+}
+
+/** Drop every pending join request across all groups (account-wide reset). */
+export async function clearAllPendingJoinRequests(): Promise<void> {
+  await clear(joinRequestStore);
 }

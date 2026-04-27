@@ -129,7 +129,17 @@ export function writeUserProfile(profile: UserProfile): void {
 const DEFAULT_SELECTED_TOPICS: SelectedTopics = { slugs: [] };
 
 export function readSelectedTopics(): SelectedTopics {
-  return readItem<SelectedTopics>(STORAGE_KEYS.selectedTopics, DEFAULT_SELECTED_TOPICS);
+  // readItem returns the raw parsed value, including `null` when localStorage
+  // holds the literal string "null" (JSON.parse('null') === null). Normalize
+  // here so callers can dereference `.slugs` unconditionally.
+  const raw = readItem<Partial<SelectedTopics> | null>(
+    STORAGE_KEYS.selectedTopics,
+    DEFAULT_SELECTED_TOPICS,
+  );
+  const slugs = Array.isArray(raw?.slugs)
+    ? raw!.slugs.filter((s): s is string => typeof s === 'string')
+    : [];
+  return { slugs };
 }
 
 export function writeSelectedTopics(selected: SelectedTopics): void {
@@ -201,12 +211,28 @@ export function resetAllData(): void {
     }
   });
 
-  // Also clear IndexedDB group data (async, fire-and-forget)
+  // Also clear IndexedDB account-scoped data. Fire-and-forget — the caller
+  // typically reloads the page right after this returns, but each clear must
+  // run regardless of whether the previous one rejects so leftover data from
+  // the prior identity does not survive on disk.
   if (typeof window !== 'undefined') {
-    import('@/src/lib/marmot/groupStorage')
-      .then(({ clearAllGroupData }) => clearAllGroupData())
-      .catch((err) => {
-        console.warn('[storage] clearAllGroupData failed:', err);
-      });
+    void clearAccountScopedIdbData();
+  }
+}
+
+async function clearAccountScopedIdbData(): Promise<void> {
+  const tasks: Array<Promise<unknown>> = [
+    import('@/src/lib/marmot/groupStorage').then(({ clearAllGroupData }) => clearAllGroupData()),
+    import('@/src/lib/marmot/chatPersistence').then(({ clearAllMessages }) => clearAllMessages()),
+    import('@/src/lib/marmot/inviteLinkStorage').then(({ clearAllInviteLinks }) => clearAllInviteLinks()),
+    import('@/src/lib/marmot/joinRequestStorage').then(({ clearAllPendingJoinRequests }) => clearAllPendingJoinRequests()),
+    import('@/src/lib/marmot/pollPersistence').then(({ clearAllPollData }) => clearAllPollData()),
+    import('@/src/lib/marmot/mediaPersistence').then(({ clearAllMedia }) => clearAllMedia()),
+  ];
+  const results = await Promise.allSettled(tasks);
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.warn('[storage] resetAllData IDB clear failed:', result.reason);
+    }
   }
 }

@@ -21,6 +21,7 @@ if (typeof globalThis.atob === 'undefined') {
 import type { EventSigner } from 'applesauce-core';
 
 const blossomModule = await import('@/src/lib/media/blossomClient');
+const { BLOSSOM_BASE_URL } = await import('@/src/config/blossom');
 const {
   buildBlossomAuthEvent,
   put,
@@ -33,6 +34,12 @@ const {
 } = blossomModule;
 // Override retry delays to 0 ms so retry tests complete instantly
 (blossomModule.RETRY_DELAYS as number[]).splice(0, 3, 0, 0, 0);
+
+// Canonical origin derived from BLOSSOM_BASE_URL — the module freezes this at
+// import time from NEXT_PUBLIC_BLOSSOM_BASE_URL, so the tests must read what
+// the runtime read instead of hardcoding "https://blossom.band".
+const CANONICAL_ORIGIN = new URL(BLOSSOM_BASE_URL).origin;
+const canonicalUrl = (path: string): string => `${CANONICAL_ORIGIN}${path.startsWith('/') ? path : `/${path}`}`;
 
 // ---- Helpers ----
 
@@ -102,12 +109,12 @@ describe('put', () => {
 
   it('sends PUT to BLOSSOM_BASE_URL/upload with Authorization header and returns url', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(
-      makeResponse(200, { url: 'https://blossom.band/abc' }),
+      makeResponse(200, { url: canonicalUrl('/abc') }),
     );
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await put(new Uint8Array([1, 2, 3]), makeSigner());
-    expect(result).toBe('https://blossom.band/abc');
+    expect(result).toBe(canonicalUrl('/abc'));
 
     const [url, opts] = fetchMock.mock.calls[0];
     expect(url).toMatch(/\/upload$/);
@@ -140,17 +147,17 @@ describe('put', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(makeResponse(503))
-      .mockResolvedValueOnce(makeResponse(200, { url: 'https://blossom.band/ok' }));
+      .mockResolvedValueOnce(makeResponse(200, { url: canonicalUrl('/ok') }));
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await put(new Uint8Array([1]), makeSigner());
-    expect(result).toBe('https://blossom.band/ok');
+    expect(result).toBe(canonicalUrl('/ok'));
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('calls onProgress with 100 on success', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(
-      makeResponse(200, { url: 'https://blossom.band/x' }),
+      makeResponse(200, { url: canonicalUrl('/x') }),
     );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -166,7 +173,7 @@ describe('put', () => {
       capturedBody = opts.body as ArrayBuffer;
       const authHeader = (opts.headers as Record<string, string>).Authorization;
       capturedAuth = JSON.parse(globalThis.atob(authHeader.replace(/^Nostr /, '')));
-      return makeResponse(200, { url: 'https://blossom.band/sliced' });
+      return makeResponse(200, { url: canonicalUrl('/sliced') });
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -214,7 +221,7 @@ describe('get', () => {
     } as unknown as Response);
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await get('https://blossom.band/abc123');
+    const result = await get(canonicalUrl('/abc123'));
     expect(result).toBeInstanceOf(Uint8Array);
     expect(Array.from(result)).toEqual([9, 8, 7]);
   });
@@ -228,7 +235,7 @@ describe('get', () => {
     } as unknown as Response);
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(get('https://blossom.band/missingsha')).rejects.toBeInstanceOf(
+    await expect(get(canonicalUrl('/missingsha'))).rejects.toBeInstanceOf(
       BlossomNotFoundError,
     );
   });
@@ -237,7 +244,7 @@ describe('get', () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(makeResponse(500));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(get('https://blossom.band/x')).rejects.toBeInstanceOf(BlossomUploadError);
+    await expect(get(canonicalUrl('/x'))).rejects.toBeInstanceOf(BlossomUploadError);
   });
 
   it('refuses to download from an untrusted origin without making a network request', async () => {
@@ -337,12 +344,12 @@ describe('put — origin validation on upload response', () => {
 
   it('returns url unchanged when server returns the canonical origin', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(
-      makeResponse(200, { url: 'https://blossom.band/canonical' }),
+      makeResponse(200, { url: canonicalUrl('/canonical') }),
     );
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await put(new Uint8Array([1]), makeSigner());
-    expect(result).toBe('https://blossom.band/canonical');
+    expect(result).toBe(canonicalUrl('/canonical'));
   });
 });
 
@@ -388,7 +395,7 @@ describe('put — timeout on stalled requests', () => {
 
   it('clears the timeout timer when the request resolves normally', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(
-      makeResponse(200, { url: 'https://blossom.band/x' }),
+      makeResponse(200, { url: canonicalUrl('/x') }),
     );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -396,7 +403,7 @@ describe('put — timeout on stalled requests', () => {
     // pending timers. Asserting success is enough — the contract is that
     // the happy path does not depend on the abort firing.
     await expect(put(new Uint8Array([1]), makeSigner())).resolves.toBe(
-      'https://blossom.band/x',
+      canonicalUrl('/x'),
     );
   });
 });
@@ -417,7 +424,7 @@ describe('get — timeout on stalled downloads', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     vi.useFakeTimers();
-    const promise = get('https://blossom.band/abc');
+    const promise = get(canonicalUrl('/abc'));
     const captured = promise.catch((err) => err);
     await vi.advanceTimersByTimeAsync(30001);
     const err = await captured;
@@ -437,7 +444,7 @@ describe('get — timeout on stalled downloads', () => {
     } as unknown as Response);
     vi.stubGlobal('fetch', fetchMock);
 
-    await get('https://blossom.band/abc');
+    await get(canonicalUrl('/abc'));
 
     const init = fetchMock.mock.calls[0][1] as RequestInit;
     expect(init.signal).toBeDefined();
@@ -451,7 +458,7 @@ describe('assertDownloadableBlobUrl — origin allowlist', () => {
   });
 
   it('accepts the canonical BLOSSOM_BASE_URL origin', () => {
-    const parsed = blossomModule.assertDownloadableBlobUrl('https://blossom.band/abc');
+    const parsed = blossomModule.assertDownloadableBlobUrl(canonicalUrl('/abc'));
     expect(parsed.pathname).toBe('/abc');
   });
 
@@ -494,8 +501,8 @@ describe('assertDownloadableBlobUrl — origin allowlist', () => {
     // A typo in the env var must not silently disable the canonical origin
     // or open up a bypass — bad entries are dropped, good entries kept.
     vi.stubEnv('NEXT_PUBLIC_BLOSSOM_TRUSTED_HOSTS', 'not-a-url, https://other.example');
-    expect(blossomModule.assertDownloadableBlobUrl('https://blossom.band/x').origin).toBe(
-      'https://blossom.band',
+    expect(blossomModule.assertDownloadableBlobUrl(canonicalUrl('/x')).origin).toBe(
+      CANONICAL_ORIGIN,
     );
     expect(blossomModule.assertDownloadableBlobUrl('https://other.example/x').origin).toBe(
       'https://other.example',
@@ -508,7 +515,7 @@ describe('assertDownloadableBlobUrl — origin allowlist', () => {
 
 describe('assertAllowedBlossomUrl', () => {
   it('returns parsed URL for matching origin', () => {
-    const url = assertAllowedBlossomUrl('https://blossom.band/abc');
+    const url = assertAllowedBlossomUrl(canonicalUrl('/abc'));
     expect(url.pathname).toBe('/abc');
   });
 
@@ -517,8 +524,10 @@ describe('assertAllowedBlossomUrl', () => {
   });
 
   it('throws on different port', () => {
-    expect(() => assertAllowedBlossomUrl('https://blossom.band:8443/abc')).toThrow(
-      BlossomOriginError,
-    );
+    // Build a same-host-different-port URL by mutating the canonical origin.
+    const canonical = new URL(BLOSSOM_BASE_URL);
+    const mismatchedPort = canonical.port === '8443' ? '8444' : '8443';
+    const wrongPortUrl = `${canonical.protocol}//${canonical.hostname}:${mismatchedPort}/abc`;
+    expect(() => assertAllowedBlossomUrl(wrongPortUrl)).toThrow(BlossomOriginError);
   });
 });

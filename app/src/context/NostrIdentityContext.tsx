@@ -92,6 +92,12 @@ export function NostrIdentityProvider({ children }: { children: React.ReactNode 
 
   const replaceIdentity = useCallback(async (newIdentity: StoredNostrIdentity) => {
     saveStoredIdentity(newIdentity);
+    // Rebind the global NDK signer immediately so any in-flight or follow-up
+    // relay traffic uses the new private key, not the previous identity's.
+    if (typeof window !== 'undefined') {
+      const { getNdk } = await import('@/src/lib/ndkClient');
+      getNdk(newIdentity.privateKeyHex);
+    }
     setIdentity(newIdentity);
     // Re-publish kind 0 + KeyPackages for restored identity
     void publishIdentityToRelays(newIdentity).catch((err) => {
