@@ -4,8 +4,8 @@
  * Stores:
  * - Group metadata list (name, members, relays) in 'quizzl_groups_v1'
  * - Member scores per group in 'quizzl_member_scores_v1'
- * - MLS group state bytes (via KeyValueGroupStateBackend wrapper)
- * - KeyPackage private material
+ * - MLS group state bytes (passed directly to MarmotClient as groupStateStore)
+ * - KeyPackage private material (passed directly as keyPackageStore)
  */
 
 import { createStore, get, set, del, keys, clear } from 'idb-keyval';

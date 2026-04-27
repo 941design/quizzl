@@ -246,7 +246,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const { MarmotClient, KeyPackageStore, KeyValueGroupStateBackend, GroupMediaStore } =
+        const { MarmotClient, GroupMediaStore } =
           await import('@internet-privacy/marmot-ts');
         const { connectNdk } = await import('@/src/lib/ndkClient');
         const { NdkNetworkAdapter } = await import('@/src/lib/marmot/NdkNetworkAdapter');
@@ -258,9 +258,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         const ndk = await connectNdk(privateKeyHex!);
         const signer = createPrivateKeySigner(privateKeyHex!);
 
-        const groupStateBackend = new KeyValueGroupStateBackend(new IdbGroupStateBackend());
-        const keyPackageBackend = new IdbKeyPackageBackend();
-        const keyPkgStore = new KeyPackageStore(keyPackageBackend);
+        const groupStateStore = new IdbGroupStateBackend();
+        const keyPackageStore = new IdbKeyPackageBackend();
         const network = new NdkNetworkAdapter(ndk);
 
         const mediaBlobStore = idbCreateStore('quizzl-media-blobs', 'blobs');
@@ -268,10 +267,16 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
         const client = new MarmotClient({
           signer,
-          groupStateBackend,
-          keyPackageStore: keyPkgStore,
+          // marmot-ts 0.5.x: backends are passed directly (KeyValueGroupStateBackend
+          // and KeyPackageStore wrappers were removed/inlined).
+          groupStateStore,
+          keyPackageStore,
           network,
           mediaFactory,
+          // Default `d` slot for kind 30443 key package events. All key packages
+          // from this client share a single addressable slot so relays replace
+          // the previous one on rotation.
+          clientId: 'quizzl',
         });
 
         if (cancelled) return;
@@ -279,14 +284,14 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
         // Load existing groups from MLS state store
         try {
-          await client.loadAllGroups();
+          await client.groups.loadAll();
         } catch (err) {
-          console.warn('[Marmot] loadAllGroups failed:', err);
+          console.warn('[Marmot] groups.loadAll failed:', err);
         }
 
         // Publish KeyPackages if none exist
         try {
-          const count = await keyPkgStore.count();
+          const count = await client.keyPackages.count();
           if (count === 0) {
             await publishKeyPackages(client.keyPackages, 5, [...DEFAULT_RELAYS]);
           }
@@ -337,8 +342,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           console.warn('[Marmot] Welcome subscription failed:', err);
         });
 
-        // Listen for group join events to rotate consumed key packages
-        client.on('groupJoined', async () => {
+        // Listen for group join events to rotate consumed key packages.
+        // marmot-ts 0.5.x: events live on client.groups; 'groupJoined' → 'joined'.
+        client.groups.on('joined', async () => {
           if (!cancelled) {
             try {
               const packages = await client.keyPackages.list();
@@ -365,32 +371,32 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               await client.keyPackages.create({ relays: [...DEFAULT_RELAYS] });
             }
 
-            // Delete stale kind 443 events from relays whose private keys are
-            // no longer in local IndexedDB (e.g. after clearing browser data).
-            // With kind 30443, each client gets its own addressable slot, so
-            // cross-app conflicts are avoided. But old kind 443 events from
-            // previous sessions must still be cleaned up.
+            // Delete stale key-package events from relays whose private keys
+            // are no longer in local IndexedDB (e.g. after clearing browser
+            // data). Covers both legacy kind 443 events and kind 30443
+            // addressable events from previous sessions.
             if (DEFAULT_RELAYS.length > 0 && ndk) {
               try {
                 const remoteKPs = await network.request([...DEFAULT_RELAYS], [
-                  { kinds: [443 as any], authors: [pubkeyHex!] } as any,
+                  { kinds: [443 as any, 30443 as any], authors: [pubkeyHex!] } as any,
                 ]);
                 const localList = await client.keyPackages.list();
                 const localPublishedIds = new Set(
-                  localList.flatMap((kp) => kp.published.map((e) => e.id)),
+                  localList.flatMap((kp) => (kp.published ?? []).map((e) => e.id)),
                 );
-                const staleIds = remoteKPs
-                  .map((e) => e.id as string)
-                  .filter((id) => !localPublishedIds.has(id));
+                const staleEvents = remoteKPs.filter(
+                  (e) => !localPublishedIds.has(e.id as string),
+                );
 
-                if (staleIds.length > 0) {
-                  console.debug('[Marmot] deleting', staleIds.length, 'stale kind 443 KP events from relays');
+                if (staleEvents.length > 0) {
+                  const staleKinds = Array.from(new Set(staleEvents.map((e) => e.kind))).map(String);
+                  console.debug('[Marmot] deleting', staleEvents.length, 'stale KP events from relays (kinds:', staleKinds.join(','), ')');
                   const deleteEvent = {
                     kind: 5,
                     created_at: Math.floor(Date.now() / 1000),
                     tags: [
-                      ...staleIds.map((id) => ['e', id]),
-                      ['k', '443'],
+                      ...staleEvents.map((e) => ['e', e.id as string]),
+                      ...staleKinds.map((k) => ['k', k]),
                     ],
                     content: '',
                     pubkey: pubkeyHex!,
@@ -487,7 +493,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       for (const group of groups) {
         if (subsMap.has(group.id)) continue; // Already subscribed
         try {
-          const mlsGroup = await client!.getGroup(group.id).catch(() => null);
+          const mlsGroup = await client!.groups.get(group.id).catch(() => null);
           if (!mlsGroup) continue;
 
           // Immediately sync member list from MLS state (authoritative source).
@@ -725,7 +731,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           const fullUpdate = { ...item.update, sequenceNumber: nextSeq() };
           const payload = serialise(fullUpdate);
           for (const group of groups) {
-            const mlsGroup = await client.getGroup(group.id).catch(() => null);
+            const mlsGroup = await client.groups.get(group.id).catch(() => null);
             if (!mlsGroup) continue;
             const rumor = buildRumor(scoreKind, payload, pubkeyHex ?? '');
             await sendRumorSafe(mlsGroup, rumor as any, { softFail: true });
@@ -756,7 +762,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     if (!client || !pubkeyHex) return null;
 
     try {
-      const mlsGroup = await client.createGroup(name, { relays: [...DEFAULT_RELAYS] });
+      const mlsGroup = await client.groups.create(name, { relays: [...DEFAULT_RELAYS] });
       const groupId = mlsGroup.idStr;
 
       const group: Group = {
@@ -809,8 +815,16 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         const { fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
         const { events: kpEvents, timedOut } = await fetchEventsWithTimeout(
           ndk,
-          // 443 is Marmot KeyPackage kind — cast to NDKKind
-          { kinds: [443 as import('@nostr-dev-kit/ndk').NDKKind], authors: [inviteePubkey], limit: 5 },
+          // marmot-ts 0.5.x peers publish kind 30443 (addressable). Older
+          // peers may still have kind 443 events on relays — accept both.
+          {
+            kinds: [
+              443 as import('@nostr-dev-kit/ndk').NDKKind,
+              30443 as import('@nostr-dev-kit/ndk').NDKKind,
+            ],
+            authors: [inviteePubkey],
+            limit: 5,
+          },
         );
 
         const kpArray = Array.from(kpEvents);
@@ -818,7 +832,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           return { ok: false, error: timedOut ? 'timeout' : 'no_key_package' };
         }
 
-        const mlsGroup = await client.getGroup(groupId);
+        const mlsGroup = await client.groups.get(groupId).catch(() => null);
         if (!mlsGroup) return { ok: false, error: 'group_not_found' };
 
         // Use the most recent KeyPackage event
@@ -931,7 +945,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       // Publish to all groups (fire and forget)
       for (const group of groups) {
         try {
-          const mlsGroup = await client.getGroup(group.id).catch(() => null);
+          const mlsGroup = await client.groups.get(group.id).catch(() => null);
           if (!mlsGroup) continue;
 
           const rumor = buildRumor(SCORE_RUMOR_KIND, payload, pubkeyHex ?? '');
@@ -975,7 +989,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
     for (const group of groups) {
       try {
-        const mlsGroup = await client.getGroup(group.id).catch(() => null);
+        const mlsGroup = await client.groups.get(group.id).catch(() => null);
         if (!mlsGroup) continue;
 
         const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex);
@@ -998,7 +1012,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     const client = clientRef.current;
     if (!client) return null;
     try {
-      return await client.getGroup(groupId) ?? null;
+      return await client.groups.get(groupId) ?? null;
     } catch {
       return null;
     }

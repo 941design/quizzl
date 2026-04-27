@@ -16,12 +16,12 @@
     "@chakra-ui/react": "^2.10.9",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
-    "@hpke/chacha20poly1305": "^1.7.1",
-    "@hpke/dhkem-x448": "^1.6.4",
-    "@hpke/hybridkem-x-wing": "^0.6.1",
-    "@hpke/ml-kem": "^0.2.1",
+    "@hpke/chacha20poly1305": "^1.8.0",
+    "@hpke/dhkem-x448": "^1.8.0",
+    "@hpke/hybridkem-x-wing": "^0.7.0",
+    "@hpke/ml-kem": "^0.3.0",
     "@iconify/react": "^6.0.2",
-    "@internet-privacy/marmot-ts": "^0.4.0",
+    "@internet-privacy/marmot-ts": "^0.5.1",
     "@noble/post-quantum": "^0.5.2",
     "@nostr-dev-kit/ndk": "3.0.3",
     "@scure/bip39": "^1.4.0",
@@ -38,7 +38,7 @@
     "qrcode": "^1.5.4",
     "react": "^18",
     "react-dom": "^18",
-    "ts-mls": "^2.0.0-rc.7"
+    "ts-mls": "2.0.0-rc.10"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
