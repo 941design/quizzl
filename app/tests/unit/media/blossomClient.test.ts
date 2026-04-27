@@ -370,6 +370,16 @@ describe('put — timeout on stalled requests', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
 
+    // Replace the real WebCrypto digest with a microtask-only stub. The
+    // production digest (node:crypto.webcrypto) resolves on a libuv tick,
+    // which `runAllTimersAsync` does not pump — leaving the retry loop
+    // stuck on `await sha256Hex(...)` after the first abort fires. A
+    // synchronous-equivalent Promise keeps the whole loop on the
+    // microtask queue, where Vitest's fake-timer driver can drain it.
+    const digestSpy = vi
+      .spyOn(crypto.subtle, 'digest')
+      .mockImplementation(async () => new ArrayBuffer(32));
+
     vi.useFakeTimers();
     const promise = put(new Uint8Array([1]), makeSigner());
     // Attach a rejection handler synchronously so the in-flight rejection
@@ -377,21 +387,20 @@ describe('put — timeout on stalled requests', () => {
     // boundary (which would trip Vitest's unhandled-rejection guard even
     // though the final await catches it).
     const captured = promise.catch((err) => err);
-    // Advance past every retry's timeout window. There are 4 attempts total
-    // (initial + 3 retries), each with REQUEST_TIMEOUT_MS = 30s.
-    for (let i = 0; i < 5; i++) {
-      await vi.advanceTimersByTimeAsync(30001);
-    }
+    // Drain the retry loop in one pump: each timed-out attempt schedules
+    // the next abort timer inside its catch handler, so a hand-rolled
+    // advance-by-timeout loop is fragile (must know the attempt count,
+    // burns wall clock per iteration). runAllTimersAsync walks the whole
+    // chain until put() rejects and no timers remain.
+    await vi.runAllTimersAsync();
     const err = await captured;
     vi.useRealTimers();
+    digestSpy.mockRestore();
     expect(err).toBeInstanceOf(BlossomTimeoutError);
     // Each timed-out attempt counts as a retryable failure, so all four
     // attempts run before the final rejection.
     expect(fetchMock.mock.calls.length).toBe(4);
-    // Bumped from default 5s — `advanceTimersByTimeAsync` drains microtasks
-    // each iteration, and the 5-iteration loop edges past 5s of wall time on
-    // slower runners (covered/instrumented or under load).
-  }, 30_000);
+  });
 
   it('clears the timeout timer when the request resolves normally', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(
