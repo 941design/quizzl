@@ -160,6 +160,10 @@ type MarmotContextValue = {
   approveJoinRequest: (request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest) => Promise<{ ok: boolean; error?: string }>;
   /** Deny a join request: remove request, decrement bell */
   denyJoinRequest: (request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest) => Promise<void>;
+  /** Returns true if pubkey is in MLS member list but has no profile rumor recorded for this group */
+  isPendingMember: (groupId: string, pubkey: string) => Promise<boolean>;
+  /** Cancel a pending invitation: MLS Remove+UpdateMetadata commit + announcement + refresh. sendAnnouncement is optional and called after commit if provided. */
+  cancelPendingInvitation: (groupId: string, pubkey: string, sendAnnouncement?: (content: string) => Promise<void>) => Promise<{ ok: boolean; error?: string; raceDetected?: boolean }>;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -1064,6 +1068,62 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const isPendingMember = useCallback(async (groupId: string, pubkey: string): Promise<boolean> => {
+    const client = clientRef.current;
+    if (!client) return false;
+    try {
+      const { isPendingMemberImpl } = await import('@/src/lib/marmot/cancelInvitationImpl');
+      const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
+      return isPendingMemberImpl(
+        {
+          getGroup: (id) => client.groups.get(id).catch(() => null),
+          loadMemberProfiles,
+          getGroupMembers,
+        },
+        groupId,
+        pubkey,
+      );
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const cancelPendingInvitation = useCallback(
+    async (
+      groupId: string,
+      pubkey: string,
+      sendAnnouncement?: (content: string) => Promise<void>,
+    ): Promise<{ ok: boolean; error?: string; raceDetected?: boolean }> => {
+      const client = clientRef.current;
+      if (!client) return { ok: false, error: 'Not initialized' };
+      try {
+        const { cancelPendingInvitationImpl } = await import('@/src/lib/marmot/cancelInvitationImpl');
+        const { getGroupMembers, getPubkeyLeafNodeIndexes, Proposals } = await import('@internet-privacy/marmot-ts');
+        return await cancelPendingInvitationImpl(
+          {
+            getGroup: (id) => client.groups.get(id).catch(() => null),
+            loadMemberProfiles,
+            getGroupMembers,
+            getPubkeyLeafNodeIndexes,
+            Proposals,
+            persistGroup,
+            getStoredGroup: (id) => groups.find((g) => g.id === id),
+            reloadGroups,
+            markBackupDirty,
+            selfPubkeyHex: pubkeyHex ?? '',
+          },
+          groupId,
+          pubkey,
+          sendAnnouncement,
+        );
+      } catch (err) {
+        console.error('[Marmot] cancelPendingInvitation failed:', err);
+        return { ok: false, error: err instanceof Error ? err.message : 'generic' };
+      }
+    },
+    [groups, reloadGroups, markBackupDirty, pubkeyHex],
+  );
+
   const value = useMemo<MarmotContextValue>(
     () => ({
       ready,
@@ -1089,6 +1149,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       loadPendingRequestsForGroup,
       approveJoinRequest,
       denyJoinRequest,
+      isPendingMember,
+      cancelPendingInvitation,
     }),
     [
       ready,
@@ -1114,6 +1176,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       loadPendingRequestsForGroup,
       approveJoinRequest,
       denyJoinRequest,
+      isPendingMember,
+      cancelPendingInvitation,
     ]
   );
 
@@ -1149,6 +1213,8 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   loadPendingRequestsForGroup: NOOP_ASYNC,
   approveJoinRequest: async () => ({ ok: false, error: 'not_ready' }),
   denyJoinRequest: NOOP_ASYNC,
+  isPendingMember: async () => false,
+  cancelPendingInvitation: async () => ({ ok: false, error: 'not_ready' }),
 };
 
 export function useMarmot(): MarmotContextValue {

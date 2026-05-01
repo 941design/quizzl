@@ -1,0 +1,20 @@
+{
+  "story": "03-invite-cancelled-announcement",
+  "status": "done",
+  "final_outcome": "accepted",
+  "verification_rounds": 2,
+  "completed_at": "2026-05-01T10:30:00Z",
+  "files_modified": [
+    "app/src/components/groups/GroupChat.tsx",
+    "app/src/lib/marmot/parseStructured.ts",
+    "app/tests/unit/marmot/parseStructured.test.ts"
+  ],
+  "files_created": [
+    "app/src/components/groups/InviteCancelledChatAnnouncement.tsx"
+  ],
+  "tests_before": { "files": 34, "tests": 451 },
+  "tests_after": { "files": 35, "tests": 460 },
+  "new_tests": 9,
+  "remediation": "Security fix (R1/5): GroupChat invite_cancelled render branch now uses msg.senderPubkey (protocol-enforced) via resolveCancellerDisplay() instead of structured.by (attacker-controlled). resolveCancellerDisplay exported from parseStructured.ts and unit-tested with 3 new trust-boundary tests including an explicit forged-by scenario proving the spoofing vector is closed.",
+  "notes": "InviteCancelledChatAnnouncement uses gray accent to differentiate from blue poll announcements. parseStructured extracted to parseStructured.ts; GroupChat imports parseStructured and resolveCancellerDisplay. invite_cancelled branch in StructuredContent union, parseStructured, and GroupChat render switch. Canceller always derived from msg.senderPubkey; structured.by is parsed for protocol completeness but never used for display. All ACs (CPI-15 through CPI-17) verified. Security issue resolved."
+}

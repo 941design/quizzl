@@ -1,0 +1,115 @@
+{
+  "story": "01-i18n-strings",
+  "phase": "pre-impl",
+  "questions": [
+    {
+      "id": "Q01-QUALITY-1",
+      "category": "QUALITY",
+      "phase": "pre-impl",
+      "question": "Should cancelInviteBody be a plain string or a function that interpolates the invitee display name?",
+      "decision": "Plain string per AC-CPI-3 which only asserts substring presence ('removed from the group permanently' / 'dauerhaft aus der Gruppe entfernt'). The display name interpolation is handled in the modal UI, not at the i18n string level."
+    },
+    {
+      "id": "Q01-ARCH-1",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "Should the new keys be added to the groups sub-section of Copy or a new top-level section?",
+      "decision": "groups sub-section, per spec §Decision 3 and AC-CPI-1 through AC-CPI-8 which all reference getCopy().groups.*"
+    },
+    {
+      "id": "Q01-TEST-1",
+      "category": "TEST",
+      "phase": "pre-impl",
+      "question": "Should the vitest i18n test file be co-located with manageInviteLinksModal.test.ts or in its own file?",
+      "decision": "Separate file app/tests/unit/cancelPendingInvitation.i18n.test.ts to keep story boundaries clean and avoid inflating an unrelated test file."
+    },
+    {
+      "id": "Q01-SPEC-AC-CPI-1",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-1",
+      "phase": "pre-impl",
+      "question": "AC-CPI-1 requires cancelInviteButton === 'Cancel Invite' (EN) and 'Einladung zurückziehen' (DE). Are these exact strings final?",
+      "decision": "Yes, exact strings per acceptance-criteria.md. No deviation."
+    },
+    {
+      "id": "Q01-SPEC-AC-CPI-2",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-2",
+      "phase": "pre-impl",
+      "question": "AC-CPI-2: cancelInviteTitle === 'Cancel Pending Invitation' / 'Ausstehende Einladung zurückziehen'. Confirmed exact strings?",
+      "decision": "Yes, exact strings per acceptance-criteria.md."
+    },
+    {
+      "id": "Q01-SPEC-AC-CPI-3",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-3",
+      "phase": "pre-impl",
+      "question": "AC-CPI-3 only asserts substring containment ('removed from the group permanently'). What full string should cancelInviteBody be?",
+      "decision": "Will include the invitee placeholder context but as a static string matching the spec description: 'Cancel this pending invitation? They will be removed from the group permanently.' The modal UI will name the invitee separately above the body text."
+    },
+    {
+      "id": "Q01-SPEC-AC-CPI-4",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-4",
+      "phase": "pre-impl",
+      "question": "AC-CPI-4: cancelInviteConfirm === 'Confirm' (EN) and 'Bestätigen' (DE). These are exact equality assertions — do the strings match existing confirm patterns in the codebase?",
+      "decision": "Yes. 'Confirm' and 'Bestätigen' match the existing polls.confirm pattern (polls.confirm === 'Confirm' / 'Bestätigen'). Using the same wording keeps the UX consistent. Exact strings per acceptance-criteria.md."
+    },
+    {
+      "id": "Q01-SPEC-AC-CPI-5",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-5",
+      "phase": "pre-impl",
+      "question": "AC-CPI-5: cancelInviteSuccess === 'Invitation cancelled' (EN) and 'Einladung zurückgezogen' (DE). Are these toast-facing strings?",
+      "decision": "Yes — used as the toast title on successful commit per AC-CPI-20. Exact strings per acceptance-criteria.md. The past-tense form ('cancelled' / 'zurückgezogen') confirms completion, matching the inviteSuccess / leaveGroupConfirm pattern."
+    },
+    {
+      "id": "Q01-SPEC-AC-CPI-6",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-6",
+      "phase": "pre-impl",
+      "question": "AC-CPI-6: cancelInviteError === 'Failed to cancel invitation' (EN) and 'Einladung konnte nicht zurückgezogen werden' (DE). Are these error toast strings?",
+      "decision": "Yes — used as the error toast title on commit failure per AC-CPI-21. Exact strings per acceptance-criteria.md. Pattern matches existing inviteErrorGeneric / 'Einladung fehlgeschlagen' style."
+    },
+    {
+      "id": "Q01-SPEC-AC-CPI-9",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-9",
+      "phase": "pre-impl",
+      "question": "AC-CPI-9: vitest test must cover all 8 new key paths for both en and de with exact string assertions. Should it be one test per language or one combined test?",
+      "decision": "Two separate it() blocks (one for en, one for de) mirroring the manageInviteLinksModal.test.ts:103-121 pattern. Each block imports getCopy() and asserts all 8 keys, including calling cancelledByAnnouncement('Alice', 'Bob') to verify the function-valued key."
+    },
+    {
+      "id": "Q01-SPEC-AC-CPI-7",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-7",
+      "phase": "pre-impl",
+      "question": "AC-CPI-7: cancelInviteRaceNotice exact EN/DE strings — are these from spec Edge Cases section?",
+      "decision": "Yes. EN: 'Member just came online — cancellation no longer applies'. DE: 'Mitglied ist gerade online — Einladung kann nicht mehr zurückgezogen werden'. Exact per acceptance-criteria.md."
+    },
+    {
+      "id": "Q01-SPEC-AC-CPI-8",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-8",
+      "phase": "pre-impl",
+      "question": "AC-CPI-8: cancelledByAnnouncement is (member, canceller) => string. Does this match the Copy type pattern for dynamic strings (e.g. chatMinutesAgo)?",
+      "decision": "Yes. Follows existing pattern of function-valued Copy keys. Will type as (member: string, canceller: string) => string."
+    },
+    {
+      "id": "Q01-SECURITY-1",
+      "category": "SECURITY",
+      "phase": "pre-impl",
+      "question": "Are there any security concerns with the i18n string values themselves?",
+      "decision": "No. These are static display strings with no dynamic evaluation. The function-valued cancelledByAnnouncement accepts two caller-controlled strings but is only used for display rendering, not eval or innerHTML insertion."
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "id": "Q01-POST-1",
+      "category": "TEST",
+      "phase": "post-impl",
+      "question": "cancelInviteBody is a static string whose body text is checked by substring ('removed from the group permanently'). If it ever needs the invitee name interpolated, will it require a type-breaking change?",
+      "observation": "Yes — it would need to become a function type, which would be a breaking change to the Copy type. The current spec AC-CPI-3 only requires substring containment, so the static string is correct. If interpolation is needed later, the Copy type must be updated along with both language entries."
+    }
+  ]
+}

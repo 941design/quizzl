@@ -1,0 +1,17 @@
+{
+  "story": "01-i18n-strings",
+  "status": "done",
+  "final_outcome": "accepted",
+  "files_modified": [
+    "app/src/lib/i18n.ts"
+  ],
+  "files_created": [
+    "app/tests/unit/cancelPendingInvitation.i18n.test.ts"
+  ],
+  "tests_before": { "files": 32, "tests": 441 },
+  "tests_after": { "files": 33, "tests": 443 },
+  "new_tests": 2,
+  "verification_rounds": 1,
+  "completed_at": "2026-05-01T10:20:00Z",
+  "notes": "Added 8 new i18n keys to Copy type (groups sub-section) and both en/de objects. Keys: cancelInviteButton, cancelInviteTitle, cancelInviteBody, cancelInviteConfirm, cancelInviteSuccess, cancelInviteError, cancelInviteRaceNotice, cancelledByAnnouncement. Vitest assertions cover both languages for all 8 keys. All ACs (CPI-1 through CPI-9) verified. No blocking issues."
+}

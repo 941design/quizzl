@@ -1,0 +1,41 @@
+{
+  "epic": "cancel-pending-invitations",
+  "merged_from": [
+    "exploration-similar.json",
+    "exploration-architecture.json",
+    "exploration-testing.json"
+  ],
+  "summary": [
+    "The MLS Remove + admin-list-cleanup commit pattern is a direct mirror of inviteByNpub at app/src/context/MarmotContext.tsx:796-907 (especially the lazy `Proposals` import and the `mlsGroup.commit({ extraProposals: [...] })` shape at lines 858-865), plus markBackupDirty + reloadGroups + getGroupMembers post-commit at lines 875-897.",
+    "marmot-ts 0.5.x exports `Proposals.proposeRemoveUser(pubkeyHex: string): ProposalAction<ProposalRemove[]>` (NOT `proposeRemove(leafIndex)`). The spec has been corrected; the implementer takes the invitee's hex pubkey, not a leaf index. `commit({ extraProposals })` accepts `(Proposal | ProposalAction<Proposal> | (Proposal | ProposalAction<Proposal>)[])[]` so the array-valued `ProposalAction<ProposalRemove[]>` should slot in directly — verify during integration.",
+    "Pending detection is ALREADY implemented: MemberList.tsx:43 derives `isPending` from a `confirmedPubkeys: Set<string>` prop, the 'Pending' badge is rendered at MemberList.tsx:130-138 (data-testid `member-pending-{pk.slice(0,8)}`, EN 'Pending' / DE 'Ausstehend' via `copy.groups.memberPending`), and `confirmedPubkeys` is built in groups.tsx:68-120 from `getMemberProfiles()` results — re-running on profileVersion / groupDataVersion bumps. New work is the Cancel button only; FR-1 is essentially a verification, not new code.",
+    "Kind-9 structured chat announcements are sent via `useChatStore().sendMessage(JSON.stringify({ type, ... }))` (PollStoreContext.tsx:204 / :297 for poll_open / poll_close). The dispatch in GroupChat.tsx:71-89 (`StructuredContent` union + `parseStructured`) and the render switch at GroupChat.tsx:362-389 are the three insertion points for `invite_cancelled`. PollChatAnnouncement.tsx:1-37 is the layout template for the new InviteCancelledChatAnnouncement (resolved display names as props; raw JSON parsed upstream).",
+    "ChatStoreContext.sendMessage (ChatStoreContext.tsx:171-199) already does optimistic local insert + IDB persist on send — the canceller will see their own announcement immediately without any extra plumbing. The 'self skipped by subscription' note in MarmotContext applies only to the subscription path (MarmotContext.tsx:528), which the cancel flow does not depend on.",
+    "Concurrent cancellation is handled by EpochResolver (epochResolver.ts): deterministic tie-break on (created_at, id), promise-chain serialization at line 104, rollback-and-replay at line 238. No new locking required. The losing canceller's commit is silently discarded; their UI converges via the onMembersChanged → groupDataVersion → confirmedPubkeys re-derivation chain (MarmotContext.tsx:641-675).",
+    "Profile rumor ingestion (PROFILE_RUMOR_KIND = 0, profileSync.ts:13) updates the `quizzl-member-profiles` IDB store via mergeMemberProfile (groupStorage.ts:137) and bumps profileVersion. The same store is read by getMemberProfiles to produce confirmedPubkeys — so the pending→active transition is automatic and reactive.",
+    "Backup payload (relayBackup.ts:35-69) needs no schema change. The kind-9 announcement is in chatMessages, the cancellation is implicit in groupStates (MLS bytes) and memberProfiles. No new backup field.",
+    "Test setup: vitest 4.x for unit (cd app && npx vitest run), Playwright 1.58 for E2E (E2E_GROUPS=1 node scripts/run-e2e.mjs). docker-compose.e2e.yml runs strfry on :7777 and blossom-mock on :3001. NO @testing-library/react — no component render tests in this repo; unit tests stay at storage/pure-function level. MarmotContext is explicitly hard to unit-test (pendingRequestsSection.test.ts:12); cover the cancel handler with mocked mlsGroup.commit at unit level + cover the full UI flow in E2E.",
+    "E2E pattern: groups-forward-secrecy.spec.ts:95-114 is the closest two-context template. AC-H only needs ctxA (admin); USER_B is the offline invitee whose npub is used as the invite target — USER_B's browser is NEVER booted. clearAppState in tests/e2e/helpers/clear-state.ts:3-42 covers the 9 IndexedDB databases — NO NEW DB needed for this feature.",
+    "i18n: new strings go under `groups.*` in the Copy type AND both en/de objects in app/src/lib/i18n.ts. memberPending already exists; new keys (cancelInviteButton, cancelInviteTitle, cancelInviteBody, cancelInviteConfirm, cancelInviteSuccess, cancelInviteError, cancelledByAnnouncement: (member, canceller) => string, possibly cancelInviteRaceNotice) all need EN+DE pairs. Vitest i18n test pattern: manageInviteLinksModal.test.ts:103-121 — two it() blocks (en, de) asserting exact strings via getCopy(lang)."
+  ],
+  "by_focus": {
+    "similar_features": "see exploration-similar.json",
+    "architecture": "see exploration-architecture.json",
+    "testing_and_conventions": "see exploration-testing.json"
+  },
+  "decisions_pinned_by_exploration": [
+    "FR-4 / AC-B use Proposals.proposeRemoveUser(pubkeyHex), not proposeRemove(leafIndex). Spec patched.",
+    "FR-1 (Pending badge) is already implemented; story scope reduces to verification + i18n key reuse.",
+    "Cancel handler lives in groups.tsx (the GroupDetailView page) and is passed down to MemberList/MemberListItem as a callback prop. New MarmotContext methods (cancelPendingInvitation, possibly isPendingMember) wire mlsGroup.commit + post-commit refresh + announcement.",
+    "kind-9 announcement is sent via useChatStore().sendMessage; canceller sees own announcement via the existing optimistic-insert path in ChatStoreContext.tsx:186-192. No extra IDB write needed.",
+    "Proposals stubs must be added to the marmot-ts vi.mock in any new unit test (template at epochResolver.test.ts:9-32).",
+    "No new IndexedDB database; clearAppState list does not need updating.",
+    "Single E2E test: app/tests/e2e/groups-cancel-pending.spec.ts (matched by groups-*.spec.ts pattern when E2E_GROUPS=1).",
+    "USER_B from auth-helpers.ts is the offline phantom invitee for the E2E — never booted."
+  ],
+  "open_questions_for_planner_or_architect": [
+    "Does mlsGroup.commit({ extraProposals }) accept Proposals.proposeRemoveUser(pk) directly (it returns ProposalAction<ProposalRemove[]>, an array-valued action) or must we destructure/spread it? Compile-check during the architect's TDD step.",
+    "Exact behavior of mlsGroup.commit when the target pubkey is no longer in the ratchet tree (already-removed concurrent case): throws? returns no-op? Architect should observe at integration time and code the silent-success branch in FR-10 accordingly.",
+    "The race-guard at click time (Edge Case row 1) needs to re-read getMemberProfiles inside the cancel handler rather than trusting the stale confirmedPubkeys prop. Implementation detail; planner should call this out in the relevant story scope."
+  ]
+}

@@ -18,8 +18,11 @@ import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import type { MemberProfile } from '@/src/types';
 import PollChatAnnouncement from './PollChatAnnouncement';
 import PollChatResults from './PollChatResults';
+import InviteCancelledChatAnnouncement from './InviteCancelledChatAnnouncement';
 import ImageAttachmentButton from './ImageAttachmentButton';
 import ImageMessageBubble from './ImageMessageBubble';
+import { parseStructured, resolveCancellerDisplay } from '@/src/lib/marmot/parseStructured';
+import type { StructuredContent } from '@/src/lib/marmot/parseStructured';
 
 /** Messages from the same sender within this window are grouped (inclusive). */
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
@@ -66,26 +69,6 @@ function formatTimestamp(ms: number, locale: string, justNow: string, minutesAgo
 function isGrouped(prev: ChatMessage, curr: ChatMessage): boolean {
   const delta = curr.createdAt - prev.createdAt;
   return prev.senderPubkey === curr.senderPubkey && delta >= 0 && delta <= GROUP_WINDOW_MS;
-}
-
-type StructuredContent =
-  | { type: 'poll_open'; pollId: string; title: string; creatorPubkey: string }
-  | { type: 'poll_close'; pollId: string; title: string; results: any[]; totalVoters: number }
-  | { type: 'image'; version: 1; caption: string }
-  | null;
-
-function parseStructured(content: string): StructuredContent {
-  try {
-    const parsed = JSON.parse(content);
-    if (parsed?.type === 'poll_open' && parsed.pollId && parsed.title) return parsed;
-    if (parsed?.type === 'poll_close' && parsed.pollId && parsed.title && Array.isArray(parsed.results)) return parsed;
-    if (parsed?.type === 'image' && parsed.version !== undefined) {
-      return { type: 'image', version: 1, caption: typeof parsed.caption === 'string' ? parsed.caption : '' };
-    }
-  } catch {
-    // Not JSON — plain text message
-  }
-  return null;
 }
 
 type GroupChatProps = {
@@ -373,6 +356,21 @@ export default function GroupChat({ pubkey, profileMap }: GroupChatProps) {
                             title={structured.title}
                             results={structured.results}
                             totalVoters={structured.totalVoters}
+                          />
+                        );
+                      }
+                      if (structured?.type === 'invite_cancelled') {
+                        const memberDisplay = profileMap[structured.pubkey]?.nickname
+                          ?? truncateNpub(pubkeyToNpub(structured.pubkey));
+                        const cancellerDisplay = resolveCancellerDisplay(
+                          msg.senderPubkey,
+                          profileMap,
+                          (pk) => truncateNpub(pubkeyToNpub(pk)),
+                        );
+                        return (
+                          <InviteCancelledChatAnnouncement
+                            memberDisplay={memberDisplay}
+                            cancellerDisplay={cancellerDisplay}
                           />
                         );
                       }

@@ -1,0 +1,16 @@
+{
+  "story": "04-member-list-cancel-ui",
+  "status": "done",
+  "final_outcome": "accepted",
+  "verification_rounds": 1,
+  "completed_at": "2026-05-01T10:27:00Z",
+  "files_modified": [
+    "app/src/components/groups/MemberList.tsx",
+    "app/pages/groups.tsx"
+  ],
+  "files_created": [],
+  "tests_before": { "files": 35, "tests": 457 },
+  "tests_after": { "files": 35, "tests": 457 },
+  "new_tests": 0,
+  "notes": "MemberList gains onCancelInvite?: (pubkey: string) => Promise<void> prop. MemberListItem renders an inline Cancel button (data-testid: cancel-invite-{pk.slice(0,8)}) gated on isPending && !isYou && onCancelInvite !== undefined. Chakra Modal confirmation shown on click with cancelInviteTitle/Body/Confirm strings; Confirm button has isLoading state. groups.tsx adds useToast, ChatSendMessageCapture (null-render inside ChatStoreProvider to capture sendMessage via ref), onCancelInvite callback that calls cancelPendingInvitation with sendAnnouncement and shows success/race/error toasts. All ACs (CPI-18 through CPI-21) verified. No blocking issues."
+}

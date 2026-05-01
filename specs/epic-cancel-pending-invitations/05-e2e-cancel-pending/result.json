@@ -1,0 +1,51 @@
+{
+  "story": "05-e2e-cancel-pending",
+  "status": "done",
+  "final_outcome": "accepted",
+  "verification_rounds": 2,
+  "completed_at": "2026-05-01T11:45:00Z",
+  "files_modified": [],
+  "files_created": [
+    "app/tests/e2e/groups-cancel-pending.spec.ts"
+  ],
+  "tests_before": { "files": 35, "tests": 457, "scope": "unit" },
+  "tests_after": { "files": 35, "tests": 457, "scope": "unit" },
+  "new_tests": 0,
+  "e2e_tests_added": 8,
+  "e2e_exit_status": "8/8 passing (14.3s)",
+  "e2e_verification_date": "2026-05-01T11:30:00Z",
+  "security_review": {
+    "reviewer": "team-lead (manual adversarial pass; Codex unavailable due to usage cap)",
+    "findings": [
+      {
+        "focus_area": "a. Multi-device member safety (leaf node iteration)",
+        "verdict": "green",
+        "detail": "getPubkeyLeafNodeIndexes returns all leaves for target pubkey; each leaf gets its own Remove proposal in removeProposals array. Correct even for multi-device members."
+      },
+      {
+        "focus_area": "b. Concurrent cancel handling (race condition)",
+        "verdict": "green",
+        "detail": "EpochResolver enforces deterministic ordering (created_at, id) + promise-chain serialization. Losing canceller's commit silently dropped; UI converges via groupDataVersion bump. Silent-success raceDetected:true path safe."
+      },
+      {
+        "focus_area": "c. Canceller identity trust (AC-CPI-17)",
+        "verdict": "green",
+        "detail": "Fixed: resolveCancellerDisplay(msg.senderPubkey, ...) uses protocol-enforced sender pubkey, never attacker-controlled structured.by field. Announcement source is now trustworthy."
+      },
+      {
+        "focus_area": "d. Batching Remove + UpdateMetadata in single commit",
+        "verdict": "green",
+        "detail": "Both Remove proposals and UpdateMetadata proposal are in single extraProposals array fed to mlsGroup.commit(). No bare Remove; no orphaned admin list."
+      },
+      {
+        "focus_area": "e. Wire format correctness (RFC 9420 §12.1.3)",
+        "verdict": "green",
+        "detail": "Plain objects {proposalType:3, remove:{removed:leafIndex}} match spec and ts-mls acceptance. Previous nested-array bug resolved."
+      }
+    ],
+    "low_severity_notes": [
+      "None blocking. All five focus areas verified green."
+    ]
+  },
+  "notes": "Playwright serial test suite (8 tests, 14.3s): USER_A creates group; USER_B briefly boots to publish KeyPackage then context closed; USER_A invites USER_B by npub; verifies pending badge (member-pending-{pk.slice(0,8)}) and cancel button (cancel-invite-{pk.slice(0,8)}); clicks Cancel and confirms (cancel-invite-confirm-{pk.slice(0,8)}); verifies USER_B row (member-item-{pk.slice(0,8)}) absent from member list after navigation reload; verifies invite-cancelled-announcement in chat; verifies USER_A can send new chat message. All ACs (CPI-22 through CPI-24) covered. Security review (5 focus areas) passed. Round 1 identified ProposalAction nesting bug; architect fix + Round 2 re-verification confirmed 8/8 passing."
+}

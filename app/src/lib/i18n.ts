@@ -314,6 +314,14 @@ type Copy = {
     noMembersYet: string;
     memberPending: string;
     memberYou: string;
+    cancelInviteButton: string;
+    cancelInviteTitle: string;
+    cancelInviteBody: string;
+    cancelInviteConfirm: string;
+    cancelInviteSuccess: string;
+    cancelInviteError: string;
+    cancelInviteRaceNotice: string;
+    cancelledByAnnouncement: (member: string, canceller: string) => string;
     chatLoading: string;
     chatEmpty: string;
     chatPlaceholder: string;
@@ -704,6 +712,14 @@ const copy: Record<LanguageCode, Copy> = {
       noMembersYet: 'No members yet.',
       memberPending: 'Pending',
       memberYou: 'You',
+      cancelInviteButton: 'Cancel Invite',
+      cancelInviteTitle: 'Cancel Pending Invitation',
+      cancelInviteBody: 'Cancel this pending invitation? They will be removed from the group permanently.',
+      cancelInviteConfirm: 'Confirm',
+      cancelInviteSuccess: 'Invitation cancelled',
+      cancelInviteError: 'Failed to cancel invitation',
+      cancelInviteRaceNotice: 'Member just came online — cancellation no longer applies',
+      cancelledByAnnouncement: (member: string, canceller: string) => `${member} was uninvited by ${canceller}`,
       chatLoading: 'Loading messages...',
       chatEmpty: 'No messages yet. Say hello!',
       chatPlaceholder: 'Type a message...',
@@ -1082,6 +1098,14 @@ const copy: Record<LanguageCode, Copy> = {
       noMembersYet: 'Noch keine Mitglieder.',
       memberPending: 'Ausstehend',
       memberYou: 'Du',
+      cancelInviteButton: 'Einladung zurückziehen',
+      cancelInviteTitle: 'Ausstehende Einladung zurückziehen',
+      cancelInviteBody: 'Diese ausstehende Einladung zurückziehen? Das Mitglied wird dauerhaft aus der Gruppe entfernt.',
+      cancelInviteConfirm: 'Bestätigen',
+      cancelInviteSuccess: 'Einladung zurückgezogen',
+      cancelInviteError: 'Einladung konnte nicht zurückgezogen werden',
+      cancelInviteRaceNotice: 'Mitglied ist gerade online — Einladung kann nicht mehr zurückgezogen werden',
+      cancelledByAnnouncement: (member: string, canceller: string) => `${member} wurde von ${canceller} ausgeladen`,
       chatLoading: 'Nachrichten werden geladen...',
       chatEmpty: 'Noch keine Nachrichten. Sag Hallo!',
       chatPlaceholder: 'Nachricht eingeben...',

@@ -1,0 +1,18 @@
+{
+  "story": "02-marmot-context-cancel-action",
+  "status": "done",
+  "final_outcome": "accepted",
+  "verification_rounds": 1,
+  "completed_at": "2026-05-01T10:25:00Z",
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "files_created": [
+    "app/src/lib/marmot/cancelInvitationImpl.ts",
+    "app/tests/unit/marmot/cancelInvitationImpl.test.ts"
+  ],
+  "tests_before": { "files": 33, "tests": 443 },
+  "tests_after": { "files": 34, "tests": 451 },
+  "new_tests": 8,
+  "notes": "Added isPendingMember and cancelPendingInvitation to MarmotContextValue. Cancel logic is extracted to cancelInvitationImpl.ts for unit testability (MarmotContext is hard to render). sendAnnouncement is an optional callback parameter — MarmotContext cannot call useChatStore() directly since it is mounted above ChatStoreProvider in the tree. Tests cover: happy path, commit-throws, already-not-a-member (raceDetected), race-guard (profile just arrived). All ACs (CPI-10 through CPI-14) verified. No blocking issues."
+}

@@ -1,0 +1,74 @@
+{
+  "focus": "testing-and-conventions",
+  "unit_runner": "vitest@^4.0.18",
+  "unit_command": "make test-unit  (runs: cd app && npx vitest run)",
+  "component_lib": "none — no @testing-library/react in devDependencies or tests; component logic is tested at the pure-function/storage layer only; MarmotContext is explicitly called out as 'difficult to unit test' in pendingRequestsSection.test.ts:12",
+  "test_locations": [
+    "app/tests/unit/*.test.ts — top-level unit tests (storage, scoring, keys, etc.)",
+    "app/tests/unit/marmot/*.test.ts — marmot-ts and MLS logic tests (epochResolver, welcomeSubscription, joinRequestHandler, etc.)",
+    "app/tests/e2e/groups-*.spec.ts — all groups E2E tests (run only when E2E_GROUPS=1)",
+    "app/tests/e2e/helpers/ — shared helpers: auth-helpers.ts, clear-state.ts, dismiss-error-overlay.ts, relay-query.ts"
+  ],
+  "e2e": {
+    "framework": "playwright@^1.58.2",
+    "compose_file": "docker-compose.e2e.yml",
+    "compose_services": [
+      "strfry (dockurr/strfry:latest) on port 7777 — in-memory relay (tmpfs), config from strfry.e2e.conf",
+      "blossom-mock (node:22-alpine) on port 3001 — mock image upload server from scripts/blossom-mock.mjs"
+    ],
+    "test_dir": "app/tests/e2e",
+    "test_pattern": "groups-*.spec.ts (matched via playwright.config.ts testMatch when E2E_GROUPS=1; non-groups tests use testIgnore)",
+    "playwright_config": "app/playwright.config.ts — fullyParallel:false, workers:1, timeout:120_000 (groups), actionTimeout:30_000 (groups), Chromium only",
+    "two_context_example_file": "app/tests/e2e/groups-admin.spec.ts:93 (three contexts: USER_A, USER_B, USER_C) and app/tests/e2e/groups-forward-secrecy.spec.ts:95 (two contexts: USER_A, USER_B)",
+    "bootUser_pattern": "app/tests/e2e/groups-admin.spec.ts:9–31 — browser.newContext → suppressErrorOverlay → addInitScript(localStorage inject) → newPage → goto('/') → clearAppState → reload → goto('/groups/')",
+    "clear_app_state_file": "app/tests/e2e/helpers/clear-state.ts",
+    "clear_app_state_databases": [
+      "quizzl-groups-meta",
+      "quizzl-groups-state",
+      "quizzl-keypackages",
+      "quizzl-member-scores",
+      "quizzl-member-profiles",
+      "quizzl-invite-links",
+      "quizzl-join-requests",
+      "quizzl-media-blobs",
+      "quizzl-media-meta"
+    ],
+    "command": "make test-e2e-groups  (runs: docker-compose up → E2E_GROUPS=1 node scripts/run-e2e.mjs → docker-compose down)"
+  },
+  "make_targets": {
+    "test": "make test  (runs test-unit then test-e2e sequentially)",
+    "test_unit": "make test-unit  (cd app && npx vitest run)",
+    "e2e": "make test-e2e-groups  (ensure-playwright + e2e-up + E2E_GROUPS=1 node scripts/run-e2e.mjs + e2e-down)",
+    "e2e_single_file": "make test-e2e-image-sharing  (same infra but passes a single spec file to run-e2e.mjs — pattern reusable for cancel-pending spec)",
+    "dev": "make run-dev  (cd app && npm run dev)",
+    "platform_stamp": "app/node_modules/.platform_$(uname -s)-$(uname -m) — missing or stale stamp triggers npm ci + fresh .next/out wipe; all targets depend on ensure-deps"
+  },
+  "i18n_test_pattern": "Present in app/tests/unit/manageInviteLinksModal.test.ts:103–121 — two separate it() blocks, one for 'en' and one for 'de', each calling getCopy(lang) from '@/src/lib/i18n' and asserting exact string values. The cancel-pending feature must follow the same pattern: import getCopy, assert en.<key> and de.<key> for every new string.",
+  "ci": "No .github/workflows directory exists in the repo. No CI configuration found. Tests are run manually via make.",
+  "key_files": [
+    "app/tests/e2e/helpers/clear-state.ts — INDEXEDDB_DATABASES list; must add any new DB here if the cancel flow introduces one (currently no new DB expected)",
+    "app/tests/e2e/helpers/auth-helpers.ts — USER_A/B/C deterministic keypairs + computeTestKeypairs(); USER_B.npub is the 'offline invitee' for AC-H",
+    "app/tests/e2e/groups-admin.spec.ts — canonical two/three-context serial test pattern with bootUser + inviteMember helpers",
+    "app/tests/e2e/groups-forward-secrecy.spec.ts — two-context pattern closest to AC-H (A acts, B observes); sendChatMessage helper reusable for post-cancel chat assertion",
+    "app/tests/e2e/groups-invite-link.spec.ts — full flow example with openGroupDetail, modal interaction, dismissErrorOverlay",
+    "app/tests/unit/marmot/epochResolver.test.ts — marmot-ts mock shape (vi.mock('@internet-privacy/marmot-ts', ...) with getGroupMembers, serializeClientState, etc.)",
+    "app/tests/unit/marmot/joinRequestHandler.test.ts — closest unit test pattern for a new MarmotContext helper (mock storage layer, test pure handler logic)",
+    "app/tests/unit/manageInviteLinksModal.test.ts:103–121 — i18n assertion pattern for en+de",
+    "app/src/components/groups/MemberList.tsx — confirmedPubkeys prop already drives isPending and the existing 'pending' badge (FR-1 partially done); Cancel button goes here",
+    "app/pages/groups.tsx:68–120 — confirmedPubkeys state derivation from getMemberProfiles; Cancel handler will live in this page or be passed down",
+    "app/playwright.config.ts — single-worker, 120s timeout, groups-*.spec.ts pattern",
+    "app/vitest.config.ts — include: tests/unit/**/*.test.ts, alias @ → app/"
+  ],
+  "notes_for_planner": [
+    "The pending badge and confirmedPubkeys machinery ALREADY EXISTS: MemberList.tsx:43 derives isPending from confirmedPubkeys, MemberList.tsx:130–138 renders the badge, and groups.tsx:68–120 builds the confirmedPubkeys Set from getMemberProfiles(). FR-1 is partially implemented — the new work is adding the Cancel button to MemberListItem alongside the badge.",
+    "No @testing-library/react is installed. Component-level tests are NOT written for this project. Unit tests stay at the storage/pure-function layer; UI correctness is covered by E2E only.",
+    "MarmotContext is explicitly flagged as hard to unit test (pendingRequestsSection.test.ts:12). The cancel handler (cancelPendingInvitation) should be tested indirectly: mock mlsGroup.commit at the unit level for the logic, and rely on E2E for the full flow.",
+    "The marmot-ts mock in epochResolver.test.ts:9–32 is the reference for vi.mock('@internet-privacy/marmot-ts', ...) — includes getGroupMembers, serializeClientState, deserializeClientState, getEpoch, Proposals stubs. New tests that exercise cancelPendingInvitation will need Proposals.proposeRemove and Proposals.proposeUpdateMetadata added to this mock.",
+    "clearAppState in clear-state.ts:3–13 lists 9 IndexedDB DBs. No new DB is needed for cancel-pending (the feature reuses quizzl-member-profiles for pending detection and quizzl-groups-state for MLS state). The list does NOT need updating.",
+    "The bootUser pattern injects identity via addInitScript (before page load), not after. This is critical: auth-helpers USER_B is the natural offline invitee for AC-H because B is never booted in the cancel test.",
+    "E2E test naming convention: groups-cancel-pending.spec.ts. Place in app/tests/e2e/ to be picked up by the groups-*.spec.ts glob.",
+    "The make test-e2e-image-sharing target shows how to run a single groups spec file: E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-image-sharing.spec.ts. Use the same pattern for iterative development of the cancel spec.",
+    "i18n: getCopy is exported from app/src/lib/i18n.ts:1141. The Copy type gate at compile time means missing keys cause TS errors — the vitest i18n tests are a runtime double-check, not the primary guard.",
+    "The cancel feature test (AC-H) only needs TWO contexts (ctxA admin, offline USER_B as phantom invitee). USER_B never boots — A just uses USER_B.npub as the invite target, then cancels before B ever connects."
+  ]
+}

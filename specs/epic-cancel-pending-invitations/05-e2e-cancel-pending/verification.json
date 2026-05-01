@@ -1,0 +1,81 @@
+{
+  "story": "05-e2e-cancel-pending",
+  "phase": "pre-impl",
+  "questions": [
+    {
+      "id": "Q05-QUALITY-1",
+      "category": "QUALITY",
+      "phase": "pre-impl",
+      "question": "USER_B is the phantom invitee — their browser is never booted. But inviteByNpub requires USER_B's KeyPackage to be on the relay (kind 443/30443). How does this happen?",
+      "decision": "USER_B must briefly boot to publish their KeyPackage before being closed. The spec says 'B's browser is closed BEFORE A clicks Cancel'. So: boot B, wait for KP publication (using waitForKeyPackages pattern from groups-admin.spec.ts:35-49), then close B's context. A then invites B's npub. B's row shows pending. A cancels."
+    },
+    {
+      "id": "Q05-ARCH-1",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "What is the E2E test file name and match pattern?",
+      "decision": "app/tests/e2e/groups-cancel-pending.spec.ts — matched by the groups-*.spec.ts pattern when E2E_GROUPS=1 per exploration.json."
+    },
+    {
+      "id": "Q05-ARCH-2",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "How to verify the InviteCancelledChatAnnouncement appeared in chat?",
+      "decision": "The component has data-testid='invite-cancelled-announcement'. Assert its presence with toBeVisible(). Also assert the text contains the EN announcement string."
+    },
+    {
+      "id": "Q05-TEST-1",
+      "category": "TEST",
+      "phase": "pre-impl",
+      "question": "What is the test structure?",
+      "decision": "test.describe.serial() with tests: (1) boot A+B, (2) A creates group, (3) B publishes KP, (4) close B context, (5) A invites B, (6) verify pending badge, (7) A clicks Cancel and confirms, (8) verify B row gone, (9) verify announcement in chat, (10) A sends chat message (verify group usable)."
+    },
+    {
+      "id": "Q05-SPEC-AC-CPI-22",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-22",
+      "phase": "pre-impl",
+      "question": "AC-CPI-22: USER_B's row must show pending badge before cancel. The pending badge data-testid is member-pending-{pk.slice(0,8)}. When is it rendered?",
+      "decision": "The pending badge renders when confirmedPubkeys does not contain B's pubkey. Since B never processed the Welcome (context closed), no profile rumor was sent. The badge should be visible as soon as A's member list loads."
+    },
+    {
+      "id": "Q05-SPEC-AC-CPI-23",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-23",
+      "phase": "pre-impl",
+      "question": "AC-CPI-23: the cancellation announcement row must appear in chat in the same Playwright session after cancellation. What selector and assertion covers InviteCancelledChatAnnouncement?",
+      "decision": "Assert getByTestId('invite-cancelled-announcement').toBeVisible() with a generous timeout (15s) to allow the kind-9 message's optimistic insert to render. The data-testid is set directly on the announcement component's root Box element. No text-content assertion needed since the component is already covered by unit/type tests; presence is sufficient for the E2E."
+    },
+    {
+      "id": "Q05-SPEC-AC-CPI-24",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-24",
+      "phase": "pre-impl",
+      "question": "AC-CPI-24: After cancel, A must be able to send a new chat message (proving group not blocked). What assertion covers this?",
+      "decision": "Use the sendChatMessage helper pattern from groups-forward-secrecy.spec.ts:78-86 to send a new message and assert its appearance."
+    },
+    {
+      "id": "Q05-SECURITY-1",
+      "category": "SECURITY",
+      "phase": "pre-impl",
+      "question": "Are there any security risks in the E2E test setup?",
+      "decision": "No. Test uses deterministic keypairs from auth-helpers.ts, and clearAppState wipes IDB before each run. The relay is a local strfry instance (docker-compose.e2e.yml)."
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "id": "Q05-POST-1",
+      "category": "TEST",
+      "phase": "post-impl",
+      "question": "The E2E test closes ctxB after KP publication. Is there a race where B might still be subscribing when A cancels?",
+      "observation": "No. ctxB is closed synchronously before the invite step. Playwright's context.close() terminates all network connections. The relay retains B's KP event so A can still fetch it. After ctxB.close(), B is fully offline — all subsequent actions are purely A's."
+    },
+    {
+      "id": "Q05-POST-2",
+      "category": "ARCHITECTURE",
+      "phase": "post-impl",
+      "question": "The test reloads the group detail page after the invite to ensure the member list reflects the committed state. Is this necessary?",
+      "observation": "Yes. The member list re-loads from MLS state via the onMembersChanged callback and groupDataVersion bump. A page reload is the most reliable way to ensure the UI reflects the committed MLS state rather than relying on timing of the callback chain."
+    }
+  ]
+}

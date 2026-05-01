@@ -1,0 +1,9 @@
+{
+  "story": "02-marmot-context-cancel-action",
+  "run_at": "2026-05-01",
+  "command": "make test-unit",
+  "test_files": 33,
+  "tests_passed": 443,
+  "tests_failed": 0,
+  "status": "green"
+}

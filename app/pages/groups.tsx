@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Flex,
@@ -13,6 +13,7 @@ import {
   AlertIcon,
   AlertDescription,
   useDisclosure,
+  useToast,
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -35,7 +36,7 @@ import JoinRequestCard from '@/src/components/groups/JoinRequestCard';
 import PendingRequestsSection from '@/src/components/groups/PendingRequestsSection';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
 import GroupChat from '@/src/components/groups/GroupChat';
-import { ChatStoreProvider } from '@/src/context/ChatStoreContext';
+import { ChatStoreProvider, useChatStore } from '@/src/context/ChatStoreContext';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { PollStoreProvider } from '@/src/context/PollStoreContext';
 import PollPanel from '@/src/components/groups/PollPanel';
@@ -47,15 +48,23 @@ import type { Group, MemberScore, MemberProfile } from '@/src/types';
 
 type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 
+/** Captures sendMessage from ChatStore into a ref so GroupDetailView can use it. */
+function ChatSendMessageCapture({ sendMessageRef }: { sendMessageRef: React.MutableRefObject<((c: string) => Promise<void>) | null> }) {
+  const { sendMessage } = useChatStore();
+  sendMessageRef.current = sendMessage;
+  return null;
+}
+
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
-  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion } = useMarmot();
+  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, cancelPendingInvitation } = useMarmot();
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const signer = useMemo(
     () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
     [privateKeyHex],
   );
   const { profile: ownProfile } = useProfile();
+  const toast = useToast();
   const inviteDisclosure = useDisclosure();
   const inviteLinkDisclosure = useDisclosure();
   const manageLinksDisclosure = useDisclosure();
@@ -67,6 +76,39 @@ function GroupDetailView({ id }: { id: string }) {
   const [profileMap, setProfileMap] = useState<Record<string, MemberProfile>>({});
   const [confirmedPubkeys, setConfirmedPubkeys] = useState<Set<string>>(new Set());
   const [mlsGroup, setMlsGroup] = useState<MarmotGroupType | null>(null);
+  // Ref to capture sendMessage from inside ChatStoreProvider without prop drilling
+  const sendAnnouncementRef = useRef<((content: string) => Promise<void>) | null>(null);
+
+  const onCancelInvite = useCallback(async (pubkey: string) => {
+    if (!group) return;
+    const result = await cancelPendingInvitation(
+      group.id,
+      pubkey,
+      sendAnnouncementRef.current ?? undefined,
+    );
+    if (result.ok && result.raceDetected) {
+      toast({
+        title: copy.groups.cancelInviteRaceNotice,
+        status: 'info',
+        duration: 4000,
+        isClosable: true,
+      });
+    } else if (result.ok) {
+      toast({
+        title: copy.groups.cancelInviteSuccess,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } else {
+      toast({
+        title: copy.groups.cancelInviteError,
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+  }, [group, cancelPendingInvitation, toast, copy.groups]);
 
   useEffect(() => {
     if (!ready) return;
@@ -233,6 +275,7 @@ function GroupDetailView({ id }: { id: string }) {
               ownPubkeyHex={pubkeyHex}
               memberProfiles={profileMap}
               confirmedPubkeys={confirmedPubkeys}
+              onCancelInvite={onCancelInvite}
             />
           </Box>
 
@@ -267,6 +310,7 @@ function GroupDetailView({ id }: { id: string }) {
               signer={signer}
               chatVersion={chatVersion}
             >
+              <ChatSendMessageCapture sendMessageRef={sendAnnouncementRef} />
               <PollStoreProvider
                 groupId={group.id}
                 group={mlsGroup}

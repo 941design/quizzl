@@ -1,0 +1,104 @@
+{
+  "story": "02-marmot-context-cancel-action",
+  "phase": "pre-impl",
+  "questions": [
+    {
+      "id": "Q02-QUALITY-1",
+      "category": "QUALITY",
+      "phase": "pre-impl",
+      "question": "cancelPendingInvitation is in MarmotContext which is mounted at app-level, but useChatStore() is only available inside ChatStoreProvider (mounted per-group in groups.tsx). How does the announcement sendMessage get called?",
+      "decision": "cancelPendingInvitation accepts an optional sendAnnouncement?: (content: string) => Promise<void> parameter. The page wiring (story 04) passes useChatStore().sendMessage when invoking the action. This keeps MarmotContext decoupled from ChatStoreContext and is consistent with how PollStoreProvider accesses sendMessage."
+    },
+    {
+      "id": "Q02-ARCH-1",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "Should isPendingMember live in MarmotContext or be a pure utility function?",
+      "decision": "In MarmotContext per AC-CPI-10 which requires it as a method on MarmotContextValue. It uses getMemberProfiles (already on MarmotContext) and getGroupMembers from marmot-ts. Each call re-reads from IDB to avoid stale closures, as required by AC-CPI-10."
+    },
+    {
+      "id": "Q02-ARCH-2",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "Does commit({ extraProposals: [proposeRemoveUser(pk), proposeUpdateMetadata(...)]) accept ProposalAction<ProposalRemove[]> directly?",
+      "decision": "Per exploration.json pinned decision: 'commit({ extraProposals }) accepts (Proposal | ProposalAction<Proposal> | (Proposal | ProposalAction<Proposal>)[])[] so the array-valued ProposalAction<ProposalRemove[]> should slot in directly'. Will verify at compile/runtime; add explicit type cast if TypeScript rejects it."
+    },
+    {
+      "id": "Q02-TEST-1",
+      "category": "TEST",
+      "phase": "pre-impl",
+      "question": "What mocking approach for the unit tests covering cancelPendingInvitation?",
+      "decision": "Extend the vi.mock('@internet-privacy/marmot-ts') pattern from epochResolver.test.ts:9-32, adding Proposals.proposeRemoveUser and Proposals.proposeUpdateMetadata stubs. Mock clientRef behavior by directly testing the internal logic via a test harness — since MarmotContext is hard to render (per pendingRequestsSection.test.ts:12), unit tests will test the cancel logic in isolation by extracting the cancel handler into a testable pure-function helper."
+    },
+    {
+      "id": "Q02-TEST-2",
+      "category": "TEST",
+      "phase": "pre-impl",
+      "question": "How to test cancelPendingInvitation without rendering the full MarmotContext React tree?",
+      "decision": "Extract an async function cancelPendingInvitationImpl(deps, groupId, pubkey, sendAnnouncement?) that receives its dependencies as parameters. The useCallback in MarmotContext calls this function. Unit tests call cancelPendingInvitationImpl directly with mocked deps."
+    },
+    {
+      "id": "Q02-SPEC-AC-CPI-10",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-10",
+      "phase": "pre-impl",
+      "question": "AC-CPI-10 requires isPendingMember to call getGroupMembers from marmot-ts. Does getGroupMembers take mlsGroup or mlsGroup.state?",
+      "decision": "Per exploration.json and the existing inviteByNpub code at line 878: getGroupMembers(mlsGroup.state). The mlsGroup is obtained via client.groups.get(groupId)."
+    },
+    {
+      "id": "Q02-SPEC-AC-CPI-11",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-11",
+      "phase": "pre-impl",
+      "question": "AC-CPI-11: after commit, does reloadGroups() alone suffice or is a separate persistGroup call also needed?",
+      "decision": "inviteByNpub pattern (lines 872-882) shows: getGroupMembers(mlsGroup.state) → persistGroup(updated) → reloadGroups(). Same pattern applies: persist updated member list then reload. markBackupDirty(true) also called."
+    },
+    {
+      "id": "Q02-SPEC-AC-CPI-12",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-12",
+      "phase": "pre-impl",
+      "question": "AC-CPI-12: when mlsGroup.commit throws, cancelPendingInvitation must return { ok: false, error } and must NOT call sendMessage. Where should the throw be caught — in the impl or in the MarmotContext wrapper?",
+      "decision": "In the impl (cancelPendingInvitationImpl) so the unit tests can verify the error return without rendering MarmotContext. The commit call is wrapped in try/catch inside the impl; on catch it returns { ok: false, error: err.message }. The sendAnnouncement call is only reached after a successful commit, ensuring it is never called on failure."
+    },
+    {
+      "id": "Q02-SPEC-AC-CPI-13",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-13",
+      "phase": "pre-impl",
+      "question": "AC-CPI-13: when isPendingMember returns false (already gone), return { ok: true } without calling commit. Should this be distinguishable from success?",
+      "decision": "Per AC-CPI-14, when race-guard triggers (profile just arrived between render and call), return { ok: true, raceDetected: true }. When isPendingMember returns false for any reason (including concurrent cancel), return { ok: true, raceDetected: true } — same path, since both mean member is no longer pending."
+    },
+    {
+      "id": "Q02-SPEC-AC-CPI-14",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-14",
+      "phase": "pre-impl",
+      "question": "AC-CPI-14: the race-guard path (isPendingMember returns false because profile arrived between render and click) must return { ok: true, raceDetected: true }. Is this distinguishable from the concurrent-cancel path (AC-CPI-13)?",
+      "decision": "Both paths share the same code: isPendingMember returns false for any reason → return { ok: true, raceDetected: true }. The caller (groups.tsx) shows the cancelInviteRaceNotice toast for raceDetected:true and the cancelInviteSuccess toast for ok:true without raceDetected. The unit test mocks isPendingMember returning false and asserts result.raceDetected === true and commit not called."
+    },
+    {
+      "id": "Q02-SECURITY-1",
+      "category": "SECURITY",
+      "phase": "pre-impl",
+      "question": "Is there a risk of a non-member calling cancelPendingInvitation to remove members from a group they don't belong to?",
+      "decision": "No. The mlsGroup.commit() call goes through marmot-ts which enforces MLS admin-only commit rules. A non-admin cannot commit a Remove proposal. The local check isPendingMember is a UX guard only; the protocol enforces authorization."
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "id": "Q02-POST-1",
+      "category": "ARCHITECTURE",
+      "phase": "post-impl",
+      "question": "cancelPendingInvitation takes an optional sendAnnouncement callback rather than calling useChatStore() internally. Is this the right seam?",
+      "observation": "Yes — MarmotContext is mounted at app level, outside ChatStoreProvider. Passing the announcement function as a parameter keeps the contexts decoupled and matches the pattern used by PollStoreProvider (which calls useChatStore() because it IS nested inside ChatStoreProvider). The groups.tsx page wiring (story 04) passes chatStore.sendMessage when invoking cancelPendingInvitation."
+    },
+    {
+      "id": "Q02-POST-2",
+      "category": "TEST",
+      "phase": "post-impl",
+      "question": "The impl helper cancelPendingInvitationImpl is extracted to cancelInvitationImpl.ts. Does this create a maintenance burden?",
+      "observation": "Minimal: the MarmotContext useCallback delegates to the impl. The impl is well-typed with the Deps interface. Future changes to the cancel logic go in the impl; changes to the React lifecycle stay in MarmotContext. The pattern mirrors what would be an integration test boundary."
+    }
+  ]
+}

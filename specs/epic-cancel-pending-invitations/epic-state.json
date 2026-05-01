@@ -1,0 +1,46 @@
+{
+  "epic_name": "cancel-pending-invitations",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-05-01T09:46:49+02:00",
+  "updated_at": "2026-05-01T10:52:01+02:00",
+  "completed_stories": ["01", "02", "03", "04", "05"],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-05-01T09:46:49+02:00",
+      "trigger": "validation_passed_after_user_clarifications"
+    },
+    {
+      "phase": "STORIES_PLANNED",
+      "timestamp": "2026-05-01T09:58:00+02:00",
+      "trigger": "planner_delivered_acceptance_criteria_and_stories"
+    },
+    {
+      "phase": "IN_PROGRESS",
+      "timestamp": "2026-05-01T09:59:00+02:00",
+      "trigger": "architect_and_verifier_spawned"
+    },
+    {
+      "phase": "STORY_05_REMEDIATION",
+      "timestamp": "2026-05-01T10:25:00+02:00",
+      "trigger": "lead_independent_e2e_run_caught_proposeRemoveUser_proposalaction_array_unwrap_bug_after_verifier_rubber_stamped_first_acceptance"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-05-01T10:52:01+02:00",
+      "trigger": "all_5_stories_accepted_after_e2e_passes_8_of_8_and_lead_adversarial_pass_substituted_for_codex_usage_cap"
+    }
+  ],
+  "final_test_counts": {
+    "unit_tests": "461 passing (35 files)",
+    "unit_tests_added_by_epic": 19,
+    "e2e_tests": "8 passing (groups-cancel-pending.spec.ts, 14.3s)"
+  },
+  "open_low_severity_findings": [
+    "L1: If post-commit getGroup fetch fails in cancelInvitationImpl.ts:98, local UI does not refresh until next external trigger. MLS state remains authoritative; only a soft local inconsistency. Not blocking.",
+    "L2: Admin-pubkey filter in cancelInvitationImpl.ts:65-68 lowercase-compares; depends on Nostr-standard lowercase storage. Reasonable but undocumented assumption.",
+    "L3 (process): Codex adversarial review on the proposeRemoveUser bypass fix was substituted by team-lead manual review due to Codex usage cap (resets 1:45 PM). No critical or high findings; covered the same five focus areas (multi-device safety, wire format, signing, empty-leaves handling, AC-CPI-13 convergence)."
+  ]
+}

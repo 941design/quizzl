@@ -1,0 +1,9 @@
+{
+  "story": "04-member-list-cancel-ui",
+  "run_at": "2026-05-01",
+  "command": "make test-unit",
+  "test_files": 35,
+  "tests_passed": 457,
+  "tests_failed": 0,
+  "status": "green"
+}

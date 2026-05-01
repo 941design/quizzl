@@ -1,0 +1,10 @@
+{
+  "story": "05-e2e-cancel-pending",
+  "run_at": "2026-05-01",
+  "command": "make test-unit",
+  "test_files": 35,
+  "tests_passed": 457,
+  "tests_failed": 0,
+  "status": "green",
+  "note": "Unit baseline only per team-lead instructions (E2E baseline omitted as expensive)"
+}

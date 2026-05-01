@@ -1,0 +1,81 @@
+{
+  "story": "03-invite-cancelled-announcement",
+  "phase": "pre-impl",
+  "questions": [
+    {
+      "id": "Q03-QUALITY-1",
+      "category": "QUALITY",
+      "phase": "pre-impl",
+      "question": "Should InviteCancelledChatAnnouncement use the same blue color scheme as PollChatAnnouncement or a different accent?",
+      "decision": "Use a neutral/gray accent to differentiate it from poll announcements. This is an administrative event (member removal), not a collaborative event (poll creation). A distinct color helps users scan the chat history."
+    },
+    {
+      "id": "Q03-ARCH-1",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "Where should InviteCancelledChatAnnouncement.tsx be placed?",
+      "decision": "app/src/components/groups/InviteCancelledChatAnnouncement.tsx — co-located with PollChatAnnouncement.tsx and GroupChat.tsx in the groups/ component directory."
+    },
+    {
+      "id": "Q03-ARCH-2",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "How does GroupChat resolve memberDisplay and cancellerDisplay for the invite_cancelled structured message?",
+      "decision": "Same pattern as poll_open: look up pubkey in profileMap (the prop passed to GroupChat). If not found, fall back to truncateNpub(pubkeyToNpub(pubkey)). The pubkey is in the structured content (invite_cancelled.pubkey), canceller is msg.senderPubkey."
+    },
+    {
+      "id": "Q03-TEST-1",
+      "category": "TEST",
+      "phase": "pre-impl",
+      "question": "What unit test covers parseStructured for the invite_cancelled branch?",
+      "decision": "A vitest test asserting parseStructured('{\"type\":\"invite_cancelled\",\"pubkey\":\"aabb\",\"by\":\"ccdd\"}') returns { type: 'invite_cancelled', pubkey: 'aabb', by: 'ccdd' }. No @testing-library/react — component rendering is tested only via E2E (story 05)."
+    },
+    {
+      "id": "Q03-SPEC-AC-CPI-15",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-15",
+      "phase": "pre-impl",
+      "question": "AC-CPI-15 requires InviteCancelledChatAnnouncement to receive props { memberDisplay, cancellerDisplay } with no data-fetching. Does this match the GroupChat dispatch pattern?",
+      "decision": "Yes. GroupChat resolves both display strings before rendering and passes them as props, same as PollChatAnnouncement receives creatorName+title pre-resolved."
+    },
+    {
+      "id": "Q03-SPEC-AC-CPI-16",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-16",
+      "phase": "pre-impl",
+      "question": "AC-CPI-16: StructuredContent union must gain { type: 'invite_cancelled'; pubkey: string; by: string }. Should this type be shared or local to GroupChat.tsx?",
+      "decision": "Keep it local to GroupChat.tsx per the existing pattern (StructuredContent is defined at GroupChat.tsx:71-75). No separate type file needed."
+    },
+    {
+      "id": "Q03-SPEC-AC-CPI-17",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-17",
+      "phase": "pre-impl",
+      "question": "AC-CPI-17: the render switch handles invite_cancelled using msg.senderPubkey as the canceller (by field) and structured.pubkey as the member. Is msg.senderPubkey reliable here?",
+      "decision": "Yes — the kind-9 message was sent by the canceller, so msg.senderPubkey is the canceller. The structured.by field is redundant but also accurate. Using structured.by for display is preferred as it was explicitly included in the payload for this purpose."
+    },
+    {
+      "id": "Q03-SECURITY-1",
+      "category": "SECURITY",
+      "phase": "pre-impl",
+      "question": "Are there any XSS risks in rendering memberDisplay/cancellerDisplay in the announcement component?",
+      "decision": "No — both strings are rendered via React Text/JSX string interpolation, which auto-escapes HTML. No dangerouslySetInnerHTML is used."
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "id": "Q03-POST-1",
+      "category": "ARCHITECTURE",
+      "phase": "post-impl",
+      "question": "parseStructured was extracted from GroupChat.tsx to a shared module. Does this affect existing tests?",
+      "observation": "No existing tests tested parseStructured directly (it was private). The extraction is a pure refactor that enables unit testing. GroupChat.tsx imports parseStructured and StructuredContent from the shared module. The new parseStructured.test.ts covers 9 cases including the new invite_cancelled branch and the trust-boundary tests."
+    },
+    {
+      "id": "Q03-POST-2",
+      "category": "SECURITY",
+      "phase": "post-impl",
+      "question": "The initial render used structured.by for cancellerDisplay, which is attacker-controlled content. How was this fixed?",
+      "observation": "Remediated: resolveCancellerDisplay(senderPubkey, profileMap, truncate) exported from parseStructured.ts always uses the protocol-enforced msg.senderPubkey. GroupChat's invite_cancelled branch calls this function with msg.senderPubkey, ignoring structured.by entirely for display. Three new unit tests cover: nickname from profileMap, fallback to truncated pubkey, and an explicit forged-by scenario proving spoofing is closed."
+    }
+  ]
+}

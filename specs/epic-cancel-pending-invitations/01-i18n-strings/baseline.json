@@ -1,0 +1,9 @@
+{
+  "story": "01-i18n-strings",
+  "run_at": "2026-05-01",
+  "command": "make test-unit",
+  "test_files": 32,
+  "tests_passed": 441,
+  "tests_failed": 0,
+  "status": "green"
+}

@@ -1,0 +1,94 @@
+{
+  "focus": "architecture",
+  "findings": [
+    {
+      "topic": "MarmotContext surface",
+      "file": "app/src/context/MarmotContext.tsx",
+      "lines": "116-163 (type), 1067-1118 (useMemo value), 1154-1157 (useMarmot hook)",
+      "notes": "MarmotContextValue exposes: ready, unsupported, groups (Group[]), getMemberScores, createGroup, inviteByNpub, leaveGroup, publishScoreUpdate, onIncomingScore, publishProfileUpdate, getMemberProfiles, reloadGroups, clearAll, getGroup (returns MarmotGroupType), getClient, profileVersion, chatVersion, groupDataVersion, pollVersion, pendingRequests, loadPendingRequestsForGroup, approveJoinRequest, denyJoinRequest. State storage: groups[] is React useState (line 173), loaded from IDB via loadAllGroups/reloadGroups. memberProfiles are NOT in context state — they live in IDB only (loaded on demand via getMemberProfiles → loadMemberProfiles). profileVersion is a counter bumped on each incoming profile rumor (line 186) to signal consumers to re-read IDB. groupDataVersion is bumped on every MLS commit (line 644-646). The confirmedPubkeys Set (line 68, groups.tsx) is local component state in GroupDetailView — it is the live pending-status signal, derived from getMemberProfiles results. isPendingMember and cancelPendingInvitation belong in MarmotContextValue; isPendingMember can be derived from memberProfiles IDB reads (same pattern as getMemberProfiles), and cancelPendingInvitation is a new action alongside inviteByNpub."
+    },
+    {
+      "topic": "MarmotClient + mlsGroup access pattern",
+      "file": "app/src/context/MarmotContext.tsx",
+      "lines": "174 (clientRef), 835 (inviteByNpub callsite), 1011-1018 (getGroup)",
+      "notes": "clientRef.current holds the MarmotClient singleton (type: MarmotClientType = import('@internet-privacy/marmot-ts').MarmotClient). Groups are retrieved via client.groups.get(groupId) — see line 835: `const mlsGroup = await client.groups.get(groupId).catch(() => null)`. The returned type is MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup. Its state property is ts-mls ClientState (used by getGroupMembers, serializeClientState, getEpoch). groupData is accessed as mlsGroup.groupData?.adminPubkeys (line 856). getGroupMembers(mlsGroup.state) (from marmot-ts, line 875, 504) returns string[] of pubkey hex. In groups.tsx the mlsGroup is stored in local state (line 69) loaded via getMarmotGroup (the context's getGroup wrapper, line 77). For cancelPendingInvitation, the pattern is: const mlsGroup = await client.groups.get(groupId); then getGroupMembers(mlsGroup.state) to find leaf index, then mlsGroup.commit({ extraProposals: [...] })."
+    },
+    {
+      "topic": "Application message send path — sendRumorSafe vs sendApplicationRumor",
+      "file": "app/src/context/MarmotContext.tsx",
+      "lines": "72-96 (sendRumorSafe), 98-110 (buildRumor), 79 (sendApplicationRumor callsite inside sendRumorSafe)",
+      "notes": "sendApplicationRumor is the raw MarmotGroup method (marmot-ts). It throws if unappliedProposals is non-empty. sendRumorSafe (lines 72-96) wraps sendApplicationRumor with a retry loop (MAX_RETRIES=3): on 'unapplied proposals' error it calls mlsGroup.commit() then retries; for other errors (or on final retry) it re-throws unless softFail=true. All callers in MarmotContext use sendRumorSafe, never sendApplicationRumor directly. buildRumor (lines 98-110) constructs a properly-hashed MIP-03 rumor with getEventHash. For the cancel feature, after commit() succeeds the kind-9 announcement should be sent via sendRumorSafe (consistent with all other app-message send paths). CHAT_MESSAGE_KIND = 9 (chatPersistence.ts:12). The cancel announcement is kind 9 with JSON content {type:'invite_cancelled', pubkey, by}."
+    },
+    {
+      "topic": "Subscription + onMembersChanged",
+      "file": "app/src/lib/marmot/welcomeSubscription.ts",
+      "lines": "185-298 (subscribeToGroupMessages), app/src/lib/marmot/epochResolver.ts:193-198 (onMembersChanged dispatch)",
+      "notes": "subscribeToGroupMessages (welcomeSubscription.ts:185) accepts onMembersChanged?: (members: string[]) => void. EpochResolver.processEvent (epochResolver.ts:194-198) fires this callback after every ingestEvent call — including commits — by calling getGroupMembers(mlsGroup.state). In MarmotContext (lines 641-675) the onMembersChanged handler: (1) bumps groupDataVersion (line 646), (2) persists updated memberPubkeys to IDB if count changed (lines 648-650), (3) calls reloadGroups() to update context groups[] (line 650). When a remote cancel commit lands, the cancelled pubkey disappears from getGroupMembers result → onMembersChanged fires → groupDataVersion bumps → groups.tsx useEffect re-runs → getMemberProfiles re-reads IDB → confirmedPubkeys updates → pending badge disappears. This is exactly the convergence path (FR-7)."
+    },
+    {
+      "topic": "Per-group message dispatch — content.type switch in GroupChat",
+      "file": "app/src/components/groups/GroupChat.tsx",
+      "lines": "71-89 (StructuredContent type + parseStructured), 360-390 (render switch)",
+      "notes": "parseStructured (GroupChat.tsx:77-89) JSON.parses msg.content and pattern-matches on content.type. Currently handles: 'poll_open', 'poll_close', 'image'. The dispatch is a cascade of if-checks at render time (lines 362-389). To add invite_cancelled: (1) add { type: 'invite_cancelled'; pubkey: string; by: string } to StructuredContent union (line 71); (2) add validation branch in parseStructured (lines 79-87); (3) add a render branch before the fallback text bubble (line 390) that returns <InviteCancelledChatAnnouncement />. Messages persisted to IDB via appendMessage (chatPersistence.ts:45) carry the raw content string — no schema change needed. The incoming rumor (kind 9, raw JSON content) is stored by the CHAT_MESSAGE_KIND handler in MarmotContext (line 560-583) exactly as-is."
+    },
+    {
+      "topic": "i18n surface",
+      "file": "app/src/lib/i18n.ts",
+      "lines": "3-370 (Copy type), 382-759 (en object), 761-1138 (de object), 1141-1143 (getCopy)",
+      "notes": "Copy type (line 3) defines the full shape. Groups namespace lives at lines 237-334 (en) and the parallel de block. Existing keys directly relevant: memberPending:'Pending'/'Ausstehend' (line 315/1083). useCopy() (LanguageContext.tsx:60-63) calls getCopy(language) — used in every component that needs strings. New keys for this feature must be added to the Copy type AND both en and de objects in i18n.ts. Suggested placement: inside groups.{} — e.g. cancelInviteButton, cancelInviteTitle, cancelInviteBody, cancelInviteConfirm, cancelInviteSuccess, cancelInviteError, cancelledByAnnouncement: (member: string, canceller: string) => string."
+    },
+    {
+      "topic": "Static-export constraint",
+      "file": "CLAUDE.md (project), app/pages/groups.tsx",
+      "lines": "groups.tsx:1-461 (single-file groups page with query param routing)",
+      "notes": "next.config.js uses output:'export'. Dynamic path segments cause 404 on reload. The codebase uses ?id=xxx query params (CLAUDE.md constraint) instead of /groups/[id].tsx. groups.tsx (461 lines) handles both the list view and detail view via router.query.id — see lines 40-57 (id extraction), 64-124 (detail data loading), 162+ (detail render). The cancel feature lives entirely within this file's GroupDetailView component and the MemberList/MemberListItem components. No new page file is needed."
+    },
+    {
+      "topic": "Test infrastructure",
+      "file": "app/package.json, app/tests/, docker-compose.e2e.yml",
+      "lines": "package.json:10-12 (scripts), tests/unit/ (14 files), tests/e2e/ (20+ files)",
+      "notes": "Unit runner: vitest (package.json:44, script: 'test:unit': 'vitest run'). Unit tests live in app/tests/unit/ — typical files: marmotAdapter.test.ts, epochResolver tests, pollSync tests. E2E runner: Playwright (package.json:44, script: 'test:e2e': 'playwright test'). E2E tests live in app/tests/e2e/. The reference E2E pattern for this feature is groups-invite-link.spec.ts (two BrowserContexts, bootUser helper with localStorage injection, serial test.describe, clearAppState before each run). docker-compose.e2e.yml runs strfry relay on port 7777 and blossom-mock on port 3001. The spec references 'specs/epic-group-invite-links/S9-e2e-invite-link-flow' as the E2E pattern to follow — groups-invite-link.spec.ts is the implementation of that."
+    },
+    {
+      "topic": "MemberList + isPending derivation",
+      "file": "app/src/components/groups/MemberList.tsx",
+      "lines": "18-24 (props), 43 (isPending logic), 130-138 (pending badge render)",
+      "notes": "MemberList already receives confirmedPubkeys: Set<string> and derives isPending = confirmedPubkeys ? !confirmedPubkeys.has(pubkey) && !isYou : false (line 43). The pending badge data-testid is member-pending-{pubkey.slice(0,8)} (line 135). This component is the correct insertion point for the inline Cancel button — add a new prop (e.g. onCancelInvite?: (pubkey: string) => void) and render the Cancel button inside MemberListItem when isPending && onCancelInvite. The existing opacity:0.6 styling for pending rows (line 100) is already in place."
+    },
+    {
+      "topic": "inviteByNpub reference for cancelPendingInvitation shape",
+      "file": "app/src/context/MarmotContext.tsx",
+      "lines": "796-907 (inviteByNpub), 854-870 (commit with extraProposals pattern)",
+      "notes": "The existing Proposals.proposeUpdateMetadata import pattern is at line 858. The commit call is mlsGroup.commit({ extraProposals: [Proposals.proposeUpdateMetadata({adminPubkeys: [...]})] }) at line 859-865. cancelPendingInvitation should follow exactly this shape but add Proposals.proposeRemove(leafIndex) as an additional extraProposal. getGroupMembers(mlsGroup.state) at line 875 is how the post-commit member list is obtained. markBackupDirty(true) at line 897 and reloadGroups() at line 881 are the post-commit cleanup steps."
+    }
+  ],
+  "key_files": [
+    "app/src/context/MarmotContext.tsx",
+    "app/src/components/groups/MemberList.tsx",
+    "app/src/components/groups/GroupChat.tsx",
+    "app/src/components/groups/PollChatAnnouncement.tsx",
+    "app/pages/groups.tsx",
+    "app/src/lib/i18n.ts",
+    "app/src/lib/marmot/welcomeSubscription.ts",
+    "app/src/lib/marmot/epochResolver.ts",
+    "app/src/lib/marmot/chatPersistence.ts",
+    "app/tests/e2e/groups-invite-link.spec.ts"
+  ],
+  "test_runners": {
+    "unit": "vitest",
+    "unit_dir": "app/tests/unit/",
+    "e2e": "playwright",
+    "e2e_dir": "app/tests/e2e/"
+  },
+  "constraints_confirmed": {
+    "static_export_safe": true,
+    "page_owner": "pages/groups.tsx"
+  },
+  "open_questions": [
+    "Proposals.proposeRemove signature: the spec says proposeRemove(leafIndex) — the leaf index must come from getGroupMembers(mlsGroup.state) (returns pubkey hex array; index = array.indexOf(inviteePubkey)). Confirm marmot-ts 0.5.x Proposals.proposeRemove accepts a numeric leaf index, not a pubkey.",
+    "When mlsGroup.commit({ extraProposals }) throws because the invitee's leaf index is not found (already removed by a concurrent cancel), does marmot-ts throw, return a no-op, or return a skipped result? The spec's edge case (last row of edge-case table) says 'throw or no-op' but the exact behavior needs verification to implement the silent-success branch in FR-10.",
+    "The chat dispatch in MarmotContext (line 560) skips own messages (senderPubkey === pubkeyHex, line 528). The canceller's own kind-9 announcement will NOT be stored via the incoming subscription path. The canceller must append the announcement to IDB directly after sending (like the poll creation flow does), otherwise their own chat row never appears.",
+    "confirmedPubkeys in groups.tsx (line 68) includes pubkeyHex (own pubkey) always (line 106). When checking isPendingMember for the cancel guard (edge case: invitee processes Welcome mid-flight), the check must re-read IDB via getMemberProfiles, not rely on stale confirmedPubkeys state.",
+    "MemberList.tsx passes confirmedPubkeys as a Set but the Cancel button will need to call an async action (cancelPendingInvitation) — this requires lifting the loading/error state up to GroupDetailView or keeping it local in MemberListItem with a callback prop. The existing MemberListItem already uses useDisclosure for the QR modal, so local state per row is the established pattern."
+  ]
+}

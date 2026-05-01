@@ -1,0 +1,180 @@
+{
+  "epic_name": "cancel-pending-invitations",
+  "created_at": "2026-05-01T00:00:00Z",
+  "total_stories": 5,
+  "stories": [
+    {
+      "id": "01",
+      "name": "i18n-strings",
+      "title": "i18n strings for cancel pending invitation feature",
+      "description": "Add all EN and DE translation keys required by the cancel-pending-invitation feature to app/src/lib/i18n.ts. No UI or logic changes. Provides the i18n foundation all downstream stories depend on.",
+      "acceptance_criteria": [
+        "AC-CPI-1",
+        "AC-CPI-2",
+        "AC-CPI-3",
+        "AC-CPI-4",
+        "AC-CPI-5",
+        "AC-CPI-6",
+        "AC-CPI-7",
+        "AC-CPI-8",
+        "AC-CPI-9"
+      ],
+      "complexity": "low",
+      "status": "done",
+      "scope": {
+        "includes": [
+          "app/src/lib/i18n.ts — add cancelInviteButton, cancelInviteTitle, cancelInviteBody, cancelInviteConfirm, cancelInviteSuccess, cancelInviteError, cancelInviteRaceNotice, cancelledByAnnouncement to Copy type and both en/de objects",
+          "app/tests/unit/ — vitest assertions for all 8 new keys in both languages, mirroring manageInviteLinksModal.test.ts:103-121"
+        ],
+        "excludes": [
+          "Any UI component changes",
+          "MarmotContext changes",
+          "GroupChat changes"
+        ]
+      },
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "02",
+      "name": "marmot-context-cancel-action",
+      "title": "MarmotContext cancelPendingInvitation and isPendingMember actions",
+      "description": "Add isPendingMember and cancelPendingInvitation to MarmotContextValue. The cancel action re-checks pending status, calls mlsGroup.commit with the Remove + UpdateMetadata extra proposals in a single call, sends the kind-9 chat announcement, and calls markBackupDirty + reloadGroups. Unit-tested with a mocked marmot-ts client.",
+      "acceptance_criteria": [
+        "AC-CPI-10",
+        "AC-CPI-11",
+        "AC-CPI-12",
+        "AC-CPI-13",
+        "AC-CPI-14"
+      ],
+      "complexity": "high",
+      "status": "done",
+      "scope": {
+        "includes": [
+          "app/src/context/MarmotContext.tsx — add isPendingMember(groupId, pubkey): Promise<boolean> and cancelPendingInvitation(groupId, pubkey): Promise<{ok:boolean; error?:string; raceDetected?:boolean}>",
+          "app/tests/unit/marmot/ — unit tests covering happy path, commit-throws, already-not-a-member, race-guard; mock pattern from epochResolver.test.ts"
+        ],
+        "excludes": [
+          "MemberList UI changes",
+          "GroupChat rendering changes",
+          "E2E tests"
+        ]
+      },
+      "mock_dependencies": [],
+      "introduces_mocks": [
+        {
+          "mock_id": "MOCK-02-001",
+          "description": "marmot-ts mlsGroup.commit and Proposals.proposeRemoveUser mocked in unit tests",
+          "interface_mocked": "@internet-privacy/marmot-ts — mlsGroup.commit, Proposals",
+          "resolution_story": null
+        }
+      ],
+      "test_fixtures": []
+    },
+    {
+      "id": "03",
+      "name": "invite-cancelled-announcement",
+      "title": "InviteCancelledChatAnnouncement component and GroupChat dispatch",
+      "description": "Add InviteCancelledChatAnnouncement component mirroring PollChatAnnouncement. Extend StructuredContent union, parseStructured, and the GroupChat render switch to handle the invite_cancelled message type. Unit-test parseStructured for the new branch.",
+      "acceptance_criteria": [
+        "AC-CPI-15",
+        "AC-CPI-16",
+        "AC-CPI-17"
+      ],
+      "complexity": "medium",
+      "status": "done",
+      "scope": {
+        "includes": [
+          "app/src/components/InviteCancelledChatAnnouncement.tsx — new component, props {memberDisplay, cancellerDisplay}",
+          "app/src/components/GroupChat.tsx — extend StructuredContent union, parseStructured, and render switch at lines 362-389",
+          "app/tests/unit/ — parseStructured unit test for invite_cancelled branch"
+        ],
+        "excludes": [
+          "MarmotContext changes",
+          "MemberList UI changes",
+          "i18n changes (done in S1)"
+        ]
+      },
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "04",
+      "name": "member-list-cancel-ui",
+      "title": "MemberList Cancel button, confirmation modal, and groups.tsx wiring",
+      "description": "Add onCancelInvite prop to MemberList/MemberListItem with a gated inline Cancel button. Add a Chakra confirmation modal. Wire the cancel action from groups.tsx GroupDetailView using cancelPendingInvitation from context, showing appropriate toasts on success, race-notice, and error paths.",
+      "acceptance_criteria": [
+        "AC-CPI-18",
+        "AC-CPI-19",
+        "AC-CPI-20",
+        "AC-CPI-21"
+      ],
+      "complexity": "medium",
+      "status": "done",
+      "scope": {
+        "includes": [
+          "app/src/components/MemberList.tsx — add onCancelInvite?: (pubkey: string) => Promise<void> prop; render cancel-invite-{pk.slice(0,8)} button gated on isPending && !isYou && onCancelInvite",
+          "app/src/components/MemberList.tsx — Chakra Modal confirmation with cancelInviteTitle, cancelInviteBody, cancelInviteConfirm strings",
+          "app/src/pages/groups.tsx — wire onCancelInvite in GroupDetailView calling cancelPendingInvitation; show success/race/error toasts"
+        ],
+        "excludes": [
+          "MarmotContext changes (done in S2)",
+          "InviteCancelledChatAnnouncement (done in S3)",
+          "i18n changes (done in S1)",
+          "E2E tests"
+        ]
+      },
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "05",
+      "name": "e2e-cancel-pending",
+      "title": "E2E test for cancel pending invitation flow",
+      "description": "Playwright serial test: USER_A creates a group, invites USER_B's npub (USER_B is a phantom — KeyPackage on relay, browser never booted), USER_A cancels the pending invite via the Cancel button, asserts USER_B disappears from member list, cancellation chat row appears, and USER_A can still send a chat message.",
+      "acceptance_criteria": [
+        "AC-CPI-22",
+        "AC-CPI-23",
+        "AC-CPI-24"
+      ],
+      "complexity": "medium",
+      "status": "done",
+      "scope": {
+        "includes": [
+          "app/tests/e2e/groups-cancel-pending.spec.ts — new file, test.describe.serial(), two-context pattern from groups-forward-secrecy.spec.ts:95-114 but USER_B context never opened",
+          "No production code changes; no new IDB databases; clearAppState not modified"
+        ],
+        "excludes": [
+          "Any production code",
+          "Additional IDB stores",
+          "USER_B browser context beyond KeyPackage publishing"
+        ]
+      },
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    }
+  ],
+  "story_order": ["01", "02", "03", "04", "05"],
+  "dependency_notes": "S1 (i18n) is a prerequisite for S4 (UI) and S5 (E2E) which reference the i18n keys. S2 (MarmotContext) is a prerequisite for S4 (UI wiring) and S5 (E2E). S3 (announcement component) is a prerequisite for S5 (E2E assertion on chat row). S4 and S3 are independent of each other. Total order: S1 → S2 → S3 → S4 → S5.",
+  "seams": [
+    {
+      "data": "cancelPendingInvitation / isPendingMember from MarmotContextValue",
+      "source": { "story": "02", "artifact": "MarmotContext.tsx" },
+      "destination": { "story": "04", "artifact": "pages/groups.tsx" }
+    },
+    {
+      "data": "InviteCancelledChatAnnouncement component",
+      "source": { "story": "03", "artifact": "InviteCancelledChatAnnouncement.tsx" },
+      "destination": { "story": "05", "artifact": "groups-cancel-pending.spec.ts" }
+    },
+    {
+      "data": "i18n keys (cancelInviteButton, cancelInviteTitle, etc.)",
+      "source": { "story": "01", "artifact": "app/src/lib/i18n.ts" },
+      "destination": { "story": "04", "artifact": "MemberList.tsx and pages/groups.tsx" }
+    }
+  ]
+}

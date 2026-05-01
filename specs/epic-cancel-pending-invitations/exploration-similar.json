@@ -1,0 +1,95 @@
+{
+  "focus": "similar-features",
+  "findings": [
+    {
+      "topic": "inviteByNpub reference flow",
+      "file": "app/src/context/MarmotContext.tsx",
+      "lines": "796-907",
+      "notes": "Function defined at line 796. Fetches KeyPackage events (kinds 443/30443) at 816-828. Calls mlsGroup.inviteByKeyPackageEvent() at 850. Batches extraProposals at 858-865: imports Proposals lazily then calls `mlsGroup.commit({ extraProposals: [Proposals.proposeUpdateMetadata({ adminPubkeys: [...currentAdmins, inviteePubkey] })] })`. Post-commit: refreshes member list via getGroupMembers(mlsGroup.state) at 875-881, calls persistGroup + reloadGroups; then re-publishes inviter profile via buildRumor(PROFILE_RUMOR_KIND, ...) + sendRumorSafe at 889-895; calls markBackupDirty(true) at 897. This is the exact pattern the cancel flow must mirror for the commit/refresh/backup steps."
+    },
+    {
+      "topic": "leaveGroup soft-leave + no-bare-Remove rule",
+      "file": "app/src/context/MarmotContext.tsx",
+      "lines": "909-928",
+      "notes": "Comment at line 909-912: '// Soft-leave: purge local state only. No MLS Remove proposal is sent, so the group is never blocked by an unapplied proposal that needs an admin commit.' Function body (913-928) calls removeGroupFromStorage, clearMemberScores, clearMemberProfiles, clearMessages, clearPollData, clearGroupMedia, clearUnreadGroup, reloadGroups, markBackupDirty — no mlsGroup.leave() or propose() call. The cancel flow explicitly diverges here: it uses mlsGroup.commit({ extraProposals: [...] }) which is a commit (not bare proposal), so the constraint is not violated."
+    },
+    {
+      "topic": "Proposals.proposeRemoveUser signature",
+      "file": "app/node_modules/@internet-privacy/marmot-ts/dist/client/group/proposals/remove-member.d.ts",
+      "lines": "1-10",
+      "notes": "Exported function is `proposeRemoveUser(pubkey: string): ProposalAction<ProposalRemove[]>`. Takes a Nostr hex pubkey — NOT a leaf index. Returns a ProposalAction (a function taking ProposalContext) that produces an array of ProposalRemove (one per leaf/device). CRITICAL DIFFERENCE FROM SPEC: The spec text says 'proposeRemove(leafIndex)' but the actual marmot-ts 0.5.x API is `Proposals.proposeRemoveUser(pubkeyHex)`. There is NO `proposeRemove` export in the proposals index. The proposals index (dist/client/group/proposals/index.d.ts) exports: invite-user, leave-group, remove-member (proposeRemoveUser), update-metadata (proposeUpdateMetadata). The commit call becomes: `mlsGroup.commit({ extraProposals: [Proposals.proposeRemoveUser(inviteePubkeyHex), Proposals.proposeUpdateMetadata({ adminPubkeys: ... })] })` — note proposeRemoveUser returns ProposalAction<ProposalRemove[]> (an array), so it may need to be spread or the commit() overload accepting nested arrays must be confirmed. The commit() signature accepts `(Proposal | ProposalAction<Proposal> | (Proposal | ProposalAction<Proposal>)[])[]` so a ProposalAction<ProposalRemove[]> is directly accepted."
+    },
+    {
+      "topic": "kind-9 structured chat announcement pattern",
+      "file": "app/src/context/PollStoreContext.tsx",
+      "lines": "199-209",
+      "notes": "Structured kind-9 announcements are sent via `sendChatMessage(JSON.stringify({ type: 'poll_open', pollId, title, creatorPubkey }))` where `sendChatMessage` comes from `useChatStore()` (line 120). This calls `group.sendChatMessage(content)` (ChatStoreContext.tsx:38) which wraps `sendApplicationRumor` with CHAT_MESSAGE_KIND=9 (chatPersistence.ts:12). The structured JSON is the raw `content` string of the kind-9 rumor. The poll_close variant at PollStoreContext.tsx:297 uses `{ type: 'poll_close', pollId, title, results, totalVoters }`. The cancel announcement should follow: `sendChatMessage(JSON.stringify({ type: 'invite_cancelled', pubkey: inviteePubkeyHex, by: cancellerPubkeyHex }))`. The canceller does NOT need direct access to `mlsGroup.sendApplicationRumor` — it uses the existing `useChatStore().sendMessage` from inside the provider tree."
+    },
+    {
+      "topic": "kind-9 structured rendering dispatch",
+      "file": "app/src/components/groups/GroupChat.tsx",
+      "lines": "71-89",
+      "notes": "StructuredContent union type at line 71-75 covers poll_open, poll_close, image, and null. parseStructured() at line 77-89 JSON.parses message content and pattern-matches on `parsed.type`. Dispatch in the render loop at lines 362-389 switches on structured.type to render PollChatAnnouncement or PollChatResults. The new `invite_cancelled` type must be added to the StructuredContent union (line 75), to parseStructured's match clauses (lines 80-83), and a new case in the dispatch block (after line 389). PollChatAnnouncement component receives {creatorName, title} as props — the new InviteCancelledChatAnnouncement will receive {cancelledMemberName, cancellerName} or equivalent resolved display names."
+    },
+    {
+      "topic": "PollChatAnnouncement component shape",
+      "file": "app/src/components/groups/PollChatAnnouncement.tsx",
+      "lines": "1-37",
+      "notes": "Receives `{ creatorName: string; title: string }` props. Renders a Box with blue left-border accent, a bold label row, and two Text lines. Uses `useCopy()` for all strings. The InviteCancelledChatAnnouncement should replicate this layout with a different color scheme (e.g. orange/yellow to match the pending badge) and strings from i18n. No JSON content shape stored in the component — the structured JSON in the chat message content is parsed by GroupChat.tsx; the component only receives resolved display-name strings."
+    },
+    {
+      "topic": "profile rumor ingestion + memberProfiles store",
+      "file": "app/src/context/MarmotContext.tsx",
+      "lines": "537-558",
+      "notes": "PROFILE_RUMOR_KIND defined at app/src/lib/marmot/profileSync.ts:13 (value: 0). Ingestion path: EpochResolver.onApplicationMessage callback fires for each rumor → MarmotContext subscription handler at line 527 checks `rumor.kind === PROFILE_RUMOR_KIND` → calls parseProfilePayload(rumor.content) + payloadToMemberProfile(senderPubkey, payload) → calls mergeMemberProfile(group.id, memberProfile) (IDB write) → bumps setProfileVersion (line 544). mergeMemberProfile is in app/src/lib/marmot/groupStorage.ts:137 — LWW by ISO updatedAt, persisted to `quizzl-member-profiles` IDB store with key `group:{groupId}`. The `confirmedPubkeys` set in groups.tsx:68 is built from all profiles returned by getMemberProfiles(groupId) (line 79-86) — any pubkey with an IDB profile entry is considered confirmed/active."
+    },
+    {
+      "topic": "member-list row component",
+      "file": "app/src/components/groups/MemberList.tsx",
+      "lines": "26-169",
+      "notes": "MemberList receives `{ memberPubkeys, ownPubkeyHex, memberProfiles?, confirmedPubkeys? }`. isPending computed at line 43: `confirmedPubkeys ? !confirmedPubkeys.has(pubkey) && !isYou : false`. Nickname/avatar resolved from `memberProfiles?.[pubkey]` at line 42; falls back to truncateNpub. The pending Badge already rendered at lines 130-138 (colorScheme='yellow', data-testid=`member-pending-{pubkey.slice(0,8)}`). The Cancel button must be added inside MemberListItem (line 78) alongside or after the existing Badge, gated on `isPending && !isYou`. The component is used in groups.tsx at line 231 with `confirmedPubkeys={confirmedPubkeys}`. MemberList itself has no state — the Cancel action must bubble up via a callback prop (e.g. `onCancelInvite?: (pubkey: string) => Promise<void>`) or the handler can be defined inside MemberList if it receives the necessary context."
+    },
+    {
+      "topic": "confirmedPubkeys construction in groups page",
+      "file": "app/pages/groups.tsx",
+      "lines": "71-124",
+      "notes": "State at line 68: `const [confirmedPubkeys, setConfirmedPubkeys] = useState<Set<string>>(new Set())`. Built in the useEffect at lines 79-119 by iterating getMemberProfiles() results — each profile entry adds the pubkey to `confirmed` (line 86). Own pubkey is always added to confirmed (line 106). ContactCache entries do NOT add to confirmed (line 89-102 comment). The effect re-runs on profileVersion and groupDataVersion changes (dependency array line 124). This means when a profile rumor arrives and profileVersion bumps, confirmedPubkeys updates reactively — the Cancel button disappears automatically when the invitee comes online."
+    },
+    {
+      "topic": "backup payload shape",
+      "file": "app/src/lib/backup/relayBackup.ts",
+      "lines": "35-69",
+      "notes": "BackupPayload interface (lines 35-69) includes: version, createdAt, settings, userProfile, selectedTopics, progress, studyTimes, scoreSyncSeq, groups (array of {id, name, createdAt, memberPubkeys, relays}), groupStates (MLS state bytes as base64 strings), memberScores, memberProfiles, chatMessages, inviteLinks. No explicit 'pendingInvitations' or 'cancellation' field exists or is needed — the cancelled member's absence from MLS state (groupStates) and from memberProfiles is the authoritative record. The kind-9 chat announcement is included implicitly via chatMessages. No backup schema changes required."
+    },
+    {
+      "topic": "EpochResolver",
+      "file": "app/src/lib/marmot/epochResolver.ts",
+      "lines": "1-347",
+      "notes": "EpochResolver (class at line 93) wraps mlsGroup.ingest() with: (1) per-epoch state snapshot before processing (takeSnapshot, line 311); (2) grace window timer (default 3000ms) that fires after each commit is processed (startGraceTimer, line 322); (3) competing-commit detection via handleSkippedPastEpoch (line 217) — if a skipped event has a lower (created_at, id) than the accepted commit, rollbackAndReplay (line 238) restores the snapshot, replays the lower commit as winner, re-dispatches application messages. Deterministic tie-break at line 81-86: lower created_at wins; tie-break by lexicographic id. All ingestEvent calls are serialized via a promise-chain lock (line 104-136). For the cancel feature: if two admins cancel the same pending member concurrently, one commit lands first; the second's ingest yields 'skipped / past-epoch' (already at next epoch). EpochResolver simply discards past-epoch events that don't beat the accepted commit — the second canceller's UI sees the member gone via the onMembersChanged callback. No special handling is needed."
+    }
+  ],
+  "key_files": [
+    "app/src/context/MarmotContext.tsx",
+    "app/src/components/groups/MemberList.tsx",
+    "app/src/components/groups/GroupChat.tsx",
+    "app/src/components/groups/PollChatAnnouncement.tsx",
+    "app/src/context/PollStoreContext.tsx",
+    "app/src/context/ChatStoreContext.tsx",
+    "app/src/lib/marmot/profileSync.ts",
+    "app/src/lib/marmot/groupStorage.ts",
+    "app/src/lib/marmot/epochResolver.ts",
+    "app/src/lib/backup/relayBackup.ts",
+    "app/pages/groups.tsx",
+    "app/node_modules/@internet-privacy/marmot-ts/dist/client/group/proposals/remove-member.d.ts",
+    "app/node_modules/@internet-privacy/marmot-ts/dist/client/group/marmot-group.d.ts"
+  ],
+  "open_questions": [
+    "CRITICAL: The spec says 'proposeRemove(leafIndex)' but marmot-ts 0.5.x exports proposeRemoveUser(pubkeyHex) — no leaf-index API exists. The planner must update FR-4 and AC-B to use Proposals.proposeRemoveUser(inviteePubkeyHex) instead. The getGroupMembers() call is still needed to confirm the invitee is present before committing, but NOT to get a leaf index.",
+    "proposeRemoveUser returns ProposalAction<ProposalRemove[]> (an array of proposals). The commit() extraProposals parameter accepts ProposalAction<Proposal>[] — unclear if ProposalAction<ProposalRemove[]> (array-valued) is accepted by the overload. The implementer should test or check if spreading is needed: `...Proposals.proposeRemoveUser(pk)` vs passing it directly.",
+    "The Cancel action needs access to both mlsGroup (for commit) and sendMessage from ChatStoreContext (for announcement). MemberList.tsx is a pure display component with no context access. The implementer must decide: (a) add an onCancelInvite callback prop to MemberList/MemberListItem and handle in groups.tsx, or (b) wire the cancel handler directly via a new context method on MarmotContext. The spec suggests a new MarmotContext method (isPendingMember/cancelInvite) but that needs a design decision.",
+    "The cancel handler in groups.tsx will need access to mlsGroup (already stored in state at groups.tsx:69 as `mlsGroup`). It also needs adminPubkeys from mlsGroup.groupData. Both are available in the groups page scope.",
+    "The confirmation modal for cancel (spec §3) is new UI not yet in any existing component. Implementer should follow the pattern of existing modals (e.g. InviteMemberModal, CreateGroupModal) using Chakra UI Modal + useDisclosure.",
+    "The 'invitee just came online' race-condition check (spec Edge Cases row 1) requires re-reading confirmedPubkeys at click time — this Set is in groups.tsx state and will be stale if the effect has not re-run. Implementer should re-query getMemberProfiles inside the cancel handler rather than relying on the rendered Set.",
+    "i18n: new keys needed for at minimum: pending badge label (already exists as copy.groups.memberPending per MemberList.tsx:57), cancel button label, confirmation modal title/body/confirm button, error toast, InviteCancelledChatAnnouncement strings, and the 'member just came online' inline notice. The existing memberPending key may already be translated — verify in app/src/lib/i18n.ts."
+  ]
+}

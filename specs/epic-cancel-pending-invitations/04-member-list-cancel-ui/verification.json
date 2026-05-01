@@ -1,0 +1,96 @@
+{
+  "story": "04-member-list-cancel-ui",
+  "phase": "pre-impl",
+  "questions": [
+    {
+      "id": "Q04-QUALITY-1",
+      "category": "QUALITY",
+      "phase": "pre-impl",
+      "question": "The confirmation modal needs to show the invitee's display name. Should this be resolved in MemberList or in the groups.tsx wiring?",
+      "decision": "Resolved in MemberList, since it already has profile and npub. The cancel button is in MemberListItem which has both profile.nickname and truncateNpub(npub) available inline."
+    },
+    {
+      "id": "Q04-ARCH-1",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "Where does the confirmation modal state (useDisclosure) live — in MemberList or MemberListItem?",
+      "decision": "In MemberListItem, same as qrDisclosure. Each row manages its own modal independently. The onCancelInvite callback prop is called only after the user confirms in the modal."
+    },
+    {
+      "id": "Q04-ARCH-2",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "The groups.tsx wiring calls cancelPendingInvitation from MarmotContext but also needs to call sendMessage from ChatStore for the announcement. How?",
+      "decision": "The onCancelInvite handler in groups.tsx is defined inside GroupDetailView. The ChatStoreProvider wraps a child component, not GroupDetailView's body. The sendMessage from ChatStore must be accessed from a component rendered inside ChatStoreProvider. Solution: create a thin CancelInviteAnnouncer wrapper rendered inside ChatStoreProvider that provides a sendMessage callback up to the parent via a ref or callback. Alternative: groups.tsx passes sendAnnouncement to onCancelInvite by lifting useChatStore() into a child component inside ChatStoreProvider. Preferred: pass sendAnnouncement as part of a dedicated child component."
+    },
+    {
+      "id": "Q04-ARCH-3",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "Since the wiring is complex (announcement needs to be sent from inside ChatStoreProvider), what is the cleanest approach?",
+      "decision": "Define onCancelInvite in groups.tsx as an async function that calls cancelPendingInvitation(groupId, pubkey, sendMessage). But groups.tsx can't directly call useChatStore() at the GroupDetailView level since ChatStoreProvider is rendered inside it. Solution: use a ref — create a sendAnnouncementRef that ChatStoreConsumer (a tiny component inside ChatStoreProvider) assigns, then onCancelInvite reads from the ref. This is the minimal-change approach."
+    },
+    {
+      "id": "Q04-TEST-1",
+      "category": "TEST",
+      "phase": "pre-impl",
+      "question": "Are there unit tests needed for story 04?",
+      "decision": "No new unit tests for the UI components (no @testing-library/react in this repo). Component correctness is covered by E2E (story 05). The Cancel button gating logic is pure prop-threading — no logic to unit test separately."
+    },
+    {
+      "id": "Q04-SPEC-AC-CPI-18",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-18",
+      "phase": "pre-impl",
+      "question": "AC-CPI-18: onCancelInvite?: (pubkey: string) => Promise<void>. The question is whether this should be in MemberList or MemberListItem type.",
+      "decision": "Add to MemberListProps and thread it down to each MemberListItem as onCancelInvite prop. MemberListItem receives the callback and calls it after modal confirmation."
+    },
+    {
+      "id": "Q04-SPEC-AC-CPI-19",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-19",
+      "phase": "pre-impl",
+      "question": "AC-CPI-19: Chakra Modal uses useDisclosure. Does MemberListItem already import useDisclosure?",
+      "decision": "Yes — qrDisclosure already uses useDisclosure at line 90. The cancel modal uses a second useDisclosure() call in the same component."
+    },
+    {
+      "id": "Q04-SPEC-AC-CPI-20",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-20",
+      "phase": "pre-impl",
+      "question": "AC-CPI-20: success toast and raceDetected toast. Does groups.tsx already use useToast?",
+      "decision": "Need to check. Will use Chakra useToast hook in GroupDetailView."
+    },
+    {
+      "id": "Q04-SPEC-AC-CPI-21",
+      "category": "SPEC",
+      "ac_id": "AC-CPI-21",
+      "phase": "pre-impl",
+      "question": "AC-CPI-21: on { ok: false }, show error toast using cancelInviteError and member row must remain visible. How is row visibility preserved on error?",
+      "decision": "The member row visibility is driven by group.memberPubkeys and confirmedPubkeys, both of which come from MarmotContext state. On commit failure, cancelPendingInvitation returns { ok: false } without calling reloadGroups() or persistGroup(), so the state is unchanged — the row stays visible automatically. The groups.tsx onCancelInvite handler calls toast with status 'error' and cancelInviteError title when result.ok is false."
+    },
+    {
+      "id": "Q04-SECURITY-1",
+      "category": "SECURITY",
+      "phase": "pre-impl",
+      "question": "Is there a risk of double-submit if user clicks Cancel button twice quickly?",
+      "decision": "The modal's Confirm button will have an isLoading state. While isLoading is true, clicking again is ignored. After result returns (ok or error), isLoading is reset."
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "id": "Q04-POST-1",
+      "category": "ARCHITECTURE",
+      "phase": "post-impl",
+      "question": "ChatSendMessageCapture is a null-render component inside ChatStoreProvider that assigns sendMessage to a ref. Is this the right pattern?",
+      "observation": "Yes — it is minimal and avoids prop drilling or context leakage. The ref is read lazily in onCancelInvite, which is always called after the ChatStoreProvider is mounted. If ChatStoreProvider is not yet mounted (e.g. group not yet loaded), sendAnnouncementRef.current is null and the announcement is silently skipped (fire-and-forget, per spec)."
+    },
+    {
+      "id": "Q04-POST-2",
+      "category": "QUALITY",
+      "phase": "post-impl",
+      "question": "The confirmation modal's body text includes the invitee display name above the body string. Is this the spec's intent?",
+      "observation": "AC-CPI-19 says the body should name the invitee. The implementation shows the display name as a separate bold text line above the body string. This is consistent with typical confirmation modal UX — the invitee name is prominent and the warning is secondary."
+    }
+  ]
+}

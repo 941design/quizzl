@@ -1,0 +1,9 @@
+{
+  "story": "03-invite-cancelled-announcement",
+  "run_at": "2026-05-01",
+  "command": "make test-unit",
+  "test_files": 34,
+  "tests_passed": 451,
+  "tests_failed": 0,
+  "status": "green"
+}
