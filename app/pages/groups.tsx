@@ -93,6 +93,13 @@ function GroupDetailView({ id }: { id: string }) {
         duration: 4000,
         isClosable: true,
       });
+    } else if (result.ok && result.announcementError) {
+      toast({
+        title: copy.groups.cancelInviteAnnouncementWarning,
+        status: 'warning',
+        duration: 5000,
+        isClosable: true,
+      });
     } else if (result.ok) {
       toast({
         title: copy.groups.cancelInviteSuccess,

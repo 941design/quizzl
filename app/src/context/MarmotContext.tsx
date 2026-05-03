@@ -163,7 +163,7 @@ type MarmotContextValue = {
   /** Returns true if pubkey is in MLS member list but has no profile rumor recorded for this group */
   isPendingMember: (groupId: string, pubkey: string) => Promise<boolean>;
   /** Cancel a pending invitation: MLS Remove+UpdateMetadata commit + announcement + refresh. sendAnnouncement is optional and called after commit if provided. */
-  cancelPendingInvitation: (groupId: string, pubkey: string, sendAnnouncement?: (content: string) => Promise<void>) => Promise<{ ok: boolean; error?: string; raceDetected?: boolean }>;
+  cancelPendingInvitation: (groupId: string, pubkey: string, sendAnnouncement?: (content: string) => Promise<void>) => Promise<{ ok: boolean; error?: string; raceDetected?: boolean; announcementError?: string }>;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);

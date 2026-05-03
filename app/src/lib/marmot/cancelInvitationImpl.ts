@@ -52,7 +52,7 @@ export async function cancelPendingInvitationImpl(
   groupId: string,
   pubkey: string,
   sendAnnouncement?: (content: string) => Promise<void>,
-): Promise<{ ok: boolean; error?: string; raceDetected?: boolean }> {
+): Promise<{ ok: boolean; error?: string; raceDetected?: boolean; announcementError?: string }> {
   const stillPending = await isPendingMemberImpl(
     { getGroup: deps.getGroup, loadMemberProfiles: deps.loadMemberProfiles, getGroupMembers: deps.getGroupMembers },
     groupId,
@@ -106,15 +106,20 @@ export async function cancelPendingInvitationImpl(
       memberPubkeys: deps.getGroupMembers(freshGroup.state),
     };
     await deps.persistGroup(updated);
-    await deps.reloadGroups();
+  } else if (!freshGroup) {
+    console.warn('[Marmot] cancelPendingInvitation: freshGroup null after commit — memberPubkeys will be stale until reload');
   }
+  // Always reload so the UI reflects the post-commit state even when freshGroup was null.
+  await deps.reloadGroups();
   deps.markBackupDirty(true);
 
   if (sendAnnouncement) {
     const content = JSON.stringify({ type: 'invite_cancelled', pubkey, by: deps.selfPubkeyHex });
-    sendAnnouncement(content).catch((err: unknown) => {
-      console.warn('[Marmot] cancelPendingInvitation announcement failed:', err);
-    });
+    try {
+      await sendAnnouncement(content);
+    } catch (err) {
+      return { ok: true, announcementError: err instanceof Error ? err.message : 'announcement_failed' };
+    }
   }
 
   return { ok: true };
