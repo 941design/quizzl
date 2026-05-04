@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import type { MediaAttachment } from '@internet-privacy/marmot-ts';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { getBlob, setBlob, attachmentFingerprint } from '@/src/lib/marmot/mediaPersistence';
 import { get as blossomGet, BlossomNotFoundError } from '@/src/lib/media/blossomClient';
+import type { ChatMediaAttachment } from '@/src/lib/media/imageMessage';
 
 type State =
   | { status: 'loading' }
@@ -12,8 +12,9 @@ type State =
 
 type DecryptedMedia = { bytes: Uint8Array; type: string };
 
-type GroupLike = { decryptMedia: (encrypted: Uint8Array, attachment: MediaAttachment) => Promise<{ data: Uint8Array }> };
+type GroupLike = { decryptMedia: (encrypted: Uint8Array, attachment: ChatMediaAttachment) => Promise<{ data: Uint8Array }> };
 type GetGroupFn = (groupId: string) => Promise<GroupLike | null | undefined>;
+type DecryptMediaFn = (attachment: ChatMediaAttachment) => Promise<DecryptedMedia>;
 
 // Dedup the fetch+decrypt+cache work — NOT the resulting object URL.
 // Sharing object URLs across consumers makes per-consumer revoke() unsafe;
@@ -26,8 +27,9 @@ export function __resetInFlightForTests(): void {
 
 export async function fetchDecryptedMedia(
   groupId: string,
-  attachment: MediaAttachment,
+  attachment: ChatMediaAttachment,
   getGroup: GetGroupFn,
+  decryptMedia?: DecryptMediaFn,
 ): Promise<DecryptedMedia> {
   const fingerprint = attachmentFingerprint(attachment);
   const cached = await getBlob(groupId, fingerprint);
@@ -38,15 +40,18 @@ export async function fetchDecryptedMedia(
   const key = `${groupId}:${fingerprint}`;
   if (!inFlightDecrypts.has(key)) {
     const promise = (async () => {
-      const group = await getGroup(groupId);
-      if (!group) throw new Error('group not found');
+      const decrypted = decryptMedia
+        ? await decryptMedia(attachment)
+        : await (async () => {
+            const group = await getGroup(groupId);
+            if (!group) throw new Error('group not found');
+            const encrypted = await blossomGet(attachment.url!);
+            const stored = await group.decryptMedia(encrypted, attachment);
+            return { bytes: stored.data, type: attachment.type ?? 'image/webp' };
+          })();
 
-      const encrypted = await blossomGet(attachment.url!);
-      const stored = await group.decryptMedia(encrypted, attachment);
-      const mimeType = attachment.type ?? 'image/webp';
-
-      await setBlob(groupId, fingerprint, { bytes: stored.data, type: mimeType });
-      return { bytes: stored.data, type: mimeType };
+      await setBlob(groupId, fingerprint, { bytes: decrypted.bytes, type: decrypted.type });
+      return decrypted;
     })();
 
     inFlightDecrypts.set(key, promise);
@@ -82,7 +87,8 @@ export class ObjectUrlSlot {
 
 export function useDecryptedImage(
   groupId: string,
-  attachment: MediaAttachment | null | undefined,
+  attachment: ChatMediaAttachment | null | undefined,
+  decryptMedia?: DecryptMediaFn,
 ): State {
   const [state, setState] = useState<State>({ status: 'loading' });
   const { getGroup } = useMarmot();
@@ -100,7 +106,7 @@ export function useDecryptedImage(
 
     setState({ status: 'loading' });
 
-    fetchDecryptedMedia(groupId, attachment, getGroup as GetGroupFn)
+    fetchDecryptedMedia(groupId, attachment, getGroup as GetGroupFn, decryptMedia)
       .then(({ bytes, type }) => {
         if (cancelled) return;
         const url = slot.set(new Blob([bytes as unknown as BlobPart], { type }));
@@ -122,7 +128,7 @@ export function useDecryptedImage(
     // Re-run on every field that participates in the cache fingerprint so
     // a swap to an attachment with the same sha256 but a different nonce
     // (e.g. a forged record) does not silently keep showing the prior blob.
-  }, [groupId, attachment?.sha256, attachment?.nonce, attachment?.version, getGroup]);
+  }, [groupId, attachment?.sha256, attachment?.nonce, attachment?.version, decryptMedia, getGroup]);
 
   return state;
 }

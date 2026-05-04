@@ -9,6 +9,7 @@
 import type { ProfileAvatar } from '@/src/types';
 import { STORAGE_KEYS } from '@/src/types';
 import { isStorageAvailable } from '@/src/lib/storage';
+import { rememberContact } from '@/src/lib/contacts';
 
 export type CachedContact = {
   nickname: string;
@@ -37,6 +38,7 @@ export function writeContactEntry(pubkeyHex: string, contact: CachedContact): vo
     if (existing && existing.updatedAt >= contact.updatedAt) return;
     cache[pubkeyHex] = contact;
     localStorage.setItem(STORAGE_KEYS.contactCache, JSON.stringify(cache));
+    rememberContact(pubkeyHex, contact.updatedAt);
   } catch {
     // silent — storage may be full
   }

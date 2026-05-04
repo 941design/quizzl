@@ -20,6 +20,11 @@ You can start editing the page by modifying `pages/index.tsx`. The page auto-upd
 
 This app is configured for static export via Next.js, so it does not use API routes under `pages/api`.
 
+## Feature Notes
+
+- Shared-group members are persisted into a contacts list for direct messaging.
+- Contacts can be hidden or archived from that list. Hidden contacts stay in storage and can be revealed and unarchived later.
+
 This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
 
 ## Learn More

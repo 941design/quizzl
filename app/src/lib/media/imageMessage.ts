@@ -1,4 +1,20 @@
-import { parseMediaImetaTag, type MediaAttachment } from '@internet-privacy/marmot-ts';
+import { parseMediaImetaTag, type MediaAttachment as GroupMediaAttachment } from '@internet-privacy/marmot-ts';
+
+export const DIRECT_MEDIA_VERSION = 'quizzl-dm-media-v1' as const;
+
+export type DirectMediaAttachment = {
+  url?: string;
+  sha256: string;
+  type: string;
+  filename: string;
+  nonce: string;
+  version: typeof DIRECT_MEDIA_VERSION;
+  size?: number;
+  dimensions?: string;
+  blurhash?: string;
+};
+
+export type ChatMediaAttachment = GroupMediaAttachment | DirectMediaAttachment;
 
 export type ImageMessageContent = {
   type: 'image';
@@ -15,8 +31,8 @@ export type ImageMessageContent = {
  * for any sender outside Quizzl's exact filename convention.
  */
 export type RoledAttachments = {
-  full: MediaAttachment | null;
-  thumb: MediaAttachment | null;
+  full: ChatMediaAttachment | null;
+  thumb: ChatMediaAttachment | null;
 };
 
 export function buildImageMessageContent(caption: string): string {

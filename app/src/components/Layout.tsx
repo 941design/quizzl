@@ -17,11 +17,13 @@ import { useCopy } from '@/src/context/LanguageContext';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import { useProfile } from '@/src/context/ProfileContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
+import { useMarmot } from '@/src/context/MarmotContext';
 import { truncateNpub } from '@/src/lib/nostrKeys';
 import StorageWarning from '@/src/components/StorageWarning';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 import ThemeIcon from '@/src/components/ThemeIcon';
 import NotificationBell from '@/src/components/NotificationBell';
+import { rememberContactsFromGroups } from '@/src/lib/contacts';
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -30,7 +32,8 @@ type LayoutProps = {
 export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
   const { profile } = useProfile();
-  const { npub } = useNostrIdentity();
+  const { npub, pubkeyHex } = useNostrIdentity();
+  const { groups, ready } = useMarmot();
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
   const { navStyle, surfaceStyle, bannerDecorStyle } = useThemeStyles();
@@ -38,9 +41,15 @@ export default function Layout({ children }: LayoutProps) {
     { label: copy.layout.nav.home, href: '/' },
     { label: copy.layout.nav.topics, href: '/topics' },
     { label: copy.layout.nav.leaderboard, href: '/leaderboard' },
+    { label: copy.layout.nav.contacts, href: '/contacts' },
     { label: copy.layout.nav.groups, href: '/groups' },
     { label: copy.layout.nav.studyTimes, href: '/study-times' },
   ];
+
+  React.useEffect(() => {
+    if (!ready) return;
+    rememberContactsFromGroups(groups, pubkeyHex);
+  }, [groups, pubkeyHex, ready]);
 
   return (
     <Box minH="100vh" bg="appBg">

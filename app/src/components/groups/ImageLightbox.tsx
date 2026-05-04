@@ -11,16 +11,17 @@ import {
   Text,
   Box,
 } from '@chakra-ui/react';
-import type { MediaAttachment } from '@internet-privacy/marmot-ts';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useDecryptedImage } from '@/src/hooks/useDecryptedImage';
+import type { ChatMediaAttachment } from '@/src/lib/media/imageMessage';
 
 type ImageLightboxProps = {
   groupId: string;
-  attachment: MediaAttachment;
+  attachment: ChatMediaAttachment;
   senderShortId: string;
   createdAt: number;
   onClose: () => void;
+  decryptMedia?: (attachment: ChatMediaAttachment) => Promise<{ bytes: Uint8Array; type: string }>;
 };
 
 function formatFilename(senderShortId: string, createdAt: number, mime: string): string {
@@ -39,9 +40,10 @@ export default function ImageLightbox({
   senderShortId,
   createdAt,
   onClose,
+  decryptMedia,
 }: ImageLightboxProps) {
   const copy = useCopy();
-  const imageState = useDecryptedImage(groupId, attachment);
+  const imageState = useDecryptedImage(groupId, attachment, decryptMedia);
 
   const handleDownload = useCallback(() => {
     if (imageState.status !== 'ready') return;

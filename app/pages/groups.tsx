@@ -326,7 +326,7 @@ function GroupDetailView({ id }: { id: string }) {
               >
                 <Flex gap={4} direction={{ base: 'column', md: 'row' }}>
                   <Box flex="1" minW={0}>
-                    <GroupChat pubkey={pubkeyHex ?? ''} profileMap={profileMap} />
+                    <GroupChat threadId={group.id} pubkey={pubkeyHex ?? ''} profileMap={profileMap} />
                   </Box>
                   {pollPanelOpen && (
                     <Box w={{ base: '100%', md: '280px' }} flexShrink={0}>

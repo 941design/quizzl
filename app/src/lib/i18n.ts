@@ -9,6 +9,7 @@ type Copy = {
       topics: string;
       leaderboard: string;
       studyTimes: string;
+      contacts: string;
       groups: string;
       settings: string;
     };
@@ -341,6 +342,25 @@ type Copy = {
     imageTooLarge: string;
     imageRemove: string;
   };
+  contacts: {
+    pageTitle: string;
+    heading: string;
+    description: string;
+    emptyTitle: string;
+    emptyBody: string;
+    listHeading: string;
+    hiddenFilterLabel: string;
+    hideHiddenOption: string;
+    showHiddenOption: (count: number) => string;
+    hiddenOnlyBody: (count: number) => string;
+    hiddenBadge: string;
+    archiveAction: string;
+    unarchiveAction: string;
+    archivedDetailNotice: string;
+    profileNameFallback: string;
+    backToContacts: string;
+    contactNotFound: string;
+  };
   polls: {
     heading: (count: number) => string;
     noPolls: string;
@@ -398,6 +418,7 @@ const copy: Record<LanguageCode, Copy> = {
         topics: 'Topics',
         leaderboard: 'Leaderboard',
         studyTimes: 'Study Times',
+        contacts: 'Contacts',
         groups: 'Groups',
         settings: 'Settings',
       },
@@ -740,6 +761,25 @@ const copy: Record<LanguageCode, Copy> = {
       imageTooLarge: 'Image is too large',
       imageRemove: 'Remove image',
     },
+    contacts: {
+      pageTitle: 'Contacts',
+      heading: 'Contacts',
+      description: 'People from your shared groups stay here so you can keep chatting directly.',
+      emptyTitle: 'No contacts yet',
+      emptyBody: 'Join a group with someone and they will appear here.',
+      listHeading: 'All contacts',
+      hiddenFilterLabel: 'Hidden contacts',
+      hideHiddenOption: 'Hide hidden contacts',
+      showHiddenOption: (count: number) => count === 0 ? 'Show hidden contacts' : `Show hidden contacts (${count})`,
+      hiddenOnlyBody: (count: number) => count === 1 ? '1 hidden contact is currently filtered out.' : `${count} hidden contacts are currently filtered out.`,
+      hiddenBadge: 'Hidden',
+      archiveAction: 'Hide',
+      unarchiveAction: 'Unarchive',
+      archivedDetailNotice: 'This contact is hidden from the default list view until you unarchive them.',
+      profileNameFallback: 'Unnamed contact',
+      backToContacts: 'Back to Contacts',
+      contactNotFound: 'Contact not found.',
+    },
     polls: {
       heading: (count: number) => count > 0 ? `Polls (${count})` : 'Polls',
       noPolls: 'No polls yet',
@@ -785,6 +825,7 @@ const copy: Record<LanguageCode, Copy> = {
         topics: 'Themen',
         leaderboard: 'Rangliste',
         studyTimes: 'Lernzeiten',
+        contacts: 'Kontakte',
         groups: 'Gruppen',
         settings: 'Einstellungen',
       },
@@ -1126,6 +1167,25 @@ const copy: Record<LanguageCode, Copy> = {
       imageDownload: 'Herunterladen',
       imageTooLarge: 'Bild ist zu groß',
       imageRemove: 'Bild entfernen',
+    },
+    contacts: {
+      pageTitle: 'Kontakte',
+      heading: 'Kontakte',
+      description: 'Personen aus gemeinsamen Gruppen bleiben hier erhalten, damit du direkt weiterschreiben kannst.',
+      emptyTitle: 'Noch keine Kontakte',
+      emptyBody: 'Tritt einer Gruppe mit anderen Personen bei, dann erscheinen sie hier.',
+      listHeading: 'Alle Kontakte',
+      hiddenFilterLabel: 'Versteckte Kontakte',
+      hideHiddenOption: 'Versteckte Kontakte ausblenden',
+      showHiddenOption: (count: number) => count === 0 ? 'Versteckte Kontakte anzeigen' : `Versteckte Kontakte anzeigen (${count})`,
+      hiddenOnlyBody: (count: number) => count === 1 ? '1 versteckter Kontakt wird aktuell ausgeblendet.' : `${count} versteckte Kontakte werden aktuell ausgeblendet.`,
+      hiddenBadge: 'Versteckt',
+      archiveAction: 'Ausblenden',
+      unarchiveAction: 'Wieder einblenden',
+      archivedDetailNotice: 'Dieser Kontakt ist in der Standardliste ausgeblendet, bis du ihn wieder einblendest.',
+      profileNameFallback: 'Kontakt ohne Namen',
+      backToContacts: 'Zurück zu Kontakten',
+      contactNotFound: 'Kontakt nicht gefunden.',
     },
     polls: {
       heading: (count: number) => count > 0 ? `Umfragen (${count})` : 'Umfragen',

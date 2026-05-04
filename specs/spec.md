@@ -170,6 +170,15 @@ Because there is no multi-user interaction, these are **user-only** but must be 
   * show a next-step tip (e.g., “Choose another topic” / “This topic has no quiz yet”)
 * No empty screens without explanation.
 
+### 2.1.9 Persistent Contacts and Direct Chat
+
+* People discovered through shared groups are added to a persistent contacts list stored locally.
+* Contacts remain available after the shared group is left, so the user can reopen the profile and continue a direct chat thread.
+* The contacts list supports hiding/archive per contact without deleting direct-message history.
+* Hidden contacts are excluded from the default list view.
+* A bottom-of-list radio control lets the user reveal hidden contacts on demand.
+* Hidden contacts can be restored/unarchived from the revealed list or the contact detail view.
+
 ---
 
 ## 3. Non-Functional Requirements

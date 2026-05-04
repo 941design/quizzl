@@ -3,7 +3,7 @@ import { Box, Flex, Image, Text } from '@chakra-ui/react';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useDecryptedImage } from '@/src/hooks/useDecryptedImage';
 import { splitLinks } from '@/src/lib/linkify';
-import type { RoledAttachments } from '@/src/lib/media/imageMessage';
+import type { ChatMediaAttachment, RoledAttachments } from '@/src/lib/media/imageMessage';
 import { truncateNpub, pubkeyToNpub } from '@/src/lib/nostrKeys';
 import ImageLightbox from './ImageLightbox';
 
@@ -13,9 +13,10 @@ type ImageMessageBubbleProps = {
   attachments: RoledAttachments;
   senderPubkey?: string;
   createdAt?: number;
+  decryptMedia?: (attachment: ChatMediaAttachment) => Promise<{ bytes: Uint8Array; type: string }>;
 };
 
-export default function ImageMessageBubble({ groupId, caption, attachments, senderPubkey, createdAt }: ImageMessageBubbleProps) {
+export default function ImageMessageBubble({ groupId, caption, attachments, senderPubkey, createdAt, decryptMedia }: ImageMessageBubbleProps) {
   const copy = useCopy();
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const senderShortId = senderPubkey ? truncateNpub(pubkeyToNpub(senderPubkey)) : 'unknown';
@@ -28,7 +29,7 @@ export default function ImageMessageBubble({ groupId, caption, attachments, send
   const displayAttachment = thumbAttachment ?? fullAttachment;
   const lightboxAttachment = fullAttachment ?? thumbAttachment;
 
-  const displayState = useDecryptedImage(groupId, displayAttachment);
+  const displayState = useDecryptedImage(groupId, displayAttachment, decryptMedia);
 
   const blurhash = displayAttachment?.blurhash;
 
@@ -131,6 +132,7 @@ export default function ImageMessageBubble({ groupId, caption, attachments, send
           senderShortId={senderShortId}
           createdAt={createdAt ?? Date.now()}
           onClose={() => setLightboxOpen(false)}
+          decryptMedia={decryptMedia}
         />
       )}
     </Box>
