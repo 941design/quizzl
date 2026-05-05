@@ -23,6 +23,7 @@ import StorageWarning from '@/src/components/StorageWarning';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 import ThemeIcon from '@/src/components/ThemeIcon';
 import NotificationBell from '@/src/components/NotificationBell';
+import DirectMessageNotificationsWatcher from '@/src/components/DirectMessageNotificationsWatcher';
 import { rememberContactsFromGroups } from '@/src/lib/contacts';
 
 type LayoutProps = {
@@ -53,6 +54,7 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <Box minH="100vh" bg="appBg">
+      <DirectMessageNotificationsWatcher />
       {/* Navigation Bar */}
       <Box
         as="nav"

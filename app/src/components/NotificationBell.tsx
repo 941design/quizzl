@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
   Box,
   Text,
@@ -12,14 +12,23 @@ import {
   useDisclosure,
 } from '@chakra-ui/react';
 import NextLink from 'next/link';
-import { useUnreadCounts, markAsRead, markJoinRequestsRead } from '@/src/lib/unreadStore';
+import {
+  useUnreadCounts,
+  markAsRead,
+  markJoinRequestsRead,
+  markDirectMessagesRead,
+} from '@/src/lib/unreadStore';
 import { useMarmot } from '@/src/context/MarmotContext';
+import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useCopy } from '@/src/context/LanguageContext';
 import ThemeIcon from '@/src/components/ThemeIcon';
+import { listContacts } from '@/src/lib/contacts';
+import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 
 export default function NotificationBell() {
-  const { counts, joinRequests, totalUnread } = useUnreadCounts();
+  const { counts, joinRequests, directMessages, totalUnread } = useUnreadCounts();
   const { groups } = useMarmot();
+  const { pubkeyHex } = useNostrIdentity();
   const copy = useCopy();
   const { isOpen, onToggle, onClose } = useDisclosure();
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -33,6 +42,30 @@ export default function NotificationBell() {
   const joinRequestGroups = groups
     .filter((g) => (joinRequests[g.id] ?? 0) > 0)
     .map((g) => ({ ...g, requestCount: joinRequests[g.id] }));
+
+  // Build list of contacts with unread direct messages. The bell can render
+  // before the user has any stored contacts (e.g. a DM arrives from a stranger),
+  // so we fall back to a truncated npub label when no contact entry exists.
+  const directMessageContacts = useMemo(() => {
+    const peerKeys = Object.keys(directMessages).filter((k) => directMessages[k] > 0);
+    if (peerKeys.length === 0) return [];
+    const contacts = listContacts(pubkeyHex, { includeArchived: true });
+    const byPubkey = new Map(contacts.map((c) => [c.pubkeyHex.toLowerCase(), c] as const));
+    return peerKeys.map((peer) => {
+      const contact = byPubkey.get(peer);
+      const fallbackName = truncateNpub(pubkeyToNpub(peer));
+      return {
+        peerPubkeyHex: peer,
+        displayName: contact?.nickname || fallbackName,
+        unread: directMessages[peer],
+      };
+    });
+  }, [directMessages, pubkeyHex]);
+
+  const hasNotifications =
+    unreadGroups.length > 0 ||
+    joinRequestGroups.length > 0 ||
+    directMessageContacts.length > 0;
 
   return (
     <Popover
@@ -93,7 +126,7 @@ export default function NotificationBell() {
       >
         <PopoverArrow bg="surfaceBg" />
         <PopoverBody p={0}>
-          {unreadGroups.length === 0 && joinRequestGroups.length === 0 ? (
+          {!hasNotifications ? (
             <Box p={4} textAlign="center">
               <Text fontSize="sm" color="textMuted">
                 {copy.layout.noNotifications}
@@ -148,6 +181,57 @@ export default function NotificationBell() {
                       flexShrink={0}
                     >
                       {g.unread > 99 ? '99+' : g.unread}
+                    </Box>
+                  </HStack>
+                </NextLink>
+              ))}
+              {directMessageContacts.map((c) => (
+                <NextLink
+                  key={`dm-${c.peerPubkeyHex}`}
+                  href={`/contacts?id=${c.peerPubkeyHex}`}
+                  passHref
+                  legacyBehavior
+                >
+                  <HStack
+                    as="a"
+                    px={4}
+                    py={3}
+                    spacing={3}
+                    _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
+                    cursor="pointer"
+                    onClick={() => {
+                      markDirectMessagesRead(c.peerPubkeyHex);
+                      onClose();
+                    }}
+                    data-testid={`notification-dm-${c.peerPubkeyHex}`}
+                  >
+                    <Box flex="1" minW={0}>
+                      <Text
+                        fontSize="sm"
+                        fontWeight="semibold"
+                        isTruncated
+                      >
+                        {c.displayName}
+                      </Text>
+                      <Text fontSize="xs" color="textMuted">
+                        {copy.layout.directMessageNotification(c.unread)}
+                      </Text>
+                    </Box>
+                    <Box
+                      bg="brand.500"
+                      color="white"
+                      fontSize="xs"
+                      fontWeight="bold"
+                      minW="20px"
+                      h="20px"
+                      borderRadius="full"
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="center"
+                      px="6px"
+                      flexShrink={0}
+                    >
+                      {c.unread > 99 ? '99+' : c.unread}
                     </Box>
                   </HStack>
                 </NextLink>

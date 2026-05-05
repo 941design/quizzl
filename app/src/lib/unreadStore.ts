@@ -9,15 +9,18 @@
 import { useSyncExternalStore } from 'react';
 
 const STORAGE_KEY = 'lp_unreadLastRead_v1';
+const DM_STORAGE_KEY = 'lp_unreadLastReadDM_v1';
 
 type UnreadState = {
   /** Unread message count per groupId */
   counts: Record<string, number>;
   /** Pending join request count per groupId */
   joinRequests: Record<string, number>;
+  /** Unread direct-message count per peer pubkey (lowercase hex) */
+  directMessages: Record<string, number>;
 };
 
-let state: UnreadState = { counts: {}, joinRequests: {} };
+let state: UnreadState = { counts: {}, joinRequests: {}, directMessages: {} };
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -34,7 +37,7 @@ function getSnapshot(): UnreadState {
 }
 
 function getServerSnapshot(): UnreadState {
-  return { counts: {}, joinRequests: {} };
+  return { counts: {}, joinRequests: {}, directMessages: {} };
 }
 
 // --- Persistence helpers ---
@@ -54,6 +57,27 @@ function saveLastReadTimestamps(timestamps: Record<string, number>) {
   } catch {
     // Non-fatal
   }
+}
+
+function loadDirectMessageLastRead(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(DM_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveDirectMessageLastRead(timestamps: Record<string, number>) {
+  try {
+    localStorage.setItem(DM_STORAGE_KEY, JSON.stringify(timestamps));
+  } catch {
+    // Non-fatal
+  }
+}
+
+function dmKey(peerPubkeyHex: string): string {
+  return peerPubkeyHex.toLowerCase();
 }
 
 // --- Public API ---
@@ -196,12 +220,94 @@ export function clearJoinRequestGroup(groupId: string) {
   }
 }
 
+// --- Direct message counter API ---
+
+/** Increment unread direct-message count for a peer (called when a DM arrives). */
+export function incrementDirectMessage(peerPubkeyHex: string) {
+  const key = dmKey(peerPubkeyHex);
+  const next = { ...state.directMessages };
+  next[key] = (next[key] ?? 0) + 1;
+  state = { ...state, directMessages: next };
+  emit();
+}
+
+/** Mark a peer's DM thread as read — resets count and persists the timestamp. */
+export function markDirectMessagesRead(peerPubkeyHex: string) {
+  const key = dmKey(peerPubkeyHex);
+  const timestamps = loadDirectMessageLastRead();
+  timestamps[key] = Date.now();
+  saveDirectMessageLastRead(timestamps);
+
+  if (state.directMessages[key]) {
+    const next = { ...state.directMessages };
+    delete next[key];
+    state = { ...state, directMessages: next };
+    emit();
+  }
+}
+
+/** Last-read timestamp (ms) for a peer's DM thread; 0 if never opened. */
+export function getDirectMessageLastReadAt(peerPubkeyHex: string): number {
+  const timestamps = loadDirectMessageLastRead();
+  return timestamps[dmKey(peerPubkeyHex)] ?? 0;
+}
+
+/** Remove DM tracking for a peer (called on contact removal). */
+export function clearDirectMessageContact(peerPubkeyHex: string) {
+  const key = dmKey(peerPubkeyHex);
+  const timestamps = loadDirectMessageLastRead();
+  delete timestamps[key];
+  saveDirectMessageLastRead(timestamps);
+
+  if (state.directMessages[key]) {
+    const next = { ...state.directMessages };
+    delete next[key];
+    state = { ...state, directMessages: next };
+    emit();
+  }
+}
+
+/**
+ * Initialise direct-message unread counts from persisted DM threads.
+ * Reads `quizzl:messages:dm:<peer>` keys (the same store ContactChat uses).
+ */
+export async function initDirectMessageCounts(peerPubkeysHex: string[], ownPubkeyHex: string) {
+  const own = ownPubkeyHex.toLowerCase();
+  const timestamps = loadDirectMessageLastRead();
+  const { get } = await import('idb-keyval');
+
+  const computed: Record<string, number> = {};
+
+  for (const peer of peerPubkeysHex) {
+    const key = dmKey(peer);
+    const lastRead = timestamps[key] ?? 0;
+    const storageKey = `quizzl:messages:dm:${key}`;
+    try {
+      const messages: Array<{ createdAt: number; senderPubkey: string }> | undefined = await get(storageKey);
+      if (messages && messages.length > 0) {
+        const unread = messages.filter(
+          (m) => m.createdAt > lastRead && m.senderPubkey.toLowerCase() !== own,
+        ).length;
+        if (unread > 0) computed[key] = unread;
+      }
+    } catch {
+      // Non-fatal — DM thread may not exist yet
+    }
+  }
+
+  // Merge: preserve any live increments that arrived while we were reading
+  // IDB. `computed` wins for peers we re-evaluated from persistence.
+  state = { ...state, directMessages: { ...state.directMessages, ...computed } };
+  emit();
+}
+
 // --- Test bridge ---
 // Expose store functions on window so e2e tests can inject unread state.
 if (typeof window !== 'undefined') {
   (window as any).__quizzlUnread = {
     incrementUnread, markAsRead, clearUnreadGroup,
     incrementJoinRequest, markJoinRequestsRead, decrementJoinRequest, clearJoinRequestGroup,
+    incrementDirectMessage, markDirectMessagesRead, clearDirectMessageContact,
   };
 }
 
@@ -213,11 +319,13 @@ export function useUnreadCounts() {
 
   const totalUnread =
     Object.values(snapshot.counts).reduce((sum, n) => sum + n, 0) +
-    Object.values(snapshot.joinRequests).reduce((sum, n) => sum + n, 0);
+    Object.values(snapshot.joinRequests).reduce((sum, n) => sum + n, 0) +
+    Object.values(snapshot.directMessages).reduce((sum, n) => sum + n, 0);
 
   return {
     counts: snapshot.counts,
     joinRequests: snapshot.joinRequests,
+    directMessages: snapshot.directMessages,
     totalUnread,
   };
 }

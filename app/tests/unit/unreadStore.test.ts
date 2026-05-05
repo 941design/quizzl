@@ -171,3 +171,98 @@ describe('unreadStore join request counters', () => {
     expect(s2.joinRequests['group-g']).toBeUndefined();
   });
 });
+
+describe('unreadStore direct-message counters', () => {
+  const PEER_A = 'aa'.repeat(32);
+  const PEER_B = 'bb'.repeat(32);
+
+  it('incrementDirectMessage tracks per-peer counts and feeds totalUnread', async () => {
+    const {
+      incrementDirectMessage,
+      clearDirectMessageContact,
+      useUnreadCounts,
+    } = await import('@/src/lib/unreadStore');
+
+    clearDirectMessageContact(PEER_A);
+    clearDirectMessageContact(PEER_B);
+
+    incrementDirectMessage(PEER_A);
+    incrementDirectMessage(PEER_A);
+    incrementDirectMessage(PEER_B);
+
+    const s = useUnreadCounts();
+    expect(s.directMessages[PEER_A]).toBe(2);
+    expect(s.directMessages[PEER_B]).toBe(1);
+    // 3 DMs counted in totalUnread
+    expect(s.totalUnread).toBeGreaterThanOrEqual(3);
+  });
+
+  it('peer pubkey is normalised to lowercase', async () => {
+    const {
+      incrementDirectMessage,
+      clearDirectMessageContact,
+      useUnreadCounts,
+    } = await import('@/src/lib/unreadStore');
+
+    const mixed = 'AbCdEf' + '00'.repeat(29);
+    clearDirectMessageContact(mixed);
+
+    incrementDirectMessage(mixed);
+    incrementDirectMessage(mixed.toLowerCase());
+
+    const s = useUnreadCounts();
+    expect(s.directMessages[mixed.toLowerCase()]).toBe(2);
+    // The mixed-case key should not also exist
+    expect(s.directMessages[mixed]).toBeUndefined();
+  });
+
+  it('markDirectMessagesRead resets the counter and persists timestamp', async () => {
+    const {
+      incrementDirectMessage,
+      markDirectMessagesRead,
+      getDirectMessageLastReadAt,
+      clearDirectMessageContact,
+      useUnreadCounts,
+    } = await import('@/src/lib/unreadStore');
+
+    const PEER = 'cc'.repeat(32);
+    clearDirectMessageContact(PEER);
+
+    incrementDirectMessage(PEER);
+    incrementDirectMessage(PEER);
+    expect(useUnreadCounts().directMessages[PEER]).toBe(2);
+
+    markDirectMessagesRead(PEER);
+    const after = useUnreadCounts();
+    expect(after.directMessages[PEER]).toBeUndefined();
+    expect(getDirectMessageLastReadAt(PEER)).toBeGreaterThan(0);
+  });
+
+  it('clearDirectMessageContact removes both count and last-read timestamp', async () => {
+    const {
+      incrementDirectMessage,
+      markDirectMessagesRead,
+      clearDirectMessageContact,
+      getDirectMessageLastReadAt,
+      useUnreadCounts,
+    } = await import('@/src/lib/unreadStore');
+
+    const PEER = 'dd'.repeat(32);
+    incrementDirectMessage(PEER);
+    markDirectMessagesRead(PEER);
+    expect(getDirectMessageLastReadAt(PEER)).toBeGreaterThan(0);
+
+    clearDirectMessageContact(PEER);
+    expect(useUnreadCounts().directMessages[PEER]).toBeUndefined();
+    expect(getDirectMessageLastReadAt(PEER)).toBe(0);
+  });
+
+  it('exports DM functions for the test bridge', async () => {
+    const mod = await import('@/src/lib/unreadStore');
+    expect(typeof mod.incrementDirectMessage).toBe('function');
+    expect(typeof mod.markDirectMessagesRead).toBe('function');
+    expect(typeof mod.clearDirectMessageContact).toBe('function');
+    expect(typeof mod.getDirectMessageLastReadAt).toBe('function');
+    expect(typeof mod.initDirectMessageCounts).toBe('function');
+  });
+});

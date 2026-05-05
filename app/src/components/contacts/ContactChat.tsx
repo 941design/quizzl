@@ -13,6 +13,7 @@ import {
   signDirectMessage,
 } from '@/src/lib/directMessages';
 import type { ChatMediaAttachment } from '@/src/lib/media/imageMessage';
+import { markDirectMessagesRead } from '@/src/lib/unreadStore';
 
 type ContactChatProps = {
   peerPubkeyHex: string;
@@ -133,6 +134,12 @@ export default function ContactChat({
       outgoingSub?.stop?.();
     };
   }, [ingestEvent, peerPubkeyHex, privateKeyHex, pubkeyHex, threadId, upsertMessages]);
+
+  // Mark the thread read whenever it is open and new messages land — the user
+  // is actively viewing this chat, so any incoming DM is "seen" by definition.
+  useEffect(() => {
+    markDirectMessagesRead(peerPubkeyHex);
+  }, [peerPubkeyHex, messages.length]);
 
   const sendMessage = useCallback(async (content: string) => {
     // Sign the event before publishing so we can render the optimistic entry

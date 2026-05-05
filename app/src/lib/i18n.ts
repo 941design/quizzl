@@ -20,6 +20,7 @@ type Copy = {
     noNotifications: string;
     unreadMessages: (count: number) => string;
     joinRequestNotification: (count: number) => string;
+    directMessageNotification: (count: number) => string;
   };
   home: {
     title: string;
@@ -429,6 +430,7 @@ const copy: Record<LanguageCode, Copy> = {
       noNotifications: 'No new messages',
       unreadMessages: (count: number) => count === 1 ? '1 new message' : `${count} new messages`,
       joinRequestNotification: (count: number) => count === 1 ? '1 join request' : `${count} join requests`,
+      directMessageNotification: (count: number) => count === 1 ? '1 new direct message' : `${count} new direct messages`,
     },
     home: {
       title: 'Welcome to Quizzl',
@@ -836,6 +838,7 @@ const copy: Record<LanguageCode, Copy> = {
       noNotifications: 'Keine neuen Nachrichten',
       unreadMessages: (count: number) => count === 1 ? '1 neue Nachricht' : `${count} neue Nachrichten`,
       joinRequestNotification: (count: number) => count === 1 ? '1 Beitrittsanfrage' : `${count} Beitrittsanfragen`,
+      directMessageNotification: (count: number) => count === 1 ? '1 neue Direktnachricht' : `${count} neue Direktnachrichten`,
     },
     home: {
       title: 'Willkommen bei Quizzl',
