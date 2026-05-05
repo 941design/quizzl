@@ -9,8 +9,8 @@ import {
   decryptDirectPayload,
   directConversationId,
   DIRECT_MESSAGE_KIND,
-  publishDirectMessage,
   sendDirectImageMessage,
+  signDirectMessage,
 } from '@/src/lib/directMessages';
 import type { ChatMediaAttachment } from '@/src/lib/media/imageMessage';
 
@@ -135,29 +135,27 @@ export default function ContactChat({
   }, [ingestEvent, peerPubkeyHex, privateKeyHex, pubkeyHex, threadId, upsertMessages]);
 
   const sendMessage = useCallback(async (content: string) => {
-    const now = Math.floor(Date.now() / 1000);
-    const tempId = crypto.randomUUID();
+    // Sign the event before publishing so we can render the optimistic entry
+    // under the *real* event id from the start. NDK dispatches the just-published
+    // event into matching local subscriptions synchronously inside event.publish()
+    // — if that echo's decrypt+upsert wins the race against a tempId→realId
+    // swap, the state ends up with two entries (the tempId optimistic and the
+    // realId echo) for the same logical message.
+    const ndk = await connectNdk(privateKeyHex);
+    const event = await signDirectMessage({ ndk, privateKeyHex, peerPubkeyHex, content });
     const optimistic = toMessage(threadId, {
-      id: tempId,
+      id: event.id,
       pubkey: pubkeyHex,
-      created_at: now,
+      created_at: event.created_at ?? Math.floor(Date.now() / 1000),
       content,
     });
     upsertMessages([optimistic]);
 
     try {
-      const ndk = await connectNdk(privateKeyHex);
-      const eventId = await publishDirectMessage({
-        ndk,
-        privateKeyHex,
-        peerPubkeyHex,
-        content,
-      });
-      const finalMsg = { ...optimistic, id: eventId };
-      setMessages((prev) => prev.map((msg) => (msg.id === tempId ? finalMsg : msg)));
-      await appendMessage(threadId, finalMsg);
+      await event.publish();
+      await appendMessage(threadId, optimistic);
     } catch (err) {
-      setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+      setMessages((prev) => prev.filter((msg) => msg.id !== event.id));
       throw err;
     }
   }, [peerPubkeyHex, privateKeyHex, pubkeyHex, threadId, upsertMessages]);
@@ -190,7 +188,12 @@ export default function ContactChat({
         id: result.eventId,
         attachments: result.attachments,
       };
-      setMessages((prev) => prev.map((msg) => (msg.id === tempId ? finalMsg : msg)));
+      // See sendMessage above: NDK's optimistic dispatch can race the swap and
+      // leave a duplicate echo entry under the real event id.
+      setMessages((prev) => {
+        const filtered = prev.filter((msg) => msg.id !== tempId && msg.id !== result.eventId);
+        return [...filtered, finalMsg].sort((a, b) => a.createdAt - b.createdAt);
+      });
       await appendMessage(threadId, finalMsg);
     } catch (err) {
       setMessages((prev) => prev.filter((msg) => msg.id !== tempId));

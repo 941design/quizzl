@@ -117,13 +117,19 @@ export async function decryptDirectPayload(
   return parseDirectPayload(decrypted);
 }
 
-export async function publishDirectMessage(params: {
+/**
+ * Build & sign a kind-4 DM event without publishing. Returns the signed event
+ * so the caller can read the final event id (and `created_at`) before the
+ * relay round-trip — the caller can then add an optimistic UI entry under the
+ * real id and avoid races with NDK's local echo dispatch (see ContactChat).
+ */
+export async function signDirectMessage(params: {
   ndk: NDK;
   privateKeyHex: string;
   peerPubkeyHex: string;
   content: string;
   attachments?: RoledAttachments;
-}): Promise<string> {
+}): Promise<NDKEvent> {
   const encrypted = await encryptDirectPayload(
     buildPayload(params.content, params.attachments),
     params.privateKeyHex,
@@ -137,6 +143,17 @@ export async function publishDirectMessage(params: {
     created_at: Math.floor(Date.now() / 1000),
   });
   await event.sign();
+  return event;
+}
+
+export async function publishDirectMessage(params: {
+  ndk: NDK;
+  privateKeyHex: string;
+  peerPubkeyHex: string;
+  content: string;
+  attachments?: RoledAttachments;
+}): Promise<string> {
+  const event = await signDirectMessage(params);
   await event.publish();
   return event.id;
 }
