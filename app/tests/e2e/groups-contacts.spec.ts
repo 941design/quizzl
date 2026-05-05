@@ -82,16 +82,19 @@ test.describe.serial('Contacts and direct chat', () => {
 
     await pageA.goto('/contacts/');
     await expect(pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`)).toContainText('Bob');
-    await pageA.getByTestId(`archive-contact-${USER_B.pubkeyHex}`).click();
+    await pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`).click();
+    await expect(pageA.getByTestId('contact-detail-page')).toBeVisible({ timeout: 30_000 });
+    await pageA.getByTestId('contact-detail-archive').click();
+    await expect(pageA.getByTestId('contact-archived-alert')).toBeVisible();
+    await pageA.goto('/contacts/');
     await expect(pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`)).toHaveCount(0);
     await expect(pageA.getByTestId('contacts-hidden-state')).toContainText('1');
     await pageA.getByTestId('contacts-filter-show-hidden').click();
     await expect(pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`)).toContainText('Bob');
-    await expect(pageA.getByTestId(`unarchive-contact-${USER_B.pubkeyHex}`)).toBeVisible();
-    await pageA.getByTestId(`unarchive-contact-${USER_B.pubkeyHex}`).click();
-    await expect(pageA.getByTestId(`archive-contact-${USER_B.pubkeyHex}`)).toBeVisible();
     await pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`).click();
     await expect(pageA.getByTestId('contact-detail-page')).toBeVisible({ timeout: 30_000 });
+    await pageA.getByTestId('contact-detail-unarchive').click();
+    await expect(pageA.getByTestId('contact-archived-alert')).toHaveCount(0);
     await expect(pageA.getByRole('heading', { name: 'Bob' })).toBeVisible();
 
     await pageB.goto('/contacts/');

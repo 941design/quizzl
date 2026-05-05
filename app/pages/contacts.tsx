@@ -33,25 +33,15 @@ function ContactListView() {
   const copy = useCopy();
   const { pubkeyHex } = useNostrIdentity();
   const [showHidden, setShowHidden] = useState(false);
-  const [version, setVersion] = useState(0);
   const contacts = useMemo(
     () => listContacts(pubkeyHex, { includeArchived: showHidden }),
-    [pubkeyHex, showHidden, version],
+    [pubkeyHex, showHidden],
   );
   const hiddenCount = useMemo(
     () => listContacts(pubkeyHex, { includeArchived: true }).filter((contact) => contact.isArchived).length,
-    [pubkeyHex, version],
+    [pubkeyHex],
   );
   const hasAnyContacts = contacts.length > 0 || hiddenCount > 0;
-
-  const handleArchiveToggle = (contactPubkeyHex: string, archived: boolean) => {
-    if (archived) {
-      unarchiveContact(contactPubkeyHex);
-    } else {
-      archiveContact(contactPubkeyHex);
-    }
-    setVersion((current) => current + 1);
-  };
 
   return (
     <>
@@ -119,21 +109,11 @@ function ContactListView() {
                         </LinkOverlay>
                       </NextLink>
                     </Box>
-                    <VStack spacing={2} align="end" flexShrink={0}>
-                      {contact.isArchived ? <Badge colorScheme="gray">{copy.contacts.hiddenBadge}</Badge> : null}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        data-testid={`${contact.isArchived ? 'unarchive' : 'archive'}-contact-${contact.pubkeyHex}`}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleArchiveToggle(contact.pubkeyHex, contact.isArchived);
-                        }}
-                      >
-                        {contact.isArchived ? copy.contacts.unarchiveAction : copy.contacts.archiveAction}
-                      </Button>
-                    </VStack>
+                    {contact.isArchived ? (
+                      <Badge colorScheme="gray" flexShrink={0}>
+                        {copy.contacts.hiddenBadge}
+                      </Badge>
+                    ) : null}
                   </Flex>
                 </LinkBox>
               );
