@@ -1,0 +1,289 @@
+{
+  "epic_name": "member-profile-discovery-and-relay-on-behalf",
+  "created_at": "2026-05-06T00:00:00Z",
+  "total_stories": 7,
+  "story_order": ["01", "02", "03", "04", "05", "06", "07"],
+  "dependency_notes": "Stories follow the spec's suggested implementation order. Story 01 (wire-format) introduces the SignedProfileEvent type seam consumed by 03/05/06. Story 02 (request types + memo store) introduces the ProfileRequestPayload and memo-CRUD seams consumed by 03/05/06. Story 03 (dispatcher + target reply) introduces the on-context handler seam consumed by 06. Story 04 (remove proactive republish) is independent of all others and can be parallelized. Story 05 (sweeps) introduces the requestProfilesIfStale seam consumed by pages/groups.tsx (in-story) and is verified by 07. Story 06 (relay-on-behalf) sits on top of 01+02+03. Story 07 (full E2E) lands the six-scenario spec and the test helpers; earlier stories ship with their own unit/integration tests so each is independently verifiable.",
+  "mock_resolution_plan": "No temporary mocks introduced. Story 01 keeps backward compatibility for legacy unsigned ProfilePayload at the parser level — that is permanent backward-compat, not a mock — so legacy peers can interoperate during rollout. Story 07 introduces permanent E2E test fixtures (rumor-counter init script, IDB record-delete helper) under app/tests/e2e/helpers/.",
+  "seams": [
+    {
+      "data": "SignedProfileEvent — Nostr kind:0 envelope ({ id, pubkey, created_at, kind: 0, tags, content, sig }) embedded inside MLS rumor.content",
+      "source": { "story": "01", "artifact": "SignedProfileEvent type exported from app/src/types/index.ts; produced by serialiseProfileUpdate; verified and threaded into MemberProfile by parseProfilePayload" },
+      "intermediaries": [
+        { "story": "02", "artifact": "groupStorage.mergeMemberProfile persists the signedEvent field alongside parsed profile" }
+      ],
+      "destination": { "story": "06", "artifact": "profileRequestRunner.handleIncomingProfileRequest reads cached MemberProfile.signedEvent and relays verbatim" }
+    },
+    {
+      "data": "ProfileRequestMemo CRUD — load/save/recordRequestEmitted/recordRequestAnswered/clearProfileRequestMemos against quizzl-profile-request-memos IDB store",
+      "source": { "story": "02", "artifact": "groupStorage memo CRUD exports" },
+      "intermediaries": [
+        { "story": "03", "artifact": "MarmotContext dispatcher arm calls recordRequestEmitted on every observed PROFILE_REQUEST_KIND rumor" }
+      ],
+      "destination": { "story": "05", "artifact": "sweepStaleProfiles consults memo via shouldEmitRequest before emitting" }
+    },
+    {
+      "data": "ProfileRequestPayload (kind 30) — { type: 'profile_request', targetPubkey, sinceUpdatedAt?, nonce } serialise/parse helpers and pure dedupe predicate",
+      "source": { "story": "02", "artifact": "profileRequestSync.ts: PROFILE_REQUEST_KIND, serialiseProfileRequest, parseProfileRequestPayload, isProfileStale, shouldEmitRequest, pickBackoffMs, timing constants" },
+      "intermediaries": [
+        { "story": "03", "artifact": "MarmotContext PROFILE_REQUEST_KIND dispatcher arm parses incoming payloads" }
+      ],
+      "destination": { "story": "05", "artifact": "sweepStaleProfiles + requestProfilesIfStale construct outbound payloads via serialiseProfileRequest" }
+    },
+    {
+      "data": "requestProfilesIfStale(groupId) — context-exposed action that triggers a per-group stale sweep",
+      "source": { "story": "05", "artifact": "MarmotContext context value gains requestProfilesIfStale(groupId)" },
+      "destination": { "story": "05", "artifact": "GroupDetailView in pages/groups.tsx route-enter useEffect calls requestProfilesIfStale(id) (in-story consumer)" }
+    },
+    {
+      "data": "notifyProfileObserved({ groupId, targetPubkey, observedUpdatedAt }) — cancellation hook for pending relay timers",
+      "source": { "story": "06", "artifact": "profileRequestRunner.notifyProfileObserved + module-level pending timer Map" },
+      "destination": { "story": "06", "artifact": "MarmotContext PROFILE_RUMOR_KIND arm calls notifyProfileObserved on every verified incoming profile (in-story consumer)" }
+    }
+  ],
+  "stories": [
+    {
+      "id": "01",
+      "name": "wire-format-signed-profile-event",
+      "title": "Wire-format upgrade — sign & verify embedded kind:0 in profile rumor content",
+      "description": "Reshape the existing kind 0 profile rumor's content to carry a stringified, fully signed Nostr kind:0 event (SignedProfileEvent). serialiseProfileUpdate becomes async and takes a signer; parseProfilePayload verifies the embedded sig via verifyEvent (nostr-tools) before merging; payloadToMemberProfile threads signedEvent through. Add SignedProfileEvent to app/src/types/index.ts and extend MemberProfile with optional signedEvent. Update every existing caller of serialiseProfileUpdate in MarmotContext.tsx to await and pass the in-context signer. Preserve MIP-03: the outer rumor stays unsigned. Preserve backward compat: a legacy flat ProfilePayload (no envelope) still merges, but with signedEvent: undefined.",
+      "acceptance_criteria": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005",
+        "AC-006",
+        "AC-007",
+        "AC-042",
+        "AC-044",
+        "AC-047"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/profileSync.ts: sign in serialiseProfileUpdate (async + signer param); verify in parseProfilePayload; legacy fallback; signedEvent in payloadToMemberProfile",
+          "app/src/types/index.ts: export SignedProfileEvent; extend MemberProfile.signedEvent?",
+          "app/src/context/MarmotContext.tsx: await every serialiseProfileUpdate call site (onHistorySynced ~723, inviteByNpub ~930, publishProfileUpdate ~1029, plus the soon-removed ~710 if still present)",
+          "Persist signedEvent inside mergeMemberProfile (only the field-level extension; full memo store is story 02)",
+          "app/tests/unit/profileSync.test.ts (or similar): sign/verify round trip + legacy fallback parse"
+        ],
+        "excludes": [
+          "ProfileRequestPayload, kind 30, request rumor dispatch (story 03)",
+          "Profile-request memo IDB store and sweep helpers (story 02)",
+          "Removal of proactive on-member-add republish (story 04)",
+          "App-start sweep effect, group-open sweep, requestProfilesIfStale (story 05)",
+          "Relay-on-behalf, backoff, cancellation (story 06)"
+        ]
+      },
+      "complexity": "medium",
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "notes": "Foundational. Verifies cleanly against the existing groups-profile-update-propagation.spec.ts E2E without behavioural change. The largest call-site change in the epic is here; re-grep MarmotContext call sites before patching since later stories may shift line numbers."
+    },
+    {
+      "id": "02",
+      "name": "request-payload-and-memo-store",
+      "title": "Request rumor types, memo IDB store, pure dedupe helpers",
+      "description": "Create app/src/lib/marmot/profileRequestSync.ts (pure module): PROFILE_REQUEST_KIND=30, ProfileRequestPayload type, serialiseProfileRequest (random nonce), parseProfileRequestPayload, isProfileStale, shouldEmitRequest (truth-table predicate), pickBackoffMs, and the timing constants (PROFILE_STALENESS_MS, REQUEST_DEDUPE_MS, UNANSWERED_RETRY_MS, UNANSWERED_MAX_ATTEMPTS, RELAY_BACKOFF_MIN_MS, RELAY_BACKOFF_MAX_MS). Add the quizzl-profile-request-memos idb-keyval store and memo CRUD (loadProfileRequestMemo, saveProfileRequestMemo, recordRequestEmitted, recordRequestAnswered, clearProfileRequestMemos) — co-locate in groupStorage.ts (or a new profileRequestStorage.ts following the joinRequestStorage.ts template). Wire clearProfileRequestMemos into clearAllGroupData in groupStorage.ts. Adds no wire traffic and no React changes; ships only library code + unit tests.",
+      "acceptance_criteria": [
+        "AC-008",
+        "AC-009",
+        "AC-010",
+        "AC-011",
+        "AC-012",
+        "AC-013",
+        "AC-014",
+        "AC-015",
+        "AC-016",
+        "AC-017",
+        "AC-018",
+        "AC-019",
+        "AC-020",
+        "AC-021",
+        "AC-022",
+        "AC-043"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/profileRequestSync.ts (new pure module)",
+          "groupStorage.ts memo store + memo CRUD; mergeMemberProfile persists signedEvent; clearAllGroupData calls clearProfileRequestMemos",
+          "app/tests/unit/profileRequestSync.test.ts: isProfileStale boundaries, shouldEmitRequest truth table (fast-check parameterised), pickBackoffMs property test"
+        ],
+        "excludes": [
+          "Wire-format / signing (story 01)",
+          "Dispatcher arm and target-side immediate response (story 03)",
+          "Sweep effects and requestProfilesIfStale (story 05)",
+          "Relay-on-behalf timers (story 06)",
+          "leaveGroup wiring of clearProfileRequestMemos — that touchpoint lives in MarmotContext.tsx and is wired in story 03 (where the dispatcher and other context wiring lands)"
+        ]
+      },
+      "complexity": "medium",
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "pending",
+      "notes": "Ships entirely as additive library code plus unit tests. Independent of story 01 — can land in parallel; only the mergeMemberProfile.signedEvent field-level persistence depends on story 01's type extension landing first (sequence 01→02 keeps that simple)."
+    },
+    {
+      "id": "03",
+      "name": "request-dispatcher-and-target-reply",
+      "title": "PROFILE_REQUEST_KIND dispatcher arm + target-side immediate reply",
+      "description": "Wire the new request rumor into MarmotContext.tsx's onApplicationMessage dispatcher: parse incoming kind 30 payloads via parseProfileRequestPayload; on every observed request, call recordRequestEmitted so peer-issued requests dedupe across the group; when payload.targetPubkey === selfPubkeyHex, sign a fresh SignedProfileEvent from the local profile and send a profile rumor with no backoff via the existing buildRumor + sendRumorSafe pipeline. For non-self targets, delegate to handleIncomingProfileRequest (story 06 owns the relay implementation; this story imports it as a stub callable that returns void if not yet implemented — i.e. the call site is wired now, the relay logic lands in 06). Wire clearProfileRequestMemos into the leaveGroup useCallback (lines ~954-969 — re-grep). No sweep effect yet; emission paths land in story 05.",
+      "acceptance_criteria": [
+        "AC-030",
+        "AC-031",
+        "AC-032",
+        "AC-040",
+        "AC-041"
+      ],
+      "scope": {
+        "includes": [
+          "MarmotContext.tsx: new PROFILE_REQUEST_KIND arm in onApplicationMessage dispatcher",
+          "Target-side immediate response: sign fresh SignedProfileEvent and emit via sendRumorSafe when payload.targetPubkey === selfPubkeyHex",
+          "Call recordRequestEmitted on every observed request (peer-issued or our own)",
+          "Verify embedded sig in PROFILE_RUMOR_KIND arm (drop forged before mergeMemberProfile)",
+          "leaveGroup useCallback: call clearProfileRequestMemos(groupId)"
+        ],
+        "excludes": [
+          "Outbound request emission (story 05)",
+          "Relay-on-behalf with backoff and cancellation (story 06)",
+          "Removal of proactive on-member-add republish (story 04)",
+          "Group-open sweep wiring in pages/groups.tsx (story 05)"
+        ]
+      },
+      "complexity": "medium",
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "pending",
+      "notes": "Depends on 01 (signing on the reply path) and 02 (parseProfileRequestPayload, recordRequestEmitted, PROFILE_REQUEST_KIND constant). Verifiable via a focused E2E that injects a fake request on a target and asserts a profile rumor is emitted; or via integration test simulating a single onApplicationMessage delivery."
+    },
+    {
+      "id": "04",
+      "name": "remove-proactive-on-member-add-republish",
+      "title": "Remove proactive republish on member-add",
+      "description": "Delete the if (currentMembers.length > prevMemberCount) block in MarmotContext.tsx (current lines 709-716; re-grep) so existing members no longer broadcast their profile every time a peer joins. Preserve onHistorySynced introduction (current 719-732) and inviteByNpub republish (current 929-936). With this change alone, newcomers receive only the inviter's profile via the inviter's republish, plus whatever survives MLS history replay; the request/sweep stories restore the rest.",
+      "acceptance_criteria": [
+        "AC-027",
+        "AC-028",
+        "AC-029"
+      ],
+      "scope": {
+        "includes": [
+          "Delete the proactive on-member-add republish block in MarmotContext.tsx",
+          "Verify onHistorySynced introduction and inviteByNpub republish remain intact"
+        ],
+        "excludes": [
+          "Adding the request mechanism (stories 03/05/06)",
+          "Wire-format upgrade (story 01)"
+        ]
+      },
+      "complexity": "low",
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "pending",
+      "notes": "Independent of every other story — could land first or last. Sequencing it after 03 keeps a working request mechanism in place when proactive republish disappears, so behaviour stays correct end-to-end. Existing groups-profile-update-propagation.spec.ts and groups-member-profiles.spec.ts E2Es should still pass post-04 only when stories 01-03 have already landed; otherwise the aged-history scenario regresses."
+    },
+    {
+      "id": "05",
+      "name": "stale-sweep-app-start-and-group-open",
+      "title": "App-start sweep effect + group-open sweep + requestProfilesIfStale",
+      "description": "Implement sweepStaleProfiles in profileRequestRunner.ts (new side-effecting module): walk every group's MLS member list, skip self, filter via isProfileStale, consult shouldEmitRequest, and for those passing both, call recordRequestEmitted and emit a PROFILE_REQUEST_KIND rumor through a sendRumor callback. Add a useEffect in MarmotContext that runs sweepStaleProfiles once when ready && groups.length > 0 && pubkeyHex first becomes truthy. Expose requestProfilesIfStale(groupId) on the context value (single-group variant of the sweep). Update GroupDetailView in pages/groups.tsx route-enter useEffect to call requestProfilesIfStale(id) after setGroup(found).",
+      "acceptance_criteria": [
+        "AC-023",
+        "AC-024",
+        "AC-025",
+        "AC-026"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/profileRequestRunner.ts: sweepStaleProfiles export (and stub exports for handleIncomingProfileRequest / notifyProfileObserved that story 06 fills in — or land minimal no-op shims here)",
+          "MarmotContext: app-start sweep useEffect (gated on ready && groups.length > 0 && pubkeyHex)",
+          "MarmotContext: requestProfilesIfStale(groupId) on context value",
+          "pages/groups.tsx GroupDetailView: call requestProfilesIfStale(id) inside the existing route-enter useEffect"
+        ],
+        "excludes": [
+          "Relay-on-behalf with backoff (story 06)",
+          "Receiver-side dispatcher arm (story 03)",
+          "Wire format and signing (story 01)"
+        ]
+      },
+      "complexity": "medium",
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "pending",
+      "notes": "Depends on 01 (SignedProfileEvent for the cached profile), 02 (memo store, sync helpers), and 03 (dispatcher arm so a target replies when a sweep emits a request)."
+    },
+    {
+      "id": "06",
+      "name": "relay-on-behalf-with-backoff",
+      "title": "Peer relay-on-behalf with 5-30s backoff and observation cancellation",
+      "description": "Fill in handleIncomingProfileRequest and notifyProfileObserved in profileRequestRunner.ts. handleIncomingProfileRequest({ groupId, payload, now, sendRumor }): when targetPubkey is not self, load cached MemberProfile; if signedEvent is present and (sinceUpdatedAt is absent OR cached.updatedAt > sinceUpdatedAt), schedule setTimeout(pickBackoffMs()) keyed by (groupId, targetPubkey) in a module-level Map; on fire, invoke sendRumor with the cached signedEvent verbatim wrapped in a PROFILE_RUMOR_KIND rumor. notifyProfileObserved cancels any pending timer for (groupId, targetPubkey) when observedUpdatedAt is at least as fresh as scheduled. Wire MarmotContext's PROFILE_RUMOR_KIND arm to call notifyProfileObserved on every verified incoming profile.",
+      "acceptance_criteria": [
+        "AC-033",
+        "AC-034",
+        "AC-035",
+        "AC-036",
+        "AC-037",
+        "AC-038",
+        "AC-039"
+      ],
+      "scope": {
+        "includes": [
+          "profileRequestRunner.ts: handleIncomingProfileRequest, notifyProfileObserved, pending-relay timer Map keyed by (groupId, targetPubkey)",
+          "MarmotContext: connect handleIncomingProfileRequest into the dispatcher arm landed in story 03 (replace stub)",
+          "MarmotContext: PROFILE_RUMOR_KIND arm calls notifyProfileObserved after successful merge"
+        ],
+        "excludes": [
+          "Sweep effects (story 05)",
+          "Wire-format (story 01)",
+          "Memo store (story 02)"
+        ]
+      },
+      "complexity": "high",
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "pending",
+      "notes": "Highest-complexity story — concurrency-sensitive (timer keying, cancellation race). Vitest with fake timers is the right shape for the unit tests; the full E2E with target-offline lives in story 07. Depends on 01 (signedEvent on MemberProfile), 02 (sync helpers), 03 (dispatcher arm wired)."
+    },
+    {
+      "id": "07",
+      "name": "e2e-coverage-six-scenarios",
+      "title": "End-to-end Playwright spec — six verification scenarios + helpers",
+      "description": "Land app/tests/e2e/groups-profile-request.spec.ts modelled on groups-profile-update-propagation.spec.ts and groups-member-profiles.spec.ts. Cover all six spec scenarios: aged-history backfill (target online), periodic refresh (8d via page.clock.fastForward), per-peer dedupe (rumor counter from helper), relay-on-behalf with target offline (page.context().setOffline), retry state machine (1h / 7d / 3-attempt boundaries via clock control), forged-sig rejection (inject a kind:0 with mismatched sig and assert merge is rejected). Ship the missing E2E helpers under app/tests/e2e/helpers/: installRumorCounter / getRumorCount (page.addInitScript hooking onApplicationMessage and sendApplicationRumor), deleteIdbRecord(page, dbName, storeName, key).",
+      "acceptance_criteria": [
+        "AC-045",
+        "AC-046"
+      ],
+      "scope": {
+        "includes": [
+          "app/tests/e2e/groups-profile-request.spec.ts",
+          "app/tests/e2e/helpers/rumor-counter.ts",
+          "app/tests/e2e/helpers/idb-record.ts (or co-located inside existing clear-state.ts)"
+        ],
+        "excludes": [
+          "Production code changes (the implementation lives in stories 01-06)"
+        ]
+      },
+      "complexity": "high",
+      "introduces_mocks": [],
+      "test_fixtures": [
+        {
+          "fixture_id": "FIXTURE-07-001",
+          "description": "Rumor-counter init script that monkey-patches marmot-ts onApplicationMessage and sendApplicationRumor on window load to bump window.__rumorCounters. Permanent because counter-style observability is broadly useful for future rumor-related E2Es (chat, score, polls).",
+          "interface": "installRumorCounter(page, kinds: number[]): Promise<void>; getRumorCount(page, kind: number, direction: 'in' | 'out'): Promise<number>",
+          "reason": "Permanent test infrastructure under app/tests/e2e/helpers — applies beyond this epic.",
+          "permanent": true
+        },
+        {
+          "fixture_id": "FIXTURE-07-002",
+          "description": "Targeted IDB record-delete helper that opens a named IndexedDB and deletes a single keyed entry, leaving other state intact.",
+          "interface": "deleteIdbRecord(page, dbName: string, storeName: string, key: string): Promise<void>",
+          "reason": "Permanent test infrastructure — parallels existing clear-state.ts; reusable for any IDB-backed rumor sync test.",
+          "permanent": true
+        }
+      ],
+      "status": "pending",
+      "notes": "Depends on 01-06. The retry-state-machine scenario uses Playwright 1.45+'s page.clock.install / fastForward; the project is on 1.58 so this is native. Forged-sig rejection requires injecting a SignedProfileEvent through window.__forgedProfileInject or a similar test-only hook — design the seam during the story's architect step."
+    }
+  ]
+}

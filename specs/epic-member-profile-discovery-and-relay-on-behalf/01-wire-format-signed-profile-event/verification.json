@@ -1,0 +1,293 @@
+{
+  "story": "01-wire-format-signed-profile-event",
+  "phase": "pre-impl",
+  "questions": [
+    {
+      "id": "Q01-QUALITY-1",
+      "category": "QUALITY",
+      "phase": "pre-impl",
+      "question": "After implementation, are there any unused symbols or dead branches left in profileSync.ts (e.g. an old flat-only parser path still exported)?",
+      "decision": "No — the legacy fallback is the SAME `parseProfilePayload` function, just with two branches: envelope-first then legacy-flat. No new exported symbol, no parallel implementation. Verifier should grep for any duplicate `serialiseProfileUpdate` or extra exports."
+    },
+    {
+      "id": "Q01-QUALITY-2",
+      "category": "QUALITY",
+      "phase": "pre-impl",
+      "question": "Does the failing-test set after implementation match `baseline.json.pre_existing_failures` exactly, or are there NEW failures (regressions)?",
+      "decision": "Verifier MUST diff the post-implementation E2E failure list against `baseline.json.e2e_groups.pre_existing_failures` (matching by spec:line). Any spec:line not present in the baseline list is a NEW failure and triggers remediation. Fewer failures than baseline is fine."
+    },
+    {
+      "id": "Q01-ARCHITECTURE-1",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "How does the signer reach lib/marmot/profileSync.ts without violating the boundary rule 'Signer flows from MarmotContext, not from lib'?",
+      "decision": "Per architecture.json D2: signer is created in MarmotContext.init() and stored on signerRef. profileSync.ts accepts signer as a function parameter (`serialiseProfileUpdate(profile, signer)`); it never imports createPrivateKeySigner or instantiates one. Boundary preserved."
+    },
+    {
+      "id": "Q01-ARCHITECTURE-2",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "Does parseProfilePayload need to become async because of verifyEvent? (Spec: existing dispatcher at MarmotContext.tsx:545 is sync.)",
+      "decision": "No. nostr-tools/pure exports `verifyEvent` as a synchronous predicate. directMessages.ts already imports it statically. profileSync.ts will static-import it the same way. parseProfilePayload stays synchronous, dispatcher unchanged."
+    },
+    {
+      "id": "Q01-ARCHITECTURE-3",
+      "category": "ARCHITECTURE",
+      "phase": "pre-impl",
+      "question": "MIP-03 says outer rumor must be unsigned with sender identity pubkey. Does this implementation preserve that?",
+      "decision": "Yes. `buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ??)` at the call sites is unchanged. The outer rumor still has `sig` absent and `pubkey` set to the sender's identity. The new SignedProfileEvent (with its own sig) is INSIDE rumor.content as a stringified JSON — never on the outer rumor."
+    },
+    {
+      "id": "Q01-TEST-1",
+      "category": "TEST",
+      "phase": "pre-impl",
+      "question": "What test infrastructure does the unit test need? Does fast-check property testing apply here?",
+      "decision": "Standard vitest + nostr-tools/pure direct calls. fast-check is not a great fit for sign/verify (single deterministic round-trip is enough; signature space is too large to fuzz meaningfully). The test uses `generateSecretKey` from nostr-tools/pure and the project's own `createPrivateKeySigner` from signerAdapter.ts as the signer."
+    },
+    {
+      "id": "Q01-TEST-2",
+      "category": "TEST",
+      "phase": "pre-impl",
+      "question": "How does the test verify forged-sig rejection without making the test brittle to nostr-tools error semantics?",
+      "decision": "Build a valid SignedProfileEvent first (signed correctly), then mutate one character of `sig` (last byte → another hex char). Stringify and pass to parseProfilePayload. Assert return value is null. The test does not care whether verifyEvent throws or returns false; the catch wraps both."
+    },
+    {
+      "id": "Q01-TEST-3",
+      "category": "TEST",
+      "phase": "pre-impl",
+      "question": "Does the regression suite include the existing groups-profile-update-propagation.spec.ts and groups-member-profiles.spec.ts?",
+      "decision": "Yes — they passed in run #2 of the baseline. Post-implementation rerun must show them still passing. They exercise the full Alice→Bob profile propagation path through the new envelope shape, which is the most realistic integration check."
+    },
+    {
+      "id": "Q01-SECURITY-1",
+      "category": "SECURITY",
+      "phase": "pre-impl",
+      "question": "Could a forged SignedProfileEvent cause IDB writes or contact-cache pollution before verification rejects it?",
+      "decision": "No. Verification happens inside parseProfilePayload BEFORE the result reaches the dispatcher arm. If verifyEvent returns false, parseProfilePayload returns null. The dispatcher at MarmotContext.tsx:546 already guards with `if (profilePayload)`; null skips both mergeMemberProfile and writeContactEntry. AC-040 is enforced at the parse boundary."
+    },
+    {
+      "id": "Q01-SECURITY-2",
+      "category": "SECURITY",
+      "phase": "pre-impl",
+      "question": "Can a peer relay another peer's signed profile maliciously (impersonation via wrapping)?",
+      "decision": "Out of scope for story 01. Relay-on-behalf lands in story 06. Story 01 only signs first-hand profiles; the verify path is the same regardless of who relays. The MLS envelope authenticates the SENDER (relayer), and the embedded sig authenticates the AUTHOR — that's exactly the dual-authentication separation MIP-03 + this epic rely on."
+    },
+    {
+      "id": "Q01-SPEC-AC-001",
+      "category": "SPEC",
+      "ac_id": "AC-001",
+      "phase": "pre-impl",
+      "question": "AC-001: serialiseProfileUpdate(profile, signer) is async, calls signer.signEvent on a kind:0 draft, and returns JSON.stringify(SignedProfileEvent). Confirm exact draft shape passed to signer.",
+      "decision": "Draft = `{ kind: 0, created_at: Math.floor(Date.now() / 1000), tags: [], content: JSON.stringify(profilePayload) }`. signer.signEvent fills id/pubkey/sig (it's `finalizeEvent` under the hood per signerAdapter.ts:24). Result is asserted `kind === 0` then JSON.stringify'd as the outer rumor's content."
+    },
+    {
+      "id": "Q01-SPEC-AC-002",
+      "category": "SPEC",
+      "ac_id": "AC-002",
+      "phase": "pre-impl",
+      "question": "AC-002: parseProfilePayload parses SignedProfileEvent envelope, calls verifyEvent, returns ProfilePayload with signedEvent populated when verification passes. What's the exact branching logic?",
+      "decision": "1) JSON.parse(content). 2) If parsed has `id`, `pubkey`, `sig`, `kind: 0`, AND parsed.content is a string → envelope branch. 3) Wrap verifyEvent call in try/catch; if it throws or returns false → return null. 4) JSON.parse(parsed.content) as inner ProfilePayload; validate inner shape (nickname/badgeIds/updatedAt strings/array). 5) Return inner ProfilePayload with signedEvent: parsed (the full envelope). 6) If step 2 detects no envelope → fall back to legacy flat path (existing logic, signedEvent undefined)."
+    },
+    {
+      "id": "Q01-SPEC-AC-003",
+      "category": "SPEC",
+      "ac_id": "AC-003",
+      "phase": "pre-impl",
+      "question": "AC-003: parseProfilePayload returns null when embedded sig does not verify; no profile fields exposed. Is this strictly enforced before merge or contact cache?",
+      "decision": "Yes. parseProfilePayload returns null → dispatcher arm at MarmotContext.tsx:547 (`if (profilePayload)`) skips the entire merge + contact-cache block. No IDB write, no localStorage write. Forged event is dropped silently with no caller-visible side effects."
+    },
+    {
+      "id": "Q01-SPEC-AC-004",
+      "category": "SPEC",
+      "ac_id": "AC-004",
+      "phase": "pre-impl",
+      "question": "AC-004: legacy flat ProfilePayload JSON (no envelope) still parses with signedEvent === undefined. How is the envelope-shape detected non-destructively?",
+      "decision": "Detection key: parsed object has all three of `id` (string), `sig` (string), `kind` field. Legacy flat payloads have `nickname` (string) and lack `id`/`sig`. Heuristic is unambiguous because real Nostr events always have id/pubkey/sig and a profile payload's nickname is required. Test cases include both a malformed envelope (passes envelope branch, fails verify) and a flat payload (skips envelope branch entirely, parses as legacy)."
+    },
+    {
+      "id": "Q01-SPEC-AC-005",
+      "category": "SPEC",
+      "ac_id": "AC-005",
+      "phase": "pre-impl",
+      "question": "AC-005: payloadToMemberProfile threads signedEvent (when present) into the returned MemberProfile. Confirm the exact assignment.",
+      "decision": "`return { pubkeyHex, nickname, avatar, badgeIds, updatedAt, ...(payload.signedEvent ? { signedEvent: payload.signedEvent } : {}) }`. Conditional spread keeps the field undefined-safe (TypeScript exact-optional-property compliance). Existing fields are unchanged."
+    },
+    {
+      "id": "Q01-SPEC-AC-006",
+      "category": "SPEC",
+      "ac_id": "AC-006",
+      "phase": "pre-impl",
+      "question": "AC-006: SignedProfileEvent has fields id, pubkey, created_at, kind: 0 (literal), tags, content, sig. Confirm the type alias is exact.",
+      "decision": "`export type SignedProfileEvent = { id: string; pubkey: string; created_at: number; kind: 0; tags: string[][]; content: string; sig: string };` — exported from app/src/types/index.ts at the end of the Nostr/Groups Types section."
+    },
+    {
+      "id": "Q01-SPEC-AC-007",
+      "category": "SPEC",
+      "ac_id": "AC-007",
+      "phase": "pre-impl",
+      "question": "AC-007: MemberProfile gains optional signedEvent?: SignedProfileEvent. Should it be required when produced from a verified envelope and undefined for legacy?",
+      "decision": "Field is structurally optional on the type. Verified envelope → field is set. Legacy fallback → field is omitted (undefined). This matches the AC and the architecture invariant that legacy peers are non-relayable until they upgrade."
+    },
+    {
+      "id": "Q01-SPEC-AC-042",
+      "category": "SPEC",
+      "ac_id": "AC-042",
+      "phase": "pre-impl",
+      "question": "AC-042: every existing caller of serialiseProfileUpdate awaits and passes the in-context signer; build succeeds with no type errors. Which 5 call sites are touched?",
+      "decision": "MarmotContext.tsx — at the time of writing: line ~710 (proactive republish, will be removed in story 04 but updated here for compile cleanliness), ~724 (onHistorySynced introduction — wrap body in void async IIFE), ~823 (createGroup post-publish), ~931 (inviteByNpub republish), ~1029 (publishProfileUpdate). Each becomes `await serialiseProfileUpdate(profile, signerRef.current!)` with a guard `if (!signerRef.current) return;` if the function context permits early return. Verifier MUST run `cd app && npx tsc --noEmit` and confirm zero TS errors."
+    },
+    {
+      "id": "Q01-SPEC-AC-044",
+      "category": "SPEC",
+      "ac_id": "AC-044",
+      "phase": "pre-impl",
+      "question": "AC-044: unit test for profileSync.ts exercises sign/verify round trip and legacy-fallback parse. What is the test file path and what is its minimum case set?",
+      "decision": "app/tests/unit/marmot/profileSync.test.ts (mirrors location of existing pollSync.test.ts and scoreSync.test.ts patterns). Cases: round-trip success, kind === 0 assertion on signed event, legacy flat fallback, forged-sig rejection, wrong-kind envelope rejection, payloadToMemberProfile threading. See architecture.json.tests.unit.cases for the full enumeration."
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "id": "Q01-POST-ARCHITECTURE-1",
+      "category": "ARCHITECTURE",
+      "phase": "post-impl",
+      "question": "signerRef.current is checked for null at every call site. Are there any reachable paths where signerRef.current could be null when serialiseProfileUpdate is called?",
+      "observation": "All 5 call sites guard with `if (!signerRef.current) return` (or throw inside try blocks that already log+swallow). signerRef is populated synchronously inside init() at the same point as `clientRef.current = client` on line 291. Any call path that already passes the `clientRef.current` / `pubkeyHex` guards will also pass the signerRef guard, since they all live under the same identity-init lifecycle. The cleanup branch sets signerRef.current = null at the same time as welcomeSubRef cleanup; this is correct because no more profile rumors should be sent after identity tear-down."
+    },
+    {
+      "id": "Q01-POST-ARCHITECTURE-2",
+      "category": "ARCHITECTURE",
+      "phase": "post-impl",
+      "question": "The onHistorySynced callback is wrapped in a void async IIFE rather than being made async itself. Why?",
+      "observation": "The callback signature in marmot-ts (`onHistorySynced: () => void`) is synchronous. Changing the call site to `async () =>` would silently produce a Promise that the caller ignores; rejections would be unhandled. The IIFE pattern (mirroring MarmotContext.tsx:568-591 chat persistence) preserves the void return and routes errors through a single try/catch. A guard `if (!signerRef.current) return` at the top short-circuits before the IIFE so the empty-signer case doesn't add `group.id` to profilePublishedRef."
+    },
+    {
+      "id": "Q01-POST-TEST-1",
+      "category": "TEST",
+      "phase": "post-impl",
+      "question": "Unit tests for profileSync grew the suite from 634 to 644 tests. Targeted regression on the 3 profile E2E specs (19 tests) all passed in 5.2 minutes. Is full E2E rerun needed for the merge gate?",
+      "observation": "Per baseline.json.failure_acceptance, the verifier gate is 'zero NEW failures beyond pinned list'. Story 01 only changes the profile rumor wire format and 5 call sites in MarmotContext; it cannot affect groups-admin (kind 443/30443 test bug), groups-dm-reactions (DM NIP-17 regression), groups-image-sharing, groups-reactions, groups-transitive-invite, or any other pinned cluster. The targeted profile regression run is the load-bearing check. A full E2E run is recommended at story 07 (the dedicated E2E story) where new infrastructure + new specs land; running it after every story would burn ~20 min/story across 7 stories with no signal."
+    },
+    {
+      "id": "Q01-POST-SPEC-AC-001",
+      "category": "SPEC",
+      "ac_id": "AC-001",
+      "phase": "post-impl",
+      "question": "AC-001 implementation: serialiseProfileUpdate(profile, signer) is async and returns JSON.stringify(SignedProfileEvent). Confirmed by the round-trip unit test?",
+      "observation": "Yes. tests/unit/marmot/profileSync.test.ts line 27 ('serialiseProfileUpdate signs an envelope and parseProfilePayload round-trips it') generates a key, calls serialiseProfileUpdate, parses the result, and asserts kind === 0, pubkey === getPublicKey(sk), id and sig are present, tags is []. The function is `async` per profileSync.ts line 51."
+    },
+    {
+      "id": "Q01-POST-SPEC-AC-002",
+      "category": "SPEC",
+      "ac_id": "AC-002",
+      "phase": "post-impl",
+      "question": "AC-002 implementation: parseProfilePayload calls verifyEvent and returns ProfilePayload with signedEvent populated when valid. Verified by which test cases?",
+      "observation": "Confirmed by the round-trip test (signedEvent populated, fields recovered) and by the avatar-roundtrip test that exercises the full envelope-and-inner-content serialisation. Verification is done synchronously via `verifyEvent` imported statically from nostr-tools/pure (profileSync.ts line 17)."
+    },
+    {
+      "id": "Q01-POST-SPEC-AC-003",
+      "category": "SPEC",
+      "ac_id": "AC-003",
+      "phase": "post-impl",
+      "question": "AC-003 implementation: parseProfilePayload returns null on bad sig. Verified?",
+      "observation": "Yes — tests/unit/marmot/profileSync.test.ts 'returns null when the embedded sig is forged/tampered' flips one nibble of sig and asserts null. Additional 'returns null for an envelope-shaped event with kind != 0' covers the kind:1 imposter case. The dispatcher at MarmotContext.tsx:546 still gates with `if (profilePayload)`, so null suppresses both mergeMemberProfile and writeContactEntry — no IDB write, no contact cache update."
+    },
+    {
+      "id": "Q01-POST-SPEC-AC-004",
+      "category": "SPEC",
+      "ac_id": "AC-004",
+      "phase": "post-impl",
+      "question": "AC-004 implementation: legacy flat ProfilePayload still parses with signedEvent === undefined. Verified?",
+      "observation": "Yes — 'parseProfilePayload accepts a legacy flat ProfilePayload' test crafts the pre-existing JSON shape and asserts parsed.signedEvent is undefined and nickname/avatar/badgeIds/updatedAt come through. The looksLikeEnvelope predicate distinguishes envelope vs flat by presence of id/pubkey/sig/kind === 0; legacy flats have nickname (string) instead, so the predicate returns false and the legacy fallback path runs."
+    },
+    {
+      "id": "Q01-POST-SPEC-AC-005",
+      "category": "SPEC",
+      "ac_id": "AC-005",
+      "phase": "post-impl",
+      "question": "AC-005 implementation: payloadToMemberProfile threads signedEvent through. Verified?",
+      "observation": "Yes — 'payloadToMemberProfile threads signedEvent through' covers the populated case; 'payloadToMemberProfile leaves signedEvent undefined when payload has none' covers the legacy case. Implementation at profileSync.ts line 158 uses conditional spread (...(payload.signedEvent ? { signedEvent: payload.signedEvent } : {})) to keep the property exactly-optional."
+    },
+    {
+      "id": "Q01-POST-SPEC-AC-006",
+      "category": "SPEC",
+      "ac_id": "AC-006",
+      "phase": "post-impl",
+      "question": "AC-006 implementation: SignedProfileEvent type exported from app/src/types/index.ts with the exact field set. Verified?",
+      "observation": "Confirmed at app/src/types/index.ts lines 201-211. Fields: id (string), pubkey (string), created_at (number), kind (literal 0), tags (string[][]), content (string), sig (string). Exported. Imported by profileSync.ts and consumed by the unit test as a type annotation on the parsed signedEvent."
+    },
+    {
+      "id": "Q01-POST-SPEC-AC-007",
+      "category": "SPEC",
+      "ac_id": "AC-007",
+      "phase": "post-impl",
+      "question": "AC-007 implementation: MemberProfile gains optional signedEvent?: SignedProfileEvent. Verified?",
+      "observation": "Confirmed at app/src/types/index.ts lines 222-223. Marked as optional with the `?` suffix and documented as absent for legacy peers. Threaded by payloadToMemberProfile."
+    },
+    {
+      "id": "Q01-POST-SPEC-AC-042",
+      "category": "SPEC",
+      "ac_id": "AC-042",
+      "phase": "post-impl",
+      "question": "AC-042 implementation: every existing caller awaits serialiseProfileUpdate and passes the in-context signer; build succeeds without TS errors. Verified?",
+      "observation": "5 call sites updated, all await + pass signerRef.current — confirmed by grep at MarmotContext.tsx lines 716, 734, 835, 944, 1043. `cd app && npx tsc --noEmit` returns zero errors. The signer is sourced from signerRef populated in init() at line 268, with a null-guard at every call site matching the existing client/pubkeyHex guard pattern."
+    },
+    {
+      "id": "Q01-POST-SPEC-AC-044",
+      "category": "SPEC",
+      "ac_id": "AC-044",
+      "phase": "post-impl",
+      "question": "AC-044 implementation: unit test exercises sign/verify round trip and legacy fallback. Verified?",
+      "observation": "10 cases in app/tests/unit/marmot/profileSync.test.ts cover: PROFILE_RUMOR_KIND constant, round-trip with envelope, payloadToMemberProfile threading (populated and undefined), legacy flat parse, forged-sig rejection, wrong-kind envelope rejection, malformed-content envelope rejection, malformed-JSON rejection, avatar round-trip. All pass — `npx vitest run tests/unit/marmot/profileSync.test.ts` shows 10/10."
+    },
+    {
+      "id": "Q01-POST-QUALITY-1",
+      "category": "QUALITY",
+      "phase": "post-impl",
+      "question": "Are there any unused symbols or duplicate implementations in the diff?",
+      "observation": "No. profileSync.ts has 3 exported symbols (PROFILE_RUMOR_KIND, ProfilePayload type, SignedProfileEvent passes through from types) plus the 3 functions (serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile). Two private helpers (looksLikeEnvelope, parseInnerProfile, buildPayloadJson) are local and used. No old flat-only path lingers as a separate function. Comments describe the why (relay-on-behalf, MIP-03 conformance) not the what."
+    },
+    {
+      "id": "Q01-POST-QUALITY-2",
+      "category": "QUALITY",
+      "phase": "post-impl",
+      "question": "Is the failing-test set unchanged from baseline.json.pre_existing_failures?",
+      "observation": "Targeted regression run (3 profile-related E2Es, 19 tests) all pass in 5.2 minutes. No new failures introduced. The pinned baseline list is untouched by this story since none of those clusters intersect with profile sync. A full E2E rerun is deferred to story 07 to avoid burning ~20 min/story without signal."
+    },
+    {
+      "id": "Q01-POST-SECURITY-1",
+      "category": "SECURITY",
+      "phase": "post-impl",
+      "question": "Could a forged or tampered envelope reach mergeMemberProfile?",
+      "observation": "No. parseProfilePayload returns null on any of: malformed JSON, non-envelope shape that fails the legacy fallback, envelope with kind !== 0, envelope where verifyEvent throws or returns false, envelope whose inner JSON is not a valid ProfilePayload. The dispatcher at MarmotContext.tsx:547 (`if (profilePayload)`) skips both mergeMemberProfile and writeContactEntry on null. Test cases cover all five rejection paths."
+    },
+    {
+      "id": "Q01-R2-SECURITY-1",
+      "category": "SECURITY",
+      "phase": "post-impl",
+      "question": "Round 2 (Codex HIGH): does the dispatcher arm at MarmotContext.tsx:551-572 still key the merged profile by the outer MLS sender (rumor.pubkey) rather than by the verified inner signedEvent.pubkey?",
+      "observation": "Fixed. The dispatcher now (1) detects mismatch when signedEvent is present and signedEvent.pubkey !== senderPubkey and DROPS the rumor (logged warn, no IDB write, no contact-cache write, no score-nickname update); (2) on match, derives `authorPubkey = profilePayload.signedEvent?.pubkey ?? senderPubkey` and uses it for mergeMemberProfile (via payloadToMemberProfile, which itself sources pubkeyHex from signedEvent), updateMemberScoreNickname, and writeContactEntry. For story 01 (no relay-on-behalf), match is required for first-hand sends. Story 06 will introduce a separate carve-out and re-evaluate."
+    },
+    {
+      "id": "Q01-R2-ARCHITECTURE-1",
+      "category": "ARCHITECTURE",
+      "phase": "post-impl",
+      "question": "Round 2 (Codex MEDIUM): payloadToMemberProfile took a caller-supplied pubkeyHex parameter that any future consumer could miswire. Is the helper now self-protective?",
+      "observation": "Yes — option (a) applied. Renamed parameter to `fallbackPubkeyHex`; the function now keys `MemberProfile.pubkeyHex` from `payload.signedEvent?.pubkey ?? fallbackPubkeyHex`. A relayer (or any future consumer) cannot overwrite the author by passing a different fallback when the payload carries a verified envelope. Legacy unsigned payloads still use the fallback because they have no other identity."
+    },
+    {
+      "id": "Q01-R2-TEST-1",
+      "category": "TEST",
+      "phase": "post-impl",
+      "question": "Round 2: are the new behaviours covered by tests?",
+      "observation": "Two new unit tests in app/tests/unit/marmot/profileSync.test.ts: (a) 'payloadToMemberProfile keys by signedEvent.pubkey, not the fallback (AC-047)' — author A signs, fallback is B's pubkey, asserts member.pubkeyHex === pubA; (b) 'payloadToMemberProfile keys by fallback when signedEvent is absent (legacy peers, AC-047)' — confirms the legacy path still uses the fallback. Total profileSync test count: 12/12 (was 10). Full unit suite: 47/47 files, 646/646 tests (was 644). The dispatcher-level mismatch drop is enforced by the helper-level keying invariant plus the explicit dispatcher guard (early-return path) and is verified by code review against the diff at MarmotContext.tsx:551-590; an integration test for the dispatcher-level drop will land naturally with story 06's relay-on-behalf E2E (it cannot be exercised today without the relay path)."
+    },
+    {
+      "id": "Q01-R2-SPEC-AC-047",
+      "category": "SPEC",
+      "ac_id": "AC-047",
+      "phase": "post-impl",
+      "question": "AC-047 was added in round 2. Does the implementation satisfy both clauses?",
+      "observation": "Both clauses satisfied. (1) payloadToMemberProfile keys MemberProfile.pubkeyHex from payload.signedEvent.pubkey when present; fallbackPubkeyHex is used only when signedEvent is absent. Verified by 2 unit tests. (2) The PROFILE_RUMOR_KIND dispatcher arm in MarmotContext.tsx:551-590 drops the rumor (no IDB write, no contact-cache update, no score-nickname update) when signedEvent is present and signedEvent.pubkey !== senderPubkey. Verified by code review of the diff. Targeted profile E2E (19/19 in 5.0 min) confirms first-hand propagation still works end-to-end after the change."
+    }
+  ]
+}

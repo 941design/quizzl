@@ -1,0 +1,166 @@
+{
+  "story": "01-wire-format-signed-profile-event",
+  "designed_at": "2026-05-06T10:30:00Z",
+  "designed_by": "architect",
+  "epic_architecture_doc": "specs/epic-member-profile-discovery-and-relay-on-behalf/architecture.md",
+  "paradigm": "layered/n-tier with package-by-feature; pure *Sync.ts module modified, MarmotContext.tsx call sites threaded with signer ref",
+  "modules": [
+    {
+      "module": "types",
+      "path": "app/src/types/index.ts",
+      "kind": "type-only",
+      "delta": [
+        "Export new SignedProfileEvent type with literal kind: 0",
+        "Extend MemberProfile with optional signedEvent?: SignedProfileEvent"
+      ]
+    },
+    {
+      "module": "profileSync",
+      "path": "app/src/lib/marmot/profileSync.ts",
+      "kind": "pure",
+      "delta": [
+        "Static import: { verifyEvent } from 'nostr-tools/pure'",
+        "Static import: type { EventSigner } from 'applesauce-core'",
+        "serialiseProfileUpdate(profile, signer) becomes async; signs a kind:0 draft via signer.signEvent and returns JSON.stringify(SignedProfileEvent)",
+        "ProfilePayload type extended with optional signedEvent?: SignedProfileEvent (legacy peers omit it)",
+        "parseProfilePayload remains synchronous; tries SignedProfileEvent envelope first (verifyEvent), falls back to legacy flat shape; rejects malformed sig by returning null",
+        "payloadToMemberProfile threads signedEvent through to MemberProfile"
+      ],
+      "stays_pure": true
+    },
+    {
+      "module": "MarmotContext",
+      "path": "app/src/context/MarmotContext.tsx",
+      "kind": "side-effecting (React + MLS + NDK)",
+      "delta": [
+        "Add signerRef = useRef<EventSigner | null>(null) near other refs",
+        "init() effect (line ~267) populates signerRef.current = signer right after createPrivateKeySigner",
+        "Cleanup branch nulls signerRef.current = null on cancel/unmount",
+        "Five existing serialiseProfileUpdate call sites: ~710 (proactive republish — story 04 will remove; updated here for compile-cleanliness), ~724 (onHistorySynced), ~823 (createGroup), ~931 (inviteByNpub), ~1029 (publishProfileUpdate). Each becomes await serialiseProfileUpdate(profile, signerRef.current!) with a guard that returns early if signerRef.current is null (consistent with existing 'if (!client) return' guards).",
+        "Line ~720 onHistorySynced callback is currently sync arrow; rewrite body as void (async () => { ... })() to match existing pattern at line ~568",
+        "Line ~545 PROFILE_RUMOR_KIND receiver arm: parseProfilePayload stays synchronous (since verifyEvent is sync), no change to dispatcher shape — only behaviour changes (verified profiles now carry signedEvent on MemberProfile)"
+      ]
+    }
+  ],
+  "seam_contracts_consumed": [
+    "Seam 1 — SignedProfileEvent (this story is the producer)"
+  ],
+  "seam_contracts_produced": [
+    {
+      "seam_id": "Seam 1",
+      "type": "SignedProfileEvent",
+      "shape": "{ id: string; pubkey: string; created_at: number; kind: 0; tags: string[][]; content: string; sig: string }",
+      "consumers": ["story 02 (mergeMemberProfile persists signedEvent)", "story 03 (verify on receive)", "story 06 (relay verbatim)"],
+      "invariants": [
+        "Produced only inside serialiseProfileUpdate via signer.signEvent",
+        "Verified only inside parseProfilePayload via nostr-tools verifyEvent",
+        "Relayed verbatim by runner without re-sign and without re-verify",
+        "Persisted on MemberProfile.signedEvent",
+        "Legacy flat ProfilePayload yields signedEvent === undefined and is non-relayable"
+      ]
+    }
+  ],
+  "key_decisions": [
+    {
+      "id": "D1",
+      "topic": "Synchronous parseProfilePayload",
+      "decision": "Keep parseProfilePayload synchronous by importing verifyEvent statically from nostr-tools/pure. The directMessages.ts module (line 4) already imports it that way. This avoids rippling async into the kind 0 receiver arm at MarmotContext.tsx:545 and keeps the dispatch loop synchronous.",
+      "alternatives_considered": [
+        "Dynamic import inside parseProfilePayload — would force every caller to await, no benefit (verifyEvent is pure crypto, no SSR risk since it is only called inside the receiver path which runs after MarmotClient init i.e. browser-only)"
+      ]
+    },
+    {
+      "id": "D2",
+      "topic": "Signer access pattern in MarmotContext",
+      "decision": "Add signerRef = useRef<EventSigner | null>(null) populated inside init(). Boundary rule §3.5 of architecture.md: 'Signer flows from MarmotContext, not from lib.' The ref is the simplest single-source-of-truth. Each call site early-returns if signerRef.current is null (matches existing 'if (!client) return' / 'if (!pubkeyHex) return' guard pattern).",
+      "alternatives_considered": [
+        "Recreate signer at each call site from privateKeyHex — wasteful (Uint8Array materialise + closure), and creates 5 short-lived signer instances",
+        "Add signer to MarmotContextValue and read via useContext — overkill for a private wiring detail, leaks a signer surface to all consumers"
+      ]
+    },
+    {
+      "id": "D3",
+      "topic": "Backward compatibility for legacy unsigned ProfilePayload",
+      "decision": "parseProfilePayload first tries the SignedProfileEvent envelope shape (has 'sig' and 'kind' and 'id'); if envelope fails to verify → return null (forged). If parsed JSON is not envelope-shaped (missing sig/kind), fall back to legacy flat parse: nickname/avatar/badgeIds/updatedAt straight off the JSON — exactly the existing behaviour. Resulting ProfilePayload has signedEvent undefined.",
+      "alternatives_considered": [
+        "Reject any non-envelope content — breaks legacy peers in flight (AC-004 explicitly forbids this)"
+      ]
+    },
+    {
+      "id": "D4",
+      "topic": "Type narrowing for kind: 0",
+      "decision": "signer.signEvent returns NostrEvent with kind: number. We cast/assert kind === 0 on the returned event before stringifying as SignedProfileEvent. parseProfilePayload validates kind === 0 explicitly at the envelope branch. Type narrowing is local, no global helpers needed.",
+      "alternatives_considered": [
+        "Loosen SignedProfileEvent.kind to number — diverges from spec AC-006 which is explicit about literal 0"
+      ]
+    },
+    {
+      "id": "D5",
+      "topic": "Embedded content shape stays unchanged",
+      "decision": "The inner JSON inside SignedProfileEvent.content remains the existing flat ProfilePayload ({ nickname, avatar, badgeIds, updatedAt }). No format change to that JSON. Only the outer wrapper (signed Nostr kind:0 envelope) is new.",
+      "alternatives_considered": [
+        "Merge envelope and payload into one flat object — would conflate Nostr event fields with profile fields and break round-tripping with verifyEvent"
+      ]
+    },
+    {
+      "id": "D6",
+      "topic": "Author-identity binding (added in remediation round 2)",
+      "decision": "Two-layer enforcement. (a) `payloadToMemberProfile(fallbackPubkeyHex, payload)` keys MemberProfile.pubkeyHex from `payload.signedEvent?.pubkey ?? fallbackPubkeyHex` — the verified author wins over any caller-supplied fallback. (b) The PROFILE_RUMOR_KIND dispatcher arm in MarmotContext.tsx applies a strict mismatch policy: when signedEvent is present and signedEvent.pubkey !== senderPubkey (outer MLS rumor sender), the rumor is dropped (log warn, no IDB write, no contact-cache write, no score-nickname write). On match, the dispatcher uses signedEvent.pubkey (or fallback if legacy) for contact-cache and score-nickname keys — no part of the merge is keyed by the unverified outer sender.",
+      "rationale": "Codex HIGH finding (round 1): original code keyed by outer MLS sender. Dormant for first-hand sends, would silently corrupt records in the relay-on-behalf path of story 06. Strict policy chosen over permissive because for story 01 alone the two are equivalent and strict provides defence-in-depth against a malicious peer wrapping arbitrary other-author signed profiles even before story 06 lands.",
+      "alternatives_considered": [
+        "Permissive (always-trust-inner-author): simpler dispatcher but allows wrapped-impersonation attacks until story 06's carve-out is in place.",
+        "Helper option (b) — split into signedEnvelopeToMemberProfile and legacyPayloadToMemberProfile: more rigorous but doubles the call-site churn and leaves the dispatcher gate as the only enforcement point. Option (a) chosen for minimal blast radius."
+      ],
+      "covers_ac": ["AC-047"]
+    }
+  ],
+  "tests": {
+    "unit": {
+      "path": "app/tests/unit/marmot/profileSync.test.ts",
+      "covers_acs": ["AC-001", "AC-002", "AC-003", "AC-004", "AC-005", "AC-044", "AC-047"],
+      "cases": [
+        "round-trip: serialiseProfileUpdate → parseProfilePayload recovers all fields and signedEvent is populated",
+        "round-trip preserves nickname/avatar/badgeIds/updatedAt verbatim",
+        "kind === 0 on the produced SignedProfileEvent",
+        "legacy fallback: a hand-crafted flat ProfilePayload JSON parses with signedEvent === undefined",
+        "forged sig: tamper one byte of sig → parseProfilePayload returns null",
+        "wrong kind: build a kind:1 envelope → parseProfilePayload returns null (envelope branch rejects)",
+        "tampered content: modify content after signing → verifyEvent fails → null",
+        "payloadToMemberProfile threads signedEvent through when present, leaves undefined when absent"
+      ]
+    },
+    "regression_e2e": {
+      "specs_must_stay_green": [
+        "tests/e2e/groups-profile-update-propagation.spec.ts",
+        "tests/e2e/groups-member-profiles.spec.ts",
+        "tests/e2e/groups-profile-reactive.spec.ts"
+      ]
+    }
+  },
+  "risks_mitigations": [
+    {
+      "risk": "Existing E2Es that exercise profile sync break because the wire format changes mid-call",
+      "mitigation": "Keep ProfilePayload backward-compatible at parse time (legacy fallback). Both peers in any E2E run upgraded code so they emit the new envelope; legacy fallback is exercised only by the unit test."
+    },
+    {
+      "risk": "verifyEvent throws on malformed event objects rather than returning false",
+      "mitigation": "Wrap verifyEvent in try/catch inside parseProfilePayload; treat throw as failed verification → return null."
+    },
+    {
+      "risk": "signer.signEvent is async and the existing onHistorySynced callback at line 720 is a sync arrow (() => {}). Direct await would change the callback's return type.",
+      "mitigation": "Wrap the body in `void (async () => { ... })()` — same pattern already used at MarmotContext.tsx:568-591 for chat persistence. No callback signature change."
+    },
+    {
+      "risk": "Stale signerRef.current null at module init",
+      "mitigation": "Each call site already gates on client/pubkeyHex; add a parallel guard for signerRef.current. This is guaranteed to be set by the time any of these call sites fire because all 5 are downstream of init() completing (subscribeToGroupMessages callbacks, createGroup, inviteByNpub, publishProfileUpdate)."
+    }
+  ],
+  "out_of_scope_for_story_01": [
+    "Profile-request rumor type / kind 30 dispatcher (story 02-03)",
+    "Profile request memo IDB store (story 02)",
+    "Removal of proactive on-member-add republish at line 709-716 (story 04 — kept here as await-update only)",
+    "App-start sweep effect / requestProfilesIfStale (story 05)",
+    "Relay-on-behalf with backoff (story 06)",
+    "E2E spec for the six scenarios (story 07)"
+  ]
+}

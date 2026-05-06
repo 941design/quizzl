@@ -198,6 +198,21 @@ export type MemberScore = {
   lastSeq: number;
 };
 
+/**
+ * Signed Nostr kind:0 envelope embedded inside a profile rumor's content.
+ * Authenticates the original profile author independently of the MLS relayer,
+ * enabling relay-on-behalf for offline members.
+ */
+export type SignedProfileEvent = {
+  id: string;
+  pubkey: string;
+  created_at: number;
+  kind: 0;
+  tags: string[][];
+  content: string;
+  sig: string;
+};
+
 export type MemberProfile = {
   pubkeyHex: string;
   nickname: string;
@@ -205,4 +220,6 @@ export type MemberProfile = {
   badgeIds: string[];
   /** ISO timestamp for LWW resolution */
   updatedAt: string;
+  /** Verified signed envelope when the profile arrived via a sig-bearing rumor. Absent for legacy peers. */
+  signedEvent?: SignedProfileEvent;
 };

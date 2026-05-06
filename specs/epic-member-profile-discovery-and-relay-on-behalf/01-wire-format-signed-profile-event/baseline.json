@@ -1,0 +1,215 @@
+{
+  "story": "01-wire-format-signed-profile-event",
+  "captured_at": "2026-05-06T10:18:27Z",
+  "captured_by": "architect",
+  "policy": "loosened-known-broken-baseline",
+  "policy_note": "Team-lead authorised pinning pre-existing failures as orthogonal to story 01. Verifier gate: zero NEW failures beyond the pinned list. Fewer failures is fine. See team-lead message at 2026-05-06T07:36 (re-run instruction) and 2026-05-06T~08:18 (loosen and proceed).",
+  "unit": {
+    "command": "make test-unit",
+    "tool": "vitest 4",
+    "files": 46,
+    "tests_passed": 634,
+    "tests_failed": 0,
+    "tests_skipped": 0,
+    "duration_seconds": 5.85,
+    "log": "captured to stdout 09:32; clean run"
+  },
+  "e2e_groups": {
+    "command": "make test-e2e-groups",
+    "tool": "playwright 1.58",
+    "infrastructure": "Docker Compose: strfry @ 7777, blossom-mock @ 3001",
+    "total_tests": 160,
+    "tests_passed": 119,
+    "tests_failed": 11,
+    "tests_did_not_run": 30,
+    "duration_minutes": 21,
+    "exit_code": 1,
+    "runs": [
+      {
+        "run": 1,
+        "log": "/tmp/quizzl-e2e-baseline.log (deleted between runs)",
+        "passed": 108,
+        "failed": 16,
+        "did_not_run": 36,
+        "duration_minutes": 18.3
+      },
+      {
+        "run": 2,
+        "log": "/tmp/quizzl-e2e-baseline-2.log",
+        "passed": 119,
+        "failed": 11,
+        "did_not_run": 30,
+        "duration_minutes": 21,
+        "note": "Run after make e2e-down/e2e-up clean restart per team-lead. Same failure cluster reproduced — failures are deterministic, not flaky."
+      }
+    ],
+    "pre_existing_failures": [
+      {
+        "spec": "tests/e2e/groups-admin.spec.ts",
+        "line": 119,
+        "title": "Admin propagation – every invited member becomes admin › Users B and C publish KeyPackages",
+        "cluster": "kind-443-only-poll",
+        "diagnosis": "Test polls strfry for kind 443 KeyPackage events. Production migrated to kind 30443 (parameterised replaceable) per commit e13500e (chore(deps): upgrade marmot-ts to 0.5.1). groups-cancel-pending.spec.ts:51 was updated to [443, 30443] but this spec was missed. One-line test fix: change `kinds: [443]` at groups-admin.spec.ts:40 to `kinds: [443, 30443]`. Cascades 7 cascade-skips in describe.serial.",
+        "duration_seconds": 58.2,
+        "in_run_1": true,
+        "in_run_2": true
+      },
+      {
+        "spec": "tests/e2e/groups-dm-reactions.spec.ts",
+        "line": 170,
+        "title": "DM reactions — outbound and inbound (AC-46) › Alice sends a DM reaction; Bob sees the badge; Alice removes it; badge disappears",
+        "cluster": "dm-reactions-post-3dcc481",
+        "diagnosis": "Likely regression from commit 3dcc481 (feat(chat): add emoji picker, message reactions, and migrate DMs to NIP-17/59). Out of scope for this epic.",
+        "duration_seconds": 14.1,
+        "in_run_1": true,
+        "in_run_2": true
+      },
+      {
+        "spec": "tests/e2e/groups-dm-reactions.spec.ts",
+        "line": 229,
+        "title": "DM reactions — outbound and inbound (AC-46) › AC-60: only kind-1059 events on the wire — no kind-7 plaintext",
+        "cluster": "dm-reactions-post-3dcc481",
+        "duration_seconds": 3.3,
+        "in_run_1": true,
+        "in_run_2": true
+      },
+      {
+        "spec": "tests/e2e/groups-dm-reactions.spec.ts",
+        "line": 304,
+        "title": "DM reactions UI — story-08 › AC-47+AC-49: DM reaction trigger visible on hover; picker opens; badge appears via bridge",
+        "cluster": "dm-reactions-post-3dcc481",
+        "duration_seconds": 11.6,
+        "in_run_1": true,
+        "in_run_2": true
+      },
+      {
+        "spec": "tests/e2e/groups-identity.spec.ts",
+        "line": 48,
+        "title": "Groups Identity › Kind 443 KeyPackages published to relay",
+        "cluster": "kind-443-only-poll",
+        "diagnosis": "Same root cause as groups-admin.spec.ts:119. Polls kind 443 only at line 61.",
+        "duration_seconds": 11.1,
+        "in_run_1": true,
+        "in_run_2": true
+      },
+      {
+        "spec": "tests/e2e/groups-image-sharing.spec.ts",
+        "line": 100,
+        "title": "Image Sharing › AC-60: User A attaches image and sends; User B sees image-thumbnail",
+        "cluster": "image-sharing-blossom",
+        "diagnosis": "Image upload pipeline failure. Out of scope for this epic.",
+        "duration_seconds": 30.2,
+        "in_run_1": true,
+        "in_run_2": true
+      },
+      {
+        "spec": "tests/e2e/groups-lifecycle.spec.ts",
+        "line": 63,
+        "title": "Group Lifecycle › User B initializes and publishes KeyPackages",
+        "cluster": "kind-443-only-poll",
+        "diagnosis": "Same root cause as groups-admin.spec.ts:119. Polls kind 443 only at line 68.",
+        "duration_seconds": 5.1,
+        "in_run_1": true,
+        "in_run_2": true
+      },
+      {
+        "spec": "tests/e2e/groups-reactions.spec.ts",
+        "line": 161,
+        "title": "Group Reactions — story-06 › Bob reacts to Alice's message — Alice sees the badge (AC-40)",
+        "cluster": "reactions-post-3dcc481",
+        "duration_seconds": 10.1,
+        "in_run_1": true,
+        "in_run_2": true
+      },
+      {
+        "spec": "tests/e2e/groups-reactions.spec.ts",
+        "line": 302,
+        "title": "Group Reactions UI — story-08 › AC-49+AC-51+AC-56: use picker to react; badge appears with own-reaction highlight; click removes it",
+        "cluster": "reactions-post-3dcc481",
+        "duration_seconds": 10.4,
+        "in_run_1": false,
+        "in_run_2": true,
+        "note": "Run #1 had groups-reactions.spec.ts:286 (AC-48 picker opens) instead. Run #2 hit a different reactions test. Both are within the same cluster."
+      },
+      {
+        "spec": "tests/e2e/groups-transitive-invite.spec.ts",
+        "line": 133,
+        "title": "Group of 3 – hub invite (A invites B and C) › Users B and C publish KeyPackages",
+        "cluster": "kind-443-only-poll",
+        "diagnosis": "Same root cause. Polls kind 443 only at line 48.",
+        "duration_seconds": 58.1,
+        "in_run_1": true,
+        "in_run_2": true
+      },
+      {
+        "spec": "tests/e2e/groups-transitive-invite.spec.ts",
+        "line": 215,
+        "title": "Group of 3 – sequential invite (A→B, B joins, A→C) › Users B and C publish KeyPackages",
+        "cluster": "kind-443-only-poll",
+        "diagnosis": "Same root cause. Polls kind 443 only at line 48.",
+        "duration_seconds": 58.1,
+        "in_run_1": true,
+        "in_run_2": true
+      }
+    ],
+    "pre_existing_failures_run_1_only": [
+      {
+        "spec": "tests/e2e/groups-reactions.spec.ts",
+        "line": 286,
+        "title": "Group Reactions UI — story-08 › AC-48: picker opens on trigger click; closes on Escape; closes on glyph select",
+        "cluster": "reactions-post-3dcc481",
+        "note": "Failed run #1, did-not-run/passed in run #2. Cluster-level flake within reactions UI. Treat as pinned at cluster granularity."
+      },
+      {
+        "spec": "tests/e2e/groups-score-sync.spec.ts",
+        "line": 72,
+        "title": "Score Sync via MLS › User A completes quiz and score is published",
+        "cluster": "score-sync-flake",
+        "note": "Failed run #1, did-not-run/passed in run #2."
+      },
+      {
+        "spec": "tests/e2e/groups-seed-phrase.spec.ts",
+        "line": 11,
+        "title": "Seed Phrase Backup & Restore › Generate 12-word mnemonic",
+        "cluster": "seed-phrase-flake",
+        "note": "Failed run #1, did-not-run in run #2."
+      },
+      {
+        "spec": "tests/e2e/groups-seed-phrase.spec.ts",
+        "line": 26,
+        "title": "Seed Phrase Backup & Restore › Confirm backup flow",
+        "cluster": "seed-phrase-flake",
+        "note": "Failed run #1, did-not-run in run #2."
+      },
+      {
+        "spec": "tests/e2e/groups-seed-phrase.spec.ts",
+        "line": 41,
+        "title": "Seed Phrase Backup & Restore › Restore identity on fresh context",
+        "cluster": "seed-phrase-flake",
+        "note": "Failed run #1, did-not-run in run #2."
+      },
+      {
+        "spec": "tests/e2e/groups-seed-recovery.spec.ts",
+        "line": 37,
+        "title": "Seed phrase recovery — profile and groups › User A generates backup and publishes identity to relay",
+        "cluster": "seed-recovery-flake",
+        "note": "Failed run #1, did-not-run in run #2."
+      }
+    ]
+  },
+  "failure_acceptance": {
+    "rationale": "These failures are pinned as orthogonal to story 01 per team-lead direction (msg 2026-05-06T~08:18 'loosen the baseline and proceed'). Story 01 changes only the wire format of the kind-0 profile rumor (sign and verify embedded SignedProfileEvent) plus 5 call-site updates in MarmotContext.tsx. None of the failing test clusters touch profile sync paths.",
+    "verifier_gate": "Zero NEW failures introduced beyond this pinned set. A failure with the same spec:line is treated as pinned. A new failure (different spec:line, or a previously passing test now failing) is a regression and must be remediated.",
+    "profile_specific_e2es_that_must_stay_green": [
+      "tests/e2e/groups-profile-update-propagation.spec.ts (passed run #1 and run #2)",
+      "tests/e2e/groups-member-profiles.spec.ts (passed run #2)",
+      "tests/e2e/groups-profile-reactive.spec.ts (passed run #2)"
+    ]
+  },
+  "platform": {
+    "os": "Linux 6.8.0-110-generic x86_64",
+    "node": "via app/node_modules with platform stamp",
+    "playwright_version": "1.58",
+    "vitest_version": "4"
+  }
+}

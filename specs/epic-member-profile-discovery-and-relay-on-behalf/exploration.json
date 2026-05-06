@@ -1,0 +1,183 @@
+{
+  "explored_at": "2026-05-06T00:00:00Z",
+  "language": "typescript",
+  "framework": "Next.js 14 (pages router, output: 'export')",
+  "test_runners": {
+    "unit": {
+      "tool": "vitest 4",
+      "config": "app/vitest.config.ts",
+      "test_glob": "tests/unit/**/*.test.ts",
+      "command": "make test-unit",
+      "alias": "@/ -> app/"
+    },
+    "e2e": {
+      "tool": "playwright 1.58",
+      "config": "app/playwright.config.ts",
+      "groups_command": "make test-e2e-groups",
+      "groups_env": "E2E_GROUPS=1",
+      "infrastructure": "Docker Compose (docker-compose.e2e.yml): strfry @ 7777, blossom-mock @ 3001",
+      "runner_script": "app/scripts/run-e2e.mjs (spawns next dev on random port)",
+      "fully_parallel": false,
+      "workers": 1,
+      "timeout_ms_groups": 120000
+    },
+    "typecheck": "implicit via next build; no standalone tsc target",
+    "lint": "next lint (manual, not gated)"
+  },
+  "paradigm": "layered/n-tier with package-by-feature inside components and reactions; React Context (MarmotContext) is the integration seam between UI and marmot-ts/IDB/NDK",
+  "naming_conventions": {
+    "pure_helpers": "*Sync.ts (e.g. profileSync.ts, scoreSync.ts, pollSync.ts)",
+    "idb_persistence": "*Storage.ts / *Persistence.ts (e.g. groupStorage.ts, joinRequestStorage.ts)",
+    "context_providers": "*Context.tsx",
+    "rumor_kind_constants": "exported from the owning sync module (e.g. PROFILE_RUMOR_KIND from profileSync.ts)"
+  },
+  "module_map_relevant_to_epic": [
+    {
+      "module": "profileSync",
+      "path": "app/src/lib/marmot/profileSync.ts",
+      "purity": "pure",
+      "exports": ["PROFILE_RUMOR_KIND=0", "ProfilePayload", "serialiseProfileUpdate", "parseProfilePayload", "payloadToMemberProfile"],
+      "epic_change": "Sign in serialiseProfileUpdate (becomes async, takes signer); verify embedded SignedProfileEvent in parseProfilePayload; thread signedEvent through payloadToMemberProfile; legacy fallback for unsigned payloads"
+    },
+    {
+      "module": "profileRequestSync",
+      "path": "app/src/lib/marmot/profileRequestSync.ts",
+      "purity": "pure (new module)",
+      "exports": ["PROFILE_REQUEST_KIND=30", "ProfileRequestPayload", "serialiseProfileRequest", "parseProfileRequestPayload", "isProfileStale", "shouldEmitRequest", "pickBackoffMs", "constants (PROFILE_STALENESS_MS, REQUEST_DEDUPE_MS, UNANSWERED_RETRY_MS, UNANSWERED_MAX_ATTEMPTS, RELAY_BACKOFF_MIN_MS, RELAY_BACKOFF_MAX_MS)"]
+    },
+    {
+      "module": "profileRequestRunner",
+      "path": "app/src/lib/marmot/profileRequestRunner.ts",
+      "purity": "side-effecting (new module)",
+      "exports": ["sweepStaleProfiles", "handleIncomingProfileRequest", "notifyProfileObserved"],
+      "owns": "module-level pending-relay timer Map keyed by (groupId, targetPubkey)"
+    },
+    {
+      "module": "groupStorage",
+      "path": "app/src/lib/marmot/groupStorage.ts",
+      "purity": "side-effecting (IDB)",
+      "existing_stores": ["quizzl-groups-meta", "quizzl-groups-state", "quizzl-keypackages", "quizzl-member-scores", "quizzl-member-profiles"],
+      "epic_change": "Add quizzl-profile-request-memos store (pattern from joinRequestStorage); add memo CRUD (loadProfileRequestMemo, saveProfileRequestMemo, recordRequestEmitted, recordRequestAnswered, clearProfileRequestMemos); persist signedEvent in mergeMemberProfile; wire clearProfileRequestMemos into clearAllGroupData"
+    },
+    {
+      "module": "MarmotContext",
+      "path": "app/src/context/MarmotContext.tsx",
+      "purity": "side-effecting (React + MLS + NDK)",
+      "epic_change": "Insert PROFILE_REQUEST_KIND arm in onApplicationMessage dispatcher (after kind 7 reaction arm, ~line 680); verify SignedProfileEvent and call notifyProfileObserved in PROFILE_RUMOR_KIND arm; add app-start sweep useEffect (gate ready && groups.length>0 && pubkeyHex); expose requestProfilesIfStale on context value; remove proactive on-member-add republish (current lines 709-716); call clearProfileRequestMemos from leaveGroup (current lines 954-969)",
+      "preserved": "onHistorySynced introduction (current 719-732), inviteByNpub republish (current 929-936)"
+    },
+    {
+      "module": "types",
+      "path": "app/src/types/index.ts",
+      "epic_change": "Export SignedProfileEvent type; add signedEvent?: SignedProfileEvent to MemberProfile"
+    },
+    {
+      "module": "groups page",
+      "path": "app/pages/groups.tsx",
+      "epic_change": "Inside GroupDetailView's route-enter useEffect (lines 120-173), call requestProfilesIfStale(id) after getMemberProfiles"
+    },
+    {
+      "module": "signerAdapter",
+      "path": "app/src/lib/marmot/signerAdapter.ts",
+      "purity": "pure factory; methods are async I/O",
+      "exports": ["createPrivateKeySigner -> EventSigner with getPublicKey, signEvent (finalizeEvent), nip44"],
+      "epic_change": "None — reused by serialiseProfileUpdate to sign the embedded kind:0 SignedProfileEvent"
+    },
+    {
+      "module": "ndkClient",
+      "path": "app/src/lib/ndkClient.ts",
+      "epic_change": "None"
+    }
+  ],
+  "spec_line_reference_drift": {
+    "explanation": "Spec was written against an older revision of MarmotContext.tsx; the file has grown. Architects should rely on architecture.md module map and re-grep landmarks before editing.",
+    "corrections": {
+      "MarmotContext.tsx:99 buildRumor": "OK (still line 99)",
+      "MarmotContext.tsx:541 kind 0 receiver arm": "Actual: line 545",
+      "MarmotContext.tsx:672-678 proactive republish on member-add": "Actual: lines 709-716",
+      "MarmotContext.tsx:683-695 onHistorySynced introduction": "Actual: lines 719-732",
+      "MarmotContext.tsx:893-896 inviteByNpub republish": "Actual: lines 929-936",
+      "groupStorage.ts:137 mergeMemberProfile": "OK"
+    }
+  },
+  "spec_gaps_and_call_site_breaks": [
+    {
+      "issue": "serialiseProfileUpdate becomes async and takes signer",
+      "callers_to_update": [
+        "MarmotContext.tsx:710 (proactive republish on member-add — being removed anyway)",
+        "MarmotContext.tsx:723 (onHistorySynced introduction — must await)",
+        "MarmotContext.tsx:824 (other call site)",
+        "MarmotContext.tsx:930 (inviteByNpub republish — must await)",
+        "MarmotContext.tsx:1029 (publishProfileUpdate useCallback — must await)"
+      ],
+      "note": "This is a function-signature break the spec mentions only in the file-by-file table; architect must update every caller. Verify call sites are still in the same place when implementing."
+    },
+    {
+      "issue": "leaveGroup is in MarmotContext.tsx, not groupStorage.ts",
+      "spec_text": "wire clearProfileRequestMemos into clearAllGroupData and leaveGroup",
+      "actual": "clearAllGroupData lives in groupStorage.ts (line 182); leaveGroup is a useCallback inside MarmotContext.tsx (lines 954-969). Both touchpoints must be wired.",
+      "spec_file_table_attribution": "Spec attributes both wire-ups to groupStorage.ts; reality requires touching MarmotContext.tsx as well."
+    },
+    {
+      "issue": "Application-rumor authentication today",
+      "background": "MIP-03 dictates inner rumors are unsigned. marmot-ts does not surface MLS sender leaf to consumers, so receivers trust rumor.pubkey without verification. The embedded-signature mechanism is what makes relay-on-behalf safe and incidentally hardens first-hand profile broadcasts; other rumor kinds (chat, score, polls, reactions) keep current trust model.",
+      "decision": "Out of scope for this epic — tracked separately in marmot-ts-rumor-sender-authentication.md"
+    }
+  ],
+  "patterns": [
+    "buildRumor + sendRumorSafe + mlsGroup.sendApplicationRumor — every outbound rumor goes through this triple inside MarmotContext",
+    "Pure sync module (constants + serialise/parse/payloadTo*) mirrors profileSync.ts / pollSync.ts / scoreSync.ts",
+    "IDB store created at module top via idb-keyval createStore('<db-name>', '<object-store-name>') — one DB per logical domain",
+    "Version counter bumped after IDB write resolves, preventing stale-read races (setProfileVersion etc.)",
+    "Dynamic import of marmot-ts/NDK/idb-keyval inside async functions to keep top-level safe for SSR",
+    "Soft-fail subscriptions: `void promise.catch(...)` — never throw"
+  ],
+  "test_infrastructure_gaps": [
+    {
+      "gap": "E2E rumor-counting harness",
+      "needed_for": "Scenario: per-peer dedupe (count outbound PROFILE_REQUEST_KIND and inbound PROFILE_RUMOR_KIND from a peer)",
+      "approach": "page.addInitScript installs a global window.__rumorCounters; instrument onApplicationMessage and sendApplicationRumor to bump counts; expose getRumorCount(page, kind, direction) helper"
+    },
+    {
+      "gap": "Targeted IDB record delete helper",
+      "needed_for": "Scenario: clear C's IDB profile entry for B without wiping all state",
+      "approach": "Helper wrapping page.evaluate(indexedDB.open + transaction + objectStore.delete)"
+    },
+    {
+      "gap": "E2E clock advancement",
+      "needed_for": "Scenarios: periodic refresh (8d ago), retry state machine (1h boundaries, 7d window)",
+      "approach": "Use Playwright's native page.clock.install + page.clock.fastForward (Playwright 1.45+); the project is on 1.58 so this is available. For unit tests use vi.useFakeTimers (already established)."
+    }
+  ],
+  "key_files": [
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/marmot/profileSync.ts",
+    "app/src/lib/marmot/groupStorage.ts",
+    "app/src/lib/marmot/signerAdapter.ts",
+    "app/src/lib/marmot/joinRequestStorage.ts (template for new memo store)",
+    "app/src/lib/marmot/pollSync.ts (template for new sync module)",
+    "app/src/types/index.ts",
+    "app/pages/groups.tsx",
+    "app/src/components/groups/MemberList.tsx (UI consumer with data-testid)",
+    "app/src/lib/contactCache.ts",
+    "app/tests/e2e/groups-profile-update-propagation.spec.ts (E2E template)",
+    "app/tests/e2e/groups-member-profiles.spec.ts (E2E template)",
+    "app/tests/e2e/helpers/clear-state.ts (IDB helper pattern)",
+    "app/tests/unit/marmot/epochResolver.test.ts (vi.useFakeTimers pattern)",
+    "app/tests/unit/syncQueue.test.ts (pure-helper unit test pattern)"
+  ],
+  "boundary_invariants": [
+    "MarmotContext.tsx is the only module that calls sendRumorSafe and mlsGroup.sendApplicationRumor",
+    "groupStorage.ts (and the few standalone *Storage.ts modules) are the only modules that call createStore for group-related data",
+    "profileSync.ts is the only place ProfilePayload is parsed (+ co-located new profileRequestSync.ts for ProfileRequestPayload)",
+    "Signer comes from MarmotContext via createPrivateKeySigner; it is not constructed in lib helpers",
+    "NDK is always accessed via getNdk() from ndkClient.ts singleton"
+  ],
+  "important_constraints": [
+    "Static export deployment (output: 'export') — pages must use query params, not [id].tsx (CLAUDE.md)",
+    "Multi-platform development (mac arm + linux x86) — all build/test goes through make to handle platform stamp",
+    "All user-visible UI text via useCopy() from LanguageContext; never hardcoded; both en and de translations required",
+    "MIP-03: outer MLS rumor stays unsigned (no sig); embedded signature lives inside rumor.content",
+    "Backward compat: legacy peers emitting flat ProfilePayload must still merge (signedEvent: undefined, non-relayable)"
+  ]
+}

@@ -188,6 +188,10 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const localProfileRef = useRef(localProfile);
   // Ref for groups to avoid stale closures in welcome subscription callbacks
   const groupsRef = useRef(groups);
+  // Ref for the EventSigner so post-init call sites (createGroup, inviteByNpub,
+  // publishProfileUpdate, onHistorySynced) can sign profile-rumor envelopes.
+  // Populated inside init(), nulled on cleanup.
+  const signerRef = useRef<import('applesauce-core').EventSigner | null>(null);
   // Bumped on every incoming profile message so UI can re-read from IDB
   const [profileVersion, setProfileVersion] = useState(0);
   // Bumped on every incoming chat message so ChatStoreContext can re-read from IDB
@@ -265,6 +269,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
         const ndk = await connectNdk(privateKeyHex!);
         const signer = createPrivateKeySigner(privateKeyHex!);
+        signerRef.current = signer;
 
         const groupStateStore = new IdbGroupStateBackend();
         const keyPackageStore = new IdbKeyPackageBackend();
@@ -474,6 +479,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       welcomeSubRef.current?.();
       welcomeSubRef.current = null;
+      signerRef.current = null;
     };
   }, [identityHydrated, privateKeyHex, pubkeyHex, reloadGroups, updateDiscoverability]);
 
@@ -545,25 +551,49 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               } else if (rumor.kind === PROFILE_RUMOR_KIND) {
                 const profilePayload = parseProfilePayload(rumor.content);
                 if (profilePayload) {
-                  const memberProfile = payloadToMemberProfile(senderPubkey, profilePayload);
-                  // Write to IDB first, THEN bump profileVersion so GroupDetailView
-                  // re-reads after the write has landed (avoids stale-read race).
-                  void mergeMemberProfile(group.id, memberProfile).then(() => {
-                    setProfileVersion((v) => v + 1);
-                  }).catch(
-                    (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
-                  );
-                  void updateMemberScoreNickname(group.id, senderPubkey, profilePayload.nickname).catch(
-                    (err: unknown) => console.warn('[Marmot] updateMemberScoreNickname failed:', err)
-                  );
-                  // Cache in global contact cache for cross-group availability
-                  void import('@/src/lib/contactCache').then(({ writeContactEntry }) => {
-                    writeContactEntry(senderPubkey, {
-                      nickname: memberProfile.nickname,
-                      avatar: memberProfile.avatar,
-                      updatedAt: memberProfile.updatedAt,
+                  // Identity binding (AC-047, story 01).
+                  //
+                  // For first-hand profile broadcasts the verified inner
+                  // pubkey MUST equal the outer MLS sender. Disagreement means
+                  // the relayer wrapped someone else's signed profile under
+                  // their own MLS membership — story 01 has no legitimate
+                  // relay-on-behalf path, so we drop. Story 06 will introduce
+                  // a separate carve-out for legitimate relay traffic.
+                  //
+                  // Legacy unsigned payloads (signedEvent absent) are accepted
+                  // and keyed by the MLS sender — there is no other identity
+                  // to key by, and a malicious unsigned write only succeeds
+                  // for the sender's own profile slot, which is no worse than
+                  // pre-epic behaviour.
+                  if (
+                    profilePayload.signedEvent &&
+                    profilePayload.signedEvent.pubkey !== senderPubkey
+                  ) {
+                    console.warn(
+                      `[Marmot] PROFILE_RUMOR_KIND identity mismatch — dropping. sender=${senderPubkey.slice(0, 8)} signedEvent.pubkey=${profilePayload.signedEvent.pubkey.slice(0, 8)}`,
+                    );
+                  } else {
+                    const authorPubkey = profilePayload.signedEvent?.pubkey ?? senderPubkey;
+                    const memberProfile = payloadToMemberProfile(senderPubkey, profilePayload);
+                    // Write to IDB first, THEN bump profileVersion so GroupDetailView
+                    // re-reads after the write has landed (avoids stale-read race).
+                    void mergeMemberProfile(group.id, memberProfile).then(() => {
+                      setProfileVersion((v) => v + 1);
+                    }).catch(
+                      (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
+                    );
+                    void updateMemberScoreNickname(group.id, authorPubkey, profilePayload.nickname).catch(
+                      (err: unknown) => console.warn('[Marmot] updateMemberScoreNickname failed:', err)
+                    );
+                    // Cache in global contact cache for cross-group availability — keyed by author.
+                    void import('@/src/lib/contactCache').then(({ writeContactEntry }) => {
+                      writeContactEntry(authorPubkey, {
+                        nickname: memberProfile.nickname,
+                        avatar: memberProfile.avatar,
+                        updatedAt: memberProfile.updatedAt,
+                      });
                     });
-                  });
+                  }
                 }
               } else if (rumor.kind === CHAT_MESSAGE_KIND) {
                 void (async () => {
@@ -706,8 +736,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               // Uses localProfileRef to avoid stale-closure race when the user
               // changes their nickname between subscription creation and member join.
               // Bug report: bug-reports/profile-propagation-new-members.md
-              if (currentMembers.length > prevMemberCount) {
-                const payload = serialiseProfileUpdate(localProfileRef.current);
+              if (currentMembers.length > prevMemberCount && signerRef.current) {
+                const payload = await serialiseProfileUpdate(localProfileRef.current, signerRef.current);
                 const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
                 void sendRumorSafe(mlsGroup, rumor as any, { softFail: true }).catch((err: unknown) => {
                   console.warn(`[Marmot] onMembersChanged profile republish for ${group.id} failed:`, err);
@@ -719,16 +749,21 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             // Uses localProfileRef to avoid stale-closure race.
             () => {
               if (profilePublishedRef.current.has(group.id)) return;
+              if (!signerRef.current) return;
               profilePublishedRef.current.add(group.id);
               const currentProfile = localProfileRef.current;
-              const payload = serialiseProfileUpdate(currentProfile);
-              console.info(`[Marmot] onHistorySynced: publishing profile for group ${group.id}, nickname="${currentProfile.nickname}"`);
-              const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
-              void sendRumorSafe(mlsGroup, rumor as any, { softFail: true }).then(() => {
-                console.info(`[Marmot] onHistorySynced: profile published successfully for group ${group.id}`);
-              }).catch((err: unknown) => {
-                console.warn(`[Marmot] onHistorySynced profile publish for ${group.id} failed:`, err);
-              });
+              const signer = signerRef.current;
+              void (async () => {
+                try {
+                  const payload = await serialiseProfileUpdate(currentProfile, signer);
+                  console.info(`[Marmot] onHistorySynced: publishing profile for group ${group.id}, nickname="${currentProfile.nickname}"`);
+                  const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
+                  await sendRumorSafe(mlsGroup, rumor as any, { softFail: true });
+                  console.info(`[Marmot] onHistorySynced: profile published successfully for group ${group.id}`);
+                } catch (err) {
+                  console.warn(`[Marmot] onHistorySynced profile publish for ${group.id} failed:`, err);
+                }
+              })();
             },
           );
           subsMap.set(group.id, unsub);
@@ -820,7 +855,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
       // Publish profile to the new group
       try {
-        const payload = serialiseProfileUpdate(localProfile);
+        if (!signerRef.current) throw new Error('signer not initialised');
+        const payload = await serialiseProfileUpdate(localProfile, signerRef.current);
         const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex);
         await sendRumorSafe(mlsGroup, rumor as any);
       } catch (err) {
@@ -928,7 +964,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         // before the subscription callback observes the join, which prevents
         // the inviter from sending its "welcome" profile to the new member.
         try {
-          const payload = serialiseProfileUpdate(localProfileRef.current);
+          if (!signerRef.current) throw new Error('signer not initialised');
+          const payload = await serialiseProfileUpdate(localProfileRef.current, signerRef.current);
           const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
           await sendRumorSafe(mlsGroup, rumor as any);
         } catch (profileErr) {
@@ -1025,8 +1062,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const publishProfileUpdate = useCallback(async (profileOverride?: UserProfile): Promise<void> => {
     const client = clientRef.current;
     if (!client || groups.length === 0 || !pubkeyHex) return;
+    if (!signerRef.current) return;
 
-    const payload = serialiseProfileUpdate(profileOverride ?? localProfile);
+    const payload = await serialiseProfileUpdate(profileOverride ?? localProfile, signerRef.current);
 
     for (const group of groups) {
       try {
