@@ -1,8 +1,13 @@
 /**
- * ChatStoreContext — manages chat messages for the active group.
+ * ChatStoreContext — manages chat messages and reactions for the active group.
  *
  * Wraps a MarmotGroup's applicationMessage events, provides optimistic send,
  * and persists messages to IndexedDB via chatPersistence.
+ *
+ * Story-06 additions:
+ * - sendReaction(emoji, targetMessage, isRemoval?): optimistic write + MLS send + rollback (D7)
+ * - reactionsByMessageId: Map<string, ReactionAggregate[]> derived from subscribeReactions
+ * - Kind-7 dispatch in applicationMessage handler (for own-send echo via marmot-ts event bus)
  */
 
 import React, {
@@ -19,6 +24,17 @@ import {
   appendMessage,
   loadMessages,
 } from '@/src/lib/marmot/chatPersistence';
+import type { ReactionAggregate } from '@/src/lib/reactions/api';
+import {
+  applyOptimistic,
+  rollbackOptimistic,
+  applyInboundRumor,
+  subscribeReactions,
+  loadReactions,
+  aggregateForMessage,
+} from '@/src/lib/reactions/api';
+import { buildReactionRumor } from '@/src/lib/reactions/rumor';
+import type { Reaction } from '@/src/lib/reactions/types';
 
 type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 
@@ -46,17 +62,46 @@ async function sendChatSafe(group: MarmotGroupType, content: string): Promise<vo
   }
 }
 
+/**
+ * Retry wrapper for sendApplicationRumor — same unapplied-proposals
+ * workaround as sendChatSafe but for arbitrary rumors (e.g. kind-7 reactions).
+ */
+async function sendRumorSafe(
+  group: MarmotGroupType,
+  rumor: Parameters<MarmotGroupType['sendApplicationRumor']>[0],
+): Promise<void> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await group.sendApplicationRumor(rumor);
+      return;
+    } catch (err) {
+      const isUnapplied = err instanceof Error && err.message.includes('unapplied proposals');
+      if (!isUnapplied || attempt === MAX_RETRIES) throw err;
+      console.warn(`[sendRumorSafe] unapplied proposals (attempt ${attempt + 1}/${MAX_RETRIES + 1}), committing…`);
+      await group.commit();
+    }
+  }
+}
+
 interface ChatStoreContextValue {
   messages: ChatMessage[];
   sendMessage: (content: string) => Promise<void>;
   sendImageMessage: (file: File, caption: string) => Promise<void>;
+  /** Story-06: send a kind-7 group reaction (add or remove). AC-34. */
+  sendReaction: (emoji: string, targetMessage: ChatMessage, isRemoval?: boolean) => Promise<void>;
+  /** Story-06: aggregated reactions per message id. Consumed by ChatBox → story-08. AC-34. */
+  reactionsByMessageId: Map<string, ReactionAggregate[]>;
   loading: boolean;
 }
 
+const NOOP_ASYNC_MSG = async () => {};
+
 const ChatStoreContext = createContext<ChatStoreContextValue>({
   messages: [],
-  sendMessage: async () => {},
-  sendImageMessage: async () => {},
+  sendMessage: NOOP_ASYNC_MSG,
+  sendImageMessage: NOOP_ASYNC_MSG,
+  sendReaction: NOOP_ASYNC_MSG,
+  reactionsByMessageId: new Map(),
   loading: false,
 });
 
@@ -64,9 +109,13 @@ interface ChatStoreProviderProps {
   groupId: string | null;
   group: MarmotGroupType | null;
   pubkey: string;
+  /** Private key hex used to build kind-7 reaction rumors (story-06, S3). */
+  privateKeyHex?: string | null;
   signer?: import('applesauce-core').EventSigner | null;
   /** Bumped by MarmotContext when a chat message is persisted to IDB */
   chatVersion?: number;
+  /** Bumped by MarmotContext when a kind-7 reaction is persisted to IDB (story-06, AC-38) */
+  reactionsVersion?: number;
   children: React.ReactNode;
 }
 
@@ -74,15 +123,69 @@ export function ChatStoreProvider({
   groupId,
   group,
   pubkey,
+  privateKeyHex,
   signer,
   chatVersion,
+  reactionsVersion,
   children,
 }: ChatStoreProviderProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  // Story-06: aggregated reactions per message id. Updated by the subscribeReactions listener.
+  const [reactionsByMessageId, setReactionsByMessageId] = useState<Map<string, ReactionAggregate[]>>(new Map());
   const handlerRef = useRef<((data: Uint8Array) => void) | null>(null);
   const groupRef = useRef<MarmotGroupType | null>(null);
+  // Ref to the current messages so sendReaction's stable callback can read them
+  const messagesRef = useRef<ChatMessage[]>([]);
 
+  // Keep messagesRef in sync for use in stable callbacks
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // ─── Reactions subscription ───────────────────────────────────────────────
+  // When the reactions store changes (via applyOptimistic, applyInboundRumor, rollback),
+  // re-compute reactionsByMessageId from the current rows in IDB.
+  // Also re-runs when reactionsVersion bumps (inbound from MarmotContext's kind-7 dispatch).
+  useEffect(() => {
+    if (!groupId) {
+      setReactionsByMessageId(new Map());
+      return;
+    }
+    const thread = { kind: 'group' as const, groupId };
+
+    let cancelled = false;
+
+    function recompute() {
+      if (cancelled) return;
+      loadReactions(thread).then((rows) => {
+        if (cancelled) return;
+        const msgs = messagesRef.current;
+        const map = new Map<string, ReactionAggregate[]>();
+        for (const msg of msgs) {
+          const agg = aggregateForMessage(rows, msg.id, pubkey);
+          if (agg.length > 0) {
+            map.set(msg.id, agg);
+          }
+        }
+        setReactionsByMessageId(map);
+      }).catch(() => {});
+    }
+
+    // Initial load
+    recompute();
+
+    // Subscribe to changes driven by applyOptimistic / applyInboundRumor / rollback
+    const unsub = subscribeReactions(thread, recompute);
+
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, pubkey, reactionsVersion]);
+
+  // ─── Message subscription ──────────────────────────────────────────────────
   useEffect(() => {
     // Detach previous listener
     if (groupRef.current && handlerRef.current) {
@@ -121,21 +224,47 @@ export function ChatStoreProvider({
       try {
         const { deserializeApplicationData } = await import('@internet-privacy/marmot-ts');
         const rumor = deserializeApplicationData(data);
-        if (rumor.kind !== CHAT_MESSAGE_KIND) return;
-        const msg: ChatMessage = {
-          id: rumor.id,
-          content: rumor.content,
-          senderPubkey: rumor.pubkey,
-          groupId,
-          createdAt: rumor.created_at * 1000,
-        };
-        appendMessage(groupId, msg).catch((err) => {
-          console.error('[chat-store] Failed to persist received message:', err);
-        });
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev;
-          return [...prev, msg].sort((a, b) => a.createdAt - b.createdAt);
-        });
+
+        if (rumor.kind === CHAT_MESSAGE_KIND) {
+          const msg: ChatMessage = {
+            id: rumor.id,
+            content: rumor.content,
+            senderPubkey: rumor.pubkey,
+            groupId,
+            createdAt: rumor.created_at * 1000,
+          };
+          appendMessage(groupId, msg).catch((err) => {
+            console.error('[chat-store] Failed to persist received message:', err);
+          });
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [...prev, msg].sort((a, b) => a.createdAt - b.createdAt);
+          });
+        } else if (rumor.kind === 7) {
+          // Kind-7 reactions received via the marmot-ts applicationMessage event bus.
+          // This covers the own-send echo path (marmot-ts re-delivers our own rumors
+          // back through this event). MarmotContext's kind-7 dispatch covers inbound
+          // from other group members via the Nostr subscription.
+          //
+          // Bug-fix (round-2): gate on in-memory messages before calling applyInboundRumor.
+          // Without this gate, a kind-7 echo whose target messageId is not in local
+          // persistence would be silently stored, defeating the leaf-module fix. Using
+          // messagesRef.current is correct and cheap — the provider already syncs it
+          // on every render.
+          const eTag = rumor.tags?.find((t: string[]) => typeof t[0] === 'string' && t[0] === 'e');
+          const targetMessageId = eTag?.[1];
+          if (!targetMessageId || !messagesRef.current.some((m) => m.id === targetMessageId)) {
+            // malformed tag or unknown target — silent discard (spec §2.4)
+            return;
+          }
+          applyInboundRumor(
+            { kind: 'group', groupId },
+            rumor,
+          ).catch((err: unknown) => {
+            console.warn('[chat-store] applyInboundRumor (kind-7 echo) failed:', err);
+          });
+          // subscribeReactions listener will trigger recompute() above automatically.
+        }
       } catch {
         // malformed application message — ignore
       }
@@ -245,8 +374,69 @@ export function ChatStoreProvider({
     [groupId, group, pubkey, signer],
   );
 
+  /**
+   * Send a kind-7 group reaction.
+   *
+   * 1. Write optimistic row (id = crypto.randomUUID()) to reactions store (AC-35).
+   * 2. Build kind-7 rumor via buildReactionRumor — no p tag for groups (spec §3.3, AC-36).
+   * 3. Send via sendRumorSafe (group.sendApplicationRumor with retry) (AC-36).
+   * 4. On failure: rollback the optimistic row and surface a toast (D7, AC-37).
+   *
+   * The inbound echo (marmot-ts re-delivers our own rumor back via 'applicationMessage')
+   * is handled in the handler above; it calls applyInboundRumor which will upsert the
+   * confirmed wire id over the optimistic row, eliminating the phantom (AC-09 dedup path).
+   */
+  const sendReaction = useCallback(
+    async (emoji: string, targetMessage: ChatMessage, isRemoval?: boolean) => {
+      if (!groupId || !group || !privateKeyHex) return;
+
+      const thread = { kind: 'group' as const, groupId };
+      const optimisticId = crypto.randomUUID();
+      const now = Date.now();
+
+      // AC-35: write optimistic row immediately before any async operation
+      const optimisticRow: Reaction = {
+        id: optimisticId,
+        messageId: targetMessage.id,
+        reactorPubkey: pubkey,
+        emoji,
+        eventId: '',
+        createdAt: now,
+        removed: Boolean(isRemoval),
+      };
+      await applyOptimistic(thread, optimisticRow);
+
+      try {
+        // AC-36: build kind-7 rumor — no p tag for groups (spec §3.3)
+        const rumor = buildReactionRumor({
+          emoji,
+          targetMessageId: targetMessage.id,
+          targetMessageKind: CHAT_MESSAGE_KIND, // kind 9 for group messages
+          targetAuthorPubkey: undefined, // groups omit p tag
+          selfPrivKeyHex: privateKeyHex,
+          isRemoval,
+        });
+
+        // AC-36: send via MLS (kind-445 on wire — no plaintext kind-7 published, AC-61)
+        await sendRumorSafe(group, rumor as any);
+      } catch (err) {
+        // D7, AC-37: rollback the optimistic row on failure
+        console.warn('[chat-store] sendReaction failed, rolling back:', err);
+        await rollbackOptimistic(thread, optimisticId);
+
+        // Surface the failure toast — caller (GroupChat / ChatBox) must render it.
+        // We re-throw with a sentinel so callers can detect and show the toast.
+        // The toast string is emoji.couldntReact (added in story-01).
+        throw Object.assign(err instanceof Error ? err : new Error(String(err)), {
+          couldntReact: true,
+        });
+      }
+    },
+    [groupId, group, pubkey, privateKeyHex],
+  );
+
   return (
-    <ChatStoreContext.Provider value={{ messages, sendMessage, sendImageMessage, loading }}>
+    <ChatStoreContext.Provider value={{ messages, sendMessage, sendImageMessage, sendReaction, reactionsByMessageId, loading }}>
       {children}
     </ChatStoreContext.Provider>
   );

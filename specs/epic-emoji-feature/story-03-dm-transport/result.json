@@ -1,0 +1,121 @@
+{
+  "story_id": "story-03-dm-transport",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-05T15:26:48Z",
+  "files_created": [
+    "app/tests/unit/directMessages/sealAndWrap.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/directMessages.ts",
+    "app/src/components/contacts/ContactChat.tsx"
+  ],
+  "implementation_summary": {
+    "approach": "Kept directMessages.ts as the single public facade (no folder split). Added sealAndWrap, unwrapAndOpen, buildChatRumor, UnsignedRumor type, GIFT_WRAP_KIND, and CHAT_MESSAGE_KIND to directMessages.ts. Rewrote publishDirectMessage to produce kind-1059 via nostr-tools/nip59 wrapEvent. Added dual-listening in ContactChat.tsx: legacy kind-4 subs (unchanged, D9a) plus a new kind-1059 sub with #p: [selfPubkey] filter. ContactChat.tsx sendMessage now uses buildChatRumor + sealAndWrap instead of the old signDirectMessage NIP-04 path.",
+    "key_decisions": [
+      "Used nostr-tools/nip59 wrapEvent directly — no hand-rolled crypto. The library handles ephemeral key per wrap and randomNow() timing automatically.",
+      "unwrapAndOpen catches all nip59/nip44 errors and re-throws a generic 'gift wrap decryption failed' message to avoid leaking plaintext or nip44 padding artifacts.",
+      "The gift-wrap kind-1059 subscription uses no author filter — correct per NIP-59 since the outer wrap key is ephemeral and not the peer's key.",
+      "signDirectMessage is removed entirely (was only called from sendMessage in ContactChat.tsx). buildChatRumor replaces it for pre-publish id computation. publishDirectMessage still has the same external signature.",
+      "The kind-1059 ingest dispatches only kind=14 inner rumors to appendMessage. A TODO comment marks where story-07 will add kind=7 dispatch.",
+      "cancelled check is placed after the async appendMessage call in the gift-wrap handler to prevent stale state updates after component unmount.",
+      "No NIP-04 dual-publish (D9b): the old signDirectMessage NIP-04 outbound path is completely removed."
+    ],
+    "no_folder_split": true,
+    "nostr_tools_primitives": ["wrapEvent (nip59)", "unwrapEvent (nip59)", "createRumor (nip59)", "getPublicKey (pure)"]
+  },
+  "test_counts": {
+    "baseline": { "unit_tests": 525, "test_files": 39 },
+    "round_2_final": { "unit_tests": 541, "test_files": 41 },
+    "round_3_final": { "unit_tests": 545, "test_files": 41 },
+    "final": { "unit_tests": 546, "test_files": 41 },
+    "new_tests_added": 21,
+    "regressions": 0
+  },
+  "mocks_introduced": [],
+  "acceptance_criteria_covered": ["AC-15", "AC-16", "AC-17", "AC-18", "AC-19", "AC-20"],
+  "seam_contracts": {
+    "S5_produced": true,
+    "sealAndWrap_signature": "(rumor: UnsignedRumor, recipientPubkey: string, selfPrivKeyHex: string): Promise<NostrEvent>",
+    "unwrapAndOpen_signature": "(giftWrap: NostrEvent, selfPrivKeyHex: string): Promise<UnsignedRumor>"
+  },
+  "verification_rounds": 4,
+  "nostr_tools_primitives_round_3": [
+    "nip44.v2.decrypt (nip44 namespace, v2 sub-object)",
+    "nip44.v2.utils.getConversationKey (nip44 namespace, v2.utils sub-object)",
+    "verifyEvent (nostr-tools/pure)",
+    "createRumor, createSeal, createWrap (nostr-tools/nip59, tests only)",
+    "finalizeEvent (nostr-tools/pure, tests only for tampered-seal construction)"
+  ],
+  "nostr_tools_primitives_round_4": [
+    "getEventHash (nostr-tools/pure) — used in Step 5 of unwrapAndOpen to validate the canonical NIP-01 rumor id"
+  ],
+  "remediation": [
+    {
+      "round": 2,
+      "severity": "HIGH",
+      "finding": "AC-19 thread-isolation bug: handleGiftWrapEvent ingested inner rumors from any sender into the currently-open thread without validating rumor.pubkey against peerPubkeyHex. The kind-1059 subscription has no author filter (NIP-59 ephemeral outer key mandate), so post-unwrap validation is the only isolation barrier.",
+      "fix": {
+        "production_code": [
+          {
+            "file": "app/src/lib/directMessages.ts",
+            "change": "Added exported pure helper shouldIngestRumor(rumor: UnsignedRumor, peerPubkeyHex: string): boolean returning rumor.pubkey === peerPubkeyHex"
+          },
+          {
+            "file": "app/src/components/contacts/ContactChat.tsx",
+            "change": "Added shouldIngestRumor import and guard 'if (!shouldIngestRumor(rumor, peerPubkeyHex)) return' immediately after unwrapAndOpen call in handleGiftWrapEvent, before any appendMessage call"
+          }
+        ],
+        "regression_tests": "app/tests/unit/directMessages/dualListen.test.ts (6 new tests)"
+      },
+      "cross_protocol_dedup_status": "Already present. chatPersistence.appendMessage deduplicates by message.id at line 50 ('if (existing.some((m) => m.id === message.id)) return'). Since inner-rumor id is used as the message id on both the kind-4 and kind-1059 paths, cross-protocol dedup is automatic. No additional code needed."
+    },
+    {
+      "round": 3,
+      "severity": "HIGH",
+      "finding": "unwrapAndOpen delegated to nostr-tools unwrapEvent which performs two NIP-44 decryptions but does NOT verify the seal's schnorr signature nor bind rumor.pubkey to seal.pubkey. An attacker (Mallory) could wrap a rumor claiming Alice's pubkey using their own key — the shouldIngestRumor guard from round-2 would then incorrectly accept the message as coming from Alice.",
+      "fix": {
+        "production_code": [
+          {
+            "file": "app/src/lib/directMessages.ts",
+            "lines_changed": "2 (import line) + 195-246 (unwrapAndOpen body)",
+            "change": "Replaced 'unwrapEvent' import with 'verifyEvent' from 'nostr-tools/pure'. Replaced unwrapEvent delegation with a manual 4-step unwrap: (1) kind-1059 check, (2) outer wrap decrypt via nip44.v2.decrypt + giftWrap.pubkey as ECDH counterparty, (3) verifyEvent(seal) — rejects tampered/forged seal signatures, (4) inner seal decrypt via seal.pubkey as ECDH counterparty, (5) rumor.pubkey === seal.pubkey binding check. Added SEAL_KIND = 13 module-private constant.",
+            "import_paths": {
+              "verifyEvent": "nostr-tools/pure",
+              "nip44.v2.decrypt": "nip44 namespace (already imported via 'import { nip04, nip44 } from nostr-tools')",
+              "nip44.v2.utils.getConversationKey": "nip44 namespace (already imported, same surface as existing getDmConversationKey helper)"
+            }
+          }
+        ],
+        "new_tests": "app/tests/unit/directMessages/sealAndWrap.test.ts — 4 new tests in 'unwrapAndOpen — forgery rejection (round-3 security)' describe block",
+        "test_names": [
+          "rejects a forged rumor: Mallory wraps a rumor claiming Alice pubkey to Bob",
+          "rejects a tampered seal signature (verifyEvent check)",
+          "rejects a non-1059 kind (kind-4 fed directly)",
+          "rejects a non-1059 kind (kind-13 seal fed directly)"
+        ],
+        "regression_status": "All 10 pre-existing unwrapAndOpen and sealAndWrap tests still pass. Total: 541 → 545."
+      }
+    },
+    {
+      "round": 4,
+      "severity": "LOW",
+      "finding": "unwrapAndOpen did not validate that the inner rumor's id field equals the canonical NIP-01 hash of its fields. A peer could embed an arbitrary id and cause the id-keyed dedup in chatPersistence.appendMessage to behave incorrectly (e.g., suppress a legitimate message that shares the canonical id, or inject a ghost entry under a chosen id). Practical impact is limited: the round-2 sender binding (rumor.pubkey === seal.pubkey, which itself requires a valid seal signature) restricts the attacker to the actual authenticated peer — so id-forgery is at most self-DoS against the victim's dedup table, not a cross-party forgery. Defense-in-depth is the justification for adding the check.",
+      "fix": {
+        "production_code": [
+          {
+            "file": "app/src/lib/directMessages.ts",
+            "import_change": "Added getEventHash to existing import from 'nostr-tools/pure' (line 4, alongside verifyEvent)",
+            "validation_block": "Added Step 5 after the rumor.pubkey === seal.pubkey check: const canonicalId = getEventHash(rumor); if (rumor.id !== canonicalId) throw new Error('rumor id invalid'); — inside the existing try/catch so the generic 'gift wrap decryption failed' message is preserved.",
+            "lines_changed": "4 (import), 245-252 (validation block)"
+          }
+        ],
+        "new_tests": "app/tests/unit/directMessages/sealAndWrap.test.ts — 1 new test in 'unwrapAndOpen — forgery rejection (round-3 security)' describe block",
+        "test_names": [
+          "rejects a forged rumor id (non-canonical id in inner rumor)"
+        ],
+        "regression_status": "All 15 pre-existing sealAndWrap tests still pass. Total: 545 → 546."
+      }
+    }
+  ]
+}

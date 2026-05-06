@@ -1,0 +1,171 @@
+{
+  "story_id": "story-02-reactions-store",
+  "questions": [
+    {
+      "question_id": "VQ-02-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does api.ts contain any stub markers (TODO, FIXME, throw new Error('not implemented'), or placeholder comments) in any of the six exported functions? Confirm all six functions (loadReactions, applyOptimistic, rollbackOptimistic, applyInboundRumor, aggregateForMessage, subscribeReactions) have fully implemented bodies with no dead code paths."
+    },
+    {
+      "question_id": "VQ-02-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does api.ts import from app/src/components/*, app/src/context/*, app/src/pages/*, or react? The module must be a pure lib/ leaf. List every import statement in api.ts and confirm none cross the downward-only boundary rule from architecture.md §3."
+    },
+    {
+      "question_id": "VQ-02-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could app/src/lib/reactions/ be deleted and rewritten without modifying any file outside its dependencies_allowed list (idb-keyval and types.ts)? Specifically: does storage.ts's clearAccountScopedIdbData use a dynamic import of reactions/api.ts (staying within declared allowed edges), and do the callers in MarmotContext and ContactChat only call the six exported functions? If any cross-module dependency exists that does not flow through the declared seam contract in architecture.md, identify it."
+    },
+    {
+      "question_id": "VQ-02-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does api.test.ts cover all of the following scenarios with assertions that go beyond pure mock-spy proxies: (a) fresh thread returns empty array, (b) applyOptimistic appends and a subsequent loadReactions reads back the row, (c) multi-emoji policy: same (messageId, reactorPubkey) with different emoji — both rows present, same (messageId, reactorPubkey, emoji) re-applied — idempotent no-duplicate, (d) inbound rumor with content='-' sets removed:true not deletes, (e) inbound dedup by eventId yields single row, (f) unknown-messageId rumor returns null without writing, (g) rollbackOptimistic removes only the targeted optimistic row, (h) aggregateForMessage correct counts/order/selfReacted excluding removed rows, (i) subscribeReactions listener fires on every write and stops after unsubscribe, (j) loadReactions makes exactly one idb get call per thread (spy on idb mock), (k) clearAccountScopedIdbData wipes both reaction namespaces?"
+    },
+    {
+      "question_id": "VQ-02-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-07",
+      "question": "Does loadReactions read from 'quizzl:reactions:group:{groupId}' when thread.kind === 'group' and from 'quizzl:reactions:dm:{peerPubkeyHex}' when thread.kind === 'dm'? Show the production code in api.ts that derives the key, and show the test assertion that verifies the correct key is used (e.g. by asserting the idb.get spy was called with the exact expected key string). Confirm the test is not a pure spy assertion — it must also assert the returned data shape."
+    },
+    {
+      "question_id": "VQ-02-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-08",
+      "question": "Does aggregateForMessage return ReactionAggregate[] where: count equals the number of non-removed rows for (messageId, emoji), reactors is in oldest-first (ascending createdAt) order, selfReacted is true iff selfPubkey is in the reactors array, and removed rows are excluded? Show the test that verifies each of these invariants independently (count, order, selfReacted true/false, removed exclusion) — not a single combined assertion."
+    },
+    {
+      "question_id": "VQ-02-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-09",
+      "question": "Does applyInboundRumor with content !== '-' upsert a Reaction row keyed on (messageId, reactorPubkey, emoji) and return { messageId }? Does a second call with the same rumor.id (eventId dedup) return null without writing a duplicate? Show the production upsert logic and the test asserting both the successful path and the dedup no-op path."
+    },
+    {
+      "question_id": "VQ-02-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-10",
+      "question": "Does applyInboundRumor with content === '-' set removed: true on the matching (messageId, reactorPubkey, emoji) row and return { messageId }? If no matching row exists for the removal, does it return null without writing? Show both production paths and the tests for each."
+    },
+    {
+      "question_id": "VQ-02-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-11",
+      "question": "Does applyInboundRumor return null (silent discard) when the e-tag messageId is not present in any existing row in the thread's idb store? Show the production guard and the test that seeds an empty store, calls applyInboundRumor with an unknown messageId, and asserts null return and zero rows written."
+    },
+    {
+      "question_id": "VQ-02-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-12",
+      "question": "Does applyOptimistic write the row to idb and does rollbackOptimistic remove only the row matching optimisticId without disturbing other rows? Show the production code for both, and show the test that seeds multiple rows, rolls back one, and asserts the others remain intact."
+    },
+    {
+      "question_id": "VQ-02-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-13",
+      "question": "Does subscribeReactions register the listener and return an unsubscribe function that, when called, stops the listener from receiving further notifications? Show the production listener registry and the test that (a) verifies the listener fires on applyOptimistic/applyInboundRumor/rollbackOptimistic and (b) verifies the listener stops firing after the unsubscribe function is invoked."
+    },
+    {
+      "question_id": "VQ-02-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-14",
+      "question": "Does clearAccountScopedIdbData in storage.ts clear both quizzl:reactions:group:* and quizzl:reactions:dm:* namespaces? Show the production code addition and the test (in storage.test.ts or a new reactions-specific test file) that seeds both namespaces and confirms both are empty after the call."
+    },
+    {
+      "question_id": "VQ-02-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-57",
+      "question": "Does loadReactions make exactly O(1) idb-keyval get() calls per thread regardless of how many messages are in the thread? Show that the idb mock spy is called exactly once with the thread's namespace key — not once per message — by checking spy.mock.calls.length in the test."
+    },
+    {
+      "question_id": "VQ-02-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-58",
+      "question": "Do applyOptimistic, applyInboundRumor, and rollbackOptimistic notify subscribers only after the idb write promise resolves, not before it is initiated? Show where in the implementation the listener notification (emit/notify) call occurs relative to the await on the idb set() call."
+    },
+    {
+      "question_id": "VQ-02-015",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does api.ts access idb-keyval only at runtime (deferred via dynamic import or a lazy-init guard), never at module initialization time? SSR-safe means no top-level idb.get() or idb.set() calls execute during module load. Confirm no top-level await or eagerly-executed idb call exists at module scope."
+    },
+    {
+      "question_id": "VQ-02-016",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The write queue `enqueue` function reads from idb on every call (not from the in-memory cache). Is this intentional? Could a burst of concurrent `applyInboundRumor` calls for the same thread lose intermediate state if the queue is not correctly serialized? Verify that the per-key Promise chain in `writeQueues` ensures strict serial execution — i.e., the second write only begins after the first write's `set()` call has resolved."
+    },
+    {
+      "question_id": "VQ-02-017",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The removal path in `applyInboundRumor` matches on `(messageId, reactorPubkey)` and optionally narrows by an `['emoji', glyph]` tag. If story-04's rumor builder does not include an `emoji` tag on removal rumors, the removal will tombstone the first non-removed row for that reactor on that message — which may be the wrong emoji in the multi-emoji case. Does the verifier consider this acceptable for story-02 scope, given that story-04 has not yet defined the wire format for removal? If not, what additional tag should be required?"
+    },
+    {
+      "question_id": "VQ-02-018",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The `clearAllReactions` function is tested directly in api.test.ts. However, `clearAccountScopedIdbData` in storage.ts is not covered by a test that exercises the full dynamic import chain (storage.ts -> api.ts -> clearAllReactions). Does the existing storage.test.ts mock the dynamic imports so that the reactions/api dynamic import in clearAccountScopedIdbData is exercised? If not, the verifier should note this gap — a unit test for storage.ts that seeds reaction keys and calls resetAllData would provide higher confidence."
+    },
+    {
+      "question_id": "VQ-02-019",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The `applyInboundRumor` function uses `let result` as a shared mutable variable updated inside the enqueue callback, then returns it after awaiting the enqueue. This pattern is correct for the serialized single-call case. Verify there is no scenario where concurrent calls to `applyInboundRumor` for the same thread could cause `result` from one invocation to bleed into another — since each invocation has its own `let result` closure, this should be safe. Confirm."
+    },
+    {
+      "question_id": "VQ-02-020",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "question": "The `idbKeyFor` function constructs namespace keys by concatenating groupId or peerPubkeyHex directly into the key string. If a caller passes a groupId that contains a colon or other special character (e.g., 'group:evil'), the resulting key 'quizzl:reactions:group:group:evil' could collide with the dm namespace or interfere with prefix matching in clearAllReactions. Is this a realistic attack surface in this single-identity app? Should idbKeyFor validate or encode its input?"
+    },
+    {
+      "question_id": "VQ-02-021",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Remediation round 2 — Test 1: In api.test.ts, under describe 'applyInboundRumor — removal path (AC-10)', does the test '[\"emoji\", glyph] tag narrows removal to the matching emoji only (D2 — multi-emoji policy)' seed two rows for the same (messageId, reactorPubkey) with glyphs 👍 and ❤️, dispatch a removal rumor carrying tags [['e', 'msg-1'], ['emoji', '👍']], and assert (a) return value is { messageId: 'msg-1' }, (b) the 👍 row has removed:true, and (c) the ❤️ row has removed:false? Does this test pin the story-04 contract that removal rumors must include the ['emoji', glyph] tag?"
+    },
+    {
+      "question_id": "VQ-02-022",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Remediation round 2 — Test 2: In api.test.ts, under describe 'storage.ts integration', does the test 'clearAccountScopedIdbData chain — both reaction namespaces are cleared' exercise the exact dynamic-import path used by clearAccountScopedIdbData in storage.ts (i.e., import('@/src/lib/reactions/api').then(({ clearAllReactions }) => clearAllReactions()))? Does it seed both quizzl:reactions:group:* and quizzl:reactions:dm:* keys in the Map-backed idb mock, call clearFn() after the dynamic import, and assert both namespaces are gone while a non-reaction key is preserved? (AC-14, VQ-02-018)"
+    },
+    {
+      "question_id": "VQ-02-023",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Remediation round 3 — Bug 1 (removal-path safety): In api.test.ts under 'applyInboundRumor — removal path (AC-10)', do the five new tests exercise all four branches of the revised removal logic: (a) two live rows + no emoji tag → null, both rows untouched; (b) one live row + no emoji tag → tombstoned; (c) two distinct emoji tags in one rumor → null, nothing tombstoned; (d) capitalised 'Emoji' tag name → still narrows by case-insensitive match; (e) emoji tag present but no matching row → null, no idb.set called? Confirm the test for case (a) asserts removed:false on both rows rather than merely checking the return value."
+    },
+    {
+      "question_id": "VQ-02-024",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Remediation round 3 — Bug 2 (clearAllReactions race guard): In api.test.ts under 'clearAllReactions (AC-14)', does the race-guard test mock idb.keys() with a Promise gate to create an in-flight window, then call applyInboundRumor concurrently while the clear is blocked at that gate, then unblock and await both promises? Does it assert (a) the reaction key seeded before the clear is deleted, and (b) no new reaction key was written by the concurrent enqueue? Also confirm the test does not leave clearingInProgress permanently set — a subsequent write after the test should succeed (or confirm beforeEach module isolation prevents bleed-through between tests)."
+    },
+    {
+      "question_id": "VQ-02-025",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Remediation round 4 — Type-guard placement: In api.ts, do BOTH the e-tag lookup (find) and the emoji-tag filter independently guard t[0] with typeof t[0] === 'string' before any string method call? Confirm neither guard is missing from the other site — a malformed tag that bypasses one guard should not be able to crash at the other."
+    },
+    {
+      "question_id": "VQ-02-026",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Remediation round 4 — Malformed-tag regression tests: In api.test.ts under 'applyInboundRumor — removal path (AC-10)', do the four new robustness tests (empty tag array, missing t[0], missing glyph, null t[0] cast through unknown) all assert no throw AND make a concrete assertion on the return value or idb.set call count? Confirm none of the four tests passes vacuously (i.e., the assertion would catch a regression if the type guard were removed)."
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "module_name": "reactions-store",
+  "purpose": "Produce Seam S3: a pure buildReactionRumor function that constructs an unsigned NIP-25 kind-7 rumor with a canonical NIP-01 SHA-256 id, consumed by story-06 (group reactions) and story-07 (DM reactions).",
+  "public_api": [
+    {
+      "name": "buildReactionRumor",
+      "signature": "function buildReactionRumor(params: { emoji: string; targetMessageId: string; targetMessageKind: number; targetAuthorPubkey?: string; selfPrivKeyHex: string; isRemoval?: boolean; }): UnsignedRumor",
+      "description": "Returns an unsigned kind-7 rumor per D10 and NIP-25. content is the emoji glyph (or '-' for removal). Tags always include ['e', targetMessageId] and ['k', String(targetMessageKind)]. ['p', targetAuthorPubkey] is included iff targetAuthorPubkey is a non-empty string. For removal + non-empty emoji, adds ['emoji', emoji] tag. pubkey is derived from selfPrivKeyHex. id is the canonical NIP-01 SHA-256 hash. No sig field. Throws on empty emoji string."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/reactions/rumor.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/reactions/types.ts",
+    "app/src/lib/directMessages.ts",
+    "nostr-tools/pure",
+    "nostr-tools/nip59"
+  ],
+  "dependencies_forbidden": [
+    "app/src/components/",
+    "app/src/context/",
+    "app/src/pages/"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/reactions/rumor.test.ts"
+  ]
+}

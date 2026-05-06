@@ -1,0 +1,407 @@
+/**
+ * Reactions persistence and read API — idb-keyval implementation.
+ *
+ * Seam S2 producer: loadReactions, aggregateForMessage, subscribeReactions,
+ * applyInboundRumor, applyOptimistic, rollbackOptimistic.
+ *
+ * Seam S4 entry point: applyInboundRumor is the single convergence point for
+ * both DM (ContactChat gift-wrap path) and group (MarmotContext case 7:) ingest.
+ *
+ * Persistence namespaces (D11):
+ *   quizzl:reactions:group:{groupId}
+ *   quizzl:reactions:dm:{peerPubkeyHex}
+ *
+ * Design notes:
+ * - Module-singleton in-memory map + listener registry (mirrors unreadStore.ts).
+ * - Serialised per-thread write queue (mirrors chatPersistence.ts appendQueues).
+ * - idb-keyval is accessed only at runtime (never at module-init) — SSR safe.
+ * - Listeners fire after the idb write resolves, never before.
+ */
+
+import type { Reaction, ReactionThreadKey } from '@/src/lib/reactions/types';
+
+// ─── Public types ────────────────────────────────────────────────────────────
+
+export interface ReactionAggregate {
+  emoji: string;
+  /** Count of non-removed rows for this (messageId, emoji). */
+  count: number;
+  /** Hex pubkeys in oldest-first (ascending createdAt) order. */
+  reactors: string[];
+  /** True iff selfPubkey has a non-removed row for (messageId, emoji). */
+  selfReacted: boolean;
+}
+
+// ─── Internal module state ────────────────────────────────────────────────────
+
+/**
+ * In-memory cache: namespace key → Reaction[].
+ * Populated on first loadReactions call per thread.
+ */
+const cache = new Map<string, Reaction[]>();
+
+/**
+ * Per-thread write queues — ensures serialised idb access to prevent
+ * concurrent read-modify-write races (same pattern as chatPersistence.ts).
+ */
+const writeQueues = new Map<string, Promise<void>>();
+
+/**
+ * Set to true for the duration of clearAllReactions. Any enqueue call that
+ * arrives while this flag is set is silently dropped (returns a resolved
+ * promise). This closes the race window between writeQueues.clear() and the
+ * idb deletion loop — a still-live NDK subscription cannot sneak a write in
+ * between those two steps. The flag is reset in a finally block so a thrown
+ * error does not permanently lock writes. (D7: don't auto-retry)
+ */
+let clearingInProgress = false;
+
+/**
+ * Per-thread listener sets. Thread namespace key → Set of listeners.
+ * subscribeReactions scopes listeners to a single thread.
+ */
+const listeners = new Map<string, Set<() => void>>();
+
+// ─── Key derivation ───────────────────────────────────────────────────────────
+
+/** Derives the idb-keyval namespace key for a thread. */
+function idbKeyFor(thread: ReactionThreadKey): string {
+  if (thread.kind === 'group') {
+    return `quizzl:reactions:group:${thread.groupId}`;
+  }
+  return `quizzl:reactions:dm:${thread.peerPubkeyHex}`;
+}
+
+// ─── Listener helpers ─────────────────────────────────────────────────────────
+
+function getListeners(key: string): Set<() => void> {
+  let set = listeners.get(key);
+  if (!set) {
+    set = new Set();
+    listeners.set(key, set);
+  }
+  return set;
+}
+
+function emit(key: string): void {
+  getListeners(key).forEach((listener) => listener());
+}
+
+// ─── Write queue helper ───────────────────────────────────────────────────────
+
+/**
+ * Enqueues a write operation onto the per-thread serialised queue.
+ * The task receives the current rows array and must return the next rows
+ * array (or null to skip the idb write). After the idb write resolves,
+ * listeners are notified.
+ */
+function enqueue(
+  key: string,
+  task: (current: Reaction[]) => Promise<Reaction[] | null>,
+): Promise<void> {
+  // Synchronous guard — checked before any writeQueues.set() call so the race
+  // window in clearAllReactions cannot be re-opened by a concurrent enqueue.
+  if (clearingInProgress) return Promise.resolve();
+
+  const prev = writeQueues.get(key) ?? Promise.resolve();
+  const next = prev.then(async () => {
+    const { get, set } = await import('idb-keyval');
+    const current = (await get<Reaction[]>(key)) ?? [];
+    const nextRows = await task(current);
+    if (nextRows !== null) {
+      cache.set(key, nextRows);
+      await set(key, nextRows);
+      emit(key);
+    }
+  });
+  const settled = next.catch(() => {});
+  writeQueues.set(key, settled);
+  settled.then(() => {
+    if (writeQueues.get(key) === settled) writeQueues.delete(key);
+  });
+  return next;
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Loads all reaction rows for a thread in a single idb get() call (O(1) per
+ * thread). Populates the in-memory cache. Returns an empty array for a fresh
+ * thread.
+ *
+ * AC-07, AC-57.
+ */
+export async function loadReactions(thread: ReactionThreadKey): Promise<Reaction[]> {
+  const key = idbKeyFor(thread);
+  const { get } = await import('idb-keyval');
+  const stored = (await get<Reaction[]>(key)) ?? [];
+  cache.set(key, stored);
+  return stored;
+}
+
+/**
+ * Pure synchronous aggregation. Groups non-removed rows by emoji, counts them,
+ * sorts reactors oldest-first by createdAt, and sets selfReacted.
+ *
+ * AC-08.
+ */
+export function aggregateForMessage(
+  rows: Reaction[],
+  messageId: string,
+  selfPubkey: string,
+): ReactionAggregate[] {
+  const relevant = rows.filter((r) => r.messageId === messageId && !r.removed);
+
+  // Group by emoji
+  const byEmoji = new Map<string, Reaction[]>();
+  for (const r of relevant) {
+    const existing = byEmoji.get(r.emoji) ?? [];
+    byEmoji.set(r.emoji, [...existing, r]);
+  }
+
+  const result: ReactionAggregate[] = [];
+  for (const [emoji, emojiRows] of byEmoji) {
+    // Sort oldest-first
+    const sorted = [...emojiRows].sort((a, b) => a.createdAt - b.createdAt);
+    const reactors = sorted.map((r) => r.reactorPubkey);
+    result.push({
+      emoji,
+      count: reactors.length,
+      reactors,
+      selfReacted: reactors.includes(selfPubkey),
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Registers a listener for write events on the given thread's namespace.
+ * Returns an unsubscribe function.
+ *
+ * Mirrors the subscribe/emit pattern from unreadStore.ts.
+ *
+ * AC-13.
+ */
+export function subscribeReactions(
+  thread: ReactionThreadKey,
+  listener: () => void,
+): () => void {
+  const key = idbKeyFor(thread);
+  getListeners(key).add(listener);
+  return () => getListeners(key).delete(listener);
+}
+
+/**
+ * Writes an optimistic Reaction row to the store. The row must be in-flight
+ * (eventId === ''). Listeners are notified after the idb write resolves.
+ *
+ * AC-12.
+ */
+export function applyOptimistic(thread: ReactionThreadKey, row: Reaction): Promise<void> {
+  const key = idbKeyFor(thread);
+  return enqueue(key, async (current) => {
+    // Idempotent on row id
+    if (current.some((r) => r.id === row.id)) return null;
+    return [...current, row];
+  });
+}
+
+/**
+ * Removes an optimistic row by id. Only rows whose eventId is empty string
+ * (still in-flight) are eligible. Rows with a confirmed eventId are left
+ * untouched. Listeners are notified after the idb write resolves.
+ *
+ * AC-12.
+ */
+export function rollbackOptimistic(
+  thread: ReactionThreadKey,
+  optimisticId: string,
+): Promise<void> {
+  const key = idbKeyFor(thread);
+  return enqueue(key, async (current) => {
+    const target = current.find((r) => r.id === optimisticId);
+    // Only roll back if the row is still in-flight
+    if (!target || target.eventId !== '') return null;
+    return current.filter((r) => r.id !== optimisticId);
+  });
+}
+
+/**
+ * Processes an inbound kind-7 rumor.
+ *
+ * - Extracts messageId from the first `e` tag.
+ * - Silent discard (returns null) if rumor.id already exists in the store
+ *   (eventId dedup — AC-09).
+ * - content === '-': tombstones the matching (messageId, reactorPubkey, emoji)
+ *   row by setting removed: true. Returns null if no matching row exists
+ *   (AC-10).
+ * - Otherwise: upserts a Reaction row keyed on (messageId, reactorPubkey,
+ *   emoji). Returns { messageId } (AC-09).
+ *
+ * Listeners are notified after the idb write resolves.
+ *
+ * Note: AC-11 "silent discard for unknown messageId" is enforced by the dispatcher
+ * (MarmotContext case 7 / ContactChat kind-7 dispatch), not by this leaf module.
+ *
+ * AC-09, AC-10, AC-58.
+ */
+export async function applyInboundRumor(
+  thread: ReactionThreadKey,
+  rumor: {
+    id: string;
+    pubkey: string;
+    created_at: number;
+    content: string;
+    tags: string[][];
+  },
+): Promise<{ messageId: string } | null> {
+  // Extract the e-tag value (first occurrence)
+  // Guard against malformed tags where t[0] is absent or non-string.
+  const eTag = rumor.tags.find((t) => typeof t[0] === 'string' && t[0] === 'e');
+  if (!eTag || !eTag[1]) return null;
+  const messageId = eTag[1];
+
+  // Extract emoji from content (for the upsert key)
+  const emoji = rumor.content;
+  const isRemoval = emoji === '-';
+
+  const key = idbKeyFor(thread);
+
+  let result: { messageId: string } | null = null;
+
+  await enqueue(key, async (current) => {
+    // Pre-work fix (story-07): the leaf module always upserts — the "silent discard if
+    // message unknown" rule (spec §2.4, AC-11) is enforced by the dispatcher, not here.
+    // MarmotContext case 7: gates on loadMessages(groupId); ContactChat kind-7 dispatch
+    // gates on the in-memory messages array. Removing the check here lets the first
+    // reaction to any message land correctly (the prior check falsely discarded it when
+    // no prior reaction row existed for that messageId).
+
+    // Dedup by eventId (AC-09)
+    if (current.some((r) => r.eventId === rumor.id && rumor.id !== '')) {
+      // result stays null — no write
+      return null;
+    }
+
+    if (isRemoval) {
+      // AC-10, D2: tombstone the matching (messageId, reactorPubkey, emoji) row.
+      //
+      // Collect all ["emoji", glyph] tags (case-insensitive tag name; glyph is
+      // case-sensitive Unicode). D2 multi-emoji policy requires we know *which*
+      // emoji is being removed; an ambiguous rumor is silently discarded.
+      const emojiTags = rumor.tags
+        .filter((t) => typeof t[0] === 'string' && t[0].toLowerCase() === 'emoji' && typeof t[1] === 'string' && t[1].length > 0)
+        .map((t) => t[1] as string);
+      const distinctEmojis = [...new Set(emojiTags)];
+
+      if (distinctEmojis.length > 1) {
+        // Multiple distinct emoji tags — out-of-spec rumor, silent discard (§2.4).
+        return null;
+      }
+
+      if (distinctEmojis.length === 1) {
+        // Exactly one emoji tag: narrow tombstone to (messageId, reactorPubkey, emoji).
+        const targetEmoji = distinctEmojis[0];
+        const idx = current.findIndex(
+          (r) =>
+            r.messageId === messageId &&
+            r.reactorPubkey === rumor.pubkey &&
+            r.emoji === targetEmoji &&
+            !r.removed,
+        );
+        if (idx === -1) {
+          // No matching row — return null (no write), §2.4 silent discard.
+          return null;
+        }
+        const updated = [...current];
+        updated[idx] = { ...updated[idx], removed: true, eventId: rumor.id };
+        result = { messageId };
+        return updated;
+      }
+
+      // No emoji tag present: tombstone only if exactly one non-removed row
+      // exists for (messageId, reactorPubkey) — unambiguous single-emoji case.
+      // Zero or multiple rows → silent discard (§2.4, D2 safety).
+      const candidates = current.filter(
+        (r) => r.messageId === messageId && r.reactorPubkey === rumor.pubkey && !r.removed,
+      );
+      if (candidates.length !== 1) {
+        return null;
+      }
+      const target = candidates[0];
+      const idx = current.indexOf(target);
+      const updated = [...current];
+      updated[idx] = { ...updated[idx], removed: true, eventId: rumor.id };
+      result = { messageId };
+      return updated;
+    }
+
+    // Upsert: (messageId, reactorPubkey, emoji) triple
+    const existingIdx = current.findIndex(
+      (r) =>
+        r.messageId === messageId &&
+        r.reactorPubkey === rumor.pubkey &&
+        r.emoji === emoji,
+    );
+
+    let updated: Reaction[];
+    if (existingIdx !== -1) {
+      // Update existing row (e.g. confirm optimistic row by assigning eventId)
+      updated = [...current];
+      updated[existingIdx] = {
+        ...updated[existingIdx],
+        eventId: rumor.id,
+        removed: false,
+      };
+    } else {
+      // New row
+      const newRow: Reaction = {
+        id: rumor.id,
+        messageId,
+        reactorPubkey: rumor.pubkey,
+        emoji,
+        eventId: rumor.id,
+        createdAt: rumor.created_at * 1000, // rumor.created_at is unix seconds; Reaction.createdAt is ms
+        removed: false,
+      };
+      updated = [...current, newRow];
+    }
+
+    result = { messageId };
+    return updated;
+  });
+
+  return result;
+}
+
+/**
+ * Clears all reaction data for both namespaces. Used by clearAccountScopedIdbData
+ * in storage.ts to wipe reactions on account switch.
+ *
+ * AC-14.
+ */
+export async function clearAllReactions(): Promise<void> {
+  // Set the flag synchronously before any await so enqueue() sees it
+  // immediately. Any write that arrives after this point is silently dropped.
+  clearingInProgress = true;
+  try {
+    const { keys, delMany } = await import('idb-keyval');
+    // Drain in-flight queues that were already enqueued before the flag was set.
+    const inflight = Array.from(writeQueues.values());
+    await Promise.allSettled(inflight);
+    writeQueues.clear();
+    cache.clear();
+    const allKeys = await keys();
+    const targets = allKeys.filter(
+      (k): k is string =>
+        typeof k === 'string' &&
+        (k.startsWith('quizzl:reactions:group:') || k.startsWith('quizzl:reactions:dm:')),
+    );
+    if (targets.length > 0) {
+      await delMany(targets);
+    }
+  } finally {
+    clearingInProgress = false;
+  }
+}

@@ -1,0 +1,85 @@
+[
+  {
+    "question_id": "VQ-04-001",
+    "phase": "pre-impl",
+    "category": "QUALITY",
+    "question": "Does rumor.ts contain any dead code, stub markers (TODO, FIXME, placeholder comments), or unused imports? Are there any exported symbols beyond buildReactionRumor that would expand the module's surface unnecessarily?"
+  },
+  {
+    "question_id": "VQ-04-002",
+    "phase": "pre-impl",
+    "category": "ARCHITECTURE",
+    "question": "Does rumor.ts import from anything outside its allowed dependency list (lib/reactions/types.ts, lib/directMessages.ts for UnsignedRumor, nostr-tools/pure, nostr-tools/nip59)? Specifically: does it import from any component, context, or pages file?"
+  },
+  {
+    "question_id": "VQ-04-003",
+    "phase": "pre-impl",
+    "category": "ARCHITECTURE",
+    "question": "Could app/src/lib/reactions/rumor.ts be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+  },
+  {
+    "question_id": "VQ-04-004",
+    "phase": "pre-impl",
+    "category": "TEST",
+    "question": "Does rumor.test.ts cover all seven test scenarios specified in the story: (1) add path full field assertion, (2) remove path content='-' + emoji tag, (3) group path no p-tag, (4) kind-9 target, (5) empty emoji rejection, (6) all CURATED_EMOJI produce valid rumors without throwing, (7) id idempotence under frozen time? Are any of these tests pure mock-spy proxies that do not exercise actual crypto (getEventHash)?"
+  },
+  {
+    "question_id": "VQ-04-005",
+    "phase": "pre-impl",
+    "category": "SPEC",
+    "ac_id": "AC-21",
+    "question": "Does buildReactionRumor return an object with kind: 7, content equal to the emoji string (or '-' when isRemoval is true), tags containing ['e', targetMessageId] and ['k', String(targetMessageKind)], and pubkey equal to the public key derived from selfPrivKeyHex? What is the production code path for each field, and which test assertions cover them end-to-end without mocks intercepting the return value?"
+  },
+  {
+    "question_id": "VQ-04-006",
+    "phase": "pre-impl",
+    "category": "SPEC",
+    "ac_id": "AC-22",
+    "question": "When targetAuthorPubkey is a non-empty string, does the returned tags array contain exactly one ['p', targetAuthorPubkey] entry? When targetAuthorPubkey is undefined (or an empty string), is the p tag absent from tags — including no accidental ['p', ''] or ['p', 'undefined'] entry? Which tests assert this branch for both the DM path (p present) and the group path (p absent)?"
+  },
+  {
+    "question_id": "VQ-04-007",
+    "phase": "pre-impl",
+    "category": "SPEC",
+    "ac_id": "AC-23",
+    "question": "Does the returned object have an id field that is a 64-character lowercase hex string equal to the SHA-256 of the canonical NIP-01 serialization [0, pubkey, created_at, kind, tags, content]? Does the returned object have no sig field at all (not undefined, not null, but absent)? Which test independently computes the SHA-256 and compares it against rumor.id to verify canonical correctness?"
+  },
+  {
+    "question_id": "VQ-04-008",
+    "phase": "pre-impl",
+    "category": "SPEC",
+    "ac_id": "AC-24",
+    "question": "Does buildReactionRumor throw synchronously (not return a rejected promise) when called with emoji: ''? Is the same rejection applied when isRemoval is true and emoji is ''? Is there a test that calls the function with an empty emoji string and asserts the thrown error?"
+  },
+  {
+    "question_id": "VQ-04-009",
+    "phase": "pre-impl",
+    "category": "SPEC",
+    "ac_id": "AC-25",
+    "question": "Does rumor.test.ts assert all fields specified in AC-21 through AC-24 — kind, content, tags structure (e/k/p), pubkey, id (against independently computed SHA-256), no sig field, empty emoji throws — in a single coherent test file? Are the tests using real crypto (getEventHash, getPublicKey from nostr-tools/pure) rather than mocked return values for the id computation?"
+  },
+  {
+    "question_id": "VQ-04-010",
+    "phase": "pre-impl",
+    "category": "SECURITY",
+    "question": "Does buildReactionRumor retain the selfPrivKeyHex value (e.g., in a closure, module-level variable, or log statement) after the function returns? Is the private key used only to (a) derive the pubkey via getPublicKey and (b) pass to createRumor for the id computation, and discarded once the rumor object is returned?"
+  },
+  {
+    "question_id": "VQ-04-011",
+    "phase": "post-impl",
+    "category": "SPEC",
+    "question": "The implementation uses the truthy check `if (targetAuthorPubkey)` to decide whether to include the p tag. This means an empty-string targetAuthorPubkey is also excluded. Is this correct? The spec says 'non-empty string' as the condition — an empty string is not a valid pubkey, so exclusion is correct. But if a caller accidentally passes '' instead of undefined, they get silent omission, not an error. Should the implementation validate that when targetAuthorPubkey is provided it is a 64-char hex string, or is silent omission acceptable per AC-22?"
+  },
+  {
+    "question_id": "VQ-04-012",
+    "phase": "post-impl",
+    "category": "ARCHITECTURE",
+    "question": "The implementation imports UnsignedRumor as a type-only import from lib/directMessages.ts (lib-to-lib). If UnsignedRumor ever moves to a shared types module, this import path would need updating. Should the type be re-exported from lib/reactions/ so that Seam S3 consumers have a single source of truth, or is the current lib/directMessages.ts import path stable enough given that story-03 owns that type?"
+  },
+  {
+    "question_id": "VQ-04-013",
+    "phase": "post-impl",
+    "category": "TEST",
+    "question": "The CURATED_EMOJI loop test calls buildReactionRumor twice per glyph (once to check it does not throw, once to assert fields). This is 48 calls for 24 glyphs. Should these be collapsed to a single call per glyph to avoid redundancy and reduce test runtime, given that the assertions are otherwise identical?"
+  }
+]

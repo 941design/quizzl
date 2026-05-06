@@ -1,0 +1,46 @@
+{
+  "module_name": "chat-shell",
+  "purpose": "Adds an emoji composer picker to the ChatBox toolbar. Users can open a 24-glyph popover grid, click a glyph to insert it at the current textarea cursor position, and close via Escape/outside-click. Also includes a Cmd/Ctrl+Shift+E keyboard shortcut. The cursor-insertion logic is extracted into a pure helper in lib/reactions/ for independent unit testing.",
+  "public_api": [
+    {
+      "name": "EmojiComposerPicker",
+      "signature": "React.FC<{ onSelect: (emoji: string) => void }>",
+      "description": "Self-contained Chakra Popover component. Owns its own useDisclosure state. Renders the trigger IconButton (data-testid='emoji-composer-trigger') and the 24-glyph grid. Exposes a toggle() method via an imperative handle — OR, simpler: accepts an optional isOpen/onToggle from the parent so ChatBox can wire Cmd+Shift+E."
+    },
+    {
+      "name": "EmojiComposerPickerHandle",
+      "signature": "{ toggle: () => void }",
+      "description": "Ref handle exposed via useImperativeHandle so ChatBox's keyboard handler can toggle the popover without lifting state."
+    },
+    {
+      "name": "insertAtCursor",
+      "signature": "(current: string, selectionStart: number | null, selectionEnd: number | null, emoji: string) => { value: string; nextCaret: number }",
+      "description": "Pure function in app/src/lib/reactions/composeInsert.ts. Inserts emoji at cursor; appends when selection is null. Returns new value and caret position."
+    }
+  ],
+  "private_files": [
+    "app/src/components/chat/EmojiComposerPicker.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/reactions/types.ts",
+    "app/src/lib/reactions/composeInsert.ts",
+    "app/src/context/LanguageContext.tsx",
+    "@chakra-ui/react",
+    "react"
+  ],
+  "dependencies_forbidden": [
+    "app/src/components/contacts/*",
+    "app/src/components/groups/*",
+    "app/src/pages/*",
+    "app/src/lib/reactions/api.ts",
+    "any new npm package"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/src/lib/reactions/composeInsert.ts — pure unit tests via make test-unit",
+    "app/tests/e2e/emoji-composer.spec.ts — open/close picker, glyph click inserts at cursor, Escape closes, keyboard shortcut toggles"
+  ]
+}

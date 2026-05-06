@@ -1,0 +1,9 @@
+{
+  "recorded_at": "2026-05-05",
+  "test_suite": "unit",
+  "command": "make test-unit",
+  "tests_passing": 601,
+  "test_files": 44,
+  "build": "green",
+  "notes": "Baseline captured before any story-07 changes. Pre-work (api.ts fix) is part of story-07 deliverables."
+}

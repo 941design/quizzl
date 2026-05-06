@@ -1,0 +1,174 @@
+{
+  "story_id": "story-02-reactions-store",
+  "completed_at": "2026-05-05",
+  "final_outcome": "accepted",
+  "status": "done",
+  "files_created": [
+    "app/src/lib/reactions/api.ts",
+    "app/tests/unit/reactions/api.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/storage.ts"
+  ],
+  "test_counts": {
+    "baseline_files": 38,
+    "baseline_tests": 476,
+    "final_files": 39,
+    "final_tests": 525,
+    "new_tests": 49
+  },
+  "build_status": "green",
+  "verification_rounds": 4,
+  "mocks_introduced": [
+    "Inline Map-backed idb-keyval mock in api.test.ts (same pattern as manageInviteLinksModal.test.ts:5-13). No shared mock factory introduced.",
+    "Remediation round 2: vi.mock stubs for the 6 marmot modules (groupStorage, chatPersistence, inviteLinkStorage, joinRequestStorage, pollPersistence, mediaPersistence) added at the top of api.test.ts to support the storage.ts integration describe block. These stubs are never invoked by existing tests."
+  ],
+  "key_decisions": [
+    "Silent discard for unknown messageId (AC-11): applyInboundRumor checks if any existing row in the thread store references the inbound rumor's messageId. If not, returns null without writing. This is spec §2.4 behavior.",
+    "Removal matching by (messageId, reactorPubkey) with optional ['emoji', glyph] tag narrowing: content='-' removal rumors do not carry the emoji in content. The implementation first checks for an ['emoji', glyph] tag (forward-compatible with story-04's rumor builder). If absent, tombstones the first non-removed row for (messageId, reactorPubkey). This is a story-02 scope decision — story-04 defines the exact wire format.",
+    "rollbackOptimistic guards on eventId === '': only rows still in-flight (eventId empty) are eligible for rollback. Confirmed rows (non-empty eventId) are never removed by rollback.",
+    "Write queue pattern (enqueue): reads from idb inside each queued task (not from in-memory cache) — identical to chatPersistence.ts's appendMessage pattern. This ensures no lost writes under concurrent queueing.",
+    "idb-keyval loaded via dynamic import inside the write queue helper and loadReactions — never at module init. This makes the module SSR-safe.",
+    "clearAllReactions exported from api.ts and added to clearAccountScopedIdbData in storage.ts via dynamic import — matching the established pattern for all other clear functions.",
+    "listener registry scoped per-thread: listeners for group threads do not fire on dm thread writes. subscribeReactions creates a per-namespace-key Set.",
+    "Notification after idb write: emit() is called only after await set(key, nextRows) completes inside the enqueue closure, never before."
+  ],
+  "deviations_from_spec": [
+    "None. All ACs (AC-07 through AC-14, AC-57, AC-58) are directly covered by unit tests."
+  ],
+  "remediation": [
+    {
+      "round": 2,
+      "tests_added": 2,
+      "details": [
+        {
+          "test_name": "[\"emoji\", glyph] tag narrows removal to the matching emoji only (D2 — multi-emoji policy)",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "applyInboundRumor — removal path (AC-10)",
+          "covers": "Seeds two reactions from the same reactor on msg-1 with different emoji glyphs (👍 and ❤️), dispatches a removal rumor carrying ['emoji', '👍'], and asserts: result is { messageId: 'msg-1' }, the 👍 row has removed:true, and the ❤️ row has removed:false. Pins the story-04 contract that removal rumors must include the ['emoji', glyph] tag for correct multi-emoji policy (D2)."
+        },
+        {
+          "test_name": "clearAccountScopedIdbData chain — both reaction namespaces are cleared",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "storage.ts integration",
+          "covers": "Exercises the exact dynamic-import path that clearAccountScopedIdbData in storage.ts uses: import('@/src/lib/reactions/api').then(({ clearAllReactions }) => clearAllReactions()). Seeds quizzl:reactions:group:* and quizzl:reactions:dm:* keys in the Map-backed idb mock, calls clearAllReactions via the dynamic import, and asserts both namespaces are gone while a non-reaction key is preserved. (AC-14, VQ-02-018)"
+        }
+      ]
+    },
+    {
+      "round": 3,
+      "tests_added": 6,
+      "production_code_changed": true,
+      "production_changes": [
+        {
+          "file": "app/src/lib/reactions/api.ts",
+          "bug": "Bug 1 — removal path safety",
+          "summary": "Replaced single find() on first 'emoji' tag (case-sensitive) with: collect all tags whose name lowercases to 'emoji', deduplicate glyph values, then branch on 0/1/many. Zero emoji tags: tombstone only if exactly one candidate row exists (unambiguous). Exactly one emoji tag: narrow to (messageId, reactorPubkey, emoji) triple. Multiple distinct emoji tags: silent discard (§2.4).",
+          "new_behavior": "Removal rumors with multiple distinct emoji tags are silently discarded. Removal rumors without an emoji tag tombstone the single matching row or discard if ambiguous. Case-insensitive matching on tag name only (glyph stays case-sensitive)."
+        },
+        {
+          "file": "app/src/lib/reactions/api.ts",
+          "bug": "Bug 2 — clearAllReactions race condition",
+          "summary": "Introduced module-singleton 'clearingInProgress' boolean flag. Set synchronously at the start of clearAllReactions before any await. enqueue() checks the flag as its first synchronous statement and returns Promise.resolve() if set. Flag reset in a finally block in clearAllReactions to prevent permanent write lockout on error.",
+          "new_behavior": "Any enqueue() call arriving during clearAllReactions is silently dropped. Consistent with D7 (no auto-retry) — the user is logging out and inbound rumors during clear are discarded."
+        }
+      ],
+      "details": [
+        {
+          "test_name": "two live rows, removal without emoji tag → returns null; both rows survive (D2 — ambiguous multi-emoji)",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "applyInboundRumor — removal path (AC-10)",
+          "covers": "Bug 1 fix: two live rows for same (messageId, reactorPubkey), no emoji tag → null, both rows survive (§2.4, D2 safety)."
+        },
+        {
+          "test_name": "single live row, removal without emoji tag → tombstones the row (unambiguous)",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "applyInboundRumor — removal path (AC-10)",
+          "covers": "Bug 1 fix: one live row, no emoji tag → tombstone succeeds (unambiguous case)."
+        },
+        {
+          "test_name": "removal rumor with two distinct emoji tags → returns null, nothing tombstoned (§2.4 out-of-spec discard)",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "applyInboundRumor — removal path (AC-10)",
+          "covers": "Bug 1 fix: multiple distinct emoji tags on one removal rumor → silent discard (§2.4)."
+        },
+        {
+          "test_name": "removal rumor with [\"Emoji\", \"👍\"] (capitalised tag name) → narrows to 👍 row (case-insensitive tag name)",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "applyInboundRumor — removal path (AC-10)",
+          "covers": "Bug 1 fix: tag name is matched case-insensitively; glyph value stays case-sensitive."
+        },
+        {
+          "test_name": "removal rumor with [\"emoji\", \"👍\"] but no matching row → returns null, no writes",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "applyInboundRumor — removal path (AC-10)",
+          "covers": "Bug 1 fix: emoji tag present but no live row for that (messageId, reactorPubkey, emoji) → null, no idb.set."
+        },
+        {
+          "test_name": "race guard: enqueue arriving during clearAllReactions is dropped; idb state is empty after clear",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "clearAllReactions (AC-14)",
+          "covers": "Bug 2 fix: mocks idb.keys() with a gate to simulate a concurrent enqueue during clear. Asserts the write is dropped and idb is empty after both promises settle."
+        },
+        {
+          "test_name": "race guard: enqueue arriving during clearAllReactions is dropped; idb state is empty after clear",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "clearAllReactions (AC-14)",
+          "covers": "Bug 2 fix: mocks idb.keys() with a gate to simulate a concurrent enqueue during clear. Asserts the write is dropped and idb is empty after both promises settle."
+        }
+      ]
+    },
+    {
+      "round": 4,
+      "tests_added": 4,
+      "production_code_changed": true,
+      "production_changes": [
+        {
+          "file": "app/src/lib/reactions/api.ts",
+          "line_before": "const eTag = rumor.tags.find((t) => t[0] === 'e');",
+          "line_after": "const eTag = rumor.tags.find((t) => typeof t[0] === 'string' && t[0] === 'e');",
+          "summary": "Type-guard the e-tag lookup: guard t[0] with typeof === 'string' before string equality check, preventing a crash when t[0] is undefined, null, or a non-string value."
+        },
+        {
+          "file": "app/src/lib/reactions/api.ts",
+          "line_before": ".filter((t) => t[0].toLowerCase() === 'emoji' && t[1] !== undefined)",
+          "line_after": ".filter((t) => typeof t[0] === 'string' && t[0].toLowerCase() === 'emoji' && typeof t[1] === 'string' && t[1].length > 0)",
+          "summary": "Type-guard the emoji-tag filter: guard both t[0] (before .toLowerCase()) and t[1] (before use as string), with t[1].length > 0 to exclude empty-glyph tags. Cast map result to string[] to satisfy TypeScript."
+        }
+      ],
+      "details": [
+        {
+          "test_name": "[robustness] empty tag array → returns null, no idb writes",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "applyInboundRumor — removal path (AC-10)",
+          "covers": "Empty tags array; no e-tag found; must return null without crash."
+        },
+        {
+          "test_name": "[robustness] malformed tag with missing first element → falls through, returns null (no e-tag found)",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "applyInboundRumor — removal path (AC-10)",
+          "covers": "Tags where t[0] is undefined (empty sub-array); typeof guard short-circuits before any string method call; returns null."
+        },
+        {
+          "test_name": "[robustness] emoji tag with missing glyph → no usable emoji tag, hits zero-emoji branch (single-row tombstone)",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "applyInboundRumor — removal path (AC-10)",
+          "covers": "['emoji'] with no t[1]; type-guard filters it out; falls into zero-emoji-tag branch; single-row unambiguous tombstone succeeds."
+        },
+        {
+          "test_name": "[robustness] non-string first element (cast through unknown) → no crash; well-formed tags still processed",
+          "file": "app/tests/unit/reactions/api.test.ts",
+          "describe_block": "applyInboundRumor — removal path (AC-10)",
+          "covers": "t[0] is null (cast through unknown); typeof guard prevents .toLowerCase() crash on the malformed tag; the well-formed ['e', 'msg-1'] and ['emoji', '👍'] tags are still found and processed correctly."
+        }
+      ]
+    }
+  ],
+  "verifier_attention": [
+    "VQ-02-017 (CLOSED by remediation round 2): The new test 'multi-emoji narrowing' pins the story-04 contract. The verifier should still confirm that story-04's rumor builder emits the ['emoji', glyph] tag, but the AC-10 end-to-end wire is now covered.",
+    "VQ-02-018 (CLOSED by remediation round 2): The new 'storage.ts integration' describe block in api.test.ts exercises the exact dynamic-import path that clearAccountScopedIdbData uses. The test proves the import chain resolves to the correct module and clears both namespaces.",
+    "VQ-02-012 (AC-14): Covered both directly (clearAllReactions in 'clearAllReactions (AC-14)' describe block) and via the integration path (new 'storage.ts integration' describe block). Both are in api.test.ts.",
+    "VQ-02-023 (round 3, Bug 1): Verify the five new removal-path tests in 'applyInboundRumor — removal path (AC-10)' cover the four branches (0/1/many emoji tags, no-matching-row case). Confirm the case-insensitive tag name test uses ['Emoji', '👍'] (capital E) and still narrows correctly.",
+    "VQ-02-024 (round 3, Bug 2): Verify the race-guard test in 'clearAllReactions (AC-14)' mocks idb.keys() with a Promise gate, fires applyInboundRumor concurrently, and asserts zero reaction keys remain after both settle. Confirm clearingInProgress is reset after clearAllReactions resolves (flag is not permanently set)."
+  ]
+}

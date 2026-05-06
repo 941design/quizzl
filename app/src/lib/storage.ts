@@ -228,6 +228,9 @@ async function clearAccountScopedIdbData(): Promise<void> {
     import('@/src/lib/marmot/joinRequestStorage').then(({ clearAllPendingJoinRequests }) => clearAllPendingJoinRequests()),
     import('@/src/lib/marmot/pollPersistence').then(({ clearAllPollData }) => clearAllPollData()),
     import('@/src/lib/marmot/mediaPersistence').then(({ clearAllMedia }) => clearAllMedia()),
+    // Wipe both reaction namespaces (quizzl:reactions:group:* and quizzl:reactions:dm:*)
+    // so reactions from one identity do not survive an account switch (AC-14, D11).
+    import('@/src/lib/reactions/api').then(({ clearAllReactions }) => clearAllReactions()),
   ];
   const results = await Promise.allSettled(tasks);
   for (const result of results) {

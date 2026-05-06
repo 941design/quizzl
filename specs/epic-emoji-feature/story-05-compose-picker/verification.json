@@ -1,0 +1,143 @@
+{
+  "questions": [
+    {
+      "question_id": "VQ-05-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does EmojiComposerPicker.tsx contain any TODO/FIXME/stub markers, dead branches, or hardcoded English strings? Specifically: are all user-visible labels (trigger aria-label, glyph aria-labels) sourced exclusively from useCopy() keys?"
+    },
+    {
+      "question_id": "VQ-05-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does EmojiComposerPicker.tsx import only from app/src/lib/reactions/, app/src/context/, @chakra-ui/react, and react — and never from app/src/components/contacts/, app/src/components/groups/, or app/src/pages/? Does ChatBox.tsx import EmojiComposerPicker via a relative path within components/chat/ only?"
+    },
+    {
+      "question_id": "VQ-05-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could EmojiComposerPicker.tsx and composeInsert.ts be deleted and rewritten without modifying any file outside their allowed dependency list (lib/reactions/, context/LanguageContext, @chakra-ui/react, react, and ChatBox.tsx as the single integration point)? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-05-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/reactions/composeInsert.test.ts cover all six named cases: middle insertion, selection-replacement, start insertion, end insertion, null-selection append, and multi-codepoint emoji byte-exactness (e.g. ❤️ = U+2764+FE0F)? Do the unit tests call insertAtCursor directly with no mocks?"
+    },
+    {
+      "question_id": "VQ-05-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-26",
+      "question": "Does EmojiComposerPicker render a Chakra Popover trigger button with data-testid='emoji-composer-trigger' and aria-label equal to copy.emoji.openPicker, and is this trigger button present inside the ChatBox.tsx input toolbar Flex? Show the production code in EmojiComposerPicker.tsx and ChatBox.tsx and confirm the e2e test can locate [data-testid='emoji-composer-trigger'] on the groups or contacts page."
+    },
+    {
+      "question_id": "VQ-05-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-27",
+      "question": "Does clicking data-testid='emoji-composer-trigger' open the popover (verifiable in e2e), and do both clicking outside and pressing Escape close it? Are these behaviors covered by e2e assertions in emoji-composer.spec.ts that do NOT rely purely on mock-spy proxies?"
+    },
+    {
+      "question_id": "VQ-05-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-28",
+      "question": "Does the Cmd/Ctrl+Shift+E keydown handler in ChatBox.tsx call e.preventDefault(), toggle the picker via the ref handle or shared state, and fire when the textarea (data-testid='chat-input') has focus? Is this shortcut tested in the e2e spec by dispatching Control+Shift+E on the textarea and asserting the popover opens/closes?"
+    },
+    {
+      "question_id": "VQ-05-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-29",
+      "question": "Does the picker grid render exactly 24 glyph buttons — one per entry in CURATED_EMOJI — each with data-testid='emoji-glyph-{emoji}' and a non-empty aria-label? Is the grid container styled as a 4-column grid? Confirm with an e2e assertion that counts 24 gridcell elements."
+    },
+    {
+      "question_id": "VQ-05-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-30",
+      "question": "When a glyph is clicked with the textarea cursor at position N in 'hello world', does the textarea value become 'hello{emoji} world' (not 'hello world{emoji}'), the caret advance to N+emoji.length, and the popover close? Is this end-to-end flow tested in emoji-composer.spec.ts by typing text, setting cursor position, clicking a glyph, and asserting textarea.value and (if possible) selectionStart?"
+    },
+    {
+      "question_id": "VQ-05-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-31",
+      "question": "When the textarea has no current selection/cursor (blurred or focus never acquired), does clicking a glyph append to the end of the textarea content? Is this fallback tested in composeInsert.test.ts with selectionStart=null and selectionEnd=null?"
+    },
+    {
+      "question_id": "VQ-05-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-32",
+      "question": "Does the picker grid have role='grid' on the container and role='gridcell' on each glyph button? Do arrow-key handlers shift focus between cells? Are Enter and Space keys handled to select the focused glyph and close the picker? Is this tested in the e2e spec with keyboard interactions?"
+    },
+    {
+      "question_id": "VQ-05-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-33",
+      "question": "Does app/tests/e2e/emoji-composer.spec.ts contain a test that: (a) navigates to a page with a ChatBox, (b) types text into data-testid='chat-input', (c) clicks data-testid='emoji-composer-trigger', (d) clicks a known glyph button, and (e) asserts the textarea value contains the glyph at the correct position — without being a pure mock-spy proxy?"
+    },
+    {
+      "question_id": "VQ-05-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-63",
+      "question": "Does every glyph button in EmojiComposerPicker have a non-empty aria-label (not just a data-testid)? Specifically, is the aria-label derived from copy.emoji.insertEmoji concatenated with the glyph, or a function call — never an empty string or a bare emoji character without label text?"
+    },
+    {
+      "question_id": "VQ-05-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-64",
+      "question": "Does EmojiComposerPicker's grid container have role='grid' and each cell role='gridcell', and do arrow keys navigate focus without scrolling the page? Is this verified in the e2e spec or a focused keyboard-navigation test?"
+    },
+    {
+      "question_id": "VQ-05-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-66",
+      "question": "Is every user-visible string in EmojiComposerPicker.tsx (trigger aria-label, glyph aria-labels, any tooltip text) accessed via useCopy() referencing Copy.emoji.* keys — with zero hardcoded English literals? Verify by grepping the file for string literals and confirming none are user-visible."
+    },
+    {
+      "question_id": "VQ-05-016",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does EmojiComposerPicker or composeInsert.ts introduce any dynamic eval, dangerouslySetInnerHTML, or unvalidated string interpolation into the DOM? The glyph strings come from the CURATED_EMOJI constant (compile-time); confirm no glyph from external/user input can reach the aria-label or innerHTML paths."
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "question_id": "VQ-05-101",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The handleRef mechanism mutates a ref object directly inside the render function of EmojiComposerPicker (not in useEffect or useImperativeHandle). Is this safe given React's concurrent mode? Specifically: does the ref mutation occur before ChatBox's keyboard handler fires (yes, same synchronous render), and does this pattern create any tearing risk if the component remounts?"
+    },
+    {
+      "question_id": "VQ-05-102",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Arrow-key navigation in the grid (AC-32 / AC-64) is implemented in production code but not exercised by a dedicated e2e assertion. The grid keyDown handler wraps at boundaries (e.g. last row ArrowDown wraps to the first row). Should a focused keyboard-navigation e2e test be added to verify wrap-around and that arrow keys don't scroll the page?"
+    },
+    {
+      "question_id": "VQ-05-103",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The `onKeyDown` at PopoverContent level (Escape → onClose) and the per-button Escape handler both call onClose. This is belt-and-suspenders but creates two listeners for the same key. Is the PopoverContent-level handler still needed now that the per-button handler works? (It is harmless but adds noise to the component.)"
+    },
+    {
+      "question_id": "VQ-05-104",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The cursor-insertion e2e test sets selectionStart/selectionEnd via JavaScript before clicking the trigger. After the trigger click (which does not steal focus from the textarea in practice because it's a Popover trigger), does the ChatBox correctly read `textareaRef.current.selectionStart` from the DOM element — or does clicking the trigger cause focus to move to the button, setting selectionStart to 0? The test passes, but is this behavior guaranteed across browser versions?"
+    },
+    {
+      "question_id": "VQ-05-105",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "question": "The `data-testid` attribute on glyph buttons is set to `emoji-glyph-${emoji}` where emoji is a Unicode glyph from CURATED_EMOJI (compile-time constant). Browsers accept any string as a data attribute. Is there any risk that the emoji glyph in the testid could be misused as an injection vector in a test harness that parses testids as CSS selectors? (Low risk, but worth noting since CSS.escape or attribute selectors require care with non-ASCII values.)"
+    }
+  ]
+}

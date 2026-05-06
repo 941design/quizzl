@@ -1,0 +1,77 @@
+{
+  "module_name": "chat-store",
+  "purpose": "Extend ChatStoreContext with group reaction send (sendReaction) and expose aggregated reactions state for each group chat thread. Add inbound kind-7 dispatch in MarmotContext application-message handler.",
+  "public_api": [
+    {
+      "name": "sendReaction",
+      "signature": "(emoji: string, targetMessage: ChatMessage, isRemoval?: boolean) => Promise<void>",
+      "description": "Optimistically writes a Reaction row via applyOptimistic (id=crypto.randomUUID()), builds a kind-7 rumor via buildReactionRumor (no p tag for groups), calls sendRumorSafe via the MarmotGroup instance on the ChatStoreProvider props, and rolls back + shows toast on failure (D7)."
+    },
+    {
+      "name": "reactionsByMessageId",
+      "signature": "Map<string, ReactionAggregate[]>",
+      "description": "Exposed on the ChatStoreContext value. Computed lazily from the subscribeReactions listener on each state change. Story-08 will read this to render badge rows."
+    },
+    {
+      "name": "ChatStoreContextValue (extended)",
+      "signature": "{ messages, sendMessage, sendImageMessage, sendReaction, reactionsByMessageId, loading }",
+      "description": "The full context value type after story-06. Consumed by useChatStore()."
+    },
+    {
+      "name": "case 7 branch in MarmotContext applicationMessage dispatch",
+      "signature": "else if (rumor.kind === 7) { ... }",
+      "description": "Added to the subscribeToGroupMessages callback inside MarmotContext.tsx. Calls applyInboundRumor({ kind: 'group', groupId }, rumor). Silently discards when applyInboundRumor returns null. Bumps reactionsVersion counter on non-null return."
+    },
+    {
+      "name": "reactionsVersion",
+      "signature": "number (state counter in MarmotContextValue)",
+      "description": "Monotonically increasing counter bumped whenever a kind-7 rumor is successfully processed by applyInboundRumor in the MarmotContext dispatch. Passed into ChatStoreProvider so reactions can be re-read from the store."
+    }
+  ],
+  "private_files": [
+    "Internal retry wrapper for sendApplicationRumor in ChatStoreContext (mirrors sendChatSafe pattern)"
+  ],
+  "owned_data": [
+    "reactionsByMessageId Map<string, ReactionAggregate[]> (derived from reactions-store, not duplicated)"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/reactions/api.ts (applyOptimistic, rollbackOptimistic, applyInboundRumor, subscribeReactions, aggregateForMessage, loadReactions)",
+    "app/src/lib/reactions/rumor.ts (buildReactionRumor)",
+    "app/src/lib/reactions/types.ts (Reaction, ReactionThreadKey, ReactionAggregate)",
+    "app/src/lib/marmot/chatPersistence.ts (ChatMessage type)",
+    "app/src/lib/i18n.ts (Copy type, emoji.couldntReact key via useCopy())",
+    "@internet-privacy/marmot-ts (MarmotGroup type only)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/components/ (no component imports in context/)",
+    "app/src/pages/ (no page imports in context/)",
+    "Any new npm package"
+  ],
+  "external_ports": [
+    "S2 — Reactions read API: loadReactions, aggregateForMessage, subscribeReactions",
+    "S3 — Outbound rumor builder: buildReactionRumor",
+    "S4 — Inbound ingest: applyInboundRumor (called from MarmotContext case 7 branch)"
+  ],
+  "events_emitted": [
+    "subscribeReactions listener notifications (fired by applyOptimistic / rollbackOptimistic / applyInboundRumor inside reactions/api.ts)"
+  ],
+  "events_consumed": [
+    "MarmotContext reactionsVersion counter (triggers re-read of reaction store in ChatStoreContext)",
+    "MarmotGroup applicationMessage event (kind-7 dispatch in ChatStoreContext handler)"
+  ],
+  "test_targets": [
+    "app/tests/unit/marmot/groupReactions.test.ts",
+    "app/tests/e2e/groups-reactions.spec.ts"
+  ],
+  "seams_consumed": ["S2", "S3", "S4"],
+  "architecture_compliance_notes": [
+    "context/ imports lib/ (downward only) — compliant",
+    "No lib/ file imports from context/ — compliant",
+    "sendRumorSafe is a module-level function in MarmotContext.tsx; ChatStoreContext uses the MarmotGroup instance (passed as prop) with its own retry wrapper — does NOT create a parallel wrapper for the MarmotContext adapter, just the MLS group object",
+    "buildReactionRumor requires selfPrivKeyHex — ChatStoreProvider must accept privateKeyHex as a prop (already has pubkey prop; adding privateKeyHex keeps same pattern as signer prop)",
+    "reactionsVersion counter is added to MarmotContextValue (marmot-orchestrator module), consistent with chatVersion/pollVersion patterns",
+    "ChatStoreContext also handles kind-7 from its applicationMessage event listener (marmot-ts event bus) for own-send echo path",
+    "D11 — no identity_id anywhere",
+    "D7 — rollback + toast on sendApplicationRumor failure, no retry"
+  ]
+}

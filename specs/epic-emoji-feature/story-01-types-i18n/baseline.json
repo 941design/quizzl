@@ -1,0 +1,15 @@
+{
+  "story_id": "story-01-types-i18n",
+  "captured_at": "2026-05-05T15:45:30Z",
+  "commands_run": ["make test-unit", "make build"],
+  "test_counts": {
+    "test_files": 37,
+    "tests_passing": 474,
+    "tests_failing": 0
+  },
+  "build_status": "success",
+  "pre_existing_fix": {
+    "file": "app/tests/unit/cancelPendingInvitation.i18n.test.ts",
+    "reason": "Stale test assertions for cancelInviteRaceNotice strings that were intentionally updated in commit 900df00 but the test file was not updated. Applied boy-scout fix before recording baseline."
+  }
+}

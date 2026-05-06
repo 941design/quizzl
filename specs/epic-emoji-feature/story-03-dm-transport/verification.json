@@ -1,0 +1,139 @@
+{
+  "story_id": "story-03-dm-transport",
+  "questions": [
+    {
+      "question_id": "VQ-03-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does directMessages.ts contain any stub markers (TODO-IMPL, FIXME-STUB), dead code from the old NIP-04 outbound path (e.g. signDirectMessage still constructing kind-4 events that will never be published), or leaked internal helpers that are no longer called? Confirm that only the NIP-04 inbound helpers (decryptDirectPayload, decryptDirectMedia) remain for their legitimate read-only purpose."
+    },
+    {
+      "question_id": "VQ-03-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the dm-transport module (directMessages.ts and ContactChat.tsx changes) comply with the strict n-tier rule: lib/ does not import from components/ or context/, and ContactChat.tsx only imports downward from lib/? Verify no circular dependency was introduced by the new sealAndWrap/unwrapAndOpen imports."
+    },
+    {
+      "question_id": "VQ-03-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could dm-transport (directMessages.ts + giftWrap helpers) be deleted and rewritten without modifying any file outside its dependencies_allowed list? Specifically: do ContactChat.tsx's changes import only from lib/ (downward)? Does sealAndWrap/unwrapAndOpen have zero references to components/, context/, or pages/? If any cross-module dependency flows outside the allowed seam contracts (S5), identify it."
+    },
+    {
+      "question_id": "VQ-03-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/directMessages/sealAndWrap.test.ts cover all four mandated cases: (a) round-trip recovers kind, content, tags, pubkey; (b) outer event is kind-1059 with a [\"p\", recipientPubkey] tag; (c) unwrapAndOpen throws when called with the wrong recipient private key; (d) created_at on the outer wrap falls within [now-2days-buffer, now+buffer]? Are any of these tests pure mock-spy proxies that would pass even if sealAndWrap produced garbage?"
+    },
+    {
+      "question_id": "VQ-03-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the implementation align with D9b (outbound is NIP-17/59 only, no dual-publish)? Specifically: is there any code path in publishDirectMessage that can still produce or publish a kind-4 event, even conditionally? Confirm by inspection that no kind-4 event construction exists in the new outbound path."
+    },
+    {
+      "question_id": "VQ-03-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does unwrapAndOpen avoid leaking plaintext content in error messages when decryption fails (e.g. wrong-key scenario)? Verify that thrown errors contain only generic failure descriptions, not decrypted content fragments, nip44 padding artifacts, or the inner seal JSON. Also confirm that sealAndWrap uses a fresh ephemeral key per wrap (as provided by nostr-tools wrapEvent's randomKey generation) and does not reuse the sender's key as the wrap outer key."
+    },
+    {
+      "question_id": "VQ-03-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-15",
+      "question": "AC-15: Does app/src/lib/directMessages.ts (or a sibling) export sealAndWrap(rumor: UnsignedRumor, recipientPubkey: string, selfPrivKeyHex: string): Promise<NostrEvent> that returns a signed kind-1059 gift-wrap event? Provide: (a) the production code location and the nostr-tools primitive used, (b) the unit test in sealAndWrap.test.ts that calls sealAndWrap and asserts wrap.kind === 1059, (c) confirmation that the test is not a pure mock-spy proxy (i.e. it calls the real nip59 wrapEvent)."
+    },
+    {
+      "question_id": "VQ-03-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-16",
+      "question": "AC-16: Does unwrapAndOpen(giftWrap: NostrEvent, selfPrivKeyHex: string): Promise<UnsignedRumor> decrypt a kind-1059 event and return the inner unsigned rumor, and throw on invalid seal or mismatched recipient? Provide: (a) the production code location, (b) the test asserting that a wrong private key causes a thrown error, (c) confirmation the test calls the real nip59 unwrapEvent and the error is actually thrown (not mocked away)."
+    },
+    {
+      "question_id": "VQ-03-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-17",
+      "question": "AC-17: Does the rewritten publishDirectMessage call sealAndWrap and publish a kind-1059 event, with no code path remaining that constructs or publishes a kind-4 event? Provide: (a) the code showing the new outbound path, (b) a test or build-level assertion that the published event kind is 1059, (c) confirmation that the external TypeScript signature (params object with ndk, privateKeyHex, peerPubkeyHex, content, attachments?) is identical to before and that no callers required changes."
+    },
+    {
+      "question_id": "VQ-03-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-18",
+      "question": "AC-18: Does the DM subscription in ContactChat.tsx subscribe to both kinds: [4] (legacy NIP-04 inbound) and kinds: [1059] with #p: [selfPubkey] concurrently, and do both subscriptions remain active for the lifetime of the component? Provide: (a) the subscription code showing both sub setups, (b) evidence that both subs are stopped in the cleanup function returned from useEffect, (c) that the #p filter on the kind-1059 sub uses selfPubkey (pubkeyHex), not peerPubkeyHex."
+    },
+    {
+      "question_id": "VQ-03-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-19",
+      "question": "AC-19: Are kind-4 events decrypted via NIP-04 and passed to appendMessage, and kind-1059 events unwrapped via unwrapAndOpen and, if inner rumor is kind 14, passed to appendMessage — with both paths deduplicating by inner-rumor id? Provide: (a) the kind-4 ingest code path (should be largely unchanged), (b) the kind-1059 ingest code path showing the kind===14 check and the id used for dedup, (c) evidence that the same message arriving on both subs does not produce two entries in the messages list."
+    },
+    {
+      "question_id": "VQ-03-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-20",
+      "question": "AC-20: Does the unit test in app/tests/unit/directMessages/sealAndWrap.test.ts call sealAndWrap with a known rumor and recipient keypair, then call unwrapAndOpen with the recipient's private key, and assert the returned rumor's kind, content, and tags match the original input? Provide: (a) the test body showing the assert on rumor.kind, rumor.content, and rumor.tags, (b) confirmation it is not a pure mock-spy proxy (real nostr-tools crypto runs in Vitest), (c) the crypto.subtle polyfill setup used if required."
+    }
+  ,
+    {
+      "question_id": "VQ-03-013",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "question": "The gift-wrap inbound handler in ContactChat.tsx silently ignores decrypt failures (catches all errors). Confirm that: (a) error swallowing cannot be triggered by the sender to suppress a legitimate message — i.e. a malformed outer event fails at unwrapEvent and is dropped, not at a later stage where a partial plaintext might leak into state; (b) there is no log statement inside the catch block that would print gift-wrap content fragments to the console, which could expose plaintext to browser devtools."
+    },
+    {
+      "question_id": "VQ-03-014",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The gift-wrap subscription filter uses kinds: [1059] and #p: [pubkeyHex] with no author filter. This means any relay-delivered kind-1059 event addressed to selfPubkey will trigger a decrypt attempt, including events not from the current conversation peer. Is this the correct design per NIP-59? Confirm that the silent-drop on decryption failure (the catch block) is the intended boundary — there is no peerPubkeyHex filtering on the outer event that would wrongly exclude messages from the current conversation peer (whose outer wrap uses an ephemeral key, not peerPubkeyHex)."
+    },
+    {
+      "question_id": "VQ-03-015",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The existing directMessages.test.ts tests cover NIP-04 encrypt/decrypt round-trip (AC-20 regression requirement). Confirm that none of these four tests are broken after the publishDirectMessage rewrite — they test encryptDirectPayload and decryptDirectPayload which are unchanged, and the test suite shows 4 tests still passing for that file."
+    },
+    {
+      "question_id": "VQ-03-016",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "buildChatRumor serializes the DirectMessagePayload as JSON into the kind-14 rumor content (via JSON.stringify(buildPayload(...))). When the receiver calls parseDirectPayload on that content string, the round-trip must produce the correct content and attachments. Confirm that no extra JSON.stringify/parse nesting occurs — i.e. parseDirectPayload receives the first-level JSON object, not a double-encoded string."
+    },
+    {
+      "question_id": "VQ-03-017",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "ac_id": "AC-19",
+      "question": "Round-2 remediation: In ContactChat.tsx handleGiftWrapEvent, does the call to shouldIngestRumor(rumor, peerPubkeyHex) appear immediately after unwrapAndOpen and before any appendMessage call? Verify: (a) the exact lines in ContactChat.tsx where the guard is placed, (b) that peerPubkeyHex is the component-prop conversation peer (not selfPubkey / pubkeyHex), (c) that the new shouldIngestRumor helper lives in lib/directMessages.ts and not in any component file, (d) that dualListen.test.ts VQ-03-018 regression tests cover same-peer ingestion, foreign-peer drop, and cross-protocol dedup."
+    },
+    {
+      "question_id": "VQ-03-018",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Round-2 regression tests in app/tests/unit/directMessages/dualListen.test.ts: locate and confirm (a) 'shouldIngestRumor returns true when inner rumor pubkey matches the conversation peer', (b) 'shouldIngestRumor returns false when inner rumor pubkey is a different sender (foreign peer)', (c) 'appendMessage deduplicates by id — same id written twice appears once' proving cross-protocol dedup. Confirm that tests (a) and (b) call shouldIngestRumor directly (pure function, no mocking of its internals), and that test (c) calls appendMessage twice with the same id and then loadMessages to assert exactly one entry."
+    },
+    {
+      "question_id": "VQ-03-019",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "question": "Round-3 remediation: Does the new manual unwrap in unwrapAndOpen enforce all four steps: (1) kind check on gift wrap, (2) verifyEvent on the decrypted seal before using seal.pubkey as ECDH counterparty, (3) kind check on the seal, (4) rumor.pubkey === seal.pubkey binding? Confirm that skipping any one of these steps would allow the Mallory forgery vector to bypass the shouldIngestRumor guard. Verify in the test 'rejects a forged rumor: Mallory wraps a rumor claiming Alice pubkey to Bob' that: (a) the seal IS signed with Mallory's key (so step 2 alone does not reject), (b) rejection occurs at step 4 (pubkey binding), and (c) the error thrown is the generic 'gift wrap decryption failed' — not the internal 'rumor sender mismatch' which would leak information."
+    },
+    {
+      "question_id": "VQ-03-020",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Round-3 tests in sealAndWrap.test.ts — forgery rejection suite: confirm all four new tests pass: (a) 'rejects a forged rumor: Mallory wraps a rumor claiming Alice pubkey to Bob' — exercises pubkey binding (step 4), (b) 'rejects a tampered seal signature (verifyEvent check)' — exercises schnorr verification (step 2), (c) 'rejects a non-1059 kind (kind-4 fed directly)', (d) 'rejects a non-1059 kind (kind-13 seal fed directly)'. Confirm none uses mocking of verifyEvent — the real @noble/curves schnorr check must run. Confirm the honest-path round-trip test still passes with the new manual unwrap (no regression on sealAndWrap → unwrapAndOpen)."
+    },
+    {
+      "question_id": "VQ-03-021",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Round-3: The new unwrapAndOpen drops the nostr-tools unwrapEvent import. Confirm that (a) 'unwrapEvent' no longer appears in the import statement in directMessages.ts, (b) 'verifyEvent' is imported from 'nostr-tools/pure' (the correct ESM sub-path), (c) the nip44.v2.decrypt and nip44.v2.utils.getConversationKey calls use the already-imported nip44 namespace (no new import added), and (d) SEAL_KIND = 13 is defined as a module-private constant in directMessages.ts without importing from 'nostr-tools/kinds' (keeping the no-new-dependency constraint)."
+    }
+  ]
+}

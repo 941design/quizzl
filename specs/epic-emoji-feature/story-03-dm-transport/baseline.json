@@ -1,0 +1,8 @@
+{
+  "story_id": "story-03-dm-transport",
+  "ran_at": "2026-05-05T16:41:00Z",
+  "vitest": { "passed": 525, "failed": 0, "tests": 525, "duration_ms": 4210 },
+  "tsc": { "passed": true, "errors": [] },
+  "all_clean": true,
+  "notes": "39 test files, 525 unit tests passing. build clean."
+}

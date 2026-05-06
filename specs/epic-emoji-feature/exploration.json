@@ -1,0 +1,231 @@
+{
+  "epic": "emoji-feature",
+  "explored_at": "2026-05-05T13:10:00Z",
+  "explorers": ["similar-features", "architecture", "testing-and-conventions"],
+
+  "paradigm": {
+    "top_level": "modular monolith (single Next.js app under app/)",
+    "internal_layering": "n-tier — pages/ -> components/ -> context/ -> lib/ — imports flow strictly downward",
+    "hexagonal_seam": "app/src/lib/marmot/ adapts marmot-ts ports (NostrNetworkInterface, EventSigner) via NdkNetworkAdapter.ts and signerAdapter.ts",
+    "package_by_feature": ["components/chat/", "components/contacts/", "components/groups/"]
+  },
+
+  "key_files": {
+    "shared_chat_shell": "app/src/components/chat/ChatBox.tsx",
+    "dm_surface": "app/src/components/contacts/ContactChat.tsx",
+    "group_surface": "app/src/components/groups/GroupChat.tsx",
+    "group_transport_controller": "app/src/context/ChatStoreContext.tsx",
+    "mls_orchestrator": "app/src/context/MarmotContext.tsx",
+    "dm_transport": "app/src/lib/directMessages.ts",
+    "ndk_singleton": "app/src/lib/ndkClient.ts",
+    "ndk_marmot_bridge": "app/src/lib/marmot/NdkNetworkAdapter.ts",
+    "marmot_signer": "app/src/lib/marmot/signerAdapter.ts",
+    "chat_persistence": "app/src/lib/marmot/chatPersistence.ts",
+    "group_storage": "app/src/lib/marmot/groupStorage.ts",
+    "i18n_registry": "app/src/lib/i18n.ts",
+    "i18n_hook": "app/src/context/LanguageContext.tsx",
+    "identity_provider": "app/src/context/NostrIdentityContext.tsx",
+    "storage_lib": "app/src/lib/storage.ts",
+    "popover_reference": "app/src/components/NotificationBell.tsx",
+    "next_config": "app/next.config.mjs",
+    "makefile": "Makefile",
+    "vitest_config": "app/vitest.config.ts",
+    "playwright_config": "app/playwright.config.ts",
+    "playwright_runner": "app/scripts/run-e2e.mjs",
+    "e2e_compose": "docker-compose.e2e.yml",
+    "strfry_conf": "strfry.e2e.conf"
+  },
+
+  "module_map": [
+    {
+      "name": "chat (shared shell)",
+      "dir": "app/src/components/chat/",
+      "purpose": "Renders message list + input toolbar; receives sendMessage prop. Same component for DM and group surfaces.",
+      "data_owned": ["inputValue", "image attachment state", "messages prop"],
+      "epic_role": "Compose-area emoji picker trigger lives in input toolbar; reaction badge row is appended below each message bubble; reaction-trigger handle is a hover/long-press affordance on each bubble."
+    },
+    {
+      "name": "contacts (DM surface)",
+      "dir": "app/src/components/contacts/",
+      "purpose": "DM-specific transport controller; owns NDK subscription, NIP-04 decrypt today (NIP-17/59 gift wrap after D9), optimistic send.",
+      "data_owned": ["DM messages state", "NDK subscriptions", "thread loading"],
+      "epic_role": "Transport rewrite for D9 (NIP-17/59); plus reaction send/receive plumbing for DMs."
+    },
+    {
+      "name": "groups (MLS group UI)",
+      "dir": "app/src/components/groups/",
+      "purpose": "Group-chat UI components (membership, invites, polls, images, etc.).",
+      "data_owned": ["per-group view state for invites, polls, members"],
+      "epic_role": "Reuse via GroupChat.tsx — wires reactions through ChatStoreContext."
+    },
+    {
+      "name": "nostr_transport",
+      "dir": "app/src/lib/",
+      "files": ["ndkClient.ts", "directMessages.ts"],
+      "purpose": "NDK singleton + DM encrypt/sign/publish helpers.",
+      "epic_role": "NIP-17/59 gift-wrap helper added here; reaction send/receive functions added; legacy NIP-04 decrypt kept inbound-only."
+    },
+    {
+      "name": "marmot_integration",
+      "dir": "app/src/lib/marmot/",
+      "files": ["NdkNetworkAdapter.ts", "signerAdapter.ts", "chatPersistence.ts", "groupStorage.ts", "idbKeyValueStoreBackend.ts", "welcomeSubscription.ts"],
+      "purpose": "Adapter sub-layer translating marmot-ts ports to NDK+IDB; chat & group persistence over idb-keyval.",
+      "epic_role": "Reactions persistence module added alongside chatPersistence (new file, same idb-keyval pattern)."
+    },
+    {
+      "name": "context_providers",
+      "dir": "app/src/context/",
+      "files": ["MarmotContext.tsx", "ChatStoreContext.tsx", "NostrIdentityContext.tsx", "LanguageContext.tsx", "ProfileContext.tsx"],
+      "purpose": "App-level provider stack mounted in pages/_app.tsx and pages/groups.tsx.",
+      "epic_role": "MarmotContext gets a kind-7 case in its applicationMessage dispatch (line ~534); ChatStoreContext gains reaction state mirror; new ReactionsContext or module-singleton store may be added."
+    },
+    {
+      "name": "i18n",
+      "dir": "app/src/lib/",
+      "files": ["i18n.ts"],
+      "purpose": "Single Copy type + en/de objects; useCopy() hook in LanguageContext.",
+      "epic_role": "All emoji-feature UI strings (picker label, reaction add/remove, error toast) added to Copy + both languages, with companion .i18n.test.ts coverage."
+    }
+  ],
+
+  "current_seams": {
+    "in_app_message_shape": {
+      "type": "ChatMessage",
+      "file": "app/src/lib/marmot/chatPersistence.ts",
+      "lines": "14-28",
+      "fields": ["id", "content", "senderPubkey", "groupId", "createdAt (ms)", "attachments?", "localMediaRefs?"],
+      "consumed_by": "app/src/components/chat/ChatBox.tsx",
+      "notes": "Reactions feature needs id (lookup) and senderPubkey (NIP-25 'p' tag). The 'groupId' field doubles as the thread key and persists per-message identity for DMs."
+    },
+    "active_identity": {
+      "hook": "useNostrIdentity()",
+      "file": "app/src/context/NostrIdentityContext.tsx",
+      "lines": "140-144",
+      "returns": ["pubkeyHex", "privateKeyHex", "npub", "hydrated"]
+    },
+    "send_message_prop": {
+      "shape": "(content: string) => Promise<void>",
+      "file": "app/src/components/chat/ChatBox.tsx",
+      "lines": "79-82",
+      "supplied_by_dm": "ContactChat.tsx",
+      "supplied_by_group": "ChatStoreContext.tsx via GroupChat.tsx"
+    },
+    "event_bus_pattern": "Version-counter integers in MarmotContext (chatVersion, profileVersion, pollVersion) bumped on IDB write; consumers re-read IDB when counter changes. unreadStore.ts uses a module-singleton + useSyncExternalStore for unread counts.",
+    "send_event_abstractions": {
+      "dm": "publishDirectMessage in directMessages.ts:149-159",
+      "group": "sendRumorSafe in MarmotContext.tsx:72-96 (wraps group.sendApplicationRumor with retry)"
+    },
+    "buildRumor_helper": {
+      "file": "app/src/context/MarmotContext.tsx",
+      "lines": "99-110",
+      "signature": "buildRumor(kind, content, pubkey, tags) -> rumor with hashed id and no sig"
+    }
+  },
+
+  "dm_transport_today": {
+    "wire_kind": 4,
+    "encryption": "NIP-04 (nip04.encrypt / nip04.decrypt)",
+    "signer": "NDK signer",
+    "publish_helper": "publishDirectMessage in app/src/lib/directMessages.ts:149-159",
+    "subscription": "ContactChat.tsx:79-136 — incomingSub + outgoingSub via NDK subscribe",
+    "kind_dispatch": "absent — all kind-4 events are treated as chat",
+    "GAP_vs_spec": "Spec assumes NIP-17 / NIP-59 gift-wrap (§2.2). D9 in decisions.md migrates to NIP-17/59 globally; D9a keeps kind-4 inbound forever for backwards compat."
+  },
+
+  "group_transport_today": {
+    "wire_kind": 445,
+    "encryption": "MLS application message via marmot-ts / ts-mls",
+    "signer": "MLS group signer (per-epoch)",
+    "rumor_builder": "buildRumor in MarmotContext.tsx:99-110",
+    "publish_helper": "sendRumorSafe in MarmotContext.tsx:72-96",
+    "subscription": "subscribeToGroupMessages in welcomeSubscription.ts:185-299 -> onApplicationMessage callback",
+    "kind_dispatch": "if/else-if in MarmotContext.tsx:534+ over rumor.kind. Add case 7: here.",
+    "ALIGNMENT_vs_spec": "Matches §3 of spec. No transport changes needed."
+  },
+
+  "persistence": {
+    "primitive": "idb-keyval (default and named stores). No SQLite/wasm anywhere.",
+    "messages_keyspace": "quizzl:messages:{groupId} (default store)",
+    "named_stores": ["quizzl-groups-meta", "quizzl-groups-state", "quizzl-keypackages", "quizzl-member-scores", "quizzl-member-profiles"],
+    "settings_storage": "localStorage via app/src/lib/storage.ts",
+    "reactions_keyspace_decision": "Per D11: quizzl:reactions:group:{groupId} and quizzl:reactions:dm:{peerPubkeyHex}",
+    "clear_account_data": "clearAccountScopedIdbData in storage.ts:223-237 — must be extended to clear reactions"
+  },
+
+  "optimistic_ui_pattern": {
+    "groups": "tempId = crypto.randomUUID() inserted before send (ChatStoreContext.tsx:177); removed on failure; inbound rumor de-duplicates by id.",
+    "dms": "Sign event first, use real event id, insert before publish (ContactChat.tsx:148) — avoids NDK echo race.",
+    "reactions": "Adopt the same split: temp UUID for groups, real event id for DM gift-wraps."
+  },
+
+  "bubble_affordances_today": "NONE. ChatBox.tsx has zero onContextMenu / hover menus / per-bubble action buttons. Reaction trigger is the first bubble-level interactive affordance — no existing pattern to follow.",
+
+  "i18n": {
+    "registry": "app/src/lib/i18n.ts",
+    "type": "Copy",
+    "languages": ["en", "de"],
+    "hook": "useCopy() in LanguageContext.tsx:60-63",
+    "test_pattern": "app/tests/unit/cancelPendingInvitation.i18n.test.ts — calls getCopy('en')/getCopy('de'), asserts exact strings",
+    "rule": "Every new UI string must have en + de entries on Copy and a .i18n.test.ts assertion for both."
+  },
+
+  "static_export_constraints": {
+    "config": "next.config.mjs — output: 'export', trailingSlash: true",
+    "no_ssr": true,
+    "no_runtime_api_routes": true,
+    "implication_for_reactions": "Publishing goes browser -> relay over WebSocket. No relay proxy. No server endpoint. Static-friendly."
+  },
+
+  "make_targets": {
+    "test": "make test (test-unit + test-e2e)",
+    "test_unit": "make test-unit (cd app && npx vitest run)",
+    "test_e2e_no_relay": "make test-e2e (cd app && node scripts/run-e2e.mjs)",
+    "test_e2e_groups": "make test-e2e-groups (docker compose strfry+blossom + E2E_GROUPS=1)",
+    "build": "make build (next build — type-check gate)",
+    "dev": "make run-dev",
+    "platform_caveat": "All targets enforce ensure-deps platform stamp; never run npx vitest / npx playwright directly."
+  },
+
+  "testing_conventions": {
+    "unit_dir": "app/tests/unit/",
+    "unit_suffix": "*.test.ts",
+    "unit_config": "app/vitest.config.ts (include: tests/unit/**/*.test.ts)",
+    "no_component_render_in_units": true,
+    "no_testing_library_react": true,
+    "mocking_pattern": "vi.mock at module scope + dynamic await import('@/src/lib/...') inside test body. Each file rolls its own inline in-memory idb-keyval Map fake.",
+    "e2e_dir": "app/tests/e2e/",
+    "e2e_suffix": "*.spec.ts",
+    "e2e_workers": 1,
+    "e2e_relay": "real strfry + blossom-mock via docker-compose.e2e.yml (E2E_GROUPS=1 only)",
+    "e2e_identity_seeding": "addInitScript + localStorage in app/tests/e2e/helpers/auth-helpers.ts",
+    "e2e_state_bridge_pattern": "expose window.__quizzlSomething for live state injection (notification-bell.spec.ts:23-29)",
+    "selectors": "data-testid first, getByRole({ name }) for accessible names, getByText only for human copy assertions",
+    "ci": "NONE — no GitHub Actions workflow. Manual test gate before deploy.",
+    "popover_reference": "app/src/components/NotificationBell.tsx is the only existing Chakra <Popover>; mirror its useDisclosure + PopoverTrigger/Content/Body/Arrow skeleton for pickers."
+  },
+
+  "boundary_rules": [
+    "Imports flow downward only: pages -> components -> context -> lib. Never reverse.",
+    "components/chat/ChatBox.tsx imports the ChatMessage *type* from lib/marmot/chatPersistence — type-only is acceptable.",
+    "ChatStoreContext dynamically imports @internet-privacy/marmot-ts at runtime (line 122) to keep MLS code out of SSR.",
+    "All crypto init runs behind globalThis.isSecureContext (MarmotContext.tsx:243) — required because ts-mls crashes without crypto.subtle.",
+    "DM and group surfaces do not share state — DM uses local useState in ContactChat; groups use ChatStoreContext. Reactions must be implemented for both surfaces; share *helpers* not state."
+  ],
+
+  "patterns_to_reuse": [
+    "Version-counter event bus (MarmotContext.tsx:584-586) — add reactionVersion for groups; module-singleton store like unreadStore.ts for DM reactions.",
+    "Optimistic write -> async publish -> rollback on failure (ChatStoreContext.tsx:171-198, ContactChat.tsx:144-168).",
+    "Transport-agnostic sendMessage prop on ChatBox (ChatBox.tsx:79-82) — extend with a sendReaction analog.",
+    "buildRumor + sendRumorSafe for MLS (MarmotContext.tsx:99-110, 72-96).",
+    "rawPublish for pre-signed events (NdkNetworkAdapter.ts:52-95) — gift-wrapped DM events are pre-signed; bypass NDK re-sign.",
+    "Dynamic import for heavy crypto modules (_app.tsx:12-20, MarmotContext.tsx:254).",
+    "data-testid on every interactive and state-bearing element."
+  ],
+
+  "open_risks": [
+    "Bubble-level affordances are net-new for the project — UX placement (hover handle vs. + button vs. long-press) needs a small design pass; planner should produce a concrete decision in the picker story spec rather than a 'TBD'.",
+    "DM transport migration (D9) significantly expands scope. Inbound dual-decode (kind-4 + kind-1059) and outbound NIP-17/59 wrap need their own stories ahead of any reaction work for DMs. Sequence reactions-after-migration to avoid double-rework.",
+    "No CI gate. Verifier must run make test locally and the architect baseline + final gate is the only enforcement of the green-test invariant.",
+    "No @testing-library/react. Picker UI behavior (cursor insertion, focus, escape-close) must be exercised in E2E or refactored into pure functions for unit testing."
+  ]
+}

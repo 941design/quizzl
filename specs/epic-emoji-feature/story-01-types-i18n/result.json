@@ -1,0 +1,51 @@
+{
+  "story_id": "story-01-types-i18n",
+  "status": "done",
+  "verification_rounds": 1,
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-05T16:00:00Z",
+  "files_created": [
+    "app/src/lib/reactions/types.ts",
+    "app/tests/unit/reactions/reactions.i18n.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/i18n.ts",
+    "app/tests/unit/cancelPendingInvitation.i18n.test.ts"
+  ],
+  "implementation_summary": "Created app/src/lib/reactions/types.ts exporting the Reaction interface (7 fields, no identity_id per D11), ReactionThreadKey discriminated union (group/dm variants), and CURATED_EMOJI readonly string[] of exactly 24 Unicode glyphs (Faces×8, Gestures×6, Symbols×6, Objects×4). Extended the Copy type in i18n.ts with an emoji section containing 8 keys (openPicker, closePicker, reactWith, insertEmoji, removeReaction, couldntReact, reactors, reactionCount) with both en and de values. Added reactions.i18n.test.ts asserting exact strings for all 8 keys in both locales. Also applied a boy-scout fix to cancelPendingInvitation.i18n.test.ts to sync stale string assertions with strings changed in commit 900df00.",
+  "test_counts": {
+    "baseline_files": 37,
+    "baseline_tests": 474,
+    "final_files": 38,
+    "final_tests": 476,
+    "new_tests_added": 2
+  },
+  "mocks_introduced": [],
+  "build_status": "success",
+  "deviations": [
+    "Objects category in CURATED_EMOJI has 4 glyphs (🎉 💡 📌 🔔) rather than 6 from spec §1.1 table, to reach the exact 24-glyph target of AC-03. The spec §1.1 table is a non-exhaustive example list; AC-03 requires exactly 24 glyphs covering all four categories.",
+    "cancelPendingInvitation.i18n.test.ts was updated as a boy-scout fix (pre-existing test regression from 900df00 not part of this story's scope)."
+  ],
+  "seams_produced": ["S1"],
+  "verification_summary": {
+    "artifact_gate": "pass",
+    "commitment_set_gate": "pass",
+    "all_acs_verified": true,
+    "ac_outcomes": {
+      "AC-01": "YES",
+      "AC-02": "YES",
+      "AC-03": "YES",
+      "AC-04": "YES",
+      "AC-05": "YES",
+      "AC-06": "YES"
+    },
+    "code_quality": {
+      "dead_code": "none",
+      "stub_markers": "none",
+      "forbidden_imports": "none",
+      "compilation_success": true,
+      "test_pass_rate": "100% (476/476)"
+    },
+    "boy_scout_fix_verified": true
+  }
+}

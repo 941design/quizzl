@@ -397,6 +397,16 @@ type Copy = {
     pollTypeLabel: string;
     createError: string;
   };
+  emoji: {
+    openPicker: string;
+    closePicker: string;
+    reactWith: string;
+    insertEmoji: string;
+    removeReaction: string;
+    couldntReact: string;
+    reactors: string;
+    reactionCount: string;
+  };
 };
 
 export function normalizeLanguage(input?: string | null): LanguageCode {
@@ -817,6 +827,16 @@ const copy: Record<LanguageCode, Copy> = {
       pollTypeLabel: 'Poll type',
       createError: 'Failed to create poll. Please try again.',
     },
+    emoji: {
+      openPicker: 'Open emoji picker',
+      closePicker: 'Close emoji picker',
+      reactWith: 'React with emoji',
+      insertEmoji: 'Insert emoji',
+      removeReaction: 'Remove reaction',
+      couldntReact: "Couldn't react",
+      reactors: 'Reactors',
+      reactionCount: 'reactions',
+    },
   },
   de: {
     appName: 'Quizzl',
@@ -1224,6 +1244,16 @@ const copy: Record<LanguageCode, Copy> = {
       addOption: '+ Option hinzufügen',
       pollTypeLabel: 'Umfragetyp',
       createError: 'Umfrage konnte nicht erstellt werden. Bitte erneut versuchen.',
+    },
+    emoji: {
+      openPicker: 'Emoji-Auswahl öffnen',
+      closePicker: 'Emoji-Auswahl schließen',
+      reactWith: 'Mit Emoji reagieren',
+      insertEmoji: 'Emoji einfügen',
+      removeReaction: 'Reaktion entfernen',
+      couldntReact: 'Reaktion fehlgeschlagen',
+      reactors: 'Reagiert von',
+      reactionCount: 'Reaktionen',
     },
   },
 };

@@ -1,0 +1,84 @@
+{
+  "module_name": "reactions-store",
+  "purpose": "Owns reaction row persistence (idb-keyval), the in-memory module-singleton state map, subscriber registry for useSyncExternalStore, and the aggregation/query helpers. Produces Seam S2 (Reactions read API) and Seam S4 (inbound reaction ingest entry point).",
+  "public_api": [
+    {
+      "name": "loadReactions",
+      "signature": "loadReactions(thread: ReactionThreadKey): Promise<Reaction[]>",
+      "description": "Reads the idb-keyval namespace for the given thread in a single get() call (O(1) idb calls per thread). Populates the in-memory map. Returns all Reaction rows (including tombstoned rows) for the thread."
+    },
+    {
+      "name": "applyOptimistic",
+      "signature": "applyOptimistic(thread: ReactionThreadKey, row: Reaction): Promise<void>",
+      "description": "Appends the given optimistic Reaction row to the in-memory map and persists to idb-keyval. Notifies subscribers after the idb write resolves. The row must have eventId === '' (in-flight). Uses a per-thread serialized write queue."
+    },
+    {
+      "name": "rollbackOptimistic",
+      "signature": "rollbackOptimistic(thread: ReactionThreadKey, optimisticId: string): Promise<void>",
+      "description": "Removes the row matching optimisticId from the in-memory map and idb-keyval, but only if the row's eventId is empty string. Rows with a confirmed eventId are not removed. Notifies subscribers after the idb write resolves."
+    },
+    {
+      "name": "applyInboundRumor",
+      "signature": "applyInboundRumor(thread: ReactionThreadKey, rumor: { id: string; pubkey: string; created_at: number; content: string; tags: string[][] }): Promise<{ messageId: string } | null>",
+      "description": "Processes an inbound kind-7 wire rumor. Extracts messageId from the e-tag. Returns null (silent discard) if no row for that messageId exists in the thread's store (spec §2.4). Returns null if rumor.id already exists in the store (eventId dedup). If content === '-', sets removed: true on the matching (messageId, reactorPubkey, emoji) row. Otherwise upserts a Reaction row keyed on (messageId, reactorPubkey, emoji). Notifies subscribers after idb write resolves. Uses a per-thread serialized write queue."
+    },
+    {
+      "name": "aggregateForMessage",
+      "signature": "aggregateForMessage(rows: Reaction[], messageId: string, selfPubkey: string): ReactionAggregate[]",
+      "description": "Pure synchronous function. Filters rows by messageId, excludes removed rows, groups by emoji, counts, sorts reactors oldest-first by createdAt. Sets selfReacted true iff selfPubkey is among reactors."
+    },
+    {
+      "name": "subscribeReactions",
+      "signature": "subscribeReactions(thread: ReactionThreadKey, listener: () => void): () => void",
+      "description": "Registers a listener for the given thread namespace. Returns an unsubscribe function. Listeners are called after every write (applyOptimistic, rollbackOptimistic, applyInboundRumor). Thread key is used to scope listeners so cross-thread noise is suppressed."
+    },
+    {
+      "name": "ReactionAggregate",
+      "signature": "export interface ReactionAggregate { emoji: string; count: number; reactors: string[]; selfReacted: boolean; }",
+      "description": "Seam S2 output type. Reactors is in oldest-first order. selfReacted is true iff selfPubkey has a non-removed row for (messageId, emoji)."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/reactions/api.ts (idbKeyFor helper, write queues, in-memory map, listener registry — all module-private)"
+  ],
+  "owned_data": [
+    "In-memory Map<string, Reaction[]> keyed by idb namespace string (thread key)",
+    "Per-thread write queue Map<string, Promise<void>>",
+    "Per-thread listener Set<() => void> registry",
+    "idb-keyval namespaces: quizzl:reactions:group:{groupId} and quizzl:reactions:dm:{peerPubkeyHex}"
+  ],
+  "dependencies_allowed": [
+    "idb-keyval (existing project dependency)",
+    "app/src/lib/reactions/types.ts (Seam S1, story-01 output)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/components/* (no upward imports)",
+    "app/src/context/* (no upward imports)",
+    "app/src/pages/* (no upward imports)",
+    "react (no React import in lib/ — useSyncExternalStore pattern is exposed through subscriber callbacks, not React hooks in this module)",
+    "Any new npm package not already in package.json"
+  ],
+  "external_ports": [
+    "idb-keyval get/set — read/write reaction arrays per thread namespace"
+  ],
+  "events_emitted": [
+    "Subscriber listener() calls — fired after every idb write, scoped to the affected thread"
+  ],
+  "events_consumed": [
+    "Inbound kind-7 rumors via applyInboundRumor (called by MarmotContext case 7: and ContactChat gift-wrap path)"
+  ],
+  "test_targets": [
+    "app/tests/unit/reactions/api.test.ts"
+  ],
+  "seam_compliance": {
+    "S1": "Consumes Reaction and ReactionThreadKey from app/src/lib/reactions/types.ts (story-01 output, frozen)",
+    "S2": "Produces loadReactions, aggregateForMessage, subscribeReactions, applyInboundRumor, applyOptimistic, rollbackOptimistic — exact signatures match architecture.md Seam S2",
+    "S4": "applyInboundRumor is the single convergence point for both DM and group inbound paths; returns { messageId } or null per S4 invariants"
+  },
+  "idb_key_derivation": {
+    "group": "quizzl:reactions:group:{groupId}",
+    "dm": "quizzl:reactions:dm:{peerPubkeyHex}",
+    "note": "Inline idbKeyFor() pure function; no separate idbKeys.ts file needed"
+  },
+  "write_queue_design": "Per-thread Promise chain (same pattern as chatPersistence.ts appendQueues). Each namespace key maps to a pending Promise. Concurrent writes are serialized by chaining onto the previous promise."
+}

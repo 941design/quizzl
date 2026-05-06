@@ -1,0 +1,47 @@
+{
+  "story_id": "story-04-rumor-builder",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-05T17:44:30Z",
+  "verification_rounds": 2,
+  "files_created": [
+    "app/src/lib/reactions/rumor.ts",
+    "app/tests/unit/reactions/rumor.test.ts",
+    "specs/epic-emoji-feature/story-04-rumor-builder/baseline.json",
+    "specs/epic-emoji-feature/story-04-rumor-builder/architecture.json",
+    "specs/epic-emoji-feature/story-04-rumor-builder/verification.json",
+    "specs/epic-emoji-feature/story-04-rumor-builder/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/reactions/rumor.ts",
+    "app/tests/unit/reactions/rumor.test.ts"
+  ],
+  "implementation_summary": "buildReactionRumor (Seam S3) in app/src/lib/reactions/rumor.ts. Derives pubkey from selfPrivKeyHex via getPublicKey, builds kind-7 tag set (e/k/p conditional on targetAuthorPubkey), computes canonical NIP-01 id via getEventHash, returns UnsignedRumor with no sig field. isRemoval=true sets content='-' and adds ['emoji', glyph] tag for multi-emoji removal disambiguation (D2). Empty emoji throws synchronously. Private key is not retained after the function returns.",
+  "test_counts": {
+    "baseline": 546,
+    "final": 571,
+    "added": 25,
+    "breakdown": {
+      "unit": 25
+    }
+  },
+  "mocks_introduced": [],
+  "key_decisions": [
+    "UnsignedRumor type imported as type-only from lib/directMessages.ts (lib-to-lib, per architecture.md §3 boundary rule 2). No new type definition introduced.",
+    "hexToBytes is a private local helper — not exported, not imported from directMessages.ts, keeps rumor.ts self-contained with zero non-type runtime dependencies on other lib files.",
+    "getEventHash from nostr-tools/pure computes the canonical id (same function used by directMessages.ts:buildChatRumor and unwrapAndOpen). No noble/hashes direct usage needed.",
+    "Round-2 remediation: strict !== undefined check for targetAuthorPubkey so empty string throws instead of being silently treated as 'group path'. Truthy check was the round-1 implementation gap.",
+    "Round-2 remediation: explicit !isRemoval && emoji === '-' guard blocks a caller bug where the add path would produce content='-' without the ['emoji'] disambiguation tag, making it ambiguous on the receiver side.",
+    "['emoji', emoji] tag added only on isRemoval=true path, per the multi-emoji removal disambiguation contract surfaced in VQ-02-017 (story-02 round-1)."
+  ],
+  "verification_rounds": 2,
+  "remediation": [
+    {
+      "round": 1,
+      "gaps": ["targetAuthorPubkey empty string silently treated as group path (truthy check)", "emoji='-' on add path produced malformed rumor without disambiguation tag"],
+      "fixes": ["strict !== undefined check with explicit empty-string throw", "!isRemoval && emoji === '-' throw on add path"]
+    }
+  ],
+  "build_status": "green",
+  "test_status": "green"
+}

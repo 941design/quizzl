@@ -1,0 +1,8 @@
+{
+  "captured_at": "2026-05-05",
+  "test_files": 38,
+  "tests_passing": 476,
+  "tests_failing": 0,
+  "build_status": "green",
+  "notes": "Story-01 output (reactions/types.ts + reactions.i18n.test.ts) is present and passing. reactions.i18n.test.ts accounts for 2 of the 476 tests."
+}

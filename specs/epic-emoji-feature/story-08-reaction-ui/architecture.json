@@ -1,0 +1,67 @@
+{
+  "module_name": "chat-shell",
+  "purpose": "Lights up the full user-visible reaction surface: hover-triggered reaction picker anchored per bubble, badge row with own-reaction highlight and reactor tooltip, click-to-toggle. Consumes ReactionAggregate data from ChatStoreContext (groups) and useDirectReactions (DMs). Wires onReact prop through to EmojiReactionPicker and ReactionBadgeRow.",
+  "public_api": [
+    {
+      "name": "EmojiReactionPicker",
+      "signature": "React.FC<{ messageId: string; aggregates: ReactionAggregate[]; onReact: (emoji: string, message: ChatMessage, op: 'add' | 'remove') => Promise<void>; message: ChatMessage; selfPubkey: string }>",
+      "description": "Chakra Popover anchored to a reaction-trigger IconButton per message bubble. Renders the 24-glyph grid from CURATED_EMOJI. Closes on select, outside click, Escape. data-testid='reaction-trigger-{messageId}' on the trigger. data-testid='reaction-picker-glyph-{emoji}' on each glyph. Uses placement='top' with flip. initialFocusRef on first glyph."
+    },
+    {
+      "name": "ReactionBadgeRow",
+      "signature": "React.FC<{ messageId: string; aggregates: ReactionAggregate[]; onReact: (emoji: string, message: ChatMessage, op: 'add' | 'remove') => Promise<void>; message: ChatMessage; profileMap: Record<string, MemberProfile>; selfPubkey: string }>",
+      "description": "Renders one badge per unique emoji with count (omitted when count===1), selfReacted highlight (brand.50 bg + brand.300 border), click-to-toggle, Chakra Tooltip listing reactors. data-testid='reaction-badge-{messageId}-{emoji}' on badge button. data-testid='reaction-count-{messageId}-{emoji}' on count span. data-testid='reaction-tooltip-{messageId}-{emoji}' on tooltip."
+    },
+    {
+      "name": "computeReactOp",
+      "signature": "(aggregates: ReactionAggregate[], emoji: string) => 'add' | 'remove'",
+      "description": "Pure helper. Returns 'remove' iff aggregates contains an entry with agg.emoji===emoji and agg.selfReacted===true. Otherwise 'add'. Enforces D2 multi-emoji toggle policy. Exported for unit testing."
+    },
+    {
+      "name": "formatReactorList",
+      "signature": "(reactors: string[], displayNameCache: Map<string, string>, selfPubkey: string, maxDisplay?: number) => string",
+      "description": "Pure helper. Formats reactor list for tooltip text. Maps pubkeys to display names from cache (synchronous), substitutes truncated npub for uncached entries, shows 'you' for selfPubkey. Caps at maxDisplay (default 5) with '... and N others'. Exported for unit testing."
+    },
+    {
+      "name": "selfReactedStyle",
+      "signature": "(selfReacted: boolean) => { bg: string; borderColor: string; borderWidth: string }",
+      "description": "Pure helper. Returns Chakra style props for the highlighted vs normal badge state. selfReacted=true => brand.50 bg + brand.300 border. Exported for unit testing."
+    }
+  ],
+  "private_files": [
+    "app/src/components/chat/EmojiReactionPicker.tsx",
+    "app/src/components/chat/ReactionBadgeRow.tsx",
+    "app/tests/unit/chat/reactionUiHelpers.test.ts"
+  ],
+  "owned_data": [
+    "Local open/close disclosure state within EmojiReactionPicker (useDisclosure)",
+    "Hover state for touch long-press timer within the bubble wrapper in ChatBox"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/reactions/types.ts (S1 - CURATED_EMOJI, Reaction types)",
+    "app/src/lib/reactions/api.ts (S2 - ReactionAggregate type)",
+    "app/src/context/LanguageContext.tsx (useCopy)",
+    "app/src/lib/nostrKeys.ts (truncateNpub, pubkeyToNpub)",
+    "@chakra-ui/react (Popover, Tooltip, Box, Flex, IconButton, useDisclosure)",
+    "app/src/types.ts (MemberProfile - type-only)",
+    "app/src/lib/marmot/chatPersistence.ts (ChatMessage - type-only)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/ChatStoreContext.tsx (ChatBox reads from it; picker/badge must receive data via props only)",
+    "app/src/hooks/useDirectReactions.ts (same - data arrives via props)",
+    "Any npm package not already in package.json"
+  ],
+  "external_ports": [],
+  "events_emitted": [
+    "onReact(emoji, message, op) callback - triggers sendReaction (groups) or handleReact (DMs) in parent"
+  ],
+  "events_consumed": [
+    "reactionsByMessageId Map from ChatStoreContext (group surface, passed via ChatBox props)",
+    "reactionsByMessageId Map from useDirectReactions (DM surface, passed via ChatBox props)"
+  ],
+  "test_targets": [
+    "app/tests/unit/chat/reactionUiHelpers.test.ts - computeReactOp, formatReactorList, selfReactedStyle pure helpers",
+    "app/tests/e2e/groups-reactions.spec.ts - extended with picker UI flow, own-reaction highlight, click-to-toggle",
+    "app/tests/e2e/groups-dm-reactions.spec.ts - extended with DM picker UI flow; DM harness gap investigation"
+  ]
+}

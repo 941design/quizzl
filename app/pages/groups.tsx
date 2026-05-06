@@ -57,7 +57,7 @@ function ChatSendMessageCapture({ sendMessageRef }: { sendMessageRef: React.Muta
 
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
-  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, cancelPendingInvitation } = useMarmot();
+  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation } = useMarmot();
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const signer = useMemo(
     () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
@@ -314,8 +314,10 @@ function GroupDetailView({ id }: { id: string }) {
               groupId={group.id}
               group={mlsGroup}
               pubkey={pubkeyHex ?? ''}
+              privateKeyHex={privateKeyHex}
               signer={signer}
               chatVersion={chatVersion}
+              reactionsVersion={reactionsVersion}
             >
               <ChatSendMessageCapture sendMessageRef={sendAnnouncementRef} />
               <PollStoreProvider

@@ -1,0 +1,15 @@
+{
+  "unit_tests": {
+    "status": "pass",
+    "count": 571,
+    "command": "make test-unit"
+  },
+  "build": {
+    "status": "unknown",
+    "note": "Not run at baseline to save time; will be verified post-impl"
+  },
+  "e2e": {
+    "status": "unknown",
+    "note": "No e2e run at baseline; new spec file will be added"
+  }
+}

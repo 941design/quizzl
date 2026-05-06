@@ -1,0 +1,149 @@
+{
+  "story_id": "story-06-group-reactions",
+  "questions": [
+    {
+      "question_id": "VQ-06-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Are there any stub markers (TODO, FIXME, 'not implemented', placeholder comments) left in ChatStoreContext.tsx, MarmotContext.tsx, ChatBox.tsx, or GroupChat.tsx after the implementation? Are the sendReaction implementation and the case-7 branch free of dead code paths such as unreachable fallback branches or commented-out alternatives?"
+    },
+    {
+      "question_id": "VQ-06-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the sendReaction implementation in ChatStoreContext.tsx import only from app/src/lib/reactions/ and app/src/lib/marmot/chatPersistence (type-only)? Does MarmotContext.tsx's case-7 branch import applyInboundRumor via a dynamic import at call site (matching the existing chatPersistence dynamic import pattern at line ~566) rather than a top-level static import that could cause SSR issues?"
+    },
+    {
+      "question_id": "VQ-06-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the chat-store module (ChatStoreContext.tsx) be deleted and rewritten without modifying any file outside its dependencies_allowed list (lib/reactions/api.ts, lib/reactions/rumor.ts, lib/reactions/types.ts, lib/marmot/chatPersistence.ts, lib/i18n.ts, @internet-privacy/marmot-ts)? Specifically: does ChatStoreContext call any function defined in MarmotContext.tsx directly (e.g. sendRumorSafe module-level function)? If it does, does that call flow through a declared seam contract in architecture.md, or is it an undeclared cross-module dependency that the verifier should flag?"
+    },
+    {
+      "question_id": "VQ-06-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/marmot/groupReactions.test.ts cover all four branches: (a) sendReaction happy path asserts applyOptimistic called first with randomUUID id, then buildReactionRumor with targetAuthorPubkey undefined, then sendApplicationRumor; (b) sendReaction failure path asserts rollbackOptimistic called and toast key emoji.couldntReact surfaced; (c) inbound kind-7 dispatch asserts applyInboundRumor called with correct thread key and rumor shape; (d) inbound kind-7 with unknown target message id results in silent discard (no error thrown, applyInboundRumor returns null)? Are all assertions on call shapes, not just on call counts?"
+    },
+    {
+      "question_id": "VQ-06-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the implementation match the story summary's requirement that the kind-7 rumor is built with targetAuthorPubkey: undefined (so no p tag is emitted per spec §3.3)? Is this exercised by a test that inspects the actual tags array of the built rumor and asserts the absence of any ['p', ...] tag?"
+    },
+    {
+      "question_id": "VQ-06-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does sendReaction guard against empty or whitespace-only emoji strings before calling buildReactionRumor (which itself throws on empty emoji)? Is the privateKeyHex passed to buildReactionRumor not logged, not stored in any React state, and not included in any error message surfaced to the UI? Does the ChatStoreProvider never expose privateKeyHex on the context value object?"
+    },
+    {
+      "question_id": "VQ-06-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-34",
+      "question": "AC-34 requires that ChatStoreContext exposes sendReaction(emoji: string, targetMessage: ChatMessage, isRemoval?: boolean): Promise<void> accessible via useChatStore(). Is the function present on the ChatStoreContextValue TypeScript interface (not just on the provider implementation)? Does a test or the TypeScript build confirm the exact signature, and does calling useChatStore() outside the provider still return a safe no-op default (matching the pattern of the existing default context value)?"
+    },
+    {
+      "question_id": "VQ-06-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-35",
+      "question": "AC-35 requires that calling sendReaction immediately calls applyOptimistic with an optimistic Reaction row whose id is crypto.randomUUID() before any async operation. Is applyOptimistic called synchronously (await of applyOptimistic counts) before the await of buildReactionRumor and sendApplicationRumor? Does the unit test assert the call order — applyOptimistic first, then sendApplicationRumor second — using call-order assertions or spy ordering?"
+    },
+    {
+      "question_id": "VQ-06-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-36",
+      "question": "AC-36 requires that after sendReaction resolves, buildReactionRumor is called with targetAuthorPubkey: undefined and the resulting rumor is passed to sendRumorSafe. Does the implementation call group.sendApplicationRumor (or a retry wrapper around it) with the exact rumor returned by buildReactionRumor, without wrapping it in a second buildRumor call (which would double-compute the id and create a different hash)? Does a unit test assert that the rumor passed to sendApplicationRumor has kind 7, the correct emoji in content, and no p tag?"
+    },
+    {
+      "question_id": "VQ-06-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-37",
+      "question": "AC-37 requires that if sendRumorSafe rejects, rollbackOptimistic removes the optimistic row and ChatBox displays a toast with text equal to copy.emoji.couldntReact. Is the toast surfaced via useCopy() (no hardcoded string literal)? Is rollbackOptimistic awaited before the toast is shown (so the UI is consistent — badge gone before the error message appears)? Does a unit test spy on rollbackOptimistic and a toast mock and assert both are called on rejection?"
+    },
+    {
+      "question_id": "VQ-06-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-38",
+      "question": "AC-38 requires that MarmotContext.tsx applicationMessage dispatch contains a case 7 branch (implemented as else if (rumor.kind === 7)) that calls applyInboundRumor({ kind: 'group', groupId }, rumor) and on a non-null return bumps a reactionsVersion counter. Is reactionsVersion added to MarmotContextValue with the same pattern as chatVersion (useState + setReactionsVersion)? Is reactionsVersion passed into ChatStoreProvider so the reactions re-read can be triggered? Does the e2e test observe a badge appearing on the receiver tab within a reasonable timeout after the sender reacts?"
+    },
+    {
+      "question_id": "VQ-06-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-39",
+      "question": "AC-39 requires that a kind-7 rumor whose e tag references a message id not in the local group message store is silently discarded by applyInboundRumor without logging an error. Given that applyInboundRumor in api.ts checks the local reaction store for an existing row with the same messageId (not the message store directly), does the implementation correctly handle the case where the reaction store is empty (no rows yet for this group) — which is the common case for the first reaction? Does the code confirm a message exists via a different mechanism (e.g. checking the chat message store), or does it rely on api.ts's existing row-based check? If the latter, does the unit test demonstrate that the first inbound reaction to a brand-new group (empty reaction store) is correctly processed and not silently discarded?"
+    },
+    {
+      "question_id": "VQ-06-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-40",
+      "question": "AC-40 requires a multi-emoji E2E test in app/tests/e2e/groups-reactions.spec.ts verifying that tab A sends a kind-7 group reaction, tab B's message bubble gains a badge row, and tab A can attach a second distinct emoji to the same message without removing the first. Does the E2E test use the window.__quizzlReactions state-injection bridge to send reactions (as specified in the story brief), or does it interact with actual UI affordances? If it uses the bridge, is the bridge guarded by process.env.NODE_ENV !== 'production' to keep production code unchanged? Does the test assert that two distinct badge elements are visible on tab B after both reactions are sent?"
+    },
+    {
+      "question_id": "VQ-06-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-54",
+      "question": "AC-54 (cross-story multi-emoji invariant) requires that calling onReact on an emoji the user has already applied calls sendReaction with isRemoval: true, and calling it on a new emoji calls the add path without removing other reactions. Is this invariant enforced in ChatStoreContext.sendReaction itself (by checking the current reaction state before calling buildReactionRumor), or is it enforced at the call site (GroupChat / ChatBox)? Is the enforcement layer tested — specifically, does a test assert that two sequential add calls for different emojis on the same message result in two non-removed rows (not a replacement)?"
+    },
+    {
+      "question_id": "VQ-06-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-55",
+      "question": "AC-55 requires that ChatBox.tsx accepts an onReact(emoji: string, message: ChatMessage, op: 'add' | 'remove') => Promise<void> prop and that GroupChat.tsx supplies it by wrapping ChatStoreContext.sendReaction. Does the ChatBoxProps TypeScript type include onReact as an optional prop (since DM surfaces will also supply it)? Does GroupChat.tsx wrap sendReaction to translate op='add'/'remove' into the isRemoval boolean correctly (op==='remove' → isRemoval=true, op==='add' → isRemoval=false)? Does make build confirm no TypeScript errors on the prop threading?"
+    },
+    {
+      "question_id": "VQ-06-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-59",
+      "question": "AC-59 requires that after sendRumorSafe rejects, the reaction badge row returns to its pre-optimistic state within one render cycle of the rollback call. Is rollbackOptimistic called inside the catch block of sendReaction before any state-setting that might delay the rollback? Is there a test that asserts the reactions map no longer contains the optimistic row after rollback (not just that rollbackOptimistic was called, but that the observable state is correct)?"
+    },
+    {
+      "question_id": "VQ-06-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-61",
+      "question": "AC-61 requires that for group reactions, the on-the-wire event is kind 445 (MLS application message) and no kind-7 appears in plaintext on any relay. Is this verifiable by the E2E test (e.g. strfry log inspection or relay event filter)? At minimum, does the test assert that sendApplicationRumor is the only publish path used — not ndk.publish or any relay-direct publish — so the architecture guarantee holds even without a live relay assertion?"
+    }
+  ,
+    {
+      "question_id": "VQ-06-018",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "ChatBox.tsx now imports useChatStore from context/ChatStoreContext. In DM contexts (ContactChat.tsx uses ChatBox), the ChatStoreProvider is NOT mounted, so useChatStore() returns the default value (empty reactionsByMessageId Map). Does this cause any visible error or unexpected behavior in DM chat? Verify that the default context value's reactionsByMessageId is a stable empty Map and does not trigger unnecessary re-renders."
+    },
+    {
+      "question_id": "VQ-06-019",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The optimistic row reconciliation relies on applyInboundRumor finding an existing row with the same (messageId, reactorPubkey, emoji) triple and updating its eventId. But the optimistic row has reactorPubkey = pubkey (local user's pubkey), and the inbound echo rumor has pubkey = the rumor's pubkey (derived from selfPrivKeyHex via getPublicKey). Are these guaranteed to match? If getPublicKey(hexToBytes(privateKeyHex)) does not equal the pubkey prop passed to ChatStoreProvider, the reconciliation will fail and a phantom row will persist."
+    },
+    {
+      "question_id": "VQ-06-020",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The unit test suite has 17 new tests in groupReactions.test.ts. None of them test the actual sendReaction function in ChatStoreContext (which requires a React context and marmot-ts group mock). The sendReaction implementation is tested only through its constituent parts (applyOptimistic, buildReactionRumor, rollbackOptimistic). Does the verifier judge this acceptable coverage, or should an additional integration test drive sendReaction through a mock ChatStoreProvider?"
+    },
+    {
+      "question_id": "VQ-06-021",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The sendReaction function in ChatStoreContext.tsx re-throws with Object.assign(err, { couldntReact: true }) to signal the toast to callers. This is an unusual error signaling pattern. Is there a cleaner approach (e.g. a dedicated error class, or handling the toast directly in sendReaction via a toast hook)? The current approach works but couples the caller to a non-standard error shape. Flag for story-08 refactor if the verifier finds it problematic."
+    },
+    {
+      "question_id": "VQ-06-022",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The reactions re-subscription effect in ChatStoreContext depends on [groupId, pubkey, reactionsVersion]. The reactionsVersion from MarmotContext triggers a loadReactions + recompute cycle. However, the subscribeReactions listener also triggers recompute on every write. This means on an inbound reaction, recompute fires twice: once from the subscribeReactions listener (driven by applyInboundRumor in the MarmotContext kind-7 dispatch) and once from the reactionsVersion bump. This is harmless but redundant. Does the verifier judge this a performance issue worth addressing?"
+    }
+  ]
+}

@@ -152,6 +152,8 @@ type MarmotContextValue = {
   groupDataVersion: number;
   /** Monotonically increasing counter bumped on each received poll message */
   pollVersion: number;
+  /** Monotonically increasing counter bumped on each successfully applied inbound kind-7 reaction */
+  reactionsVersion: number;
   /** Pending join requests per group (loaded on demand) */
   pendingRequests: Record<string, import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest[]>;
   /** Load pending join requests for a group from IDB into state */
@@ -196,6 +198,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const [pendingRequests, setPendingRequests] = useState<Record<string, import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest[]>>({});
   // Bumped on every incoming poll message so PollStoreContext can re-read from IDB
   const [pollVersion, setPollVersion] = useState(0);
+  // Bumped on every successfully applied inbound kind-7 reaction (S4, AC-38)
+  const [reactionsVersion, setReactionsVersion] = useState(0);
   // Track discoverability status
   const [discoverable, setDiscoverable] = useState(false);
 
@@ -640,6 +644,39 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                     });
                   }).catch((err: unknown) => console.warn('[Marmot] poll close failed:', err));
                 }
+              } else if (rumor.kind === 7) {
+                // Seam S4 — inbound group reaction ingest (story-06, AC-38).
+                // Dynamic import mirrors the chatPersistence pattern above (SSR safety).
+                void (async () => {
+                  // Dispatcher gate (pre-work fix, story-07, AC-39):
+                  // The leaf module (applyInboundRumor) always upserts now. The "silent
+                  // discard for unknown messageId" rule is enforced here at the dispatcher.
+                  // loadMessages is bounded by the visible-thread message count and is
+                  // an infrequent (per-reaction) idb read, acceptable per spec §2.4.
+                  const targetETag = rumor.tags?.find((t: string[]) => t[0] === 'e');
+                  const targetMessageId = targetETag?.[1];
+                  if (!targetMessageId) return; // malformed rumor — no e-tag
+
+                  const { loadMessages: loadMsgs } = await import('@/src/lib/marmot/chatPersistence');
+                  const existingMessages = await loadMsgs(group.id).catch(() => [] as import('@/src/lib/marmot/chatPersistence').ChatMessage[]);
+                  const messageIsKnown = existingMessages.some((m: import('@/src/lib/marmot/chatPersistence').ChatMessage) => m.id === targetMessageId);
+                  if (!messageIsKnown) return; // silent discard per AC-39, spec §2.4
+
+                  const { applyInboundRumor } = await import('@/src/lib/reactions/api');
+                  const result = await applyInboundRumor(
+                    { kind: 'group', groupId: group.id },
+                    rumor,
+                  ).catch((err: unknown) => {
+                    console.warn('[Marmot] applyInboundRumor failed:', err);
+                    return null;
+                  });
+                  if (result !== null) {
+                    // Non-null return means the store was written — bump the counter
+                    // so ChatStoreContext can re-read aggregated reactions.
+                    setReactionsVersion((v) => v + 1);
+                  }
+                  // null return is a silent discard (dedup, etc.)
+                })();
               }
             },
             // Refresh memberPubkeys from MLS state after ingesting any event
@@ -1145,6 +1182,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       chatVersion,
       groupDataVersion,
       pollVersion,
+      reactionsVersion,
       pendingRequests,
       loadPendingRequestsForGroup,
       approveJoinRequest,
@@ -1172,6 +1210,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       chatVersion,
       groupDataVersion,
       pollVersion,
+      reactionsVersion,
       pendingRequests,
       loadPendingRequestsForGroup,
       approveJoinRequest,
@@ -1209,6 +1248,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   chatVersion: 0,
   groupDataVersion: 0,
   pollVersion: 0,
+  reactionsVersion: 0,
   pendingRequests: {},
   loadPendingRequestsForGroup: NOOP_ASYNC,
   approveJoinRequest: async () => ({ ok: false, error: 'not_ready' }),

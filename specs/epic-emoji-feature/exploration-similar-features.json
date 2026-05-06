@@ -1,0 +1,363 @@
+{
+  "focus": "similar-features",
+  "key_files": [
+    {
+      "path": "/Users/mrother/Projects/941design/quizzl/app/src/components/chat/ChatBox.tsx",
+      "lines": "1-553",
+      "reason": "Shared render shell for both DM and group bubbles. Houses the compose toolbar (ImageAttachmentButton + Textarea + IconButton). The emoji trigger button and picker popover both live here. The message bubble slot (lines 396-423) is where reaction badges attach."
+    },
+    {
+      "path": "/Users/mrother/Projects/941design/quizzl/app/src/context/ChatStoreContext.tsx",
+      "lines": "1-257",
+      "reason": "Group chat send path and inbound applicationMessage dispatch. The kind-dispatch switch (line 124) is where a case for reaction kind must be added. Optimistic send pattern with tempId (lines 177-197) is the template for reaction optimistic UI."
+    },
+    {
+      "path": "/Users/mrother/Projects/941design/quizzl/app/src/context/MarmotContext.tsx",
+      "lines": "530-643",
+      "reason": "Inbound rumor kind dispatch for groups (lines 530-643). The if/else-if chain at line 534+ is where a reaction kind branch slots in. sendRumorSafe+buildRumor helpers at lines 72-110 are the canonical pattern for group outbound publishing."
+    },
+    {
+      "path": "/Users/mrother/Projects/941design/quizzl/app/src/lib/marmot/chatPersistence.ts",
+      "lines": "1-92",
+      "reason": "idb-keyval persistence layer for messages. Key pattern quizzl:messages:{groupId}, serialized append queue. Reactions table must follow the same key convention and queue pattern."
+    },
+    {
+      "path": "/Users/mrother/Projects/941design/quizzl/app/src/lib/directMessages.ts",
+      "lines": "1-315",
+      "reason": "DM outbound publish path: signDirectMessage at line 126 builds+signs kind-4, publishDirectMessage at line 149 publishes. Reaction kind-7 for DMs must follow the same sign-then-publish, NIP-04 encrypted payload pattern."
+    },
+    {
+      "path": "/Users/mrother/Projects/941design/quizzl/app/src/components/contacts/ContactChat.tsx",
+      "lines": "1-228",
+      "reason": "DM inbound ingestion: ingestEvent (line 60) decrypts and produces ChatMessage. Outbound sendMessage (line 144) demonstrates real-event-id optimistic pattern for DMs. Reaction send for DMs mirrors both."
+    },
+    {
+      "path": "/Users/mrother/Projects/941design/quizzl/app/src/lib/marmot/pollPersistence.ts",
+      "lines": "1-152",
+      "reason": "Closest existing model for a secondary IDB table alongside messages. The per-key write-queue pattern (lines 67-78) and key prefix quizzl:polls:{groupId} are exactly the shape the reactions table should replicate."
+    },
+    {
+      "path": "/Users/mrother/Projects/941design/quizzl/app/src/lib/marmot/pollSync.ts",
+      "lines": "1-112",
+      "reason": "Template for a new rumor-kind serialise/parse pair (POLL_OPEN_KIND=10, POLL_VOTE_KIND=11, POLL_CLOSE_KIND=12). A reaction kind (e.g. kind 7 within MLS application messages) would follow the same module shape."
+    },
+    {
+      "path": "/Users/mrother/Projects/941design/quizzl/app/src/components/groups/ImageAttachmentButton.tsx",
+      "lines": "1-57",
+      "reason": "Pattern for a single IconButton in the ChatBox toolbar. The emoji trigger button must mimic this: size=sm, variant=ghost, IconButton wrapper, no state in the button itself."
+    },
+    {
+      "path": "/Users/mrother/Projects/941design/quizzl/app/src/lib/marmot/welcomeSubscription.ts",
+      "lines": "185-299",
+      "reason": "subscribeToGroupMessages — the live and historical kind-445 subscription that calls onApplicationMessage for all decrypted group rumors. The resolver callback is the only entry point for new inbound rumor kinds."
+    }
+  ],
+  "findings": {
+    "1_message_bubble_rendering": {
+      "summary": "Both DM and group surfaces render through a single shared component: ChatBox.tsx. GroupChat.tsx (line 12) is a thin wrapper that reads from useChatStore and passes props down. ContactChat.tsx (line 215) directly instantiates ChatBox.",
+      "bubble_slot": "Each message is a <Flex direction='column'> at ChatBox.tsx:396. The inner <Box> at line 413 wraps the bubble itself (text, image, poll, announcement). There is currently NO row below the bubble for badges — the Flex column ends after renderStructuredMessage. Reaction badges would be inserted as a new child of the column <Flex direction='column'> immediately after the <Box> at line 413.",
+      "accessory_rows_already_present": [
+        {
+          "kind": "sender name + timestamp row",
+          "file": "ChatBox.tsx",
+          "lines": "397-411",
+          "note": "Rendered only for the first message in a group (grouped=false). Direction flips per isSelf."
+        },
+        {
+          "kind": "image bubble variant",
+          "file": "ChatBox.tsx",
+          "lines": "287-297",
+          "note": "ImageMessageBubble replaces the text box in renderStructuredMessage."
+        },
+        {
+          "kind": "poll announcement / results",
+          "file": "ChatBox.tsx",
+          "lines": "255-286",
+          "note": "Structured messages of type poll_open/poll_close/invite_cancelled replace the text bubble with a dedicated component."
+        }
+      ],
+      "no_existing_below_bubble_row": true
+    },
+    "2_compose_area_input": {
+      "summary": "The compose area is a fixed <Flex p={2} gap={2} align='flex-end'> at ChatBox.tsx:510-539.",
+      "toolbar_children_left_to_right": [
+        {
+          "component": "ImageAttachmentButton",
+          "file": "ChatBox.tsx",
+          "line": 511,
+          "type": "IconButton size=sm variant=ghost"
+        },
+        {
+          "component": "Textarea",
+          "file": "ChatBox.tsx",
+          "lines": "512-529",
+          "testid": "chat-input",
+          "note": "Auto-grow, rows=1, maxH=128px, resize=none. Handles Enter-to-send and paste-image."
+        },
+        {
+          "component": "Send IconButton",
+          "file": "ChatBox.tsx",
+          "lines": "530-538",
+          "type": "IconButton size=sm colorScheme=brand",
+          "testid": "chat-send-btn"
+        }
+      ],
+      "emoji_trigger_slot": "A new IconButton matching the ImageAttachmentButton pattern (size=sm, variant=ghost) would be inserted between ImageAttachmentButton (line 511) and the Textarea (line 512) — OR between Textarea and Send to keep attachment affordances left-aligned.",
+      "image_attachment_button_pattern": "ImageAttachmentButton.tsx:10 — IconButton wraps a hidden <input type=file>. Emoji trigger would be simpler: just an IconButton toggling a popover/portal state."
+    },
+    "3_outbound_dm_publishing": {
+      "summary": "DMs use kind 4 (NIP-04 symmetric encryption, NOT NIP-17/59 gift wrap). The payload is a JSON blob encrypted with nip04.encrypt.",
+      "sign_function": {
+        "file": "directMessages.ts",
+        "lines": "126-147",
+        "name": "signDirectMessage",
+        "returns": "NDKEvent (signed, not yet published)",
+        "note": "Builds payload via buildPayload, encrypts via encryptDirectPayload (nip04.encrypt), creates NDKEvent kind=4 with ['p', peerPubkeyHex] tag, calls event.sign()"
+      },
+      "publish_function": {
+        "file": "directMessages.ts",
+        "lines": "149-159",
+        "name": "publishDirectMessage",
+        "note": "Calls signDirectMessage then event.publish(). Returns event.id."
+      },
+      "ndk_client": {
+        "file": "ndkClient.ts",
+        "note": "connectNdk(privateKeyHex) is called before signing in ContactChat.tsx:151"
+      },
+      "reaction_kind7_slot": "A reaction for DMs would call signDirectMessage (or a new signDirectReaction helper) with kind=7 instead of kind=4, content=emoji, and a ['e', targetEventId] tag — or encrypted similarly if NIP-04 wrap is used. The existing encryptDirectPayload/nip04.encrypt path is the model. ContactChat.sendMessage at line 144 is the pattern to copy for fire-and-forget reaction publish.",
+      "note_on_nip17": "The codebase uses kind 4 (NIP-04), NOT kind 14/13/59 gift-wrap. DIRECT_MESSAGE_KIND is hardcoded to 4 at directMessages.ts:7. The spec's mention of kind-14/13 does not match the current transport."
+    },
+    "4_outbound_mls_group_publishing": {
+      "summary": "Group messages use marmot-ts sendApplicationRumor, wrapped by buildRumor + sendRumorSafe in MarmotContext.",
+      "build_rumor": {
+        "file": "MarmotContext.tsx",
+        "lines": "99-110",
+        "name": "buildRumor",
+        "signature": "(kind: number, content: string, pubkey: string, tags: string[][]) => rumor",
+        "note": "Uses getEventHash from applesauce-core to compute the id field. This is the canonical rumor constructor."
+      },
+      "send_rumor_safe": {
+        "file": "MarmotContext.tsx",
+        "lines": "72-96",
+        "name": "sendRumorSafe",
+        "note": "Calls group.sendApplicationRumor(rumor). Retries up to MAX_RETRIES=3 after committing unapplied proposals. softFail option available for non-critical sends."
+      },
+      "chat_send_via_context": {
+        "file": "ChatStoreContext.tsx",
+        "lines": "35-47",
+        "name": "sendChatSafe",
+        "note": "Calls group.sendChatMessage(content). This is a higher-level wrapper that does not use buildRumor — it exists for the simple text path only. Reactions must use buildRumor+sendRumorSafe directly (as profile/score/poll updates do)."
+      },
+      "usage_examples_in_marmotcontext": [
+        {
+          "use_case": "score rumor",
+          "kind": "SCORE_RUMOR_KIND=1",
+          "file": "MarmotContext.tsx",
+          "line": 955
+        },
+        {
+          "use_case": "profile rumor",
+          "kind": "PROFILE_RUMOR_KIND=6",
+          "file": "MarmotContext.tsx",
+          "line": 999
+        }
+      ],
+      "reaction_slot": "A new reaction send would call buildRumor(REACTION_KIND, emoji, pubkeyHex, [['e', targetMessageId]]) then sendRumorSafe(mlsGroup, rumor)."
+    },
+    "5_inbound_rumor_ingestion": {
+      "dm_decrypt": {
+        "file": "ContactChat.tsx",
+        "lines": "60-77",
+        "name": "ingestEvent",
+        "note": "Calls decryptDirectPayload (nip04.decrypt). Returns ChatMessage or null. NDK subscription events at lines 121-122 call this handler. No kind dispatch — all kind-4 events are treated as chat messages."
+      },
+      "group_decrypt_and_dispatch": {
+        "file": "MarmotContext.tsx",
+        "lines": "530-643",
+        "note": "The onApplicationMessage callback in subscribeToGroupMessages receives already-decrypted rumors. Kind dispatch is an if/else-if chain: SCORE_RUMOR_KIND (line 534), PROFILE_RUMOR_KIND (line 541), CHAT_MESSAGE_KIND=9 (line 564), POLL_OPEN_KIND=10 (line 589), POLL_VOTE_KIND=11 (line 606), POLL_CLOSE_KIND=12 (line 625). A reaction kind case is inserted here."
+      },
+      "group_subscription_entry_point": {
+        "file": "welcomeSubscription.ts",
+        "lines": "185-299",
+        "name": "subscribeToGroupMessages",
+        "note": "EpochResolver.ingestEvent processes kind-445 events. Decrypted application messages are emitted via onApplicationMessage callback. No kind filtering here — all kinds reach the callback."
+      },
+      "react_layer_handoff": {
+        "group": "MarmotContext bumps chatVersion counter (line 585) after appendMessage; ChatStoreContext re-reads IDB on chatVersion change (lines 159-169). The applicationMessage event on the MarmotGroup object (ChatStoreContext.tsx:146) is also a live path for self-sent messages.",
+        "dm": "ContactChat upsertMessages (line 52) merges into React state from NDK subscription or ingest batch. No external bus — direct setState."
+      },
+      "gift_wrap_for_dm": {
+        "file": "welcomeSubscription.ts",
+        "lines": "29-57",
+        "name": "unwrapGiftWrap",
+        "note": "NIP-59 two-layer decrypt (gift wrap kind 1059 -> seal kind 13 -> rumor). Used for MLS Welcome messages and join requests. NOT used for DMs (those are plain kind-4)."
+      }
+    },
+    "6_persistence_layer": {
+      "storage_primitives": [
+        {
+          "lib": "idb-keyval",
+          "note": "Only IndexedDB library in use. Both custom createStore() named stores and the default store are used."
+        },
+        {
+          "lib": "localStorage",
+          "note": "Used for settings, user profile, identity keys, unread timestamps, processed gift-wrap IDs. Not for messages or reactions."
+        }
+      ],
+      "message_store": {
+        "file": "chatPersistence.ts",
+        "lines": "1-92",
+        "idb_key_pattern": "quizzl:messages:{groupId}",
+        "store": "default idb-keyval store",
+        "write_pattern": "serialized promise queue (appendQueues Map at line 42) — one queue per key, prevents concurrent write races"
+      },
+      "poll_store": {
+        "file": "pollPersistence.ts",
+        "lines": "1-152",
+        "idb_key_pattern": "quizzl:polls:{groupId} and quizzl:poll-votes:{pollId}",
+        "store": "default idb-keyval store",
+        "write_pattern": "same serialized queue pattern (writeQueues Map at line 67)"
+      },
+      "media_store": {
+        "file": "mediaPersistence.ts",
+        "lines": "1-104",
+        "idb_stores": ["quizzl-media-blobs / blobs", "quizzl-media-meta / meta"],
+        "note": "Named createStore() stores for large blobs"
+      },
+      "group_metadata_stores": {
+        "file": "groupStorage.ts",
+        "lines": "26-30",
+        "idb_stores": ["quizzl-groups-meta/groups", "quizzl-groups-state/state", "quizzl-keypackages/keypackages", "quizzl-member-scores/scores", "quizzl-member-profiles/profiles"]
+      },
+      "reactions_table_recommendation_suppressed": "Reactions should follow pollPersistence.ts pattern: quizzl:reactions:{groupId} in the default store, per-key write queue, clearAllReactions scans by key prefix.",
+      "clearAllData_integration": {
+        "file": "storage.ts",
+        "lines": "223-237",
+        "note": "clearAccountScopedIdbData runs all clear tasks with Promise.allSettled. Reactions clear must be added here."
+      }
+    },
+    "7_identity_scoping": {
+      "summary": "Active identity is a single keypair stored in localStorage, loaded by NostrIdentityContext.",
+      "fields": {
+        "pubkeyHex": "NostrIdentityContext line 39 — hex public key, used as senderPubkey in ChatMessage",
+        "privateKeyHex": "NostrIdentityContext line 41 — passed to connectNdk and signing functions",
+        "seedHex": "NostrIdentityContext line 43 — 128-bit seed for BIP-39 backup"
+      },
+      "consumed_by": [
+        {
+          "file": "ContactChat.tsx",
+          "line": 42,
+          "note": "pubkeyHex and privateKeyHex passed as props from the contacts page"
+        },
+        {
+          "file": "ChatStoreContext.tsx",
+          "line": 66,
+          "note": "pubkey prop identifies self in optimistic entries"
+        },
+        {
+          "file": "MarmotContext.tsx",
+          "line": 172,
+          "note": "useNostrIdentity() — pubkeyHex threaded into buildRumor and sendRumorSafe"
+        }
+      ],
+      "reaction_identity_scoping": "The spec's identity_id for scoping reaction rows is pubkeyHex. chatPersistence already scopes by groupId (not by pubkeyHex). DM store uses dm:{peerPubkeyHex} as groupId. Reactions should scope the same way: reactions are per-thread (groupId), not per-identity globally.",
+      "note_no_multi_identity": "No multi-identity support. There is exactly one active keypair at a time."
+    },
+    "8_optimistic_ui_patterns": {
+      "group_chat_optimistic": {
+        "file": "ChatStoreContext.tsx",
+        "lines": "171-198",
+        "pattern": "tempId = crypto.randomUUID(), optimistic ChatMessage added to state before await sendChatSafe. On failure, filter out by tempId. No real-id reconciliation for group messages — the real rumor id is never assigned to the optimistic entry; the real entry arrives via the applicationMessage event callback (line 120-140) and is deduplicated by id in setMessages.",
+        "caveat": "Group optimistic entries keep their tempId permanently unless the inbound live rumor matches. This means a sent group message can briefly show twice (tempId version + rumor version) — the setMessages dedup at line 135 prevents that for the live rumor."
+      },
+      "dm_chat_optimistic": {
+        "file": "ContactChat.tsx",
+        "lines": "144-168",
+        "pattern": "For text DMs: sign first to get the real event.id before publish, insert optimistic under real id immediately. On failure, filter out by event.id. NDK echo race is avoided because tempId === realId from the start (see comment at line 148).",
+        "for_image_dm": {
+          "file": "ContactChat.tsx",
+          "lines": "170-209",
+          "pattern": "tempId = crypto.randomUUID(), then after upload+publish, swap tempId for result.eventId via filter+splice at line 200-203."
+        }
+      },
+      "reaction_optimistic_shape": "Reactions should use DM-style real-id-first for DMs (sign first, get id, insert, publish) and tempId-then-drop for groups (insert under tempId, remove on failure, let live rumor insert the canonical entry)."
+    },
+    "9_hover_long_press_affordances": {
+      "summary": "No hover or long-press affordances exist on message bubbles in ChatBox.tsx. The only _hover styles are on the new-messages badge (line 444) and the image-retry button (line 503). There are no onContextMenu handlers, no per-bubble menus, no copy/delete/reply actions.",
+      "implication": "The emoji reaction trigger must introduce the first bubble-level interactive affordance. There is no existing pattern to follow for hover menus on bubbles — this is net-new UX for the project.",
+      "closest_pattern": {
+        "file": "ChatBox.tsx",
+        "lines": "430-449",
+        "note": "The new-messages badge uses position=sticky, bottom=3 inside the scroll container, with _hover={{ opacity: 0.9 }} — the only precedent for an overlay element within the message list area."
+      },
+      "no_copy_delete_reply": true
+    }
+  },
+  "patterns": [
+    {
+      "name": "buildRumor + sendRumorSafe for group outbound",
+      "description": "All non-chat group application messages (score, profile, poll) use buildRumor(kind, content, pubkey) then sendRumorSafe(mlsGroup, rumor) with optional softFail. getEventHash from applesauce-core computes the rumor id.",
+      "see": "MarmotContext.tsx:72-110"
+    },
+    {
+      "name": "pollSync-style kind module",
+      "description": "Each rumor kind has a paired serialise/parse module (scoreSync.ts, profileSync.ts, pollSync.ts). The module exports KIND constant, serialiseX, and parseX with null-on-invalid returns.",
+      "see": "pollSync.ts:1-112"
+    },
+    {
+      "name": "idb-keyval serialized write queue",
+      "description": "Every persistent store that may receive concurrent writes uses a per-key promise chain (appendQueues / writeQueues Map) to serialize concurrent appends and prevent lost updates.",
+      "see": "chatPersistence.ts:42-58, pollPersistence.ts:67-78"
+    },
+    {
+      "name": "chatVersion / pollVersion counter bump pattern",
+      "description": "MarmotContext holds monotonically increasing version counters. After IDB write succeeds, it bumps the counter (.then(() => setChatVersion(v => v+1))). Consumers (ChatStoreContext, PollStoreContext) re-read IDB in a useEffect on the counter change.",
+      "see": "MarmotContext.tsx:585-586, ChatStoreContext.tsx:159-169"
+    },
+    {
+      "name": "IconButton size=sm variant=ghost for toolbar accessory",
+      "description": "Every non-send toolbar button is an IconButton with size=sm, variant=ghost. The send button uses colorScheme=brand. New emoji trigger must match this.",
+      "see": "ChatBox.tsx:530-538, ImageAttachmentButton.tsx:37-47"
+    },
+    {
+      "name": "tempId optimistic + inbound dedup for group messages",
+      "description": "Group send inserts a crypto.randomUUID() optimistic entry, then the real rumor arrives via applicationMessage callback and is deduplicated by id in setMessages. No explicit swap.",
+      "see": "ChatStoreContext.tsx:177-197, 135"
+    },
+    {
+      "name": "real-event-id optimistic for DM text messages",
+      "description": "DM text send signs first (getting the real id), inserts under the real id optimistically, then publishes. Eliminates the NDK echo duplicate race entirely.",
+      "see": "ContactChat.tsx:144-168"
+    }
+  ],
+  "conventions": [
+    {
+      "convention": "All user-facing strings go through useCopy() / i18n.ts Copy type",
+      "evidence": "ChatBox.tsx:95 copy = useCopy(); strings like copy.groups.chatLoading at line 343"
+    },
+    {
+      "convention": "Dynamic routes use query params not path segments",
+      "evidence": "CLAUDE.md: 'Use query parameters instead of path segments for client-side dynamic data'"
+    },
+    {
+      "convention": "IDB key prefix quizzl: for default store entries",
+      "evidence": "chatPersistence.ts:30 quizzl:messages:{groupId}, pollPersistence.ts:51 quizzl:polls:{groupId}"
+    },
+    {
+      "convention": "Named idb-keyval stores (createStore) for large/separate domains",
+      "evidence": "groupStorage.ts:27-31, mediaPersistence.ts:3-4"
+    },
+    {
+      "convention": "clearAllX functions scan by key prefix and use delMany for atomic batch delete",
+      "evidence": "chatPersistence.ts:80-91, pollPersistence.ts:141-151"
+    },
+    {
+      "convention": "MLS application message kinds are small integers; chat=9, score=1, profile=6, poll=10-12",
+      "evidence": "chatPersistence.ts:12, scoreSync.ts:15, pollSync.ts:12-14"
+    },
+    {
+      "convention": "DM transport is kind-4 NIP-04, not NIP-17/59 gift-wrap",
+      "evidence": "directMessages.ts:7 DIRECT_MESSAGE_KIND=4, encryptDirectPayload uses nip04.encrypt at line 108"
+    }
+  ]
+}

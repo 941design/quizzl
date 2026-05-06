@@ -1,0 +1,18 @@
+{
+  "story_id": "story-08-reaction-ui",
+  "captured_at": "2026-05-05T00:00:00Z",
+  "unit_tests": {
+    "total": 614,
+    "passing": 614,
+    "failing": 0,
+    "status": "GREEN"
+  },
+  "build": {
+    "status": "GREEN",
+    "notes": "make build clean per story-07 result.json"
+  },
+  "e2e": {
+    "status": "NOT_RUN",
+    "notes": "Per e2e-policy.md, e2e baseline deferred to per-spec incremental runs. groups-reactions.spec.ts passed in story-06. groups-dm-reactions.spec.ts has known harness gap (kind-1059 publish not observed on relay) per story-07 lead_notes."
+  }
+}

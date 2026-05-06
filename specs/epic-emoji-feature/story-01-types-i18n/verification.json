@@ -1,0 +1,101 @@
+{
+  "story_id": "story-01-types-i18n",
+  "questions": [
+    {
+      "question_id": "VQ-01-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does app/src/lib/reactions/types.ts contain any dead code, stub markers (TODO, FIXME, placeholder), or unused exports beyond what is declared in architecture.json? Confirm the file is production-clean with no temporary scaffolding left behind."
+    },
+    {
+      "question_id": "VQ-01-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does app/src/lib/reactions/types.ts import anything from app/src/components/, app/src/context/, or any npm package not already in the project's package.json? Confirm the file has zero imports (it should be a pure type declaration file with only the CURATED_EMOJI constant, requiring no imports at all)."
+    },
+    {
+      "question_id": "VQ-01-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could app/src/lib/reactions/ be deleted and rewritten without modifying any file outside its dependencies_allowed list? For story-01 the only allowed modification outside the new directory is app/src/lib/i18n.ts. Confirm no other existing file was touched."
+    },
+    {
+      "question_id": "VQ-01-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/reactions/reactions.i18n.test.ts exercise getCopy('en') and getCopy('de') for all eight emoji.* keys (openPicker, closePicker, reactWith, insertEmoji, removeReaction, couldntReact, reactors, reactionCount) with exact string assertions, not toBeTypeOf or toBeTruthy? Confirm the test is not a pure mock-spy proxy — it must call the real getCopy function and assert actual translated strings."
+    },
+    {
+      "question_id": "VQ-01-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the Reaction interface in types.ts match the Seam S1 contract exactly: fields id, messageId, reactorPubkey, emoji, eventId, createdAt, removed — with no identity_id field (D11)? Provide (a) the interface source, (b) the TypeScript compilation result from make build confirming no type errors, (c) confirmation that the test does not mock the type itself."
+    },
+    {
+      "question_id": "VQ-01-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the CURATED_EMOJI constant contain exactly 24 entries, all of which are Unicode glyph strings (not NIP-30 shortcodes like :smile:, not empty strings, not multi-codepoint sequences that could exploit UI rendering)? Confirm the array length is asserted or can be verified by inspection."
+    },
+    {
+      "question_id": "VQ-01-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-01",
+      "question": "AC-01: Does app/src/lib/reactions/types.ts export a ReactionThreadKey discriminated union with exactly two variants — { kind: 'group'; groupId: string } and { kind: 'dm'; peerPubkeyHex: string }? Provide (a) the export source, (b) make build passing, (c) confirm no test mocks the type."
+    },
+    {
+      "question_id": "VQ-01-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-02",
+      "question": "AC-02: Does app/src/lib/reactions/types.ts export a Reaction interface with all seven required fields (id, messageId, reactorPubkey, emoji, eventId, createdAt, removed) and explicitly no identity_id field? Provide (a) the interface source showing the exact fields, (b) make build passing, (c) confirmation the test asserts the type compiles (via build) not a runtime mock."
+    },
+    {
+      "question_id": "VQ-01-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-03",
+      "question": "AC-03: Does app/src/lib/reactions/types.ts export CURATED_EMOJI as a readonly string[] of exactly 24 Unicode glyphs covering all four categories (Faces, Gestures, Symbols, Objects) from spec §1.1? Provide (a) the constant source with all 24 entries, (b) confirmation the array is typed readonly, (c) make build passing."
+    },
+    {
+      "question_id": "VQ-01-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-04",
+      "question": "AC-04: Is the Copy type in app/src/lib/i18n.ts extended with an emoji section containing exactly the eight keys: openPicker, closePicker, reactWith, insertEmoji, removeReaction, couldntReact, reactors, reactionCount — all typed as string? Provide (a) the Copy type emoji section, (b) make build passing with no type errors in i18n.ts or any consuming file."
+    },
+    {
+      "question_id": "VQ-01-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-05",
+      "question": "AC-05: Do both the en and de objects in app/src/lib/i18n.ts contain non-empty, non-undefined string values for all eight emoji.* keys? Provide (a) the en and de emoji sections, (b) confirmation that no value is an empty string or undefined, (c) make build passing."
+    },
+    {
+      "question_id": "VQ-01-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-06",
+      "question": "AC-06: Does app/tests/unit/reactions/reactions.i18n.test.ts call getCopy('en') and getCopy('de') and assert the exact string values for all eight emoji.* keys for both locales? Provide (a) the full test source, (b) make test-unit output showing the test file passes, (c) confirmation the assertions are toBe() with literal strings, not toBeTypeOf or any mock."
+    },
+    {
+      "question_id": "VQ-01-013",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "CURATED_EMOJI contains emoji with variation selectors (e.g. ✌️ is U+270C + U+FE0F, ❤️ is U+2764 + U+FE0F). Downstream components that iterate CURATED_EMOJI and use each entry as a React key or data-testid value must handle multi-codepoint strings correctly. Confirm that the picker story (story-05) does not truncate or hash these strings when constructing data-testid='emoji-glyph-{emoji}', and that no downstream code slices CURATED_EMOJI entries by .charCodeAt index."
+    },
+    {
+      "question_id": "VQ-01-014",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The CURATED_EMOJI array has 24 entries split as Faces(8) + Gestures(6) + Symbols(6) + Objects(4) = 24. However the spec §1.1 table shows Objects with 6 examples (🎉 💡 📌 🔔 📝 ✉️) and Gestures with 6 examples. Story-01 picked only 4 Objects glyphs to reach exactly 24. Verify the verifier is aware of this deliberate trim and that it does not contradict AC-03 which only requires exactly 24 glyphs covering all four categories — not a minimum per category."
+    },
+    {
+      "question_id": "VQ-01-015",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The boy-scout fix to cancelPendingInvitation.i18n.test.ts updated two string assertions to match i18n.ts values changed in commit 900df00. Confirm the fixed test now reflects the actual production strings ('This invitation is no longer pending' / 'Diese Einladung ist nicht mehr ausstehend') and that no other assertion in that file regressed."
+    }
+  ]
+}

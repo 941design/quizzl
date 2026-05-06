@@ -1,0 +1,56 @@
+{
+  "epic_name": "emoji-feature",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-05-05T12:59:15Z",
+  "updated_at": "2026-05-06T02:42:59Z",
+  "completed_stories": ["story-01-types-i18n", "story-02-reactions-store", "story-03-dm-transport", "story-04-rumor-builder", "story-05-compose-picker", "story-06-group-reactions", "story-07-dm-reactions", "story-08-reaction-ui"],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-05-05T12:59:15Z",
+      "trigger": "validation_passed_with_user_decisions"
+    },
+    {
+      "phase": "IN_PROGRESS",
+      "timestamp": "2026-05-05T13:55:39Z",
+      "trigger": "story-01-types-i18n verified accepted"
+    },
+    {
+      "phase": "IN_PROGRESS",
+      "timestamp": "2026-05-05T14:39:06Z",
+      "trigger": "story-02-reactions-store verified accepted (4 rounds)"
+    },
+    {
+      "phase": "IN_PROGRESS",
+      "timestamp": "2026-05-05T15:26:48Z",
+      "trigger": "story-03-dm-transport verified accepted (4 rounds: 1 thread isolation, 1 seal verification + sender binding, 1 rumor id validation)"
+    },
+    {
+      "phase": "IN_PROGRESS",
+      "timestamp": "2026-05-05T17:44:30Z",
+      "trigger": "story-04-rumor-builder verified accepted (2 rounds: defensive validation for emoji='-' on add path and empty-string targetAuthorPubkey)"
+    },
+    {
+      "phase": "IN_PROGRESS",
+      "timestamp": "2026-05-05T22:07:51Z",
+      "trigger": "story-05-compose-picker verified accepted (3 rounds: focus management + reversed-selection edge cases + Framer Motion fix on close)"
+    },
+    {
+      "phase": "IN_PROGRESS",
+      "timestamp": "2026-05-05T22:48:00Z",
+      "trigger": "story-06-group-reactions verified accepted (1 round; carries known followup: leaf-module fix in story-07)"
+    },
+    {
+      "phase": "IN_PROGRESS",
+      "timestamp": "2026-05-06T00:35:48Z",
+      "trigger": "story-07-dm-reactions verified accepted (2 rounds: leaf-module fix + ChatStoreContext second-path gate + DM gate ref hardening; DM kind-1059 e2e harness gap deferred to story-08)"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-05-06T02:42:59Z",
+      "trigger": "story-08-reaction-ui verified accepted (2 rounds: UI implementation + Framer Motion close regression fix on both pickers); epic complete."
+    }
+  ]
+}

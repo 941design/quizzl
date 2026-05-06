@@ -1,0 +1,69 @@
+{
+  "module_name": "dm-transport",
+  "purpose": "Extend the DM transport surface with kind-7 reaction send/receive. Fix the leaf-module message-existence check bug in api.ts (move check to dispatcher sites). Produce outbound helpers publishDirectReaction and removeDirectReaction in directMessages.ts, wire inbound kind-7 dispatch in ContactChat.tsx, and expose a useDirectReactions(peerPubkeyHex) hook for the read side.",
+  "public_api": [
+    {
+      "name": "publishDirectReaction",
+      "signature": "publishDirectReaction(params: { ndk: NDK; privateKeyHex: string; peerPubkeyHex: string; emoji: string; targetMessage: ChatMessage }): Promise<{ rumorId: string }>",
+      "description": "Builds a kind-7 rumor via buildReactionRumor (with p tag), seals+wraps via sealAndWrap, publishes kind-1059 via NDK. Returns inner rumor id for optimistic row reconciliation. Lives in app/src/lib/directMessages.ts."
+    },
+    {
+      "name": "removeDirectReaction",
+      "signature": "removeDirectReaction(params: { ndk: NDK; privateKeyHex: string; peerPubkeyHex: string; emoji: string; targetMessage: ChatMessage }): Promise<{ rumorId: string }>",
+      "description": "Same as publishDirectReaction but calls buildReactionRumor with isRemoval: true. Lives in app/src/lib/directMessages.ts."
+    },
+    {
+      "name": "useDirectReactions",
+      "signature": "useDirectReactions(peerPubkeyHex: string, selfPubkey: string, messages: ChatMessage[]): Map<string, ReactionAggregate[]>",
+      "description": "React hook that subscribes to the DM reactions store via subscribeReactions and returns a Map<messageId, ReactionAggregate[]> recomputed on each listener fire. Lives in app/src/hooks/useDirectReactions.ts."
+    }
+  ],
+  "private_files": [
+    "app/src/components/contacts/ContactChat.tsx (handleReact callback, kind-7 dispatch in handleGiftWrapEvent, __quizzlDmReactions bridge)",
+    "app/tests/unit/directMessages/dmReactions.test.ts",
+    "app/tests/unit/reactions/api.test.ts (modified: fix tests for pre-work change)",
+    "app/tests/unit/marmot/groupReactions.test.ts (modified: add dispatcher gate test)",
+    "app/tests/e2e/dm-reactions.spec.ts"
+  ],
+  "owned_data": [
+    "quizzl:reactions:dm:{peerPubkeyHex} idb-keyval namespace (written via applyOptimistic/applyInboundRumor from api.ts)"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/reactions/api.ts (S2, S4)",
+    "app/src/lib/reactions/rumor.ts (S3)",
+    "app/src/lib/reactions/types.ts (S1)",
+    "app/src/lib/directMessages.ts (S5)",
+    "app/src/lib/marmot/chatPersistence.ts (type-only ChatMessage, loadMessages)",
+    "nostr-tools",
+    "@nostr-dev-kit/ndk"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/ChatStoreContext.tsx (DM surface does not use group context)",
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "external_ports": [
+    "NDK relay publish (kind-1059 gift wrap)",
+    "idb-keyval (via api.ts enqueue)"
+  ],
+  "events_emitted": [
+    "subscribeReactions listeners fired after applyOptimistic, applyInboundRumor, rollbackOptimistic"
+  ],
+  "events_consumed": [
+    "kind-1059 inbound gift wrap via ContactChat handleGiftWrapEvent (kind-7 inner rumor)"
+  ],
+  "test_targets": [
+    "app/tests/unit/directMessages/dmReactions.test.ts",
+    "app/tests/unit/reactions/api.test.ts (modified)",
+    "app/tests/unit/marmot/groupReactions.test.ts (modified)",
+    "app/tests/e2e/dm-reactions.spec.ts"
+  ],
+  "pre_work": {
+    "description": "Remove the hasMessage check from applyInboundRumor in app/src/lib/reactions/api.ts. The leaf module always upserts; callers (dispatchers) are responsible for isMessageKnown gating. Add dispatcher gates: MarmotContext.tsx case 7 gates on loadMessages, ContactChat.tsx kind-7 dispatch gates on the in-memory messages array.",
+    "files_modified": [
+      "app/src/lib/reactions/api.ts",
+      "app/src/context/MarmotContext.tsx",
+      "app/tests/unit/reactions/api.test.ts",
+      "app/tests/unit/marmot/groupReactions.test.ts"
+    ]
+  }
+}

@@ -1,4 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import EmojiComposerPicker, { type EmojiComposerPickerHandle } from '@/src/components/chat/EmojiComposerPicker';
+import EmojiReactionPicker from '@/src/components/chat/EmojiReactionPicker';
+import ReactionBadgeRow from '@/src/components/chat/ReactionBadgeRow';
+import { insertAtCursor } from '@/src/lib/reactions/composeInsert';
 import {
   Box,
   Flex,
@@ -11,6 +15,7 @@ import {
   CloseButton,
 } from '@chakra-ui/react';
 import { useCopy, useLanguage } from '@/src/context/LanguageContext';
+import { useChatStore } from '@/src/context/ChatStoreContext';
 import { truncateNpub, pubkeyToNpub } from '@/src/lib/nostrKeys';
 import { splitLinks } from '@/src/lib/linkify';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
@@ -79,6 +84,20 @@ type ChatBoxProps = {
   sendImageMessage: (file: File, caption: string) => Promise<void>;
   decryptMedia?: (attachment: ChatMediaAttachment) => Promise<{ bytes: Uint8Array; type: string }>;
   allowPollMessages?: boolean;
+  /**
+   * Story-08: reaction send callback. Supplied by GroupChat (sendReaction) and
+   * by ContactChat (handleReact). Used by both EmojiReactionPicker and
+   * ReactionBadgeRow. AC-55.
+   */
+  onReact?: (emoji: string, message: ChatMessage, op: 'add' | 'remove') => Promise<void>;
+  /**
+   * Story-08: optional pre-computed reactions map for DM surface.
+   * ContactChat supplies this from useDirectReactions so that ChatBox
+   * does not need to read from ChatStoreContext (which is group-only).
+   * When absent, ChatBox falls back to useChatStore().reactionsByMessageId
+   * (group surface). AC-55, arch §3 rule 3.
+   */
+  reactionsByMessageId?: Map<string, import('@/src/lib/reactions/api').ReactionAggregate[]>;
 };
 
 export default function ChatBox({
@@ -91,9 +110,17 @@ export default function ChatBox({
   sendImageMessage,
   decryptMedia,
   allowPollMessages = true,
+  onReact,
+  reactionsByMessageId: reactionsByMessageIdProp,
 }: ChatBoxProps) {
   const copy = useCopy();
   const { language } = useLanguage();
+  // Story-08: read aggregated reactions from ChatStoreContext (group surface).
+  // For DM surface, ContactChat passes reactionsByMessageId as a prop to avoid
+  // ChatStoreContext (which is group-only — arch §3 rule 3).
+  const { reactionsByMessageId: storeReactionsByMessageId } = useChatStore();
+  // Prefer the prop (DM surface) over the store (group surface).
+  const reactionsByMessageId = reactionsByMessageIdProp ?? storeReactionsByMessageId;
   const [inputValue, setInputValue] = useState('');
   const [showBadge, setShowBadge] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -107,6 +134,17 @@ export default function ChatBox({
   const prevMsgCountRef = useRef(messages.length);
   const initializedRef = useRef(false);
   const prevPreviewUrl = useRef<string | null>(null);
+  // Handle for the emoji picker so the keyboard shortcut can toggle it.
+  const emojiPickerRef = useRef<EmojiComposerPickerHandle>({ toggle: () => {} });
+
+  // Story-08: track which message's reaction picker is open (if any).
+  // We keep a single open picker per ChatBox (only one message bubble can have
+  // the picker open at a time). This is independent of useDisclosure inside
+  // EmojiReactionPicker because the picker manages its own open/close state;
+  // this ref is only used for touch long-press to programmatically open it.
+  // Touch long-press: per-message timer ref.
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressMessageIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (prevPreviewUrl.current && prevPreviewUrl.current !== previewUrl) {
@@ -204,7 +242,32 @@ export default function ChatBox({
     }
   }, [attachedFile, inputValue, removeAttachment, sendImageMessage, sendMessage]);
 
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    const ta = textareaRef.current;
+    // Read cursor position from the textarea DOM element (may be null if unfocused).
+    const selStart = ta ? ta.selectionStart : null;
+    const selEnd = ta ? ta.selectionEnd : null;
+    const { value, nextCaret } = insertAtCursor(inputValue, selStart, selEnd, emoji);
+    setInputValue(value);
+    // Restore focus and set caret after React commits the new value.
+    if (ta) {
+      requestAnimationFrame(() => {
+        ta.focus();
+        ta.setSelectionRange(nextCaret, nextCaret);
+        // Keep auto-resize in sync.
+        ta.style.height = 'auto';
+        ta.style.height = `${ta.scrollHeight}px`;
+      });
+    }
+  }, [inputValue]);
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Cmd/Ctrl+Shift+E — toggle the emoji picker.
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'e') {
+      e.preventDefault();
+      emojiPickerRef.current.toggle();
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void handleSend();
@@ -358,6 +421,8 @@ export default function ChatBox({
               const avatarColor = getAvatarColor(msg.senderPubkey);
               const structured = parseStructured(msg.content);
 
+              const aggregates = reactionsByMessageId.get(msg.id) ?? [];
+
               return (
                 <Flex
                   key={msg.id}
@@ -366,6 +431,8 @@ export default function ChatBox({
                   mt={grouped ? '2px' : 3}
                   direction={isSelf ? 'row-reverse' : 'row'}
                   align="flex-start"
+                  // role="group" enables _groupHover on the reaction trigger inside
+                  role="group"
                 >
                   {!grouped ? (
                     <Flex
@@ -410,16 +477,76 @@ export default function ChatBox({
                       </Flex>
                     )}
 
-                    <Box
-                      {...(structured?.type !== 'image' && grouped
-                        ? {
-                            borderTopRightRadius: isSelf ? 'sm' : undefined,
-                            borderTopLeftRadius: !isSelf ? 'sm' : undefined,
-                          }
-                        : {})}
+                    {/* Bubble + reaction trigger side-by-side so the trigger sits at bubble corner */}
+                    <Flex
+                      direction={isSelf ? 'row-reverse' : 'row'}
+                      align="flex-start"
+                      gap={1}
+                      // Touch long-press: detect touch/pen to open reaction picker (spec §1.2).
+                      // 500ms threshold per story brief. No new dependency.
+                      onPointerDown={(e: React.PointerEvent) => {
+                        if (!onReact) return;
+                        if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+                          longPressMessageIdRef.current = msg.id;
+                          longPressTimerRef.current = setTimeout(() => {
+                            // Trigger is revealed visually by focus; programmatic open
+                            // is handled by the EmojiReactionPicker's own disclosure.
+                            // We imperatively click the trigger button for simplicity.
+                            const trigger = document.querySelector<HTMLElement>(
+                              `[data-testid="reaction-trigger-${msg.id}"]`,
+                            );
+                            trigger?.click();
+                          }, 500);
+                        }
+                      }}
+                      onPointerUp={() => {
+                        if (longPressTimerRef.current) {
+                          clearTimeout(longPressTimerRef.current);
+                          longPressTimerRef.current = null;
+                        }
+                      }}
+                      onPointerLeave={() => {
+                        if (longPressTimerRef.current) {
+                          clearTimeout(longPressTimerRef.current);
+                          longPressTimerRef.current = null;
+                        }
+                      }}
                     >
-                      {renderStructuredMessage(structured, msg)}
-                    </Box>
+                      <Box
+                        {...(structured?.type !== 'image' && grouped
+                          ? {
+                              borderTopRightRadius: isSelf ? 'sm' : undefined,
+                              borderTopLeftRadius: !isSelf ? 'sm' : undefined,
+                            }
+                          : {})}
+                      >
+                        {renderStructuredMessage(structured, msg)}
+                      </Box>
+
+                      {/* Reaction trigger — revealed on hover via _groupHover (AC-47) */}
+                      {onReact && (
+                        <Box alignSelf="center" flexShrink={0}>
+                          <EmojiReactionPicker
+                            messageId={msg.id}
+                            message={msg}
+                            aggregates={aggregates}
+                            onReact={onReact}
+                          />
+                        </Box>
+                      )}
+                    </Flex>
+
+                    {/* Reaction badge row — real implementation (AC-49, story-08) */}
+                    {aggregates.length > 0 && onReact && (
+                      <ReactionBadgeRow
+                        messageId={msg.id}
+                        message={msg}
+                        aggregates={aggregates}
+                        onReact={onReact}
+                        profileMap={profileMap}
+                        selfPubkey={pubkey}
+                      />
+                    )}
                   </Flex>
                 </Flex>
               );
@@ -509,6 +636,7 @@ export default function ChatBox({
 
         <Flex p={2} gap={2} align="flex-end">
           <ImageAttachmentButton onFileSelected={attachFile} />
+          <EmojiComposerPicker onSelect={handleEmojiSelect} handleRef={emojiPickerRef} textareaRef={textareaRef} />
           <Textarea
             ref={textareaRef}
             data-testid="chat-input"

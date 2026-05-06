@@ -1,0 +1,9 @@
+{
+  "captured_at": "2026-05-05T01:25:48Z",
+  "test_command": "make test-unit",
+  "test_files_run": 43,
+  "tests_passed": 584,
+  "tests_failed": 0,
+  "build_status": "not_run_at_baseline",
+  "e2e_status": "not_run_at_baseline_docker_not_verified"
+}

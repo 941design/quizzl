@@ -1,0 +1,147 @@
+{
+  "story_id": "story-07-dm-reactions",
+  "questions": [
+    {
+      "question_id": "VQ-07-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "After the pre-work fix, does app/src/lib/reactions/api.ts contain any remaining TODO or stub markers referencing story-07 or story-06? Does the hasMessage check block appear anywhere in the file or in comments suggesting it should be partially preserved? Are there dead code paths introduced by the removal?"
+    },
+    {
+      "question_id": "VQ-07-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does every cross-module import in the story-07 deliverables flow downward (lib/ ← context/ ← components/) per architecture §3 rule 1? Specifically: does useDirectReactions.ts import only from lib/reactions/ and lib/marmot/chatPersistence? Does ContactChat.tsx import from lib/directMessages.ts for the new helpers (not from context/ChatStoreContext)? Does directMessages.ts avoid importing from components/ or context/?"
+    },
+    {
+      "question_id": "VQ-07-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the dm-transport module (app/src/lib/directMessages.ts + app/src/hooks/useDirectReactions.ts) be deleted and rewritten without modifying any file outside its dependencies_allowed list? Specifically: does publishDirectReaction/removeDirectReaction depend only on buildReactionRumor, sealAndWrap, NDK, and ChatMessage type? Does ContactChat.tsx's kind-7 dispatch reference applyInboundRumor only through the declared S4 seam (lib/reactions/api.ts)? Are there any cross-module state references that violate boundary rule 3 (DM and group state must not share runtime state)?"
+    },
+    {
+      "question_id": "VQ-07-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/directMessages/dmReactions.test.ts cover all four specified test cases: publishDirectReaction happy path (correct p tag present), publishDirectReaction failure path (NDK reject propagates), removeDirectReaction happy path (isRemoval=true, content='-', emoji tag), and round-trip (sealAndWrap then unwrapAndOpen recovers kind=7 rumor)? Are these pure unit tests with no component rendering? Do any tests rely exclusively on mock-spy assertions without exercising the real logic path?"
+    },
+    {
+      "question_id": "VQ-07-005",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "For the api.ts pre-work fix: does app/tests/unit/reactions/api.test.ts contain a test that asserts applyInboundRumor successfully upserts a reaction for a messageId that has ZERO prior reactions in the store (i.e., the first reaction to any message lands)? Has the test that asserted 'returns null for a thread with no existing rows' been updated or removed to reflect the new behaviour? Does the updated test file still achieve equivalent or better coverage of the upsert, dedup, and tombstone paths?"
+    },
+    {
+      "question_id": "VQ-07-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-41",
+      "question": "AC-41 requires directMessages.ts to export publishDirectReaction(emoji, targetMessage, peerPubkeyHex, selfPrivKeyHex): Promise<{ rumorId: string }> that calls buildReactionRumor then sealAndWrap then publishes kind-1059. Evidence required: (a) the export in app/src/lib/directMessages.ts with the correct signature, (b) a unit test in dmReactions.test.ts that asserts buildReactionRumor is called with a ['p', peerPubkeyHex] tag in the resulting rumor, and sealAndWrap is called before NDK publish, (c) confirmation the test exercises real logic (not a pure pass-through spy)."
+    },
+    {
+      "question_id": "VQ-07-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-42",
+      "question": "AC-42 requires removeDirectReaction to call buildReactionRumor with isRemoval: true. Evidence required: (a) the export in app/src/lib/directMessages.ts, (b) a unit test asserting the resulting rumor has content='-' and an ['emoji', glyph] tag (multi-emoji D2 policy), (c) the test exercises sealAndWrap and NDK publish with the removal rumor."
+    },
+    {
+      "question_id": "VQ-07-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-43",
+      "question": "AC-43 requires ContactChat.tsx to call applyOptimistic with a Reaction row whose id equals the rumor's id (not a temp UUID) before calling publishDirectReaction. Evidence required: (a) the handleReact callback in ContactChat.tsx builds the rumor first, calls applyOptimistic with { id: rumor.id, eventId: '' }, then publishes, (b) a test or code trace confirming the rumor id is computed deterministically before the network call, (c) no temp UUID is used anywhere in the DM reaction flow."
+    },
+    {
+      "question_id": "VQ-07-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-44",
+      "question": "AC-44 requires that on publishDirectReaction rejection, ContactChat.tsx calls rollbackOptimistic(thread, rumorId) and shows a toast with text equal to copy.emoji.couldntReact. Evidence required: (a) the catch block in handleReact calls rollbackOptimistic then invokes toast with useCopy().emoji.couldntReact, (b) no hardcoded string used, (c) the rollback uses the same rumorId that was passed to applyOptimistic (not a UUID)."
+    },
+    {
+      "question_id": "VQ-07-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-45",
+      "question": "AC-45 requires that ContactChat.tsx's gift-wrap subscription processes kind-7 inner rumors by calling applyInboundRumor({ kind: 'dm', peerPubkeyHex }, rumor) after checking isMessageKnown. Evidence required: (a) the TODO(story-07-dm-reactions) block in handleGiftWrapEvent is replaced with real kind-7 dispatch, (b) the dispatch is gated on the messages array (isMessageKnown consults the loaded DM thread messages), (c) a non-null return triggers subscribeReactions listeners (not a separate reactionsVersion counter), (d) an unknown targetMessageId is silently discarded."
+    },
+    {
+      "question_id": "VQ-07-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-46",
+      "question": "AC-46 requires an E2E test in app/tests/e2e/dm-reactions.spec.ts covering: tab A sends a DM reaction, tab B's message bubble gains a badge, tab A removes the reaction, tab B's badge disappears. Evidence required: (a) the spec file exists and uses the two-context pattern (Alice + Bob), (b) the __quizzlDmReactions bridge is used to send/remove reactions, (c) badge element presence/absence is asserted via data-testid, (d) relay-side verification that only kind-1059 events appear (not kind-7 plaintext per AC-60)."
+    },
+    {
+      "question_id": "VQ-07-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-54",
+      "question": "AC-54 requires the multi-emoji invariant: calling onReact on an emoji the user already applied calls removeDirectReaction (isRemoval=true), while calling it on a new emoji calls the add path without removing other reactions. Evidence required: (a) handleReact in ContactChat.tsx receives an op parameter and routes to removeDirectReaction vs publishDirectReaction, (b) the store allows multiple distinct emoji rows per (messageId, reactorPubkey), (c) there is no logic that removes existing emoji rows when adding a new one."
+    },
+    {
+      "question_id": "VQ-07-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-55",
+      "question": "AC-55 requires ChatBox.tsx to accept an onReact(emoji, message, op) prop and ContactChat.tsx to supply it. Evidence required: (a) ContactChat.tsx passes onReact={handleReact} to ChatBox, (b) the prop type matches the signature in ChatBox.tsx (already defined in story-06), (c) the prop is not gated on any story-08 condition — it is wired and callable in story-07."
+    },
+    {
+      "question_id": "VQ-07-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-59",
+      "question": "AC-59 requires that after publishDirectReaction fails on all relays, the reaction badge row returns to its pre-optimistic state within one render cycle. Evidence required: (a) rollbackOptimistic is called synchronously in the catch block before re-throwing or completing, (b) subscribeReactions listener fires after the rollback idb write, (c) the React state update driven by the listener removes the badge within one render cycle."
+    },
+    {
+      "question_id": "VQ-07-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-60",
+      "question": "AC-60 requires that for DM reactions, the on-the-wire event is kind 1059 (gift wrap) and no kind-7 plaintext is published. Evidence required: (a) publishDirectReaction calls sealAndWrap before NDK publish, never ndk.publish with a raw kind-7 event, (b) the E2E test either intercepts network requests or reads relay logs to confirm only kind-1059 events are published, (c) the unit test confirms the NDK publish call receives a kind-1059 event."
+    },
+    {
+      "question_id": "VQ-07-016",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "The kind-7 dispatch in ContactChat.tsx's handleGiftWrapEvent runs after unwrapAndOpen and shouldIngestRumor. Does the dispatcher correctly apply the isMessageKnown gate before calling applyInboundRumor? Could a malicious peer send a crafted gift wrap with a kind-7 rumor targeting an arbitrary messageId and have it persisted (reaction spam)? Does the shouldIngestRumor check (rumor.pubkey === peerPubkeyHex) correctly prevent reactions appearing to come from the peer when they actually came from a third party wrapping a forged rumor — given unwrapAndOpen already validates rumor.pubkey === seal.pubkey?"
+    },
+    {
+      "question_id": "VQ-07-017",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "Does the api.ts pre-work fix actually let the first reaction to any message land? The old hasMessage check returned null whenever no prior reaction row existed for the messageId — the new code upserts unconditionally. Verify: (a) the unit test 'upserts the first reaction to a message even with zero prior reactions in store' passes, (b) the removeDirectReaction path is also unblocked for first-time removal attempts (a removal for a message with zero prior rows used to be discarded; now applyInboundRumor lets the tombstone write proceed, and the dispatcher gate is the only guard)."
+    },
+    {
+      "question_id": "VQ-07-018",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "Does the DM kind-7 dispatch in ContactChat.tsx correctly silent-discard for unknown target messages now that the leaf module no longer does the check? The isMessageKnown gate uses messagesRef.current — a ref updated via useEffect whenever the messages state changes. Is there a race window between the first load of messages (setMessages(stored)) and the arrival of the first inbound kind-7 gift wrap where the ref has stale empty messages? If so, the first inbound reaction would be incorrectly discarded even though the message exists in IDB."
+    },
+    {
+      "question_id": "VQ-07-019",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "Do publishDirectMessage (chat) and publishDirectReaction produce the same wire shape (both kind-1059 outer events)? Verify: (a) both call sealAndWrap and publish via NDKEvent, (b) the round-trip test in dmReactions.test.ts confirms a kind-7 rumor wrapped in kind-1059 round-trips correctly through unwrapAndOpen, (c) the dmReactions.test.ts 'the published event is kind-1059 gift wrap' test confirms the outer event kind before it hits the relay."
+    },
+    {
+      "question_id": "VQ-07-020",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The handleReact callback in ContactChat.tsx calls buildReactionRumor twice: once as a 'dry run' to compute the rumorId before applyOptimistic, and once inside publishDirectReaction/removeDirectReaction. Because created_at is set to Math.floor(Date.now() / 1000), if the two calls span a second boundary, the rumor ids will differ. This would leave an orphaned optimistic row (rollbackOptimistic can't find the right id). Is this a real risk? If so, how is it mitigated — by passing the pre-built rumor into the publish function or by using a tight time window?"
+    },
+    {
+      "question_id": "VQ-07-021",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The dmReactions.test.ts tests mock NDKEvent.prototype.publish via vi.spyOn and call vi.restoreAllMocks() in beforeEach. Does this pattern correctly reset between tests? Is there any risk of a leaked spy from one test affecting the next test's publish call count? Verify by checking the 'happy path' and 'failure path' tests in isolation."
+    },
+    {
+      "question_id": "VQ-07-022",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The __quizzlDmReactions bridge in ContactChat.tsx is cleaned up via a useEffect return that deletes the window key. Is the cleanup correctly scoped so that when the peerPubkeyHex changes (user navigates to a different DM), the bridge from the previous peer is removed before the new peer's bridge is registered? Could there be a window where both bridges are active simultaneously, causing the bridge.send guard (targetPeerPubkeyHex !== peerPubkeyHex) to be the only protection?"
+    }
+  ]
+}

@@ -1,0 +1,560 @@
+{
+  "epic_name": "emoji-feature",
+  "seams": [
+    {
+      "id": "S1",
+      "name": "Reaction row",
+      "description": "The Reaction interface and ReactionThreadKey discriminated union. Every other module that reads or writes reactions depends on this shape.",
+      "produced_by": "story-01-types-i18n",
+      "consumed_by": [
+        "story-02-reactions-store",
+        "story-04-rumor-builder",
+        "story-06-group-reactions",
+        "story-07-dm-reactions",
+        "story-08-reaction-ui"
+      ],
+      "contract": {
+        "type_name": "Reaction",
+        "fields": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "messageId",
+            "type": "string"
+          },
+          {
+            "name": "reactorPubkey",
+            "type": "string"
+          },
+          {
+            "name": "emoji",
+            "type": "string"
+          },
+          {
+            "name": "eventId",
+            "type": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "number"
+          },
+          {
+            "name": "removed",
+            "type": "boolean"
+          }
+        ],
+        "invariants": [
+          "identity_id field is absent — single-identity app (D11)",
+          "emoji is a non-empty Unicode glyph string; NIP-30 shortcodes are out of scope (D4)",
+          "eventId is empty string for in-flight optimistic rows; a 64-char hex string once confirmed",
+          "removed === true means the row is kept for dedup but not rendered"
+        ]
+      }
+    },
+    {
+      "id": "S2",
+      "name": "Reactions read API",
+      "description": "idb-keyval CRUD, aggregation, and subscribe pattern. Shared by both surfaces.",
+      "produced_by": "story-02-reactions-store",
+      "consumed_by": [
+        "story-06-group-reactions",
+        "story-07-dm-reactions",
+        "story-08-reaction-ui"
+      ],
+      "contract": {
+        "type_name": "ReactionAggregate",
+        "fields": [
+          {
+            "name": "emoji",
+            "type": "string"
+          },
+          {
+            "name": "count",
+            "type": "number"
+          },
+          {
+            "name": "reactors",
+            "type": "string[]"
+          },
+          {
+            "name": "selfReacted",
+            "type": "boolean"
+          }
+        ],
+        "invariants": [
+          "count equals number of non-removed rows for (messageId, emoji)",
+          "reactors is in oldest-first order (ascending createdAt)",
+          "selfReacted is true iff selfPubkey is in reactors",
+          "subscribeReactions returns an unsubscribe function; listeners fire after every write to the namespace",
+          "loadReactions makes O(1) idb calls per thread regardless of message count"
+        ]
+      }
+    },
+    {
+      "id": "S3",
+      "name": "Outbound reaction send",
+      "description": "buildReactionRumor shared builder plus transport-specific publish functions.",
+      "produced_by": "story-04-rumor-builder",
+      "consumed_by": [
+        "story-06-group-reactions",
+        "story-07-dm-reactions"
+      ],
+      "contract": {
+        "type_name": "UnsignedReactionRumor",
+        "fields": [
+          {
+            "name": "kind",
+            "type": "7"
+          },
+          {
+            "name": "content",
+            "type": "string"
+          },
+          {
+            "name": "tags",
+            "type": "string[][]"
+          },
+          {
+            "name": "pubkey",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "number"
+          },
+          {
+            "name": "id",
+            "type": "string"
+          }
+        ],
+        "invariants": [
+          "id is SHA-256 of the canonical NIP-01 serialisation — no sig field",
+          "content is the emoji glyph or '-' for removal (isRemoval=true)",
+          "tags always contains ['e', targetMessageId] and ['k', String(targetMessageKind)]",
+          "['p', targetAuthorPubkey] is present iff targetAuthorPubkey is a non-empty string (omitted for groups)",
+          "content: '' throws immediately"
+        ]
+      }
+    },
+    {
+      "id": "S4",
+      "name": "Inbound reaction ingest",
+      "description": "Two entry points (DM gift-wrap, group MLS dispatch) both converge on applyInboundRumor.",
+      "produced_by": "story-02-reactions-store",
+      "consumed_by": [
+        "story-06-group-reactions",
+        "story-07-dm-reactions"
+      ],
+      "contract": {
+        "type_name": "ApplyInboundResult",
+        "fields": [
+          {
+            "name": "messageId",
+            "type": "string | null"
+          }
+        ],
+        "invariants": [
+          "Returns { messageId } on successful upsert or removal",
+          "Returns null when the e-tag references an unknown local message (silent discard)",
+          "Returns null (no-op) on duplicate eventId",
+          "Callers bump their version counter or notify listeners after a non-null return"
+        ]
+      }
+    },
+    {
+      "id": "S5",
+      "name": "DM transport migration",
+      "description": "sealAndWrap / unwrapAndOpen gift-wrap helpers; publishDirectMessage rewritten; dual-listening subscription.",
+      "produced_by": "story-03-dm-transport",
+      "consumed_by": [
+        "story-07-dm-reactions"
+      ],
+      "contract": {
+        "type_name": "GiftWrapHelpers",
+        "fields": [
+          {
+            "name": "sealAndWrap",
+            "type": "(rumor: UnsignedRumor, recipientPubkey: string, selfPrivKeyHex: string) => Promise<NostrEvent>"
+          },
+          {
+            "name": "unwrapAndOpen",
+            "type": "(giftWrap: NostrEvent, selfPrivKeyHex: string) => Promise<UnsignedRumor>"
+          }
+        ],
+        "invariants": [
+          "sealAndWrap produces a signed kind-1059 event; caller never sees a kind-4 produced",
+          "unwrapAndOpen throws on mismatched recipient or broken seal",
+          "publishDirectMessage external signature is unchanged; wire format is kind-1059 only (D9b)",
+          "DM subscription holds both a kind-4 sub (legacy inbound, forever) and a kind-1059 sub (D9a)",
+          "Both subs deduplicate by inner-rumor id via appendMessage"
+        ]
+      }
+    }
+  ],
+  "stories": [
+    {
+      "id": "story-01-types-i18n",
+      "title": "Add Reaction types, CURATED_EMOJI constant, and i18n keys",
+      "story_order": 1,
+      "status": "done",
+      "owning_module": "i18n",
+      "summary": "Creates `app/src/lib/reactions/types.ts` with the `Reaction` interface, `ReactionThreadKey` discriminated union, and the `CURATED_EMOJI` constant (exactly 24 glyphs across Faces, Gestures, Symbols, Objects). Extends the `Copy` type in `app/src/lib/i18n.ts` with eight emoji-feature keys and adds both `en` and `de` values. Adds a companion `app/tests/unit/reactions/reactions.i18n.test.ts` that asserts exact strings for both locales. Purely additive — no runtime behaviour changes. This unblocks every downstream story.",
+      "in_scope": [
+        "New file app/src/lib/reactions/types.ts with Reaction interface, ReactionThreadKey type, and CURATED_EMOJI constant (24 glyphs)",
+        "Reaction interface fields: id, messageId, reactorPubkey, emoji, eventId, createdAt, removed — no identity_id (D11)",
+        "CURATED_EMOJI: readonly string[] of 24 Unicode glyphs covering Faces, Gestures, Symbols, Objects categories",
+        "Extend Copy type in app/src/lib/i18n.ts with emoji.openPicker, emoji.closePicker, emoji.reactWith, emoji.insertEmoji, emoji.removeReaction, emoji.couldntReact, emoji.reactors, emoji.reactionCount",
+        "Add en and de string values for all eight keys",
+        "New file app/tests/unit/reactions/reactions.i18n.test.ts asserting exact en and de strings for all eight keys"
+      ],
+      "out_of_scope": [
+        "Any runtime code consuming these types or constants",
+        "Any UI components",
+        "reactions/api.ts or reactions/rumor.ts"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05",
+        "AC-06"
+      ],
+      "files_new": [
+        "app/src/lib/reactions/types.ts",
+        "app/tests/unit/reactions/reactions.i18n.test.ts"
+      ],
+      "files_modified": [
+        "app/src/lib/i18n.ts"
+      ],
+      "depends_on": [],
+      "test_strategy": "TypeScript compilation (`make build`) verifies the Copy type extension. `make test-unit` runs reactions.i18n.test.ts asserting getCopy('en') and getCopy('de') return exact non-empty strings for all eight emoji keys."
+    },
+    {
+      "id": "story-02-reactions-store",
+      "title": "Implement reactions persistence and read API (idb-keyval)",
+      "story_order": 2,
+      "status": "done",
+      "owning_module": "reactions-store",
+      "summary": "Creates `app/src/lib/reactions/api.ts` implementing the full persistence and read API: `loadReactions`, `aggregateForMessage`, `subscribeReactions`, `applyInboundRumor`, `applyOptimistic`, `rollbackOptimistic`. Uses idb-keyval namespaces `quizzl:reactions:group:{groupId}` and `quizzl:reactions:dm:{peerPubkeyHex}`. Extends `clearAccountScopedIdbData` in `storage.ts` to wipe both namespaces. Follows the module-singleton + subscribe pattern from `unreadStore.ts`. Pure unit tests with an inline Map-backed idb-keyval fake (no component rendering).",
+      "in_scope": [
+        "New file app/src/lib/reactions/api.ts with loadReactions, aggregateForMessage, subscribeReactions, applyInboundRumor, applyOptimistic, rollbackOptimistic",
+        "idb-keyval namespaces: quizzl:reactions:group:{groupId} and quizzl:reactions:dm:{peerPubkeyHex}",
+        "applyInboundRumor: upsert on (messageId, reactorPubkey, emoji), dedup on eventId, silent discard for unknown messageId, tombstone for content='-'",
+        "aggregateForMessage: O(n-rows) aggregation, not O(n-messages) idb calls",
+        "subscribeReactions: module-singleton listener registry, returns unsubscribe fn",
+        "Extend clearAccountScopedIdbData in app/src/lib/storage.ts to clear both reaction namespaces",
+        "New file app/tests/unit/reactions/api.test.ts with pure unit tests using inline Map-backed idb-keyval mock"
+      ],
+      "out_of_scope": [
+        "Any UI integration",
+        "DM or group transport wiring",
+        "rumor.ts"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-10",
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-57",
+        "AC-58"
+      ],
+      "files_new": [
+        "app/src/lib/reactions/api.ts",
+        "app/tests/unit/reactions/api.test.ts"
+      ],
+      "files_modified": [
+        "app/src/lib/storage.ts"
+      ],
+      "depends_on": [
+        "story-01-types-i18n"
+      ],
+      "test_strategy": "`make test-unit` runs api.test.ts. Tests use an inline Map-backed idb-keyval mock (same pattern as pollPersistence.test.ts). Cover: upsert round-trip, dedup on same eventId, silent discard for unknown messageId, tombstone for content='-', aggregateForMessage count and selfReacted, rollback removes only the targeted row, clearAccountScopedIdbData removes both namespaces. No component rendering."
+    },
+    {
+      "id": "story-03-dm-transport",
+      "title": "Migrate DM transport to NIP-17/59 gift-wrap (sealAndWrap, dual-listen)",
+      "story_order": 3,
+      "status": "done",
+      "owning_module": "dm-transport",
+      "summary": "Implements `sealAndWrap` and `unwrapAndOpen` gift-wrap helpers in `app/src/lib/directMessages.ts` (or a sibling module). Rewrites `publishDirectMessage` to call `sealAndWrap` producing kind-1059 on the wire (D9b). Updates the DM subscription in `ContactChat.tsx` to dual-listen: kind-4 (legacy NIP-04 inbound, forever, D9a) and kind-1059 (gift-wrap inbound). Both paths merge into `appendMessage` with dedup by inner-rumor id. Includes regression tests for the legacy NIP-04 inbound path. This is the foundation that story-07-dm-reactions depends on.",
+      "in_scope": [
+        "sealAndWrap(rumor, recipientPubkey, selfPrivKeyHex): Promise<NostrEvent> — NIP-59 gift wrap, produces signed kind-1059",
+        "unwrapAndOpen(giftWrap, selfPrivKeyHex): Promise<UnsignedRumor> — NIP-59 unwrap",
+        "Rewrite publishDirectMessage to use sealAndWrap; external signature unchanged; no kind-4 outbound (D9b)",
+        "ContactChat.tsx: add kind-1059 subscription alongside existing kind-4 subscription (D9a)",
+        "ContactChat.tsx: kind-1059 path calls unwrapAndOpen, dispatches kind-14 inner rumors to appendMessage",
+        "Deduplication by inner-rumor id in appendMessage (handles NDK echo and legacy/new overlap)",
+        "crypto.subtle guard per architecture §3 boundary rule 8",
+        "New file app/tests/unit/directMessages/sealAndWrap.test.ts: round-trip unit test"
+      ],
+      "out_of_scope": [
+        "DM reaction send/receive (story-07-dm-reactions)",
+        "Any group transport changes",
+        "IDB history migration of existing kind-4 messages"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-15",
+        "AC-16",
+        "AC-17",
+        "AC-18",
+        "AC-19",
+        "AC-20"
+      ],
+      "files_new": [
+        "app/tests/unit/directMessages/sealAndWrap.test.ts"
+      ],
+      "files_modified": [
+        "app/src/lib/directMessages.ts",
+        "app/src/components/contacts/ContactChat.tsx"
+      ],
+      "depends_on": [
+        "story-01-types-i18n"
+      ],
+      "test_strategy": "`make test-unit` runs sealAndWrap.test.ts: assert sealAndWrap produces kind-1059, unwrapAndOpen recovers the original rumor fields, unwrapAndOpen throws on a broken seal. `make build` verifies the ContactChat.tsx subscription changes type-check. Legacy kind-4 inbound regression covered by the existing unit/E2E suite (no change to that path)."
+    },
+    {
+      "id": "story-04-rumor-builder",
+      "title": "Implement buildReactionRumor and pure unit tests",
+      "story_order": 4,
+      "status": "done",
+      "owning_module": "reactions-store",
+      "summary": "Creates `app/src/lib/reactions/rumor.ts` with `buildReactionRumor`. Produces an unsigned kind-7 rumor with a correct NIP-01 hashed `id`, no `sig`, per-D10 tag set (`e`, `p` when applicable, `k`). Validates non-empty emoji. Testable in pure isolation — no mocking needed beyond crypto.subtle polyfill for the hash. This seam-S3 producer unblocks both story-06 and story-07.",
+      "in_scope": [
+        "New file app/src/lib/reactions/rumor.ts with buildReactionRumor(emoji, targetMessageId, targetMessageKind, targetAuthorPubkey, selfPubkey, isRemoval?): UnsignedRumor",
+        "Returns kind: 7, content = emoji (or '-' for isRemoval), tags = [['e', targetMessageId], ['k', String(targetMessageKind)]], plus ['p', targetAuthorPubkey] when non-empty",
+        "id computed as SHA-256 of canonical NIP-01 JSON [0, pubkey, created_at, kind, tags, content]",
+        "No sig field on the returned object",
+        "Throws on empty emoji string",
+        "New file app/tests/unit/reactions/rumor.test.ts with comprehensive pure unit tests"
+      ],
+      "out_of_scope": [
+        "Transport (gift-wrap or MLS send)",
+        "Persistence",
+        "Any UI"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-21",
+        "AC-22",
+        "AC-23",
+        "AC-24",
+        "AC-25"
+      ],
+      "files_new": [
+        "app/src/lib/reactions/rumor.ts",
+        "app/tests/unit/reactions/rumor.test.ts"
+      ],
+      "files_modified": [],
+      "depends_on": [
+        "story-01-types-i18n"
+      ],
+      "test_strategy": "`make test-unit` runs rumor.test.ts. Polyfill globalThis.crypto via Object.defineProperty in the test file (same pattern as blossomClient.test.ts). Assert: kind=7, correct tag set with and without targetAuthorPubkey, id is 64-char hex matching independent SHA-256 of canonical JSON, isRemoval flips content to '-', empty emoji throws."
+    },
+    {
+      "id": "story-05-compose-picker",
+      "title": "Implement EmojiComposerPicker and wire into ChatBox toolbar",
+      "story_order": 5,
+      "status": "done",
+      "owning_module": "chat-shell",
+      "summary": "Creates `app/src/components/chat/EmojiComposerPicker.tsx` — a Chakra Popover anchored to a trigger button in the `ChatBox.tsx` input toolbar. Renders the 24-glyph grid from `CURATED_EMOJI` in a 4-column layout. Handles cursor-position insertion via `String.prototype.slice` on the textarea value, Escape-to-close, outside-click-to-close, and the `Cmd/Ctrl+Shift+E` shortcut wired in the existing ChatBox keydown handler. Each glyph button has a correct `aria-label`. Grid implements `role='grid'` with arrow-key navigation. Because ChatBox is shared, this simultaneously enables the picker in DM and group surfaces.",
+      "in_scope": [
+        "New file app/src/components/chat/EmojiComposerPicker.tsx using Chakra Popover (mirror NotificationBell.tsx pattern)",
+        "Trigger button data-testid='emoji-composer-trigger', aria-label=copy.emoji.openPicker",
+        "Grid of 24 glyphs from CURATED_EMOJI; each glyph button data-testid='emoji-glyph-{emoji}', aria-label includes glyph",
+        "4-column layout, role='grid', gridcell role on each button, arrow-key navigation",
+        "Closes on glyph select, outside click, Escape",
+        "Cursor-position insertion logic: preserve prefix/suffix, advance caret, refocus textarea",
+        "Append-to-end fallback when textarea has no selection/cursor",
+        "ChatBox.tsx: Cmd/Ctrl+Shift+E keydown handler toggles picker",
+        "ChatBox.tsx: render EmojiComposerPicker in toolbar adjacent to existing buttons",
+        "All copy via useCopy() — no hardcoded strings (AC-66)",
+        "New E2E test app/tests/e2e/emoji-composer.spec.ts: open picker, type text, place cursor mid-text, select glyph, assert insertion position"
+      ],
+      "out_of_scope": [
+        "Reaction picker (story-08-reaction-ui)",
+        "Reaction badge row",
+        "Reaction send/receive"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-26",
+        "AC-27",
+        "AC-28",
+        "AC-29",
+        "AC-30",
+        "AC-31",
+        "AC-32",
+        "AC-33",
+        "AC-63",
+        "AC-64",
+        "AC-66"
+      ],
+      "files_new": [
+        "app/src/components/chat/EmojiComposerPicker.tsx",
+        "app/tests/e2e/emoji-composer.spec.ts"
+      ],
+      "files_modified": [
+        "app/src/components/chat/ChatBox.tsx"
+      ],
+      "depends_on": [
+        "story-01-types-i18n"
+      ],
+      "test_strategy": "Cursor-insertion logic extracted into a pure function and covered by `make test-unit`. Picker open/close, keyboard shortcut, aria roles, and cursor-position insertion verified by E2E spec (`make test-e2e`). No react-testing-library; no component render in unit tests."
+    },
+    {
+      "id": "story-06-group-reactions",
+      "title": "Wire group reactions outbound and inbound via MarmotContext and ChatStoreContext",
+      "story_order": 6,
+      "status": "done",
+      "owning_module": "chat-store",
+      "summary": "Adds `sendReaction(emoji, targetMessage, isRemoval?)` to `ChatStoreContext`. Optimistically writes a row via `applyOptimistic` with a `crypto.randomUUID()` id, then calls `buildReactionRumor` (no `p` tag for groups) and `sendRumorSafe`. Rolls back and shows a toast on failure (D7). Adds `case 7:` to the `MarmotContext` applicationMessage dispatch which calls `applyInboundRumor` and bumps `reactionsVersion`. Adds a minimal badge row to `ChatBox` wired to the subscribe pattern so group members see each other's reactions. Includes E2E multi-emoji test.",
+      "in_scope": [
+        "ChatStoreContext.tsx: add sendReaction(emoji, targetMessage, isRemoval?) using applyOptimistic, buildReactionRumor (no p tag), sendRumorSafe, rollbackOptimistic on failure + toast",
+        "MarmotContext.tsx: add case 7: in applicationMessage dispatch calling applyInboundRumor({ kind: 'group', groupId }, rumor) and bumping reactionsVersion",
+        "ChatBox.tsx: subscribe to reactionsVersion, read aggregated reactions via aggregateForMessage, render a stub badge row below each message (styling detailed in story-08)",
+        "ChatBox.tsx: accept onReact(emoji, message, op) prop; forward from GroupChat.tsx via ChatStoreContext.sendReaction",
+        "GroupChat.tsx: supply onReact prop to ChatBox by wrapping sendReaction",
+        "Unknown-target silent discard exercised in unit/integration test",
+        "New E2E test in app/tests/e2e/groups-reactions.spec.ts: two-tab send+receive reaction, multi-emoji on same message"
+      ],
+      "out_of_scope": [
+        "DM reactions (story-07-dm-reactions)",
+        "Reaction picker popover UI (story-08-reaction-ui)",
+        "Own-reaction highlight and tooltip (story-08-reaction-ui)"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-34",
+        "AC-35",
+        "AC-36",
+        "AC-37",
+        "AC-38",
+        "AC-39",
+        "AC-40",
+        "AC-54",
+        "AC-55",
+        "AC-59",
+        "AC-61"
+      ],
+      "files_new": [
+        "app/tests/e2e/groups-reactions.spec.ts"
+      ],
+      "files_modified": [
+        "app/src/context/ChatStoreContext.tsx",
+        "app/src/context/MarmotContext.tsx",
+        "app/src/components/chat/ChatBox.tsx",
+        "app/src/components/groups/GroupChat.tsx"
+      ],
+      "depends_on": [
+        "story-02-reactions-store",
+        "story-04-rumor-builder"
+      ],
+      "test_strategy": "`make test-e2e-groups` runs groups-reactions.spec.ts with real strfry relay. Covers: tab A sends reaction, tab B badge appears, multi-emoji (two distinct emoji on same message both visible), removal propagates. `make build` verifies TypeScript for new ChatStoreContext and MarmotContext changes."
+    },
+    {
+      "id": "story-07-dm-reactions",
+      "title": "Wire DM reactions outbound and inbound via directMessages and ContactChat",
+      "story_order": 7,
+      "status": "done",
+      "owning_module": "dm-transport",
+      "summary": "Extends `directMessages.ts` with `publishDirectReaction` and `removeDirectReaction` (both calling `buildReactionRumor` then `sealAndWrap`). Updates `ContactChat.tsx` to call `applyOptimistic` with the real rumor id before publishing (no temp UUID needed for DMs — the rumor id is known pre-publish), roll back on failure with a toast (D7), and process kind-7 inner rumors from the gift-wrap subscription via `applyInboundRumor`. Adds an E2E test for DM reaction send, receive, and removal.",
+      "in_scope": [
+        "directMessages.ts: add publishDirectReaction(emoji, targetMessage, peerPubkeyHex, selfPrivKeyHex): Promise<{ rumorId }> — buildReactionRumor + sealAndWrap + publish kind-1059",
+        "directMessages.ts: add removeDirectReaction(emoji, targetMessage, peerPubkeyHex, selfPrivKeyHex): Promise<{ rumorId }> — same with isRemoval=true",
+        "ContactChat.tsx: call applyOptimistic with Reaction row (id = rumorId) before publishDirectReaction",
+        "ContactChat.tsx: on publishDirectReaction rejection, call rollbackOptimistic(rumorId) and show couldntReact toast",
+        "ContactChat.tsx gift-wrap subscription: after unwrapAndOpen, if rumor.kind === 7, call applyInboundRumor({ kind: 'dm', peerPubkeyHex }, rumor) and notify listeners",
+        "ContactChat.tsx: supply onReact prop to ChatBox",
+        "New E2E test in app/tests/e2e/dm-reactions.spec.ts: send reaction, receive on other tab, remove reaction, badge disappears"
+      ],
+      "out_of_scope": [
+        "Group reactions (story-06-group-reactions)",
+        "Reaction picker UI and badge styling (story-08-reaction-ui)"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-41",
+        "AC-42",
+        "AC-43",
+        "AC-44",
+        "AC-45",
+        "AC-46",
+        "AC-54",
+        "AC-55",
+        "AC-59",
+        "AC-60"
+      ],
+      "files_new": [
+        "app/tests/e2e/dm-reactions.spec.ts"
+      ],
+      "files_modified": [
+        "app/src/lib/directMessages.ts",
+        "app/src/components/contacts/ContactChat.tsx"
+      ],
+      "depends_on": [
+        "story-02-reactions-store",
+        "story-03-dm-transport",
+        "story-04-rumor-builder",
+        "story-06-group-reactions"
+      ],
+      "test_strategy": "`make test-e2e` runs dm-reactions.spec.ts (no strfry needed for DMs — uses NDK with relay). Covers: send reaction, badge appears on receiver tab, remove reaction, badge disappears. `make build` type-checks the new directMessages.ts exports and ContactChat.tsx wiring."
+    },
+    {
+      "id": "story-08-reaction-ui",
+      "title": "Implement EmojiReactionPicker, ReactionBadgeRow, hover affordance, and own-reaction highlight",
+      "story_order": 8,
+      "status": "done",
+      "owning_module": "chat-shell",
+      "summary": "Creates `app/src/components/chat/EmojiReactionPicker.tsx` — a compact Chakra Popover rendered above/below the hovered message bubble. Creates a `ReactionBadgeRow` component rendering one badge per unique emoji with count, own-reaction highlight (border/fill), and a tooltip listing reactors. Wires hover/long-press affordance on each bubble in `ChatBox.tsx`. Completes the `onReact` prop contract so clicking badges calls the add or remove path. Adds own-reaction highlight E2E assertion to the groups-reactions spec. All components use `useCopy()` for labels.",
+      "in_scope": [
+        "New file app/src/components/chat/EmojiReactionPicker.tsx: Chakra Popover, trigger data-testid='reaction-trigger-{messageId}', aria-label=copy.emoji.reactWith, 24-glyph grid from CURATED_EMOJI, closes on select/outside/Escape",
+        "New file app/src/components/chat/ReactionBadgeRow.tsx: one badge per emoji, data-testid='reaction-badge-{messageId}-{emoji}', count element data-testid='reaction-count-{messageId}-{emoji}', selfReacted highlight style, tooltip with reactors list",
+        "ChatBox.tsx: render hover/long-press affordance on each bubble (the reaction trigger); render ReactionBadgeRow below bubbles with non-empty aggregates",
+        "ChatBox.tsx: wire onReact(emoji, message, op) from EmojiReactionPicker and ReactionBadgeRow badge clicks",
+        "Multi-emoji policy: clicking badge for already-reacted emoji calls op='remove'; clicking new emoji calls op='add' without removing existing reactions (D2)",
+        "All aria-labels and copy via useCopy() — no hardcoded strings",
+        "Extend app/tests/e2e/groups-reactions.spec.ts with: own-reaction badge highlight assertion; click-badge-to-remove assertion",
+        "Extend app/tests/e2e/dm-reactions.spec.ts with badge highlight and toggle assertions if applicable"
+      ],
+      "out_of_scope": [
+        "Quick-reaction inline row (D5 deferred)",
+        "Double-tap default reaction (D5 deferred)",
+        "NIP-30 custom emoji rendering (D4 out of scope)"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-47",
+        "AC-48",
+        "AC-49",
+        "AC-50",
+        "AC-51",
+        "AC-52",
+        "AC-53",
+        "AC-54",
+        "AC-55",
+        "AC-56",
+        "AC-62",
+        "AC-63",
+        "AC-64",
+        "AC-65",
+        "AC-66"
+      ],
+      "files_new": [
+        "app/src/components/chat/EmojiReactionPicker.tsx",
+        "app/src/components/chat/ReactionBadgeRow.tsx"
+      ],
+      "files_modified": [
+        "app/src/components/chat/ChatBox.tsx",
+        "app/tests/e2e/groups-reactions.spec.ts",
+        "app/tests/e2e/dm-reactions.spec.ts"
+      ],
+      "depends_on": [
+        "story-06-group-reactions",
+        "story-07-dm-reactions"
+      ],
+      "test_strategy": "Picker open/close, aria roles, badge highlight, badge click toggle, and reactor tooltip verified by E2E (`make test-e2e` and `make test-e2e-groups`). Aggregation and selfReacted logic is already unit-tested in story-02. No component render in unit tests (no react-testing-library). `make build` confirms TypeScript prop contracts."
+    }
+  ]
+}

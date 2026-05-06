@@ -1,0 +1,182 @@
+{
+  "story_id": "story-08-reaction-ui",
+  "questions": [
+    {
+      "question_id": "VQ-08-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the final implementation contain zero stub markers (TODO, FIXME, 'story-08 will replace'), dead code, or commented-out blocks? Specifically: does the story-06 comment 'Story-08 will replace this with ReactionBadgeRow' in ChatBox.tsx get removed and replaced by real ReactionBadgeRow usage?"
+    },
+    {
+      "question_id": "VQ-08-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Do EmojiReactionPicker and ReactionBadgeRow import exclusively from allowed dependencies (lib/reactions/, context/LanguageContext, lib/nostrKeys, @chakra-ui/react, app/src/types, lib/marmot/chatPersistence type-only)? Verify no import from ChatStoreContext, useDirectReactions, or any other context that would violate the downward-only import rule declared in architecture.md §3 rule 1."
+    },
+    {
+      "question_id": "VQ-08-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could EmojiReactionPicker.tsx and ReactionBadgeRow.tsx be deleted and rewritten without modifying any file outside their dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Specifically: do all data flows (aggregates, onReact) arrive via props (Seam S2 shape: ReactionAggregate[]) without the components importing ChatStoreContext or useDirectReactions directly?"
+    },
+    {
+      "question_id": "VQ-08-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Are the three pure helper functions (computeReactOp, formatReactorList, selfReactedStyle) covered by unit tests in reactionUiHelpers.test.ts with all four input states for computeReactOp: (selfReacted=false, agg exists), (selfReacted=true, agg exists), (selfReacted=false, agg absent), (selfReacted=true, agg absent — degenerate)? Are formatReactorList tests covering empty reactors, self-only, mixed cached+uncached, and overflow cases? Do unit tests pass without react-testing-library or component rendering?"
+    },
+    {
+      "question_id": "VQ-08-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the implementation comply with spec §1.2 which states the reaction picker is a SEPARATE component from the compose picker with different anchoring (above/below the hovered bubble, not above the textarea)? Is placement='top' (or 'top-start') used on the bubble-anchored popover, distinct from the compose picker's placement='top-start' on the toolbar trigger?"
+    },
+    {
+      "question_id": "VQ-08-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the reactor tooltip display layer handle truncated npub strings safely when the display name cache misses — i.e., does formatReactorList call truncateNpub(pubkeyToNpub(pubkey)) rather than rendering raw 64-char hex pubkeys that could contain unexpected characters? Is the tooltip content derived purely from the profileMap prop (controlled input) with no eval or dangerouslySetInnerHTML?"
+    },
+    {
+      "question_id": "VQ-08-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-47",
+      "question": "AC-47: Does app/src/components/chat/EmojiReactionPicker.tsx render a Chakra Popover whose trigger element has data-testid='reaction-trigger-{messageId}' (with the actual messageId interpolated) and aria-label equal to copy.emoji.reactWith? Show the production code line for the trigger element and a Playwright locator in the e2e spec that finds it by this testid."
+    },
+    {
+      "question_id": "VQ-08-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-48",
+      "question": "AC-48: Does EmojiReactionPicker close in all three cases: (a) a glyph is selected, (b) outside the popover is clicked, (c) Escape is pressed? Show the onSelect handler that calls onClose after calling the parent callback, and confirm closeOnBlur and closeOnEsc are both set on the Popover. Confirm the e2e test exercises at least one close path."
+    },
+    {
+      "question_id": "VQ-08-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-49",
+      "question": "AC-49: Does ChatBox.tsx render a ReactionBadgeRow below each message bubble that has at least one non-removed reaction, with data-testid='reaction-badge-{messageId}-{emoji}'? Confirm the stub badge row from story-06 has been replaced (not duplicated) — search for both the old inline badge code and the new ReactionBadgeRow import to verify exactly one rendering path."
+    },
+    {
+      "question_id": "VQ-08-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-50",
+      "question": "AC-50: Does each badge in ReactionBadgeRow display the emoji glyph, and show a count element with data-testid='reaction-count-{messageId}-{emoji}' only when count > 1 (omitted when count === 1)? Show the conditional rendering code and provide evidence from the e2e spec that a single-reactor badge has no count element while a two-reactor badge does."
+    },
+    {
+      "question_id": "VQ-08-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-51",
+      "question": "AC-51: Is a badge whose selfReacted===true rendered with a visually distinct style (border accent AND/OR background fill)? Specify which Chakra tokens are applied for the highlighted vs non-highlighted badge states. Confirm the e2e spec asserts this style difference (e.g. via toHaveCSS or class/attribute check on the badge element)."
+    },
+    {
+      "question_id": "VQ-08-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-52",
+      "question": "AC-52: Does clicking reaction-badge-{msgId}-{emoji} when selfReacted===true call onReact(emoji, message, 'remove'), and when selfReacted===false call onReact(emoji, message, 'add')? Show the click handler in ReactionBadgeRow and the e2e assertion that clicking an already-own badge removes it (badge disappears)."
+    },
+    {
+      "question_id": "VQ-08-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-53",
+      "question": "AC-53: Does hovering a badge render a Chakra Tooltip listing reactor display names or npubs? Is the tooltip's aria-label or content derived from copy.emoji.reactors? Does the tooltip have data-testid='reaction-tooltip-{messageId}-{emoji}'? Provide evidence that the tooltip content is not a mock-spy proxy — show where formatReactorList or equivalent logic produces the actual string."
+    },
+    {
+      "question_id": "VQ-08-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-54",
+      "question": "AC-54: Is the multi-emoji invariant (D2) enforced on BOTH click paths — picker glyph click AND badge click? Specifically: (a) clicking a new glyph in the picker calls onReact(emoji, msg, 'add') without removing existing self-reactions on the same message; (b) clicking an existing self-reaction badge calls onReact(emoji, msg, 'remove'). Show computeReactOp usage in both paths and a unit test demonstrating D2 compliance."
+    },
+    {
+      "question_id": "VQ-08-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-55",
+      "question": "AC-55: Does ChatBox.tsx accept onReact(emoji, message, op) as a prop and pass it to both EmojiReactionPicker and ReactionBadgeRow? Is the prop supplied by ContactChat.tsx (DMs) and GroupChat.tsx (groups)? Show the TypeScript prop type on ChatBox and confirm it matches the signature expected by EmojiReactionPicker and ReactionBadgeRow."
+    },
+    {
+      "question_id": "VQ-08-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-56",
+      "question": "AC-56: Does the e2e spec groups-reactions.spec.ts include a test that: (1) sends a reaction, (2) asserts the badge has the highlighted style (selfReacted=true styling), (3) clicks the badge, and (4) asserts the badge is removed? Is this test NOT a mock-spy proxy — does it interact with real React state and the real idb store (not a mocked applyOptimistic)?"
+    },
+    {
+      "question_id": "VQ-08-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-62",
+      "question": "AC-62: Confirm NIP-30 emoji tags on inbound kind-7 rumors are ignored in the ReactionBadgeRow and EmojiReactionPicker. Is there any code path that reads the 'emoji' tag array from a ReactionAggregate and renders it as an image? If not present, state explicitly that it is absent by design (D4)."
+    },
+    {
+      "question_id": "VQ-08-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-63",
+      "question": "AC-63: Does every emoji button in EmojiReactionPicker have a non-empty aria-label? Show the exact aria-label template string (e.g. copy.emoji.reactWith + ' ' + emoji or equivalent). Confirm no button is rendered without this attribute by inspection of the component's JSX."
+    },
+    {
+      "question_id": "VQ-08-019",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-64",
+      "question": "AC-64: Does EmojiReactionPicker implement role='grid' with role='gridcell' on each glyph cell, and arrow-key navigation between cells? Show the handleGridKeyDown implementation. Confirm it mirrors EmojiComposerPicker's arrow-key navigation pattern."
+    },
+    {
+      "question_id": "VQ-08-020",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-65",
+      "question": "AC-65: Does the ReactionBadgeRow badge have an aria-label containing both the emoji and the count (e.g. '👍 3'), derived from copy.emoji.reactionCount? Show the aria-label string construction and confirm it is not a hardcoded literal."
+    },
+    {
+      "question_id": "VQ-08-021",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-66",
+      "question": "AC-66: Search EmojiReactionPicker.tsx and ReactionBadgeRow.tsx for any hardcoded user-visible string literal (e.g. 'React with', 'reactors', 'remove reaction'). Confirm zero hardcoded strings exist — all are accessed via useCopy() from the Copy type keys defined in story-01 (emoji.reactWith, emoji.reactors, emoji.reactionCount, emoji.removeReaction)."
+    },
+    {
+      "question_id": "VQ-08-022",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "Does the toggle decision in EmojiReactionPicker's handleGlyphClick depend on agg.selfReacted (not on emoji presence alone)? Specifically: if selfReacted=false exists for an emoji the user clicked, computeReactOp returns 'add' even though an aggregate entry exists. Verify this is NOT computing op based on whether agg exists, but specifically on agg.selfReacted."
+    },
+    {
+      "question_id": "VQ-08-023",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "Does the touch long-press path (onPointerDown with pointerType check) correctly distinguish a 500ms hold from a short tap? Specifically: does the onPointerUp handler always cancel the timer, preventing a tap from accidentally opening the picker? And does the onPointerLeave handler also cancel the timer so leaving the bubble area cancels the long-press?"
+    },
+    {
+      "question_id": "VQ-08-024",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "Is the own-reaction highlight (brand.50 bg + brand.300 border) visually distinguishable in both light and dark Chakra color modes? The selfReactedStyle function returns Chakra semantic tokens (brand.50, brand.300) not hardcoded hex values. Verify these tokens resolve to distinct colors in both modes as defined in the project's Chakra theme."
+    },
+    {
+      "question_id": "VQ-08-025",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The ChatBox reactionsByMessageId prop is optional — when absent it falls back to useChatStore().reactionsByMessageId (group surface). For the DM surface, ContactChat now passes the prop explicitly. Is there any code path where the DM surface could accidentally read from the group ChatStoreContext (e.g. if the prop is not passed due to a rendering edge case)? Verify ContactChat always passes reactionsByMessageId to ChatBox."
+    },
+    {
+      "question_id": "VQ-08-026",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Did extending groups-dm-reactions.spec.ts from the bridge-based approach to real UI surface the kind-1059 harness issue from story-07? Specifically: do the new story-08 DM UI tests (AC-47, AC-49, AC-55 tests) actually prove that the DM publish path works by observing the kind-1059 on the wire, or do they only assert optimistic UI state? Document the root cause of the harness gap if it surfaced."
+    },
+    {
+      "question_id": "VQ-08-027",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The ChatBox.tsx now renders the message row outer Flex with role='group' for _groupHover. In Chakra UI v2, _groupHover generates the CSS selector '[role=group]:hover &'. Does this selector work across the full nesting depth from the outer Flex (role=group) to the trigger IconButton inside EmojiReactionPicker inside the inner Flex? Or does the intermediate role='group' on ReactionBadgeRow's Flex interfere?"
+    }
+  ]
+}

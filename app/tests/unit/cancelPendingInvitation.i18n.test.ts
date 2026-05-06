@@ -11,7 +11,7 @@ describe('cancelPendingInvitation i18n keys', () => {
     expect(en.groups.cancelInviteSuccess).toBe('Invitation cancelled');
     expect(en.groups.cancelInviteError).toBe('Failed to cancel invitation');
     expect(en.groups.cancelInviteRaceNotice).toBe(
-      'Member just came online — cancellation no longer applies'
+      'This invitation is no longer pending'
     );
     expect(typeof en.groups.cancelledByAnnouncement).toBe('function');
     expect(en.groups.cancelledByAnnouncement('Alice', 'Bob')).toBe(
@@ -28,7 +28,7 @@ describe('cancelPendingInvitation i18n keys', () => {
     expect(de.groups.cancelInviteSuccess).toBe('Einladung zurückgezogen');
     expect(de.groups.cancelInviteError).toBe('Einladung konnte nicht zurückgezogen werden');
     expect(de.groups.cancelInviteRaceNotice).toBe(
-      'Mitglied ist gerade online — Einladung kann nicht mehr zurückgezogen werden'
+      'Diese Einladung ist nicht mehr ausstehend'
     );
     expect(typeof de.groups.cancelledByAnnouncement).toBe('function');
     expect(de.groups.cancelledByAnnouncement('Alice', 'Bob')).toBe(

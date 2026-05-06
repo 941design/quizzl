@@ -1,0 +1,80 @@
+{
+  "module_name": "dm-transport",
+  "purpose": "Owns all outbound NIP-17/59 gift-wrap logic and inbound dual-decode (kind-4 legacy + kind-1059 gift-wrap) for DM conversations. Exposes sealAndWrap, unwrapAndOpen, publishDirectMessage, and the dual-listening subscription wiring in ContactChat.tsx.",
+  "public_api": [
+    {
+      "name": "sealAndWrap",
+      "signature": "(rumor: UnsignedRumor, recipientPubkey: string, selfPrivKeyHex: string): Promise<NostrEvent>",
+      "description": "Produces a signed kind-1059 gift-wrap event using nostr-tools/nip59 wrapEvent. The outer event's created_at is randomized within [now-2days, now] per NIP-59. Ephemeral key per wrap is generated internally by wrapEvent."
+    },
+    {
+      "name": "unwrapAndOpen",
+      "signature": "(giftWrap: NostrEvent, selfPrivKeyHex: string): Promise<UnsignedRumor>",
+      "description": "Decrypts a kind-1059 gift-wrap event using nostr-tools/nip59 unwrapEvent. Throws on mismatched recipient key or broken seal. Returns the inner unsigned rumor."
+    },
+    {
+      "name": "publishDirectMessage",
+      "signature": "(params: { ndk: NDK; privateKeyHex: string; peerPubkeyHex: string; content: string; attachments?: RoledAttachments }): Promise<string>",
+      "description": "Rewritten to build a kind-14 rumor, call sealAndWrap, and publish the kind-1059 wrap via NDK rawPublish. External signature unchanged (D9b). Returns the inner rumor id."
+    },
+    {
+      "name": "signDirectMessage",
+      "signature": "DEPRECATED — callers inside ContactChat.tsx are migrated to use the new flow.",
+      "description": "Old NIP-04 sign helper. Kept as tombstone during migration if needed by sendDirectImageMessage chain; effectively replaced by the publishDirectMessage rewrite."
+    },
+    {
+      "name": "UnsignedRumor",
+      "signature": "type UnsignedRumor = { kind: number; content: string; tags: string[][]; pubkey: string; created_at: number; id: string }",
+      "description": "Seam S5 type for the inner unsigned rumor. Matches nostr-tools nip59 Rumor shape (UnsignedEvent + id, no sig)."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/directMessages.ts (extended, not split)"
+  ],
+  "owned_data": [
+    "No persistent state owned by this module. DM message persistence is owned by lib/marmot/chatPersistence.ts."
+  ],
+  "dependencies_allowed": [
+    "nostr-tools (nip04, nip59, nip44, pure)",
+    "@nostr-dev-kit/ndk",
+    "app/src/lib/ndkClient.ts",
+    "app/src/lib/media/blossomClient.ts",
+    "app/src/lib/media/imageMessage.ts",
+    "app/src/lib/media/imageProcessing.ts",
+    "app/src/lib/marmot/chatPersistence.ts (via ContactChat, downward import only)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/components/* (lib must not import from components)",
+    "app/src/context/* (lib must not import from context)",
+    "app/src/pages/*"
+  ],
+  "external_ports": [
+    "NDK relay publish (kind-1059 gift wrap)",
+    "NDK subscription (kind-4 and kind-1059)"
+  ],
+  "events_emitted": [
+    "kind-1059 gift-wrap event published to relay set"
+  ],
+  "events_consumed": [
+    "kind-4 (legacy NIP-04, inbound only, forever per D9a)",
+    "kind-1059 (new gift-wrap inbound)"
+  ],
+  "test_targets": [
+    "app/tests/unit/directMessages/sealAndWrap.test.ts (NEW): round-trip, outer kind-1059, wrong-key throws, created_at bounds",
+    "app/tests/unit/directMessages.test.ts (EXTENDED): publishDirectMessage produces kind-1059, legacy NIP-04 decrypt regression"
+  ],
+  "seam_contracts": {
+    "S5": {
+      "produced_by": "story-03-dm-transport",
+      "sealAndWrap": "(rumor: UnsignedRumor, recipientPubkey: string, selfPrivKeyHex: string) => Promise<NostrEvent>",
+      "unwrapAndOpen": "(giftWrap: NostrEvent, selfPrivKeyHex: string) => Promise<UnsignedRumor>",
+      "invariants": [
+        "sealAndWrap always produces kind-1059; never kind-4",
+        "unwrapAndOpen throws on wrong key or broken seal",
+        "publishDirectMessage external signature unchanged; wire format kind-1059 only",
+        "ContactChat.tsx subscribes to both kind-4 (legacy) and kind-1059 concurrently",
+        "Both paths dedup by inner-rumor id via appendMessage"
+      ]
+    }
+  }
+}

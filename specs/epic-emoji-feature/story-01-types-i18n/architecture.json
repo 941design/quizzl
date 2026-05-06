@@ -1,0 +1,50 @@
+{
+  "module_name": "i18n",
+  "purpose": "Add Reaction and ReactionThreadKey types, CURATED_EMOJI constant (24 glyphs), and eight emoji-feature i18n keys with en/de values. This story is purely additive — no runtime behaviour changes. It establishes the Seam S1 type contract that every downstream story depends on.",
+  "public_api": [
+    {
+      "name": "ReactionThreadKey",
+      "signature": "type ReactionThreadKey = { kind: 'group'; groupId: string } | { kind: 'dm'; peerPubkeyHex: string }",
+      "description": "Discriminated union identifying the persistence namespace for a reaction thread. Exported from app/src/lib/reactions/types.ts."
+    },
+    {
+      "name": "Reaction",
+      "signature": "interface Reaction { id: string; messageId: string; reactorPubkey: string; emoji: string; eventId: string; createdAt: number; removed: boolean }",
+      "description": "Row shape stored in idb-keyval. No identity_id field (D11). eventId is empty string for optimistic rows. Exported from app/src/lib/reactions/types.ts."
+    },
+    {
+      "name": "CURATED_EMOJI",
+      "signature": "const CURATED_EMOJI: readonly string[]",
+      "description": "Exactly 24 Unicode glyphs covering Faces, Gestures, Symbols, Objects from spec §1.1. Exported from app/src/lib/reactions/types.ts."
+    },
+    {
+      "name": "Copy.emoji",
+      "signature": "emoji: { openPicker: string; closePicker: string; reactWith: string; insertEmoji: string; removeReaction: string; couldntReact: string; reactors: string; reactionCount: string }",
+      "description": "Eight new keys added to the Copy type in app/src/lib/i18n.ts, with en and de values."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "Reaction interface definition (no runtime data — type only)",
+    "ReactionThreadKey discriminated union",
+    "CURATED_EMOJI constant",
+    "emoji.* keys in Copy type and en/de translation objects"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/i18n.ts (modification — adding emoji.* section to Copy type and both locale objects)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/components/ (no component imports in lib/)",
+    "app/src/context/ (no context imports in lib/)",
+    "idb-keyval (types-only story — no persistence)",
+    "Any npm package not already in package.json"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "seams_produced": ["S1"],
+  "seams_consumed": [],
+  "test_targets": [
+    "app/tests/unit/reactions/reactions.i18n.test.ts — asserts getCopy('en') and getCopy('de') for all eight emoji.* keys"
+  ]
+}
