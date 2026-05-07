@@ -11,6 +11,7 @@
 import { createStore, get, set, del, keys, clear } from 'idb-keyval';
 import type { Group, MemberScore, MemberProfile, ScoreUpdate } from '@/src/types';
 import type { StoredKeyPackage, SerializedClientState } from '@internet-privacy/marmot-ts';
+import { clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage';
 // KeyValueStoreBackend is an internal utility type — import directly from subpath
 type KeyValueStoreBackend<T> = {
   getItem(key: string): Promise<T | null>;
@@ -144,9 +145,12 @@ export async function mergeMemberProfile(
   if (idx === -1) {
     existing.push(profile);
   } else {
-    // LWW by ISO timestamp
+    // LWW by ISO timestamp; preserve signedEvent if incoming has none
     if (profile.updatedAt > existing[idx].updatedAt) {
-      existing[idx] = profile;
+      existing[idx] = {
+        ...profile,
+        ...(profile.signedEvent ? {} : { signedEvent: existing[idx].signedEvent }),
+      };
     }
   }
 
@@ -185,6 +189,7 @@ export async function clearAllGroupData(): Promise<void> {
   await clear(keyPackageStore);
   await clear(memberScoreStore);
   await clear(memberProfileStore);
+  await clearProfileRequestMemos('*'); // clear all — groupId filter handled internally
 }
 
 // ---------------------------------------------------------------------------

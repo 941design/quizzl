@@ -1,14 +1,14 @@
 {
   "epic_name": "member-profile-discovery-and-relay-on-behalf",
-  "status": "in_progress",
-  "phase": "STORY_01_DONE",
-  "halt_requested": true,
-  "halt_reason": "User requested halt after story 01 to commit foundation; remaining stories 02-07 deferred",
+  "status": "done",
+  "phase": "STORY_07_DONE",
+  "halt_requested": false,
+  "halt_reason": null,
   "created_at": "2026-05-06T00:00:00Z",
-  "updated_at": "2026-05-06T18:45:00Z",
-  "completed_stories": ["01"],
+  "updated_at": "2026-05-07T17:16:00Z",
+  "completed_stories": ["01", "02", "03", "04", "05", "06", "07"],
   "escalated_stories": [],
-  "remaining_stories": ["02", "03", "04", "05", "06", "07"],
+  "remaining_stories": [],
   "phase_history": [
     {
       "phase": "SPEC_VALIDATED",
@@ -24,9 +24,41 @@
       "phase": "STORY_01_DONE",
       "timestamp": "2026-05-06T18:45:00Z",
       "trigger": "verifier_closed_story_01_after_2_remediation_rounds"
+    },
+    {
+      "phase": "STORY_02_DONE",
+      "timestamp": "2026-05-07T17:00:00Z",
+      "trigger": "lead_accepted_story_02_after_decider_resolved_AC-022_spec_ambiguity"
+    },
+    {
+      "phase": "STORY_03_DONE",
+      "timestamp": "2026-05-07T17:08:00Z",
+      "trigger": "FAST_PATH_pass_max_severity_3"
+    },
+    {
+      "phase": "STORY_04_DONE",
+      "timestamp": "2026-05-07T17:16:00Z",
+      "trigger": "FAST_PATH_pass_mechanical_deletion_verified_by_grep"
+    },
+    {
+      "phase": "STORY_05_DONE",
+      "timestamp": "2026-05-07T18:00:00Z",
+      "trigger": "FAST_PATH_pass_code_already_present_13_unit_tests_708_passing"
+    },
+    {
+      "phase": "STORY_06_DONE",
+      "timestamp": "2026-05-07T18:15:00Z",
+      "trigger": "verifier_closed_story_06_12_new_unit_tests_720_passing_tsc_clean"
+    },
+    {
+      "phase": "STORY_07_DONE",
+      "timestamp": "2026-05-07T18:30:00Z",
+      "trigger": "lead_accepted_story_07_e2e_spec_6_scenarios_helpers_window_test_hook"
     }
   ],
   "deferred_followups": [
-    "Codex round-2 high finding: MLS-membership check on inner SignedProfileEvent.pubkey. Out of scope per spec.md ~lines 30-35; tracked in marmot-ts-rumor-sender-authentication.md. Revisit during story 06 (relay-on-behalf widens the surface) or after upstream marmot-ts exposes the MLS sender leaf credential."
+    "Codex round-2 high finding: MLS-membership check on inner SignedProfileEvent.pubkey. Out of scope per spec.md ~lines 30-35; tracked in marmot-ts-rumor-sender-authentication.md. Revisit during story 06 (relay-on-behalf widens the surface) or after upstream marmot-ts exposes the MLS sender leaf credential.",
+    "Story 02: AC-022 was amended to match the existing clearAllGroupData() signature (no parameter). Per-group memo cleanup is deferred to story 03 via leaveGroup(groupId).",
+    "Story 03: handleIncomingProfileRequest stub carries selfPubkeyHex parameter not present in story 06's contract description. Story 06 may keep or drop the parameter."
   ]
 }

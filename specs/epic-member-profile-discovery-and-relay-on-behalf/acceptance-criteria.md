@@ -36,7 +36,7 @@ Spec: `spec.md` · Architecture: `architecture.md` · Exploration: `exploration.
 - **AC-019** — `recordRequestAnswered(groupId, targetPubkey, now)` upserts a memo with `lastAnsweredAt = now` and `attempts = 0`.
 - **AC-020** — `clearProfileRequestMemos(groupId)` deletes every memo whose key starts with `${groupId}:`.
 - **AC-021** — `mergeMemberProfile` persists `signedEvent` alongside parsed fields when the incoming `MemberProfile` carries one; LWW by `updatedAt` is preserved.
-- **AC-022** — `clearAllGroupData(groupId)` calls `clearProfileRequestMemos(groupId)` so memo records for the group are removed.
+- **AC-022** — `clearAllGroupData()` calls `clearProfileRequestMemos('*')` so all memo records are removed during account-wide reset. Per-group memo cleanup occurs in `leaveGroup(groupId)` (Story 03). [Amended in story 02: original text referenced `clearAllGroupData(groupId)` but that signature does not exist; `clearAllGroupData` is a no-parameter account-wide reset, consistent with how it clears the other 5 stores.]
 
 ## E. App-start sweep effect — `MarmotContext.tsx`
 

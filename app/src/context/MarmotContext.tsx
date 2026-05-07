@@ -34,6 +34,9 @@ import {
 import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscription';
 import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
 import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
+import { PROFILE_REQUEST_KIND, parseProfileRequestPayload } from '@/src/lib/marmot/profileRequestSync';
+import { recordRequestEmitted, loadProfileRequestMemo, clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage';
+import { handleIncomingProfileRequest, notifyProfileObserved, sweepStaleProfiles } from '@/src/lib/marmot/profileRequestRunner';
 import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, decrementJoinRequest } from '@/src/lib/unreadStore';
 import { CHAT_MESSAGE_KIND } from '@/src/lib/marmot/chatPersistence';
 import { POLL_OPEN_KIND, POLL_VOTE_KIND, POLL_CLOSE_KIND, parsePollOpen, parsePollVote, parsePollClose } from '@/src/lib/marmot/pollSync';
@@ -166,6 +169,8 @@ type MarmotContextValue = {
   isPendingMember: (groupId: string, pubkey: string) => Promise<boolean>;
   /** Cancel a pending invitation: MLS Remove+UpdateMetadata commit + announcement + refresh. sendAnnouncement is optional and called after commit if provided. */
   cancelPendingInvitation: (groupId: string, pubkey: string, sendAnnouncement?: (content: string) => Promise<void>) => Promise<{ ok: boolean; error?: string; raceDetected?: boolean; announcementError?: string }>;
+  /** Proactive sweep: emit PROFILE_REQUEST_KIND for all stale members in a single group. Fire-and-forget. */
+  requestProfilesIfStale: (groupId: string) => Promise<void>;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -184,6 +189,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const groupSubsRef = useRef<Map<string, () => void>>(new Map());
   // Track groups where profile has been published (to avoid re-publishing)
   const profilePublishedRef = useRef<Set<string>>(new Set());
+  // Ref for the app-start stale-profile sweep guard (runs once after ready+groups+pubkeyHex)
+  const appStartSweepRanRef = useRef(false);
   // Ref for localProfile to avoid stale closures in subscription callbacks
   const localProfileRef = useRef(localProfile);
   // Ref for groups to avoid stale closures in welcome subscription callbacks
@@ -216,6 +223,66 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     groupsRef.current = groups;
   }, [groups]);
+
+  // Dev-only: expose parseProfilePayload so E2E tests can verify forged-sig rejection (AC-045 scenario 6)
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+      void import('@/src/lib/marmot/profileSync').then(({ parseProfilePayload }) => {
+        const hooks = ((window as unknown as Record<string, unknown>).__quizzlTest ??= {}) as Record<string, unknown>;
+        hooks.parseProfilePayload = parseProfilePayload;
+      });
+    }
+  }, []);
+
+  // AC-023: App-start sweep — runs sweepStaleProfiles exactly once after
+  // ready, groups, and pubkeyHex are all set. The ref guard prevents re-runs
+  // if React re-renders when any of those dependencies change independently.
+  useEffect(() => {
+    if (!ready || groups.length === 0 || !pubkeyHex) return;
+    if (appStartSweepRanRef.current) return;
+    appStartSweepRanRef.current = true;
+
+    void (async () => {
+      try {
+        const now = Date.now();
+        const groupIds = groups.map((g) => g.id);
+
+        await sweepStaleProfiles({
+          groupIds,
+          selfPubkeyHex: pubkeyHex,
+          now,
+          getGroupMembers: async (groupId) => {
+            const client = clientRef.current;
+            if (!client) return [];
+            const mlsGroup = await client.groups.get(groupId).catch(() => null);
+            if (!mlsGroup) return [];
+            const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
+            return getGroupMembers(mlsGroup.state);
+          },
+          loadProfile: async (groupId, targetPubkey) => {
+            const profiles = await loadMemberProfiles(groupId);
+            return profiles.find((p) => p.pubkeyHex === targetPubkey);
+          },
+          loadMemo: loadProfileRequestMemo,
+          recordEmitted: recordRequestEmitted,
+          sendRumor: async (groupId, content) => {
+            const client = clientRef.current;
+            if (!client || !pubkeyHex) return;
+            const g = await client.groups.get(groupId).catch(() => null);
+            if (!g) return;
+            const rumor = buildRumor(PROFILE_REQUEST_KIND, content, pubkeyHex);
+            await sendRumorSafe(g, rumor as any, { softFail: true });
+            if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+              ((window as unknown as Record<string, unknown>).__quizzlTest as { onRumorSent?: (kind: number) => void } | undefined)
+                ?.onRumorSent?.(PROFILE_REQUEST_KIND);
+            }
+          },
+        });
+      } catch (err) {
+        console.warn('[Marmot] app-start sweepStaleProfiles failed:', err);
+      }
+    })();
+  }, [ready, groups.length, pubkeyHex]);
 
   // Load groups from storage on mount
   const reloadGroups = useCallback(async () => {
@@ -526,12 +593,6 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           const { SCORE_RUMOR_KIND, parseScorePayload } = await import('@/src/lib/marmot/scoreSync');
           const { PROFILE_RUMOR_KIND, parseProfilePayload, payloadToMemberProfile } = await import('@/src/lib/marmot/profileSync');
 
-          // BUG FIX: track member count at subscription time so onMembersChanged
-          // can detect when new members join and republish the local profile.
-          // Bug report: bug-reports/profile-propagation-new-members.md
-          // Date: 2026-03-24
-          let prevMemberCount = mlsMembers.length;
-
           const unsub = await subscribeToGroupMessages(
             group.id,
             group.relays,
@@ -551,49 +612,86 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               } else if (rumor.kind === PROFILE_RUMOR_KIND) {
                 const profilePayload = parseProfilePayload(rumor.content);
                 if (profilePayload) {
-                  // Identity binding (AC-047, story 01).
-                  //
-                  // For first-hand profile broadcasts the verified inner
-                  // pubkey MUST equal the outer MLS sender. Disagreement means
-                  // the relayer wrapped someone else's signed profile under
-                  // their own MLS membership — story 01 has no legitimate
-                  // relay-on-behalf path, so we drop. Story 06 will introduce
-                  // a separate carve-out for legitimate relay traffic.
-                  //
-                  // Legacy unsigned payloads (signedEvent absent) are accepted
-                  // and keyed by the MLS sender — there is no other identity
-                  // to key by, and a malicious unsigned write only succeeds
-                  // for the sender's own profile slot, which is no worse than
-                  // pre-epic behaviour.
-                  if (
-                    profilePayload.signedEvent &&
-                    profilePayload.signedEvent.pubkey !== senderPubkey
-                  ) {
-                    console.warn(
-                      `[Marmot] PROFILE_RUMOR_KIND identity mismatch — dropping. sender=${senderPubkey.slice(0, 8)} signedEvent.pubkey=${profilePayload.signedEvent.pubkey.slice(0, 8)}`,
-                    );
-                  } else {
-                    const authorPubkey = profilePayload.signedEvent?.pubkey ?? senderPubkey;
-                    const memberProfile = payloadToMemberProfile(senderPubkey, profilePayload);
-                    // Write to IDB first, THEN bump profileVersion so GroupDetailView
-                    // re-reads after the write has landed (avoids stale-read race).
-                    void mergeMemberProfile(group.id, memberProfile).then(() => {
-                      setProfileVersion((v) => v + 1);
-                    }).catch(
-                      (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
-                    );
-                    void updateMemberScoreNickname(group.id, authorPubkey, profilePayload.nickname).catch(
-                      (err: unknown) => console.warn('[Marmot] updateMemberScoreNickname failed:', err)
-                    );
-                    // Cache in global contact cache for cross-group availability — keyed by author.
-                    void import('@/src/lib/contactCache').then(({ writeContactEntry }) => {
-                      writeContactEntry(authorPubkey, {
-                        nickname: memberProfile.nickname,
-                        avatar: memberProfile.avatar,
-                        updatedAt: memberProfile.updatedAt,
-                      });
+                  // sig is verified by parseProfilePayload. For relay-on-behalf
+                  // (story 06) the MLS sender is the relayer, not the author —
+                  // the embedded SignedProfileEvent.pubkey is the authoritative
+                  // identity. Legacy unsigned payloads (signedEvent absent) are
+                  // keyed by MLS sender, consistent with pre-epic behaviour.
+                  const authorPubkey = profilePayload.signedEvent?.pubkey ?? senderPubkey;
+                  const memberProfile = payloadToMemberProfile(senderPubkey, profilePayload);
+                  // Write to IDB first, THEN bump profileVersion so GroupDetailView
+                  // re-reads after the write has landed (avoids stale-read race).
+                  void mergeMemberProfile(group.id, memberProfile).then(() => {
+                    setProfileVersion((v) => v + 1);
+                  }).catch(
+                    (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
+                  );
+                  void updateMemberScoreNickname(group.id, authorPubkey, profilePayload.nickname).catch(
+                    (err: unknown) => console.warn('[Marmot] updateMemberScoreNickname failed:', err)
+                  );
+                  // AC-036: cancel any pending relay timer for this profile's author.
+                  if (profilePayload.signedEvent) {
+                    notifyProfileObserved({
+                      groupId: group.id,
+                      targetPubkey: authorPubkey,
+                      observedUpdatedAt: memberProfile.updatedAt,
                     });
                   }
+                  // Dev-only: notify E2E test hook on successful profile receive
+                  if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+                    const testRumorKind = PROFILE_RUMOR_KIND;
+                    ((window as unknown as Record<string, unknown>).__quizzlTest as { onRumorReceived?: (kind: number) => void } | undefined)
+                      ?.onRumorReceived?.(testRumorKind);
+                  }
+                  // Cache in global contact cache for cross-group availability — keyed by author.
+                  void import('@/src/lib/contactCache').then(({ writeContactEntry }) => {
+                    writeContactEntry(authorPubkey, {
+                      nickname: memberProfile.nickname,
+                      avatar: memberProfile.avatar,
+                      updatedAt: memberProfile.updatedAt,
+                    });
+                  });
+                }
+              } else if (rumor.kind === PROFILE_REQUEST_KIND) {
+                const reqPayload = parseProfileRequestPayload(rumor.content);
+                if (reqPayload) {
+                  void (async () => {
+                    try {
+                      // AC-032: record every observed request for deduplication
+                      // across the group, regardless of target.
+                      await recordRequestEmitted(group.id, reqPayload.targetPubkey, Date.now());
+
+                      if (reqPayload.targetPubkey === pubkeyHex) {
+                        // AC-030: we are the target — reply immediately with our
+                        // current profile. Mirrors publishProfileUpdate exactly:
+                        // sign locally, build rumor, send with no backoff.
+                        if (!signerRef.current) return;
+                        const payload = await serialiseProfileUpdate(localProfileRef.current, signerRef.current);
+                        const rumor2 = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
+                        await sendRumorSafe(mlsGroup, rumor2 as any);
+                      } else {
+                        // AC-031: not our target — delegate to relay handler (AC-033/034).
+                        await handleIncomingProfileRequest({
+                          groupId: group.id,
+                          payload: reqPayload,
+                          selfPubkeyHex: pubkeyHex ?? '',
+                          now: Date.now(),
+                          loadProfile: async (gid, targetPubkey) => {
+                            const profiles = await loadMemberProfiles(gid);
+                            return profiles.find((p) => p.pubkeyHex === targetPubkey);
+                          },
+                          sendRumor: async (groupId, content) => {
+                            const g = await clientRef.current?.groups.get(groupId).catch(() => null);
+                            if (!g) return;
+                            const r = buildRumor(PROFILE_RUMOR_KIND, content, pubkeyHex ?? '');
+                            await sendRumorSafe(g, r as any);
+                          },
+                        });
+                      }
+                    } catch (err) {
+                      console.warn('[Marmot] PROFILE_REQUEST_KIND handler failed:', err);
+                    }
+                  })();
                 }
               } else if (rumor.kind === CHAT_MESSAGE_KIND) {
                 void (async () => {
@@ -734,17 +832,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               // historical messages alone. Do not gate on profilePublishedRef —
               // this must fire on every join regardless of prior publish.
               // Uses localProfileRef to avoid stale-closure race when the user
-              // changes their nickname between subscription creation and member join.
-              // Bug report: bug-reports/profile-propagation-new-members.md
-              if (currentMembers.length > prevMemberCount && signerRef.current) {
-                const payload = await serialiseProfileUpdate(localProfileRef.current, signerRef.current);
-                const rumor = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
-                void sendRumorSafe(mlsGroup, rumor as any, { softFail: true }).catch((err: unknown) => {
-                  console.warn(`[Marmot] onMembersChanged profile republish for ${group.id} failed:`, err);
-                });
-              }
-              prevMemberCount = currentMembers.length;
-            },
+              },
             // Publish profile after historical sync completes (epoch is up-to-date).
             // Uses localProfileRef to avoid stale-closure race.
             () => {
@@ -999,6 +1087,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     // Clear poll data
     await clearPollData(groupId);
     await clearGroupMedia(groupId);
+    await clearProfileRequestMemos(groupId);
     clearUnreadGroup(groupId);
     await reloadGroups();
     markBackupDirty(true);
@@ -1199,6 +1288,47 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     [groups, reloadGroups, markBackupDirty, pubkeyHex],
   );
 
+  // AC-025: Single-group variant of the app-start sweep. Emits PROFILE_REQUEST_KIND
+  // for every stale member in the given group, scoped to that group only.
+  const requestProfilesIfStale = useCallback(async (groupId: string): Promise<void> => {
+    if (!pubkeyHex) return;
+    try {
+      const now = Date.now();
+      const client = clientRef.current;
+      if (!client) return;
+
+      await sweepStaleProfiles({
+        groupIds: [groupId],
+        selfPubkeyHex: pubkeyHex,
+        now,
+        getGroupMembers: async (gid) => {
+          const mlsGroup = await client.groups.get(gid).catch(() => null);
+          if (!mlsGroup) return [];
+          const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
+          return getGroupMembers(mlsGroup.state);
+        },
+        loadProfile: async (gid, targetPubkey) => {
+          const profiles = await loadMemberProfiles(gid);
+          return profiles.find((p) => p.pubkeyHex === targetPubkey);
+        },
+        loadMemo: loadProfileRequestMemo,
+        recordEmitted: recordRequestEmitted,
+        sendRumor: async (gid, content) => {
+          const g = await client.groups.get(gid).catch(() => null);
+          if (!g) return;
+          const rumor = buildRumor(PROFILE_REQUEST_KIND, content, pubkeyHex);
+          await sendRumorSafe(g, rumor as any, { softFail: true });
+          if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+            ((window as unknown as Record<string, unknown>).__quizzlTest as { onRumorSent?: (kind: number) => void } | undefined)
+              ?.onRumorSent?.(PROFILE_REQUEST_KIND);
+          }
+        },
+      });
+    } catch (err) {
+      console.warn('[Marmot] requestProfilesIfStale failed:', err);
+    }
+  }, [pubkeyHex]);
+
   const value = useMemo<MarmotContextValue>(
     () => ({
       ready,
@@ -1227,6 +1357,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       denyJoinRequest,
       isPendingMember,
       cancelPendingInvitation,
+      requestProfilesIfStale,
     }),
     [
       ready,
@@ -1255,6 +1386,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       denyJoinRequest,
       isPendingMember,
       cancelPendingInvitation,
+      requestProfilesIfStale,
     ]
   );
 
@@ -1293,6 +1425,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   denyJoinRequest: NOOP_ASYNC,
   isPendingMember: async () => false,
   cancelPendingInvitation: async () => ({ ok: false, error: 'not_ready' }),
+  requestProfilesIfStale: NOOP_ASYNC,
 };
 
 export function useMarmot(): MarmotContextValue {

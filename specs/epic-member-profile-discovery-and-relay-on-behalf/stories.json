@@ -121,8 +121,8 @@
       "complexity": "medium",
       "introduces_mocks": [],
       "test_fixtures": [],
-      "status": "pending",
-      "notes": "Ships entirely as additive library code plus unit tests. Independent of story 01 — can land in parallel; only the mergeMemberProfile.signedEvent field-level persistence depends on story 01's type extension landing first (sequence 01→02 keeps that simple)."
+      "status": "done",
+      "notes": "Ships entirely as additive library code plus unit tests. Independent of story 01 — can land in parallel; only the mergeMemberProfile.signedEvent field-level persistence depends on story 01's type extension landing first (sequence 01→02 keeps that simple). Completed 2026-05-07: 49 new unit tests, 695/695 passing, tsc clean. Decider amended AC-022 to match existing clearAllGroupData() signature (no parameter)."
     },
     {
       "id": "03",
@@ -154,8 +154,8 @@
       "complexity": "medium",
       "introduces_mocks": [],
       "test_fixtures": [],
-      "status": "pending",
-      "notes": "Depends on 01 (signing on the reply path) and 02 (parseProfileRequestPayload, recordRequestEmitted, PROFILE_REQUEST_KIND constant). Verifiable via a focused E2E that injects a fake request on a target and asserts a profile rumor is emitted; or via integration test simulating a single onApplicationMessage delivery."
+      "status": "done",
+      "notes": "Completed 2026-05-07. Dispatcher arm at MarmotContext.tsx:601-638; leaveGroup wiring at line 1043. New stub file profileRequestRunner.ts. tsc clean, 695 tests passing. Minor finding for story 06: handleIncomingProfileRequest stub carries an extra selfPubkeyHex parameter (not in this story's contract); story 06 may keep or drop it. Verifiable via story 07 E2E."
     },
     {
       "id": "04",
@@ -180,8 +180,8 @@
       "complexity": "low",
       "introduces_mocks": [],
       "test_fixtures": [],
-      "status": "pending",
-      "notes": "Independent of every other story — could land first or last. Sequencing it after 03 keeps a working request mechanism in place when proactive republish disappears, so behaviour stays correct end-to-end. Existing groups-profile-update-propagation.spec.ts and groups-member-profiles.spec.ts E2Es should still pass post-04 only when stories 01-03 have already landed; otherwise the aged-history scenario regresses."
+      "status": "done",
+      "notes": "Completed 2026-05-07. Net -16 lines from MarmotContext.tsx (declaration + comment + if-block + dead write). prevMemberCount fully removed. onHistorySynced and inviteByNpub paths preserved verbatim. tsc clean, 695/695 tests."
     },
     {
       "id": "05",
@@ -210,8 +210,8 @@
       "complexity": "medium",
       "introduces_mocks": [],
       "test_fixtures": [],
-      "status": "pending",
-      "notes": "Depends on 01 (SignedProfileEvent for the cached profile), 02 (memo store, sync helpers), and 03 (dispatcher arm so a target replies when a sweep emits a request)."
+      "status": "done",
+      "notes": "Completed 2026-05-07. sweepStaleProfiles in profileRequestRunner.ts (13 unit tests), app-start sweep useEffect in MarmotContext.tsx (appStartSweepRanRef guard, deps [ready, groups.length, pubkeyHex]), requestProfilesIfStale(groupId) on context value, pages/groups.tsx route-enter effect calls requestProfilesIfStale(id). tsc clean, 708/708 unit tests passing."
     },
     {
       "id": "06",
@@ -242,8 +242,8 @@
       "complexity": "high",
       "introduces_mocks": [],
       "test_fixtures": [],
-      "status": "pending",
-      "notes": "Highest-complexity story — concurrency-sensitive (timer keying, cancellation race). Vitest with fake timers is the right shape for the unit tests; the full E2E with target-offline lives in story 07. Depends on 01 (signedEvent on MemberProfile), 02 (sync helpers), 03 (dispatcher arm wired)."
+      "status": "done",
+      "notes": "Completed 2026-05-07. handleIncomingProfileRequest: module-level pendingRelayTimers Map keyed by groupId:targetPubkey, loadProfile injection, sinceUpdatedAt check, setTimeout(pickBackoffMs()). notifyProfileObserved: cancels timer when observedUpdatedAt >= scheduledForUpdatedAt. MarmotContext PROFILE_RUMOR_KIND arm: removed identity-mismatch drop (relay traffic legitimate since sig verified by parseProfilePayload), added notifyProfileObserved call after successful merge. handleIncomingProfileRequest call site receives loadProfile injection. 12 new unit tests with fake timers, 720/720 passing, tsc clean."
     },
     {
       "id": "07",
@@ -265,6 +265,7 @@
         ]
       },
       "complexity": "high",
+      "status": "done",
       "introduces_mocks": [],
       "test_fixtures": [
         {
@@ -282,8 +283,7 @@
           "permanent": true
         }
       ],
-      "status": "pending",
-      "notes": "Depends on 01-06. The retry-state-machine scenario uses Playwright 1.45+'s page.clock.install / fastForward; the project is on 1.58 so this is native. Forged-sig rejection requires injecting a SignedProfileEvent through window.__forgedProfileInject or a similar test-only hook — design the seam during the story's architect step."
+      "notes": "Completed 2026-05-07. app/tests/e2e/groups-profile-request.spec.ts with 6 test scenarios (AC-045). Helpers: helpers/rumor-counter.ts (installRumorCounter/getRumorCount using window.__quizzlTest hooks), helpers/idb-record.ts (deleteIdbRecord/readIdbRecord/writeIdbRecord). Forged-sig seam: MarmotContext.tsx exposes window.__quizzlTest.parseProfilePayload in dev mode. Retry-state-machine uses page.clock.install/fastForward (Playwright 1.58). Unit tests: 720/720, tsc clean."
     }
   ]
 }
