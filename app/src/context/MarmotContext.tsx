@@ -621,11 +621,14 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                   const memberProfile = payloadToMemberProfile(senderPubkey, profilePayload);
                   // Write to IDB first, THEN bump profileVersion so GroupDetailView
                   // re-reads after the write has landed (avoids stale-read race).
-                  void mergeMemberProfile(group.id, memberProfile).then(async () => {
+                  void mergeMemberProfile(group.id, memberProfile).then(async (merged: boolean) => {
                     setProfileVersion((v) => v + 1);
                     // Record that a profile answer was received so attempts reset and
                     // shouldEmitRequest can take the "answered within 7d" branch.
-                    await recordRequestAnswered(group.id, authorPubkey, Date.now());
+                    // Only do this if the LWW merge actually accepted the profile.
+                    if (merged) {
+                      await recordRequestAnswered(group.id, authorPubkey, Date.now());
+                    }
                   }).catch(
                     (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
                   );

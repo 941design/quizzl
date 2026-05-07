@@ -134,11 +134,13 @@ export async function saveMemberProfiles(groupId: string, profiles: MemberProfil
 
 /**
  * Merge an incoming MemberProfile using last-writer-wins by updatedAt timestamp.
+ * Returns true if the incoming profile was newer and replaced/added the stored one;
+ * false if the stored profile was equally or more recent (no update performed).
  */
 export async function mergeMemberProfile(
   groupId: string,
   profile: MemberProfile
-): Promise<void> {
+): Promise<boolean> {
   const existing = await loadMemberProfiles(groupId);
   const idx = existing.findIndex((p) => p.pubkeyHex === profile.pubkeyHex);
 
@@ -151,10 +153,14 @@ export async function mergeMemberProfile(
         ...profile,
         ...(profile.signedEvent ? {} : { signedEvent: existing[idx].signedEvent }),
       };
+    } else {
+      await saveMemberProfiles(groupId, existing);
+      return false; // stored profile is equally or more recent — no change
     }
   }
 
   await saveMemberProfiles(groupId, existing);
+  return true;
 }
 
 export async function clearMemberProfiles(groupId: string): Promise<void> {
