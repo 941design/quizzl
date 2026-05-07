@@ -57,7 +57,7 @@ function ChatSendMessageCapture({ sendMessageRef }: { sendMessageRef: React.Muta
 
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
-  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation } = useMarmot();
+  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation, requestProfilesIfStale } = useMarmot();
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const signer = useMemo(
     () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
@@ -78,6 +78,9 @@ function GroupDetailView({ id }: { id: string }) {
   const [mlsGroup, setMlsGroup] = useState<MarmotGroupType | null>(null);
   // Ref to capture sendMessage from inside ChatStoreProvider without prop drilling
   const sendAnnouncementRef = useRef<((content: string) => Promise<void>) | null>(null);
+  // Guards requestProfilesIfStale so it fires only once per group entry (on mount /
+  // group-ID change), not on every profileVersion / groupDataVersion tick.
+  const requestedOnEntryForRef = useRef<string | null>(null);
 
   const onCancelInvite = useCallback(async (pubkey: string) => {
     if (!group) return;
@@ -122,6 +125,10 @@ function GroupDetailView({ id }: { id: string }) {
     const found = groups.find((g) => g.id === id);
     if (found) {
       setGroup(found);
+      if (requestedOnEntryForRef.current !== id) {
+        requestedOnEntryForRef.current = id;
+        void requestProfilesIfStale(id);
+      }
       markAsRead(id);
       void getMarmotGroup(id).then(setMlsGroup).catch(() => {});
       void getMemberScores(id).then(setMemberScores).catch(() => {});
@@ -170,7 +177,7 @@ function GroupDetailView({ id }: { id: string }) {
     } else {
       setNotFound(true);
     }
-  }, [ready, groups, id, getMemberScores, getMemberProfiles, pubkeyHex, ownProfile, profileVersion, groupDataVersion]);
+  }, [ready, groups, id, getMemberScores, getMemberProfiles, pubkeyHex, ownProfile, profileVersion, groupDataVersion, requestProfilesIfStale]);
 
   if (!ready) {
     return (

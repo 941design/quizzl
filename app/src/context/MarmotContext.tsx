@@ -35,7 +35,7 @@ import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscripti
 import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
 import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
 import { PROFILE_REQUEST_KIND, parseProfileRequestPayload } from '@/src/lib/marmot/profileRequestSync';
-import { recordRequestEmitted, loadProfileRequestMemo, clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage';
+import { recordRequestEmitted, recordRequestAnswered, loadProfileRequestMemo, clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage';
 import { handleIncomingProfileRequest, notifyProfileObserved, sweepStaleProfiles } from '@/src/lib/marmot/profileRequestRunner';
 import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, decrementJoinRequest } from '@/src/lib/unreadStore';
 import { CHAT_MESSAGE_KIND } from '@/src/lib/marmot/chatPersistence';
@@ -621,8 +621,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                   const memberProfile = payloadToMemberProfile(senderPubkey, profilePayload);
                   // Write to IDB first, THEN bump profileVersion so GroupDetailView
                   // re-reads after the write has landed (avoids stale-read race).
-                  void mergeMemberProfile(group.id, memberProfile).then(() => {
+                  void mergeMemberProfile(group.id, memberProfile).then(async () => {
                     setProfileVersion((v) => v + 1);
+                    // Record that a profile answer was received so attempts reset and
+                    // shouldEmitRequest can take the "answered within 7d" branch.
+                    await recordRequestAnswered(group.id, authorPubkey, Date.now());
                   }).catch(
                     (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
                   );
@@ -1174,6 +1177,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     setGroups([]);
     clientRef.current = null;
     profilePublishedRef.current.clear();
+    appStartSweepRanRef.current = false;
   }, []);
 
   const getGroup = useCallback(async (groupId: string): Promise<MarmotGroupType | null> => {
