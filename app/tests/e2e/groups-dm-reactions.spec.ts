@@ -12,7 +12,7 @@
  * AC-60: only kind-1059 (gift wrap) events on the wire — no kind-7 plaintext.
  */
 
-import { test, expect, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page, WebSocket as PWWebSocket } from '@playwright/test';
 import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay } from './helpers/dismiss-error-overlay';
@@ -30,6 +30,13 @@ async function bootUserWithContact(
   user: typeof USER_A,
   nickname: string,
   peerPubkeyHex: string,
+  // Optional WebSocket observer wired BEFORE page.goto so that already-open
+  // WebSockets opened during NDK boot are captured. Playwright's
+  // page.on('websocket') only fires for connections opened after subscription;
+  // attaching after page.goto misses the NDK singleton WS to strfry entirely
+  // (empirically: AC-60 captured zero events when the listener was attached
+  // post-boot in the test body).
+  onWebSocket?: (ws: PWWebSocket) => void,
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ baseURL: BASE_URL });
   await suppressErrorOverlay(context);
@@ -68,6 +75,11 @@ async function bootUserWithContact(
   );
 
   const page = await context.newPage();
+  // Wire the WS observer BEFORE page.goto so it fires for the NDK singleton's
+  // initial connection (see comment on the onWebSocket parameter above).
+  if (onWebSocket) {
+    page.on('websocket', onWebSocket);
+  }
   await page.goto('/');
   await clearAppState(page);
 
@@ -230,35 +242,31 @@ test.describe('DM reactions — outbound and inbound (AC-46)', () => {
     const aliceKeys = USER_A;
     const bobKeys = USER_B;
 
+    // Capture published EVENT kinds via a WebSocket observer wired BEFORE
+    // page.goto (see bootUserWithContact comment). Wiring this in the test
+    // body after boot misses the already-open NDK WebSocket and observes
+    // zero frames.
+    const publishedKinds: number[] = [];
     const { page: alicePage } = await bootUserWithContact(
       browser,
       aliceKeys,
       'Alice',
       bobKeys.pubkeyHex,
+      (ws) => {
+        ws.on('framesent', (frame) => {
+          try {
+            const data = JSON.parse(frame.payload as string);
+            if (Array.isArray(data) && data[0] === 'EVENT' && data[1]?.kind !== undefined) {
+              publishedKinds.push(data[1].kind as number);
+            }
+          } catch {
+            // ignore non-JSON frames
+          }
+        });
+      },
     );
 
     await openDmWithPeer(alicePage, bobKeys.pubkeyHex);
-
-    // Intercept network requests to the relay and capture published events
-    const publishedKinds: number[] = [];
-    await alicePage.route('**/*.strfry/**', (route) => {
-      // Allow all relay traffic through — we're only observing here
-      void route.continue();
-    });
-
-    // Monitor WebSocket messages for published events (Nostr EVENT messages)
-    alicePage.on('websocket', (ws) => {
-      ws.on('framesent', (frame) => {
-        try {
-          const data = JSON.parse(frame.payload as string);
-          if (Array.isArray(data) && data[0] === 'EVENT' && data[1]?.kind !== undefined) {
-            publishedKinds.push(data[1].kind as number);
-          }
-        } catch {
-          // ignore non-JSON frames
-        }
-      });
-    });
 
     // Send a message first so we have a target
     await alicePage.getByTestId('chat-input').fill('test message for AC-60');

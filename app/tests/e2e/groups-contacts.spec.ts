@@ -104,6 +104,6 @@ test.describe.serial('Contacts and direct chat', () => {
 
     await pageA.getByTestId('chat-input').fill('Hi Bob, from contacts');
     await pageA.getByTestId('chat-send-btn').click();
-    await expect(pageB.getByText('Hi Bob, from contacts')).toBeVisible({ timeout: 60_000 });
+    await expect(pageB.locator('[data-testid^="msg-"]', { hasText: 'Hi Bob, from contacts' }).first()).toBeVisible({ timeout: 60_000 });
   });
 });

@@ -23,6 +23,7 @@ test.describe('Story 01 - Project Scaffold and Routing', () => {
   test('topics page is accessible via navigation', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('navigation').getByRole('link', { name: 'Topics' }).click();
+    await page.waitForLoadState('networkidle');
     await expect(page).toHaveURL(/\/topics/);
     await expect(page.getByRole('heading', { name: 'Topics' })).toBeVisible();
   });
