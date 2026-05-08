@@ -1,10 +1,15 @@
 {
   "epic_name": "emoji-feature",
-  "status": "done",
-  "phase": "COMPLETE",
+  "status": "in_progress",
+  "phase": "REOPENED_REMEDIATION",
   "created_at": "2026-05-05T12:59:15Z",
-  "updated_at": "2026-05-06T02:42:59Z",
+  "updated_at": "2026-05-08T00:00:00Z",
   "completed_stories": ["story-01-types-i18n", "story-02-reactions-store", "story-03-dm-transport", "story-04-rumor-builder", "story-05-compose-picker", "story-06-group-reactions", "story-07-dm-reactions", "story-08-reaction-ui"],
+  "reopened": {
+    "reason": "Group reaction remove path uses applyOptimistic with a fresh UUID and removed:true, inserting a tombstone instead of flipping the existing add row. Same shape as DM bug fixed in commit 18dd1ca; never replicated to ChatStoreContext.tsx. Breaks AC-40 (remove half), AC-56 (own-reaction badge removal), and the group side of AC-59 (rollback). Failing tests: app/tests/e2e/groups-reactions.spec.ts:197 and :302.",
+    "scope": "story-06-group-reactions and story-08-reaction-ui",
+    "reopened_at": "2026-05-08T00:00:00Z"
+  },
   "escalated_stories": [],
   "phase_history": [
     {
@@ -51,6 +56,11 @@
       "phase": "COMPLETE",
       "timestamp": "2026-05-06T02:42:59Z",
       "trigger": "story-08-reaction-ui verified accepted (2 rounds: UI implementation + Framer Motion close regression fix on both pickers); epic complete."
+    },
+    {
+      "phase": "REOPENED_REMEDIATION",
+      "timestamp": "2026-05-08T00:00:00Z",
+      "trigger": "Post-merge e2e iteration surfaced deterministic failures at groups-reactions.spec.ts:197 and :302. Group sendReaction remove path was never updated with applyOptimisticRemoval (story-07 helper). Story-08 verifier closed AC-56 without ground-truthing the group remove flow."
     }
   ]
 }
