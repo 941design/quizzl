@@ -45,7 +45,7 @@ async function waitForKeyPackages(page: Page, pubkeyHex: string): Promise<void> 
     .poll(
       async () => {
         const events = await queryRelayForEvents(page, {
-          kinds: [443],
+          kinds: [30443],
           authors: [pubkeyHex],
           limit: 1,
         });

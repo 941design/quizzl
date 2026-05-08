@@ -58,7 +58,7 @@ test.describe('Groups Identity', () => {
     expect(pubkeyHex).toBeTruthy();
 
     const events = await queryRelayForEvents(page, {
-      kinds: [443],
+      kinds: [30443],
       authors: [pubkeyHex!],
       limit: 10,
     });

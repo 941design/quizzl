@@ -65,7 +65,7 @@ test.describe.serial('Group Lifecycle', () => {
     await pageB.waitForTimeout(5_000);
 
     const events = await queryRelayForEvents(pageB, {
-      kinds: [443],
+      kinds: [30443],
       authors: [USER_B.pubkeyHex],
       limit: 10,
     });

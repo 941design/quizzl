@@ -4,7 +4,7 @@
  * On first mount (client-side only):
  * 1. Load or generate a Nostr keypair from localStorage.
  * 2. Connect NDK to default relays.
- * 3. Publish kind 0 (metadata) and 5 kind 443 (KeyPackages).
+ * 3. Publish kind 0 (metadata). KeyPackages (kind 30443) are published by MarmotContext.
  *
  * Provides pubkeyHex, npub, and the NDKPrivateKeySigner to the app.
  */
