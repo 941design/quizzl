@@ -1,0 +1,60 @@
+{
+  "story": "05-stale-sweep-app-start-and-group-open",
+  "title": "App-start sweep effect + group-open sweep + requestProfilesIfStale",
+  "epic": "member-profile-discovery-and-relay-on-behalf",
+
+  "design_decisions": [
+    {
+      "decision": "sweepStaleProfiles is pure side-effect-injected",
+      "rationale": "Keeps the runner module free of marmot-ts/React imports; makes the function unit-testable with fake injections without mocking NDK or IndexedDB."
+    },
+    {
+      "decision": "Ref-backed once-only guard for app-start sweep",
+      "rationale": "Mirrors the pattern used for profilePublishedRef (line 792 MarmotContext). A plain boolean ref prevents React re-renders from triggering duplicate sweeps when ready/groups/pubkeyHex change independently."
+    },
+    {
+      "decision": "requestProfilesIfStale(groupId) is a thin wrapper around sweepStaleProfiles",
+      "rationale": "Single-group variant is pass-through; avoids duplicating the walk/staleness/dedup logic. The context value is fire-and-forget (void, not awaited) per AC-026."
+    },
+    {
+      "decision": "getGroupMembers uses the MLS state directly (getGroupMembers(mlsGroup.state))",
+      "rationale": "The overlay store's memberPubkeys can lag MLS state after a commit lands. Using MLS state directly is the authoritative source, consistent with how subscribeToGroupMessages (line 521) syncs membership."
+    }
+  ],
+
+  "exports": [
+    {
+      "file": "app/src/lib/marmot/profileRequestRunner.ts",
+      "symbol": "sweepStaleProfiles",
+      "visibility": "exported"
+    }
+  ],
+
+  "context_value_additions": [
+    {
+      "type": "MarmotContextValue",
+      "field": "requestProfilesIfStale: (groupId: string) => Promise<void>"
+    }
+  ],
+
+  "useEffect_locations": [
+    {
+      "file": "app/src/context/MarmotContext.tsx",
+      "purpose": "App-start sweep guard (appStartSweepRanRef)",
+      "gating_deps": ["ready", "groups.length", "pubkeyHex"],
+      "line_approx": "after line 212 (after profilePublishedRef)"
+    },
+    {
+      "file": "app/pages/groups.tsx",
+      "purpose": "Group-open single-group sweep",
+      "line": "after setGroup(found) in the route-enter useEffect (approx line 124)",
+      "call": "void requestProfilesIfStale(id);"
+    }
+  ],
+
+  "dependencies": {
+    "profileRequestSync": ["isProfileStale", "shouldEmitRequest", "serialiseProfileRequest", "PROFILE_REQUEST_KIND", "ProfileRequestMemo"],
+    "profileRequestStorage": ["loadProfileRequestMemo", "recordRequestEmitted"],
+    "groupStorage": ["loadMemberProfiles"]
+  }
+}

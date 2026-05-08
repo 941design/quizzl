@@ -1,0 +1,34 @@
+{
+  "verification_items": [
+    {
+      "id": "Q-01",
+      "question": "Does the app-start useEffect run sweepStaleProfiles exactly once?",
+      "answer": "Yes. AC-023 is satisfied by the ref-backed guard (appStartSweepRanRef) in the useEffect with deps [ready, groups.length, pubkeyHex]. The ref is set to true on first run, preventing re-runs if any dependency changes independently."
+    },
+    {
+      "id": "Q-02",
+      "question": "Does sweepStaleProfiles skip self and respect both isProfileStale AND shouldEmitRequest gates?",
+      "answer": "Yes. The function explicitly checks `if (targetPubkey === selfPubkeyHex) continue;` before any async calls. Then it gates on both isProfileStale(stored, now) and shouldEmitRequest(memo, now). Unit test 'skips selfPubkeyHex even when present in group members' and 'does NOT emit when shouldEmitRequest returns false' verify both."
+    },
+    {
+      "id": "Q-03",
+      "question": "Is recordRequestEmitted called for every emission?",
+      "answer": "Yes. The function awaits recordEmitted BEFORE serialising and sending the rumor. recordEmitted runs first so memo is updated even if sendRumor partially fails. Test 'calls recordEmitted before sendRumor for each eligible member' verifies ordering."
+    },
+    {
+      "id": "Q-04",
+      "question": "Does requestProfilesIfStale(groupId) work as the single-group variant?",
+      "answer": "Yes. It's a useCallback wrapping sweepStaleProfiles with groupIds: [groupId]. It uses the same sendRumor injection that wraps PROFILE_REQUEST_KIND via buildRumor + sendRumorSafe. It is exposed on the MarmotContextValue as requestProfilesIfStale."
+    },
+    {
+      "id": "Q-05",
+      "question": "Does GroupDetailView's route-enter useEffect call requestProfilesIfStale(id)?",
+      "answer": "Yes. In pages/groups.tsx at line ~124, after setGroup(found) the call `void requestProfilesIfStale(id)` is added. The context value is destructured from useMarmot() and the useEffect dep array includes requestProfilesIfStale."
+    },
+    {
+      "id": "Q-06",
+      "question": "Are unit tests added for sweepStaleProfiles (with fake injections)?",
+      "answer": "Yes. 13 new tests in tests/unit/profileRequestRunner.test.ts cover: getGroupMembers call pattern, self-skip, fresh-profile skip, undefined-profile emit, old-profile emit, shouldEmitRequest false gate, record-before-rumor ordering, exact-one-emission-per-member, sinceUpdatedAt inclusion, sinceUpdatedAt omission, multi-group independence, empty groupIds, no-members group. Total test count grew from 695 to 708."
+    }
+  ]
+}

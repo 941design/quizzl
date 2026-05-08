@@ -1,0 +1,11 @@
+{
+  "story": "04-remove-proactive-on-member-add-republish",
+  "change": "Mechanical deletion only. Removed one dead declaration, one comment block, one if-block, and one dead write from MarmotContext.tsx. No added lines.",
+  "deleted_lines": "MarmotContext.tsx:533-536 (let prevMemberCount + 3-line comment), 770-785 (if-block + 1-line comment), 786 (prevMemberCount write)",
+  "net_lines": -16,
+  "ac_027": "if-block removed — member-count growth no longer triggers profile rumor send",
+  "ac_028": "onHistorySynced introduction (lines 781-792) preserved verbatim",
+  "ac_029": "inviteByNpub republish (lines 985-997) preserved verbatim",
+  "preserved": ["onHistorySynced", "inviteByNpub republish", "all imports"],
+  "no_change": ["stories 01-03 artifacts", "any other file"]
+}

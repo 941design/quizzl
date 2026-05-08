@@ -1,0 +1,61 @@
+{
+  "story": "04-remove-proactive-on-member-add-republish",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-07T17:16:00Z",
+  "completed_by": "team-lead",
+  "implementation_path": "architect-as-implementer",
+
+  "summary": "Removed the proactive on-member-add republish branch from MarmotContext.tsx onMembersChanged. With this change, growing the member count no longer triggers a profile rumor send — the request/response mechanism (stories 02-06) is the new source of truth for newcomer profile discovery. Boy-scout cleanup: dead `prevMemberCount` declaration and write removed. onHistorySynced introduction (newcomer self-publish on first sync) and inviteByNpub republish (inviter pushes profile after invite) are preserved verbatim.",
+
+  "acceptance_criteria_satisfied": [
+    "AC-027 — `if (currentMembers.length > prevMemberCount && signerRef.current)` block removed; grep returns 0 occurrences of `currentMembers.length > ` and 0 occurrences of `prevMemberCount`",
+    "AC-028 — onHistorySynced introduction preserved verbatim — log lines at MarmotContext.tsx:784, 787, 789 unchanged",
+    "AC-029 — inviteByNpub republish preserved verbatim — `inviter profile publish after invite` at MarmotContext.tsx:997 unchanged"
+  ],
+
+  "files_changed": [
+    {
+      "path": "app/src/context/MarmotContext.tsx",
+      "kind": "modified",
+      "delta": "Net -16 lines, 0 added. Removed: (1) `let prevMemberCount = mlsMembers.length;` declaration + comment (3 lines around line 533-536); (2) BUG FIX comment block (6 lines); (3) `if (currentMembers.length > prevMemberCount && signerRef.current) { ... }` block (8 lines); (4) `prevMemberCount = currentMembers.length;` dead write (1 line)."
+    }
+  ],
+
+  "test_counts": {
+    "unit_before": { "files": 48, "tests": 695, "passed": 695, "failed": 0 },
+    "unit_after":  { "files": 48, "tests": 695, "passed": 695, "failed": 0 },
+    "unit_new_added": 0,
+    "typecheck": { "command": "cd app && npx tsc --noEmit", "errors": 0 }
+  },
+
+  "verification_rounds": 1,
+  "verification_method": "team-lead grep + tsc + test-unit (mechanical change, no examiner needed)",
+  "verification_findings": {
+    "prevMemberCount_occurrences": 0,
+    "currentMembers_length_predicate_occurrences": 0,
+    "onHistorySynced_preserved": true,
+    "inviteByNpub_republish_preserved": "line 997 unchanged",
+    "tsc_errors": 0,
+    "tests_passing": 695
+  },
+
+  "decision": "FAST PATH pass — mechanical deletion verified by grep, tsc clean, no test regressions.",
+
+  "design_decisions_summary": [
+    "Boy-scout cleanup: dead `prevMemberCount` removed alongside the if-block whose only purpose was to read it.",
+    "Spec line numbers (709-716) were stale due to story 01's wire-format upgrade; architect re-grepped before editing and found the block at 770-785.",
+    "onHistorySynced and inviteByNpub republish kept untouched per AC-028 and AC-029 — these are still needed: newcomers self-introduce on first sync, and the inviter immediately pushes their profile to a fresh invitee."
+  ],
+
+  "out_of_scope_left_for_subsequent_stories": [
+    "Story 05 — sweepStaleProfiles + app-start sweep + requestProfilesIfStale + group-open sweep call from pages/groups.tsx",
+    "Story 06 — handleIncomingProfileRequest + notifyProfileObserved bodies; pending-relay timer Map; PROFILE_RUMOR_KIND arm calls notifyProfileObserved",
+    "Story 07 — full E2E coverage of the six scenarios + helpers"
+  ],
+
+  "build_and_test_results": {
+    "tsc": { "command": "cd app && npx tsc --noEmit", "result": "PASS — zero errors" },
+    "unit_tests": { "command": "make test-unit", "result": "PASS — 695 tests, 48 files, 0 failures, 6.80s" }
+  }
+}

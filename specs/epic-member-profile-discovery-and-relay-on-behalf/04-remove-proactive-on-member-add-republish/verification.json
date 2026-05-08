@@ -1,0 +1,11 @@
+{
+  "questions": [
+    "Is the if-block `if (currentMembers.length > prevMemberCount && signerRef.current)` removed from onMembersChanged in MarmotContext.tsx?",
+    "Is the `let prevMemberCount = mlsMembers.length;` declaration (with its preceding 3-line comment) also removed from the subscribeToGroupMessages call site?",
+    "Is the dead write `prevMemberCount = currentMembers.length;` that followed the if-block also removed (it has no remaining readers)?",
+    "Is the onHistorySynced introduction callback (`() => { if (profilePublishedRef.current.has(group.id)) return; ... }`) preserved verbatim — not modified, not deleted?",
+    "Is the `inviteByNpub` republish block inside inviteByNpub (`Ensure the inviter also re-sends its current profile… serialiseProfileUpdate … sendRumorSafe`) preserved verbatim?",
+    "Does `npx tsc --noEmit` pass with 0 errors and does `make test-unit` remain at 695 passing?"
+  ],
+  "what_to_check": "grep MarmotContext.tsx for prevMemberCount (should find 0 occurrences), grep for onHistorySynced log lines (should be present), grep for inviter profile publish (should be present), run tsc and tests"
+}

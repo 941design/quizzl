@@ -1,0 +1,106 @@
+{
+  "story": "02-request-payload-and-memo-store",
+  "status": "done",
+  "final_outcome": "accepted",
+  "captured_at": "2026-05-07T00:00:00Z",
+  "completed_by": "architect",
+  "implementation_path": "architect-as-implementer",
+
+  "summary": "Implemented profileRequestSync.ts (pure module, zero side effects): PROFILE_REQUEST_KIND=30, ProfileRequestPayload type, serialiseProfileRequest (crypto.randomUUID nonce), parseProfileRequestPayload, isProfileStale, shouldEmitRequest (full truth table, 19 parameterised cases), pickBackoffMs (uniform [5000, 30000]). Implemented profileRequestStorage.ts (co-located IDB store, follows joinRequestStorage.ts pattern): createStore('quizzl-profile-request-memos', 'memos'), loadProfileRequestMemo, saveProfileRequestMemo, recordRequestEmitted (3-case upsert), recordRequestAnswered, clearProfileRequestMemos. Updated groupStorage.ts: clearAllGroupData calls clearProfileRequestMemos('*'); mergeMemberProfile preserves existing.signedEvent on LWW when incoming lacks one (AC-021). Unit test coverage: 49 new tests (isProfileStale boundaries, shouldEmitRequest parameterised, pickBackoffMs property), 695 total passing, tsc --noEmit zero errors.",
+
+  "acceptance_criteria_satisfied": [
+    "AC-008 — PROFILE_REQUEST_KIND=30, ProfileRequestPayload type with type/targetPubkey/sinceUpdatedAt?/nonce",
+    "AC-009 — serialiseProfileRequest generates fresh random nonce per call (crypto.randomUUID)",
+    "AC-010 — parseProfileRequestPayload returns null for malformed JSON, missing type, missing/non-string targetPubkey",
+    "AC-011 — all 7 timing constants exported with correct values (7d, 7d, 1h, 3, 5k, 30k)",
+    "AC-012 — isProfileStale: true for undefined/null; true when age >= 7d; false otherwise (5 boundary cases)",
+    "AC-013 — pickBackoffMs uniform in [5000, 30000] — verified over 200 calls",
+    "AC-014 — shouldEmitRequest: 19 parameterised cases covering full truth table (null, answered, retry-wait, retry+attempts<MAX, retry+attempts>=MAX, dedupe-expired)",
+    "AC-015 — idb-keyval createStore('quizzl-profile-request-memos', 'memos'), key = `${groupId}:${targetPubkey}`",
+    "AC-016 — loadProfileRequestMemo returns memo or null",
+    "AC-017 — saveProfileRequestMemo writes verbatim, observable via load",
+    "AC-018 — recordRequestEmitted: absent→attempts=1; within dedupe→increment; expired→reset",
+    "AC-019 — recordRequestAnswered: lastAnsweredAt=now, attempts=0",
+    "AC-020 — clearProfileRequestMemos: entries+prefix delete; clearAllGroupData calls it with '*'",
+    "AC-021 — mergeMemberProfile: LWW by updatedAt, preserves existing.signedEvent when incoming lacks one",
+    "AC-043 — profileRequestSync.test.ts: 49 tests covering isProfileStale boundaries, shouldEmitRequest (19 cases), pickBackoffMs range (200-loop property test)"
+  ],
+
+  "files_changed": [
+    {
+      "path": "app/src/lib/marmot/profileRequestSync.ts",
+      "kind": "new",
+      "delta": "Pure module: timing constants, ProfileRequestPayload type, ProfileRequestMemo type, serialiseProfileRequest, parseProfileRequestPayload, isProfileStale, shouldEmitRequest, pickBackoffMs. No await, no IDB, no NDK, no React."
+    },
+    {
+      "path": "app/src/lib/marmot/profileRequestStorage.ts",
+      "kind": "new",
+      "delta": "IDB memo store following joinRequestStorage.ts pattern: createStore('quizzl-profile-request-memos', 'memos'), loadProfileRequestMemo, saveProfileRequestMemo, recordRequestEmitted, recordRequestAnswered, clearProfileRequestMemos."
+    },
+    {
+      "path": "app/src/lib/marmot/groupStorage.ts",
+      "kind": "modified",
+      "delta": "clearAllGroupData: added clearProfileRequestMemos('*') call. mergeMemberProfile: LWW preserves existing.signedEvent when incoming lacks one."
+    },
+    {
+      "path": "app/tests/unit/profileRequestSync.test.ts",
+      "kind": "new",
+      "delta": "49 tests: constants, serialiseProfileRequest (6 cases), parseProfileRequestPayload (11 cases), isProfileStale (5 boundary), shouldEmitRequest (19 parameterised), pickBackoffMs (4 cases including 200-loop property)."
+    }
+  ],
+
+  "test_counts": {
+    "unit_before": { "files": 48, "tests": 646, "passed": 646, "failed": 0 },
+    "unit_after":  { "files": 49, "tests": 695, "passed": 695, "failed": 0 },
+    "unit_new_added": 49,
+    "typecheck": { "command": "cd app && npx tsc --noEmit", "errors": 0 }
+  },
+
+  "co_location_decision": {
+    "pattern": "joinRequestStorage.ts",
+    "choice": "new file profileRequestStorage.ts co-located in app/src/lib/marmot/",
+    "rationale": "Standalone *Storage.ts with own idb-keyval createStore mirrors joinRequestStorage.ts. Keeps memo store independently testable. groupStorage.ts imports clearProfileRequestMemos and wires it into clearAllGroupData."
+  },
+
+  "design_decisions_summary": [
+    "Pure module profileRequestSync.ts: no await, no idb-keyval, no NDK, no React imports — fully testable without mocks. Nonce via crypto.randomUUID() (available in all environments). ProfileRequestMemo type defined and exported from profileRequestSync.ts so pure functions that need it (shouldEmitRequest) don't import side-effecting storage.",
+    "shouldEmitRequest truth table implemented as ordered if/else: (1) null → emit, (2) answered within dedupe → skip, (3) within retry window → skip, (4) at/over dedupe window → emit, (5) in [retry, dedupe) → emit iff attempts < MAX. Covers all 19 test cases.",
+    "recordRequestEmitted 3-case upsert: absent → {attempts:1, lastRequestAt:now, lastAnsweredAt:null}; within dedupe → increment attempts + update lastRequestAt; expired → reset attempts to 1.",
+    "clearProfileRequestMemos('*') shortcut in storage (clear the whole store) distinguishes it from group-scoped prefix delete. groupStorage.ts passes '*' from clearAllGroupData.",
+    "mergeMemberProfile preserves existing.signedEvent on LWW: `existing[idx] = { ...profile, ...(profile.signedEvent ? {} : { signedEvent: existing[idx].signedEvent }) }`. Ensures a legacy unsigned peer cannot clobber a verified signed event already in storage.",
+    "ProfileRequestMemo type lives in profileRequestSync.ts (re-exported) not in types/index.ts — matches seam contract in architecture.md and keeps the type near the pure functions that consume it."
+  ],
+
+  "out_of_scope_left_for_subsequent_stories": [
+    "Story 03 — PROFILE_REQUEST_KIND dispatcher arm in MarmotContext, target-side immediate reply, recordRequestAnswered call site, leaveGroup call to clearProfileRequestMemos",
+    "Story 05 — sweepStaleProfiles, app-start sweep effect, requestProfilesIfStale on context value, group-open sweep from pages/groups.tsx",
+    "Story 06 — handleIncomingProfileRequest with backoff (pickBackoffMs consumed), notifyProfileObserved, pending-relay timer Map in profileRequestRunner.ts"
+  ],
+
+  "e2e_deferred": {
+    "rationale": "No new wire traffic in this story. ProfileRequestMemo and pure helpers are infrastructure for later stories. No E2E surface to exercise yet (no dispatcher arm, no request emission). Story 07 is the dedicated E2E story for the six scenarios."
+  },
+
+  "build_and_test_results": {
+    "tsc": { "command": "cd app && npx tsc --noEmit", "result": "PASS — zero errors" },
+    "unit_tests": { "command": "make test-unit", "result": "PASS — 695 tests, 49 test files, 0 failures" }
+  },
+
+  "verification_rounds": 1,
+  "examiners_run": [
+    { "scope": "pure module (AC-008–014, 043)", "verdict": "YES", "severity": 0 },
+    { "scope": "memo IDB store (AC-015–022)", "verdict": "PARTIAL", "severity": 8, "issue": "AC-022 spec text vs existing function signature" },
+    { "scope": "test coverage and build (AC-043)", "verdict": "YES", "severity": 0 }
+  ],
+
+  "decider_verdict": {
+    "verdict": "ACCEPT",
+    "option_taken": 1,
+    "reasoning_summary": "AC-022 is internally inconsistent with the existing clearAllGroupData() signature (no parameter, account-wide reset). spec.md is silent on signature; both references say only 'wire into clearAllGroupData and leaveGroup'. The architect's implementation matches the existing pattern (5 sibling stores cleared account-wide) and satisfies AC-022's stated intent ('memo records for the group are removed'). Per-group memo cleanup belongs in leaveGroup(groupId), deferred to story 03 per stories.json scope. AC-022's literal text was a spec authoring error.",
+    "caveats": [
+      "AC-022 text was amended in this story: original referenced clearAllGroupData(groupId) (per-group), corrected to clearAllGroupData() (account-wide) calling clearProfileRequestMemos('*'). Per-group cleanup deferred to story 03 via leaveGroup(groupId).",
+      "Implementation calls clearProfileRequestMemos('*') from clearAllGroupData(), consistent with the 5 sibling store clears in that function.",
+      "All other 14 ACs (008-021, 043) verified PASS by independent examiners."
+    ]
+  }
+}

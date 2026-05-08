@@ -1,0 +1,105 @@
+{
+  "story_id": "02",
+  "title": "Request rumor types, memo IDB store, pure dedupe helpers",
+  "epic_dir": "specs/epic-member-profile-discovery-and-relay-on-behalf",
+  "generated_at": "2026-05-07T00:00:00Z",
+
+  "module_map": [
+    {
+      "module": "profileRequestSync",
+      "path": "app/src/lib/marmot/profileRequestSync.ts",
+      "kind": "pure (new)",
+      "exports": [
+        "PROFILE_REQUEST_KIND = 30",
+        "ProfileRequestPayload type",
+        "ProfileRequestMemo type (also re-exported)",
+        "serialiseProfileRequest",
+        "parseProfileRequestPayload",
+        "isProfileStale",
+        "shouldEmitRequest",
+        "pickBackoffMs",
+        "timing constants (PROFILE_STALENESS_MS, REQUEST_DEDUPE_MS, UNANSWERED_RETRY_MS, UNANSWERED_MAX_ATTEMPTS, RELAY_BACKOFF_MIN_MS, RELAY_BACKOFF_MAX_MS)"
+      ]
+    },
+    {
+      "module": "profileRequestStorage",
+      "path": "app/src/lib/marmot/profileRequestStorage.ts",
+      "kind": "side-effecting IDB (new)",
+      "exports": [
+        "loadProfileRequestMemo(groupId, targetPubkey) -> ProfileRequestMemo | null",
+        "saveProfileRequestMemo(memo)",
+        "recordRequestEmitted(groupId, targetPubkey, now)",
+        "recordRequestAnswered(groupId, targetPubkey, now)",
+        "clearProfileRequestMemos(groupId)"
+      ],
+      "idb_store": {
+        "db_name": "quizzl-profile-request-memos",
+        "object_store": "memos",
+        "key": "${groupId}:${targetPubkey}"
+      }
+    },
+    {
+      "module": "groupStorage",
+      "path": "app/src/lib/marmot/groupStorage.ts",
+      "kind": "side-effecting IDB (modified)",
+      "changes": [
+        "clearAllGroupData now calls clearProfileRequestMemos('*') to wipe all memos",
+        "mergeMemberProfile updated to preserve existing.signedEvent when incoming profile has no signedEvent (LWW by updatedAt)"
+      ]
+    }
+  ],
+
+  "co_location_decision": {
+    "pattern": "joinRequestStorage.ts",
+    "choice": "new file profileRequestStorage.ts co-located in app/src/lib/marmot/",
+    "rationale": "joinRequestStorage.ts is a standalone *Storage.ts file with its own idb-keyval createStore. Following the same pattern keeps the memo store independently testable and parallel to joinRequestStorage. groupStorage.ts imports clearProfileRequestMemos from profileRequestStorage.ts to wire it into clearAllGroupData."
+  },
+
+  "purity_verification": {
+    "profileRequestSync": {
+      "no_tsc_errors": true,
+      "no_async": true,
+      "no_idb_imports": true,
+      "no_ndk_imports": true,
+      "no_react_imports": true,
+      "all_functions_deterministic": true,
+      "crypto_randomUUID_used_for_nonce": "crypto.randomUUID() (available in all supported environments)"
+    }
+  },
+
+  "seam_2_implementation": {
+    "ProfileRequestMemo": {
+      "defined_in": "profileRequestSync.ts (type export)",
+      "consumed_in": "profileRequestStorage.ts, profileRequestSync.ts (shouldEmitRequest)",
+      "key_format": "${groupId}:${targetPubkey}",
+      "fields": ["groupId", "targetPubkey", "lastRequestAt: number", "lastAnsweredAt: number | null", "attempts: number"]
+    },
+    "recordRequestEmitted_behavior": {
+      "no_existing_memo": "creates attempts=1, lastRequestAt=now, lastAnsweredAt=null",
+      "within_dedupe_window": "increments attempts, sets lastRequestAt=now",
+      "dedupe_window_expired": "resets attempts=1, lastRequestAt=now, lastAnsweredAt=null"
+    },
+    "recordRequestAnswered_behavior": {
+      "always": "sets lastAnsweredAt=now, attempts=0, preserves lastRequestAt from prev or now if absent"
+    }
+  },
+
+  "mergeMemberProfile_ac021": {
+    "change": "When incoming profile.updatedAt > existing.updatedAt (LWW wins), spread incoming profile but preserve existing.signedEvent when incoming.signedEvent is absent",
+    "pattern": "existing[idx] = { ...profile, ...(profile.signedEvent ? {} : { signedEvent: existing[idx].signedEvent }) }",
+    "invariant": "Once a signedEvent is stored for a MemberProfile, it persists through future LWW updates that lack one — legacy unsigned peers can't clobber a verified signed event"
+  },
+
+  "test_strategy": {
+    "profileRequestSync.test.ts": [
+      "constants: all 7 timing constants verified",
+      "serialiseProfileRequest: JSON validity, fields, nonce randomness",
+      "parseProfileRequestPayload: valid input, malformed JSON, missing type, missing targetPubkey, empty targetPubkey, wrong types, round-trip",
+      "isProfileStale: undefined/null profile, exactly stale, older, fresh (now), within window",
+      "shouldEmitRequest: full parameterised truth table (19 cases via it.each)",
+      "pickBackoffMs: finite, range check on first call, range check over 200 calls (property test), full-range sanity"
+    ]
+  },
+
+  "tsc_result": "npx tsc --noEmit — zero errors"
+}

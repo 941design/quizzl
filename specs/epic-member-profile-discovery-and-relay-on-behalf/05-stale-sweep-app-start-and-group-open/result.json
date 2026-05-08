@@ -1,0 +1,25 @@
+{
+  "story": "05-stale-sweep-app-start-and-group-open",
+  "status": "done",
+  "epic": "member-profile-discovery-and-relay-on-behalf",
+  "files_changed": [
+    "app/src/lib/marmot/profileRequestRunner.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/pages/groups.tsx",
+    "app/tests/unit/profileRequestRunner.test.ts"
+  ],
+  "files_created": [
+    "specs/epic-member-profile-discovery-and-relay-on-behalf/05-stale-sweep-app-start-and-group-open/architecture.json",
+    "specs/epic-member-profile-discovery-and-relay-on-behalf/05-stale-sweep-app-start-and-group-open/verification.json",
+    "app/tests/unit/profileRequestRunner.test.ts"
+  ],
+  "test_results": {
+    "total": 708,
+    "passed": 708,
+    "failed": 0,
+    "new_tests": 13,
+    "test_file": "app/tests/unit/profileRequestRunner.test.ts"
+  },
+  "typecheck": "passed (0 errors)",
+  "summary": "Implemented sweepStaleProfiles in profileRequestRunner.ts (pure, side-effect-injected), wired the app-start sweep in MarmotContext.tsx via appStartSweepRanRef guard, exposed requestProfilesIfStale(groupId) on MarmotContextValue, and added the call to GroupDetailView's route-enter useEffect in pages/groups.tsx."
+}

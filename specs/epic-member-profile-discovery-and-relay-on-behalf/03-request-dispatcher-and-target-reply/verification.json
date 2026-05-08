@@ -1,0 +1,29 @@
+{
+  "story": "03-request-dispatcher-and-target-reply",
+  "verification": [
+    {
+      "question": "Does the new PROFILE_REQUEST_KIND arm parse + dispatch correctly for self-targeted requests?",
+      "check": "The arm calls parseProfileRequestPayload(rumor.content), guards on a truthy result, then checks reqPayload.targetPubkey === pubkeyHex. The self-path calls serialiseProfileUpdate(localProfileRef.current, signerRef.current), buildRumor(PROFILE_RUMOR_KIND, ...), and sendRumorSafe — the same canonical pattern as publishProfileUpdate. TypeScript type-checks confirm the call is inside the truthy guard and uses the right exports."
+    },
+    {
+      "question": "Does it correctly delegate to handleIncomingProfileRequest stub for non-self targets?",
+      "check": "The else-branch calls handleIncomingProfileRequest with {groupId, payload, selfPubkeyHex, now, sendRumor}. The stub signature is compile-time-correct and returns void. Story 06 replaces the stub body. No profile rumor is sent directly in the non-self path."
+    },
+    {
+      "question": "Is recordRequestEmitted called on every PROFILE_REQUEST_KIND rumor regardless of target?",
+      "check": "recordRequestEmitted(group.id, reqPayload.targetPubkey, Date.now()) is called unconditionally at the top of the async block, before the self/non-self branch. This advances dedupe state for both self-targeted and peer-targeted requests."
+    },
+    {
+      "question": "Does the target-side reply use the same signer/serialiser/sendRumorSafe path as publishProfileUpdate?",
+      "check": "The reply path calls signerRef.current → serialiseProfileUpdate → buildRumor → sendRumorSafe with no backoff, exactly mirroring publishProfileUpdate (lines 1062–1081). localProfileRef is used (not localProfile) to avoid stale-closure race, matching the subscription callback pattern."
+    },
+    {
+      "question": "Does leaveGroup call clearProfileRequestMemos(groupId)?",
+      "check": "clearProfileRequestMemos(groupId) is added in leaveGroup at line 1042, after clearGroupMedia and before reloadGroups(). It is awaited so the IDB write completes before the function returns. No other cleanup code was modified."
+    },
+    {
+      "question": "Is profileRequestRunner.ts a non-breaking stub that compiles and has the right type signatures for story 06?",
+      "check": "The file exports handleIncomingProfileRequest (async, returns void, takes sendRumor injection) and notifyProfileObserved (sync, returns void). npx tsc --noEmit passes with 0 errors. TODO comments reference story-06 with concrete implementation notes. The stub is intentionally a no-op."
+    }
+  ]
+}

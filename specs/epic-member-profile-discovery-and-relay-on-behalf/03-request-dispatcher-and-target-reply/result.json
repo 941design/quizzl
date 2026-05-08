@@ -1,0 +1,72 @@
+{
+  "story": "03-request-dispatcher-and-target-reply",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-07T17:08:00Z",
+  "completed_by": "team-lead",
+  "implementation_path": "architect-as-implementer",
+
+  "summary": "PROFILE_REQUEST_KIND (kind 30) dispatcher arm added to MarmotContext.tsx onApplicationMessage at line 601. Calls parseProfileRequestPayload, then unconditionally records via recordRequestEmitted (AC-032). Self-targeted requests sign + send via the publishProfileUpdate-pattern with no backoff (AC-030). Non-self requests delegate to handleIncomingProfileRequest stub (AC-031). Errors caught & console.warn'd. leaveGroup at line 1043 awaits clearProfileRequestMemos(groupId) before reloadGroups (AC-041). New file profileRequestRunner.ts is a non-breaking stub for story 06.",
+
+  "acceptance_criteria_satisfied": [
+    "AC-030 — self-targeted reply: signerRef guard, localProfileRef.current, serialiseProfileUpdate→buildRumor→sendRumorSafe, no backoff, PROFILE_RUMOR_KIND outbound (lines 614-617)",
+    "AC-031 — non-self path delegates to handleIncomingProfileRequest with all args; sendRumor injection sends PROFILE_RUMOR_KIND when invoked (lines 621-632); no own profile rumor in this path",
+    "AC-032 — recordRequestEmitted called unconditionally before self/non-self branch (line 608)",
+    "AC-040 — story 01 round 2 strict author-binding guard at lines 571-577 still in place — not regressed",
+    "AC-041 — leaveGroup awaits clearProfileRequestMemos(groupId) at line 1043"
+  ],
+
+  "files_changed": [
+    {
+      "path": "app/src/lib/marmot/profileRequestRunner.ts",
+      "kind": "new",
+      "delta": "Stub seam for story 06: handleIncomingProfileRequest (async no-op) + notifyProfileObserved (sync no-op). Imports only ProfileRequestPayload type. TODO(story-06) markers on both bodies. void args; suppression."
+    },
+    {
+      "path": "app/src/context/MarmotContext.tsx",
+      "kind": "modified",
+      "delta": "Lines 37-39: imports for PROFILE_REQUEST_KIND, parseProfileRequestPayload, recordRequestEmitted, clearProfileRequestMemos, handleIncomingProfileRequest. Lines 601-638: new PROFILE_REQUEST_KIND dispatcher arm. Line 1043: clearProfileRequestMemos(groupId) in leaveGroup."
+    }
+  ],
+
+  "test_counts": {
+    "unit_before": { "files": 49, "tests": 695, "passed": 695, "failed": 0 },
+    "unit_after":  { "files": 49, "tests": 695, "passed": 695, "failed": 0 },
+    "unit_new_added": 0,
+    "typecheck": { "command": "cd app && npx tsc --noEmit", "errors": 0 },
+    "rationale_for_no_new_units": "The PROFILE_REQUEST_KIND dispatcher arm is integration logic (subscription callback + IDB + signer) that is best exercised through E2E in story 07. Unit tests would require heavy mocking of marmot-ts, signer, and IDB without exercising the actual dispatch path. Story 07 covers the dispatcher behaviour end-to-end."
+  },
+
+  "verification_rounds": 1,
+  "examiners_run": [
+    { "scope": "dispatcher arm + target reply (AC-030,031,032,040)", "verdict": "YES", "severity": 0 },
+    { "scope": "leaveGroup + stub + build (AC-041)", "verdict": "PARTIAL", "severity": 3, "issue": "stub signature carries selfPubkeyHex, absent from story 06 contract" }
+  ],
+
+  "decision": "FAST PATH pass — max severity 3 < 7 threshold, all tests passing, tsc clean.",
+
+  "minor_findings_for_story_06": [
+    "handleIncomingProfileRequest stub signature includes selfPubkeyHex parameter that is not in story 06's contract description in stories.json. The architect added it as a forward-compatibility pass-through. Story 06 may choose to (a) keep selfPubkeyHex (safe, dispatcher unchanged) or (b) drop it and update the dispatcher's call site. Both are acceptable; flagging as a seam decision for story 06 to make."
+  ],
+
+  "design_decisions_summary": [
+    "Dispatcher arm sits inside the same onApplicationMessage callback as PROFILE_RUMOR_KIND, CHAT_MESSAGE_KIND, etc. — same structural pattern as kind 0.",
+    "recordRequestEmitted runs FIRST inside the truthy guard so peer-issued requests dedupe across the group. AC-032 is honoured for both self and non-self targets.",
+    "Target-side reply mirrors publishProfileUpdate exactly (signerRef.current + localProfileRef.current + serialiseProfileUpdate + buildRumor + sendRumorSafe). No backoff. PROFILE_RUMOR_KIND (kind 0) for outbound.",
+    "Non-self path uses an inline sendRumor injection that builds a PROFILE_RUMOR_KIND rumor — when story 06 invokes it, the relay payload will be sent as kind 0 under the relayer's MLS sender. The verified inner SignedProfileEvent.pubkey identifies the original author.",
+    "leaveGroup memo cleanup placed alongside the existing per-group clears (clearMemberScores, clearMemberProfiles, clearMessages, clearPollData, clearGroupMedia) and BEFORE reloadGroups + markBackupDirty — consistent ordering.",
+    "Race on recordRequestEmitted (concurrent IDB upserts for same key): benign — both transactions converge to max(lastRequestAt) and dedupe operates on the convergent value. No correctness impact."
+  ],
+
+  "out_of_scope_left_for_subsequent_stories": [
+    "Story 04 — remove proactive on-member-add republish",
+    "Story 05 — sweepStaleProfiles + app-start sweep + requestProfilesIfStale on context value + group-open sweep call from pages/groups.tsx",
+    "Story 06 — replace handleIncomingProfileRequest stub body with cached-event lookup + backoff + relay; replace notifyProfileObserved stub body with timer cancellation; wire notifyProfileObserved into PROFILE_RUMOR_KIND arm",
+    "Story 07 — full E2E for the six scenarios + helpers"
+  ],
+
+  "build_and_test_results": {
+    "tsc": { "command": "cd app && npx tsc --noEmit", "result": "PASS — zero errors" },
+    "unit_tests": { "command": "make test-unit", "result": "PASS — 695 tests, 0 failures" }
+  }
+}

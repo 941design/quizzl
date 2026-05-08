@@ -1,0 +1,56 @@
+# Story 03 — Architecture
+
+## Files changed
+
+| File | Change |
+|------|--------|
+| `app/src/lib/marmot/profileRequestRunner.ts` | **NEW** — stub for story 06 |
+| `app/src/context/MarmotContext.tsx` | ADD: PROFILE_REQUEST_KIND arm + leaveGroup memo cleanup |
+
+## Design decisions
+
+### 1. PROFILE_REQUEST_KIND dispatcher arm placement
+
+Inserted **after** the PROFILE_RUMOR_KIND arm (ends ~line 597), before CHAT_MESSAGE_KIND (line 598).
+Uses the same structural pattern: `parseXxxPayload` guard, async block, error-catch wrapped.
+
+### 2. Target-side reply path
+
+Mirrors `publishProfileUpdate` exactly:
+1. `await serialiseProfileUpdate(localProfileRef.current, signerRef.current)` → string
+2. `buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex)` → rumor object
+3. `await sendRumorSafe(mlsGroup, rumor as any)` → no backoff (immediate reply)
+
+`localProfileRef` is used (not `localProfile`) to avoid stale-closure race, matching the pattern in the subscription callback and `publishProfileUpdate`.
+
+### 3. `handleIncomingProfileRequest` stub seam
+
+```ts
+export async function handleIncomingProfileRequest(args: {
+  groupId: string;
+  payload: ProfileRequestPayload;
+  selfPubkeyHex: string;
+  now: number;
+  sendRumor: (group: MarmotGroupType, rumor: Rumor) => Promise<void>;
+}): Promise<void>
+```
+
+`sendRumor` is injected from MarmotContext so story 06 receives it as a parameter rather than importing the function directly — avoids a circular import and makes the stub easy to fill in.
+
+`notifyProfileObserved` is the inverse seam: story 06 uses it to cancel pending relay timers when a profile answer arrives through the normal PROFILE_RUMOR_KIND path.
+
+### 4. `recordRequestEmitted` on every request
+
+Called unconditionally before the self/non-self branch, so both self-targeted AND peer-targeted requests advance dedupe state for that target across the group.
+
+### 5. leaveGroup cleanup
+
+`clearProfileRequestMemos(groupId)` added at the end of the `leaveGroup` async block, after `clearGroupMedia` and before `reloadGroups()`.
+
+## Verification approach
+
+- **AC-030**: TypeScript exhaustiveness ensures the arm calls `parseProfileRequestPayload` and the self-path signs + sends via `sendRumorSafe`.
+- **AC-031**: Non-self branch delegates to `handleIncomingProfileRequest` (the stub is a no-op).
+- **AC-032**: Single `recordRequestEmitted` call at arm entry, before branch.
+- **AC-041**: `clearProfileRequestMemos(groupId)` called in `leaveGroup`.
+- **Stub**: `profileRequestRunner.ts` exports compile-time-correct functions; `npx tsc --noEmit` passes.
