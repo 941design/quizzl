@@ -27,6 +27,7 @@ import {
 import type { ReactionAggregate } from '@/src/lib/reactions/api';
 import {
   applyOptimistic,
+  applyOptimisticRemoval,
   rollbackOptimistic,
   applyInboundRumor,
   subscribeReactions,
@@ -226,12 +227,19 @@ export function ChatStoreProvider({
         const rumor = deserializeApplicationData(data);
 
         if (rumor.kind === CHAT_MESSAGE_KIND) {
+          const { parseImageMessageContent, extractAttachmentsByRole } = await import('@/src/lib/media/imageMessage');
+          const parsed = parseImageMessageContent(rumor.content);
+          const attachments = (parsed?.type === 'image' && rumor.tags?.length)
+            ? extractAttachmentsByRole(rumor.tags as string[][])
+            : null;
+          const hasAttachment = attachments && (attachments.full || attachments.thumb);
           const msg: ChatMessage = {
             id: rumor.id,
             content: rumor.content,
             senderPubkey: rumor.pubkey,
             groupId,
             createdAt: rumor.created_at * 1000,
+            ...(hasAttachment ? { attachments } : {}),
           };
           appendMessage(groupId, msg).catch((err) => {
             console.error('[chat-store] Failed to persist received message:', err);
@@ -377,10 +385,18 @@ export function ChatStoreProvider({
   /**
    * Send a kind-7 group reaction.
    *
-   * 1. Write optimistic row (id = crypto.randomUUID()) to reactions store (AC-35).
-   * 2. Build kind-7 rumor via buildReactionRumor — no p tag for groups (spec §3.3, AC-36).
+   * Mirrors ContactChat.tsx handleReact — build rumor first so its id is
+   * available before the optimistic write (guarantees optimistic row id ==
+   * published event id, matching AC-43's rationale for the DM path).
+   *
+   * 1. Build kind-7 rumor via buildReactionRumor — no p tag for groups (spec §3.3, AC-36).
+   * 2. Branch on isRemoval for the optimistic write (AC-35, AC-59):
+   *    - remove path → applyOptimisticRemoval flips the existing add row in place.
+   *    - add path → applyOptimistic inserts a new row keyed on rumor.id.
    * 3. Send via sendRumorSafe (group.sendApplicationRumor with retry) (AC-36).
-   * 4. On failure: rollback the optimistic row and surface a toast (D7, AC-37).
+   * 4. On failure: branch on isRemoval for the rollback (D7, AC-37, AC-59):
+   *    - remove path → re-insert a fresh removed:false row (restores badge).
+   *    - add path → rollbackOptimistic removes the in-flight insert by rumor.id.
    *
    * The inbound echo (marmot-ts re-delivers our own rumor back via 'applicationMessage')
    * is handled in the handler above; it calls applyInboundRumor which will upsert the
@@ -391,38 +407,63 @@ export function ChatStoreProvider({
       if (!groupId || !group || !privateKeyHex) return;
 
       const thread = { kind: 'group' as const, groupId };
-      const optimisticId = crypto.randomUUID();
-      const now = Date.now();
 
-      // AC-35: write optimistic row immediately before any async operation
-      const optimisticRow: Reaction = {
-        id: optimisticId,
-        messageId: targetMessage.id,
-        reactorPubkey: pubkey,
+      // AC-36: build rumor exactly once so the optimistic row id == published event id.
+      // No p tag for groups (spec §3.3).
+      const rumor = buildReactionRumor({
         emoji,
-        eventId: '',
-        createdAt: now,
-        removed: Boolean(isRemoval),
-      };
-      await applyOptimistic(thread, optimisticRow);
+        targetMessageId: targetMessage.id,
+        targetMessageKind: CHAT_MESSAGE_KIND, // kind 9 for group messages
+        targetAuthorPubkey: undefined, // groups omit p tag
+        selfPrivKeyHex: privateKeyHex,
+        isRemoval,
+      });
+
+      // AC-35 / AC-59: optimistic state update.
+      //   remove path → tombstone the existing non-removed row in-place.
+      //     Cannot insert a fresh removed:true row (applyOptimistic is idempotent on
+      //     row id; a new UUID would leave the original add row untouched, keeping
+      //     the badge visible).
+      //   add path → insert new row keyed on rumor.id (the published id).
+      if (isRemoval) {
+        await applyOptimisticRemoval(thread, targetMessage.id, pubkey, emoji);
+      } else {
+        const optimisticRow: Reaction = {
+          id: rumor.id,
+          messageId: targetMessage.id,
+          reactorPubkey: pubkey,
+          emoji,
+          eventId: '',
+          createdAt: Date.now(),
+          removed: false,
+        };
+        await applyOptimistic(thread, optimisticRow);
+      }
 
       try {
-        // AC-36: build kind-7 rumor — no p tag for groups (spec §3.3)
-        const rumor = buildReactionRumor({
-          emoji,
-          targetMessageId: targetMessage.id,
-          targetMessageKind: CHAT_MESSAGE_KIND, // kind 9 for group messages
-          targetAuthorPubkey: undefined, // groups omit p tag
-          selfPrivKeyHex: privateKeyHex,
-          isRemoval,
-        });
-
         // AC-36: send via MLS (kind-445 on wire — no plaintext kind-7 published, AC-61)
         await sendRumorSafe(group, rumor as any);
       } catch (err) {
-        // D7, AC-37: rollback the optimistic row on failure
-        console.warn('[chat-store] sendReaction failed, rolling back:', err);
-        await rollbackOptimistic(thread, optimisticId);
+        // D7, AC-37, AC-59: rollback optimistic state on failure.
+        // remove path → re-insert a fresh non-removed row so the badge returns.
+        //   The original row id is unknown here; aggregateForMessage groups by
+        //   (messageId, emoji) and counts non-removed rows, so re-inserting under
+        //   rumor.id is observationally correct. No echo is expected on failure.
+        // add path → rollbackOptimistic removes the in-flight insert by rumor.id.
+        if (isRemoval) {
+          const restoreRow: Reaction = {
+            id: rumor.id,
+            messageId: targetMessage.id,
+            reactorPubkey: pubkey,
+            emoji,
+            eventId: '',
+            createdAt: Date.now(),
+            removed: false,
+          };
+          await applyOptimistic(thread, restoreRow);
+        } else {
+          await rollbackOptimistic(thread, rumor.id);
+        }
 
         // Surface the failure toast — caller (GroupChat / ChatBox) must render it.
         // We re-throw with a sentinel so callers can detect and show the toast.
