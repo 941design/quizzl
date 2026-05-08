@@ -23,7 +23,7 @@ import {
 } from '@/src/lib/directMessages';
 import type { ChatMediaAttachment } from '@/src/lib/media/imageMessage';
 import { markDirectMessagesRead } from '@/src/lib/unreadStore';
-import { applyOptimistic, rollbackOptimistic, applyInboundRumor } from '@/src/lib/reactions/api';
+import { applyOptimistic, applyOptimisticRemoval, rollbackOptimistic, applyInboundRumor } from '@/src/lib/reactions/api';
 import type { Reaction } from '@/src/lib/reactions/types';
 import { useDirectReactions } from '@/src/hooks/useDirectReactions';
 import { useCopy } from '@/src/context/LanguageContext';
@@ -347,17 +347,26 @@ export default function ContactChat({
     });
     const rumorId = rumor.id;
 
-    // AC-43: optimistic row with id = rumorId (same id as the rumor that will be published).
-    const optimisticRow: Reaction = {
-      id: rumorId,
-      messageId: message.id,
-      reactorPubkey: pubkeyHex,
-      emoji,
-      eventId: '',
-      createdAt: Date.now(),
-      removed: op === 'remove',
-    };
-    await applyOptimistic(dmThread, optimisticRow);
+    // AC-43 / AC-59: optimistic state update.
+    //   add path → insert new row keyed on rumorId (the published id).
+    //   remove path → tombstone the existing non-removed row in-place. We
+    //   cannot insert a fresh row with `removed: true` keyed on the new
+    //   rumorId, because applyOptimistic is idempotent on row id and would
+    //   leave the original add row untouched, keeping the badge visible.
+    if (op === 'remove') {
+      await applyOptimisticRemoval(dmThread, message.id, pubkeyHex, emoji);
+    } else {
+      const optimisticRow: Reaction = {
+        id: rumorId,
+        messageId: message.id,
+        reactorPubkey: pubkeyHex,
+        emoji,
+        eventId: '',
+        createdAt: Date.now(),
+        removed: false,
+      };
+      await applyOptimistic(dmThread, optimisticRow);
+    }
 
     try {
       // Seal and publish the pre-built rumor directly (avoids rebuilding and any id mismatch).
@@ -366,8 +375,28 @@ export default function ContactChat({
       await ndkEvent.publish();
       // Success: the echo will reconcile via inbound dispatch (applyInboundRumor).
     } catch (err) {
-      // AC-44, D7: rollback optimistic row and show toast
-      await rollbackOptimistic(dmThread, rumorId);
+      // AC-44, D7: rollback optimistic state and show toast.
+      // For the add path, rollbackOptimistic deletes the in-flight insert by id.
+      // For the remove path, we re-insert a fresh non-removed row so the badge
+      // returns. The original row id is unknown here; aggregateForMessage groups
+      // by (messageId, emoji) and counts non-removed rows, so re-inserting under
+      // a new id is observationally correct. The inbound echo would later dedup
+      // on (messageId, reactorPubkey, emoji) but this branch only fires on
+      // publish failure, so no echo is expected.
+      if (op === 'remove') {
+        const restoreRow: Reaction = {
+          id: rumorId,
+          messageId: message.id,
+          reactorPubkey: pubkeyHex,
+          emoji,
+          eventId: '',
+          createdAt: Date.now(),
+          removed: false,
+        };
+        await applyOptimistic(dmThread, restoreRow);
+      } else {
+        await rollbackOptimistic(dmThread, rumorId);
+      }
       toast({
         title: copy.emoji.couldntReact,
         status: 'error',

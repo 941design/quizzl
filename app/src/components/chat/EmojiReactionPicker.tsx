@@ -3,10 +3,13 @@
  *
  * Architecture:
  * - Anchors on a per-bubble basis (NOT the compose textarea toolbar).
- * - Uses Chakra Popover with placement="top" (flips below if bubble is near top).
+ * - Plain conditional render (no Chakra Popover) — Chakra Popover's
+ *   AnimatePresence/lazy-unmount path proved racy in this trigger context
+ *   (the picker stayed mounted ~50% of the time after onClose). The conditional
+ *   render gives a deterministic mount/unmount tied to isOpen.
  * - 24-glyph grid from CURATED_EMOJI in a 6-column layout (more compact than compose
  *   picker's 4-column layout, per spec §1.2 "more compact layout for reaction picker").
- * - initialFocusRef on first glyph (lesson from story-05 round 1).
+ * - Initial focus moves to the first glyph on open (lesson from story-05 round 1).
  * - data-testid namespace: reaction-picker-glyph-{emoji} (distinct from compose picker).
  * - Trigger: data-testid="reaction-trigger-{messageId}", aria-label=copy.emoji.reactWith.
  * - onSelect(emoji) calls computeReactOp to determine add/remove, then calls onReact.
@@ -15,16 +18,12 @@
  * useDirectReactions (those live in parent components and pass data via props).
  */
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Grid,
   IconButton,
-  Popover,
-  PopoverArrow,
-  PopoverBody,
-  PopoverContent,
-  PopoverTrigger,
+  Portal,
   useDisclosure,
 } from '@chakra-ui/react';
 import { useCopy } from '@/src/context/LanguageContext';
@@ -54,12 +53,77 @@ export default function EmojiReactionPicker({ messageId, message, aggregates, on
   const copy = useCopy();
   const { isOpen, onClose, onToggle } = useDisclosure();
 
-  // initialFocusRef on the first glyph so keyboard focus lands there on open.
+  // Wrapper around trigger+picker; used by the outside-click effect.
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  // Trigger ref for computing portal-rendered picker coords.
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  // Picker portal ref so the outside-click handler can also exempt clicks inside
+  // the portaled picker (the picker is no longer a DOM descendant of wrapperRef).
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+
+  // Picker coords in viewport space; computed once when isOpen flips true.
+  // Drift on scroll while open is acceptable (the picker is short-lived).
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+
+  // Initial focus target on open (first glyph).
   const firstGlyphRef = useRef<HTMLButtonElement | null>(null);
 
   // Refs for arrow-key navigation between glyph cells.
   const cellRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const focusedIndexRef = useRef<number>(0);
+
+  // Compute picker coords once when it opens — anchored above the trigger,
+  // horizontally centered on it. No resize/scroll listener; drift is acceptable.
+  useEffect(() => {
+    if (!isOpen) {
+      setCoords(null);
+      return;
+    }
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setCoords({
+        top: rect.top, // picker is positioned with `bottom: rect.top` via translate
+        left: rect.left + rect.width / 2,
+      });
+    }
+  }, [isOpen]);
+
+  // Move focus to the first glyph when the picker opens (a11y / keyboard nav).
+  useEffect(() => {
+    if (isOpen) firstGlyphRef.current?.focus();
+  }, [isOpen]);
+
+  // closeOnEsc replacement: document-level keydown listener active while open.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isOpen, onClose]);
+
+  // closeOnBlur replacement: outside-mousedown listener active while open.
+  // The picker is portaled, so we exempt clicks inside the picker as well as
+  // clicks inside the trigger wrapper.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const insideWrapper = wrapperRef.current?.contains(target);
+      const insidePicker = pickerRef.current?.contains(target);
+      if (!insideWrapper && !insidePicker) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isOpen, onClose]);
 
   const focusCell = useCallback((index: number) => {
     const el = cellRefs.current[index];
@@ -113,47 +177,43 @@ export default function EmojiReactionPicker({ messageId, message, aggregates, on
   );
 
   return (
-    <Popover
-      isOpen={isOpen}
-      onClose={onClose}
-      placement="top"
-      closeOnEsc
-      closeOnBlur
-      initialFocusRef={firstGlyphRef}
-    >
-      <PopoverTrigger>
-        <IconButton
-          data-testid={`reaction-trigger-${messageId}`}
-          aria-label={copy.emoji.reactWith}
-          icon={<PlusSmileIcon />}
-          size="xs"
-          variant="ghost"
-          opacity={0}
-          _groupHover={{ opacity: 1 }}
-          _focusVisible={{ opacity: 1 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle();
-          }}
-        />
-      </PopoverTrigger>
-
-      <PopoverContent
-        w="auto"
-        bg="surfaceBg"
-        borderColor="borderSubtle"
-        data-testid={`reaction-picker-${messageId}`}
-        // Disable scaleFade animation — see EmojiComposerPicker for explanation.
-        motionProps={{ variants: { enter: {}, exit: {} } }}
-        onKeyDown={(e: React.KeyboardEvent) => {
-          if (e.key === 'Escape') {
-            e.stopPropagation();
-            onClose();
-          }
+    <Box ref={wrapperRef} display="inline-block">
+      <IconButton
+        ref={triggerRef}
+        data-testid={`reaction-trigger-${messageId}`}
+        aria-label={copy.emoji.reactWith}
+        icon={<PlusSmileIcon />}
+        size="xs"
+        variant="ghost"
+        opacity={0}
+        _groupHover={{ opacity: 1 }}
+        _focusVisible={{ opacity: 1 }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
         }}
-      >
-        <PopoverArrow bg="surfaceBg" />
-        <PopoverBody p={1.5}>
+      />
+      {isOpen && coords && (
+        // Portaled into document.body to escape the parent stacking context
+        // (contact-detail-page would otherwise overlay the picker).
+        <Portal>
+          <Box
+            ref={pickerRef}
+            data-testid={`reaction-picker-${messageId}`}
+            role="dialog"
+            position="fixed"
+            top={`${coords.top}px`}
+            left={`${coords.left}px`}
+            transform="translate(-50%, -100%)"
+            mt={-1}
+            zIndex="popover"
+            bg="surfaceBg"
+            borderColor="borderSubtle"
+            borderWidth="1px"
+            borderRadius="md"
+            boxShadow="md"
+            p={1.5}
+          >
           <Grid
             role="grid"
             templateColumns={`repeat(${GRID_COLS}, 1fr)`}
@@ -205,9 +265,10 @@ export default function EmojiReactionPicker({ messageId, message, aggregates, on
               </Box>
             ))}
           </Grid>
-        </PopoverBody>
-      </PopoverContent>
-    </Popover>
+          </Box>
+        </Portal>
+      )}
+    </Box>
   );
 }
 

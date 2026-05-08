@@ -208,6 +208,46 @@ export function applyOptimistic(thread: ReactionThreadKey, row: Reaction): Promi
 }
 
 /**
+ * Optimistic tombstone for a self-issued reaction removal.
+ *
+ * Unlike applyOptimistic (which inserts a new row by id), this finds an
+ * existing non-removed row matching (messageId, reactorPubkey, emoji) and
+ * flips its `removed` flag in-place. This is the correct shape for AC-59
+ * optimistic rollback of *the user's own* reaction: the inbound echo will
+ * later confirm the tombstone via applyInboundRumor.
+ *
+ * If no matching non-removed row exists, this is a no-op (silent discard).
+ *
+ * Note: applyOptimistic could not be reused here because it inserts a fresh
+ * row keyed on the new rumor id, leaving the original add row intact and
+ * the badge visible. Splitting into a dedicated function keeps each path's
+ * data shape narrow and the contract explicit.
+ *
+ * AC-59.
+ */
+export function applyOptimisticRemoval(
+  thread: ReactionThreadKey,
+  messageId: string,
+  reactorPubkey: string,
+  emoji: string,
+): Promise<void> {
+  const key = idbKeyFor(thread);
+  return enqueue(key, async (current) => {
+    const idx = current.findIndex(
+      (r) =>
+        r.messageId === messageId &&
+        r.reactorPubkey === reactorPubkey &&
+        r.emoji === emoji &&
+        !r.removed,
+    );
+    if (idx === -1) return null;
+    const updated = [...current];
+    updated[idx] = { ...updated[idx], removed: true };
+    return updated;
+  });
+}
+
+/**
  * Removes an optimistic row by id. Only rows whose eventId is empty string
  * (still in-flight) are eligible. Rows with a confirmed eventId are left
  * untouched. Listeners are notified after the idb write resolves.
