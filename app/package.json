@@ -46,6 +46,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "18.3.28",
     "@types/react-dom": "^18",
+    "fake-indexeddb": "^6.2.5",
     "typescript": "5.9.3",
     "vitest": "^4.0.18"
   }
