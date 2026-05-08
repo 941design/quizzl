@@ -1,0 +1,72 @@
+{
+  "story": "07-e2e-coverage-six-scenarios",
+  "phase": "post-impl-retro",
+  "note": "This verification record was backfilled on 2026-05-08 against the E2E spec at app/tests/e2e/groups-profile-request.spec.ts as it stands at master HEAD. The original story closed in epic-state.json on 2026-05-07 as STORY_07_DONE without an artifact on disk. AC-045 enumerates six scenarios; one of them (Scenario 5, retry state machine) is currently test.fixme'd, so AC-045 is partially satisfied. AC-046 (helpers) is fully satisfied.",
+  "verification_items": [
+    {
+      "id": "AC-045-S1",
+      "ac_id": "AC-045",
+      "scenario": 1,
+      "scenario_name": "Aged-history backfill (target online)",
+      "question": "Does the spec exercise the aged-history backfill scenario by deleting C's stored profile records before reload, and assert C's MemberList shows real names within 30 s of openGroup?",
+      "answer": "Yes. groups-profile-request.spec.ts:149-175. deletes C's quizzl-member-profiles entry plus both memo entries, reloads C, openGroup, asserts member-name-{prefix} text equals the live nicknames within 30 s. Status: included in spec, not skipped."
+    },
+    {
+      "id": "AC-045-S2",
+      "ac_id": "AC-045",
+      "scenario": 2,
+      "scenario_name": "Periodic refresh",
+      "question": "Does the spec stalify B's profile (updatedAt = 8d ago) plus the memo and assert that on reload C emits a fresh request and the memo's lastRequestAt advances?",
+      "answer": "Yes. groups-profile-request.spec.ts:180-230. Writes a stale profile (8d-old updatedAt) and a stale memo (lastRequestAt + lastAnsweredAt = 8d ago), reloads, asserts member-name-{bobPrefix} text shows 'Bob' and reads the memo back to verify lastRequestAt > eightDaysAgo. Status: included."
+    },
+    {
+      "id": "AC-045-S3",
+      "ac_id": "AC-045",
+      "scenario": 3,
+      "scenario_name": "Per-peer dedupe across two listeners",
+      "question": "Does the spec install a rumor counter on C and assert no PROFILE_REQUEST_KIND rumor is emitted when B's profile is fresh?",
+      "answer": "Yes. groups-profile-request.spec.ts:235-254. installRumorCounter on C for kinds [30, 0], then openGroup with B's profile already fresh from scenario 2, then assert getRumorCount(pgC, PROFILE_REQUEST_KIND, 'out') === 0. Status: included."
+    },
+    {
+      "id": "AC-045-S4",
+      "ac_id": "AC-045",
+      "scenario": 4,
+      "scenario_name": "Relay-on-behalf when target offline",
+      "question": "Does the spec take B offline, delete C's cached profile of B, navigate C into the group, and assert B's nickname appears in C's MemberList within RELAY_BACKOFF_MAX_MS + 30 s?",
+      "answer": "Yes. groups-profile-request.spec.ts:259-292. ctxB.setOffline(true), removes B from C's profiles plus the memo, openGroup on C, asserts member-name-{bobPrefix} = 'Bob' within 60 s (30 s max backoff + 30 s buffer). Status: included."
+    },
+    {
+      "id": "AC-045-S5",
+      "ac_id": "AC-045",
+      "scenario": 5,
+      "scenario_name": "Retry state machine",
+      "question": "Does the spec exercise the 1h / 7d / 3-attempt boundaries via Playwright fake clock, asserting memo.attempts caps at UNANSWERED_MAX_ATTEMPTS?",
+      "answer": "PARTIALLY. The test exists at groups-profile-request.spec.ts:298-360 but is marked test.fixme — it does not run in CI. The fixme comment at line 297 cites a (now-known-incorrect) diagnosis that requestProfilesIfStale is never called from a component; the wiring at pages/groups.tsx:130 contradicts that. The actual root cause is undiagnosed (see bug-reports/e2e-iteration-2026-05-08.md section B3). AC-045 is therefore PARTIALLY satisfied — five of six scenarios exercised in CI, one deferred."
+    },
+    {
+      "id": "AC-045-S6",
+      "ac_id": "AC-045",
+      "scenario": 6,
+      "scenario_name": "Forged-sig rejection",
+      "question": "Does the spec inject a kind:0 with mismatched sig (sig='a'.repeat(128)) and assert parseProfilePayload returns null?",
+      "answer": "Yes. groups-profile-request.spec.ts:365-398. Constructs a forged SignedProfileEvent with all-'a' sig, calls window.__quizzlTest.parseProfilePayload via page.evaluate, asserts return is null. AC-040 is also exercised here (sig verification rejects before merge). Status: included."
+    },
+    {
+      "id": "AC-046",
+      "ac_id": "AC-046",
+      "question": "Are the helpers installRumorCounter / getRumorCount / deleteIdbRecord present under app/tests/e2e/helpers/ and used by the new spec?",
+      "answer": "Yes. app/tests/e2e/helpers/rumor-counter.ts exports installRumorCounter and getRumorCount; app/tests/e2e/helpers/idb-record.ts exports deleteIdbRecord, readIdbRecord, writeIdbRecord. Both are imported by groups-profile-request.spec.ts at lines 14-15. Status: fully satisfied."
+    },
+    {
+      "id": "QUALITY-1",
+      "question": "Are the test ID expectations stable against MemberList rendering (e.g. member-name-{shortid})?",
+      "answer": "Yes. The bobPrefix and alicePrefix expectations match the MemberList component's existing testid scheme (first 8 hex chars of pubkeyHex). No flake source identified at this layer."
+    },
+    {
+      "id": "QUALITY-2",
+      "question": "Does the spec leave global state (offline mode, fake clock) that could leak into other specs?",
+      "answer": "Test 4 restores B's connectivity at line 291 (setOffline(false)). Test 5 installs the fake clock and never uninstalls it (Playwright does not expose clock.uninstall()). The fixme prevents that from mattering today, but if/when the test is re-enabled, scenario 6 will run after the fake clock is installed. Scenario 6 only calls Math.floor(Date.now() / 1000) inside its forged event payload — under fake clock, the value is whatever fastForward landed on, which is still a valid created_at integer. Acceptable but fragile."
+    }
+  ],
+  "decision": "PARTIALLY ACCEPTED. AC-046 fully satisfied. AC-045 satisfied for scenarios 1, 2, 3, 4, and 6 (five of six). Scenario 5 (AC-045 retry state machine) is test.fixme'd and not exercised; root cause for the deferral is unverified per bug-reports/e2e-iteration-2026-05-08.md. The epic should not be closed as 'done' while AC-045 remains partial."
+}

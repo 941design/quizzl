@@ -1,14 +1,16 @@
 {
   "epic_name": "member-profile-discovery-and-relay-on-behalf",
-  "status": "done",
-  "phase": "STORY_07_DONE",
+  "status": "reopened",
+  "phase": "AC_045_PARTIAL",
   "halt_requested": false,
   "halt_reason": null,
   "created_at": "2026-05-06T00:00:00Z",
-  "updated_at": "2026-05-07T17:16:00Z",
-  "completed_stories": ["01", "02", "03", "04", "05", "06", "07"],
+  "updated_at": "2026-05-08T00:00:00Z",
+  "completed_stories": ["01", "02", "03", "04", "05", "06"],
   "escalated_stories": [],
-  "remaining_stories": [],
+  "remaining_stories": ["07"],
+  "reopened_at": "2026-05-08T00:00:00Z",
+  "reopen_reason": "AC-045 not fully satisfied: scenario 5 (retry state machine) in app/tests/e2e/groups-profile-request.spec.ts:298 is test.fixme — five of six scenarios exercised, one deferred. Fixme comment cites an incorrect diagnosis (per bug-reports/e2e-iteration-2026-05-08.md section B3); real root cause is undiagnosed. Story 07 is reopened until scenario 5 runs in CI or AC-045 is amended.",
   "phase_history": [
     {
       "phase": "SPEC_VALIDATED",
@@ -54,11 +56,18 @@
       "phase": "STORY_07_DONE",
       "timestamp": "2026-05-07T18:30:00Z",
       "trigger": "lead_accepted_story_07_e2e_spec_6_scenarios_helpers_window_test_hook"
+    },
+    {
+      "phase": "AC_045_PARTIAL",
+      "timestamp": "2026-05-08T00:00:00Z",
+      "trigger": "post-hoc_audit_2026-05-08_found_scenario_5_fixme_in_app/tests/e2e/groups-profile-request.spec.ts:298_AC-045_only_5_of_6_scenarios_run_in_CI"
     }
   ],
   "deferred_followups": [
     "Codex round-2 high finding: MLS-membership check on inner SignedProfileEvent.pubkey. Out of scope per spec.md ~lines 30-35; tracked in marmot-ts-rumor-sender-authentication.md. Revisit during story 06 (relay-on-behalf widens the surface) or after upstream marmot-ts exposes the MLS sender leaf credential.",
     "Story 02: AC-022 was amended to match the existing clearAllGroupData() signature (no parameter). Per-group memo cleanup is deferred to story 03 via leaveGroup(groupId).",
-    "Story 03: handleIncomingProfileRequest stub carries selfPubkeyHex parameter not present in story 06's contract description. Story 06 may keep or drop the parameter."
+    "Story 03: handleIncomingProfileRequest stub carries selfPubkeyHex parameter not present in story 06's contract description. Story 06 may keep or drop the parameter.",
+    "Story 06: handleIncomingProfileRequest and notifyProfileObserved have no dedicated unit tests; the relay timer + cancellation logic is exercised only by the E2E spec scenario 4. Backfill unit tests with a fake setTimeout/clearTimeout to lock the contract.",
+    "Story 07 / AC-045: scenario 5 (retry state machine) is test.fixme'd at app/tests/e2e/groups-profile-request.spec.ts:298. The fixme comment's diagnosis is wrong (requestProfilesIfStale IS called from pages/groups.tsx:130). Either diagnose the real cause and re-enable, or move retry-boundary coverage to a vitest integration test with fake-indexeddb + vi.setSystemTime."
   ]
 }

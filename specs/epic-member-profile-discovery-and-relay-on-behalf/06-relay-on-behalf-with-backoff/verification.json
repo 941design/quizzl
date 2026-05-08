@@ -1,0 +1,60 @@
+{
+  "story": "06-relay-on-behalf-with-backoff",
+  "phase": "post-impl-retro",
+  "note": "This verification record was backfilled on 2026-05-08 against code already in master at commit b58b21e. The original story closed in epic-state.json on 2026-05-07 as STORY_06_DONE without an artifact on disk. Each item below was checked by re-reading the implementation file at HEAD.",
+  "verification_items": [
+    {
+      "id": "AC-033",
+      "ac_id": "AC-033",
+      "question": "Does handleIncomingProfileRequest load the cached MemberProfile for payload.targetPubkey, and when signedEvent is cached AND (sinceUpdatedAt absent OR cached.updatedAt > sinceUpdatedAt) schedule a setTimeout(pickBackoffMs()) keyed by (groupId, targetPubkey) in a module-level Map?",
+      "answer": "Yes. profileRequestRunner.ts:142-176 implements this. loadProfile is called via the injected dependency, cached.signedEvent is checked at line 155, sinceUpdatedAt freshness check at line 158, setTimeout scheduled with pickBackoffMs() at line 170-173, and the timer plus scheduledForUpdatedAt are stored in pendingRelayTimers map keyed by relayKey(groupId, targetPubkey) at line 175."
+    },
+    {
+      "id": "AC-034",
+      "ac_id": "AC-034",
+      "question": "When the scheduled timer fires, does the runner invoke sendRumor with the cached signedEvent verbatim (no re-sign, no re-verify) wrapped in a PROFILE_RUMOR_KIND rumor?",
+      "answer": "Yes. profileRequestRunner.ts:168 captures relayContent = JSON.stringify(cached.signedEvent) BEFORE scheduling. The setTimeout callback at line 170-173 deletes the pending timer entry and calls sendRumor(groupId, relayContent) verbatim. The PROFILE_RUMOR_KIND wrapping is performed by the caller in MarmotContext via buildRumor; the runner stays kind-agnostic by design."
+    },
+    {
+      "id": "AC-035",
+      "ac_id": "AC-035",
+      "question": "Does notifyProfileObserved clear the pending timer for (groupId, targetPubkey) when observedUpdatedAt >= scheduledForUpdatedAt?",
+      "answer": "Yes. profileRequestRunner.ts:190-202. The function looks up the pending entry by relayKey, returns early if absent, and only when args.observedUpdatedAt >= pending.scheduledForUpdatedAt does it call clearTimeout and delete the map entry. Strictly older observations do not cancel."
+    },
+    {
+      "id": "AC-036",
+      "ac_id": "AC-036",
+      "question": "Does the PROFILE_RUMOR_KIND arm in MarmotContext call notifyProfileObserved for every successfully verified incoming profile, including ones the user emits?",
+      "answer": "Yes. MarmotContext.tsx invokes notifyProfileObserved from the kind:0 dispatcher arm after verify-and-merge succeeds, with no self/non-self gate. Confirmed by grep on notifyProfileObserved import in MarmotContext.tsx and its single call site inside the kind-0 arm."
+    },
+    {
+      "id": "AC-037",
+      "ac_id": "AC-037",
+      "question": "Does handleIncomingProfileRequest skip scheduling a relay when no signedEvent is cached for the target (legacy-only profiles)?",
+      "answer": "Yes. profileRequestRunner.ts:155 — `if (!cached?.signedEvent) return;` — short-circuits before any timer is scheduled. Both 'no profile cached' and 'profile cached but signedEvent undefined' (legacy peers per spec) fall through this guard."
+    },
+    {
+      "id": "AC-038",
+      "ac_id": "AC-038",
+      "question": "Does handleIncomingProfileRequest skip scheduling a relay when payload.sinceUpdatedAt is present and >= the cached updatedAt?",
+      "answer": "Yes. profileRequestRunner.ts:158 — `if (payload.sinceUpdatedAt && cached.updatedAt <= payload.sinceUpdatedAt) return;`. Lexicographic comparison on ISO-8601 strings is the same as chronological comparison, so '<=' correctly captures both equal and strictly-older cached profiles."
+    },
+    {
+      "id": "AC-039",
+      "ac_id": "AC-039",
+      "question": "When two peers' relays land for the same target, is the second mergeMemberProfile call a no-op via LWW by updatedAt?",
+      "answer": "Yes — verified at the storage layer rather than the runner. groupStorage.ts:151 mergeMemberProfile only writes when profile.updatedAt > existing[idx].updatedAt. Two identical SignedProfileEvents (same id, same updatedAt) hit the equal branch and skip the write. This was validated indirectly by the LWW unit test added in story 02."
+    },
+    {
+      "id": "QUALITY-1",
+      "question": "Is the runner's pendingRelayTimers map cleaned up to avoid leaking timer references when timers fire?",
+      "answer": "Partially. The timer callback at profileRequestRunner.ts:171 removes the entry on fire. notifyProfileObserved removes on cancellation. There is no cleanup if MarmotProvider unmounts mid-backoff (refs in module state outlive React lifecycle). On a fresh page load (full navigation, which is the common case in this app per CLAUDE.md output:'export'), the module is re-imported and the map is fresh. Acceptable but worth noting."
+    },
+    {
+      "id": "QUALITY-2",
+      "question": "Are there unit tests for handleIncomingProfileRequest and notifyProfileObserved?",
+      "answer": "No dedicated unit tests exist for handleIncomingProfileRequest or notifyProfileObserved bodies. profileRequestRunner.test.ts covers sweepStaleProfiles (13 tests) but the relay-on-behalf timer logic is exercised only by the E2E spec scenario 4 (relay-on-behalf with target offline). Story 03's fast-path note documented this as deliberate: relay timing/cancellation reads as integration logic and the E2E covers the round-trip. Backfilling unit tests for the timer Map and cancellation predicate is a low-cost follow-up."
+    }
+  ],
+  "decision": "ACCEPTED — all six listed ACs (033-038) verified by direct code re-read at master HEAD. AC-039 verified at the LWW seam in story 02. AC-036 verified at the dispatcher seam in story 03. Two QUALITY findings carried forward as non-blocking follow-ups."
+}
