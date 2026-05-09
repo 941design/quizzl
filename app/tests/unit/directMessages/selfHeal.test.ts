@@ -55,6 +55,8 @@ vi.mock('idb-keyval', () => ({
 const {
   selfHealMessages,
   loadMessages,
+  removeMessages,
+  appendMessage,
   CHAT_MESSAGE_KIND,
 } = await import('@/src/lib/marmot/chatPersistence');
 
@@ -524,6 +526,74 @@ describe('selfHealMessages (story-04, §3.4)', () => {
       expect(result.messages).toHaveLength(0);
       expect(result.refetchIds).toHaveLength(0);
       expect(localStore['lp_dmHealed_v1']).toBeDefined(); // marker still set
+    });
+  });
+
+  // ── Bug-3 regression: removeMessages drops malformed rows after refetch ─────
+  // Previous behaviour upsertMessages-only — leaving the malformed row alongside
+  // its canonical replacement (different ids → both visible). The refetch path
+  // now calls removeMessages before upserting; this is the persistence-layer
+  // half of that fix.
+
+  describe('removeMessages (bug-3 regression)', () => {
+
+    it('drops the requested ids from the per-group log', async () => {
+      const key = `quizzl:messages:${THREAD_ID}`;
+      idbStore.set(key, [
+        { id: 'malformed-uuid', content: 'old envelope', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 1 },
+        { id: 'a'.repeat(64), content: 'kept', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 2 },
+      ]);
+
+      await removeMessages(THREAD_ID, ['malformed-uuid']);
+
+      const remaining = idbStore.get(key) as Array<{ id: string }>;
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].id).toBe('a'.repeat(64));
+    });
+
+    it('is a no-op for ids that are not present', async () => {
+      const key = `quizzl:messages:${THREAD_ID}`;
+      const stored = [
+        { id: 'a'.repeat(64), content: 'msg', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 1 },
+      ];
+      idbStore.set(key, stored);
+
+      await removeMessages(THREAD_ID, ['does-not-exist']);
+
+      expect(idbStore.get(key)).toEqual(stored);
+    });
+
+    it('serialises with appendMessage on the same key (no lost writes when interleaved)', async () => {
+      const key = `quizzl:messages:${THREAD_ID}`;
+      idbStore.set(key, [
+        { id: 'malformed', content: 'old', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 1 },
+      ]);
+
+      // Fire append + remove + append concurrently — the per-key queue must serialise.
+      await Promise.all([
+        appendMessage(THREAD_ID, { id: 'b'.repeat(64), content: 'first', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 2 }),
+        removeMessages(THREAD_ID, ['malformed']),
+        appendMessage(THREAD_ID, { id: 'c'.repeat(64), content: 'second', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 3 }),
+      ]);
+
+      const final = idbStore.get(key) as Array<{ id: string }>;
+      const ids = new Set(final.map((m) => m.id));
+      expect(ids.has('malformed')).toBe(false);
+      expect(ids.has('b'.repeat(64))).toBe(true);
+      expect(ids.has('c'.repeat(64))).toBe(true);
+    });
+
+    it('empty ids array is a no-op (does not touch IDB)', async () => {
+      const key = `quizzl:messages:${THREAD_ID}`;
+      idbStore.set(key, [
+        { id: 'a'.repeat(64), content: 'msg', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 1 },
+      ]);
+      const setMock = (await import('idb-keyval')).set as ReturnType<typeof vi.fn>;
+      vi.mocked(setMock).mockClear();
+
+      await removeMessages(THREAD_ID, []);
+
+      expect(setMock).not.toHaveBeenCalled();
     });
   });
 });

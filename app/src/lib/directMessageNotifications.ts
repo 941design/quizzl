@@ -22,9 +22,7 @@ import {
   CHAT_MESSAGE_KIND,
   DIRECT_MESSAGE_KIND,
   GIFT_WRAP_KIND,
-  shouldIngestRumor,
   unwrapAndOpen,
-  type UnsignedRumor,
 } from '@/src/lib/directMessages';
 import { createLogger } from '@/src/lib/logger';
 import {
@@ -94,27 +92,30 @@ export function subscribeDirectMessageNotifications(params: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const kind1059Handler = async (event: any) => {
     try {
-      const rumor = await unwrapAndOpen(event as import('@nostr-dev-kit/ndk').NDKEvent, privateKeyHex);
-
-      if (!shouldIngestRumor(rumor, '')) {
-        logger.info('dm:rumor-rejected', { rumorId: rumor.id, reason: 'shouldIngestRumor-false' });
-        return;
-      }
+      // unwrapAndOpen wants a NostrEvent shape (created_at: number).
+      // NDKEvent has created_at?: number; supply a fallback rather than narrow upstream.
+      const rumor = await unwrapAndOpen(
+        { ...event, created_at: event.created_at ?? Math.floor(Date.now() / 1000) },
+        privateKeyHex,
+      );
 
       // Only kind-14 (NIP-17 chat messages) bump the bell.
       // kind-7 reactions, kind-444 welcomes, kind-21059 join requests — silently skip.
       if (rumor.kind !== CHAT_MESSAGE_KIND) return;
 
-      if (rumor.pubkey === ownPubkeyHex) return;
+      // Bell watcher accepts DMs from any sender (it has no peer to filter against).
+      // shouldIngestRumor is for thread-isolation in ContactChat, not here.
+      const peer = rumor.pubkey.toLowerCase();
+      if (peer === ownLower) return;
 
       const createdMs = rumor.created_at * 1000;
-      if (createdMs <= getDirectMessageLastReadAt(rumor.pubkey)) return;
+      if (createdMs <= getDirectMessageLastReadAt(peer)) return;
 
       if (seenRumorIds.has(rumor.id)) return;
       seenRumorIds.add(rumor.id);
 
-      rememberContact(rumor.pubkey);
-      incrementDirectMessage(rumor.pubkey);
+      rememberContact(peer);
+      incrementDirectMessage(peer);
     } catch {
       // Foreign key, not addressed to us, malformed — silently skip per D3.
       logger.info('dm:unwrap-failed', { eventId: (event as any).id ?? 'unknown', reason: 'unwrap-threw' });

@@ -81,7 +81,10 @@ vi.mock('@/src/lib/directMessages', async () => {
   return {
     ...mod,
     unwrapAndOpen: vi.fn<() => Promise<import('@/src/lib/directMessages').UnsignedRumor>>(),
-    shouldIngestRumor: vi.fn<() => boolean>(),
+    // shouldIngestRumor is intentionally NOT mocked — the bell watcher must accept
+    // DMs from any peer (it has no peer-pubkey to filter against). A previous version
+    // mocked it to true by default, hiding a bug where shouldIngestRumor(rumor, '')
+    // was being called and rejecting every rumor in production.
   };
 });
 
@@ -103,7 +106,6 @@ vi.mock('@/src/lib/logger', () => {
 });
 
 const { unwrapAndOpen } = await import('@/src/lib/directMessages');
-const { shouldIngestRumor } = await import('@/src/lib/directMessages');
 const { incrementDirectMessage } = await import('@/src/lib/unreadStore');
 const { rememberContact } = await import('@/src/lib/contacts');
 
@@ -122,12 +124,9 @@ describe('subscribeDirectMessageNotifications', () => {
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(unwrapAndOpen).mockReset();
-    vi.mocked(shouldIngestRumor).mockReset();
     vi.mocked(incrementDirectMessage).mockReset();
     vi.mocked(rememberContact).mockReset();
     if (capturedLoggerInfo) capturedLoggerInfo.mockClear();
-    // Default: shouldIngestRumor returns true
-    vi.mocked(shouldIngestRumor).mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -323,17 +322,8 @@ describe('subscribeDirectMessageNotifications', () => {
 
   // ── AC-30 / AC-31 logging ────────────────────────────────────────────────────
 
-  it('AC-30: info-level logger is called at each silent-skip site', async () => {
-    // Case 1: shouldIngestRumor returns false → logs 'dm:rumor-rejected'
-    vi.mocked(unwrapAndOpen).mockResolvedValue({
-      id: 'rumor-wrong-peer',
-      pubkey: 'other-peer',
-      kind: 14,
-      content: 'hello',
-      tags: [],
-      created_at: 1_700_000_000,
-    });
-    vi.mocked(shouldIngestRumor).mockReturnValue(false);
+  it('AC-30: info-level logger is called when unwrap throws', async () => {
+    vi.mocked(unwrapAndOpen).mockRejectedValue(new Error('decrypt failed'));
 
     const ndk = makeFakeNdk();
     subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
@@ -342,38 +332,35 @@ describe('subscribeDirectMessageNotifications', () => {
       (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
     )!;
 
-    await emitEvent(kind1059Sub, { id: 'wrap-wrong-peer', kind: 1059, pubkey: 'any-key' });
+    await emitEvent(kind1059Sub, { id: 'wrap-malformed', kind: 1059, pubkey: 'attacker-key' });
 
     expect(capturedLoggerInfo).toHaveBeenCalledWith(
-      'dm:rumor-rejected',
-      expect.objectContaining({ rumorId: 'rumor-wrong-peer' }),
+      'dm:unwrap-failed',
+      expect.objectContaining({ eventId: 'wrap-malformed' }),
     );
   });
 
   it('AC-31: no console.warn or console.error from any silent-skip path', async () => {
-    // shouldIngestRumor false
-    vi.mocked(unwrapAndOpen).mockResolvedValue({
-      id: 'r1', pubkey: 'other', kind: 14, content: '', tags: [], created_at: 1,
-    });
-    vi.mocked(shouldIngestRumor).mockReturnValue(false);
-
+    // unwrap throws
+    vi.mocked(unwrapAndOpen).mockRejectedValue(new Error('bad'));
     const ndk1 = makeFakeNdk();
     subscribeDirectMessageNotifications({ ndk: ndk1 as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
     const sub1 = ndk1.subs.find((s) => JSON.stringify(s.filter).includes('1059'))!;
     await emitEvent(sub1, { id: 'wrap-1', kind: 1059, pubkey: 'x' });
 
-    // unwrap throws
-    vi.mocked(unwrapAndOpen).mockRejectedValue(new Error('bad'));
+    // rumor kind!==14
+    vi.mocked(unwrapAndOpen).mockResolvedValue({
+      id: 'r2', pubkey: PEER_PUB, kind: 7, content: '+', tags: [], created_at: 1,
+    });
     const ndk2 = makeFakeNdk();
     subscribeDirectMessageNotifications({ ndk: ndk2 as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
     const sub2 = ndk2.subs.find((s) => JSON.stringify(s.filter).includes('1059'))!;
     await emitEvent(sub2, { id: 'wrap-2', kind: 1059, pubkey: 'x' });
 
-    // rumor kind!==14
+    // self-authored rumor (own pubkey)
     vi.mocked(unwrapAndOpen).mockResolvedValue({
-      id: 'r3', pubkey: PEER_PUB, kind: 7, content: '+', tags: [], created_at: 1,
+      id: 'r3', pubkey: OWN_PUB, kind: 14, content: 'self', tags: [], created_at: 1,
     });
-    vi.mocked(shouldIngestRumor).mockReturnValue(true);
     const ndk3 = makeFakeNdk();
     subscribeDirectMessageNotifications({ ndk: ndk3 as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
     const sub3 = ndk3.subs.find((s) => JSON.stringify(s.filter).includes('1059'))!;
@@ -381,5 +368,63 @@ describe('subscribeDirectMessageNotifications', () => {
 
     expect(warnSpy).not.toHaveBeenCalled();
     expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  // ── Bug-1 regression (multi-peer bell) ────────────────────────────────────────
+  // Earlier code passed shouldIngestRumor(rumor, '') which always returned false
+  // for any real rumor pubkey, silently disabling the bell for all NIP-17 DMs.
+  // The unit test mocked shouldIngestRumor=true by default, hiding the bug.
+  // This test runs with no shouldIngestRumor mock and confirms the bell still fires
+  // for arbitrary peer pubkeys that we have no prior knowledge of.
+
+  it('bug-1 regression: bell fires for an unknown peer pubkey (no shouldIngestRumor mock)', async () => {
+    const UNKNOWN_PEER = 'c'.repeat(64);
+    vi.mocked(unwrapAndOpen).mockResolvedValue({
+      id: 'rumor-from-unknown-peer',
+      pubkey: UNKNOWN_PEER,
+      kind: 14,
+      content: 'first message',
+      tags: [['p', OWN_PUB]],
+      created_at: 1_700_000_000,
+    });
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+
+    const kind1059Sub = ndk.subs.find(
+      (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
+    )!;
+
+    await emitEvent(kind1059Sub, { id: 'wrap-unknown-peer', kind: 1059, pubkey: 'ephemeral' });
+
+    expect(rememberContact).toHaveBeenCalledTimes(1);
+    expect(rememberContact).toHaveBeenCalledWith(UNKNOWN_PEER);
+    expect(incrementDirectMessage).toHaveBeenCalledTimes(1);
+    expect(incrementDirectMessage).toHaveBeenCalledWith(UNKNOWN_PEER);
+  });
+
+  it('bug-1 regression: rumor pubkey casing differences do not break self-detection', async () => {
+    // Self-authored rumor whose pubkey casing differs from ownPubkeyHex.
+    // The bell handler must lowercase before comparing, otherwise self-DMs would
+    // ring the bell.
+    vi.mocked(unwrapAndOpen).mockResolvedValue({
+      id: 'self-rumor',
+      pubkey: OWN_PUB.toUpperCase(),
+      kind: 14,
+      content: 'self note',
+      tags: [],
+      created_at: 1_700_000_000,
+    });
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+
+    const kind1059Sub = ndk.subs.find(
+      (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
+    )!;
+
+    await emitEvent(kind1059Sub, { id: 'wrap-self', kind: 1059, pubkey: 'ephemeral' });
+
+    expect(incrementDirectMessage).not.toHaveBeenCalled();
   });
 });

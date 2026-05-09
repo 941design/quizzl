@@ -3,7 +3,7 @@ import { NDKEvent } from '@nostr-dev-kit/ndk';
 import type { EventSigner } from 'applesauce-core';
 import type { MemberProfile } from '@/src/types';
 import ChatBox from '@/src/components/chat/ChatBox';
-import { appendMessage, loadMessages, type ChatMessage } from '@/src/lib/marmot/chatPersistence';
+import { appendMessage, loadMessages, removeMessages, type ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import { connectNdk, fetchEventsWithTimeout } from '@/src/lib/ndkClient';
 import {
   buildChatRumor,
@@ -125,8 +125,10 @@ export default function ContactChat({
 
         // Story-04 (§3.4): coordinate refetch for non-canonical message ids.
         // loadMessages returns the malformed ids; we attempt a relay refetch
-        // async so it does not block the first render. On success, the canonical
-        // row is upserted and the malformed row dropped via upsertMessages below.
+        // async so it does not block the first render. On success, the malformed
+        // row is removed (state + IDB) and the canonical replacement is upserted.
+        // Malformed ids whose refetch yields no replacement are left in place so
+        // the message stays visible (per spec §3.4).
         if (refetchIds.length > 0) {
           // Log at info level per §3.6 — the message is still visible (left in
           // place) so this is not an error.
@@ -138,7 +140,10 @@ export default function ContactChat({
                 kinds: [DIRECT_MESSAGE_KIND, GIFT_WRAP_KIND],
                 ids: refetchIds,
               });
-              const canonicalMessages: ChatMessage[] = [];
+              // Track malformed-id → canonical-message pairs so we can drop the
+              // malformed row when the canonical id differs (always true for
+              // gift-wrap refetches: outer wrap id ≠ inner rumor id).
+              const replacements: Array<{ malformedId: string; canonical: ChatMessage }> = [];
               for (const evt of results.events) {
                 const rawEvt = {
                   kind: evt.kind ?? DIRECT_MESSAGE_KIND,
@@ -156,30 +161,42 @@ export default function ContactChat({
                     if (rumor.kind !== CHAT_MESSAGE_KIND) continue;
                     const parsed = parseDirectPayload(rumor.content);
                     if (!parsed) continue;
-                    canonicalMessages.push(toMessage(threadId, {
+                    const canonical = toMessage(threadId, {
                       id: rumor.id,
                       pubkey: rumor.pubkey,
                       created_at: rumor.created_at,
                       content: parsed.content,
                       attachments: parsed.attachments,
-                    }));
+                    });
+                    replacements.push({ malformedId: evt.id, canonical });
                   } catch {
                     // Refetch failed for this wrap — leave the malformed row in place.
                     continue;
                   }
                 } else {
-                  const msg = await ingestEvent({
+                  const canonical = await ingestEvent({
                     id: evt.id,
                     pubkey: evt.pubkey,
                     content: evt.content,
                     created_at: evt.created_at,
                   });
-                  if (msg) canonicalMessages.push(msg);
+                  if (canonical) replacements.push({ malformedId: evt.id, canonical });
                 }
               }
-              if (canonicalMessages.length > 0) {
-                // Drop malformed rows first, then upsert canonical replacements.
-                upsertMessages(canonicalMessages);
+              if (replacements.length > 0 && !cancelled) {
+                // For ids that genuinely changed (gift-wrap path), drop the
+                // malformed row from IDB and React state before upserting the
+                // canonical replacement. The kind-4 path keeps the same id so
+                // there's nothing to drop — upsertMessages replaces in place.
+                const malformedIdsToDrop = replacements
+                  .filter((r) => r.malformedId !== r.canonical.id)
+                  .map((r) => r.malformedId);
+                if (malformedIdsToDrop.length > 0) {
+                  await removeMessages(threadId, malformedIdsToDrop);
+                  const dropSet = new Set(malformedIdsToDrop);
+                  setMessages((prev) => prev.filter((m) => !dropSet.has(m.id)));
+                }
+                upsertMessages(replacements.map((r) => r.canonical));
               }
             } catch {
               // Refetch failed — malformed rows remain in place (per spec §3.4).
@@ -211,9 +228,11 @@ export default function ContactChat({
         ).filter((msg): msg is ChatMessage => !!msg);
 
         // Process kind-1059 historical results through the gift-wrap handler.
-        // Reuse the same handleGiftWrapEvent closure used by the live subscription.
-        // Pass skipDedupCheck=true to bypass knownMessageIdsRef (historical-only gate);
-        // appendMessage's id-dedup is sufficient to prevent duplicates.
+        // Each successfully unwrapped chat-message rumor is collected so it can be
+        // merged into upsertMessages alongside the kind-4 results — without this,
+        // historical NIP-17 DMs land in IDB but stay invisible until the user
+        // closes and reopens the chat (the §3.5 merge requirement).
+        const giftWrapMessages: ChatMessage[] = [];
         const handleHistoricalGiftWrapEvent = async (evt: NDKEvent) => {
           try {
             const rawEvt = {
@@ -238,6 +257,7 @@ export default function ContactChat({
                 attachments: parsed.attachments,
               });
               await appendMessage(threadId, msg);
+              giftWrapMessages.push(msg);
             }
           } catch {
             // Silently ignore gift wraps we can't decrypt (other-conversation traffic).
@@ -251,7 +271,7 @@ export default function ContactChat({
         // Sort is required so the rendered list is monotonic regardless of fetch order.
         if (!cancelled) {
           upsertMessages(
-            remoteMessages.slice().sort((a, b) => a.createdAt - b.createdAt),
+            [...remoteMessages, ...giftWrapMessages].sort((a, b) => a.createdAt - b.createdAt),
           );
         }
 

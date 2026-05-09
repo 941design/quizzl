@@ -260,6 +260,30 @@ export function appendMessage(groupId: string, message: ChatMessage): Promise<vo
   return next;
 }
 
+/**
+ * Remove specific messages from a group's persisted log by id.
+ * No-ops for ids that aren't present. Serialised on the same per-key queue as
+ * appendMessage so a remove cannot race a concurrent append on the same key.
+ */
+export function removeMessages(groupId: string, ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return Promise.resolve();
+  const key = storageKey(groupId);
+  const dropSet = new Set(ids);
+  const prev = appendQueues.get(key) ?? Promise.resolve();
+  const next = prev.then(async () => {
+    const existing = (await get<ChatMessage[]>(key)) ?? [];
+    const filtered = existing.filter((m) => !dropSet.has(m.id));
+    if (filtered.length === existing.length) return;
+    await set(key, filtered);
+  });
+  const settled = next.catch(() => {});
+  appendQueues.set(key, settled);
+  settled.then(() => {
+    if (appendQueues.get(key) === settled) appendQueues.delete(key);
+  });
+  return next;
+}
+
 /** Remove all persisted messages for a group (e.g. on group leave). */
 export function clearMessages(groupId: string): Promise<void> {
   const key = storageKey(groupId);
