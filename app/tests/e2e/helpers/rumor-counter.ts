@@ -7,6 +7,7 @@ declare global {
       onRumorSent?: (kind: number) => void;
       onRumorReceived?: (kind: number) => void;
       parseProfilePayload?: (content: string) => unknown;
+      onChatIdbWrite?: (args: { groupId: string; messageId: string }) => void;
     };
   }
 }

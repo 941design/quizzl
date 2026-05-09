@@ -1,0 +1,175 @@
+{
+  "story_id": "02",
+  "story_name": "port-chat-and-reactions",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-08T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-02-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `app/src/context/ChatStoreContext.tsx` contain zero occurrences of `group.on('applicationMessage'` after Story 2 ships — verifiable by `grep -n \"group.on('applicationMessage'\" app/src/context/ChatStoreContext.tsx` returning no output?"
+    },
+    {
+      "question_id": "VQ-02-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `chatHandler.ts` import zero symbols from `app/src/context/` — specifically, does it receive `appendMessage`, `incrementUnread`, `setChatVersion`, and `getActiveGroupId` exclusively via the `deps` bag injected at `buildDispatcher(deps)` time, with no direct context import visible in the file's import block?"
+    },
+    {
+      "question_id": "VQ-02-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `handlers/chatHandler` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? Specifically: does the only file that imports from `chatHandler.ts` remain `registerHandlers.ts`, with no other file in `app/src/context/` or elsewhere importing `chatHandler.ts` directly — verifiable by `grep -r \"from.*chatHandler\" app/src/ --include=\"*.ts\" --include=\"*.tsx\" -l` returning only `registerHandlers.ts`?"
+    },
+    {
+      "question_id": "VQ-02-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/marmot/chatHandler.test.ts` contain a test case for the imeta attachment parse path that constructs a kind-9 rumor with `tags: [[\"imeta\", \"url https://example.com/img.jpg\", \"m image/jpeg\"]]` and asserts `msg.attachments[0].url === \"https://example.com/img.jpg\"` and `msg.attachments[0].type === \"image/jpeg\"` on the argument passed to the `appendMessage` mock — exercising the production `chatHandler.ts` parse logic, not a stub?"
+    },
+    {
+      "question_id": "VQ-02-005",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/marmot/chatHandler.test.ts` contain a test case for the own-send skip path that sets `rumor.pubkey === ctx.selfPubkeyHex`, dispatches the rumor, and asserts that the `incrementUnread` spy call count is zero — confirming the handler's own-send guard fires before `incrementUnread` is reached?"
+    },
+    {
+      "question_id": "VQ-02-006",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/marmot/reactionHandler.test.ts` use a Map-backed idb-keyval mock (via `vi.mock('idb-keyval', ...)`) rather than a pure spy proxy as its pass condition — specifically, does the happy-path kind-7 test assert an observable side effect (e.g., `applyInboundRumor` called with the correct `groupId` and rumor payload) rather than only checking that a spy was called with any arguments?"
+    },
+    {
+      "question_id": "VQ-02-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does `app/src/context/MarmotContext.tsx` after Story 2 contain exactly one call to `buildDispatcher(deps).subscribe(group, ctx)` inside `subscribeNewGroups()` — and does the returned unsubscribe function get stored alongside the existing `subscribeToGroupMessages` unsubscribe so both are called when the group subscription tears down?"
+    },
+    {
+      "question_id": "VQ-02-008",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does `chatHandler.ts` guard the `incrementUnread` call so it is never called when `rumor.pubkey === ctx.selfPubkeyHex` — specifically, does the own-send check occur before any state mutation (before both `appendMessage` and `incrementUnread`), or only before `incrementUnread`, and is the ordering consistent with the spec intent that own-send messages are written optimistically by `sendMessage` only?"
+    },
+    {
+      "question_id": "VQ-02-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-1",
+      "question": "Does `grep -r \"group.on('applicationMessage'\" app/src/ --include=\"*.ts\" --include=\"*.tsx\" -l` return exactly one file — `app/src/lib/marmot/applicationRumorDispatcher.ts` — after Story 2 ships, with zero matches in `app/src/context/ChatStoreContext.tsx` and zero matches in `app/src/context/MarmotContext.tsx`?"
+    },
+    {
+      "question_id": "VQ-02-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-3",
+      "question": "After Story 2 ships (partial AC-AR-3: chat and reaction branches removed from MarmotContext), does `grep -r \"rumor\\.kind\" app/src/context/ --include=\"*.ts\" --include=\"*.tsx\"` return zero matches for `CHAT_MESSAGE_KIND` and kind-7 literal comparisons in `MarmotContext.tsx`, while the profile/score/poll branches (not yet ported) may still appear temporarily in the context file until Story 3?"
+    },
+    {
+      "question_id": "VQ-02-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-4",
+      "question": "Does `grep -r \"from.*handlers/\" app/src/ --include=\"*.ts\" --include=\"*.tsx\" -l` return only `registerHandlers.ts` — confirming `chatHandler.ts` and `reactionHandler.ts` are imported exclusively by `registerHandlers.ts` and by no file in `app/src/context/` or elsewhere?"
+    },
+    {
+      "question_id": "VQ-02-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-6",
+      "question": "Does the unit test in `app/tests/unit/marmot/chatHandler.test.ts` for AC-AR-6 mock idb-keyval with a Map, invoke the chat handler twice with the same `rumor.id`, and assert the Map's `set` method is called exactly once — confirming the dispatcher LRU (not a handler-internal check) blocks the second invocation before the handler body executes?"
+    },
+    {
+      "question_id": "VQ-02-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-7",
+      "question": "Does `chatHandler.ts` parse `imeta` tags from `rumor.tags` into a `ChatMessage.attachments` array before calling `appendMessage(groupId, msg)`, and does the unit test in `app/tests/unit/marmot/chatHandler.test.ts` assert `msg.attachments[0].url === \"https://example.com/img.jpg\"` and `msg.attachments[0].type === \"image/jpeg\"` for a rumor with `tags: [[\"imeta\", \"url https://example.com/img.jpg\", \"m image/jpeg\"]]`?"
+    },
+    {
+      "question_id": "VQ-02-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-8",
+      "question": "Does the unit test in `app/tests/unit/marmot/chatHandler.test.ts` for AC-AR-8 inject a `vi.fn()` spy for `incrementUnread`, dispatch a peer rumor with `groupId: \"G1\"` and `ctx.getActiveGroupId()` returning `\"G2\"`, and assert `incrementUnread` was called with `\"G1\"` exactly once and never called with `\"G2\"` — with a separate sub-case dispatching a rumor where `rumor.pubkey === ctx.selfPubkeyHex` and asserting `incrementUnread` call count is zero?"
+    },
+    {
+      "question_id": "VQ-02-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-9",
+      "question": "Do all currently-passing tests in `groups-lifecycle.spec.ts`, `groups-image-sharing.spec.ts`, and `groups-direct-chat-no-duplicates.spec.ts` remain green under `make test-e2e-groups` after Story 2 ships — with no modifications to assertions in those test files?"
+    },
+    {
+      "question_id": "VQ-02-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-10",
+      "question": "Does the unit test in `app/tests/unit/marmot/reactionHandler.test.ts` for AC-AR-10 invoke the reaction handler with the same `rumor.id` twice in sequence and assert `applyInboundRumor` spy call count is exactly 1 — where the second invocation is blocked by the dispatcher's LRU (simulated by calling the handler through a dispatcher wrapper that enforces LRU, not by calling the handler directly twice)?"
+    },
+    {
+      "question_id": "VQ-02-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-11",
+      "question": "Does the unit test in `app/tests/unit/marmot/reactionHandler.test.ts` for AC-AR-11 dispatch a kind-7 peer rumor once, assert `applyInboundRumor` called once, then dispatch the same `rumor.id` again and assert total `applyInboundRumor` call count remains 1 — confirming the LRU dedup (not a handler-internal gate) prevents the second call?"
+    },
+    {
+      "question_id": "VQ-02-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-12",
+      "question": "Does the AC-38 test case in `groups-reactions.spec.ts` pass under `make test-e2e-groups` after Story 2 ships — exercising `reactionHandler.ts` as the code path (not the removed `ChatStoreContext.tsx` kind-7 branch) — and does the AC-59 DM-side reactions test remain green and unmodified?"
+    },
+    {
+      "question_id": "VQ-02-019",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-13",
+      "question": "Does the test \"Bob reacts to Alice's message — Alice sees the badge (AC-40)\" in `app/tests/e2e/groups-reactions.spec.ts` pass (not `test.fixme`, not skipped) after Story 2 ships — confirming the structural cause (two competing kind-7 consumers) is eliminated by routing all kind-7 inbound through the single dispatcher?"
+    },
+    {
+      "question_id": "VQ-02-020",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-19",
+      "question": "After the `if (senderPubkey === pubkeyHex) return;` guard is removed from `MarmotContext.tsx`, does the `groups-lifecycle.spec.ts` assertion that User A sends a message and User A sees exactly one bubble remain green — confirming that marmot-ts's `#sentEventIds` mechanism prevents own-send bus emission and the dispatcher therefore never receives an own-send rumor to double-process?"
+    },
+    {
+      "question_id": "VQ-02-021",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-20",
+      "question": "Do `app/tests/unit/marmot/chatHandler.test.ts` and `app/tests/unit/marmot/reactionHandler.test.ts` exist and contain all required test cases from AC-AR-20 (happy-path kind-9 text, happy-path imeta, malformed payload, duplicate-id for chatHandler; happy-path kind-7, target-message-not-found, duplicate-id for reactionHandler), and do all pass under `make test-unit`?"
+    },
+    {
+      "question_id": "VQ-02-022",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-22",
+      "question": "Does `app/src/lib/marmot/chatPersistence.ts`'s `appendMessage` function contain the guarded hook `if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') { (window as any).__quizzlTest?.onChatIdbWrite?.({ groupId, messageId: message.id }); }` after the IDB write resolves — and does `app/tests/e2e/helpers/rumor-counter.ts` (or equivalent) declare `onChatIdbWrite?: (args: { groupId: string; messageId: string }) => void` on the `__quizzlTest` surface type?"
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "question_id": "VQ-02-PI-001",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `MarmotContext.tsx`'s `getActiveGroupId` closure passed to `buildDispatcher` return `null` for all groups (since MarmotContext has no active-group tracking)? Is this correct — and does the chatHandler's `incrementUnread` call still fire for all non-own-send peer messages regardless of `getActiveGroupId()` returning null, because the handler only uses `getActiveGroupId` to check if the group IS active (not if it is active vs null)?"
+    },
+    {
+      "question_id": "VQ-02-PI-002",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The `MarmotContext.tsx` onApplicationMessage callback still contains the own-send guard removal (the `if (senderPubkey === pubkeyHex) return;` was removed from lines ~603). But the callback still uses `senderPubkey` in the POLL_VOTE and POLL_CLOSE branches. Is `senderPubkey` still declared and used correctly in the remaining branches (SCORE, PROFILE, PROFILE_REQUEST, POLL_VOTE, POLL_CLOSE)?",
+      "note": "Implementation verified: senderPubkey = rumor.pubkey is still declared and used in POLL_VOTE/POLL_CLOSE branches."
+    },
+    {
+      "question_id": "VQ-02-PI-003",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The chatHandler test for imeta uses `vi.mocked(parseMediaImetaTag).mockImplementation(...)` to simulate attachment parsing. Does this correctly exercise the production path through `extractAttachmentsByRole` in `imageMessage.ts`, or is it mocking at too low a level — should the test instead pass a real `imeta` tag and rely on the actual `parseMediaImetaTag` implementation to verify end-to-end parse fidelity?"
+    }
+  ]
+}

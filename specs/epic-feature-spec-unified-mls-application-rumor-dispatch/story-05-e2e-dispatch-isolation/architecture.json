@@ -1,0 +1,33 @@
+{
+  "module_name": "groups-dispatch-isolation.spec",
+  "purpose": "E2E regression sentinel for the unified MLS application-rumor dispatcher. Verifies that an own-send chat message produces exactly one IDB row and exactly one rendered bubble, confirming the structural invariant that exactly one group.on('applicationMessage') subscriber exists in production code.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/e2e/groups-dispatch-isolation.spec.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "@playwright/test",
+    "app/tests/e2e/helpers/auth-helpers.ts",
+    "app/tests/e2e/helpers/clear-state.ts",
+    "app/tests/e2e/helpers/dismiss-error-overlay.ts",
+    "app/tests/e2e/helpers/idb-record.ts"
+  ],
+  "dependencies_forbidden": [
+    "app/src/"
+  ],
+  "external_ports": [
+    "strfry relay on :7777",
+    "blossom-mock on :3001",
+    "Next.js dev server on :3100"
+  ],
+  "events_emitted": [],
+  "events_consumed": [
+    "window.__quizzlTest.onChatIdbWrite (AC-AR-22 hook in chatPersistence.ts)"
+  ],
+  "test_targets": [
+    "AC-AR-21: own-send produces exactly one IDB row and one rendered bubble",
+    "AC-AR-21: peer sees exactly one bubble",
+    "AC-AR-22: onChatIdbWrite counter equals 1 after own-send (optimistic write only)"
+  ]
+}

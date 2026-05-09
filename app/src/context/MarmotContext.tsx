@@ -32,14 +32,15 @@ import {
   clearAllGroupData,
 } from '@/src/lib/marmot/groupStorage';
 import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscription';
-import { serialiseScoreUpdate, nextSequenceNumber, parseScorePayload, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
-import { serialiseProfileUpdate, parseProfilePayload, payloadToMemberProfile, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
-import { PROFILE_REQUEST_KIND, parseProfileRequestPayload } from '@/src/lib/marmot/profileRequestSync';
+import { serialiseScoreUpdate, nextSequenceNumber, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
+import { serialiseProfileUpdate, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
+import { PROFILE_REQUEST_KIND } from '@/src/lib/marmot/profileRequestSync';
 import { recordRequestEmitted, recordRequestAnswered, loadProfileRequestMemo, clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage';
 import { handleIncomingProfileRequest, notifyProfileObserved, sweepStaleProfiles } from '@/src/lib/marmot/profileRequestRunner';
 import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, decrementJoinRequest } from '@/src/lib/unreadStore';
-import { CHAT_MESSAGE_KIND } from '@/src/lib/marmot/chatPersistence';
-import { POLL_OPEN_KIND, POLL_VOTE_KIND, POLL_CLOSE_KIND, parsePollOpen, parsePollVote, parsePollClose } from '@/src/lib/marmot/pollSync';
+import { appendMessage, loadMessages } from '@/src/lib/marmot/chatPersistence';
+import { buildDispatcher } from '@/src/lib/marmot/registerHandlers';
+import { applyInboundRumor } from '@/src/lib/reactions/api';
 import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
 import { clearGroupMedia } from '@/src/lib/marmot/mediaPersistence';
 import type { Poll, PollVote } from '@/src/lib/marmot/pollPersistence';
@@ -590,229 +591,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             await reloadGroups();
           }
 
-          const { SCORE_RUMOR_KIND, parseScorePayload } = await import('@/src/lib/marmot/scoreSync');
-          const { PROFILE_RUMOR_KIND, parseProfilePayload, payloadToMemberProfile } = await import('@/src/lib/marmot/profileSync');
-
           const unsub = await subscribeToGroupMessages(
             group.id,
             group.relays,
             mlsGroup,
             ndk,
-            (rumor) => {
-              const senderPubkey = rumor.pubkey;
-              if (senderPubkey === pubkeyHex) return; // skip own messages
-
-              if (rumor.kind === SCORE_RUMOR_KIND) {
-                const update = parseScorePayload(rumor.content);
-                if (update) {
-                  void mergeMemberScore(group.id, senderPubkey, senderPubkey.slice(0, 8), update).catch(
-                    (err: unknown) => console.warn('[Marmot] mergeMemberScore failed:', err)
-                  );
-                }
-              } else if (rumor.kind === PROFILE_RUMOR_KIND) {
-                const profilePayload = parseProfilePayload(rumor.content);
-                if (profilePayload) {
-                  // sig is verified by parseProfilePayload. For relay-on-behalf
-                  // (story 06) the MLS sender is the relayer, not the author —
-                  // the embedded SignedProfileEvent.pubkey is the authoritative
-                  // identity. Legacy unsigned payloads (signedEvent absent) are
-                  // keyed by MLS sender, consistent with pre-epic behaviour.
-                  const authorPubkey = profilePayload.signedEvent?.pubkey ?? senderPubkey;
-                  const memberProfile = payloadToMemberProfile(senderPubkey, profilePayload);
-                  // Write to IDB first, THEN bump profileVersion so GroupDetailView
-                  // re-reads after the write has landed (avoids stale-read race).
-                  void mergeMemberProfile(group.id, memberProfile).then(async (merged: boolean) => {
-                    setProfileVersion((v) => v + 1);
-                    // Record that a profile answer was received so attempts reset and
-                    // shouldEmitRequest can take the "answered within 7d" branch.
-                    // Only do this if the LWW merge actually accepted the profile.
-                    if (merged) {
-                      await recordRequestAnswered(group.id, authorPubkey, Date.now());
-                    }
-                  }).catch(
-                    (err: unknown) => console.warn('[Marmot] mergeMemberProfile failed:', err)
-                  );
-                  void updateMemberScoreNickname(group.id, authorPubkey, profilePayload.nickname).catch(
-                    (err: unknown) => console.warn('[Marmot] updateMemberScoreNickname failed:', err)
-                  );
-                  // AC-036: cancel any pending relay timer for this profile's author.
-                  if (profilePayload.signedEvent) {
-                    notifyProfileObserved({
-                      groupId: group.id,
-                      targetPubkey: authorPubkey,
-                      observedUpdatedAt: memberProfile.updatedAt,
-                    });
-                  }
-                  // Dev-only: notify E2E test hook on successful profile receive
-                  if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-                    const testRumorKind = PROFILE_RUMOR_KIND;
-                    ((window as unknown as Record<string, unknown>).__quizzlTest as { onRumorReceived?: (kind: number) => void } | undefined)
-                      ?.onRumorReceived?.(testRumorKind);
-                  }
-                  // Cache in global contact cache for cross-group availability — keyed by author.
-                  void import('@/src/lib/contactCache').then(({ writeContactEntry }) => {
-                    writeContactEntry(authorPubkey, {
-                      nickname: memberProfile.nickname,
-                      avatar: memberProfile.avatar,
-                      updatedAt: memberProfile.updatedAt,
-                    });
-                  });
-                }
-              } else if (rumor.kind === PROFILE_REQUEST_KIND) {
-                const reqPayload = parseProfileRequestPayload(rumor.content);
-                if (reqPayload) {
-                  void (async () => {
-                    try {
-                      // AC-032: record every observed request for deduplication
-                      // across the group, regardless of target.
-                      await recordRequestEmitted(group.id, reqPayload.targetPubkey, Date.now());
-
-                      if (reqPayload.targetPubkey === pubkeyHex) {
-                        // AC-030: we are the target — reply immediately with our
-                        // current profile. Mirrors publishProfileUpdate exactly:
-                        // sign locally, build rumor, send with no backoff.
-                        if (!signerRef.current) return;
-                        const payload = await serialiseProfileUpdate(localProfileRef.current, signerRef.current);
-                        const rumor2 = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
-                        await sendRumorSafe(mlsGroup, rumor2 as any);
-                      } else {
-                        // AC-031: not our target — delegate to relay handler (AC-033/034).
-                        await handleIncomingProfileRequest({
-                          groupId: group.id,
-                          payload: reqPayload,
-                          selfPubkeyHex: pubkeyHex ?? '',
-                          now: Date.now(),
-                          loadProfile: async (gid, targetPubkey) => {
-                            const profiles = await loadMemberProfiles(gid);
-                            return profiles.find((p) => p.pubkeyHex === targetPubkey);
-                          },
-                          sendRumor: async (groupId, content) => {
-                            const g = await clientRef.current?.groups.get(groupId).catch(() => null);
-                            if (!g) return;
-                            const r = buildRumor(PROFILE_RUMOR_KIND, content, pubkeyHex ?? '');
-                            await sendRumorSafe(g, r as any);
-                          },
-                        });
-                      }
-                    } catch (err) {
-                      console.warn('[Marmot] PROFILE_REQUEST_KIND handler failed:', err);
-                    }
-                  })();
-                }
-              } else if (rumor.kind === CHAT_MESSAGE_KIND) {
-                void (async () => {
-                  const { appendMessage } = await import('@/src/lib/marmot/chatPersistence');
-                  const { parseImageMessageContent, extractAttachmentsByRole } = await import('@/src/lib/media/imageMessage');
-                  const parsed = parseImageMessageContent(rumor.content);
-                  // Preserve the role classification from the original imeta
-                  // tags so the bubble/lightbox don't have to guess full vs
-                  // thumb from filename or array index downstream.
-                  const attachments = (parsed?.type === 'image' && rumor.tags?.length)
-                    ? extractAttachmentsByRole(rumor.tags)
-                    : null;
-                  const hasAttachment = attachments && (attachments.full || attachments.thumb);
-                  const msg = {
-                    id: rumor.id,
-                    content: rumor.content,
-                    senderPubkey: rumor.pubkey,
-                    groupId: group.id,
-                    createdAt: rumor.created_at * 1000,
-                    ...(hasAttachment ? { attachments } : {}),
-                  };
-                  void appendMessage(group.id, msg).then(() => {
-                    setChatVersion((v) => v + 1);
-                  }).catch((err: unknown) => console.warn('[Marmot] chat appendMessage failed:', err));
-                })();
-                incrementUnread(group.id);
-              } else if (rumor.kind === POLL_OPEN_KIND) {
-                const payload = parsePollOpen(rumor.content);
-                if (payload) {
-                  const poll: Poll = {
-                    id: payload.id,
-                    groupId: group.id,
-                    title: payload.title,
-                    description: payload.description,
-                    options: payload.options,
-                    pollType: payload.pollType,
-                    creatorPubkey: payload.creatorPubkey,
-                    createdAt: rumor.created_at * 1000,
-                    closed: false,
-                  };
-                  void savePoll(poll).then(() => {
-                    setPollVersion((v) => v + 1);
-                  }).catch((err: unknown) => console.warn('[Marmot] savePoll failed:', err));
-                }
-              } else if (rumor.kind === POLL_VOTE_KIND) {
-                const payload = parsePollVote(rumor.content);
-                if (payload) {
-                  // Ignore votes for closed polls
-                  void getPoll(group.id, payload.pollId).then((existingPoll) => {
-                    if (existingPoll?.closed) return;
-                    const vote: PollVote = {
-                      id: `${payload.pollId}:${senderPubkey}`,
-                      pollId: payload.pollId,
-                      voterPubkey: senderPubkey,
-                      responses: payload.responses,
-                      votedAt: rumor.created_at * 1000,
-                    };
-                    return saveVote(vote).then(() => {
-                      setPollVersion((v) => v + 1);
-                    });
-                  }).catch((err: unknown) => console.warn('[Marmot] saveVote failed:', err));
-                }
-              } else if (rumor.kind === POLL_CLOSE_KIND) {
-                const payload = parsePollClose(rumor.content);
-                if (payload) {
-                  // Only the poll creator can close
-                  void getPoll(group.id, payload.pollId).then((existingPoll) => {
-                    if (!existingPoll) return;
-                    if (existingPoll.creatorPubkey !== senderPubkey) return;
-                    const updated: Poll = {
-                      ...existingPoll,
-                      closed: true,
-                      results: payload.results,
-                      totalVoters: payload.totalVoters,
-                    };
-                    return savePoll(updated).then(() => {
-                      setPollVersion((v) => v + 1);
-                    });
-                  }).catch((err: unknown) => console.warn('[Marmot] poll close failed:', err));
-                }
-              } else if (rumor.kind === 7) {
-                // Seam S4 — inbound group reaction ingest (story-06, AC-38).
-                // Dynamic import mirrors the chatPersistence pattern above (SSR safety).
-                void (async () => {
-                  // Dispatcher gate (pre-work fix, story-07, AC-39):
-                  // The leaf module (applyInboundRumor) always upserts now. The "silent
-                  // discard for unknown messageId" rule is enforced here at the dispatcher.
-                  // loadMessages is bounded by the visible-thread message count and is
-                  // an infrequent (per-reaction) idb read, acceptable per spec §2.4.
-                  const targetETag = rumor.tags?.find((t: string[]) => t[0] === 'e');
-                  const targetMessageId = targetETag?.[1];
-                  if (!targetMessageId) return; // malformed rumor — no e-tag
-
-                  const { loadMessages: loadMsgs } = await import('@/src/lib/marmot/chatPersistence');
-                  const existingMessages = await loadMsgs(group.id).catch(() => [] as import('@/src/lib/marmot/chatPersistence').ChatMessage[]);
-                  const messageIsKnown = existingMessages.some((m: import('@/src/lib/marmot/chatPersistence').ChatMessage) => m.id === targetMessageId);
-                  if (!messageIsKnown) return; // silent discard per AC-39, spec §2.4
-
-                  const { applyInboundRumor } = await import('@/src/lib/reactions/api');
-                  const result = await applyInboundRumor(
-                    { kind: 'group', groupId: group.id },
-                    rumor,
-                  ).catch((err: unknown) => {
-                    console.warn('[Marmot] applyInboundRumor failed:', err);
-                    return null;
-                  });
-                  if (result !== null) {
-                    // Non-null return means the store was written — bump the counter
-                    // so ChatStoreContext can re-read aggregated reactions.
-                    setReactionsVersion((v) => v + 1);
-                  }
-                  // null return is a silent discard (dedup, etc.)
-                })();
-              }
-            },
             // Refresh memberPubkeys from MLS state after ingesting any event
             // (commits, proposals, etc. — not just application messages)
             async (currentMembers) => {
@@ -860,7 +643,75 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               })();
             },
           );
-          subsMap.set(group.id, unsub);
+
+          // Wire the unified dispatcher for all application rumor handlers (Stories 02–03).
+          const dispatcherCtx = {
+            groupId: group.id,
+            selfPubkeyHex: pubkeyHex ?? '',
+            getActiveGroupId: () => null as string | null,
+          };
+          const unsubDispatcher = buildDispatcher({
+            // Chat
+            appendMessage,
+            incrementUnread,
+            setChatVersion,
+            // Reactions
+            loadMessages,
+            applyInboundRumor,
+            setReactionsVersion,
+            // Score
+            mergeMemberScore,
+            // Profile
+            mergeMemberProfile,
+            updateMemberScoreNickname,
+            notifyProfileObserved,
+            recordRequestAnswered,
+            writeContactEntry: (pubkey: string, entry: { nickname: string; avatar: import('@/src/types').ProfileAvatar | null; updatedAt: string }) => {
+              void import('@/src/lib/contactCache').then(({ writeContactEntry }) => {
+                writeContactEntry(pubkey, { nickname: entry.nickname, avatar: entry.avatar, updatedAt: entry.updatedAt });
+              });
+            },
+            setProfileVersion,
+            // Profile request
+            recordRequestEmitted,
+            // AC-030: self-target reply — sign our current profile and send immediately.
+            sendSelfProfile: async (_groupId: string) => {
+              if (!signerRef.current) return;
+              const payload = await serialiseProfileUpdate(localProfileRef.current, signerRef.current);
+              const rumor2 = buildRumor(PROFILE_RUMOR_KIND, payload, pubkeyHex ?? '');
+              await sendRumorSafe(mlsGroup, rumor2 as any);
+            },
+            // AC-031: relay path — pre-bind loadProfile and sendRumor.
+            handleIncomingProfileRequest: async (args: { groupId: string; payload: import('@/src/lib/marmot/profileRequestSync').ProfileRequestPayload }) => {
+              await handleIncomingProfileRequest({
+                groupId: args.groupId,
+                payload: args.payload,
+                selfPubkeyHex: pubkeyHex ?? '',
+                now: Date.now(),
+                loadProfile: async (gid, targetPubkey) => {
+                  const profiles = await loadMemberProfiles(gid);
+                  return profiles.find((p) => p.pubkeyHex === targetPubkey);
+                },
+                sendRumor: async (groupId, content) => {
+                  const g = await clientRef.current?.groups.get(groupId).catch(() => null);
+                  if (!g) return;
+                  const r = buildRumor(PROFILE_RUMOR_KIND, content, pubkeyHex ?? '');
+                  await sendRumorSafe(g, r as any);
+                },
+              });
+            },
+            // Polls
+            savePoll,
+            saveVote,
+            getPoll,
+            setPollVersion,
+          }).subscribe(mlsGroup, dispatcherCtx);
+
+          // Combine both unsubscribe functions so cleanup tears down both listeners.
+          subsMap.set(group.id, () => {
+            unsub();
+            unsubDispatcher();
+          });
         } catch (err) {
           console.warn(`[Marmot] subscribeToGroupMessages for ${group.id} failed:`, err);
         }

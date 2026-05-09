@@ -1,0 +1,59 @@
+{
+  "story_id": "04",
+  "story_name": "drop-callback-parameter",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-08T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-04-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `grep -r \"onApplicationMessage\" app/src/ --include=\"*.ts\" --include=\"*.tsx\"` return zero matches after Story 4 ships — confirming the symbol has been completely removed from `welcomeSubscription.ts`, `MarmotContext.tsx`, and all other files in `app/src/`?"
+    },
+    {
+      "question_id": "VQ-04-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the `EpochResolverCallbacks` type (or equivalent options interface) in `app/src/lib/marmot/welcomeSubscription.ts` contain only `onHistorySynced` and `onMembersChanged` fields after the removal — with no `onApplicationMessage` field present anywhere in the type definition or any related interface in that file?"
+    },
+    {
+      "question_id": "VQ-04-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `welcomeSubscription` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? Specifically: does removing `onApplicationMessage` from the `subscribeToGroupMessages` signature leave the internal `EpochResolver.ingest()` call chain unchanged — confirming the bus-fires-downstream path is not affected — and does `grep -r \"subscribeToGroupMessages\" app/src/ --include=\"*.ts\" --include=\"*.tsx\" -n` return exactly one call site in `MarmotContext.tsx`?"
+    },
+    {
+      "question_id": "VQ-04-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `tsc --noEmit` (or `make build`) succeed with zero TypeScript errors after Story 4 ships — confirming the TypeScript compiler validates that no remaining call site passes `onApplicationMessage` and the type signature change is mechanically complete throughout the codebase?"
+    },
+    {
+      "question_id": "VQ-04-005",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do all unit tests that existed before Story 4 (`applicationRumorDispatcher.test.ts`, `chatHandler.test.ts`, `reactionHandler.test.ts`, `profileHandler.test.ts`, `profileRequestHandler.test.ts`, `scoreHandler.test.ts`, `pollHandler.test.ts`) continue to pass under `make test-unit` after the `onApplicationMessage` removal — confirming the mechanical cleanup introduces no regressions in handler unit test coverage?"
+    },
+    {
+      "question_id": "VQ-04-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "After removing `onApplicationMessage`, does the internal `EpochResolver` in `welcomeSubscription.ts` still call `mlsGroup.ingest()` on every received rumor — confirming that the removal of the callback parameter does not accidentally disable rumor ingestion into the MLS epoch state machine, which would be a silent data-loss defect?"
+    },
+    {
+      "question_id": "VQ-04-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-2",
+      "question": "Does `app/src/lib/marmot/welcomeSubscription.ts`'s `subscribeToGroupMessages` function signature accept only `{ onHistorySynced, onMembersChanged }` in its options object after Story 4 ships — verifiable by (a) `grep \"onApplicationMessage\" app/src/lib/marmot/welcomeSubscription.ts` returning zero matches, (b) `grep -r \"subscribeToGroupMessages\" app/src/ --include=\"*.ts\" --include=\"*.tsx\" -n` returning exactly one call site in `MarmotContext.tsx`, and (c) code inspection confirming the call site omits any `onApplicationMessage` argument?"
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "question_id": "VQ-04-008",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The no-op `onApplicationMessage: () => {}` passed to EpochResolver inside subscribeToGroupMessages means the EpochResolver's internal callback fires but does nothing. The real application message dispatch path goes through `group.on('applicationMessage', ...)` in applicationRumorDispatcher. Are these two paths guaranteed to both fire for every application message, and does the no-op path in EpochResolver introduce any double-deserialisation cost that should be eliminated by making EpochResolverCallbacks.onApplicationMessage optional?"
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+import { createDispatcher, type Dispatcher, type RumorHandler } from './applicationRumorDispatcher';
+import type { ChatMessage } from './chatPersistence';
+import type { ReactionThreadKey } from '@/src/lib/reactions/types';
+import type { ApplicationRumor } from './applicationRumorDispatcher';
+import type { MemberProfile, ProfileAvatar, ScoreUpdate } from '@/src/types';
+import type { Poll, PollVote } from '@/src/lib/marmot/pollPersistence';
+import type { ProfileRequestPayload } from '@/src/lib/marmot/profileRequestSync';
+import { createChatHandler } from './handlers/chatHandler';
+import { createReactionHandler } from './handlers/reactionHandler';
+import { createScoreHandler } from './handlers/scoreHandler';
+import { createProfileHandler } from './handlers/profileHandler';
+import { createProfileRequestHandler } from './handlers/profileRequestHandler';
+import { createPollOpenHandler, createPollVoteHandler, createPollCloseHandler } from './handlers/pollHandler';
+
+// Composition root — all application rumor handlers registered here.
+export interface HandlerDeps {
+  // Chat handler deps
+  appendMessage: (groupId: string, message: ChatMessage) => Promise<void>;
+  incrementUnread: (groupId: string) => void;
+  setChatVersion: (updater: (v: number) => number) => void;
+  // Reaction handler deps (loadMessages shared with reaction gate)
+  loadMessages: (groupId: string) => Promise<ChatMessage[]>;
+  applyInboundRumor: (thread: ReactionThreadKey, rumor: ApplicationRumor) => Promise<unknown>;
+  setReactionsVersion: (updater: (v: number) => number) => void;
+  // Score handler deps
+  mergeMemberScore: (groupId: string, pubkeyHex: string, nickname: string, update: ScoreUpdate) => Promise<void>;
+  // Profile handler deps
+  mergeMemberProfile: (groupId: string, profile: MemberProfile) => Promise<boolean>;
+  updateMemberScoreNickname: (groupId: string, pubkeyHex: string, nickname: string) => Promise<void>;
+  notifyProfileObserved: (args: { groupId: string; targetPubkey: string; observedUpdatedAt: string }) => void;
+  recordRequestAnswered: (groupId: string, authorPubkey: string, timestamp: number) => Promise<void>;
+  writeContactEntry: (pubkey: string, entry: { nickname: string; avatar: ProfileAvatar | null; updatedAt: string }) => void;
+  setProfileVersion: (updater: (v: number) => number) => void;
+  // Profile request handler deps
+  recordRequestEmitted: (groupId: string, targetPubkey: string, timestamp: number) => Promise<void>;
+  /**
+   * AC-030: called when the incoming request targets the local user.
+   * Provided as a closure from MarmotContext that signs and sends the local
+   * profile via sendRumorSafe.
+   */
+  sendSelfProfile: (groupId: string) => Promise<void>;
+  /**
+   * AC-031: called for peer requests (relay path).
+   * Pre-bound closure from MarmotContext that provides loadProfile and sendRumor.
+   */
+  handleIncomingProfileRequest: (args: {
+    groupId: string;
+    payload: ProfileRequestPayload;
+  }) => Promise<void>;
+  // Poll handler deps
+  savePoll: (poll: Poll) => Promise<void>;
+  saveVote: (vote: PollVote) => Promise<void>;
+  getPoll: (groupId: string, pollId: string) => Promise<Poll | null>;
+  setPollVersion: (updater: (v: number) => number) => void;
+}
+
+export function buildDispatcher(deps: HandlerDeps): Dispatcher {
+  const pollDeps = {
+    savePoll: deps.savePoll,
+    saveVote: deps.saveVote,
+    getPoll: deps.getPoll,
+    setPollVersion: deps.setPollVersion,
+  };
+
+  const handlers: RumorHandler[] = [
+    createChatHandler({
+      appendMessage: deps.appendMessage,
+      incrementUnread: deps.incrementUnread,
+      setChatVersion: deps.setChatVersion,
+    }),
+    createReactionHandler({
+      loadMessages: deps.loadMessages,
+      applyInboundRumor: deps.applyInboundRumor,
+      setReactionsVersion: deps.setReactionsVersion,
+    }),
+    createScoreHandler({
+      mergeMemberScore: deps.mergeMemberScore,
+    }),
+    createProfileHandler({
+      mergeMemberProfile: deps.mergeMemberProfile,
+      updateMemberScoreNickname: deps.updateMemberScoreNickname,
+      notifyProfileObserved: deps.notifyProfileObserved,
+      recordRequestAnswered: deps.recordRequestAnswered,
+      writeContactEntry: deps.writeContactEntry,
+      setProfileVersion: deps.setProfileVersion,
+    }),
+    createProfileRequestHandler({
+      recordRequestEmitted: deps.recordRequestEmitted,
+      sendSelfProfile: deps.sendSelfProfile,
+      handleIncomingProfileRequest: deps.handleIncomingProfileRequest,
+    }),
+    createPollOpenHandler(pollDeps),
+    createPollVoteHandler(pollDeps),
+    createPollCloseHandler(pollDeps),
+  ];
+  return createDispatcher(handlers);
+}

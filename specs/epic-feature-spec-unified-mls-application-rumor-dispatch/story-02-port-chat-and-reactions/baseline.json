@@ -1,0 +1,8 @@
+{
+  "story_id": "02",
+  "captured_at": "2026-05-08T00:00:00Z",
+  "test_suite": "unit",
+  "test_count": 741,
+  "test_files": 51,
+  "command": "make test-unit"
+}

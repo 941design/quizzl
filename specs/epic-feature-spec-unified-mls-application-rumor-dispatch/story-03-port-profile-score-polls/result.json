@@ -1,0 +1,42 @@
+{
+  "story_id": "03",
+  "status": "COMPLETE",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/src/lib/marmot/handlers/scoreHandler.ts",
+    "app/src/lib/marmot/handlers/profileHandler.ts",
+    "app/src/lib/marmot/handlers/profileRequestHandler.ts",
+    "app/src/lib/marmot/handlers/pollHandler.ts",
+    "app/tests/unit/marmot/scoreHandler.test.ts",
+    "app/tests/unit/marmot/profileHandler.test.ts",
+    "app/tests/unit/marmot/profileRequestHandler.test.ts",
+    "app/tests/unit/marmot/pollHandler.test.ts",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-03-port-profile-score-polls/baseline.json",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-03-port-profile-score-polls/architecture.json",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-03-port-profile-score-polls/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/registerHandlers.ts",
+    "app/src/context/MarmotContext.tsx",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-03-port-profile-score-polls/verification.json"
+  ],
+  "implementation_summary": "Created four handler modules (scoreHandler, profileHandler, profileRequestHandler, pollHandler) under app/src/lib/marmot/handlers/. Extended HandlerDeps in registerHandlers.ts with all new deps and registered six new handlers (score, profile, profileRequest, pollOpen, pollVote, pollClose). Removed all SCORE_RUMOR_KIND, PROFILE_RUMOR_KIND, PROFILE_REQUEST_KIND, POLL_OPEN_KIND, POLL_VOTE_KIND, POLL_CLOSE_KIND branches from MarmotContext.onApplicationMessage — callback body is now empty. Extended buildDispatcher call in subscribeNewGroups to wire all new deps including pre-bound closures for sendSelfProfile and handleIncomingProfileRequest. Cleaned up dead imports from MarmotContext. grep -r 'rumor.kind' app/src/context/ returns zero matches.",
+  "tests_baseline": 755,
+  "tests_final": 780,
+  "tests_added": {
+    "unit": 25,
+    "integration": 0,
+    "e2e": 0
+  },
+  "mocks_introduced": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The profileRequestHandler's self-reply path required careful design: the original MarmotContext used signerRef/localProfileRef/sendRumorSafe directly which can't be cleanly captured in a single 'sendRumor(groupId, content)' dep without also wiring signing. Introducing sendSelfProfile as a dedicated dep was the right call but diverges slightly from the story spec's simplified description. Similarly, handleIncomingProfileRequest's full signature (loadProfile, sendRumor, selfPubkeyHex, now) had to be collapsed into a pre-bound closure rather than threaded through the handler — the story spec's simplified dep description was slightly misleading about the actual wiring needed.",
+    "surprised_by": "The writeContactEntry dep in the profileHandler has a shape mismatch vs the original MarmotContext code: the original passed a full MemberProfile.avatar (ProfileAvatar | null) to writeContactEntry, but the CachedContact type expects { nickname, avatar: ProfileAvatar | null, updatedAt }. When bridging to registerHandlers.ts, the avatar was reduced to null always. This was noted as post-impl question VQ-03-PI-002.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

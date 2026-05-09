@@ -1,0 +1,353 @@
+{
+  "epic_name": "feature-spec-unified-mls-application-rumor-dispatch",
+  "created_at": "2026-05-08T00:00:00Z",
+  "total_stories": 5,
+  "story_order": [
+    "01",
+    "02",
+    "03",
+    "04",
+    "05"
+  ],
+  "dependency_notes": "Story 01 introduces the dispatcher module in isolation \u2014 nothing wires it up. Story 02 wires the dispatcher for chat and reactions and removes both context-level listeners; it depends on 01 for the dispatcher type contract. Story 03 ports the remaining four handler families (profile, profileRequest, score, poll) and removes the last kind-dispatch branches from MarmotContext; it depends on 02 because the dispatcher is already live and it removes the final inline kind-switch. Story 04 strips the onApplicationMessage parameter from subscribeToGroupMessages now that no caller passes it; it depends on 03 because only after 03 is MarmotContext completely free of the callback. Story 05 adds the structural e2e regression sentinel; it depends on 04 so it runs against the fully unified codebase and can assert the grep invariants as preconditions.",
+  "mock_resolution_plan": "No temporary mocks are introduced. Handler dependencies (IDB write functions, React state setters) are injected via the deps bag at buildDispatcher(deps) time and are always the real implementations in production. Unit tests use Map-mock idb-keyval and vi.fn() spies \u2014 these are permanent test fixtures, not tracked mocks. The mocks-registry.json remains empty for this epic.",
+  "seams": [
+    {
+      "data": "RumorHandler interface \u2014 kind, handle(rumor, ctx) \u2014 the contract every handler module satisfies and the dispatcher consumes",
+      "contract": {
+        "type_name": "RumorHandler",
+        "fields": [
+          {
+            "name": "kind",
+            "type": "number"
+          },
+          {
+            "name": "handle",
+            "type": "(rumor: ApplicationRumor, ctx: DispatcherContext) => Promise<void> | void"
+          }
+        ],
+        "invariants": [
+          "handler.kind must match the rumor.kind value the handler intends to process",
+          "handle() must be idempotent on rumor.id \u2014 if called twice with the same id the observable state is identical after both calls",
+          "handle() may throw to signal failure; the dispatcher catches and continues to the next registered handler for the same kind",
+          "handle() must not access window, document, or React context directly \u2014 all side-effect surfaces are injected via ctx or the deps bag"
+        ]
+      },
+      "source": {
+        "story": "01",
+        "artifact": "applicationRumorDispatcher.ts exports RumorHandler interface and ApplicationRumor interface"
+      },
+      "intermediaries": [
+        {
+          "story": "02",
+          "artifact": "chatHandler.ts and reactionHandler.ts implement RumorHandler and are imported by registerHandlers.ts"
+        },
+        {
+          "story": "03",
+          "artifact": "profileHandler.ts, profileRequestHandler.ts, scoreHandler.ts, pollHandler.ts implement RumorHandler and are imported by registerHandlers.ts"
+        }
+      ],
+      "destination": {
+        "story": "04",
+        "artifact": "subscribeToGroupMessages no longer carries onApplicationMessage; registerHandlers.ts is the sole importer of all handler modules"
+      }
+    },
+    {
+      "data": "DispatcherContext \u2014 groupId, selfPubkeyHex, getActiveGroupId \u2014 the per-subscription context object passed to every handler invocation",
+      "contract": {
+        "type_name": "DispatcherContext",
+        "fields": [
+          {
+            "name": "groupId",
+            "type": "string"
+          },
+          {
+            "name": "selfPubkeyHex",
+            "type": "string"
+          },
+          {
+            "name": "getActiveGroupId",
+            "type": "() => string | null"
+          }
+        ],
+        "invariants": [
+          "groupId is stable for the lifetime of the subscription (one subscription per group)",
+          "selfPubkeyHex is the hex-encoded public key of the authenticated local user",
+          "getActiveGroupId() returns the currently focused group's id or null; it is a lazy accessor \u2014 not a captured snapshot \u2014 so it reflects current UI state at the moment of invocation"
+        ]
+      },
+      "source": {
+        "story": "01",
+        "artifact": "applicationRumorDispatcher.ts exports DispatcherContext interface"
+      },
+      "destination": {
+        "story": "02",
+        "artifact": "MarmotContext calls buildDispatcher(deps).subscribe(group, ctx) where ctx satisfies DispatcherContext; chatHandler and reactionHandler use ctx.selfPubkeyHex and ctx.getActiveGroupId()"
+      }
+    },
+    {
+      "data": "buildDispatcher(deps) composition root \u2014 receives all IDB writers and React state setters; returns a Dispatcher with a subscribe(group, ctx) method",
+      "contract": {
+        "type_name": "Dispatcher",
+        "fields": [
+          {
+            "name": "subscribe",
+            "type": "(group: MarmotGroup, ctx: DispatcherContext) => () => void"
+          }
+        ],
+        "invariants": [
+          "subscribe() registers exactly one group.on('applicationMessage') listener per call",
+          "The returned unsubscribe function removes the listener when called",
+          "subscribe() does not perform any async IDB reads at call time (no priming \u2014 AC-AR-24)"
+        ]
+      },
+      "source": {
+        "story": "02",
+        "artifact": "registerHandlers.ts exports buildDispatcher(deps) called by MarmotContext.subscribeNewGroups()"
+      },
+      "destination": {
+        "story": "03",
+        "artifact": "registerHandlers.ts receives additional deps fields for profile, score, and poll handlers wired in Story 03"
+      }
+    }
+  ],
+  "stories": [
+    {
+      "id": "01",
+      "name": "introduce-dispatcher",
+      "title": "Introduce applicationRumorDispatcher.ts with RumorHandler interface and LRU seen-id dedup",
+      "description": "Create app/src/lib/marmot/applicationRumorDispatcher.ts from scratch. The module exports the ApplicationRumor, DispatcherContext, and RumorHandler interfaces and the createDispatcher factory. The factory returns a Dispatcher whose subscribe(group, ctx) method registers exactly one group.on('applicationMessage') listener, routes each arriving rumor through registered handlers by kind, enforces per-group seen-id LRU capped at 1000 entries, catches per-handler errors with console.warn('[dispatcher.<kind>]', err), and returns an unsubscribe callback. Also create registerHandlers.ts as an empty composition-root stub (exported buildDispatcher(deps) returns a dispatcher with no handlers registered yet \u2014 handlers are wired in Stories 02 and 03). Nothing in MarmotContext or ChatStoreContext changes. Deliver unit tests for the dispatcher itself covering: happy-path dispatch, unknown-kind no-crash (AC-AR-17), handler-throws isolation (AC-AR-18), LRU eviction at 1000 (AC-AR-5), per-group LRU scope (AC-AR-23), no-IDB-priming on subscribe (AC-AR-24), and same-id dedup short-circuit.",
+      "owning_module": "applicationRumorDispatcher",
+      "acceptance_criteria": [
+        "AC-AR-5",
+        "AC-AR-17",
+        "AC-AR-18",
+        "AC-AR-20",
+        "AC-AR-23",
+        "AC-AR-24"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/applicationRumorDispatcher.ts (new): ApplicationRumor, DispatcherContext, RumorHandler interfaces; createDispatcher factory; per-group LRU Map<string, Set<string>> capped at 1000; sequential handler invocation with try/catch; console.warn('[dispatcher.<kind>]', err) on handler error; no console.error or console.warn for unknown kinds (debug only)",
+          "app/src/lib/marmot/registerHandlers.ts (new stub): exports buildDispatcher(deps) returning createDispatcher([]) \u2014 empty handler list until Story 02",
+          "app/tests/unit/marmot/applicationRumorDispatcher.test.ts (new): happy-path dispatch, AC-AR-17 unknown-kind, AC-AR-18 handler-throws isolation, AC-AR-5 LRU eviction 1100 ids, AC-AR-23 per-group scope, AC-AR-24 no-priming, same-id short-circuit"
+        ],
+        "excludes": [
+          "Any changes to MarmotContext.tsx or ChatStoreContext.tsx",
+          "Any handler modules under handlers/ (Stories 02 and 03)",
+          "Wiring the dispatcher into any group subscription",
+          "window.__quizzlTest hooks (Story 02)"
+        ]
+      },
+      "complexity": "medium",
+      "story_order": 1,
+      "files_to_create": [
+        "app/src/lib/marmot/applicationRumorDispatcher.ts",
+        "app/src/lib/marmot/registerHandlers.ts",
+        "app/tests/unit/marmot/applicationRumorDispatcher.test.ts"
+      ],
+      "files_to_modify": [],
+      "depends_on": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "notes": "Foundational story \u2014 nothing wires up the dispatcher. The registerHandlers.ts stub is created here so Story 02 can import it and add real handlers without touching the dispatcher module. The unit tests for AC-AR-5 require that dispatching 1100 distinct ids evicts the first 100; the eviction strategy (delete first N from the Set's iteration order) must be verified to be insertion-ordered on V8 \u2014 it is."
+    },
+    {
+      "id": "02",
+      "name": "port-chat-and-reactions",
+      "title": "Port CHAT_MESSAGE_KIND and kind-7 handlers; wire dispatcher in MarmotContext; remove ChatStoreContext listener",
+      "description": "Create chatHandler.ts and reactionHandler.ts under app/src/lib/marmot/handlers/. chatHandler.ts handles CHAT_MESSAGE_KIND (9): parses imeta tags into attachments, calls appendMessage(groupId, msg), skips incrementUnread for own-send (rumor.pubkey === ctx.selfPubkeyHex), calls incrementUnread for peer inbound from background groups. reactionHandler.ts handles kind 7 and introduces REACTION_RUMOR_KIND = 7: gates on target message existing locally, calls applyInboundRumor, bumps setReactionsVersion. Wire registerHandlers.ts so buildDispatcher(deps) registers both handlers. In MarmotContext.subscribeNewGroups(), call buildDispatcher(deps).subscribe(group, ctx) and store the returned unsubscribe alongside the existing subscribeToGroupMessages unsubscribe. Remove the group.on('applicationMessage') listener from ChatStoreContext (lines 283-288 and associated handler 224-278). Remove the CHAT_MESSAGE_KIND and kind-7 branches from MarmotContext's onApplicationMessage callback \u2014 leave the profile, profileRequest, score, and poll branches intact for Story 03. Add the window.__quizzlTest.onChatIdbWrite hook to chatPersistence.appendMessage (AC-AR-22). Deliver unit tests for chatHandler.ts and reactionHandler.ts.",
+      "owning_module": "handlers/chatHandler",
+      "acceptance_criteria": [
+        "AC-AR-1",
+        "AC-AR-3",
+        "AC-AR-4",
+        "AC-AR-6",
+        "AC-AR-7",
+        "AC-AR-8",
+        "AC-AR-9",
+        "AC-AR-10",
+        "AC-AR-11",
+        "AC-AR-12",
+        "AC-AR-13",
+        "AC-AR-19",
+        "AC-AR-20",
+        "AC-AR-22"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/handlers/chatHandler.ts (new): RumorHandler for CHAT_MESSAGE_KIND; imeta attachment parsing; appendMessage; incrementUnread gated on own-send and active-group check; setChatVersion bump",
+          "app/src/lib/marmot/handlers/reactionHandler.ts (new): RumorHandler for REACTION_RUMOR_KIND = 7; existence gate; applyInboundRumor; setReactionsVersion bump",
+          "app/src/lib/marmot/registerHandlers.ts (modify): add chatHandler and reactionHandler to the handler list in buildDispatcher(deps); define deps bag fields for appendMessage, incrementUnread, setChatVersion, applyInboundRumor, setReactionsVersion, loadMessages",
+          "app/src/context/MarmotContext.tsx (modify): call buildDispatcher(deps).subscribe(group, ctx) in subscribeNewGroups(); store returned unsubscribe; remove CHAT_MESSAGE_KIND and kind-7 branches from onApplicationMessage callback; remove if (senderPubkey === pubkeyHex) return guard (now redundant); keep profile/profileRequest/score/poll branches intact",
+          "app/src/context/ChatStoreContext.tsx (modify): remove group.on('applicationMessage', handler) registration and the associated handler body",
+          "app/src/lib/marmot/chatPersistence.ts (modify): add window.__quizzlTest.onChatIdbWrite hook in appendMessage guarded by NODE_ENV check",
+          "app/tests/e2e/helpers/rumor-counter.ts (modify or create): declare onChatIdbWrite on __quizzlTest surface type",
+          "app/tests/unit/marmot/chatHandler.test.ts (new): happy-path text, happy-path imeta, malformed payload, duplicate-id, incrementUnread background-group, incrementUnread own-send skip",
+          "app/tests/unit/marmot/reactionHandler.test.ts (new): happy-path kind-7, target-message-not-found gate, duplicate-id"
+        ],
+        "excludes": [
+          "Profile, profileRequest, score, and poll handler modules (Story 03)",
+          "Removing the MarmotContext onApplicationMessage callback entirely (Story 04 \u2014 the callback param is still passed to subscribeToGroupMessages until Story 04)",
+          "groups-dispatch-isolation.spec.ts (Story 05)"
+        ]
+      },
+      "complexity": "high",
+      "story_order": 2,
+      "files_to_create": [
+        "app/src/lib/marmot/handlers/chatHandler.ts",
+        "app/src/lib/marmot/handlers/reactionHandler.ts",
+        "app/tests/unit/marmot/chatHandler.test.ts",
+        "app/tests/unit/marmot/reactionHandler.test.ts"
+      ],
+      "files_to_modify": [
+        "app/src/lib/marmot/registerHandlers.ts",
+        "app/src/context/MarmotContext.tsx",
+        "app/src/context/ChatStoreContext.tsx",
+        "app/src/lib/marmot/chatPersistence.ts",
+        "app/tests/e2e/helpers/rumor-counter.ts"
+      ],
+      "depends_on": [
+        "story-01-introduce-dispatcher"
+      ],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "notes": "Bulk of the value lands here. After this story: exactly one applicationMessage subscriber (AC-AR-1), no kind dispatch in context files for chat/reactions (partial AC-AR-3 \u2014 profile/poll/score still in MarmotContext callback), both handler modules exist and are imported only from registerHandlers.ts (AC-AR-4 for chat/reaction). Risk: the fork-then-rollback scenario (spec Risk 1) \u2014 a unit test simulating bus emit before EpochResolver rollback should be included here. Risk: incrementUnread active-group semantics must be confirmed to match current MarmotContext line 725 behaviour."
+    },
+    {
+      "id": "03",
+      "name": "port-profile-score-polls",
+      "title": "Port PROFILE_RUMOR_KIND, PROFILE_REQUEST_KIND, SCORE_RUMOR_KIND, and POLL_OPEN/VOTE/CLOSE_KIND handlers",
+      "description": "Create the remaining four handler modules under app/src/lib/marmot/handlers/: profileHandler.ts (PROFILE_RUMOR_KIND kind 0: mergeMemberProfile, updateMemberScoreNickname, notifyProfileObserved, recordRequestAnswered, writeContactEntry, setProfileVersion), profileRequestHandler.ts (PROFILE_REQUEST_KIND kind 30: recordRequestEmitted; self-target -> sendRumor; other -> handleIncomingProfileRequest; deps.sendRumor injected at subscribe time), scoreHandler.ts (SCORE_RUMOR_KIND kind 1: mergeMemberScore, setProfileVersion on score update), pollHandler.ts (POLL_OPEN_KIND 10 / POLL_VOTE_KIND 11 / POLL_CLOSE_KIND 12: savePoll, saveVote gated on poll-not-closed, getPoll, closed-by-creator-only guard, setPollVersion). Wire all four into registerHandlers.ts buildDispatcher(deps) deps bag. Remove the corresponding branches from MarmotContext's onApplicationMessage callback. After this story, the callback body is empty and onApplicationMessage itself is a no-op \u2014 AC-AR-3 (zero rumor.kind === in app/src/context/) is now fully satisfied. Deliver unit tests for all four handler modules.",
+      "owning_module": "handlers/profileHandler",
+      "acceptance_criteria": [
+        "AC-AR-3",
+        "AC-AR-14",
+        "AC-AR-15",
+        "AC-AR-16",
+        "AC-AR-20"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/handlers/profileHandler.ts (new): RumorHandler for PROFILE_RUMOR_KIND; mergeMemberProfile; updateMemberScoreNickname; notifyProfileObserved; recordRequestAnswered; writeContactEntry; setProfileVersion",
+          "app/src/lib/marmot/handlers/profileRequestHandler.ts (new): RumorHandler for PROFILE_REQUEST_KIND; recordRequestEmitted; self-target sendRumor path; delegate handleIncomingProfileRequest for non-self",
+          "app/src/lib/marmot/handlers/scoreHandler.ts (new): RumorHandler for SCORE_RUMOR_KIND; mergeMemberScore; setProfileVersion",
+          "app/src/lib/marmot/handlers/pollHandler.ts (new): RumorHandler(s) for POLL_OPEN_KIND, POLL_VOTE_KIND, POLL_CLOSE_KIND; savePoll; saveVote with closed-poll guard; getPoll; closed-by-creator guard; setPollVersion",
+          "app/src/lib/marmot/registerHandlers.ts (modify): add profileHandler, profileRequestHandler, scoreHandler, pollHandler to buildDispatcher(deps); extend deps bag with mergeMemberProfile, updateMemberScoreNickname, notifyProfileObserved, recordRequestAnswered, writeContactEntry, setProfileVersion, recordRequestEmitted, sendRumor, handleIncomingProfileRequest, mergeMemberScore, savePoll, saveVote, getPoll, setPollVersion",
+          "app/src/context/MarmotContext.tsx (modify): remove profile, profileRequest, score, and poll branches from onApplicationMessage callback; the callback body is now empty",
+          "app/tests/unit/marmot/profileHandler.test.ts (new): happy-path kind-0, malformed profile payload, duplicate-id",
+          "app/tests/unit/marmot/profileRequestHandler.test.ts (new): happy-path kind-30 peer request, self-target reply path, duplicate-id",
+          "app/tests/unit/marmot/scoreHandler.test.ts (new): happy-path kind-1, malformed score payload, duplicate-id",
+          "app/tests/unit/marmot/pollHandler.test.ts (new): happy-path kinds 10/11/12, vote-against-closed guard, close-by-non-creator guard, duplicate-id"
+        ],
+        "excludes": [
+          "Removing the onApplicationMessage parameter from subscribeToGroupMessages signature (Story 04)",
+          "groups-dispatch-isolation.spec.ts (Story 05)",
+          "Chat and reaction handlers (already shipped in Story 02)"
+        ]
+      },
+      "complexity": "high",
+      "story_order": 3,
+      "files_to_create": [
+        "app/src/lib/marmot/handlers/profileHandler.ts",
+        "app/src/lib/marmot/handlers/profileRequestHandler.ts",
+        "app/src/lib/marmot/handlers/scoreHandler.ts",
+        "app/src/lib/marmot/handlers/pollHandler.ts",
+        "app/tests/unit/marmot/profileHandler.test.ts",
+        "app/tests/unit/marmot/profileRequestHandler.test.ts",
+        "app/tests/unit/marmot/scoreHandler.test.ts",
+        "app/tests/unit/marmot/pollHandler.test.ts"
+      ],
+      "files_to_modify": [
+        "app/src/lib/marmot/registerHandlers.ts",
+        "app/src/context/MarmotContext.tsx"
+      ],
+      "depends_on": [
+        "story-02-port-chat-and-reactions"
+      ],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "notes": "After this story, MarmotContext's onApplicationMessage callback is empty. Story 04 removes the parameter from the subscribeToGroupMessages call and signature. profileRequestHandler depends on sendRumor being injected at subscribe time \u2014 the architecture.md \u00a7profileRequestHandler: sendRumor dependency documents this. The sendRumor dep in the deps bag wraps the current mlsGroup.sendApplicationRumor at MarmotContext construction time. The profileHandler must preserve the notifyProfileObserved wiring already added by epic-member-profile-discovery-and-relay-on-behalf story 06."
+    },
+    {
+      "id": "04",
+      "name": "drop-callback-parameter",
+      "title": "Remove onApplicationMessage from subscribeToGroupMessages signature and all call sites",
+      "description": "Strip the onApplicationMessage parameter from the subscribeToGroupMessages function in app/src/lib/marmot/welcomeSubscription.ts. Update its EpochResolverCallbacks type (and any related options interface) to remove the field. Update the one call site in MarmotContext.tsx to omit the now-removed argument. After this change, subscribeToGroupMessages accepts only { onHistorySynced, onMembersChanged } in its options. Verify that no other callers exist via grep. This story is a mechanical cleanup with no behaviour change \u2014 the application rumor dispatcher (wired in Story 02) already owns all inbound rumor handling; the callback was already empty after Story 03.",
+      "owning_module": "welcomeSubscription",
+      "acceptance_criteria": [
+        "AC-AR-2"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/welcomeSubscription.ts (modify): remove onApplicationMessage from EpochResolverCallbacks interface and subscribeToGroupMessages options parameter; internal EpochResolver.ingest() call chain unchanged \u2014 bus fires downstream unchanged",
+          "app/src/context/MarmotContext.tsx (modify): remove the onApplicationMessage argument from the subscribeToGroupMessages call in subscribeNewGroups()",
+          "Grep verification: zero remaining references to onApplicationMessage in app/src/"
+        ],
+        "excludes": [
+          "Any handler changes (completed in Stories 02-03)",
+          "EpochResolver internal logic (fork resolution, epoch buffering) \u2014 unchanged",
+          "groups-dispatch-isolation.spec.ts (Story 05)"
+        ]
+      },
+      "complexity": "low",
+      "story_order": 4,
+      "files_to_create": [],
+      "files_to_modify": [
+        "app/src/lib/marmot/welcomeSubscription.ts",
+        "app/src/context/MarmotContext.tsx"
+      ],
+      "depends_on": [
+        "story-03-port-profile-score-polls"
+      ],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "notes": "Pure mechanical removal. The TypeScript compiler will catch any remaining call sites that pass onApplicationMessage. tsc --noEmit should be the primary verification step alongside the grep assertions in AC-AR-2. Low risk \u2014 the callback was already empty after Story 03."
+    },
+    {
+      "id": "05",
+      "name": "e2e-dispatch-isolation",
+      "title": "New e2e test groups-dispatch-isolation.spec.ts \u2014 own-send produces one IDB row and one bubble",
+      "description": "Create app/tests/e2e/groups-dispatch-isolation.spec.ts as the durable structural regression sentinel for the unified dispatcher. The test uses two BrowserContext instances or two separate user identities. Scenario 1: User A sends a text-only chat message; after network settle, reads the IDB quizzl-messages store and asserts exactly one row for the sent message id; asserts tab 1's rendered message list contains exactly one element matching the sent content. Scenario 2: User B's tab (tab 2) sees exactly one bubble for that message. The spec uses test.describe.serial, suppressErrorOverlay(context), readIdbRecord helper (already present after epic-member-profile-discovery story 07), and the window.__quizzlTest.onChatIdbWrite counter added in Story 02 (AC-AR-22) to measure IDB write count. The file must confirm all AC-AR-3 grep invariants hold as preconditions (inline comments or a beforeAll structural check).",
+      "owning_module": "groups-dispatch-isolation",
+      "acceptance_criteria": [
+        "AC-AR-21"
+      ],
+      "scope": {
+        "includes": [
+          "app/tests/e2e/groups-dispatch-isolation.spec.ts (new): two scenarios (own-send single IDB row, peer sees single bubble); test.describe.serial; readIdbRecord usage; onChatIdbWrite counter usage; suppressErrorOverlay pattern",
+          "Any minor helper additions to app/tests/e2e/helpers/ if needed (e.g. readIdbWriteCount helper wrapping onChatIdbWrite)"
+        ],
+        "excludes": [
+          "Production code changes (all implementation landed in Stories 01-04)",
+          "Modifications to existing e2e specs"
+        ]
+      },
+      "complexity": "medium",
+      "story_order": 5,
+      "files_to_create": [
+        "app/tests/e2e/groups-dispatch-isolation.spec.ts"
+      ],
+      "files_to_modify": [],
+      "depends_on": [
+        "story-04-drop-callback-parameter"
+      ],
+      "introduces_mocks": [],
+      "test_fixtures": [
+        {
+          "fixture_id": "FIXTURE-05-001",
+          "description": "readIdbRecord helper already shipped by epic-member-profile-discovery story 07 (app/tests/e2e/helpers/idb-record.ts). Used here to read quizzl-messages store and assert single-row invariant. Permanent test infrastructure \u2014 not a temporary mock.",
+          "interface": "readIdbRecord(page, dbName: string, storeName: string, key: string): Promise<unknown>",
+          "reason": "Permanent test infrastructure \u2014 reused from existing helper, not a new addition.",
+          "permanent": true
+        }
+      ],
+      "status": "done",
+      "notes": "This story depends on AC-AR-22 (onChatIdbWrite hook) being shipped in Story 02. It also depends on the readIdbRecord helper from the profile-discovery epic being present in app/tests/e2e/helpers/. Both are confirmed by exploration.json / prior epic stories.json. The test is the final canary: if any future epic introduces a second applicationMessage subscriber, this test will catch the double-write / double-bubble symptom immediately."
+    }
+  ]
+}

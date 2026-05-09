@@ -1,0 +1,138 @@
+{
+  "created_at": "2026-05-08T00:00:00Z",
+  "similar_features": {
+    "dispatch_channels": {
+      "channel_1_nostr_subscription": {
+        "file": "app/src/context/MarmotContext.tsx",
+        "lines": "596-815",
+        "transport": "EpochResolver onApplicationMessage callback (Nostr/kind-445)",
+        "own_echo_gate": "if (senderPubkey === pubkeyHex) return — line 603",
+        "kinds_handled": [1, 0, 30, 9, 10, 11, 12, 7]
+      },
+      "channel_2_marmot_event_bus": {
+        "file": "app/src/context/ChatStoreContext.tsx",
+        "lines": "189-291",
+        "transport": "group.on('applicationMessage', handler) — marmot-ts internal EventEmitter",
+        "own_echo_gate": "NONE — but ChatStoreContext comment claiming 'own-send echo path' is INCORRECT (see Q1 answer below)",
+        "kinds_handled": [9, 7]
+      }
+    },
+    "kind_dispatch_table_marmot_context": {
+      "SCORE_RUMOR_KIND": { "value": 1, "source": "scoreSync.ts:15", "action": "mergeMemberScore(IDB)", "version_bump": "none" },
+      "PROFILE_RUMOR_KIND": { "value": 0, "source": "profileSync.ts:23", "action": "mergeMemberProfile+updateMemberScoreNickname+notifyProfileObserved+writeContactEntry", "version_bump": "setProfileVersion(v+1) line 625" },
+      "PROFILE_REQUEST_KIND": { "value": 30, "source": "profileRequestSync.ts:40", "action": "recordRequestEmitted; self-target: sendRumorSafe; other: handleIncomingProfileRequest", "version_bump": "none" },
+      "CHAT_MESSAGE_KIND": { "value": 9, "source": "chatPersistence.ts:12", "action": "appendMessage(IDB) + incrementUnread(group.id)", "version_bump": "setChatVersion(v+1) line 723" },
+      "POLL_OPEN_KIND": { "value": 10, "source": "pollSync.ts:12", "action": "savePoll(IDB)", "version_bump": "setPollVersion(v+1) line 742" },
+      "POLL_VOTE_KIND": { "value": 11, "source": "pollSync.ts:13", "action": "saveVote(IDB) if poll not closed", "version_bump": "setPollVersion(v+1) line 759" },
+      "POLL_CLOSE_KIND": { "value": 12, "source": "pollSync.ts:14", "action": "savePoll(closed:true) if creatorPubkey matches sender", "version_bump": "setPollVersion(v+1) line 776" },
+      "7_reaction": { "value": 7, "source": "literal — no named constant", "action": "loadMsgs existence check + applyInboundRumor", "version_bump": "setReactionsVersion(v+1) line 810 if non-null" }
+    },
+    "kind_dispatch_table_chat_store_context": {
+      "CHAT_MESSAGE_KIND": { "value": 9, "action": "appendMessage(IDB) + setMessages(prev dedup by id)", "version_bump": "local setState only" },
+      "7_reaction": { "value": 7, "action": "messagesRef.current existence gate + applyInboundRumor", "version_bump": "none (subscribeReactions listener fires)" }
+    },
+    "existing_handler_modules": {
+      "scoreSync.ts": "SCORE_RUMOR_KIND=1, parseScorePayload, pure",
+      "profileSync.ts": "PROFILE_RUMOR_KIND=0, parseProfilePayload, payloadToMemberProfile, pure",
+      "profileRequestSync.ts": "PROFILE_REQUEST_KIND=30, parseProfileRequestPayload, pure",
+      "pollSync.ts": "POLL_OPEN_KIND=10, POLL_VOTE_KIND=11, POLL_CLOSE_KIND=12, parsePollOpen/Vote/Close, pure",
+      "chatPersistence.ts": "CHAT_MESSAGE_KIND=9, appendMessage, loadMessages — IDB write module",
+      "groupStorage.ts": "mergeMemberScore, mergeMemberProfile, updateMemberScoreNickname — IDB write module"
+    },
+    "reusable_pubsub_patterns": {
+      "module_singleton_store": "app/src/lib/unreadStore.ts — let state + Set<listener> + emit() + useSyncExternalStore",
+      "per_thread_write_queue": "app/src/lib/reactions/api.ts:98-123 — Map<key, Promise> chained writes"
+    },
+    "retrospective_flag": "Both channels fire only for peer messages. The ChatStoreContext 'own-send echo path' comment is incorrect per Q1 finding. Dual-dispatch applies to all inbound rumors, not only reactions."
+  },
+  "architecture": {
+    "paradigm": "Functional core + imperative shell, with package-by-feature in app/src/lib/marmot/",
+    "Q1_own_send_emit_timing": {
+      "answer": "marmot-ts does NOT emit 'applicationMessage' for own-send rumors",
+      "evidence": "sendApplicationRumor adds event id to #sentEventIds before publish. When relay echo arrives and ingest() processes it, the id is found in #sentEventIds, deleted, and the event is yielded as {kind:'skipped', reason:'self-echo'} — emit('applicationMessage') at marmot-group.js:840 is never reached.",
+      "implication": "ChatStoreContext.tsx:254 comment 'marmot-ts re-delivers our own rumors back through this event (own-send echo path)' is INCORRECT. Both channels deliver ONLY peer inbound messages. The ChatStoreContext kind-7 branch is a second inbound handler, not an own-echo handler. Dual-dispatch applies to all kinds, not just kind-7."
+    },
+    "Q1_implication_for_design": "The dispatcher's own-echo section (spec §Own-send echo handling, steps 3-5) describes behavior that does NOT currently occur via the bus — the optimistic write in sendMessage IS the only write for own messages. The IDB idempotence step (step 4) is a no-op defense, which is fine to keep, but the chatVersion bump in step 5 will NOT fire for own-sends via the bus. This is the current behavior too — ChatStoreContext uses local setState for own-send display, not chatVersion. Keep as-is: the dispatcher only processes peer messages; own-send display is handled optimistically.",
+    "context_dependency_graph": {
+      "MarmotContext_provides": ["profileVersion", "chatVersion", "pollVersion", "reactionsVersion", "groupDataVersion", "ready", "groups", "pendingRequests"],
+      "ChatStoreContext_inputs": ["chatVersion (from MarmotContext) — triggers IDB re-read", "reactionsVersion (from MarmotContext) — triggers reactions recompute"],
+      "version_counter_as_idb_invalidation": "setChatVersion(v+1) in handler → ChatStoreContext useEffect re-reads IDB messages"
+    },
+    "idb_function_signatures": {
+      "appendMessage": "function appendMessage(groupId: string, message: ChatMessage): Promise<void> — chatPersistence.ts:45",
+      "loadMessages": "async function loadMessages(groupId: string): Promise<ChatMessage[]> — chatPersistence.ts:35",
+      "mergeMemberScore": "async function mergeMemberScore(groupId: string, pubkeyHex: string, nickname: string, update: ScoreUpdate): Promise<void> — groupStorage.ts:79",
+      "mergeMemberProfile": "async function mergeMemberProfile(groupId: string, profile: MemberProfile): Promise<boolean> — groupStorage.ts:140",
+      "updateMemberScoreNickname": "async function updateMemberScoreNickname(groupId: string, pubkeyHex: string, nickname: string): Promise<void> — groupStorage.ts:174",
+      "savePoll": "function savePoll(poll: Poll): Promise<void> — pollPersistence.ts:81",
+      "saveVote": "function saveVote(vote: PollVote): Promise<void> — pollPersistence.ts:110",
+      "getPoll": "async function getPoll(groupId: string, pollId: string): Promise<Poll | null> — pollPersistence.ts:96",
+      "applyInboundRumor": "async function applyInboundRumor(thread: ReactionThreadKey, rumor: {...}): Promise<{messageId: string} | null> — reactions/api.ts:289",
+      "incrementUnread": "function incrementUnread(groupId: string): void — unreadStore.ts:86"
+    },
+    "kind_constants_locations": {
+      "SCORE_RUMOR_KIND=1": "app/src/lib/marmot/scoreSync.ts:15",
+      "PROFILE_RUMOR_KIND=0": "app/src/lib/marmot/profileSync.ts:23",
+      "PROFILE_REQUEST_KIND=30": "app/src/lib/marmot/profileRequestSync.ts:40",
+      "CHAT_MESSAGE_KIND=9": "app/src/lib/marmot/chatPersistence.ts:12",
+      "POLL_OPEN_KIND=10": "app/src/lib/marmot/pollSync.ts:12",
+      "POLL_VOTE_KIND=11": "app/src/lib/marmot/pollSync.ts:13",
+      "POLL_CLOSE_KIND=12": "app/src/lib/marmot/pollSync.ts:14",
+      "kind_7_reaction": "NO named constant — both MarmotContext.tsx:781 and ChatStoreContext.tsx:251 use literal 7. REACTION_RUMOR_KIND=7 should be introduced in reactionHandler.ts.",
+      "CHAT_MESSAGE_KIND_note": "chatPersistence.ts:12 re-exports from or is co-located with kind constant; chatHandler.ts will import from chatPersistence.ts"
+    },
+    "composition_root_deps_bag": {
+      "react_state_setters": ["setChatVersion", "setProfileVersion", "setPollVersion", "setReactionsVersion"],
+      "idb_write_functions": ["appendMessage", "mergeMemberScore", "mergeMemberProfile", "updateMemberScoreNickname", "recordRequestAnswered", "recordRequestEmitted", "savePoll", "saveVote", "getPoll", "applyInboundRumor", "notifyProfileObserved", "writeContactEntry", "incrementUnread"],
+      "special_closures": ["sendRumor: (group, content) => Promise<void> — for profileRequestHandler self-reply; injected at subscribe() time from MarmotContext which has mlsGroup in scope", "loadMemberProfiles: (groupId: string) => Promise<MemberProfile[]> — for profileRequestHandler", "loadProfileRequestMemo: (groupId, targetPubkey) => — for profileRequestHandler"]
+    },
+    "existing_lru_patterns": {
+      "NDK_event_level_dedup": "app/src/lib/marmot/welcomeSubscription.ts:207 — Set<string> of Nostr event IDs, NOT ApplicationRumor.id level",
+      "IDB_chat_dedup": "chatPersistence.ts:50 — idempotent upsert by message.id",
+      "application_rumor_lru": "DOES NOT EXIST — must be built new in applicationRumorDispatcher.ts"
+    },
+    "retrospective_flag": "Q1 resolved: marmot-ts #sentEventIds drops own-send echoes before applicationMessage fires. ChatStoreContext comment is incorrect. The spec's Own-send echo section describes a no-op for own-sends via the bus — the optimistic write in sendMessage is the only write, which is already the correct current behavior."
+  },
+  "testing_and_conventions": {
+    "unit_test_runner": "Vitest",
+    "unit_test_config": "app/vitest.config.ts — glob: tests/unit/**/*.test.ts, alias @ → app/",
+    "unit_test_run_command": "make test-unit → cd app && npx vitest run",
+    "unit_test_marmot_dir": "app/tests/unit/marmot/ — exists with 15 files, no dispatcher test yet",
+    "idb_mock_strategy": {
+      "default": "vi.mock('idb-keyval', ...) with module-level Map — used in 13 of 14 marmot unit tests",
+      "integration": "import 'fake-indexeddb/auto' — only for modules using idb-keyval createStore (profileRequestStorage). Not needed for appendMessage, savePoll, applyInboundRumor since they use the default store."
+    },
+    "canonical_unit_test_model": "app/tests/unit/marmot/groupReactions.test.ts — Map-mock idb-keyval + dynamic import after vi.mock + describe/it/expect/vi/beforeEach",
+    "e2e_runner": "Playwright, chromium only, fullyParallel: false, workers: 1",
+    "e2e_run_command": "make test-e2e-groups → E2E_GROUPS=1 node scripts/run-e2e.mjs",
+    "multi_tab_pattern": "Two separate BrowserContext instances via browser.newContext(), each with localStorage identity injection via addInitScript",
+    "idb_helpers_e2e": {
+      "file": "app/tests/e2e/helpers/idb-record.ts",
+      "functions": ["readIdbRecord(page, dbName, storeName, key)", "writeIdbRecord(page, dbName, storeName, key, value)", "deleteIdbRecord(page, dbName, storeName, key)"],
+      "chat_idb_key": "'quizzl:messages:{groupId}' in keyval-store/keyval",
+      "clearAppState_note": "clearAppState deletes 9 MDK-named IDB databases but NOT the keyval-store used by reactions/chat/unread — tests verifying IDB write counts must use readIdbRecord against 'keyval-store'/'keyval'"
+    },
+    "window_quizzlTest_surface": {
+      "exists": true,
+      "declaration_file": "app/tests/e2e/helpers/rumor-counter.ts",
+      "current_hooks": {
+        "onRumorSent": "profile/request send paths only",
+        "onRumorReceived": "PROFILE_RUMOR_KIND only"
+      },
+      "ar6_idb_write_counter": "Does NOT exist. Must be added. Options: (a) extend __quizzlTest.onChatIdbWrite hooked into chatPersistence.appendMessage, or (b) use readIdbRecord after dispatch to count IDB rows."
+    },
+    "test_conventions": {
+      "ac_references_in_descriptions": "Every test description references AC numbers (AC-38, AC-40, etc.)",
+      "serial_describe": "test.describe.serial for all groups specs",
+      "data_testids": "msg-{id}, reaction-badge-{messageId}-{emoji}, chat-input, chat-send-btn",
+      "error_overlay": "suppressErrorOverlay(context) immediately after newContext",
+      "unit_describe_style": "import { describe, it, expect, vi, beforeEach } from 'vitest'"
+    },
+    "groups_direct_chat_no_duplicates_spec": {
+      "exists": true,
+      "file": "app/tests/e2e/groups-direct-chat-no-duplicates.spec.ts",
+      "coverage": "DM ContactChat path only, not MLS GroupChat. Groups duplicate-dispatch isolation (AR-21) is NOT currently covered.",
+      "pattern_to_reuse": "WebSocket.prototype.send monkey-patch to force race conditions — adaptable for groups-dispatch-isolation.spec.ts"
+    }
+  }
+}

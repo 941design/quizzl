@@ -1,0 +1,47 @@
+{
+  "story_id": "02",
+  "status": "complete",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/src/lib/marmot/handlers/chatHandler.ts",
+    "app/src/lib/marmot/handlers/reactionHandler.ts",
+    "app/tests/unit/marmot/chatHandler.test.ts",
+    "app/tests/unit/marmot/reactionHandler.test.ts",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-02-port-chat-and-reactions/baseline.json",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-02-port-chat-and-reactions/architecture.json",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-02-port-chat-and-reactions/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/registerHandlers.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/src/context/ChatStoreContext.tsx",
+    "app/src/lib/marmot/chatPersistence.ts",
+    "app/tests/e2e/helpers/rumor-counter.ts"
+  ],
+  "implementation_summary": "Created chatHandler.ts (kind-9) and reactionHandler.ts (kind-7) under app/src/lib/marmot/handlers/. Wired both in registerHandlers.ts via createChatHandler/createReactionHandler factories. Added buildDispatcher subscription in MarmotContext.subscribeNewGroups(), storing the combined unsubscribe. Removed the CHAT_MESSAGE_KIND branch (lines 702-726) and kind-7 branch (lines 781-814) from MarmotContext onApplicationMessage callback, and removed the own-send guard (if senderPubkey === pubkeyHex return). Removed the group.on('applicationMessage') listener and handler body from ChatStoreContext; the context is now selection-only + outbound. Added __quizzlTest.onChatIdbWrite hook to chatPersistence.appendMessage. Added onChatIdbWrite type to rumor-counter.ts __quizzlTest interface.",
+  "tests": {
+    "baseline_count": 741,
+    "final_count": 755,
+    "new_tests": 14,
+    "test_files_added": [
+      "app/tests/unit/marmot/chatHandler.test.ts (7 tests)",
+      "app/tests/unit/marmot/reactionHandler.test.ts (7 tests)"
+    ]
+  },
+  "mocks_introduced": [],
+  "ac_verification": {
+    "AC-AR-1": "grep -r \"group.on('applicationMessage'\" app/src/ returns exactly 1 file: applicationRumorDispatcher.ts",
+    "AC-AR-3": "No CHAT_MESSAGE_KIND or kind-7 literal comparisons in MarmotContext.tsx or ChatStoreContext.tsx",
+    "AC-AR-4": "Only registerHandlers.ts imports from handlers/ directory"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The MarmotContext callback still uses `senderPubkey` in POLL branches after removing the own-send guard — required careful surgery to avoid breaking the remaining variable reference. The onApplicationMessage callback being one large if-else-if block means any removal must account for variable scoping across all branches. The `appendMessage` import in MarmotContext also needed replacement since it was embedded in a dynamic import inside the CHAT_MESSAGE_KIND handler; the story instruction to use top-level imports required restructuring the import strategy.",
+    "surprised_by": "The `getActiveGroupId` field in DispatcherContext is not tracked in MarmotContext at all — it manages all groups equally. The handler logic in chatHandler.ts ends up not using this field for any routing decision (incrementUnread fires for all non-own-send messages regardless of active group). The field is part of the interface for future handlers but MarmotContext passes `() => null` for now.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "module_name": "welcomeSubscription",
+  "purpose": "Subscribes to kind 1059 welcome gift wraps and kind 445 group messages for MLS group ingest. After Story 04 the subscribeToGroupMessages function no longer accepts an onApplicationMessage callback — application rumor dispatch is handled exclusively by the unified dispatcher wired in MarmotContext.",
+  "public_api": [
+    {
+      "name": "subscribeToGroupMessages",
+      "signature": "async function subscribeToGroupMessages(groupId: string, relays: string[], mlsGroup: MarmotGroup, ndk: NDK, onMembersChanged?: (members: string[]) => void, onHistorySynced?: () => void): Promise<() => void>",
+      "description": "Subscribes to kind 445 events for a group. Ingests via EpochResolver. No longer accepts or forwards onApplicationMessage — application rumor dispatch is owned by the unified dispatcher."
+    },
+    {
+      "name": "subscribeToWelcomes",
+      "signature": "async function subscribeToWelcomes(...): Promise<() => void>",
+      "description": "Unchanged — subscribes to kind 1059 welcome messages."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/marmot/welcomeSubscription.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "epochResolver.ts",
+    "groupStorage.ts",
+    "joinRequestHandler.ts",
+    "ndkClient.ts",
+    "@internet-privacy/marmot-ts",
+    "@nostr-dev-kit/ndk",
+    "applesauce-core"
+  ],
+  "dependencies_forbidden": [
+    "MarmotContext.tsx",
+    "registerHandlers.ts",
+    "applicationRumorDispatcher.ts"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": []
+}

@@ -1,0 +1,33 @@
+{
+  "story_id": "05",
+  "status": "complete",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/tests/e2e/groups-dispatch-isolation.spec.ts",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-05-e2e-dispatch-isolation/baseline.json",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-05-e2e-dispatch-isolation/architecture.json",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-05-e2e-dispatch-isolation/result.json"
+  ],
+  "files_modified": [
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-05-e2e-dispatch-isolation/verification.json"
+  ],
+  "implementation_summary": "Created app/tests/e2e/groups-dispatch-isolation.spec.ts as the structural regression sentinel for the unified dispatcher. Follows the groups-reactions.spec.ts two-context (USER_A, USER_B) pattern with test.describe.serial. The IDB write counter (window.__quizzlTest.onChatIdbWrite, AC-AR-22) is installed via context.addInitScript in beforeAll so it survives the clearAppState reload. Scenario 1 (own-send) sends a message, resets the counter, then asserts: IDB key 'quizzl:messages:{groupId}' contains exactly one matching entry, the rendered [data-testid='msg-{id}'] count is 1, and the write counter is 1. Scenario 2 (peer) waits for User B to see the bubble and asserts bubble count and IDB entry count are both 1. The AC-AR-3 canary comment instructs future readers to grep for group.on('applicationMessage') to confirm exactly one file. TypeScript compiles clean (npx tsc --noEmit exits 0).",
+  "test_counts": {
+    "baseline_files": 57,
+    "baseline_tests": 780,
+    "final_files": 57,
+    "final_tests": 780,
+    "new_tests_added": 0
+  },
+  "mocks_introduced": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The IDB write counter must be installed before any page navigation (via addInitScript) to survive the clearAppState reload in the boot sequence. The story brief suggests calling page.addInitScript or page.evaluate before the send, but page.evaluate after navigation would miss writes triggered during page load. Reading groups-reactions.spec.ts carefully revealed that the boot helper calls clearAppState then reload — so the counter must go into the context-level addInitScript in beforeAll rather than into the installChatIdbWriteCounter helper.",
+    "surprised_by": "chatPersistence.ts already ships the window.__quizzlTest.onChatIdbWrite hook (Story 02 delivered it). The counter wiring in this test required no production code changes.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

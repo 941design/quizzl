@@ -1,0 +1,118 @@
+{
+  "story_id": "01",
+  "story_name": "introduce-dispatcher",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-08T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-01-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `applicationRumorDispatcher.ts` contain zero references to `console.error` — specifically, does the dispatcher emit only `console.warn('[dispatcher.<kind>]', err)` for handler errors and at most `console.debug` for unknown kinds, with no `console.error` call anywhere in the file?"
+    },
+    {
+      "question_id": "VQ-01-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `applicationRumorDispatcher.ts` contain zero imports from `react`, `react-dom`, or any path under `app/src/context/` — confirming the dispatcher is React-free and owns only subscription lifecycle and LRU state per architecture.md boundary rules?"
+    },
+    {
+      "question_id": "VQ-01-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `applicationRumorDispatcher` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? Specifically: does the module's only outward contract surface consist of the three exported interfaces (`ApplicationRumor`, `DispatcherContext`, `RumorHandler`) and the `createDispatcher` factory, and does no file in `app/src/context/` or `app/src/lib/marmot/handlers/` import directly from `applicationRumorDispatcher.ts` except through the seam contract defined in stories.json?"
+    },
+    {
+      "question_id": "VQ-01-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/marmot/applicationRumorDispatcher.test.ts` contain exactly one test case for the per-group LRU scope invariant — dispatching `rumor.id = \"X\"` to group `\"G1\"` and then group `\"G2\"` causes the handler to be called twice (once per group), and a third dispatch of `\"X\"` to `\"G1\"` causes zero additional handler calls?"
+    },
+    {
+      "question_id": "VQ-01-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does calling `dispatcher.subscribe(group, ctx)` in `createDispatcher` register exactly one `group.on('applicationMessage')` listener — verifiable by checking that `group.on` is called exactly once in the `subscribe()` body with no conditional branching that could skip the registration?"
+    },
+    {
+      "question_id": "VQ-01-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the LRU eviction in the dispatcher fire at exactly 1001 entries (one beyond the cap of 1000), and does it evict enough entries to bring the set size back to exactly 1000 — so that after dispatching id-0 through id-1000 (1001 total), id-0 is no longer in the set for that group while id-1 through id-1000 remain?"
+    },
+    {
+      "question_id": "VQ-01-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the unsubscribe callback returned by `dispatcher.subscribe(group, ctx)` remove the `applicationMessage` listener when called — verifiable by dispatching a rumor before and after calling unsubscribe and asserting the handler call count does not increase after unsubscribe?"
+    },
+    {
+      "question_id": "VQ-01-008",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the dispatcher's `handle()` invocation for each handler occur inside a `try/catch` block that is local to that handler's invocation — specifically, does a thrown error from handler-A for kind 9 not propagate past the try/catch, ensuring handler-B registered for the same kind is still called and the `subscribe()` listener itself does not throw to marmot-ts?"
+    },
+    {
+      "question_id": "VQ-01-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-5",
+      "question": "Does the unit test in `app/tests/unit/marmot/applicationRumorDispatcher.test.ts` dispatch 1100 distinct rumor IDs (`id-0` through `id-1099`) against a single `groupId`, then assert that (a) `id-0` through `id-99` are no longer in the seen set (re-dispatching them calls the handler), and (b) `id-100` through `id-1099` are still in the seen set (re-dispatching them does not call the handler) — with the production `applicationRumorDispatcher.ts` code, not a mock, executing the LRU logic?"
+    },
+    {
+      "question_id": "VQ-01-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-17",
+      "question": "Does the unit test for AC-AR-17 spy on both `console.error` and `console.warn`, dispatch a rumor with `kind: 9999` to a dispatcher that has no handler registered for kind 9999, and assert both spy call counts are zero after the dispatch — confirming no error-level or warning-level log is emitted for unknown kinds?"
+    },
+    {
+      "question_id": "VQ-01-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-18",
+      "question": "Does the unit test for AC-AR-18 register two handlers for kind 9 (handler-A always throws `new Error(\"boom\")`, handler-B records a call via a `vi.fn()` spy), dispatch one kind-9 rumor, and assert both that (a) handler-B's spy call count equals 1 and (b) `console.warn` was called with a first argument of `'[dispatcher.9]'` — with both assertions evaluated against the production dispatcher, not a stub?"
+    },
+    {
+      "question_id": "VQ-01-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-20",
+      "question": "Does `app/tests/unit/marmot/applicationRumorDispatcher.test.ts` exist and contain all five required test cases from AC-AR-20 (`applicationRumorDispatcher.ts` row in the table: happy-path dispatch, unknown-kind no-crash, handler-throws isolation, LRU eviction at 1000, same-id dedup short-circuit), and do all five pass under `make test-unit`?"
+    },
+    {
+      "question_id": "VQ-01-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-23",
+      "question": "Does the per-group LRU in `applicationRumorDispatcher.ts` use a `Map<string, Set<string>>` keyed by `groupId` — verifiable by the unit test that dispatches `rumor.id = \"X\"` to `\"G1\"` and `\"G2\"` separately, asserts the handler is called exactly twice (once per group), and then dispatches `\"X\"` to `\"G1\"` a second time confirming handler call count remains 2?"
+    },
+    {
+      "question_id": "VQ-01-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-24",
+      "question": "Does `applicationRumorDispatcher.ts`'s `subscribe()` function contain zero `await` expressions and zero calls to any IDB or storage function (`appendMessage`, `loadMessages`, `savePoll`, `mergeMember*`) — confirming that no IDB priming occurs at subscribe time, as required by AC-AR-24, and verifiable by grepping `applicationRumorDispatcher.ts` for those function names and finding zero matches?"
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "question_id": "VQ-01-PI-001",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Does `applicationRumorDispatcher.ts` use a static top-level `import { deserializeApplicationData } from '@internet-privacy/marmot-ts'` (not a dynamic `await import()` inside the listener body) — confirming that vi.mock() hoisting in tests can intercept it, and that the happy-path test fires the handler spy at least once?"
+    },
+    {
+      "question_id": "VQ-01-PI-002",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Does the LRU eviction test in `applicationRumorDispatcher.test.ts` use `await group.emitAsync()` (which awaits the listener Promise) rather than `group.emit()` in the 1100-item loop — ensuring that each async listener chain completes before the next rumor is dispatched and that LRU state is updated serially so assertions on call counts are deterministic?"
+    },
+    {
+      "question_id": "VQ-01-PI-003",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "In the LRU eviction test, are the deduplication assertions for ids 100-1099 evaluated BEFORE re-dispatching ids 0-99 — avoiding a secondary eviction cascade where re-adding the 100 evicted ids would itself push ids 100-199 out of the seen set and cause them to fire again?"
+    }
+  ]
+}

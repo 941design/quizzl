@@ -44,7 +44,7 @@ type EpochResolverConfig = {
 };
 
 type EpochResolverCallbacks = {
-  onApplicationMessage: (rumor: {
+  onApplicationMessage?: (rumor: {
     id: string;
     kind: number;
     pubkey: string;
@@ -169,7 +169,7 @@ export class EpochResolver {
           const rumor = deserializeApplicationData(
             (result.result as { kind: 'applicationMessage'; message: Uint8Array }).message,
           );
-          this.callbacks.onApplicationMessage(rumor);
+          this.callbacks.onApplicationMessage?.(rumor);
 
           // Add to replay queue if grace window is active
           if (this.snapshot) {
@@ -261,7 +261,7 @@ export class EpochResolver {
         const rumor = deserializeApplicationData(
           (result.result as { kind: 'applicationMessage'; message: Uint8Array }).message,
         );
-        this.callbacks.onApplicationMessage(rumor);
+        this.callbacks.onApplicationMessage?.(rumor);
       }
     }
 
@@ -291,7 +291,7 @@ export class EpochResolver {
           const rumor = deserializeApplicationData(
             (result.result as { kind: 'applicationMessage'; message: Uint8Array }).message,
           );
-          this.callbacks.onApplicationMessage(rumor);
+          this.callbacks.onApplicationMessage?.(rumor);
         }
         // Processed — don't re-add to buffer
       } else if (result.kind === 'unreadable') {

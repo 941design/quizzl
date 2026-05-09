@@ -1,0 +1,27 @@
+{
+  "epic_name": "feature-spec-unified-mls-application-rumor-dispatch",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-05-08T00:00:00Z",
+  "updated_at": "2026-05-08T04:00:00Z",
+  "completed_stories": [
+    "story-01-introduce-dispatcher",
+    "story-02-port-chat-and-reactions",
+    "story-03-port-profile-score-polls",
+    "story-04-drop-callback-parameter",
+    "story-05-e2e-dispatch-isolation"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-05-08T00:00:00Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-05-08T04:00:00Z",
+      "trigger": "all 5 stories verified accepted"
+    }
+  ]
+}

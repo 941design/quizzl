@@ -29,7 +29,6 @@ import {
   applyOptimistic,
   applyOptimisticRemoval,
   rollbackOptimistic,
-  applyInboundRumor,
   subscribeReactions,
   loadReactions,
   aggregateForMessage,
@@ -134,9 +133,7 @@ export function ChatStoreProvider({
   const [loading, setLoading] = useState(false);
   // Story-06: aggregated reactions per message id. Updated by the subscribeReactions listener.
   const [reactionsByMessageId, setReactionsByMessageId] = useState<Map<string, ReactionAggregate[]>>(new Map());
-  const handlerRef = useRef<((data: Uint8Array) => void) | null>(null);
-  const groupRef = useRef<MarmotGroupType | null>(null);
-  // Ref to the current messages so sendReaction's stable callback can read them
+  // Ref to the current messages so the reactions subscription can read them
   const messagesRef = useRef<ChatMessage[]>([]);
 
   // Keep messagesRef in sync for use in stable callbacks
@@ -186,15 +183,12 @@ export function ChatStoreProvider({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, pubkey, reactionsVersion]);
 
-  // ─── Message subscription ──────────────────────────────────────────────────
+  // ─── Message load ─────────────────────────────────────────────────────────
+  // Inbound message ingestion is now handled exclusively by the unified
+  // applicationRumorDispatcher wired in MarmotContext (Story 02). This effect
+  // only loads the initial message set from IDB; chatVersion bumps trigger
+  // re-reads via the effect below.
   useEffect(() => {
-    // Detach previous listener
-    if (groupRef.current && handlerRef.current) {
-      groupRef.current.off('applicationMessage', handlerRef.current);
-      handlerRef.current = null;
-      groupRef.current = null;
-    }
-
     if (!groupId || !group) {
       setMessages([]);
       setLoading(false);
@@ -221,72 +215,8 @@ export function ChatStoreProvider({
         if (active) setLoading(false);
       });
 
-    const handler = async (data: Uint8Array) => {
-      try {
-        const { deserializeApplicationData } = await import('@internet-privacy/marmot-ts');
-        const rumor = deserializeApplicationData(data);
-
-        if (rumor.kind === CHAT_MESSAGE_KIND) {
-          const { parseImageMessageContent, extractAttachmentsByRole } = await import('@/src/lib/media/imageMessage');
-          const parsed = parseImageMessageContent(rumor.content);
-          const attachments = (parsed?.type === 'image' && rumor.tags?.length)
-            ? extractAttachmentsByRole(rumor.tags as string[][])
-            : null;
-          const hasAttachment = attachments && (attachments.full || attachments.thumb);
-          const msg: ChatMessage = {
-            id: rumor.id,
-            content: rumor.content,
-            senderPubkey: rumor.pubkey,
-            groupId,
-            createdAt: rumor.created_at * 1000,
-            ...(hasAttachment ? { attachments } : {}),
-          };
-          appendMessage(groupId, msg).catch((err) => {
-            console.error('[chat-store] Failed to persist received message:', err);
-          });
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === msg.id)) return prev;
-            return [...prev, msg].sort((a, b) => a.createdAt - b.createdAt);
-          });
-        } else if (rumor.kind === 7) {
-          // Kind-7 reactions received via the marmot-ts applicationMessage event bus.
-          // This covers the own-send echo path (marmot-ts re-delivers our own rumors
-          // back through this event). MarmotContext's kind-7 dispatch covers inbound
-          // from other group members via the Nostr subscription.
-          //
-          // Bug-fix (round-2): gate on in-memory messages before calling applyInboundRumor.
-          // Without this gate, a kind-7 echo whose target messageId is not in local
-          // persistence would be silently stored, defeating the leaf-module fix. Using
-          // messagesRef.current is correct and cheap — the provider already syncs it
-          // on every render.
-          const eTag = rumor.tags?.find((t: string[]) => typeof t[0] === 'string' && t[0] === 'e');
-          const targetMessageId = eTag?.[1];
-          if (!targetMessageId || !messagesRef.current.some((m) => m.id === targetMessageId)) {
-            // malformed tag or unknown target — silent discard (spec §2.4)
-            return;
-          }
-          applyInboundRumor(
-            { kind: 'group', groupId },
-            rumor,
-          ).catch((err: unknown) => {
-            console.warn('[chat-store] applyInboundRumor (kind-7 echo) failed:', err);
-          });
-          // subscribeReactions listener will trigger recompute() above automatically.
-        }
-      } catch {
-        // malformed application message — ignore
-      }
-    };
-
-    handlerRef.current = handler;
-    groupRef.current = group;
-    group.on('applicationMessage', handler);
-
     return () => {
       active = false;
-      group.off('applicationMessage', handler);
-      handlerRef.current = null;
-      groupRef.current = null;
     };
   }, [groupId, group]);
 
@@ -398,9 +328,9 @@ export function ChatStoreProvider({
    *    - remove path → re-insert a fresh removed:false row (restores badge).
    *    - add path → rollbackOptimistic removes the in-flight insert by rumor.id.
    *
-   * The inbound echo (marmot-ts re-delivers our own rumor back via 'applicationMessage')
-   * is handled in the handler above; it calls applyInboundRumor which will upsert the
-   * confirmed wire id over the optimistic row, eliminating the phantom (AC-09 dedup path).
+   * Inbound reactions from peers are handled by reactionHandler.ts via the unified
+   * applicationRumorDispatcher wired in MarmotContext (Story 02). The dispatcher's
+   * LRU deduplication ensures the optimistic row is not double-applied.
    */
   const sendReaction = useCallback(
     async (emoji: string, targetMessage: ChatMessage, isRemoval?: boolean) => {

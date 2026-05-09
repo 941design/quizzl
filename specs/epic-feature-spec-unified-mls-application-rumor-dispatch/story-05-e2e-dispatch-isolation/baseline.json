@@ -1,0 +1,8 @@
+{
+  "captured_at": "2026-05-08T00:00:00Z",
+  "test_counts": {
+    "test_files": 57,
+    "tests": 780,
+    "status": "all_passing"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "story_id": "04",
+  "status": "complete",
+  "remediation_rounds": 0,
+  "files_created": [
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-04-drop-callback-parameter/baseline.json",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-04-drop-callback-parameter/architecture.json",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-04-drop-callback-parameter/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/welcomeSubscription.ts",
+    "app/src/context/MarmotContext.tsx",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-04-drop-callback-parameter/verification.json"
+  ],
+  "implementation_summary": "Removed onApplicationMessage as a positional parameter from subscribeToGroupMessages in welcomeSubscription.ts. EpochResolver still receives the required EpochResolverCallbacks.onApplicationMessage field but as an internal no-op — application rumor dispatch is owned exclusively by the unified dispatcher that listens on group.on('applicationMessage'). In MarmotContext.tsx the empty (_rumor) => {} argument was removed from the subscribeToGroupMessages call site, leaving only onMembersChanged and onHistorySynced callbacks. epochResolver.ts was not modified.",
+  "test_counts": {
+    "baseline_files": 57,
+    "baseline_tests": 780,
+    "final_files": 57,
+    "final_tests": 780,
+    "new_tests_added": 0
+  },
+  "mocks_introduced": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "routine"
+  }
+}

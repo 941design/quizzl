@@ -187,7 +187,6 @@ export async function subscribeToGroupMessages(
   relays: string[],
   mlsGroup: import('@internet-privacy/marmot-ts').MarmotGroup,
   ndk: import('@nostr-dev-kit/ndk').default,
-  onApplicationMessage: (rumor: { id: string; kind: number; pubkey: string; created_at: number; content: string; tags: string[][] }) => void,
   onMembersChanged?: (members: string[]) => void,
   onHistorySynced?: () => void,
 ): Promise<() => void> {
@@ -207,11 +206,14 @@ export async function subscribeToGroupMessages(
   const processedIds = new Set<string>();
 
   // EpochResolver wraps mlsGroup.ingest() with fork resolution, rollback,
-  // and future-epoch buffering. Application messages and member-change
-  // notifications are dispatched via its callbacks.
+  // and future-epoch buffering. Application messages are dispatched by the
+  // unified dispatcher (applicationRumorDispatcher) via the MarmotGroup
+  // 'applicationMessage' event; the resolver's onApplicationMessage callback
+  // is a no-op here — EpochResolver still requires the field to maintain its
+  // internal interface contract.
   const resolver = new EpochResolver(
     mlsGroup,
-    { onApplicationMessage, onMembersChanged },
+    { onMembersChanged },
   );
 
   async function ingestNdkEvent(ndkEvent: import('@nostr-dev-kit/ndk').NDKEvent) {

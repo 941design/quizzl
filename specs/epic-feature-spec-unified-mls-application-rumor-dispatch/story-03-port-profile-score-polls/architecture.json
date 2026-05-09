@@ -1,0 +1,52 @@
+{
+  "module_name": "marmot/handlers (score, profile, profileRequest, poll)",
+  "purpose": "Four RumorHandler modules for SCORE_RUMOR_KIND, PROFILE_RUMOR_KIND, PROFILE_REQUEST_KIND, POLL_OPEN/VOTE/CLOSE_KIND — extracted from the MarmotContext onApplicationMessage callback. Each handler is purely dependency-injected, zero context imports, and registered via registerHandlers.ts.",
+  "public_api": [
+    { "name": "createScoreHandler", "signature": "(deps: ScoreHandlerDeps) => RumorHandler", "description": "Handler for SCORE_RUMOR_KIND (kind 1)" },
+    { "name": "createProfileHandler", "signature": "(deps: ProfileHandlerDeps) => RumorHandler", "description": "Handler for PROFILE_RUMOR_KIND (kind 0)" },
+    { "name": "createProfileRequestHandler", "signature": "(deps: ProfileRequestHandlerDeps) => RumorHandler", "description": "Handler for PROFILE_REQUEST_KIND (kind 30)" },
+    { "name": "createPollOpenHandler", "signature": "(deps: PollHandlerDeps) => RumorHandler", "description": "Handler for POLL_OPEN_KIND (kind 10)" },
+    { "name": "createPollVoteHandler", "signature": "(deps: PollHandlerDeps) => RumorHandler", "description": "Handler for POLL_VOTE_KIND (kind 11)" },
+    { "name": "createPollCloseHandler", "signature": "(deps: PollHandlerDeps) => RumorHandler", "description": "Handler for POLL_CLOSE_KIND (kind 12)" },
+    { "name": "buildDispatcher", "signature": "(deps: HandlerDeps) => Dispatcher", "description": "Extended to register all six new handlers alongside chat and reaction handlers" }
+  ],
+  "private_files": [
+    "app/src/lib/marmot/handlers/scoreHandler.ts",
+    "app/src/lib/marmot/handlers/profileHandler.ts",
+    "app/src/lib/marmot/handlers/profileRequestHandler.ts",
+    "app/src/lib/marmot/handlers/pollHandler.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/applicationRumorDispatcher",
+    "app/src/lib/marmot/scoreSync",
+    "app/src/lib/marmot/profileSync",
+    "app/src/lib/marmot/profileRequestSync",
+    "app/src/lib/marmot/pollSync",
+    "app/src/lib/marmot/pollPersistence",
+    "app/src/lib/marmot/groupStorage",
+    "app/src/lib/contactCache",
+    "app/src/lib/marmot/profileRequestRunner",
+    "app/src/lib/marmot/profileRequestStorage",
+    "app/src/lib/marmot/registerHandlers"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [
+    "SCORE_RUMOR_KIND (kind 1)",
+    "PROFILE_RUMOR_KIND (kind 0)",
+    "PROFILE_REQUEST_KIND (kind 30)",
+    "POLL_OPEN_KIND (kind 10)",
+    "POLL_VOTE_KIND (kind 11)",
+    "POLL_CLOSE_KIND (kind 12)"
+  ],
+  "test_targets": [
+    "app/tests/unit/marmot/scoreHandler.test.ts",
+    "app/tests/unit/marmot/profileHandler.test.ts",
+    "app/tests/unit/marmot/profileRequestHandler.test.ts",
+    "app/tests/unit/marmot/pollHandler.test.ts"
+  ]
+}

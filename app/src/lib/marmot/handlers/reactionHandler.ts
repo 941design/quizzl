@@ -1,0 +1,61 @@
+/**
+ * reactionHandler.ts
+ *
+ * RumorHandler for kind-7 reaction rumors.
+ *
+ * Receives all side-effect dependencies via the deps bag injected at
+ * buildDispatcher(deps) time — no React context imports.
+ *
+ * Boundary rules (architecture.md):
+ *   - Zero imports from app/src/context/
+ *   - All IDB and state-setter deps received via injection
+ */
+
+import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
+import type { ApplicationRumor, DispatcherContext, RumorHandler } from '@/src/lib/marmot/applicationRumorDispatcher';
+import type { ReactionThreadKey } from '@/src/lib/reactions/types';
+
+/** Named constant for the reaction rumor kind. */
+export const REACTION_RUMOR_KIND = 7;
+
+export interface ReactionHandlerDeps {
+  loadMessages: (groupId: string) => Promise<ChatMessage[]>;
+  applyInboundRumor: (
+    thread: ReactionThreadKey,
+    rumor: ApplicationRumor,
+  ) => Promise<unknown>;
+  setReactionsVersion: (updater: (v: number) => number) => void;
+}
+
+async function handle(rumor: ApplicationRumor, ctx: DispatcherContext, deps: ReactionHandlerDeps): Promise<void> {
+  // Extract the e-tag to find the target message ID.
+  const targetETag = rumor.tags?.find((t: string[]) => t[0] === 'e');
+  const targetMessageId = targetETag?.[1];
+  if (!targetMessageId) return; // malformed rumor — no e-tag, discard silently
+
+  // Gate: only apply the reaction if the target message is known locally.
+  // This prevents reactions for unknown messages from polluting the store
+  // (silent discard per spec §2.4 / AC-39).
+  const existingMessages = await deps.loadMessages(ctx.groupId).catch(() => [] as ChatMessage[]);
+  const messageIsKnown = existingMessages.some((m: ChatMessage) => m.id === targetMessageId);
+  if (!messageIsKnown) return; // silent discard
+
+  const result = await deps.applyInboundRumor(
+    { kind: 'group', groupId: ctx.groupId },
+    rumor,
+  ).catch((err: unknown) => {
+    console.warn('[dispatcher.7] applyInboundRumor failed:', err);
+    return null;
+  });
+
+  if (result !== null) {
+    deps.setReactionsVersion((v) => v + 1);
+  }
+}
+
+export function createReactionHandler(deps: ReactionHandlerDeps): RumorHandler {
+  return {
+    kind: REACTION_RUMOR_KIND,
+    handle: (rumor: ApplicationRumor, ctx: DispatcherContext) => handle(rumor, ctx, deps),
+  };
+}

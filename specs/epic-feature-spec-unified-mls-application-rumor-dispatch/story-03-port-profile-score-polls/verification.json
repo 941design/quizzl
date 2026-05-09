@@ -1,0 +1,105 @@
+{
+  "story_id": "03",
+  "story_name": "port-profile-score-polls",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-08T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-03-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `app/src/context/MarmotContext.tsx` contain zero occurrences of `rumor.kind ===` and `rumor.kind ==` after Story 3 ships — verifiable by `grep -n \"rumor\\.kind\" app/src/context/MarmotContext.tsx` returning no output — confirming the `onApplicationMessage` callback body is empty and all kind dispatch has been removed from context files?"
+    },
+    {
+      "question_id": "VQ-03-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does each of the four new handler modules (`profileHandler.ts`, `profileRequestHandler.ts`, `scoreHandler.ts`, `pollHandler.ts`) import zero symbols from `app/src/context/` — verifiable by `grep -r \"from.*context/\" app/src/lib/marmot/handlers/ --include=\"*.ts\"` returning zero matches?"
+    },
+    {
+      "question_id": "VQ-03-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `handlers/profileHandler` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? Specifically: does `grep -r \"from.*profileHandler\" app/src/ --include=\"*.ts\" --include=\"*.tsx\" -l` return only `registerHandlers.ts`, confirming no context file or other module imports `profileHandler.ts` directly?"
+    },
+    {
+      "question_id": "VQ-03-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/marmot/pollHandler.test.ts` contain test cases for both guard invariants — (a) a vote against a closed poll where `saveVote` is asserted NOT called, and (b) a POLL_CLOSE_KIND rumor from a non-creator pubkey where the poll's closed flag is asserted NOT set — exercising the production `pollHandler.ts` guard logic, not a stub?"
+    },
+    {
+      "question_id": "VQ-03-005",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/marmot/profileRequestHandler.test.ts` contain a test case for the self-target reply path where `rumor.pubkey !== ctx.selfPubkeyHex` AND the profile request targets the local user — asserting that `deps.sendRumor` is called exactly once with a profile rumor payload — and a separate test case for the peer-request path asserting `handleIncomingProfileRequest` is called instead?"
+    },
+    {
+      "question_id": "VQ-03-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does `pollHandler.ts` enforce the creator-only close guard by comparing `rumor.pubkey === poll.creatorPubkey` before setting `closed: true` on the poll — and does `scoreHandler.ts` call `mergeMemberScore` using the rumor's `pubkey` field (the sender) as the score owner, not a field from the rumor `content` that could be spoofed by a peer?"
+    },
+    {
+      "question_id": "VQ-03-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does `profileHandler.ts` call `notifyProfileObserved` as part of its side effects for `PROFILE_RUMOR_KIND` — specifically, is the `notifyProfileObserved` call present in the handler body (matching the wiring added by `epic-member-profile-discovery-and-relay-on-behalf` story 06) and injected via `deps.notifyProfileObserved`, not captured via a module-level import from a context file?"
+    },
+    {
+      "question_id": "VQ-03-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does `profileRequestHandler.ts` receive `deps.sendRumor` as a function injected at `buildDispatcher(deps)` time (not at subscribe time), and is `deps.sendRumor` wired in `registerHandlers.ts` by wrapping `mlsGroup.sendApplicationRumor` captured from `MarmotContext.subscribeNewGroups()` — confirming the architecture.md §profileRequestHandler dependency pattern is followed?"
+    },
+    {
+      "question_id": "VQ-03-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-3",
+      "question": "Does `grep -r \"rumor\\.kind\" app/src/context/ --include=\"*.ts\" --include=\"*.tsx\"` return zero matches after Story 3 ships — confirming all kind-based routing logic has been removed from `MarmotContext.tsx` and `ChatStoreContext.tsx`, and `grep -r \"rumor\\.kind\" app/src/lib/marmot/ --include=\"*.ts\" -l` returns matches only in `applicationRumorDispatcher.ts` and/or files under `handlers/`?"
+    },
+    {
+      "question_id": "VQ-03-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-14",
+      "question": "Do scenarios 1, 2, 3, 4, and 6 of `app/tests/e2e/groups-profile-request.spec.ts` pass under `make test-e2e-groups` after Story 3 ships — with `profileHandler.ts` and `profileRequestHandler.ts` implementing the same side effects (`mergeMemberProfile`, `updateMemberScoreNickname`, `notifyProfileObserved`, `recordRequestAnswered`, `writeContactEntry`, `setProfileVersion`, `recordRequestEmitted`, `sendRumorSafe`, `handleIncomingProfileRequest`) as the removed MarmotContext callback, and scenario 5 status unchanged from the pre-epic baseline?"
+    },
+    {
+      "question_id": "VQ-03-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-15",
+      "question": "Do all currently-passing tests in `app/tests/e2e/groups-polls.spec.ts` remain green under `make test-e2e-groups` after Story 3 ships — with `pollHandler.ts` preserving the closed-poll guard (`saveVote` only when poll not closed) and the creator-only close guard (`savePoll(closed:true)` only when `creatorPubkey === rumor.pubkey`) as previously implemented in MarmotContext lines 742-776?"
+    },
+    {
+      "question_id": "VQ-03-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-16",
+      "question": "Does the unit test in `app/tests/unit/marmot/scoreHandler.test.ts` dispatch a score rumor and assert `mergeMemberScore` is called once with the correct `groupId`, `senderPubkey`, `nickname`, and `scoreUpdate` arguments, then dispatch the same `rumor.id` again and assert `mergeMemberScore` call count remains 1 — confirming LRU dedup prevents double-processing?"
+    },
+    {
+      "question_id": "VQ-03-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-20",
+      "question": "Do all four new unit test files (`profileHandler.test.ts`, `profileRequestHandler.test.ts`, `scoreHandler.test.ts`, `pollHandler.test.ts`) exist under `app/tests/unit/marmot/` and contain all required test cases from AC-AR-20 (happy-path, malformed payload, and duplicate-id cases for each handler), and do all pass under `make test-unit`?"
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "question_id": "VQ-03-PI-001",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The profileRequestHandler uses a `sendSelfProfile` dep (a pre-bound async closure that signs and sends the local profile) rather than a raw `sendRumor` dep. Does this dep shape, as wired in MarmotContext's buildDispatcher call, correctly capture `signerRef.current`, `localProfileRef.current`, `pubkeyHex`, and `mlsGroup` at subscription time — and is there a risk that these values become stale under React re-render or group-subscription teardown/resubscription?"
+    },
+    {
+      "question_id": "VQ-03-PI-002",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The MarmotContext `writeContactEntry` dep passed to profileHandler wraps the dynamic `import('@/src/lib/contactCache')` but discards the `ProfileAvatar` shape — passing `avatar: null` always. Does the contactCache's `CachedContact.avatar` field accept `null`, and does the original MarmotContext code (pre-Story 03) pass `memberProfile.avatar` (a `ProfileAvatar | null`) rather than a `string | undefined`? If there is a shape mismatch, does it affect any observable consumer behavior?"
+    }
+  ]
+}

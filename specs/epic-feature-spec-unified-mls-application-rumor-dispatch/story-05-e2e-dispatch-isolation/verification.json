@@ -1,0 +1,65 @@
+{
+  "story_id": "05",
+  "story_name": "e2e-dispatch-isolation",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-08T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-05-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `app/tests/e2e/groups-dispatch-isolation.spec.ts` use `test.describe.serial` at the top level of the file — confirming tests run sequentially rather than in parallel, per the project e2e convention documented in stories.json — and does the file call `suppressErrorOverlay(context)` in its `beforeEach` or equivalent setup hook for every `BrowserContext` instance created?"
+    },
+    {
+      "question_id": "VQ-05-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `groups-dispatch-isolation.spec.ts` import `readIdbRecord` from the existing helper path (`app/tests/e2e/helpers/idb-record.ts` or equivalent, as shipped by `epic-member-profile-discovery-and-relay-on-behalf` story 07) — rather than re-implementing IDB read logic inline — confirming reuse of permanent test infrastructure and not introducing a duplicate helper?"
+    },
+    {
+      "question_id": "VQ-05-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `groups-dispatch-isolation` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? Specifically: does the spec file contain zero production code imports (no imports from `app/src/`) and reference only test helpers and Playwright APIs — confirming it is a pure test artifact with no coupling to implementation modules?"
+    },
+    {
+      "question_id": "VQ-05-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `groups-dispatch-isolation.spec.ts` use the `window.__quizzlTest.onChatIdbWrite` counter (shipped in Story 02 per AC-AR-22) to measure the IDB write count for the sent message — specifically, does the test set up the `onChatIdbWrite` handler before User A sends the message and assert the counter value is exactly 1 (or 2, for optimistic + bus-echo path) after network settle, with an inline comment citing AC-AR-22?"
+    },
+    {
+      "question_id": "VQ-05-005",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `groups-dispatch-isolation.spec.ts` contain a `beforeAll` or inline structural pre-condition check (comment or assertion) that verifies the AC-AR-3 grep invariant holds — specifically, that `grep -r \"group.on('applicationMessage'\" app/src/ -l` returns exactly one file — confirming the test is usable as an early-warning canary for future epics that might re-introduce a second subscriber?"
+    },
+    {
+      "question_id": "VQ-05-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the `readIdbRecord` assertion in `groups-dispatch-isolation.spec.ts` target the specific IDB store key `\"quizzl:messages:{groupId}\"` (not a wildcard or count-all approach) and assert that the returned value contains exactly one entry matching the sent `messageId` — confirming the test would fail if a second IDB row with the same ID were introduced by a duplicate write, as opposed to silently passing on any non-empty IDB state?"
+    },
+    {
+      "question_id": "VQ-05-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AR-21",
+      "question": "Does `app/tests/e2e/groups-dispatch-isolation.spec.ts` exist and implement both required scenarios — (1) User A sends a message, `readIdbRecord` for the IDB `keyval-store/keyval` key `\"quizzl:messages:{groupId}\"` returns exactly one entry for the sent message ID, and the rendered `[data-testid=\"msg-{id}\"]` element count is exactly 1; (2) a second tab or user B sees exactly one bubble with the message content — and does `make test-e2e-groups` targeting this file pass with all scenarios green?"
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "question_id": "VQ-05-PI-001",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The IDB write counter is installed via context.addInitScript inside beforeAll rather than via a separate installChatIdbWriteCounter page call. Does the counter survive the page.reload() that clearAppState triggers inside the boot sequence, and is the counter value reliably 0 at the point where pageA.evaluate resets it before the send — confirming addInitScript persists across reloads within the same context?"
+    },
+    {
+      "question_id": "VQ-05-PI-002",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The test resets __chatIdbWriteCount to 0 via pageA.evaluate before the send rather than relying on beforeAll isolation. If any earlier test in a different describe block has already written chat messages (e.g. from a botched setup), could the counter start above 0, making the pageA.evaluate reset critical for test reliability? Is the reset defensive enough given that beforeAll navigates to /groups/ and the test navigates into a freshly-created group before sending?"
+    }
+  ]
+}

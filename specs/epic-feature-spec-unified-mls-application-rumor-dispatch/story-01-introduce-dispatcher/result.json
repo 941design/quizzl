@@ -1,0 +1,28 @@
+{
+  "story_id": "01",
+  "story_name": "introduce-dispatcher",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-08T00:00:00Z",
+  "remediation_rounds": 2,
+  "test_counts": {
+    "before": 733,
+    "after": 741
+  },
+  "files_created": [
+    "app/src/lib/marmot/applicationRumorDispatcher.ts",
+    "app/src/lib/marmot/registerHandlers.ts",
+    "app/tests/unit/marmot/applicationRumorDispatcher.test.ts",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-01-introduce-dispatcher/baseline.json",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-01-introduce-dispatcher/architecture.json",
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-01-introduce-dispatcher/result.json"
+  ],
+  "files_modified": [
+    "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/story-01-introduce-dispatcher/verification.json"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "friction": "Two rounds of test fixes were needed. First: the listener inside createDispatcher used a dynamic import() to load deserializeApplicationData; vi.mock() hoists module-level mocks but cannot intercept dynamic imports inside async functions at runtime, so the mock was bypassed and handleSpy never fired. Fix: changed to a static top-level import. Second: the LRU test fired 1100 emits without awaiting each, then used a single-round flushPromises; with 1100 pending Promise chains only the first resolved, so call counts were wrong. Fix: used emitAsync (awaits the listener promise) in loops, and reordered the dedup-check before the evicted-ids re-dispatch to avoid secondary eviction cascades.",
+    "root_cause": "Both issues stem from the async listener pattern interacting with Vitest's mock system and Promise microtask scheduling in tight loops. The dynamic-import interception gap and the multi-chain drain problem are easy to miss when the production code looks correct but the test harness has subtly different execution semantics."
+  }
+}

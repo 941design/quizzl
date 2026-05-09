@@ -1,0 +1,54 @@
+{
+  "module_name": "handlers/chatHandler + handlers/reactionHandler",
+  "purpose": "Port CHAT_MESSAGE_KIND (kind 9) and kind-7 reaction handling out of MarmotContext and ChatStoreContext into isolated handler modules wired through the applicationRumorDispatcher",
+  "public_api": [
+    {
+      "name": "chatHandler",
+      "signature": "RumorHandler (kind: 9) — exported object with { kind, handle(rumor, ctx) }",
+      "description": "Handles kind-9 chat messages: parses imeta tags, calls appendMessage, conditionally calls incrementUnread (not own-send), bumps setChatVersion"
+    },
+    {
+      "name": "REACTION_RUMOR_KIND",
+      "signature": "export const REACTION_RUMOR_KIND = 7",
+      "description": "Named constant for the reaction rumor kind, introduced in reactionHandler.ts"
+    },
+    {
+      "name": "reactionHandler",
+      "signature": "RumorHandler (kind: 7) — exported object with { kind, handle(rumor, ctx) }",
+      "description": "Handles kind-7 reaction rumors: gates on target message existence in IDB, calls applyInboundRumor, bumps setReactionsVersion if non-null result"
+    },
+    {
+      "name": "buildDispatcher",
+      "signature": "buildDispatcher(deps: HandlerDeps): Dispatcher",
+      "description": "Composition root in registerHandlers.ts — extended to wire chatHandler and reactionHandler"
+    }
+  ],
+  "private_files": [
+    "app/src/lib/marmot/handlers/chatHandler.ts",
+    "app/src/lib/marmot/handlers/reactionHandler.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/chatPersistence.ts",
+    "app/src/lib/marmot/applicationRumorDispatcher.ts",
+    "app/src/lib/marmot/registerHandlers.ts",
+    "app/src/lib/reactions/api.ts",
+    "app/src/lib/media/imageMessage.ts",
+    "app/src/lib/unreadStore.ts"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/MarmotContext.tsx",
+    "app/src/context/ChatStoreContext.tsx",
+    "app/src/context/ProfileContext.tsx"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [
+    "applicationMessage (kind 9) via dispatcher",
+    "applicationMessage (kind 7) via dispatcher"
+  ],
+  "test_targets": [
+    "app/tests/unit/marmot/chatHandler.test.ts",
+    "app/tests/unit/marmot/reactionHandler.test.ts"
+  ]
+}

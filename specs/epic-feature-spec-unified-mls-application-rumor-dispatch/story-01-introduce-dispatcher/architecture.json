@@ -1,0 +1,18 @@
+{
+  "story_id": "01",
+  "modules_created": [
+    {
+      "module": "applicationRumorDispatcher",
+      "file": "app/src/lib/marmot/applicationRumorDispatcher.ts",
+      "exports": ["ApplicationRumor", "DispatcherContext", "RumorHandler", "Dispatcher", "createDispatcher"],
+      "purpose": "Single group.on listener with per-group LRU dedup and sequential handler dispatch"
+    },
+    {
+      "module": "registerHandlers",
+      "file": "app/src/lib/marmot/registerHandlers.ts",
+      "exports": ["HandlerDeps", "buildDispatcher"],
+      "purpose": "Composition root stub — extended in Stories 02 and 03"
+    }
+  ],
+  "boundary_rules_honoured": ["No React imports", "No context imports", "No IDB calls at subscribe time"]
+}

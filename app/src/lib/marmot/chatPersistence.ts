@@ -49,6 +49,10 @@ export function appendMessage(groupId: string, message: ChatMessage): Promise<vo
     const existing = (await get<ChatMessage[]>(key)) ?? [];
     if (existing.some((m) => m.id === message.id)) return;
     await set(key, [...existing, message]);
+    // Dev-only hook: notify E2E tests when a message is written to IDB.
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+      (window as any).__quizzlTest?.onChatIdbWrite?.({ groupId, messageId: message.id });
+    }
   });
   const settled = next.catch(() => {});
   appendQueues.set(key, settled);
