@@ -1,0 +1,57 @@
+{
+  "module_name": "app/src/lib/directMessages.ts",
+  "purpose": "Core DM logic: encrypt/decrypt, seal/wrap, NIP-59 operations, and (story-01) the lenient inbound payload parser that never returns null for non-empty decrypted strings.",
+  "public_api": [
+    {
+      "name": "parseDirectPayload",
+      "signature": "(raw: string) => { content: string; attachments?: RoledAttachments; } | null",
+      "description": "Parses a decrypted DM payload. Four-tier priority: (1) JSON text-envelope → {content}, (2) JSON image-envelope → {content, attachments}, (3) JSON unknown shape → {content: raw}, (4) JSON parse error → {content: raw}. raw === '' returns null. Logs 'dm:parse-lenient-fallback' at info level for cases 3 and 4."
+    },
+    {
+      "name": "decryptDirectPayload",
+      "signature": "(encrypted: string, privateKeyHex: string, peerPubkeyHex: string) => Promise<{ content: string; attachments?: RoledAttachments; } | null>",
+      "description": "Decrypts a NIP-04 ciphertext and passes it to parseDirectPayload. Logs 'dm:decrypt-empty' at info level when decryption fails or decrypted content is empty."
+    },
+    {
+      "name": "shouldIngestRumor",
+      "signature": "(rumor: UnsignedRumor, peerPubkeyHex: string) => boolean",
+      "description": "Thread-isolation guard for gift-wrap inbound path. Returns true when rumor.pubkey === peerPubkeyHex. Logs 'dm:rumor-rejected' at info level when returning false."
+    },
+    {
+      "name": "unwrapAndOpen",
+      "signature": "(giftWrap: NostrEvent, selfPrivKeyHex: string) => Promise<UnsignedRumor>",
+      "description": "Unwraps a NIP-59 gift wrap and returns the inner rumor. Throws on failure. Logs 'dm:unwrap-failed' at info level before re-throwing."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "parseDirectPayload — lenient parser logic",
+    "decryptDirectPayload — nip04 decrypt + parseDirectPayload call",
+    "shouldIngestRumor — pubkey comparison guard",
+    "unwrapAndOpen — nip59 unwrap with auth steps"
+  ],
+  "dependencies_allowed": [
+    "@/src/lib/logger — namespaced logger (dm: namespace)",
+    "@/src/lib/media/imageMessage — buildImageMessageContent, DIRECT_MEDIA_VERSION, types"
+  ],
+  "dependencies_forbidden": [
+    "console.warn — no warn calls in any new or modified path (AC-31)",
+    "console.error — no error calls in any new or modified path (AC-31)"
+  ],
+  "external_ports": [
+    {
+      "name": "parseDirectPayload",
+      "consumers": [
+        "ContactChat.tsx — ingestEvent",
+        "ContactChat.tsx — handleGiftWrapEvent",
+        "directMessageNotifications.ts — bell watcher kind-1059 handler (story-02)"
+      ]
+    }
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/directMessages.test.ts — AC-01, AC-02, AC-03, AC-04, AC-05, AC-06, AC-31",
+    "app/tests/e2e/dm-third-party-inbound.spec.ts — AC-12"
+  ]
+}

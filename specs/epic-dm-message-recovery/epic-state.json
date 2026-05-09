@@ -1,0 +1,19 @@
+{
+  "epic_name": "dm-message-recovery",
+  "status": "done",
+  "phase": "COMPLETE",
+  "unit_tests": {
+    "baseline": { "files": 57, "tests": 780 },
+    "final": { "files": 61, "tests": 828 },
+    "delta": { "files": "+4", "tests": "+48" }
+  },
+  "created_at": "2026-05-09T00:00:00Z",
+  "updated_at": "2026-05-09T00:00:00Z",
+  "completed_stories": ["story-01", "story-02", "story-03", "story-04", "story-05"],
+  "escalated_stories": [],
+  "phase_history": [
+    {"phase": "SPEC_VALIDATED", "timestamp": "2026-05-09T00:00:00Z", "trigger": "validation_passed"},
+    {"phase": "IMPLEMENTATION_LOOP", "timestamp": "2026-05-09T00:00:00Z", "trigger": "stories.json produced, team created"},
+    {"phase": "COMPLETE", "timestamp": "2026-05-09T00:00:00Z", "trigger": "all 5 stories verified accepted"}
+  ]
+}

@@ -69,11 +69,11 @@ type Deps = {
 };
 
 function makeDeps(targetExists = true): Deps {
-  const messages = targetExists
+  const messages: { id: string; content: string; senderPubkey: string; groupId: string; createdAt: number }[] = targetExists
     ? [{ id: TARGET_MESSAGE_ID, content: 'hi', senderPubkey: 'ff'.repeat(32), groupId: GROUP_ID, createdAt: 1000 }]
     : [];
   return {
-    loadMessages: vi.fn(async () => messages),
+    loadMessages: vi.fn(async () => ({ messages, refetchIds: [] as string[] })),
     applyInboundRumor: vi.fn(async () => ({ applied: true })),
     setReactionsVersion: vi.fn(),
   };

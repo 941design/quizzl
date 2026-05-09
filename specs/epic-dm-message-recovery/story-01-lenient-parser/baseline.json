@@ -1,0 +1,20 @@
+{
+  "story_id": "story-01",
+  "story_name": "Lenient inbound payload parser",
+  "timestamp": "2026-05-09T00:00:00Z",
+  "test_suite": {
+    "unit": {
+      "files": 57,
+      "tests": 780,
+      "files_touched_by_story": [
+        "app/tests/unit/directMessages.test.ts"
+      ]
+    },
+    "e2e": {
+      "total_files": "unknown (not run)",
+      "story_files": []
+    }
+  },
+  "baseline_commit": "HEAD",
+  "notes": "Baseline from 'make test-unit': 57 files, 780 tests passing. directMessages unit tests: 4 tests covering encrypt/decrypt round-trip. No AC-01 through AC-04 coverage exists yet. No E2E relay round-trip test exists yet."
+}

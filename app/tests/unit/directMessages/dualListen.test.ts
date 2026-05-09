@@ -110,7 +110,7 @@ describe('cross-protocol dedup (kind-4 + kind-1059 same inner-rumor id)', () => 
     // Simulate kind-1059 arrival for the same inner-rumor id
     await appendMessage(THREAD_ID, msg);
 
-    const stored = await loadMessages(THREAD_ID);
+    const { messages: stored } = await loadMessages(THREAD_ID);
     expect(stored).toHaveLength(1);
     expect(stored[0].id).toBe('rumor-shared-id-00000000');
   });
@@ -134,7 +134,7 @@ describe('cross-protocol dedup (kind-4 + kind-1059 same inner-rumor id)', () => 
     await appendMessage(THREAD_ID, msg1);
     await appendMessage(THREAD_ID, msg2);
 
-    const stored = await loadMessages(THREAD_ID);
+    const { messages: stored } = await loadMessages(THREAD_ID);
     expect(stored).toHaveLength(2);
     const ids = stored.map((m) => m.id);
     expect(ids).toContain('rumor-id-alpha');

@@ -19,7 +19,7 @@ import type { ReactionThreadKey } from '@/src/lib/reactions/types';
 export const REACTION_RUMOR_KIND = 7;
 
 export interface ReactionHandlerDeps {
-  loadMessages: (groupId: string) => Promise<ChatMessage[]>;
+  loadMessages: (groupId: string) => Promise<{ messages: ChatMessage[]; refetchIds: string[] }>;
   applyInboundRumor: (
     thread: ReactionThreadKey,
     rumor: ApplicationRumor,
@@ -36,7 +36,7 @@ async function handle(rumor: ApplicationRumor, ctx: DispatcherContext, deps: Rea
   // Gate: only apply the reaction if the target message is known locally.
   // This prevents reactions for unknown messages from polluting the store
   // (silent discard per spec §2.4 / AC-39).
-  const existingMessages = await deps.loadMessages(ctx.groupId).catch(() => [] as ChatMessage[]);
+  const { messages: existingMessages } = await deps.loadMessages(ctx.groupId).catch(() => ({ messages: [] as ChatMessage[] }));
   const messageIsKnown = existingMessages.some((m: ChatMessage) => m.id === targetMessageId);
   if (!messageIsKnown) return; // silent discard
 

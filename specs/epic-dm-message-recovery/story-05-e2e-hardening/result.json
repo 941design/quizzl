@@ -1,0 +1,28 @@
+{
+  "story_id": "story-05",
+  "story_name": "E2E hardening — full relay-to-bell-to-chat pipeline",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-09T00:00:00Z",
+  "notes": "Story-05 is implementation-free. All four E2E spec files were written as part of stories 01–04 (which is the spec-recommended integration approach per §4.2). The cross-protocol non-dedup documentation (§4.1, D7) is covered by dualListen.test.ts which was already present in the baseline.",
+  "ac_coverage": {
+    "AC-12": "✓ dm-third-party-inbound.spec.ts written in story-01",
+    "AC-13": "✓ dm-historical-recovery.spec.ts written in story-03",
+    "AC-22": "✓ dm-giftwrap-bell.spec.ts written in story-02",
+    "AC-29": "✓ dm-self-heal.spec.ts written in story-04"
+  },
+  "e2e_files": [
+    "app/tests/e2e/dm-third-party-inbound.spec.ts (story-01)",
+    "app/tests/e2e/dm-historical-recovery.spec.ts (story-03)",
+    "app/tests/e2e/dm-giftwrap-bell.spec.ts (story-02)",
+    "app/tests/e2e/dm-self-heal.spec.ts (story-04)"
+  ],
+  "unit_files": [
+    "app/tests/unit/directMessages/dualListen.test.ts (baseline — pre-epic; documents cross-protocol non-dedup per §4.1 and D7)"
+  ],
+  "RETROSPECTIVE": {
+    "skipped": false,
+    "mode": "story-05_e2e_hardening",
+    "note": "All four E2E spec files landed as part of the corresponding code stories (01–04), per the spec's §4.2 guidance. No additional work was required for story-05 beyond documenting the coverage."
+  }
+}

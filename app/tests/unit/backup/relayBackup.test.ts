@@ -910,7 +910,7 @@ describe('restoreFromBackup', () => {
       }),
     );
 
-    const loaded = await loadMessages('g1');
+    const { messages: loaded } = await loadMessages('g1');
     expect(loaded).toEqual(messages);
   });
 

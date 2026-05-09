@@ -1,0 +1,105 @@
+{
+  "story_id": "story-01",
+  "story_name": "Lenient inbound payload parser",
+  "spec_questions": [
+    {
+      "ac": "AC-01",
+      "question": "Does `parseDirectPayload('hello')` return `{ content: 'hello' }`?",
+      "expected_answer": "Yes — if JSON.parse fails or matches no known shape, falls through to `{ content: raw }`."
+    },
+    {
+      "ac": "AC-02",
+      "question": "Does `parseDirectPayload('{\"type\":\"text\",\"text\":\"hi\"}')` return `{ content: 'hi' }`?",
+      "expected_answer": "Yes — priority 1 branch; existing test already covers text-envelope."
+    },
+    {
+      "ac": "AC-03",
+      "question": "Does `parseDirectPayload('{\"unknown\":\"shape\"}')` return `{ content: '{\"unknown\":\"shape\"}' }` (raw JSON as text)?",
+      "expected_answer": "Yes — parsed JSON matches no known envelope shape, falls through to `{ content: raw }`."
+    },
+    {
+      "ac": "AC-04",
+      "question": "Does `parseDirectPayload('')` return `null`?",
+      "expected_answer": "Yes — explicit empty-string guard at function entry returns null."
+    },
+    {
+      "ac": "AC-05",
+      "question": "Does `parseDirectPayload` for a valid image envelope return the same value as today?",
+      "expected_answer": "Yes — no change to the image-envelope branch; existing test in directMessages.test.ts covers it."
+    },
+    {
+      "ac": "AC-06",
+      "question": "Does a unit test in `app/tests/unit/directMessages.test.ts` assert AC-01 through AC-04 by direct call?",
+      "expected_answer": "Yes — new test cases added for bare string, unknown JSON, and empty string inputs; test file exists."
+    },
+    {
+      "ac": "AC-07",
+      "question": "Does `ingestEvent` in ContactChat.tsx return a ChatMessage (not null) when a kind-4 event decrypts to non-empty bare plaintext?",
+      "expected_answer": "Yes — ingestEvent passes decrypt result to parseDirectPayload; lenient parser returns non-null for any non-empty string, so ingestEvent never returns null for that case."
+    },
+    {
+      "ac": "AC-08",
+      "question": "Does `handleGiftWrapEvent` in ContactChat.tsx upsert a ChatMessage for any kind-14 rumor with non-empty decrypted content regardless of envelope shape?",
+      "expected_answer": "Yes — handleGiftWrapEvent calls parseDirectPayload on the decrypted content; lenient parser returns non-null for any non-empty decrypted string, so the upsert path runs regardless of envelope shape."
+    },
+    {
+      "ac": "AC-12",
+      "question": "Does `app/tests/e2e/dm-third-party-inbound.spec.ts` publish a bare-plaintext kind-4 event and assert the bell badge becomes 1 and the chat bubble renders the plaintext?",
+      "expected_answer": "Yes — E2E test exists and covers the relay → bell → ContactChat pipeline end-to-end."
+    },
+    {
+      "ac": "AC-30",
+      "question": "Does each silent-skip site (parseDirectPayload lenient fallback, decryptDirectPayload throw, unwrapAndOpen throw, shouldIngestRumor false) call the namespaced logger at info level?",
+      "expected_answer": "Yes — logger calls added at each silent-skip site with stable tags."
+    },
+    {
+      "ac": "AC-31",
+      "question": "Do any new or modified code paths call console.warn or console.error?",
+      "expected_answer": "No — all new paths use info-level logger; unit test spies on console.warn/console.error assert zero calls."
+    }
+  ],
+  "pre_impl_commitments": [
+    {
+      "id": "pre-01",
+      "question": "Is the current `parseDirectPayload` return type `{ content: string; attachments?: RoledAttachments; } | null` correct, or does the return type need to widen to accommodate the new third/fourth-case fallback?",
+      "answer_required": "NO",
+      "notes": "The current return type already covers all cases: `{ content: string; attachments?: RoledAttachments } | null`. Cases 3 and 4 return `{ content: raw }` without `attachments`, which fits the existing type. No type change needed. Architect must confirm this."
+    },
+    {
+      "id": "pre-02",
+      "question": "Does the existing text-envelope check need to be case-sensitive? Specifically, does `parsed.type === 'text'` also need to handle `'TEXT'` or `'Text'`?",
+      "answer_required": "NO",
+      "notes": "quizzl always writes lowercase; third-party clients likely do too. Check whether existing tests assert lowercase-only. If lowercase is assumed, no change. Architect should verify against live relay samples of known third-party clients."
+    },
+    {
+      "id": "pre-03",
+      "question": "Should the empty-string guard be a runtime check at the top of `parseDirectPayload` (returning null for `raw === ''`), or should it be folded into the JSON.parse catch block?",
+      "answer_required": "YES",
+      "notes": "Folded into the catch: if JSON.parse throws and raw is empty, returning null is correct. If JSON.parse succeeds on `'{}'`, it's not empty and falls through to unknown-shape path. Verify architect's preferred style — either is fine but must be consistent."
+    },
+    {
+      "id": "pre-04",
+      "question": "Is `appendMessage` in `@/src/lib/marmot/chatPersistence` already able to receive a `ChatMessage` whose `content` field has been rewritten in place (id unchanged), or does it need a `putMessage` variant for in-place IDB updates?",
+      "answer_required": "YES",
+      "notes": "The self-heal pass for Case 1 (envelope-in-content) needs to rewrite a row in place: content changes, id and createdAt stay. AC-24 requires this. If appendMessage only adds new rows and upsertMessages only upserts by id, there may be no existing in-place update. Architect must confirm whether the storage layer has a put-by-id for row mutation."
+    },
+    {
+      "id": "pre-05",
+      "question": "Should the logger tags for silent-skip events follow a namespaced convention (e.g., `dm:parse-lenient-fallback`) that matches the logger's existing tag scheme, or is there a project-wide convention to follow?",
+      "answer_required": "YES",
+      "notes": "The spec says 'stable message tag' but does not specify the naming scheme. AC-30 tests assert logger is called at info level with expected tag. The logger from 77c5d44 may have existing conventions. Architect must specify the tag naming pattern before any logging code is written, otherwise the tag assertion in AC-30 tests is unresolvable."
+    },
+    {
+      "id": "pre-06",
+      "question": "Does `decryptDirectPayload` currently throw or return null for decryption failures? The spec references 'decryptDirectPayload throwing' as a silent-skip site for AC-30 logging — is the error wrapped in a try/catch in ingestEvent/handleGiftWrapEvent, or does decryptDirectPayload return null on failure?",
+      "answer_required": "YES",
+      "notes": "The spec says 'silent-skip site: decryptDirectPayload throwing'. If the function throws rather than returning null, callers must wrap in try/catch to avoid crashing. ContactChat's ingestEvent path must be verified to catch and log. Architect must confirm the current behavior and whether any caller needs to add try/catch."
+    },
+    {
+      "id": "pre-07",
+      "question": "Should unit tests for parseDirectPayload use mock NDK/nostr-tools or call the function directly? Direct calls are cleaner for parsing logic, but does the test file currently mix both patterns?",
+      "answer_required": "YES",
+      "notes": "AC-06 says 'direct call' — the unit tests must import parseDirectPayload directly and call it with raw strings. The existing directMessages.test.ts may have a mixed pattern (some integration tests use mock NDK). Architect must confirm the test file structure for new test cases: should they go in the existing directMessages.test.ts or a new file? Spec says 'in app/tests/unit/directMessages.test.ts'."
+    }
+  ]
+}

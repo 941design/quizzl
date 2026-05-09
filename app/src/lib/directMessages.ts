@@ -2,9 +2,12 @@ import NDK, { NDKEvent } from '@nostr-dev-kit/ndk';
 import { nip04, nip44 } from 'nostr-tools';
 import { wrapEvent, createRumor } from 'nostr-tools/nip59';
 import { getPublicKey, verifyEvent, getEventHash } from 'nostr-tools/pure';
+import { createLogger } from '@/src/lib/logger';
 import { put, get as blossomGet } from '@/src/lib/media/blossomClient';
 import { MAX_OUTPUT_BYTES } from '@/src/config/blossom';
 import { buildImageMessageContent, DIRECT_MEDIA_VERSION, type DirectMediaAttachment, type RoledAttachments } from '@/src/lib/media/imageMessage';
+
+const logger = createLogger('dm');
 
 /** Legacy kind-4 NIP-04 constant — kept for inbound subscription filter only (D9a). */
 export const DIRECT_MESSAGE_KIND = 4;
@@ -99,6 +102,7 @@ export function parseDirectPayload(raw: string): {
   content: string;
   attachments?: RoledAttachments;
 } | null {
+  if (raw === '') return null;
   try {
     const parsed = JSON.parse(raw) as DirectMessagePayload;
     if (parsed.type === 'text' && typeof parsed.text === 'string') {
@@ -116,10 +120,14 @@ export function parseDirectPayload(raw: string): {
         attachments: parsed.attachments,
       };
     }
+    // D1 decision: unknown JSON shape — treat the raw JSON string as text.
+    logger.info('dm:parse-lenient-fallback', { raw: raw.slice(0, 200) });
+    return { content: raw };
   } catch {
-    // ignore malformed payloads
+    // Non-JSON plaintext — treat the raw string as plaintext.
+    logger.info('dm:parse-lenient-fallback', { raw: raw.slice(0, 200) });
+    return { content: raw };
   }
-  return null;
 }
 
 export async function encryptDirectPayload(
@@ -135,7 +143,17 @@ export async function decryptDirectPayload(
   privateKeyHex: string,
   peerPubkeyHex: string,
 ): Promise<{ content: string; attachments?: RoledAttachments } | null> {
-  const decrypted = nip04.decrypt(privateKeyHex, peerPubkeyHex, encrypted);
+  let decrypted: string;
+  try {
+    decrypted = nip04.decrypt(privateKeyHex, peerPubkeyHex, encrypted);
+  } catch {
+    logger.info('dm:decrypt-empty', { reason: 'nip04-failed' });
+    return null;
+  }
+  if (decrypted === '') {
+    logger.info('dm:decrypt-empty', { reason: 'decrypted-empty' });
+    return null;
+  }
   return parseDirectPayload(decrypted);
 }
 
@@ -184,7 +202,9 @@ export async function sealAndWrap(
  * (must be silently dropped).
  */
 export function shouldIngestRumor(rumor: UnsignedRumor, peerPubkeyHex: string): boolean {
-  return rumor.pubkey === peerPubkeyHex;
+  if (rumor.pubkey === peerPubkeyHex) return true;
+  logger.info('dm:rumor-rejected', { rumorId: rumor.id, expectedPubkey: peerPubkeyHex, actualPubkey: rumor.pubkey });
+  return false;
 }
 
 /** NIP-59 seal kind — authenticated inner envelope. */
@@ -256,6 +276,7 @@ export async function unwrapAndOpen(
   } catch {
     // Re-throw a generic error to avoid leaking plaintext fragments, seal pubkeys,
     // or mismatch details that could assist an attacker.
+    logger.info('dm:unwrap-failed', { wrapId: giftWrap.id ?? 'unknown' });
     throw new Error('gift wrap decryption failed');
   }
 }

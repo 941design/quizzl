@@ -1,0 +1,70 @@
+{
+  "story_id": "story-05",
+  "story_name": "E2E hardening — full relay-to-bell-to-chat pipeline",
+  "spec_questions": [
+    {
+      "ac": "AC-12",
+      "question": "Does `app/tests/e2e/dm-third-party-inbound.spec.ts` publish a kind-4 NIP-04 event with bare-plaintext encrypted content to the local user, assert the bell badge becomes 1, open the chat, and assert the bubble renders the plaintext verbatim?",
+      "expected_answer": "Yes — test exists, uses relay mock to publish hand-crafted kind-4 event with bare plaintext."
+    },
+    {
+      "ac": "AC-13",
+      "question": "Does `app/tests/e2e/dm-historical-recovery.spec.ts` pre-seed the relay with 5 gift-wrapped DMs from Bob before Alice's session starts, open the contact chat, and assert all 5 render in `created_at` order with no duplicates?",
+      "expected_answer": "Yes — test exists, exercises historical kind-1059 fetch end-to-end."
+    },
+    {
+      "ac": "AC-22",
+      "question": "Does `app/tests/e2e/dm-giftwrap-bell.spec.ts` send a NIP-17 DM from a second browser context (Bob) and assert that Alice's bell badge increments without Alice ever opening the chat?",
+      "expected_answer": "Yes — two-context E2E test exists, exercises relay → NDK subscription → bell watcher pipeline."
+    },
+    {
+      "ac": "AC-29",
+      "question": "Does `app/tests/e2e/dm-self-heal.spec.ts` seed an IDB row with raw JSON envelope content, open the chat, assert the bubble renders decoded text, reload the page, assert the bubble still renders decoded text, and verify the IDB row has `content === '<decoded>'`?",
+      "expected_answer": "Yes — test exists, exercises full self-heal pass + persistence cycle with page reload mid-test."
+    }
+  ],
+  "pre_impl_commitments": [
+    {
+      "id": "pre-01",
+      "question": "Does the relay mock (scripts/blossom-mock.mjs or equivalent) currently support publishing kind-4 NIP-04 events with arbitrary plaintext content, or must it be extended to support NIP-04 encryption and kind-4 publish?",
+      "answer_required": "YES",
+      "notes": "AC-12 requires publishing a hand-crafted kind-4 event with NIP-04-encrypted bare plaintext. The relay mock must support (a) NIP-04 encryption (or accept a pre-encrypted event), (b) kind-4 publish, and (c) subscription replay to the alice context. Architect must confirm: does the existing relay mock support kind-4? If not, story-01 and story-05 are blocked until the mock is extended. This is a prerequisite for all four E2E tests."
+    },
+    {
+      "id": "pre-02",
+      "question": "Does the relay mock support pre-seeding events before a browser context opens? Specifically, can story-05 tests seed kind-1059 events (gift wraps) that alice's NDK subscription will receive when the contact chat mounts?",
+      "answer_required": "YES",
+      "notes": "AC-13 requires the relay to already have 5 gift-wrapped DMs before alice's session begins. Architect must confirm whether the relay mock supports this seeded state or if it resets between test runs. If the relay mock resets on each test run, pre-seeding is possible via a test setup step. If it resets on each page navigation, AC-13 may need a different approach (e.g., a test helper that injects directly into the relay mock's in-memory store). This is a prerequisite for AC-13."
+    },
+    {
+      "id": "pre-03",
+      "question": "Does the Playwright test infrastructure currently support two-browser-context tests (alice and bob in separate contexts), or are all existing E2E tests single-context?",
+      "answer_required": "YES",
+      "notes": "AC-22 requires a two-context setup where bob sends a message and alice receives it without opening the chat. Architect must confirm whether the existing e2e infrastructure supports multi-context sessions, or if story-05 needs to introduce a new test runner pattern. The spec says 'two-context scenario' explicitly. If only single-context tests exist, the infrastructure for multi-context E2E must be established first, possibly in story-05 itself."
+    },
+    {
+      "id": "pre-04",
+      "question": "Should the four E2E tests use the same `injectIdentity` helper that existing E2E tests use, or do they need a different identity setup pattern (e.g., bob must be signed in as a separate user while alice is also signed in)?",
+      "answer_required": "YES",
+      "notes": "The architecture.md specifies deterministic keypairs for alice and bob. Architect must confirm: does the test infrastructure support two simultaneous logged-in sessions? Or does one test context use 'bob' while the other acts as an unauthenticated relay peer? The NIP-17 gift wrap from bob requires bob to have a valid keypair; if bob is just a relay mock entity, the wrap may not be decryptable by alice. Confirm whether bob needs to be a full logged-in session or a mock sender."
+    },
+    {
+      "id": "pre-05",
+      "question": "Does the test file `app/tests/unit/directMessages/dualListen.test.ts` already exist? The spec references it in §4.1 and story-05's deliverable includes it. Does it need to be created as part of story-05, or is it already partially implemented?",
+      "answer_required": "YES",
+      "notes": "dualListen.test.ts asserts that same logical message arriving as kind-4 bare plaintext AND kind-1059 wrapping kind-14 with different ids renders twice. Architect should check whether this test file exists or must be created. This is also referenced in AC-28's scope but AC-28 is actually in story-04's unit test file. Confirm which test file covers the cross-protocol dedup assertion."
+    },
+    {
+      "id": "pre-06",
+      "question": "Does the E2E test bridge support IndexedDB inspection via `page.evaluate`? AC-29 requires inspecting IDB rows to verify `content === '<decoded>'` after page reload.",
+      "answer_required": "YES",
+      "notes": "The spec says 'inspect IDB via the test bridge'. Architect must confirm: does Playwright have access to IndexedDB in the app context? `page.evaluate(() => window.indexedDB)` requires a properly configured browser context. Some CI environments block IndexedDB access. Architect should confirm the test bridge can access IndexedDB directly, or whether a test helper (e.g., `window.__quizzlTest.readIdbRow`) must be added to the app for test access."
+    },
+    {
+      "id": "pre-07",
+      "question": "Should `clearAppState` between tests reset alice's IndexedDB, localStorage, and the relay mock? For AC-29 specifically, the test must ensure no other test's state leaks into the self-heal verification.",
+      "answer_required": "YES",
+      "notes": "The self-heal E2E test pre-seeds a malformed IDB row for alice. If clearAppState doesn't reset IndexedDB, the pre-seed may not work correctly (the row might be overwritten by previous state). Architect must confirm that clearAppState resets IndexedDB (via `indexedDB.deleteDatabase`) and not just localStorage. This is critical for AC-29's test isolation."
+    }
+  ]
+}

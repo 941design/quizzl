@@ -200,7 +200,7 @@ export function ChatStoreProvider({
     setLoading(true);
 
     loadMessages(groupId)
-      .then((stored) => {
+      .then(({ messages: stored }) => {
         if (!active) return;
         setMessages((prev) => {
           const prevIds = new Set(prev.map((m) => m.id));
@@ -225,7 +225,7 @@ export function ChatStoreProvider({
   // ChatStoreContext may or may not have received the MarmotGroup event.
   useEffect(() => {
     if (!groupId || chatVersion === undefined || chatVersion === 0) return;
-    loadMessages(groupId).then((stored) => {
+    loadMessages(groupId).then(({ messages: stored }) => {
       setMessages((prev) => {
         const prevIds = new Set(prev.map((m) => m.id));
         const newFromStore = stored.filter((m) => !prevIds.has(m.id));

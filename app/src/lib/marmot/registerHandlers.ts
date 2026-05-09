@@ -19,7 +19,7 @@ export interface HandlerDeps {
   incrementUnread: (groupId: string) => void;
   setChatVersion: (updater: (v: number) => number) => void;
   // Reaction handler deps (loadMessages shared with reaction gate)
-  loadMessages: (groupId: string) => Promise<ChatMessage[]>;
+  loadMessages: (groupId: string) => Promise<{ messages: ChatMessage[]; refetchIds: string[] }>;
   applyInboundRumor: (thread: ReactionThreadKey, rumor: ApplicationRumor) => Promise<unknown>;
   setReactionsVersion: (updater: (v: number) => number) => void;
   // Score handler deps

@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-05-09T00:00:00Z",
+  "test_suite": "unit",
+  "module_under_test": "app/src/lib/directMessageNotifications.ts",
+  "total_test_files": 57,
+  "total_tests": 786,
+  "directMessageNotifications_tests_before": 0,
+  "directMessageNotifications_test_files_before": 0,
+  "note": "No unit tests existed for directMessageNotifications.ts before this story. The bell-watcher subscription was tested only via the e2e notification-bell.spec.ts which injects via __quizzlUnread (smoke test only, not event-flow test)."
+}

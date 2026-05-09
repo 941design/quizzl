@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-09T00:00:00Z",
+  "story_id": "story-03",
+  "story_name": "Historical kind-1059 fetch and replay on chat mount",
+  "unit_test_count": 43,
+  "e2e_test_count": 39,
+  "test_files_created": [
+    "app/tests/unit/contactChat.test.ts",
+    "app/tests/e2e/dm-historical-recovery.spec.ts"
+  ],
+  "note": "Before changes to ContactChat.init — unit test count is pre-story-03 state; existing 43 unit test files, 39 e2e spec files."
+}

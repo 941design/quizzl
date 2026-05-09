@@ -1,0 +1,121 @@
+{
+  "story_id": "story-02",
+  "story_name": "Bell watcher subscribes to gift wraps",
+  "spec_questions": [
+    {
+      "ac": "AC-14",
+      "question": "Does `subscribeDirectMessageNotifications` accept `privateKeyHex: string` as an additional parameter in its params object?",
+      "expected_answer": "Yes — TypeScript compile check or runtime assertion passes; no callers break (all callers updated). DirectMessageNotificationsWatcher passes it via useNostrIdentity()."
+    },
+    {
+      "ac": "AC-15",
+      "question": "Does `subscribeDirectMessageNotifications` open exactly two subscriptions: `{ kinds: [4], '#p': [ownPubkeyHex] }` and `{ kinds: [1059], '#p': [ownPubkeyHex] }`?",
+      "expected_answer": "Yes — fake NDK subscribe called twice; both filter objects asserted present in test."
+    },
+    {
+      "ac": "AC-16",
+      "question": "For a kind-1059 event whose unwrapped rumor has kind===14, pubkey!==ownPubkeyHex, and created_at*1000 > lastRead, does the handler call rememberContact and incrementDirectMessage exactly once per rumor id?",
+      "expected_answer": "Yes — seenRumorIds Set deduplicates by inner rumor id; both functions called exactly once."
+    },
+    {
+      "ac": "AC-17",
+      "question": "For a kind-1059 event whose unwrap throws, does the handler neither call rememberContact/incrementDirectMessage nor produce an unhandled promise rejection?",
+      "expected_answer": "Yes — try/catch wraps unwrapAndOpen; error logged at info and swallowed."
+    },
+    {
+      "ac": "AC-18",
+      "question": "For a kind-1059 event whose unwrapped rumor has kind !== 14 (kinds 7, 444, 21059), does the handler neither call rememberContact nor incrementDirectMessage?",
+      "expected_answer": "Yes — shouldIngestRumor or rumor.kind check gates both calls; silent skip with info log."
+    },
+    {
+      "ac": "AC-19",
+      "question": "Does a kind-1059 event re-delivered with a different outer id but same inner rumor id increment the bell exactly once?",
+      "expected_answer": "Yes — seenRumorIds Set (keyed by rumor id, not outer id) prevents double-increment."
+    },
+    {
+      "ac": "AC-20",
+      "question": "Does DirectMessageNotificationsWatcher pass privateKeyHex from useNostrIdentity() to subscribeDirectMessageNotifications?",
+      "expected_answer": "Yes — wired component test or code inspection confirms the prop is forwarded."
+    },
+    {
+      "ac": "AC-21",
+      "question": "Does `app/tests/unit/directMessageNotifications.test.ts` cover AC-15 through AC-19 with a fake NDK that emits hand-crafted gift-wrap events?",
+      "expected_answer": "Yes — new test file exists and covers both subscriptions, all silent-skip cases, and dedup behavior."
+    },
+    {
+      "ac": "AC-22",
+      "question": "Does `app/tests/e2e/dm-giftwrap-bell.spec.ts` send a NIP-17 DM from a second browser context and assert the recipient's bell badge increments without the recipient opening the chat?",
+      "expected_answer": "Yes — two-context E2E test exists and covers the full relay-to-bell watcher pipeline."
+    },
+    {
+      "ac": "AC-30",
+      "question": "Do the new silent-skip sites in the kind-1059 branch (unwrap throw, shouldIngestRumor false) call the namespaced logger at info level?",
+      "expected_answer": "Yes — logger calls added in the kind-1059 handler for both skip cases."
+    },
+    {
+      "ac": "AC-31",
+      "question": "Does any new code path in directMessageNotifications.ts call console.warn or console.error?",
+      "expected_answer": "No — all silent-skip paths use info-level logger; no console.warn/console.error anywhere in the new kind-1059 branch."
+    },
+    {
+      "ac": "AC-32",
+      "question": "Does the kind-1059 subscription in subscribeDirectMessageNotifications publish any outbound NIP-04 events?",
+      "expected_answer": "No — subscription only; no outbound event creation in the new bell watcher code path."
+    },
+    {
+      "ac": "AC-33",
+      "question": "Are all user-visible strings added by this story (if any) present in both en and de blocks of app/src/lib/i18n.ts?",
+      "expected_answer": "Yes — no new user-visible strings on the happy path; any debug/error strings are logger-only and not internationalized."
+    }
+  ],
+  "pre_impl_commitments": [
+    {
+      "id": "pre-01",
+      "question": "Should the kind-1059 subscription share the same `seen` Set as kind-4, or get its own `seenRumorIds: Set<string>` keyed by inner rumor id? Per D7, kind-4 uses event id and kind-1059 uses inner rumor id — can they share a Set safely, or must they be separate?",
+      "answer_required": "YES",
+      "notes": "D7 explicitly requires separate keys per path. Architect must decide: one Set with both id namespaces (safe if no collision is possible, which D7 argues is true) vs. two separate Sets (safer, explicit). The spec says 'add a parallel seenRumorIds' suggesting two Sets. Confirm which pattern to use before the dedup logic is written."
+    },
+    {
+      "id": "pre-02",
+      "question": "Should `unwrapAndOpen` be called inside the NDK event handler callback (inside ndk.subscribe's callback), or should it be called in a `.on('event', handler)` callback registered via sub.on?",
+      "answer_required": "YES",
+      "notes": "The current kind-4 handler accesses `event.pubkey`, `event.id`, `event.created_at` directly from the NDK event object. For the kind-1059 branch, the handler must call unwrapAndOpen(event, selfPrivKeyHex). Architect must confirm the NDK event type — does `ndk.subscribe` return `NDKEvent` or a plain object? If NDKEvent, unwrapAndOpen accepts `any` or `NDKEvent`. If the subscription's callback receives a different type, a type assertion or adapter may be needed."
+    },
+    {
+      "id": "pre-03",
+      "question": "Is the kind-1059 subscription handler's dedup Set (`seenRumorIds`) a module-level singleton, a closure-scoped variable inside `subscribeDirectMessageNotifications`, or passed in as a ref?",
+      "answer_required": "YES",
+      "notes": "Per D7: 'a single Set per watcher instance'. The spec says 'per watcher instance'. Architect must confirm: should the Set survive across subscription stop/start cycles (i.e., module-level)? Or should it reset when the subscription factory is called? The spec implies module-level but the implementation must preserve the Set across stop/start for the same identity."
+    },
+    {
+      "id": "pre-04",
+      "question": "Should the bell watcher share the same `unwrapAndOpen` and `shouldIngestRumor` functions from directMessages.ts, or does it need its own copy with the same logic?",
+      "answer_required": "NO",
+      "notes": "Seam S1: §3.1 parseDirectPayload is used by §3.2 bell handler via handleGiftWrapEvent. Architect should confirm that unwrapAndOpen and shouldIngestRumor are re-exported from directMessages.ts and can be imported directly. No code duplication needed if the exports are already public."
+    },
+    {
+      "id": "pre-05",
+      "question": "Does `shouldIngestRumor` currently accept an optional second argument for peerPubkeyHex filtering, or is the filtering done inline in each caller?",
+      "answer_required": "YES",
+      "notes": "The spec references `shouldIngestRumor(rumor, peerPubkeyHex)` as the gate in the historical fetch path. The bell watcher only needs to check kind===14 and pubkey!==ownPubkey. If shouldIngestRumor doesn't support the peer filter, the bell handler must do it inline. Architect must confirm whether shouldIngestRumor can be used directly or needs a bell-specific variant."
+    },
+    {
+      "id": "pre-06",
+      "question": "Should the new kind-1059 branch of the handler be placed in the same event callback function as the kind-4 branch (single handler function with both branches), or in a separate `sub.on('event', handler2)` registered on the second subscription?",
+      "answer_required": "YES",
+      "notes": "Two subscriptions means two sub objects. Architect should specify: one shared handler that dispatches based on event kind, or two separate handlers. Separate handlers are cleaner but require two sub.on calls. The existing code has a single handler. Decision affects test mocking strategy: fake NDK must emit events on both subscription streams."
+    },
+    {
+      "id": "pre-07",
+      "question": "Should DirectMessageNotificationsWatcher.tsx pass privateKeyHex to subscribeDirectMessageNotifications via the params object ({ ndk, ownPubkeyHex, privateKeyHex }) or as a separate parameter?",
+      "answer_required": "YES",
+      "notes": "AC-14 requires the function to accept privateKeyHex. Architect must decide the API shape: add to params object (cleaner, backward-compatible) or add as a positional parameter (breaking if called with positional args). Unit tests for AC-14 must mock or provide this value. Architect should check all existing call sites of subscribeDirectMessageNotifications to confirm whether this is a backward-compatible addition."
+    },
+    {
+      "id": "pre-08",
+      "question": "Does the test file `app/tests/unit/directMessageNotifications.test.ts` currently exist, or must it be created from scratch?",
+      "answer_required": "YES",
+      "notes": "The spec references this test file under §4.1 unit tests. Architect should confirm whether to create a new file or add to an existing test file. If creating from scratch, confirm the mock pattern: how does the test inject a fake NDK subscribe that emits events? The existing notification-bell.spec.ts may have NDK mock patterns to reuse. Architect must specify the mock strategy before the test file is scaffolded."
+    }
+  ]
+}

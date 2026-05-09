@@ -1,0 +1,53 @@
+{
+  "story_id": "story-04",
+  "story_name": "Local-store self-heal pass",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-09T00:00:00Z",
+  "implementation_notes": [
+    "selfHealMessages function added to chatPersistence.ts (lines 92-177). Case 3 detection uses explicit sha256+url-missing check; Case 1 uses envelopePattern regex; Case 2 uses canonicalIdPattern.",
+    "loadMessages modified to run self-heal for DM threads: groupId.startsWith('dm:') gate, healed marker check via getHealedThreads(), call selfHealMessages, persist with set() + markHealed().",
+    "getHealedThreads() and markHealed() added to chatPersistence.ts for the localStorage healed-marker CRUD operations. HEALED_MARKER_KEY = 'lp_dmHealed_v1'.",
+    "loadMessages returns { messages, refetchIds } so caller (ContactChat) can handle Case 2 refetch asynchronously.",
+    "parseDirectPayload imported from directMessages.ts for Case 1 envelope decoding.",
+    "Idempotency: markHealed always called after selfHealMessages, even when needsRewrite=false. getHealedThreads() early-return gates subsequent runs."
+  ],
+  "files_changed": [
+    {
+      "path": "app/src/lib/marmot/chatPersistence.ts",
+      "change": "ADDED selfHealMessages (lines 92-177), getHealedThreads (lines 47-54), markHealed (lines 56-66), HEALED_MARKER_KEY constant (line 38); MODIFIED loadMessages (lines 194-238) to gate on dm: thread and run self-heal pass"
+    }
+  ],
+  "files_created": [
+    "specs/epic-dm-message-recovery/story-04-self-heal/baseline.json",
+    "specs/epic-dm-message-recovery/story-04-self-heal/architecture.json",
+    "specs/epic-dm-message-recovery/story-04-self-heal/result.json"
+  ],
+  "test_counts": {
+    "unit_before": 44,
+    "unit_after": 45,
+    "e2e_before": 40,
+    "e2e_after": 41
+  },
+  "ac_coverage": {
+    "AC-23": "✓ loadMessages gates on groupId.startsWith('dm:'); getHealedThreads() + markHealed() implement per-thread lp_dmHealed_v1 marker; second loadMessages skips pass (early exit)",
+    "AC-24": "✓ selfHealMessages rewrites envelope-in-content via envelopePattern match, parseDirectPayload, spread {...msg, content, attachments} — id/createdAt unchanged",
+    "AC-25": "✓ Non-canonical ids pushed to refetchIds array; rows passed through unchanged; refetchIds returned to caller for async refetch coordination",
+    "AC-26": "✓ Case 3: isOrphanedSelfImage = hasSha256 && urlIsMissing && senderPubkey===ownPubkeyHex → null return → filter removes row",
+    "AC-27": "✓ Idempotency: markHealed always called; getHealedThreads early-return; unit test at selfHeal.test.ts:417-528",
+    "AC-28": "✓ selfHeal.test.ts: AC-24 (line 84), AC-26 (line 221), AC-27 (line 417)",
+    "AC-29": "✓ dm-self-heal.spec.ts: seedMalformedRow, open chat, assert decoded, reload, assert persisted, IDB inspection"
+  },
+  "spec_compliance": {
+    "§3.4_order_of_operations": "loadMessages → get from IDB → self-heal pass → markHealed → return {messages, refetchIds}",
+    "case1_envelope_in_content": "envelopePattern regex match → parseDirectPayload → spread rewrite, id/createdAt unchanged",
+    "case2_non_canonical_id": "canonicalIdPattern test → push to refetchIds → rows left in place",
+    "case3_orphaned_optimistic_image": "hasSha256 && urlMissing && sender===own → null return → filter removes row",
+    "healed_marker_per_thread": "lp_dmHealed_v1 stores JSON array of threadIds; getHealedTracks() reads; markHealed() appends"
+  },
+  "RETROSPECTIVE": {
+    "skipped": false,
+    "mode": "story-04_integration_architect",
+    "note": "The vi.mock context-window issue caused the subagent to hit its context limit before completing all artifact files. The implementation itself (chatPersistence.ts selfHealMessages, loadMessages self-heal gate, markHealed, getHealedThreads) was written by the lead directly. Artifact files were created by the lead after the subagent completed."
+  }
+}

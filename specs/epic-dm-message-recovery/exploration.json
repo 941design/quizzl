@@ -1,0 +1,80 @@
+{
+  "exploration_timestamp": "2026-05-09T00:00:00Z",
+  "dm_pipeline": {
+    "kind4_legacy_path": {
+      "subscription": "ndk.subscribe({ kinds: [4], '#p': [pubkeyHex] })",
+      "handler": "subscribeDirectMessageNotifications in directMessageNotifications.ts",
+      "bell_increment": "incrementDirectMessage(peer) + rememberContact(peer)",
+      "bell_state_storage": "unreadStore.ts — module-level Set of listeners + localStorage lastRead timestamps",
+      "thread_open_bell_clear": "markDirectMessagesRead(peerPubkeyHex) called on ContactChat mount"
+    },
+    "kind1059_giftwrap_path": {
+      "subscription": "ndk.subscribe({ kinds: [1059], '#p': [pubkeyHex] }) — NO author filter (ephemeral outer key)",
+      "unwrapper": "unwrapAndOpen() in directMessages.ts — 5-step auth: decrypt outer wrap, verify seal sig, decrypt seal, bind rumor.pubkey===seal.pubkey, verify rumor id hash",
+      "thread_isolation": "shouldIngestRumor(rumor, peerPubkeyHex) checks rumor.pubkey === peerPubkeyHex",
+      "bell_integration": "MISSING — kind-1059 gift wraps are NOT subscribed by subscribeDirectMessageNotifications"
+    }
+  },
+  "existing_giftwrap": {
+    "nip59_sealwrap": {
+      "constants": "GIFT_WRAP_KIND=1059, SEAL_KIND=13, CHAT_MESSAGE_KIND=14 in directMessages.ts",
+      "unwrapAndOpen": "5-step: decrypt outer with ephemeral wrap pubkey (nip44.v2), verify seal sig (verifyEvent), decrypt seal with authenticated seal.pubkey, bind rumor.pubkey===seal.pubkey (Mallory forgery guard), verify rumor.id matches getEventHash",
+      "buildChatRumor": "createRumor from nostr-tools/nip59 — kind-14 rumor with payload JSON"
+    },
+    "welcome_subscription_duplicate": {
+      "location": "app/src/lib/marmot/welcomeSubscription.ts",
+      "unwrapGiftWrap": "simpler 2-layer nip44 decrypt without seal signature verification",
+      "only_handles": "kind 444 (Welcome) and kind 21059 (join request) — NOT kind-14 DMs"
+    }
+  },
+  "idb_layer": {
+    "storage_key": "quizzl:messages:{groupId} (group DMs) or quizzl:messages:dm:{peerHex} (contact DMs)",
+    "loadMessages": "get<ChatMessage[]>(storageKey) — returns array, sorted by time on read",
+    "appendMessage": "serialized per-key Promise chain (appendQueues Map) — prevents concurrent append race; dedup by id",
+    "DM_threadId": "directConversationId(peerPubkeyHex) = `dm:${peerPubkeyHex.toLowerCase()}`"
+  },
+  "bell_system": {
+    "store": "unreadStore.ts — module-level state + useSyncExternalStore",
+    "persistence": "localStorage for last-read timestamps (lp_unreadLastReadDM_v1)",
+    "display": "NotificationBell.tsx reads totalUnread, renders red badge"
+  },
+  "testing_framework": {
+    "unit": "Vitest 4.0.18, app/tests/unit/ (57 files)",
+    "e2e": "Playwright 1.58.2, app/tests/e2e/ (38 files)",
+    "dm_tests": "app/tests/unit/directMessages/*.test.ts + app/tests/e2e/groups-dm-reactions.spec.ts",
+    "idb_keyval_mock": "Map-backed in-memory store with vi.mock",
+    "keypairs_are_shared": "Same seeds (alicePriv, bobPriv) used in unit and e2e tests"
+  },
+  "gaps_identified": [
+    {
+      "id": "G1",
+      "gap": "parseDirectPayload returns null for bare plaintext NIP-04 DMs from non-quizzl clients",
+      "severity": "high",
+      "files_involved": ["app/src/lib/directMessages.ts:parseDirectPayload"]
+    },
+    {
+      "id": "G2",
+      "gap": "subscribeDirectMessageNotifications only watches kind-4 — kind-1059 gift wraps do NOT ring the bell",
+      "severity": "high",
+      "files_involved": ["app/src/lib/directMessageNotifications.ts"]
+    },
+    {
+      "id": "G3",
+      "gap": "ContactChat.init does not fetch historical kind-1059 on mount — closed-chat DMs may not replay",
+      "severity": "high",
+      "files_involved": ["app/src/components/contacts/ContactChat.tsx"]
+    }
+  ],
+  "RETROSPECTIVE_EXPLORATION": [
+    {
+      "focus": "dm_pipeline_and_architecture",
+      "skipped": false,
+      "note": "NIP-17/59 gift wrap infrastructure fully implemented but bell subscription only watches kind-4. Three clear gaps: lenient parser, gift-wrap bell subscription, historical fetch."
+    },
+    {
+      "focus": "testing_and_conventions",
+      "skipped": false,
+      "note": "Vitest+Playwright dual stack, deep DM test coverage, NDK+MarmotTS mocking patterns established. Ready to add epic tests."
+    }
+  ]
+}

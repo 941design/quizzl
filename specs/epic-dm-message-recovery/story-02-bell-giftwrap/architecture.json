@@ -1,0 +1,91 @@
+{
+  "name": "story-02-bell-giftwrap",
+  "module": "app/src/lib/directMessageNotifications.ts",
+  "created": "2026-05-09",
+  "exported_symbols": [
+    {
+      "name": "subscribeDirectMessageNotifications",
+      "signature": "(params: { ndk: NDK; ownPubkeyHex: string; privateKeyHex: string }) => () => void",
+      "changes": [
+        "ADDED privateKeyHex parameter — required to unwrap NIP-17 kind-1059 gift wraps",
+        "RETURN TYPE unchanged — still () => void cleanup function"
+      ]
+    }
+  ],
+  "new_imports": [
+    {
+      "module": "@/src/lib/directMessages",
+      "symbols": ["CHAT_MESSAGE_KIND", "GIFT_WRAP_KIND", "shouldIngestRumor", "unwrapAndOpen"]
+    },
+    {
+      "module": "@/src/lib/logger",
+      "symbols": ["createLogger"]
+    }
+  ],
+  "new_module_state": [
+    {
+      "name": "seenRumorIds",
+      "type": "Set<string>",
+      "scope": "module-scoped closure inside subscribeDirectMessageNotifications",
+      "keyed_on": "inner rumor id (rumor.id) — NOT outer wrap id (event.id)",
+      "reason": "Outer id changes per relay redelivery; rumor id is stable across redeliveries (D7)"
+    },
+    {
+      "name": "seenMessageIds",
+      "type": "Set<string>",
+      "scope": "module-scoped closure inside subscribeDirectMessageNotifications",
+      "keyed_on": "event id (event.id) — unchanged from original code",
+      "reason": "kind-4 outer event = the DM itself; stable across deliveries"
+    }
+  ],
+  "new_subscriptions": [
+    {
+      "filter": "{ kinds: [1059], '#p': [ownPubkeyHex] }",
+      "purpose": "NIP-17 gift-wrapped DMs — NIP-59 wraps addressed to local pubkey"
+    }
+  ],
+  "handler_contract": {
+    "kind-4": {
+      "events_handled": "NDKEvent with kind===4 and #p tag === ownPubkeyHex",
+      "dedup_key": "event.id",
+      "actions": "rememberContact(peer), incrementDirectMessage(peer)"
+    },
+    "kind-1059": {
+      "events_handled": "NDKEvent with kind===1059 and #p tag === ownPubkeyHex",
+      "dedup_key": "inner rumor.id (NOT outer event.id)",
+      "unwrap_call": "unwrapAndOpen(event, privateKeyHex)",
+      "filter_chain": [
+        "shouldIngestRumor(rumor, '') — must return true",
+        "rumor.kind === 14 (NIP-17 chat message) — only this kind bumps the bell",
+        "rumor.pubkey !== ownPubkeyHex — not own message",
+        "rumor.created_at * 1000 > getDirectMessageLastReadAt(rumor.pubkey) — unread"
+      ],
+      "actions": "rememberContact(rumor.pubkey), incrementDirectMessage(rumor.pubkey)",
+      "silent_skips": [
+        "unwrapAndOpen throws → logger.info('dm:unwrap-failed') — foreign key, not addressed to us, malformed",
+        "shouldIngestRumor returns false → logger.info('dm:rumor-rejected') — wrong peer",
+        "rumor.kind !== 14 → no log, just return (kind-7, kind-444, kind-21059)",
+        "rumor.pubkey === own → no log, just return",
+        "createdMs <= lastRead → no log, just return"
+      ]
+    }
+  },
+  "seam_consumers": {
+    "DirectMessageNotificationsWatcher.tsx": {
+      "change": "pass privateKeyHex (from useNostrIdentity()) as third parameter to subscribeDirectMessageNotifications",
+      "before": "subscribeDirectMessageNotifications({ ndk, ownPubkeyHex: pubkeyHex })",
+      "after": "subscribeDirectMessageNotifications({ ndk, ownPubkeyHex: pubkeyHex, privateKeyHex })"
+    }
+  },
+  "test_contracts": {
+    "unit": "app/tests/unit/directMessageNotifications.test.ts",
+    "ac_coverage": ["AC-15", "AC-16", "AC-17", "AC-18", "AC-19", "AC-21", "AC-30", "AC-31"],
+    "mock_strategy": "fake NDK (subscribe returns { filter, handlers[], stop }) with emitEvent helper; mock unwrapAndOpen, shouldIngestRumor, incrementDirectMessage, rememberContact"
+  },
+  "no_change_to": [
+    "publishDirectMessage — no NIP-04 outbound introduced",
+    "parseDirectPayload — story-01 owns this",
+    "ContactChat.tsx — story-03 owns historical fetch",
+    "loadMessages — story-04 owns self-heal"
+  ]
+}

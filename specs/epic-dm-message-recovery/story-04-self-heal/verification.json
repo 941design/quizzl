@@ -1,0 +1,91 @@
+{
+  "story_id": "story-04",
+  "story_name": "Local-store self-heal pass",
+  "spec_questions": [
+    {
+      "ac": "AC-23",
+      "question": "Does `loadMessages(threadId)` for `threadId` starting with `'dm:'` run the self-heal pass exactly once per thread per device, and does `localStorage` key `lp_dmHealed_v1` record the set of healed thread ids?",
+      "expected_answer": "Yes — first load for a dm: thread runs the pass; subsequent loads skip. Marker is a JSON array (or Set) keyed by thread id."
+    },
+    {
+      "ac": "AC-24",
+      "question": "For a row whose `content` matches `/^\\s*\\{\\s*\"type\"\\s*:\\s*\"(text|image)\"/`, does the self-heal pass rewrite it in place so `content` becomes the decoded text and `id`/`createdAt` are unchanged?",
+      "expected_answer": "Yes — regex matches the JSON envelope; parsed.text decoded and stored; id and createdAt preserved."
+    },
+    {
+      "ac": "AC-25",
+      "question": "For a row whose `id` is not a 64-character lowercase hex string, is it enqueued for refetch? If a canonical-id replacement arrives within the fetch window, is the malformed row deleted and the canonical row inserted?",
+      "expected_answer": "Yes — malformed id enqueued; if relay returns canonical-id event, malformed row explicitly deleted and canonical row upserted."
+    },
+    {
+      "ac": "AC-26",
+      "question": "For a row authored by the local pubkey with `attachments.full.sha256` but no `attachments.full.url`, does the self-heal pass remove the row?",
+      "expected_answer": "Yes — orphaned optimistic image authored by self dropped; peer-authored orphaned images treated as Case 2."
+    },
+    {
+      "ac": "AC-27",
+      "question": "Is the self-heal pass idempotent — does a second `loadMessages` call return the same messages without re-writing any rows?",
+      "expected_answer": "Yes — second call checks healed marker, skips pass entirely; zero IDB writes on subsequent calls."
+    },
+    {
+      "ac": "AC-28",
+      "question": "Does `app/tests/unit/directMessages/selfHeal.test.ts` assert AC-24, AC-26, and AC-27?",
+      "expected_answer": "Yes — new test file exists and covers all three cases with mock IDB."
+    },
+    {
+      "ac": "AC-29",
+      "question": "Does `app/tests/e2e/dm-self-heal.spec.ts` seed an IDB row with raw JSON envelope content, open the chat, assert the bubble renders decoded text, reload, assert it still renders decoded text, and verify the IDB row has `content === '<decoded>'`?",
+      "expected_answer": "Yes — E2E test exercises full self-heal + persistence cycle."
+    }
+  ],
+  "pre_impl_commitments": [
+    {
+      "id": "pre-01",
+      "question": "Should the self-heal pass be implemented as a pure function that modifies the array in place and returns it (so the caller — loadMessages — writes it back), or as a function that calls IDB operations directly (reads, mutates, writes back) inside loadMessages?",
+      "answer_required": "YES",
+      "notes": "loadMessages currently reads from IDB and returns the array. Architect must decide: should self-heal be (a) a pure function that transforms the array and returns it, called inside loadMessages before the return, or (b) a separate async function that loadMessages calls and then re-reads after? Option (a) is cleaner (no extra round trip) but requires the mutation to be synchronous on the array. Option (b) is more explicit. The spec says 'runs after loadMessages' but the implementation can be inside loadMessages. Architect must specify."
+    },
+    {
+      "id": "pre-02",
+      "question": "Does the IDB storage layer have a function to update a single row in place by id (equivalent to SQL UPDATE), or must the self-heal Case 1 rewrite use `get + mutate array + set`?",
+      "answer_required": "YES",
+      "notes": "appendMessage only appends; it deduplicates by id but does not update existing rows. For Case 1 (envelope-in-content → rewrite in place), there is no existing in-place update function. Architect must decide: (a) add an `updateMessage(groupId, message)` function to chatPersistence.ts that finds by id and replaces the row, (b) use `get → mutate array → set` in the self-heal pass, or (c) use appendMessage with the same id (will deduplicate and not update). Option (b) is the pragmatic path given existing APIs. Architect must confirm."
+    },
+    {
+      "id": "pre-03",
+      "question": "For Case 2 (non-canonical id), should `loadMessages` return an additional field (e.g., `heal: { refetchIds: string[] }`) alongside the messages array, or should the malformed ids be enqueued in a module-level Set that `ContactChat.init` reads after calling loadMessages?",
+      "answer_required": "YES",
+      "notes": "The spec says 'enqueue for refetch' but does not specify the coordination mechanism. Architect must choose: (a) return a tuple `[messages, enqueuedIds]` from loadMessages, (b) have loadMessages set a module-level variable that ContactChat reads, (c) have the self-heal pass call ContactChat's upsertMessages internally (tight coupling, not recommended), (d) have ContactChat.init manage the coordination itself (self-heal returns enqueued ids as a separate concern). The spec implies loadMessages is the integration point (seam S3), but the refetch coordination requires a signal to ContactChat.init."
+    },
+    {
+      "id": "pre-04",
+      "question": "How does the self-heal pass in Case 2 coordinate the 'drop malformed row' + 'upsert canonical replacement' sequence with ContactChat.init? Does ContactChat.init wait for the refetch after loadMessages returns?",
+      "answer_required": "YES",
+      "notes": "AC-25 says 'malformed row is deleted via appendMessage of the replacement and a follow-up filter (the existing byId upsert in upsertMessages is sufficient because the replacement has a different id; the malformed row must be dropped explicitly by id list before the upsert)'. Architect must clarify: does ContactChat.init call a function that drops the malformed row explicitly by id? Is there a `deleteMessages(groupId, ids: string[])` function in chatPersistence.ts, or must one be added? The current chatPersistence.ts has no delete-by-ids function. Architect must confirm what gets added."
+    },
+    {
+      "id": "pre-05",
+      "question": "Does the `ChatMessage` interface have an `attachments.full.sha256` field accessible in the type? The current `ChatMessage` type shows `attachments?: RoledAttachments`. Must the self-heal pass access `attachments?.full?.sha256` and `attachments?.full?.url`?",
+      "answer_required": "YES",
+      "notes": "Case 3 (orphaned optimistic image) checks `attachments.full.sha256` and `attachments.full.url`. Architect must confirm the RoledAttachments type structure: does it have a 'full' role? If not, Case 3 needs a type extension or a different field path. This affects the test fixture for AC-26 and the production code for Case 3."
+    },
+    {
+      "id": "pre-06",
+      "question": "Does the self-heal pass receive the local user's pubkey as a parameter, read it from a context/hook, or read it from the existing identity store? Who owns the responsibility for passing it to the self-heal pass?",
+      "answer_required": "YES",
+      "notes": "Case 3 checks `senderPubkey === localPubkey`. Architect must decide: (a) loadMessages takes an optional localPubkey parameter for DM threads, (b) the self-heal pass reads from the existing auth/identity store (must be imported), (c) the check is deferred to ContactChat which already has the pubkey. Option (c) means the self-heal pass returns orphaned optimistic images as a list for the caller to filter. Architect must specify to avoid runtime errors from accessing identity context inside a non-React function."
+    },
+    {
+      "id": "pre-07",
+      "question": "What should be the data structure of `lp_dmHealed_v1` in localStorage — a JSON array of thread ids (simple), a JSON object keyed by thread id with a version/timestamp (extensible), or a JSON Set?",
+      "answer_required": "YES",
+      "notes": "The spec says 'keyed by thread' but does not specify the format. Architect must pick one. Array is simplest but requires linear scan on every loadMessages to check membership. Object/map is O(1) lookup. Architect should also consider: what happens if the key is corrupted (malformed JSON)? Should loadMessages catch localStorage.get errors and fall back to running the pass? This affects robustness of the healed-marker mechanism."
+    },
+    {
+      "id": "pre-08",
+      "question": "Does the self-heal pass run inside loadMessages (so it blocks and adds latency on every DM thread load), or should it run asynchronously after loadMessages returns and trigger a re-render via a state update when done?",
+      "answer_required": "YES",
+      "notes": "AC-23 says 'loadMessages runs the self-heal pass' but does not specify sync vs async. If the pass is synchronous (fast: iterate and mutate in-memory array), loadMessages stays fast. If it requires IDB reads/writes for Case 1 rewrites, it adds latency. Architect must decide: should loadMessages for DM threads be async with a self-heal await inside it? Or should self-heal run lazily after the first render? The spec says 'runs before setMessages(stored)' so it should be synchronous with loadMessages."
+    }
+  ]
+}

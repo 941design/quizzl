@@ -27,7 +27,7 @@ export default function DirectMessageNotificationsWatcher() {
         const { subscribeDirectMessageNotifications } = await import(
           '@/src/lib/directMessageNotifications'
         );
-        unsubscribe = subscribeDirectMessageNotifications({ ndk, ownPubkeyHex: pubkeyHex });
+        unsubscribe = subscribeDirectMessageNotifications({ ndk, ownPubkeyHex: pubkeyHex, privateKeyHex });
       } catch (err) {
         console.warn('[DMNotifications] subscribe failed:', err);
       }

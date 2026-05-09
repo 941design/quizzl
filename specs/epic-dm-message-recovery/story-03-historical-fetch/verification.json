@@ -1,0 +1,76 @@
+{
+  "story_id": "story-03",
+  "story_name": "Historical kind-1059 fetch and replay on chat mount",
+  "spec_questions": [
+    {
+      "ac": "AC-09",
+      "question": "Does ContactChat.init fire a `fetchEventsWithTimeout({ kinds: [1059], '#p': [pubkeyHex], limit: 500 })` in addition to the existing kind-4 fetches, and ingest every result through the gift-wrap unwrap+parse path (unwrapAndOpen → shouldIngestRumor → parseDirectPayload → appendMessage)?",
+      "expected_answer": "Yes — init adds a third parallel fetch; results are mapped through handleGiftWrapEvent."
+    },
+    {
+      "ac": "AC-10",
+      "question": "Does ContactChat.init wait for both historical fetches (kind-4 and kind-1059) to settle before calling upsertMessages, ensuring the rendered list is monotonically ordered by createdAt?",
+      "expected_answer": "Yes — Promise.all([kind4Promise, kind1059Promise]) resolves before upsertMessages is called."
+    },
+    {
+      "ac": "AC-11",
+      "question": "Does a historical gift wrap whose inner rumor id matches a ChatMessage already in IDB produce no duplicate row, via appendMessage's id-based dedup?",
+      "expected_answer": "Yes — appendMessage deduplicates by id; historical path goes through appendMessage; one row results."
+    },
+    {
+      "ac": "AC-13",
+      "question": "Does `app/tests/e2e/dm-historical-recovery.spec.ts` seed 5 historical gift-wrapped DMs on the relay before the recipient session starts, then assert all 5 render in created_at order with no duplicates?",
+      "expected_answer": "Yes — E2E test exists and exercises the historical fetch pipeline end-to-end."
+    }
+  ],
+  "pre_impl_commitments": [
+    {
+      "id": "pre-01",
+      "question": "Does the existing kind-4 historical fetch block in `ContactChat.init` currently use `await Promise.all(...)` or sequential `await`? Code at line 129 uses `Promise.all` for incoming/outgoing kind-4 fetches, then awaits all ingestEvent calls before upsertMessages. Does the kind-1059 fetch slot into this Promise.all cleanly, or does it need its own separate await?",
+      "answer_required": "YES",
+      "notes": "The pattern at line 129 is Promise.all for kind-4 incoming/outgoing, then map to ingestEvent, then upsertMessages. The kind-1059 fetch must be added as a third item in the same Promise.all, or as a separate Promise.all that runs in parallel with kind-4. Architect must decide: three-way Promise.all vs. two Promise.alls running in parallel. The spec says 'in parallel with #3' implying a second parallel branch."
+    },
+    {
+      "id": "pre-02",
+      "question": "Does `handleGiftWrapEvent` in ContactChat.tsx currently work with a raw NDKEvent (as received from the live subscription) and a historical fetch result (from fetchEventsWithTimeout which returns a structured event array)? Can the same handleGiftWrapEvent function handle both, or does the historical path need a different handler?",
+      "answer_required": "YES",
+      "notes": "The live gift wrap handler (line 166) is defined inside init and called by giftWrapSub.on('event', ...). The historical fetch returns NDKEvent objects from fetchEventsWithTimeout. Architect must confirm: is the NDKEvent shape from fetchEventsWithTimeout identical to what ndk.subscribe delivers? If yes, the same handleGiftWrapEvent can be reused. If not, a historical-specific handler variant may be needed."
+    },
+    {
+      "id": "pre-03",
+      "question": "Does the kind-1059 historical fetch filter need to include an `authors:` constraint (to the peer's pubkey), or does `#p: [pubkeyHex]` (the local user's pubkey) correctly return all gift wraps addressed to the local user regardless of sender?",
+      "answer_required": "YES",
+      "notes": "The filter `{ kinds: [1059], '#p': [pubkeyHex], limit: 500 }` returns gift wraps addressed TO the local user. The peer's pubkey is the sender, not the recipient of the wrap. The `shouldIngestRumor(rumor, peerPubkeyHex)` gate in handleGiftWrapEvent filters to only the current chat's peer. Architect must confirm this is the correct filter shape and that #p with the local pubkey (not the peer's pubkey) is the right filter direction for inbound DMs."
+    },
+    {
+      "id": "pre-04",
+      "question": "Should the kind-1059 historical fetch be deduplicated against live gift-wrap events that arrived while the fetch was in-flight? If the live subscription delivers an event that was already fetched historically (same rumor id), appendMessage dedupes by id. But should the historical fetch wait for the live subscription to be established first to avoid a race condition?",
+      "answer_required": "YES",
+      "notes": "The spec does not address this race. The live subscription is established after the historical fetch (step 6). If a wrap arrives live while the historical fetch is in-flight, it won't be in the historical results and won't be deduped against. appendMessage's id dedup handles the reverse case (historical delivered before live subscription). Architect should confirm: is this race condition acceptable, or should the live subscription be established first? This affects the order of init steps."
+    },
+    {
+      "id": "pre-05",
+      "question": "Does `shouldIngestRumor(rumor, peerPubkeyHex)` currently exist as a function that can be called with the peer's pubkey to gate gift wraps in the historical path, or must the peer check be done inline in the historical handler?",
+      "answer_required": "YES",
+      "notes": "ContactChat.tsx imports `shouldIngestRumor` from directMessages.ts (it appears in the codebase review). Architect must confirm: is shouldIngestRumor already public/exported? If not, story-01 must export it before story-03 can use it. Also confirm the function signature: does it return a boolean, and does it check pubkey equality? If shouldIngestRumor does not support the peer filter, the historical handler must do the filter inline, which duplicates logic."
+    },
+    {
+      "id": "pre-06",
+      "question": "Should `upsertMessages` receive the merged array of kind-4 and kind-1059 messages, or should kind-4 and kind-1059 upserts be called separately? Does the order matter (should kind-1059 messages be sorted by createdAt relative to kind-4 messages before a single upsert)?",
+      "answer_required": "YES",
+      "notes": "AC-10 requires 'rendered list is in createdAt order regardless of arrival order'. This implies that after both fetches resolve, the merged array must be sorted by createdAt before upsertMessages. Architect must confirm: does upsertMessages currently sort by createdAt internally, or must the caller sort first? If the caller sorts, the sort must happen before the single upsertMessages call."
+    },
+    {
+      "id": "pre-07",
+      "question": "Does the existing `limit: 200` for kind-4 in ContactChat.tsx include outgoing messages (peer's pubkey as author) as well as incoming? The code at line 129-130 fetches two directions. Should kind-1059 also be bidirectional (both #p: [local] and #p: [peer])?",
+      "answer_required": "YES",
+      "notes": "Kind-4 has two filters because outgoing DMs from the local user are stored with the peer's pubkey as author. For kind-1059 gift wraps: outgoing DMs from the local user are authored BY the local user but addressed TO the peer (#p: [peer]). Architect must decide: does the historical fetch also need to fetch outgoing gift wraps (outbound from local to peer)? The spec filter `#p: [pubkeyHex]` uses the local user's pubkey — this returns only inbound gift wraps. If outgoing DMs are also stored and need to be recovered, the filter needs a second direction. Architect must clarify."
+    },
+    {
+      "id": "pre-08",
+      "question": "Does the E2E test for AC-13 need the relay mock to support pre-seeding events before the alice context's session begins? How does the test infrastructure reset relay state between tests?",
+      "answer_required": "YES",
+      "notes": "The relay mock (scripts/blossom-mock.mjs) must be able to pre-seed kind-1059 events before alice's context opens. Architect must confirm whether the relay mock supports this or if it needs extension. Also confirm: does clearAppState between tests reset the relay mock's seeded events? If not, tests may interfere with each other. This is a prerequisite for AC-13 to be implementable."
+    }
+  ]
+}

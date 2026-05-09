@@ -175,7 +175,7 @@ export async function collectBackupPayload(): Promise<BackupPayload> {
     const profiles = await loadMemberProfiles(group.id);
     memberProfiles[group.id] = profiles;
 
-    const messages = await loadMessages(group.id);
+    const { messages } = await loadMessages(group.id);
     // Keep only the last MAX_CHAT_MESSAGES, preserving chronological order
     chatMessages[group.id] = messages.slice(-MAX_CHAT_MESSAGES);
   }

@@ -1,0 +1,54 @@
+{
+  "story_id": "story-03",
+  "module": "ContactChat.tsx",
+  "function": "init (inside useEffect callback)",
+  "preconditions": {
+    "init_scope": "init is a local async function inside the useEffect callback; it is immediately invoked with `void init()`",
+    "existing_fetch": "Two Promise.all branches fire in sequence: incoming/outgoing kind-4 fetch, then ingestEvent pipeline, then upsertMessages",
+    "fetchEventsWithTimeout_signature": "imported from @/src/lib/ndkClient; returns Promise<{ events: Set<NDKEvent>, timedOut: boolean }>",
+    "handleGiftWrapEvent_scope": "defined as a closure inside init, called by giftWrapSub.on('event', ...); not extracted — same function handles live subscription events",
+    "appendMessage_dedup": "deduplicates by message.id — one row per rumor id regardless of inbound path",
+    "GIFT_WRAP_KIND": "imported from @/src/lib/directMessages; constant = 1059",
+    "unwrapAndOpen_signature": "(rawEvent, privateKeyHex) => Promise<UnsignedRumor>",
+    "shouldIngestRumor_signature": "(rumor: UnsignedRumor, peerPubkeyHex: string) => boolean",
+    "parseDirectPayload_signature": "(raw: string) => { content: string; attachments?: ... } | null",
+    "toMessage_signature": "(threadId, event) => ChatMessage",
+    "CHAT_MESSAGE_KIND": "imported from @/src/lib/directMessages; constant = 14"
+  },
+  "changes": {
+    "step_3b": {
+      "where": "after the kind-4 Promise.all resolves and before upsertMessages is called",
+      "what": "fire a second parallel fetch: fetchEventsWithTimeout(ndk, { kinds: [1059], '#p': [pubkeyHex], limit: 500 })",
+      "parallelism": "runs in parallel with the kind-4 ingest pipeline — not sequential"
+    },
+    "step_5": {
+      "where": "after both fetches have resolved",
+      "what": "collect messages from both result sets, sort by createdAt, call upsertMessages once",
+      "ordering": "must be sorted by createdAt ascending before upsertMessages so the rendered list is monotonic"
+    },
+    "kind1059_processing": {
+      "handler": "handleGiftWrapEvent(event, true) — skip knownMessageIdsRef dedup, rely on appendMessage id-dedup instead",
+      "unwrap": "unwrapAndOpen called per event; errors silently skipped",
+      "gate": "shouldIngestRumor(rumor, peerPubkeyHex) filters to the current chat's peer",
+      "kind_filter": "rumor.kind === CHAT_MESSAGE_KIND (14) only",
+      "parse": "parseDirectPayload(rumor.content) — now lenient per story-01",
+      "persist": "appendMessage(threadId, msg) — id-dedup prevents duplicates"
+    }
+  },
+  "upsertMessages_contract": {
+    "sorting": "upsertMessages does NOT sort internally — the caller must sort before calling",
+    "input": "ChatMessage[] sorted by createdAt ascending"
+  },
+  "error_handling": {
+    "unwrap_failure": "try/catch in handleGiftWrapEvent body already silently skips; no change needed",
+    "unhandled_rejection": "historical path is awaited inside a Promise.all that is inside init; if init throws, it is caught by the outer try/catch in the useEffect"
+  },
+  "dependencies": {
+    "story_01": "parseDirectPayload must be lenient before story-03 ships (story-01 already done, verified)",
+    "story_02": "unwrapAndOpen, shouldIngestRumor, GIFT_WRAP_KIND all in scope (story-02 already done)"
+  },
+  "exports": {
+    "new_exports": "none — all symbols already in scope from existing imports",
+    "new_imports": "none — fetchEventsWithTimeout already imported"
+  }
+}

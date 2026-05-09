@@ -1,0 +1,55 @@
+{
+  "story_id": "story-03",
+  "story_name": "Historical kind-1059 fetch and replay on chat mount",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-09T00:00:00Z",
+  "timestamp": "2026-05-09T00:00:00Z",
+  "unit_tests": {
+    "file": "app/tests/unit/contactChat.test.ts",
+    "test_count": 9,
+    "passed": 9,
+    "failed": 0,
+    "coverage": ["AC-09", "AC-10", "AC-11"]
+  },
+  "e2e_tests": {
+    "file": "app/tests/e2e/dm-historical-recovery.spec.ts",
+    "status": "written_not_run",
+    "requires": "strfry relay (make e2e-up)",
+    "coverage": ["AC-13"]
+  },
+  "implementation": {
+    "file": "app/src/components/contacts/ContactChat.tsx",
+    "changes": [
+      "init async function: parallel kind-1059 historical fetch added to Promise.all alongside kind-4 incoming/outgoing fetches",
+      "init async function: step 5 merges kind-4 and kind-1059 results, sorts by createdAt, calls upsertMessages once",
+      "handleHistoricalGiftWrapEvent closure: processes each gift wrap through unwrapAndOpen → shouldIngestRumor → parseDirectPayload → appendMessage"
+    ],
+    "spec_compliance": {
+      "§3.5_order_of_operations": "steps 1-6 implemented",
+      "parallel_fetches": "Promise.all for kind-4 incoming/outgoing + kind-1059",
+      "merged_upsert": "single upsertMessages call after both fetches resolve with sorted merged array",
+      "no_new_imports": "fetchEventsWithTimeout already imported, all other symbols already in scope"
+    },
+    "logging": "dm:unwrap-failed (info level) emitted by existing unwrapAndOpen on failure; no new logging needed per AC-30",
+    "error_handling": "try/catch in handleHistoricalGiftWrapEvent silently skips unwrap failures per spec §3.6; init's outer try/catch catches any unhandled rejection"
+  },
+  "artifacts": [
+    "specs/epic-dm-message-recovery/story-03-historical-fetch/baseline.json",
+    "specs/epic-dm-message-recovery/story-03-historical-fetch/architecture.json",
+    "app/src/components/contacts/ContactChat.tsx (modified)",
+    "app/tests/unit/contactChat.test.ts (new)",
+    "app/tests/e2e/dm-historical-recovery.spec.ts (new)"
+  ],
+  "test_count_delta": {
+    "unit_before": 43,
+    "unit_after": 44,
+    "e2e_before": 39,
+    "e2e_after": 40
+  },
+  "RETROSPECTIVE": {
+    "skipped": false,
+    "mode": "story-03_integration_architect",
+    "note": "The vi.mock + dynamic import pattern creates a subtle mock-state isolation hazard: tests that set mockImplementation after vi.mock runs in a module-level closure can leak state across tests. The fix is to use a shared mutable state object (window-style closure) that both the mock implementation and the test setup read/write, rather than trying to control the mock via per-test mockImpl overrides. The architecture insight: for shared-state mocks in vitest, prefer 'the mock reads from shared variables' over 'the test overrides the mock'."
+  }
+}

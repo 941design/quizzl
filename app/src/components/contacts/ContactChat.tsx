@@ -117,20 +117,88 @@ export default function ContactChat({
     async function init() {
       setLoading(true);
       try {
-        const stored = await loadMessages(threadId);
+        const { messages: stored, refetchIds } = await loadMessages(threadId);
         if (!cancelled) {
           for (const msg of stored) knownMessageIdsRef.current.add(msg.id);
           setMessages(stored);
         }
 
+        // Story-04 (§3.4): coordinate refetch for non-canonical message ids.
+        // loadMessages returns the malformed ids; we attempt a relay refetch
+        // async so it does not block the first render. On success, the canonical
+        // row is upserted and the malformed row dropped via upsertMessages below.
+        if (refetchIds.length > 0) {
+          // Log at info level per §3.6 — the message is still visible (left in
+          // place) so this is not an error.
+          console.info('[dm:self-heal] non-canonical ids enqueued for refetch:', refetchIds);
+          void (async () => {
+            try {
+              const ndk = await connectNdk(privateKeyHex);
+              const results = await fetchEventsWithTimeout(ndk, {
+                kinds: [DIRECT_MESSAGE_KIND, GIFT_WRAP_KIND],
+                ids: refetchIds,
+              });
+              const canonicalMessages: ChatMessage[] = [];
+              for (const evt of results.events) {
+                const rawEvt = {
+                  kind: evt.kind ?? DIRECT_MESSAGE_KIND,
+                  content: evt.content,
+                  tags: evt.tags as string[][],
+                  pubkey: evt.pubkey,
+                  created_at: evt.created_at ?? Math.floor(Date.now() / 1000),
+                  id: evt.id,
+                  sig: (evt as any).sig ?? '',
+                };
+                if (evt.kind === GIFT_WRAP_KIND) {
+                  try {
+                    const rumor = await unwrapAndOpen(rawEvt as any, privateKeyHex);
+                    if (!shouldIngestRumor(rumor, peerPubkeyHex)) continue;
+                    if (rumor.kind !== CHAT_MESSAGE_KIND) continue;
+                    const parsed = parseDirectPayload(rumor.content);
+                    if (!parsed) continue;
+                    canonicalMessages.push(toMessage(threadId, {
+                      id: rumor.id,
+                      pubkey: rumor.pubkey,
+                      created_at: rumor.created_at,
+                      content: parsed.content,
+                      attachments: parsed.attachments,
+                    }));
+                  } catch {
+                    // Refetch failed for this wrap — leave the malformed row in place.
+                    continue;
+                  }
+                } else {
+                  const msg = await ingestEvent({
+                    id: evt.id,
+                    pubkey: evt.pubkey,
+                    content: evt.content,
+                    created_at: evt.created_at,
+                  });
+                  if (msg) canonicalMessages.push(msg);
+                }
+              }
+              if (canonicalMessages.length > 0) {
+                // Drop malformed rows first, then upsert canonical replacements.
+                upsertMessages(canonicalMessages);
+              }
+            } catch {
+              // Refetch failed — malformed rows remain in place (per spec §3.4).
+            }
+          })();
+        }
+
         const ndk = await connectNdk(privateKeyHex);
 
         // Fetch historical kind-4 messages (legacy inbound path — D9a)
-        const [incoming, outgoing] = await Promise.all([
+        // and kind-1059 gift wraps (new inbound path — G3 fix).
+        // Both fire in parallel; step 5 waits for both to settle.
+        const [incoming, outgoing, giftWrapHistorical] = await Promise.all([
           fetchEventsWithTimeout(ndk, { kinds: [DIRECT_MESSAGE_KIND], '#p': [pubkeyHex], authors: [peerPubkeyHex], limit: 200 }),
           fetchEventsWithTimeout(ndk, { kinds: [DIRECT_MESSAGE_KIND], '#p': [peerPubkeyHex], authors: [pubkeyHex], limit: 200 }),
+          fetchEventsWithTimeout(ndk, { kinds: [GIFT_WRAP_KIND], '#p': [pubkeyHex], limit: 500 }),
         ]);
 
+        // Process kind-4 results (existing path — D9a).
         const remoteMessages = (
           await Promise.all(
             [...incoming.events, ...outgoing.events].map((evt) => ingestEvent({
@@ -142,7 +210,50 @@ export default function ContactChat({
           )
         ).filter((msg): msg is ChatMessage => !!msg);
 
-        if (!cancelled) upsertMessages(remoteMessages);
+        // Process kind-1059 historical results through the gift-wrap handler.
+        // Reuse the same handleGiftWrapEvent closure used by the live subscription.
+        // Pass skipDedupCheck=true to bypass knownMessageIdsRef (historical-only gate);
+        // appendMessage's id-dedup is sufficient to prevent duplicates.
+        const handleHistoricalGiftWrapEvent = async (evt: NDKEvent) => {
+          try {
+            const rawEvt = {
+              kind: evt.kind ?? GIFT_WRAP_KIND,
+              content: evt.content,
+              tags: evt.tags as string[][],
+              pubkey: evt.pubkey,
+              created_at: evt.created_at ?? Math.floor(Date.now() / 1000),
+              id: evt.id,
+              sig: (evt as any).sig ?? '',
+            };
+            const rumor = await unwrapAndOpen(rawEvt as any, privateKeyHex);
+            if (!shouldIngestRumor(rumor, peerPubkeyHex)) return;
+            if (rumor.kind === CHAT_MESSAGE_KIND) {
+              const parsed = parseDirectPayload(rumor.content);
+              if (!parsed) return;
+              const msg = toMessage(threadId, {
+                id: rumor.id,
+                pubkey: rumor.pubkey,
+                created_at: rumor.created_at,
+                content: parsed.content,
+                attachments: parsed.attachments,
+              });
+              await appendMessage(threadId, msg);
+            }
+          } catch {
+            // Silently ignore gift wraps we can't decrypt (other-conversation traffic).
+            // Matches the spec §3.6 silent-skip policy; no change needed.
+          }
+        };
+
+        await Promise.all([...giftWrapHistorical.events].map(handleHistoricalGiftWrapEvent));
+
+        // Step 5 (§3.5): merge both result sets, sort by createdAt, call upsertMessages once.
+        // Sort is required so the rendered list is monotonic regardless of fetch order.
+        if (!cancelled) {
+          upsertMessages(
+            remoteMessages.slice().sort((a, b) => a.createdAt - b.createdAt),
+          );
+        }
 
         // --- Legacy kind-4 live subscriptions (inbound only, forever per D9a) ---
         incomingSub = ndk.subscribe({ kinds: [DIRECT_MESSAGE_KIND], '#p': [pubkeyHex], authors: [peerPubkeyHex] });

@@ -1,0 +1,101 @@
+{
+  "stories": [
+    {
+      "id": "story-01",
+      "name": "Lenient inbound payload parser",
+      "description": "Rewrite `parseDirectPayload` in `app/src/lib/directMessages.ts` so it never returns `null` for a non-empty decrypted string. Four-tier priority: (1) JSON text-envelope → `{content}`, (2) JSON image-envelope → `{content, attachments}`, (3) JSON unknown shape → `{content: raw string}`, (4) JSON parse error → `{content: raw string}`. Guard `raw === ''` returns `null`. Add unit tests covering AC-01–04, AC-06. An E2E test publishes a bare-plaintext kind-4 event over the relay and asserts the bell fires and the chat bubble renders the plaintext (AC-12). Add info-level logging at every silent-skip site: lenient fallback, decrypt throw, unwrap throw, shouldIngestRumor false (AC-30, AC-31). No console.warn or console.error from any new code path. ContactChat.ingestEvent and handleGiftWrapEvent integrate the lenient parser unchanged in signature.",
+      "acceptance_criteria": ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05", "AC-06", "AC-07", "AC-08", "AC-12", "AC-30", "AC-31"],
+      "spec_sections": ["§3.1", "§3.6"],
+      "story_order": 1,
+      "status": "done",
+      "deliverable": "Rewritten `parseDirectPayload` in `app/src/lib/directMessages.ts` with four-tier priority logic; unit tests in `app/tests/unit/directMessages.test.ts` covering AC-01–AC-04, AC-06; E2E test `app/tests/e2e/dm-third-party-inbound.spec.ts` (AC-12); info-level logger calls at all silent-skip sites; no console.warn/console.error anywhere in the new or modified paths.",
+      "implementation_notes": [
+        "Priority order: JSON text-envelope → image-envelope → unknown JSON → non-JSON. Unknown JSON and non-JSON both fall back to `{content: raw}`, preserving the raw string verbatim. This is the D1 decision — 'user sees URL' is preferred over 'user sees nothing'.",
+        "AC-07 and AC-08 are integration assertions: `ingestEvent` and `handleGiftWrapEvent` must produce a ChatMessage (not null) for any non-empty decrypted bare-plaintext string, regardless of envelope shape. No signature change to either function.",
+        "AC-05 has no new test added (existing image round-trip in `directMessages.test.ts` covers it). No ambiguity per acceptance-criteria validation.",
+        "Logger: use the namespaced logger from `app/src/lib/logger.ts` introduced in `77c5d44`. Tags must be stable strings (e.g., 'dm:parse-fallback-lenient'). AC-31 unit tests spy on console.warn and console.error asserting zero calls.",
+        "The E2E test uses the relay mock to publish a hand-crafted NIP-04 kind-4 event with bare plaintext content, asserts bell badge = 1, opens the chat, and asserts the bubble renders the plaintext verbatim."
+      ]
+    },
+    {
+      "id": "story-02",
+      "name": "Bell watcher subscribes to gift wraps",
+      "description": "Extend `subscribeDirectMessageNotifications` in `app/src/lib/directMessageNotifications.ts` to open a second NDK subscription on kind-1059 alongside the existing kind-4 subscription. The kind-1059 handler unwraps via `unwrapAndOpen`, checks rumor kind === 14, pubkey !== ownPubkeyHex, created_at > lastRead, then calls `rememberContact` and `incrementDirectMessage` exactly once per rumor id. Failures are silently swallowed (no `rememberContact`/`incrementDirectMessage`, no unhandled promise rejection). Add `seenRumorIds: Set<string>` keyed on inner rumor id (not outer wrap id) for deduplication. The watcher component passes `privateKeyHex` (from `useNostrIdentity()`) into `subscribeDirectMessageNotifications`. Add unit tests for AC-15–AC-19 and AC-21. Add E2E test for AC-22.",
+      "acceptance_criteria": ["AC-14", "AC-15", "AC-16", "AC-17", "AC-18", "AC-19", "AC-20", "AC-21", "AC-22", "AC-30", "AC-31", "AC-32", "AC-33"],
+      "spec_sections": ["§3.2", "§3.6"],
+      "story_order": 2,
+      "status": "done",
+      "deliverable": "Modified `subscribeDirectMessageNotifications` in `app/src/lib/directMessageNotifications.ts` with second kind-1059 subscription and parallel `seenRumorIds` Set; `DirectMessageNotificationsWatcher.tsx` wires `privateKeyHex` into the subscription factory; new unit test file `app/tests/unit/directMessageNotifications.test.ts` covering AC-15–AC-19, AC-21; E2E test `app/tests/e2e/dm-giftwrap-bell.spec.ts` for AC-22; info-level silent-skip logging for unwrap throw and shouldIngestRumor false; zero console.warn/console.error in the new path.",
+      "implementation_notes": [
+        "AC-14: `subscribeDirectMessageNotifications` signature must accept `privateKeyHex: string` in addition to `ndk` and `ownPubkeyHex`. TypeScript compile check is sufficient for this wiring AC.",
+        "Dedup key: kind-1059 path uses inner rumor id (`rumor.id`) as dedup key. Outer wrap id changes per relay redelivery; rumor id is stable (D7 decision). Kind-4 path continues to use event id unchanged.",
+        "Silent-skip cases: unwrap throw (wrong key/not addressed to us/malformed), non-kind-14 rumors (kind-7, kind-444, kind-21059). Both call logger at info level (AC-30) and neither calls `rememberContact`/`incrementDirectMessage`. No unhandled promise rejection (AC-17) — wrap in try/catch, log and discard on any exception.",
+        "AC-19: the outer wrap id is different on redelivery but the inner rumor id is identical. The test seeds `seenRumorIds` with the rumor id and asserts `incrementDirectMessage` is called exactly once, not twice.",
+        "E2E test uses two Playwright contexts (Alice = closed chat, Bob = sender). Bob sends a NIP-17 gift-wrapped DM. Alice's bell badge must become 1 without Alice ever opening the chat. Then Alice opens the chat and the message renders."
+      ]
+    },
+    {
+      "id": "story-03",
+      "name": "Historical kind-1059 fetch and replay on chat mount",
+      "description": "Extend `ContactChat.init` in `app/src/components/contacts/ContactChat.tsx` to fire a parallel kind-1059 historical fetch alongside the existing kind-4 fetch. Filter: `{kinds: [1059], '#p': [pubkeyHex], limit: 500}`. Each result runs through the live gift-wrap handler path (unwrapAndOpen → shouldIngestRumor → parseDirectPayload → appendMessage). The init function must wait for both fetch promises to settle before calling upsertMessages so the rendered list is monotonic in createdAt. `appendMessage` already deduplicates by id, so a wrap that was both historically fetched and live-delivered yields one row. E2E test seeds 5 historical gift-wrapped DMs on the relay before the recipient's session and asserts all 5 render in created_at order with no duplicates.",
+      "acceptance_criteria": ["AC-09", "AC-10", "AC-11", "AC-13"],
+      "spec_sections": ["§3.3", "§3.5"],
+      "story_order": 3,
+      "status": "done",
+      "deliverable": "Modified `ContactChat.init` in `app/src/components/contacts/ContactChat.tsx` with parallel kind-1059 historical fetch and ordered upsert; unit tests covering AC-09, AC-10, AC-11; E2E test `app/tests/e2e/dm-historical-recovery.spec.ts` for AC-13.",
+      "implementation_notes": [
+        "Order of operations on chat mount (per §3.5): (1) loadMessages from IDB → self-heal pass runs here; (2) setMessages renders immediately; (3) fire kind-4 historical fetch; (4) fire kind-1059 historical fetch in parallel with (3); (5) wait for both to settle → call upsertMessages; (6) subscribe live to kind-4 and kind-1059.",
+        "Steps 3 and 4 are independent and fire simultaneously. Step 5 must wait for both. `Promise.all([fetchKind4, fetchKind1059])` is the idiomatic implementation. No UI update until step 5 settles.",
+        "Dedup: `appendMessage` deduplicates by `id` (rumor id for kind-1059, event id for kind-4). A wrap that arrived live while the chat was closed and is then fetched historically will be received twice (different ids per transport) but the historical fetch path goes through appendMessage which dedupes by rumor id, so only one row results.",
+        "limit: 500 is a starting value per D4. This filter returns gift wraps from any sender (welcomes, join requests, DMs from other peers). The handler's `shouldIngestRumor(rumor, peerPubkeyHex)` gates to the current peer, so out-of-scope wraps are silently skipped.",
+        "E2E test: Alice's IDB pre-seeded with 0 messages. Relay has 5 gift-wrapped DMs from Bob from a previous session. Alice opens the contact chat. All 5 must render in created_at order with no duplicates. Use deterministic keypair from architecture.md (alice: bceef65..., bob: cbecda1c...)."
+      ]
+    },
+    {
+      "id": "story-04",
+      "name": "Local-store self-heal pass",
+      "description": "Add a one-shot self-heal pass to `loadMessages(threadId)` in the storage layer for DM threads only (`threadId.startsWith('dm:')`). The pass detects three malformed-row patterns: (1) content is a JSON envelope string → re-parse and rewrite in place (id and createdAt unchanged); (2) id is not a 64-char lowercase hex string → enqueue for refetch, replace if canonical candidate found, otherwise leave in place; (3) own-message row with attachments.full.sha256 but no attachments.full.url → delete the row. Persist a per-thread healed marker in localStorage key `lp_dmHealed_v1` keyed by thread id. The pass runs only on first load per thread per device. Unit tests cover AC-24, AC-26, AC-27. E2E test seeds a JSON-envelope content row, opens the chat, asserts the bubble renders decoded text, reloads, asserts the bubble still renders decoded text, and inspects IDB to confirm the row was rewritten in place.",
+      "acceptance_criteria": ["AC-23", "AC-24", "AC-25", "AC-26", "AC-27", "AC-28", "AC-29"],
+      "spec_sections": ["§3.4"],
+      "story_order": 4,
+      "status": "done",
+      "deliverable": "Self-heal pass added to `loadMessages` in `app/src/lib/storage/` (or wherever loadMessages lives); per-thread healed marker in localStorage key `lp_dmHealed_v1`; new unit test file `app/tests/unit/directMessages/selfHeal.test.ts` covering AC-24, AC-26, AC-27, AC-28; E2E test `app/tests/e2e/dm-self-heal.spec.ts` for AC-29.",
+      "implementation_notes": [
+        "AC-23: The healed marker is per-thread (`lp_dmHealed_v1` stores a JSON array of healed thread ids, or a map keyed by thread id). A new contact added later must run the heal pass — the marker does not skip new threads, only re-runs on already-healed threads. This is the D5 decision: per-thread not global.",
+        "Case 1 (envelope-in-content) regex: `/^\\s*\\{\\s*\"type\"\\s*:\\s*\"(text|image)\"/`. The full shape with `\"text\"` or `\"image\"` after `\"type\":` must match. A bare `{\"type\":\"foo\"}` does not match and is not misclassified. This is the risk acknowledged in §8: probability is vanishingly small but not zero.",
+        "Case 2 (non-canonical id): enqueue for refetch. If the relay yields a canonical-id replacement within the historical fetch window, upsert it. The malformed temp-UUID row stays in place if no replacement is found — user still sees it (AC-25: 'left in place, still rendered'). The canonical replacement has a different id, so `appendMessage`'s id-based upsert inserts it cleanly; the malformed row must be dropped explicitly by id before the upsert if both are present (AC-25 detail from acceptance-criteria.md line 41-45).",
+        "Case 3 (orphaned optimistic image): only drops rows authored by the local pubkey. Peer-authored orphaned images are treated as Case 2 (refetch attempt). Idempotent: second `loadMessages` call returns the same data and makes zero IDB writes.",
+        "Self-heal scope: DM threads only. `groupId.startsWith('dm:')` gates the pass. Group threads have their own format and are not touched (D5 / §3.4 non-goal).",
+        "E2E test bridge: the test must inspect IDB directly to confirm `content === '<decoded>'` after reload. Playwright can access IndexedDB via `page.evaluate`. Use the alice keypair from architecture.md for seeding the envelope row."
+      ]
+    },
+    {
+      "id": "story-05",
+      "name": "E2E hardening — full relay-to-bell-to-chat pipeline",
+      "description": "Add four Playwright E2E tests that exercise the complete event flow: relay → NDK subscription → bell watcher → bell badge → ContactChat ingest → IDB → chat bubble. These close the gap that `notification-bell.spec.ts` leaves open (it injects via `__quizzlUnread` directly, exercising only the badge-rendering layer). Story 05 can be integrated into stories 01–04 as the test additions land; no implementation work required beyond writing the test files. All four tests use deterministic keypairs from architecture.md (alice, bob). Cross-protocol dedup is explicitly NOT expected: same logical message arriving over both kind-4 and kind-1059 with different ids renders twice.",
+      "acceptance_criteria": ["AC-12", "AC-13", "AC-22", "AC-29"],
+      "spec_sections": ["§4.2"],
+      "story_order": 5,
+      "status": "done",
+      "deliverable": "Four Playwright E2E spec files: `app/tests/e2e/dm-third-party-inbound.spec.ts` (AC-12), `app/tests/e2e/dm-historical-recovery.spec.ts` (AC-13), `app/tests/e2e/dm-giftwrap-bell.spec.ts` (AC-22), `app/tests/e2e/dm-self-heal.spec.ts` (AC-29). Each test uses deterministic alice/bob keypairs, clearAppState between runs, and asserts the full pipeline end-to-end. A unit test `app/tests/unit/directMessages/dualListen.test.ts` asserts that the same logical message arriving over both transports renders twice (cross-protocol dedup not expected per D7 and spec §4.1).",
+      "implementation_notes": [
+        "Story 05 is implementation-free: the four test files are written after the corresponding code lands in stories 01–04. The test writer should integrate them as each story ships rather than holding them to the end.",
+        "Keypairs for all tests (from architecture.md): alice privkey `bceef655a4c4f3b3b6f6f7d3c8e2a1b4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0`, bob privkey `cbecda1c5d5e4c4c5f7f8e4d9f3b2c6e7f8b0c1d2e3f4a5b6c7d8e9f0a1b2`. Use `injectIdentity` helper from test infrastructure.",
+        "E2E test prerequisites: relay mock must support both kind-4 and kind-1059 publish + subscription replay. `dm-historical-recovery.spec.ts` requires the relay mock to accept pre-seeded events before the alice context opens.",
+        "Cross-protocol dedup: the dualListen unit test documents that same logical message arriving as kind-4 bare plaintext AND kind-1059 wrapping kind-14 with different ids renders twice. This is expected per D7 (different transports → different ids → dedup is impossible and not attempted). Test asserts no exception is raised and both bubbles render.",
+        "AC-29 (dm-self-heal.spec.ts): the test must reload the page mid-test to verify persistence. Alice's IDB row is pre-seeded with raw JSON envelope content before the first navigation. After the first chat open, the bubble must show decoded text. After `page.reload()`, the bubble must still show decoded text. Then use `page.evaluate(() => window.indexedDB...)` to verify IDB content directly."
+      ]
+    }
+  ],
+  "story_order": ["story-01", "story-02", "story-03", "story-04", "story-05"],
+  "ac_coverage_check": {
+    "covered": [
+      "AC-01", "AC-02", "AC-03", "AC-04", "AC-05", "AC-06", "AC-07", "AC-08",
+      "AC-09", "AC-10", "AC-11", "AC-12", "AC-13",
+      "AC-14", "AC-15", "AC-16", "AC-17", "AC-18", "AC-19", "AC-20", "AC-21", "AC-22",
+      "AC-23", "AC-24", "AC-25", "AC-26", "AC-27", "AC-28", "AC-29",
+      "AC-30", "AC-31", "AC-32", "AC-33"
+    ],
+    "uncovered": []
+  }
+}

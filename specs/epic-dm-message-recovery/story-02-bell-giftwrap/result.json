@@ -1,0 +1,92 @@
+{
+  "story_id": "story-02",
+  "story_name": "Bell watcher subscribes to gift wraps",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-09T00:00:00Z",
+  "implementation_notes": [
+    "subscribeDirectMessageNotifications now opens two NDK subscriptions: kind-4 (legacy NIP-04 DMs) and kind-1059 (NIP-17 gift wraps). Two separate subscriptions with distinct filter objects per pre-06 decision.",
+    "The kind-1059 handler is async and wrapped in try/catch, so unwrapAndOpen failures are silently swallowed without leaking unhandled promise rejections (AC-17).",
+    "seenRumorIds: Set<string> keyed by inner rumor.id (NOT outer event.id) prevents double-bump on relay redelivery (AC-19). The kind-4 path continues to key on event.id unchanged.",
+    "DirectMessageNotificationsWatcher.tsx passes privateKeyHex (from useNostrIdentity()) as the third parameter — no new state or context needed.",
+    "The kind-1059 handler silently skips non-kind-14 rumors (kind-7, kind-444, kind-21059) with no logger call, per spec §3.2 and D3 decision.",
+    "Info-level logger calls added at dm:rumor-rejected (shouldIngestRumor false) and dm:unwrap-failed (unwrap throws). No console.warn/console.error anywhere in the new path (AC-31).",
+    "Unit tests use a FakeSub with an explicit .on() method mirroring NDKSubscription.on — the sub must return an object that has .on() as a method, not just optional property access (sub.on?.('event', handler) — fixing the root cause of the initial test failures).",
+    "emitEvent() is async-aware and awaits all handler results before returning, so post-handler assertions (rememberContact, incrementDirectMessage calls) are settled before the test asserts."
+  ],
+  "files_changed": [
+    {
+      "path": "app/src/lib/directMessageNotifications.ts",
+      "change": "ADDED second NDK subscription (kind-1059) and kind1059Handler; ADDED seenRumorIds Set; ADDED privateKeyHex parameter; ADDED logger (createLogger from logger.ts)"
+    },
+    {
+      "path": "app/src/components/DirectMessageNotificationsWatcher.tsx",
+      "change": "WIRED privateKeyHex into subscribeDirectMessageNotifications call"
+    },
+    {
+      "path": "app/tests/unit/directMessageNotifications.test.ts",
+      "change": "NEW — 9 tests covering AC-15, AC-16, AC-17, AC-18 (3 variants), AC-19, AC-30, AC-31"
+    },
+    {
+      "path": "app/tests/e2e/dm-giftwrap-bell.spec.ts",
+      "change": "NEW — two-context E2E test for AC-22 (alice closed-chat bell, bob sends gift-wrapped DM)"
+    },
+    {
+      "path": "specs/epic-dm-message-recovery/story-02-bell-giftwrap/baseline.json",
+      "change": "NEW — test count baseline before changes"
+    },
+    {
+      "path": "specs/epic-dm-message-recovery/story-02-bell-giftwrap/architecture.json",
+      "change": "NEW — module contract documenting exported symbols, new subscriptions, handler contract"
+    }
+  ],
+  "test_counts": {
+    "before": {
+      "total_test_files": 57,
+      "total_tests": 786,
+      "directMessageNotifications_tests": 0
+    },
+    "after": {
+      "total_test_files": 58,
+      "total_tests": 795,
+      "directMessageNotifications_tests": 9
+    }
+  },
+  "ac_coverage": {
+    "AC-14": "TypeScript compile check — privateKeyHex accepted in subscribeDirectMessageNotifications params",
+    "AC-15": "✓ Unit test: two ndk.subscribe calls with distinct filter objects ({kinds:[4]...} and {kinds:[1059]...})",
+    "AC-16": "✓ Unit test: kind-1059 event with kind===14, pubkey!==own, created_at>lastRead → rememberContact + incrementDirectMessage called once",
+    "AC-17": "✓ Unit test: unwrap throws → no side effects, no unhandled rejection",
+    "AC-18": "✓ Unit test (3 variants): kind-7, kind-444, kind-21059 rumors → no side effects",
+    "AC-19": "✓ Unit test: same rumor id, different outer id → incrementDirectMessage called exactly once",
+    "AC-20": "✓ Code inspection: DirectMessageNotificationsWatcher passes privateKeyHex from useNostrIdentity()",
+    "AC-21": "✓ Unit test file exists and covers AC-15 through AC-19",
+    "AC-22": "✓ E2E spec written: dm-giftwrap-bell.spec.ts (two-context scenario, alice closed-chat, bob sends gift wrap)",
+    "AC-30": "✓ Unit test: info-level logger called at dm:rumor-rejected (shouldIngestRumor false)",
+    "AC-31": "✓ Unit test: no console.warn or console.error from any silent-skip path"
+  },
+  "spec_questions_answered": {
+    "pre-01": "YES — separate seenRumorIds Set<string> keyed by rumor.id alongside existing seenMessageIds Set<string> keyed by event.id. Safe per D7 argument (disjoint id namespaces with no collision risk), explicit per spec 'add a parallel seenRumorIds'.",
+    "pre-02": "YES — async handler inside try/catch catches all exceptions including unwrap failures.",
+    "pre-03": "YES — two separate ndk.subscribe calls with distinct filter objects.",
+    "pre-04": "YES — seenRumorIds is a new Set<string> in module-scope closure alongside existing seenMessageIds.",
+    "pre-05": "YES — two separate NDK subscriptions with distinct filter objects (kind-4 and kind-1059).",
+    "pre-06": "YES — single cleanup function calls .stop() on both kind4Sub and kind1059Sub.",
+    "pre-07": "YES — privateKeyHex from useNostrIdentity() passed as third parameter.",
+    "pre-08": "YES — new test file created from scratch. Fake NDK with emitEvent helper; vi.mock patterns from codebase (unwrapAndOpen, shouldIngestRumor, incrementDirectMessage, rememberContact)."
+  },
+  "pre_impl_commitments": [
+    { "id": "pre-01", "answer": "YES" },
+    { "id": "pre-02", "answer": "YES" },
+    { "id": "pre-03", "answer": "YES" },
+    { "id": "pre-04", "answer": "YES" },
+    { "id": "pre-05", "answer": "YES" },
+    { "id": "pre-06", "answer": "YES" },
+    { "id": "pre-07", "answer": "YES" },
+    { "id": "pre-08", "answer": "YES" }
+  ]
+}
+RETROSPECTIVE:
+skipped: false
+mode: story-02_integration_architect
+note: "NDK subscription stub required an explicit .on() method (not just optional property access) on the fake sub object — initial test failures traced to the test mock's sub object not having .on as a callable, only as an optional property, causing the handler never to be registered."
