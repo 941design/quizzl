@@ -6,7 +6,7 @@ PLAYWRIGHT_STAMP := $(APP_DIR)/node_modules/.playwright_$(shell uname -s)-$(shel
 -include .env
 export
 
-.PHONY: help test build test-unit test-e2e test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check deploy-dryrun ssl-cert ssl-cert-assets ensure-deps ensure-playwright
+.PHONY: help test build test-unit test-e2e test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check deploy-dryrun ssl-cert ssl-cert-assets ensure-deps ensure-playwright
 
 # Default target
 .DEFAULT_GOAL := help
@@ -73,8 +73,13 @@ test: test-unit test-e2e ## Run all tests
 test-unit: ensure-deps ## Run unit tests (Vitest)
 	cd $(APP_DIR) && npx vitest run
 
-## Run Playwright E2E tests
-test-e2e: ensure-playwright ## Run Playwright E2E tests
+## Run all Playwright E2E tests (with relay)
+test-e2e: ensure-playwright ## Run all Playwright E2E tests (with relay)
+	-docker compose -f docker-compose.e2e.yml up -d --wait
+	cd $(APP_DIR) && E2E_GROUPS=1 node scripts/run-e2e.mjs
+
+## Run fast Playwright E2E tests (without relay)
+test-e2e-fast: ensure-playwright ## Run fast Playwright E2E tests (without relay)
 	cd $(APP_DIR) && node scripts/run-e2e.mjs
 
 ## E2E groups infrastructure
