@@ -48,24 +48,6 @@ type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
  * succeeds (retry / block invite until confirmed).
  */
 const MAX_RETRIES = 3;
-async function sendChatSafe(group: MarmotGroupType, content: string): Promise<void> {
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      await group.sendChatMessage(content);
-      return;
-    } catch (err) {
-      const isUnapplied = err instanceof Error && err.message.includes('unapplied proposals');
-      if (!isUnapplied || attempt === MAX_RETRIES) throw err;
-      console.warn(`[sendChatSafe] unapplied proposals (attempt ${attempt + 1}/${MAX_RETRIES + 1}), committing…`);
-      await group.commit();
-    }
-  }
-}
-
-/**
- * Retry wrapper for sendApplicationRumor — same unapplied-proposals
- * workaround as sendChatSafe but for arbitrary rumors (e.g. kind-7 reactions).
- */
 async function sendRumorSafe(
   group: MarmotGroupType,
   rumor: Parameters<MarmotGroupType['sendApplicationRumor']>[0],
@@ -81,6 +63,32 @@ async function sendRumorSafe(
       await group.commit();
     }
   }
+}
+
+/**
+ * Build a kind-9 chat rumor with a precomputed canonical id so the optimistic
+ * row stored locally uses the same id the receiver will store. Mirrors
+ * marmot-ts's internal `sendChatMessage` rumor shape, but exposes the id to
+ * the caller. (Without this alignment, sender-side IDB and receiver-side IDB
+ * end up with different ids for the same logical message — see
+ * AC-AR-21 dispatch-isolation peer test.)
+ */
+async function buildChatRumor(
+  pubkey: string,
+  content: string,
+  tags: string[][] = [],
+): Promise<{ id: string; kind: number; pubkey: string; created_at: number; content: string; tags: string[][] }> {
+  const { getEventHash } = await import('applesauce-core/helpers/event');
+  const rumor = {
+    id: '',
+    kind: CHAT_MESSAGE_KIND,
+    pubkey,
+    created_at: Math.floor(Date.now() / 1000),
+    content,
+    tags,
+  };
+  rumor.id = getEventHash(rumor);
+  return rumor;
 }
 
 interface ChatStoreContextValue {
@@ -239,26 +247,29 @@ export function ChatStoreProvider({
     async (content: string) => {
       if (!groupId || !group || !content.trim()) return;
 
-      const now = Math.floor(Date.now() / 1000);
-      // Use a temporary ID for optimistic display; replaced after send
-      const tempId = crypto.randomUUID();
+      // Build the rumor with its canonical id BEFORE the optimistic write so
+      // the local row uses the same id peers will store on receive (the
+      // chatHandler keys by rumor.id). Otherwise sender and receiver carry
+      // different ids for the same message and reactions / bubble lookups
+      // diverge across pages — see AC-AR-21.
+      const rumor = await buildChatRumor(pubkey, content);
       const optimistic: ChatMessage = {
-        id: tempId,
+        id: rumor.id,
         content,
         senderPubkey: pubkey,
         groupId,
-        createdAt: now * 1000,
+        createdAt: rumor.created_at * 1000,
       };
 
       setMessages((prev) => [...prev, optimistic]);
 
       try {
-        await sendChatSafe(group, content);
+        await sendRumorSafe(group, rumor as Parameters<MarmotGroupType['sendApplicationRumor']>[0]);
         appendMessage(groupId, optimistic).catch((err) => {
           console.error('[chat-store] Failed to persist sent message:', err);
         });
       } catch (err) {
-        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setMessages((prev) => prev.filter((m) => m.id !== rumor.id));
         throw err;
       }
     },
@@ -269,6 +280,9 @@ export function ChatStoreProvider({
     async (file: File, caption: string) => {
       if (!groupId || !group || !signer) return;
 
+      // Optimistic display uses a placeholder id only until publish completes;
+      // once useImageSend returns the canonical rumor.id we re-key the local
+      // row + IDB persistence to match the id peers will see (AC-AR-21).
       const tempId = crypto.randomUUID();
       const now = Math.floor(Date.now() / 1000);
       const { buildImageMessageContent } = await import('@/src/lib/media/imageMessage');
@@ -285,7 +299,7 @@ export function ChatStoreProvider({
 
       const { sendImageMessage: doSend } = await import('@/src/hooks/useImageSend');
       try {
-        const { fullAttachment, thumbAttachment } = await doSend(file, caption, {
+        const { fullAttachment, thumbAttachment, rumorId, createdAt } = await doSend(file, caption, {
           groupId,
           group: group as any,
           pubkey,
@@ -295,6 +309,8 @@ export function ChatStoreProvider({
 
         const finalMsg: ChatMessage = {
           ...optimistic,
+          id: rumorId,
+          createdAt: createdAt * 1000,
           attachments: { full: fullAttachment, thumb: thumbAttachment },
           localMediaRefs: [fullAttachment.sha256, thumbAttachment.sha256],
         };

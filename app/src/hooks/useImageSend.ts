@@ -52,7 +52,7 @@ export async function sendImageMessage(
   file: File,
   caption: string,
   deps: ImageSendDeps,
-): Promise<{ fullAttachment: MediaAttachment; thumbAttachment: MediaAttachment }> {
+): Promise<{ fullAttachment: MediaAttachment; thumbAttachment: MediaAttachment; rumorId: string; createdAt: number }> {
   const { groupId, group, pubkey, signer, onProgress } = deps;
 
   onProgress('processing');
@@ -152,17 +152,22 @@ export async function sendImageMessage(
     const fullKey = attachmentFingerprint(fullAttachment);
     const thumbKey = attachmentFingerprint(thumbAttachment);
 
-    const tempId = crypto.randomUUID();
+    const messageId = rumor.id as string;
     await Promise.all([
       setBlob(groupId, fullKey, { bytes: fullBytes, type: 'image/webp' }),
       setBlob(groupId, thumbKey, { bytes: thumbBytes, type: 'image/webp' }),
-      addMessageRef(groupId, fullKey, tempId),
-      addMessageRef(groupId, thumbKey, tempId),
+      addMessageRef(groupId, fullKey, messageId),
+      addMessageRef(groupId, thumbKey, messageId),
     ]);
   } catch (err) {
     console.warn('[useImageSend] post-publish persistence failed; image will be re-fetched from Blossom on reload', err);
   }
 
   onProgress('sent');
-  return { fullAttachment, thumbAttachment };
+  return {
+    fullAttachment,
+    thumbAttachment,
+    rumorId: rumor.id as string,
+    createdAt: rumor.created_at as number,
+  };
 }

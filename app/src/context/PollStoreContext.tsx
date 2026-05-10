@@ -75,7 +75,7 @@ interface PollStoreProviderProps {
  * succeeds (retry / block invite until confirmed).
  *
  * See also: MarmotContext onMembersChanged auto-commit, ChatStoreContext
- * sendChatSafe — same workaround applied there.
+ * sendRumorSafe — same workaround applied there.
  */
 const MAX_RETRIES = 3;
 async function sendRumorSafe(
