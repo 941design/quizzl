@@ -175,6 +175,14 @@ export class EpochResolver {
           if (this.snapshot) {
             this.snapshot.replayQueue.push(event);
           }
+
+          // ts-mls advances the sender's per-leaf ratchet on every application
+          // message. A buffered event from the same leaf may now be readable —
+          // retry. Without this, an out-of-order rumor stays stuck in the
+          // futureBuffer until the next commit (which may never arrive).
+          if (this.futureBuffer.length > 0) {
+            await this.flushFutureBuffer();
+          }
         } else if (result.result.kind === 'newState') {
           // Commit detected
           await this.handleCommit(event);

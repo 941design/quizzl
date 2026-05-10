@@ -169,9 +169,9 @@ test.describe.serial('New member receives all existing member profiles', () => {
 
   // FIXME: ~33–60% flake. C never receives one of Alice/Bob's PROFILE_RUMOR_KIND
   // events even after 60s — neither the direct sendSelfProfile reply nor the
-  // relay-on-behalf path lands at C's dispatcher. Strongest hypothesis is per-leaf
-  // ratchet desync amplified by subscription-thrash republishes.
-  // See bug-reports/profile-rumor-undeliverable-to-new-member.md for full analysis.
+  // relay-on-behalf path lands at C's dispatcher. Adding a flush-on-app-msg
+  // retry to EpochResolver did not help, so the missing rumor is not sitting
+  // in futureBuffer. See bug-reports/profile-rumor-undeliverable-to-new-member.md.
   test.fixme('A invites C — C sees both Alice and Bob profiles', async () => {
     // Wait for C to publish KeyPackages
     await pgC.waitForTimeout(5_000);

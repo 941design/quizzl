@@ -41,39 +41,34 @@ Symmetric variant: in other failing runs, **A's** profile is missing on C and B'
 
 - **Test timeout too short.** Bumping the assertion timeout from 30 s to 60 s did NOT fix it (4 of 6 runs still failed). So this is not the relay-on-behalf 5–30 s `pickBackoffMs` window biting the test budget — even the relay path's reply doesn't reach C.
 - **`closeOnEose` gap in `subscribeToGroupMessages`.** Both the historical-fetch sub and the subsequent live sub use the same NDK pool; events emitted into the gap should be queued by the relay and delivered to the live sub. Confirmed via the dispatcher logs showing live events for the OTHER peer arriving fine.
-- **`futureBuffer` failing to flush.** With raw EpochResolver instrumentation, every page processes 8–15 unreadable events to `futureBuffer`. Many are cross-test ghosts from strfry that never become readable (different MLS group). But that does not explain the same-test missing rumor — A and B's deliveries to each other go through the dispatcher fine, ruling out a generic flush failure on the missing peer's path.
+- **`futureBuffer` failing to flush — STRONGER REFUTATION.** Originally suspected the buffer was sitting on the missing rumor between commits. As of 2026-05-10, `EpochResolver.processEvent` was changed to call `flushFutureBuffer()` after every successfully-processed application message (in addition to commits) so any out-of-order rumor that becomes readable mid-batch gets retried immediately. **8-run sample after that change: 5 failed, 3 passed — same flake rate.** So the missing rumor is not sitting in `futureBuffer` at all; the additional flush is harmless but irrelevant to this bug.
 - **Inviter republish failing silently.** `[DIAG-INVITER] republish OK` logs every run, including failing ones. The publish goes out. It just doesn't reach C decryptable.
 
-## Strongest remaining hypothesis: per-leaf ratchet desync
+## Updated hypothesis (2026-05-10): the rumor isn't reaching ingest at all
 
-ts-mls advances the sender's leaf ratchet (`gen`) on every application message. The recipient must process messages from each leaf in order (or in a sliding window if ts-mls supports one) — otherwise `processMessage` throws `desired gen in the past` (or its future-gen analogue) and the EpochResolver buffers the event, where it sits indefinitely because `flushFutureBuffer` is only invoked from `handleCommit` and there's no further commit to advance things.
+Now that the futureBuffer angle has been ruled out empirically, the failure has to live upstream of `EpochResolver.processEvent`. Two candidates remain:
 
-Two amplifying factors:
+1. **NDK subscription gap or filter mismatch on C.** The kind-445 event for the missing peer's profile is published by A or B, lands on strfry, but never reaches C's `subscribeToGroupMessages` live sub. Possible mechanisms: the relay's per-subscription bookkeeping treats the historical-fetch close + live-sub open as separate sessions and drops events that arrived in the millisecond window between, OR NDK's internal subscription manager loses an event due to the `closeOnEose: true` historical fetch tearing down before the live sub has registered. Symptom would match: A and B's *other* events still reach C (because they happen later, well within the live-sub window), but the burst published right after invite/republish slips through. Worth checking with raw WebSocket frame logging on C's page.
+2. **MLS-level epoch divergence on C that isn't recovered.** C's Welcome encodes state at the add-C commit. A then publishes the admin-promotion commit and her profile rumor at the post-admin epoch. If C's historical fetch returns the events out of created_at order (or strfry returns them with collisions in created_at), C might attempt to ingest the profile rumor before the admin commit, fail, buffer it — and the just-added flush-on-app-msg retry doesn't help because the *commit* never gets processed either (lost in the same gap as candidate 1).
 
-1. **Subscription thrash.** `MarmotContext.tsx:555`'s subscribe-effect dependency list includes `groups`, so every memberPubkeys change (e.g. after a commit lands and `onMembersChanged` fires) tears down all dispatcher subscriptions and re-creates them. Each re-creation clears `profilePublishedRef`, triggering another `onHistorySynced` republish from each peer. So during the C-joins window, A and B each emit 2–3 PROFILE_RUMOR_KIND application messages in quick succession. Each one advances their leaf ratchet by 1.
-2. **C's MLS state.** C joins via Welcome at the post-add-C epoch. The admin-promotion commit (also published by A immediately after the invite) advances the epoch one more step. Until C ingests the admin commit, any application message published at the post-admin epoch is unreadable for C. After ingesting the admin commit, the buffer is flushed — but if the rumors were buffered out-of-order relative to the sender's ratchet, the flush retry can still fail.
-
-The asymmetry between Alice and Bob (one of them works, the other doesn't, randomly) is consistent with this: which peer survives depends on the order their burst of application messages happens to land at C relative to C's commit-ingest progression.
-
-## What this hypothesis predicts
-
-If this is right, instrumenting ts-mls's `processMessage` in `EpochResolver` to log the actual exception type and `(epoch, leaf, gen)` should show a deterministic mismatch on the missing peer's events that never resolves across the 60 s window. The relay-on-behalf reply also fails because it's encrypted at the same epoch by a peer whose ratchet C cannot follow.
+The earlier per-leaf ratchet hypothesis is still possible but loses force given that flush-on-app-msg didn't move the needle.
 
 ## What I haven't confirmed
 
-- Whether ts-mls supports out-of-order generations within an epoch (sliding-window decryption). If it does, the hypothesis is wrong.
-- Whether the missing rumor is reaching C's NDK subscription at all (would need WebSocket frame logging to disprove a network-layer drop).
-- Whether `flushFutureBuffer` ever attempts to retry the missing rumor after the admin-commit ingestion. (No instrumentation on this code path during the failing window since adding logs slowed things into total failure.)
+- Whether the missing rumor is reaching C's NDK subscription at all (would need WebSocket frame logging on C — `page.on('websocket')` + `ws.on('framereceived')` — to count kind-445 frames vs. dispatcher fires).
+- Whether the relay actually has the missing event when C asks for it (would need a direct strfry query mid-test, e.g. `nak req -k 445 wss://...` from inside the docker network).
+- Whether ts-mls would reject the rumor with a specific error (would need instrumentation around `mlsGroup.ingest()` to surface the thrown error per-event).
 
 ## Suggested next steps for whoever picks this up
 
-1. Add structured logging in `EpochResolver.processEvent` and `flushFutureBuffer` that records `(eventId, epoch, sender-leaf, sender-gen, error-message)` for unreadable events, gated by a flag so it doesn't fire in production. Run the failing test once and read the logs for the missing peer's events.
-2. If the events are reaching ingest and failing with a gen-related error, check ts-mls behaviour on out-of-order generations. If ts-mls supports a window but the resolver isn't flushing aggressively enough, fix the resolver (e.g. flush after every successful application-message processing too).
-3. Decouple the dispatcher subscription from the `groups`-array dependency in `MarmotContext.tsx:555`. Re-subscribing the entire group every time memberPubkeys updates is wasteful and amplifies the ratchet-drift surface area.
-4. Once the underlying flake is fixed, re-enable the test (drop the `test.fixme` and remove this report's pointer).
+1. **Confirm whether the rumor reaches C.** On the page where C runs, attach a `page.on('websocket')` listener and count incoming kind-445 frames during the failing window. Compare with dispatcher fires. If frame count > dispatcher fire count, the gap is in NDK→ingest. If frame count == dispatcher fire count (and excludes the missing rumor), the gap is on the wire.
+2. **Cross-check on the relay.** Spawn a parallel `nak req -k 445 -t h=<groupIdHex> wss://localhost:7777` against strfry while the test is running. Confirms whether the missing rumor was actually published.
+3. **Decouple the dispatcher subscription from the `groups`-array dependency in `MarmotContext.tsx:555`** regardless of the eventual fix. Re-subscribing the entire group every time `memberPubkeys` changes triggers redundant historical fetches and re-publishes; even if it's not the proximate cause here, it's a clear correctness/perf liability that magnifies any underlying fragility.
+4. **Once the underlying flake is fixed**, re-enable the test (drop the `test.fixme` and remove this report's pointer).
 
 ## Related
 
 - 2026-05-08 e2e iteration report § B3 (profile-request retry attempts stuck at 0) — likely the same class of flake on a different test surface.
 - `specs/epic-member-profile-discovery-and-relay-on-behalf/` — the epic that introduced the request/response + relay-on-behalf flow this test exercises.
-- Commit `b58b21e` (feat(profile): request/response + relay-on-behalf profile discovery) — replaced the proactive republish-on-member-add code; the orphaned comment block at `MarmotContext.tsx:619-624` is the leftover from that deletion.
+- Commit `b58b21e` (feat(profile): request/response + relay-on-behalf profile discovery) — replaced the proactive republish-on-member-add code. The leftover orphan comment in `MarmotContext.tsx` was cleaned up in the same commit that landed the flush-on-app-msg retry.
+- `EpochResolver.processEvent` flush-on-app-msg retry was added 2026-05-10 in the course of investigating this bug. It's a defensible correctness improvement (any rumor that *can* become readable after a ratchet step now gets retried immediately) but does not measurably affect this flake.

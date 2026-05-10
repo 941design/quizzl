@@ -616,12 +616,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                   console.debug('[Marmot] auto-commit unapplied proposals failed:', err);
                 });
               }
-              // BUG FIX: when new members join (count increases), republish local
-              // profile so they receive current profile data without relying on
-              // historical messages alone. Do not gate on profilePublishedRef —
-              // this must fire on every join regardless of prior publish.
-              // Uses localProfileRef to avoid stale-closure race when the user
-              },
+            },
             // Publish profile after historical sync completes (epoch is up-to-date).
             // Uses localProfileRef to avoid stale-closure race.
             () => {
