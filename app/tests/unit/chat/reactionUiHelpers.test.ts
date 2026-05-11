@@ -89,8 +89,6 @@ describe('selfReactedStyle', () => {
   });
 });
 
-// ─── formatReactorList ────────────────────────────────────────────────────────
-
 describe('formatReactorList', () => {
   const SELF = 'aabbccdd1234aabbccdd1234aabbccdd1234aabbccdd1234aabbccdd12341234';
   // Use recognizable short hex so we can test truncation without full npub encoding

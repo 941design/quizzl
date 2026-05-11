@@ -30,6 +30,7 @@ const {
   subscribeReactions,
   applyInboundRumor,
   applyOptimistic,
+  applyOptimisticRemoval,
   rollbackOptimistic,
   clearAllReactions,
 } = await import('@/src/lib/reactions/api');
@@ -891,3 +892,81 @@ describe('listener notification timing (AC-58)', () => {
     expect(listenerIdx).toBeGreaterThan(setIdx);
   });
 });
+
+describe('applyOptimisticRemoval — direct API (AC-35, AC-59)', () => {
+  // applyOptimisticRemoval was added to the import as part of the
+  // REOPENED_REMEDIATION close (2026-05-10). These tests exercise the function
+  // directly, complementing the ChatStoreContext catch-block rollback test in
+  // groupReactions.test.ts.
+
+  it('tombstones the matching non-removed row in place — one write (AC-35)', async () => {
+    const existing = makeReaction({
+      id: 'existing-remove-target',
+      messageId: 'msg-1',
+      reactorPubkey: 'pubkey-alice',
+      emoji: '👍',
+      eventId: 'prior-event-id',
+      removed: false,
+    });
+    idbStore.set(GROUP_KEY, [existing]);
+
+    const before = await loadReactions(GROUP_THREAD);
+    expect(before[0].removed).toBe(false);
+
+    await applyOptimisticRemoval(GROUP_THREAD, 'msg-1', 'pubkey-alice', '👍');
+
+    const rows = await loadReactions(GROUP_THREAD);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe('existing-remove-target');
+    expect(rows[0].removed).toBe(true);
+  });
+
+  it('returns null when no matching non-removed row exists', async () => {
+    const result = await applyOptimisticRemoval(GROUP_THREAD, 'msg-1', 'pubkey-alice', '👍');
+    expect(result).toBeNull();
+    const rows = await loadReactions(GROUP_THREAD);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('returns null and leaves store unchanged when row is already tombstoned', async () => {
+    const tombstoned = makeReaction({
+      id: 'already-gone',
+      messageId: 'msg-1',
+      reactorPubkey: 'pubkey-alice',
+      emoji: '👍',
+      eventId: 'some-event',
+      removed: true,
+    });
+    idbStore.set(GROUP_KEY, [tombstoned]);
+    const result = await applyOptimisticRemoval(GROUP_THREAD, 'msg-1', 'pubkey-alice', '👍');
+    expect(result).toBeNull();
+    const rows = await loadReactions(GROUP_THREAD);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].removed).toBe(true);
+  });
+
+  it('wrong emoji on same (messageId, reactorPubkey) leaves correct emoji untouched', async () => {
+    const row = makeReaction({ id: 'thumbs-row', emoji: '👍', removed: false });
+    idbStore.set(GROUP_KEY, [row]);
+    const result = await applyOptimisticRemoval(GROUP_THREAD, 'msg-1', 'pubkey-alice', '❤️');
+    expect(result).toBeNull();
+    const rows = await loadReactions(GROUP_THREAD);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].removed).toBe(false);
+  });
+
+  it('notifies subscribeReactions listeners after tombstone (AC-13)', async () => {
+    idbStore.set(GROUP_KEY, [makeReaction({
+      id: 'notif-seed',
+      messageId: 'msg-1',
+      reactorPubkey: 'pubkey-alice',
+      emoji: '👍',
+      removed: false,
+    })]);
+    const listener = vi.fn();
+    subscribeReactions(GROUP_THREAD, listener);
+    await applyOptimisticRemoval(GROUP_THREAD, 'msg-1', 'pubkey-alice', '👍');
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+

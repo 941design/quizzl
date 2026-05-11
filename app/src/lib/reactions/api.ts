@@ -44,7 +44,7 @@ const cache = new Map<string, Reaction[]>();
  * Per-thread write queues — ensures serialised idb access to prevent
  * concurrent read-modify-write races (same pattern as chatPersistence.ts).
  */
-const writeQueues = new Map<string, Promise<void>>();
+const writeQueues = new Map<string, Promise<unknown>>();
 
 /**
  * Set to true for the duration of clearAllReactions. Any enqueue call that
@@ -98,10 +98,10 @@ function emit(key: string): void {
 function enqueue(
   key: string,
   task: (current: Reaction[]) => Promise<Reaction[] | null>,
-): Promise<void> {
+): Promise<Reaction[] | null> {
   // Synchronous guard — checked before any writeQueues.set() call so the race
   // window in clearAllReactions cannot be re-opened by a concurrent enqueue.
-  if (clearingInProgress) return Promise.resolve();
+  if (clearingInProgress) return Promise.resolve(null);
 
   const prev = writeQueues.get(key) ?? Promise.resolve();
   const next = prev.then(async () => {
@@ -113,6 +113,7 @@ function enqueue(
       await set(key, nextRows);
       emit(key);
     }
+    return nextRows;
   });
   const settled = next.catch(() => {});
   writeQueues.set(key, settled);
@@ -198,7 +199,7 @@ export function subscribeReactions(
  *
  * AC-12.
  */
-export function applyOptimistic(thread: ReactionThreadKey, row: Reaction): Promise<void> {
+export function applyOptimistic(thread: ReactionThreadKey, row: Reaction): Promise<Reaction[] | null> {
   const key = idbKeyFor(thread);
   return enqueue(key, async (current) => {
     // Idempotent on row id
@@ -225,12 +226,12 @@ export function applyOptimistic(thread: ReactionThreadKey, row: Reaction): Promi
  *
  * AC-59.
  */
-export function applyOptimisticRemoval(
+export async function applyOptimisticRemoval(
   thread: ReactionThreadKey,
   messageId: string,
   reactorPubkey: string,
   emoji: string,
-): Promise<void> {
+): Promise<Reaction[] | null> {
   const key = idbKeyFor(thread);
   return enqueue(key, async (current) => {
     const idx = current.findIndex(
@@ -257,7 +258,7 @@ export function applyOptimisticRemoval(
 export function rollbackOptimistic(
   thread: ReactionThreadKey,
   optimisticId: string,
-): Promise<void> {
+): Promise<Reaction[] | null> {
   const key = idbKeyFor(thread);
   return enqueue(key, async (current) => {
     const target = current.find((r) => r.id === optimisticId);
