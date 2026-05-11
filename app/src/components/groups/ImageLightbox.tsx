@@ -31,7 +31,8 @@ function formatFilename(senderShortId: string, createdAt: number, mime: string):
     `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
     `-${pad(d.getHours())}${pad(d.getMinutes())}`;
   const ext = mime === 'image/webp' ? 'webp' : mime.split('/')[1] ?? 'bin';
-  return `${senderShortId}-${datePart}.${ext}`;
+  const safeSender = senderShortId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `${safeSender}-${datePart}.${ext}`;
 }
 
 export default function ImageLightbox({

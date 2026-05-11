@@ -34,7 +34,7 @@ const server = createServer((req, res) => {
   // CORS for local dev
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-SHA-256');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
