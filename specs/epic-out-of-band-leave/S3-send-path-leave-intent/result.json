@@ -1,0 +1,26 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "remediation_rounds": 0,
+  "files_created": [
+    "specs/epic-out-of-band-leave/S3-send-path-leave-intent/baseline.json",
+    "specs/epic-out-of-band-leave/S3-send-path-leave-intent/architecture.json",
+    "specs/epic-out-of-band-leave/S3-send-path-leave-intent/result.json"
+  ],
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "implementation_summary": "Rewrote leaveGroup() in MarmotContext.tsx. Added import of LEAVE_INTENT_KIND and serialiseLeaveIntent from leaveSync.ts. The new body: (1) fetches mlsGroup via clientRef.current?.groups.get(groupId) — safe for stale-closure scenarios; (2) if mlsGroup and selfPubkeyHex are available, sends kind-13 via sendRumorSafe (handles unapplied-proposals retry internally), wrapping in try/catch so a send failure after MAX_RETRIES does not block purge; (3) fires kind-9 chat announcement as fire-and-forget via .catch(() => {}); (4) runs the existing eight-step purge sequence unconditionally. mlsGroup.leave() is never called.",
+  "test_counts": {
+    "baseline": 856,
+    "final": 856,
+    "new_tests": 0
+  },
+  "mocks_introduced": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-18T02:30:00Z"
+}

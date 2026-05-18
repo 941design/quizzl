@@ -1,0 +1,141 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-18T00:00:00Z",
+  "questions": [
+    {
+      "id": "V-S2-PRE-1",
+      "type": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does leaveHandler.ts contain zero imports from app/src/context/ and zero direct IDB calls? All side-effects must flow exclusively through the injected LeaveHandlerDeps bag.",
+      "verification_method": "grep -rn 'from.*context/' app/src/lib/marmot/handlers/leaveHandler.ts — must return empty; grep -rn 'idb\\|openDB\\|getDB' app/src/lib/marmot/handlers/leaveHandler.ts — must return empty",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S2-PRE-2",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does AR-1 still hold after S2? Exactly one match for group.on('applicationMessage' must exist in the codebase, located in applicationRumorDispatcher.ts — no second listener introduced by this story.",
+      "verification_method": "grep -r \"group.on('applicationMessage'\" app/src/ — must return exactly 1 line; that line must be in app/src/lib/marmot/applicationRumorDispatcher.ts",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S2-PRE-3",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could app/src/lib/marmot/handlers/leaveHandler.ts be deleted and rewritten without modifying any file outside its dependencies_allowed list (leaveSync.ts, registerHandlers.ts, and the handler contract types)? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?",
+      "verification_method": "Read leaveHandler.ts imports section; confirm all imports are from app/src/lib/marmot/leaveSync.ts, the shared handler interface types, or node_modules — no context/ or component/ imports",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S2-PRE-4",
+      "type": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/marmot/leaveHandler.test.ts use vi.fn() for all LeaveHandlerDeps and test both the well-formed and malformed-payload cases following the pollHandler.test.ts pattern?",
+      "verification_method": "Read app/tests/unit/marmot/leaveHandler.test.ts — verify vi.fn() enqueueLeave mock, two it() blocks (well-formed → called once, malformed → not called); run make test-unit",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S2-PRE-5",
+      "type": "pre-impl",
+      "category": "SPEC",
+      "question": "Does registerHandlers.ts include enqueueLeave in HandlerDeps and does buildDispatcher() append createLeaveIntentHandler({ enqueueLeave: deps.enqueueLeave }) to the handlers array — not adding a second applicationMessage listener?",
+      "verification_method": "Read app/src/lib/marmot/registerHandlers.ts — verify HandlerDeps interface has enqueueLeave field; verify handlers array push includes createLeaveIntentHandler; grep for group.on to confirm no new listener added",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S2-PRE-6",
+      "type": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does createLeaveIntentHandler guard against malformed rumor.content before calling deps.enqueueLeave — specifically, does it call parseLeaveIntent and return early if the result is null?",
+      "verification_method": "Read the handle() body in leaveHandler.ts — must show: const payload = parseLeaveIntent(rumor.content); if (!payload) return; deps.enqueueLeave(...)",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S2-SPEC-1",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-HANDLER-1",
+      "question": "After S2, does grep -r \"group.on('applicationMessage'\" app/src/ return exactly one match, located in applicationRumorDispatcher.ts?",
+      "verification_method": "grep -r \"group.on('applicationMessage'\" app/src/ — count the output lines; must be exactly 1; that line must contain 'applicationRumorDispatcher.ts'",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S2-SPEC-2",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-HANDLER-2",
+      "question": "After S2, does grep -rn 'rumor\\.kind' app/src/context/ return zero matches? All kind dispatch must remain in handlers/ or applicationRumorDispatcher.ts.",
+      "verification_method": "grep -rn 'rumor\\.kind' app/src/context/ — must return empty (zero lines)",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S2-SPEC-3",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-HANDLER-3",
+      "question": "Does leaveHandler.ts export a LeaveHandlerDeps interface with { enqueueLeave: (groupId: string, pubkey: string) => void } and a createLeaveIntentHandler(deps: LeaveHandlerDeps): RumorHandler factory, with zero context/ imports?",
+      "verification_method": "Read app/src/lib/marmot/handlers/leaveHandler.ts — verify both exports are present with correct signatures; grep 'from.*context/' app/src/lib/marmot/handlers/leaveHandler.ts — must return empty",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S2-SPEC-4",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-HANDLER-4",
+      "question": "Does the handle function inside createLeaveIntentHandler call parseLeaveIntent(rumor.content), return early (no-op) on null result, and call deps.enqueueLeave(ctx.groupId, payload.pubkey) on a valid result?",
+      "verification_method": "Read the handle body in leaveHandler.ts and trace the two code paths; run unit test in leaveHandler.test.ts asserting both branches",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S2-SPEC-5",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-HANDLER-5",
+      "question": "Does registerHandlers.ts's HandlerDeps interface include enqueueLeave: (groupId: string, pubkey: string) => void, and does buildDispatcher() append createLeaveIntentHandler({ enqueueLeave: deps.enqueueLeave }) to the handlers array?",
+      "verification_method": "Read app/src/lib/marmot/registerHandlers.ts — grep 'enqueueLeave' and verify it appears in both HandlerDeps and the handlers array initializer",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S2-SPEC-6",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-HANDLER-6",
+      "question": "Does app/tests/unit/marmot/leaveHandler.test.ts assert (a) a well-formed kind-13 rumor causes enqueueLeave to be called once with the correct (groupId, pubkey) arguments, and (b) a malformed payload causes enqueueLeave to not be called?",
+      "verification_method": "Read leaveHandler.test.ts and verify both assertions are present; run make test-unit and confirm leaveHandler suite passes",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S2-POST-1",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the stub fallback `deps.enqueueLeave ?? (() => {})` in buildDispatcher() carry the MOCK-S2-001 comment, and is this entry present in mocks-registry.json with resolved: false and resolution_story: 'S4'?",
+      "verification_method": "grep 'MOCK-S2-001' app/src/lib/marmot/registerHandlers.ts — must return one match; cat specs/epic-out-of-band-leave/mocks-registry.json — must show mock_id MOCK-S2-001 with resolved: false",
+      "severity": 6,
+      "optional": false
+    },
+    {
+      "id": "V-S2-POST-2",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Does the leaveHandler handle() function return void (not Promise<void>), and do all test assertions correctly account for this synchronous return type (no .resolves wrapper on non-promise)? If the handler is later changed to async, the malformed-payload tests need updating.",
+      "verification_method": "Read app/src/lib/marmot/handlers/leaveHandler.ts handleLeaveIntent — confirm it is not async; read leaveHandler.test.ts malformed tests — confirm they use expect(() => ...).not.toThrow() rather than .resolves",
+      "severity": 5,
+      "optional": false
+    }
+  ]
+}

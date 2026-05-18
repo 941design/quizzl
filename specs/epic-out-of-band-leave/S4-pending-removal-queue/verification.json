@@ -1,0 +1,121 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-18T00:00:00Z",
+  "questions": [
+    {
+      "id": "V-S4-PRE-1",
+      "type": "pre-impl",
+      "category": "QUALITY",
+      "question": "Are pendingRemovalsRef and debounceTimersRef declared with useRef (not useState)? Using useState would cause unnecessary re-renders on every enqueue operation.",
+      "verification_method": "grep -n 'pendingRemovalsRef\\|debounceTimersRef' app/src/context/MarmotContext.tsx — both must match the pattern useRef<Map<...>>(...) with no useState wrapper",
+      "severity": 9,
+      "optional": false
+    },
+    {
+      "id": "V-S4-PRE-2",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Is the enqueueLeave closure constructed at MarmotContext top-level (not inside a per-group subscribeNewGroups loop), ensuring a stable function reference is passed to buildDispatcher?",
+      "verification_method": "Read MarmotContext.tsx and verify enqueueLeave is defined as a useCallback or const at the component top-level, outside the subscribeNewGroups for-loop (lines ~577-640)",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S4-PRE-3",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the enqueueLeave closure and the two useRef maps be deleted and rewritten without modifying any file outside MarmotContext.tsx and registerHandlers.ts? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?",
+      "verification_method": "Read MarmotContext.tsx — verify the enqueueLeave closure only accesses pendingRemovalsRef and debounceTimersRef (both refs defined in the same component), with no imports of IDB functions or context/ modules; the seam is through deps.enqueueLeave in registerHandlers.ts, which is declared in architecture.md",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S4-PRE-4",
+      "type": "pre-impl",
+      "category": "TEST",
+      "question": "Are debounce timers cleared in the groupSubsRef cleanup at MarmotContext.tsx lines 720-727 to prevent timer leaks when group subscriptions tear down?",
+      "verification_method": "Read MarmotContext.tsx lines 710-730 — confirm clearTimeout(debounceTimersRef.current.get(groupId)) appears in the cleanup block for groupSubsRef alongside the existing subscription teardown logic",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S4-PRE-5",
+      "type": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the real enqueueLeave closure replace the stub enqueueLeave from S2, and is the real closure passed to buildDispatcher() as deps.enqueueLeave inside subscribeNewGroups?",
+      "verification_method": "grep -n 'enqueueLeave' app/src/context/MarmotContext.tsx — must show the real closure definition and its injection into buildDispatcher deps; grep -n 'stub\\|no-op\\|TODO' app/src/context/MarmotContext.tsx | grep -i 'enqueue' — must return empty",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S4-PRE-6",
+      "type": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does enqueueLeave store PendingRemoval entries that include receivedAt: Date.now() as a timestamp, ensuring entries carry provenance information for future audit or retry logic?",
+      "verification_method": "Read the enqueueLeave closure body — verify PendingRemoval push includes receivedAt: Date.now(); grep 'receivedAt' app/src/context/MarmotContext.tsx — must return at least 1 match",
+      "severity": 6,
+      "optional": false
+    },
+    {
+      "id": "V-S4-SPEC-1",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-QUEUE-1",
+      "question": "Does MarmotContext declare pendingRemovalsRef as React.useRef<Map<string, PendingRemoval[]>>(new Map()) and debounceTimersRef as React.useRef<Map<string, NodeJS.Timeout>>(new Map()), both using useRef not useState?",
+      "verification_method": "grep -n 'pendingRemovalsRef\\|debounceTimersRef' app/src/context/MarmotContext.tsx — verify both are useRef declarations with the correct generic types and initial values",
+      "severity": 9,
+      "optional": false
+    },
+    {
+      "id": "V-S4-SPEC-2",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-QUEUE-2",
+      "question": "Does the enqueueLeave(groupId, pubkey) closure add a PendingRemoval { groupId, pubkey, receivedAt: Date.now() } to the queue, and arm or reset a 5000ms debounce timer for the group, replacing any existing timer?",
+      "verification_method": "Read enqueueLeave closure body — verify: (1) pendingRemovalsRef.current.get(groupId) || [] push pattern; (2) clearTimeout on any existing timer before setTimeout; (3) setTimeout delay is 5000",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S4-SPEC-3",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-QUEUE-3",
+      "question": "Are debounce timers cleared in the groupSubsRef cleanup at MarmotContext.tsx lines 720-727, ensuring no timer fires after a group subscription has been torn down?",
+      "verification_method": "Read MarmotContext.tsx lines 715-730 — clearTimeout must appear in the cleanup function for the groupId's timer entry in debounceTimersRef.current",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S4-SPEC-4",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-QUEUE-4",
+      "question": "Is the real enqueueLeave closure supplied to buildDispatcher() as deps.enqueueLeave inside subscribeNewGroups, replacing the stub that was wired in S2?",
+      "verification_method": "Read the buildDispatcher() call site in MarmotContext.tsx — deps object must include enqueueLeave: enqueueLeave (the real closure, not a no-op); grep 'enqueueLeave' MarmotContext.tsx — the closure definition must precede the buildDispatcher call",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S4-POST-1",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the enqueueLeave useCallback have an empty deps array [], meaning it closes over the two Refs (pendingRemovalsRef, debounceTimersRef) which are themselves stable ref objects — not their .current values? Closing over .current directly (not the ref object) would create a stale closure after a re-render.",
+      "verification_method": "Read MarmotContext.tsx — the useCallback for enqueueLeave must use `pendingRemovalsRef.current` and `debounceTimersRef.current` inside the function body (dereferences .current at call time), and the deps array must be [] (not [pendingRemovalsRef, debounceTimersRef]). Both refs are stable across renders, so [] is correct.",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S4-POST-2",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "After S5 fills in the timer-fire callback, will the S5 implementation accidentally replace the debounceTimersRef.current.delete(groupId) that the S4 no-op timer currently performs at fire time? If S5's callback omits that delete, the Map will accumulate stale entries for groups whose timer already fired.",
+      "verification_method": "When implementing S5: verify the timer callback unconditionally calls debounceTimersRef.current.delete(groupId) either before or after the commit logic — regardless of whether the commit succeeds or the stale-leaf guard short-circuits.",
+      "severity": 6,
+      "optional": false
+    }
+  ]
+}

@@ -26,6 +26,7 @@ import type { ChatMediaAttachment } from '@/src/lib/media/imageMessage';
 import PollChatAnnouncement from '@/src/components/groups/PollChatAnnouncement';
 import PollChatResults from '@/src/components/groups/PollChatResults';
 import InviteCancelledChatAnnouncement from '@/src/components/groups/InviteCancelledChatAnnouncement';
+import LeaveChatAnnouncement from '@/src/components/groups/LeaveChatAnnouncement';
 import ImageAttachmentButton from '@/src/components/groups/ImageAttachmentButton';
 import ImageMessageBubble from '@/src/components/groups/ImageMessageBubble';
 
@@ -346,6 +347,11 @@ export default function ChatBox({
           cancellerDisplay={cancellerDisplay}
         />
       );
+    }
+    if (structured?.type === 'leave_intent' && allowPollMessages) {
+      const memberDisplay = profileMap[structured.pubkey]?.nickname
+        ?? truncateNpub(pubkeyToNpub(structured.pubkey));
+      return <LeaveChatAnnouncement memberDisplay={memberDisplay} />;
     }
     if (structured?.type === 'image') {
       return (

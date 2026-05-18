@@ -1,0 +1,30 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/src/lib/marmot/leaveSync.ts",
+    "app/tests/unit/marmot/leaveSync.test.ts",
+    "specs/epic-out-of-band-leave/S1-leave-sync-module/baseline.json",
+    "specs/epic-out-of-band-leave/S1-leave-sync-module/architecture.json",
+    "specs/epic-out-of-band-leave/S1-leave-sync-module/result.json"
+  ],
+  "files_modified": [
+    "specs/epic-out-of-band-leave/S1-leave-sync-module/verification.json"
+  ],
+  "test_counts": {
+    "baseline_files": 61,
+    "baseline_tests": 843,
+    "final_files": 62,
+    "final_tests": 852,
+    "new_tests_added": 9
+  },
+  "mocks_introduced": [],
+  "implementation_summary": "Created leaveSync.ts as a pure-function module (zero React, zero IDB, zero context imports) exporting LEAVE_INTENT_KIND=13, LeaveIntentPayload interface, serialiseLeaveIntent, and parseLeaveIntent. serialiseLeaveIntent explicitly destructures only pubkey to prevent extra fields leaking into the wire format. parseLeaveIntent guards typeof parsed.pubkey !== 'string' inside a try/catch, covering invalid JSON, missing field, non-string pubkey, and JSON null. Test file mirrors pollSync.test.ts structure with 9 cases covering the three AC-SYNC-4 required assertions plus edge cases.",
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  },
+  "completed_at": "2026-05-18T01:30:00Z"
+}

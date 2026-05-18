@@ -1,0 +1,48 @@
+{
+  "story_id": "S5",
+  "status": "done",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/tests/unit/marmot/autoCommitLeave.test.ts",
+    "specs/epic-out-of-band-leave/S5-auto-commit-path/baseline.json",
+    "specs/epic-out-of-band-leave/S5-auto-commit-path/architecture.json",
+    "specs/epic-out-of-band-leave/S5-auto-commit-path/result.json"
+  ],
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx",
+    "specs/epic-out-of-band-leave/S5-auto-commit-path/verification.json"
+  ],
+  "implementation_summary": "Added exported `fireAutoCommit(deps: FireAutoCommitDeps)` function at module scope in MarmotContext.tsx (Option A extraction). The function: (1) deduplicates the pending pubkey snapshot, (2) calls getPubkeyLeafNodeIndexes per pubkey — dropping stale entries via onCommitted, (3) builds plain-object Remove proposals with PROPOSAL_TYPE_REMOVE=3, (4) derives remainingAdmins from the live mlsGroup.groupData?.adminPubkeys filtered by valid (departing) pubkeys only, (5) issues exactly ONE mlsGroup.commit({ extraProposals: [...removeProposals, proposeUpdateMetadata(...)] }), (6) on success calls onCommitted to filter committed pubkeys from the live queue (entries enqueued during the commit window survive), (7) on failure logs and returns without touching the queue. The S4 timer callback in enqueueLeave was replaced from a no-op stub to a void async IIFE that re-fetches the live mlsGroup via clientRef.current?.groups.get(groupId) at fire time, then calls fireAutoCommit with injected deps and an onCommitted callback that mutates pendingRemovalsRef.",
+  "tests": {
+    "baseline_files": 63,
+    "baseline_count": 856,
+    "final_files": 64,
+    "final_count": 862,
+    "new_tests": 6,
+    "new_test_file": "app/tests/unit/marmot/autoCommitLeave.test.ts",
+    "test_cases": [
+      "AC-COMMIT-8a: single pubkey → one commit with Remove + proposeUpdateMetadata",
+      "AC-COMMIT-8b: empty leafIndexes → commit not called, entry dropped via onCommitted",
+      "AC-COMMIT-8c: two pubkeys → one commit with two Remove proposals + correct remainingAdmins",
+      "AC-COMMIT-7: commit throws → onCommitted not called for committed pubkeys; queue preserved",
+      "AC-EDGE-3: burst of N pubkeys → single commit absorbs all N Remove proposals",
+      "Mixed stale + valid: stale dropped eagerly, valid committed in one commit"
+    ]
+  },
+  "mocks_introduced": [
+    "vi.mock('react') — prevents MarmotProvider component body from executing at import time; fireAutoCommit lives at module scope and does not require React",
+    "vi.mock on all storage/context modules imported by MarmotContext.tsx at module scope"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Importing `fireAutoCommit` from MarmotContext.tsx in a Vitest test requires mocking all of MarmotContext's side-effect imports (React hooks, IDB, context providers) even though the target function is module-scope and uses none of them. This is a structural friction point of Option A (export from MarmotContext) vs Option B (extract to sibling file). The spec guidance correctly identified this trade-off but deferred to Option A to avoid moving sendRumorSafe; the mock burden is the cost.",
+    "surprised_by": "onCommitted for stale-leaf drops (empty leafIndexes) needs to fire before the mlsGroup.commit() call — not after — because stale entries should be cleaned up regardless of whether the commit for valid entries succeeds or fails. This means the 'commit failure → queue preserved' invariant applies only to the valid committed entries, not to stale entries that were already gone from the ratchet. The spec did not make this distinction explicit; it became clear when designing the test for the mixed stale+valid case.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-18T03:30:00Z"
+}

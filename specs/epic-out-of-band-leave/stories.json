@@ -1,0 +1,381 @@
+{
+  "epic_name": "out-of-band-leave",
+  "created_at": "2026-05-18T00:00:00Z",
+  "total_stories": 7,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "leave-sync-module",
+      "title": "Add leaveSync.ts with kind constant, payload type, and serialize/parse helpers",
+      "description": "Create app/src/lib/marmot/leaveSync.ts as a pure-function module with no React or IDB imports. Exports LEAVE_INTENT_KIND = 13, the LeaveIntentPayload interface, serialiseLeaveIntent, and parseLeaveIntent. Mirrors pollSync.ts. Includes unit tests for round-trip and parse-failure cases.",
+      "status": "done",
+      "story_order": 1,
+      "owning_module": "lib/marmot/leaveSync.ts",
+      "lighter_path": false,
+      "lighter_path_reason": "S1 creates a new file (leaveSync.ts does not exist on disk); new_file = true forces lighter_path = false.",
+      "acceptance_criteria": [
+        "AC-SYNC-1",
+        "AC-SYNC-2",
+        "AC-SYNC-3",
+        "AC-SYNC-4"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/leaveSync.ts",
+          "app/tests/unit/marmot/leaveSync.test.ts"
+        ],
+        "excludes": [
+          "app/src/context/MarmotContext.tsx",
+          "app/src/lib/marmot/registerHandlers.ts",
+          "app/src/lib/marmot/handlers/"
+        ]
+      },
+      "dependencies": [],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "S2",
+      "name": "leave-handler-dispatch",
+      "title": "Add leaveHandler.ts and register kind-13 in buildDispatcher()",
+      "description": "Create app/src/lib/marmot/handlers/leaveHandler.ts exporting LeaveHandlerDeps and createLeaveIntentHandler following the pollHandler.ts pattern. Extend HandlerDeps in registerHandlers.ts to include enqueueLeave and append createLeaveIntentHandler to the handlers array. Wire a stub enqueueLeave in MarmotContext as a placeholder until S4 provides the real closure. AR-1 and AR-3 invariants must continue to hold. Unit-tested with vi.fn deps.",
+      "status": "done",
+      "story_order": 2,
+      "owning_module": "lib/marmot/handlers/leaveHandler.ts",
+      "lighter_path": false,
+      "lighter_path_reason": "S2 creates a new file (leaveHandler.ts does not exist on disk) and modifies code files; new_file = true and files_code non-empty.",
+      "acceptance_criteria": [
+        "AC-HANDLER-1",
+        "AC-HANDLER-2",
+        "AC-HANDLER-3",
+        "AC-HANDLER-4",
+        "AC-HANDLER-5",
+        "AC-HANDLER-6"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/handlers/leaveHandler.ts",
+          "app/src/lib/marmot/registerHandlers.ts",
+          "app/tests/unit/marmot/leaveHandler.test.ts"
+        ],
+        "excludes": [
+          "app/src/context/MarmotContext.tsx",
+          "app/src/context/ChatStoreContext.tsx"
+        ]
+      },
+      "dependencies": [
+        "S1"
+      ],
+      "mock_dependencies": [],
+      "introduces_mocks": [
+        {
+          "mock_id": "MOCK-S2-001",
+          "description": "Stub enqueueLeave callback wired into buildDispatcher — no-op placeholder until S4 supplies the real MarmotContext closure",
+          "interface_mocked": "LeaveHandlerDeps.enqueueLeave: (groupId: string, pubkey: string) => void",
+          "resolution_story": "S4"
+        }
+      ],
+      "test_fixtures": []
+    },
+    {
+      "id": "S3",
+      "name": "send-path-leave-intent",
+      "title": "leaveGroup emits kind-13 leave intent and kind-9 fire-and-forget announcement before local purge",
+      "description": "Replace the soft-mute no-op inside leaveGroup() in MarmotContext.tsx with: (a) kind-13 sendApplicationRumor carrying LeaveIntentPayload, (b) fire-and-forget kind-9 chat rumor with {type:'leave_intent', pubkey}, (c) existing local-state purge sequence, (d) navigate to /groups. Send order: kind-13 must precede kind-9 and the purge. If kind-13 fails due to unapplied proposals, fall back to sendRumorSafe before retrying. mlsGroup.leave() must not be called.",
+      "status": "done",
+      "story_order": 3,
+      "owning_module": "context/MarmotContext.tsx",
+      "lighter_path": false,
+      "lighter_path_reason": "S3 modifies MarmotContext.tsx, a code file; files_code is non-empty.",
+      "acceptance_criteria": [
+        "AC-SEND-1",
+        "AC-SEND-2",
+        "AC-SEND-3",
+        "AC-SEND-4",
+        "AC-SEND-5",
+        "AC-EDGE-5"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/context/MarmotContext.tsx"
+        ],
+        "excludes": [
+          "app/src/context/ChatStoreContext.tsx",
+          "app/src/lib/marmot/handlers/",
+          "app/src/lib/marmot/registerHandlers.ts"
+        ]
+      },
+      "dependencies": [
+        "S1"
+      ],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "S4",
+      "name": "pending-removal-queue",
+      "title": "Pending-removal queue and 5-second debounce in MarmotContext",
+      "description": "Add pendingRemovalsRef (Map<groupId, PendingRemoval[]>) and debounceTimersRef (Map<groupId, NodeJS.Timeout>) as useRef (not useState) in MarmotContext. Implement the enqueueLeave(groupId, pubkey) closure that appends a PendingRemoval and arms/resets the per-group 5s debounce timer. Replace the stub enqueueLeave from S2 with the real closure injected into buildDispatcher via deps.enqueueLeave. Clear timers in the groupSubsRef cleanup at MarmotContext.tsx:720-727. No commit logic yet — timer callback is a no-op placeholder cleared by S5.",
+      "status": "done",
+      "story_order": 4,
+      "owning_module": "context/MarmotContext.tsx",
+      "lighter_path": false,
+      "lighter_path_reason": "S4 modifies MarmotContext.tsx and registerHandlers.ts, both code files; files_code is non-empty.",
+      "acceptance_criteria": [
+        "AC-QUEUE-1",
+        "AC-QUEUE-2",
+        "AC-QUEUE-3",
+        "AC-QUEUE-4"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/context/MarmotContext.tsx",
+          "app/src/lib/marmot/registerHandlers.ts"
+        ],
+        "excludes": [
+          "app/src/context/ChatStoreContext.tsx",
+          "app/src/lib/marmot/handlers/leaveHandler.ts"
+        ]
+      },
+      "dependencies": [
+        "S2"
+      ],
+      "mock_dependencies": [
+        {
+          "mock_id": "MOCK-S2-001",
+          "description": "Stub enqueueLeave from S2 resolved here — replaced with the real closure from MarmotContext",
+          "resolution_story": "S4"
+        }
+      ],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "S5",
+      "name": "auto-commit-path",
+      "title": "Auto-commit timer: Remove proposals + adminPubkeys update in a single commit",
+      "description": "Implement the debounce timer-fire handler in MarmotContext. Re-fetch live mlsGroup via clientRef.current?.groups.get(groupId). For each pending pubkey, look up leaf indexes via getPubkeyLeafNodeIndexes; drop already-removed entries. Build plain-object Remove proposals ({ proposalType: PROPOSAL_TYPE_REMOVE, remove: { removed: leafIndex } }). Compute remainingAdmins from mlsGroup.groupData?.adminPubkeys. Issue one mlsGroup.commit({ extraProposals: [...removeProposals, Proposals.proposeUpdateMetadata({ adminPubkeys: remainingAdmins })] }). On success clear committed entries; on failure leave entries in place for retry with freshly derived leaf indexes. Covers dual-admin race, stale-leaf guard, cold-start burst, and publish-fail retry semantics.",
+      "status": "done",
+      "story_order": 5,
+      "owning_module": "context/MarmotContext.tsx",
+      "lighter_path": false,
+      "lighter_path_reason": "S5 modifies MarmotContext.tsx, a code file, and creates a new unit test file; files_code is non-empty and new_file = true.",
+      "acceptance_criteria": [
+        "AC-COMMIT-1",
+        "AC-COMMIT-2",
+        "AC-COMMIT-3",
+        "AC-COMMIT-4",
+        "AC-COMMIT-5",
+        "AC-COMMIT-6",
+        "AC-COMMIT-7",
+        "AC-COMMIT-8",
+        "AC-EDGE-1",
+        "AC-EDGE-2",
+        "AC-EDGE-3",
+        "AC-EDGE-4",
+        "AC-EDGE-6",
+        "AC-EDGE-8"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/context/MarmotContext.tsx",
+          "app/tests/unit/marmot/autoCommitLeave.test.ts"
+        ],
+        "excludes": [
+          "app/src/context/ChatStoreContext.tsx",
+          "app/src/lib/marmot/handlers/",
+          "app/src/lib/marmot/registerHandlers.ts"
+        ]
+      },
+      "dependencies": [
+        "S4"
+      ],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "S6",
+      "name": "leave-announcement-rendering",
+      "title": "LeaveChatAnnouncement component, parseStructured extension, ChatBox branch, and i18n keys",
+      "description": "Extend StructuredContent union in parseStructured.ts with { type: 'leave_intent'; pubkey: string } and add the guard branch. Create the LeaveChatAnnouncement presentational component (gray sidebar, data-testid='leave-chat-announcement', uses useCopy for groups.leftGroup). Add the leave_intent branch in ChatBox.tsx's renderStructuredMessage resolving memberDisplay from profileMap with truncateNpub fallback. Add groups.leftGroup en and de entries to i18n.ts. Unit tests for parseStructured and i18n. No changes to ChatStoreContext.",
+      "status": "done",
+      "story_order": 6,
+      "owning_module": "lib/marmot/parseStructured.ts",
+      "lighter_path": false,
+      "lighter_path_reason": "S6 creates a new file (LeaveChatAnnouncement.tsx does not exist on disk) and modifies multiple code files (.ts, .tsx); new_file = true and files_code is non-empty.",
+      "acceptance_criteria": [
+        "AC-CHAT-1",
+        "AC-CHAT-2",
+        "AC-CHAT-3",
+        "AC-CHAT-4",
+        "AC-CHAT-5",
+        "AC-CHAT-6",
+        "AC-I18N-1",
+        "AC-I18N-2",
+        "AC-I18N-3"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/parseStructured.ts",
+          "app/src/components/chat/ChatBox.tsx",
+          "app/src/components/groups/LeaveChatAnnouncement.tsx",
+          "app/src/lib/i18n.ts",
+          "app/tests/unit/marmot/parseStructured.test.ts",
+          "app/tests/unit/leaveIntent.i18n.test.ts"
+        ],
+        "excludes": [
+          "app/src/context/ChatStoreContext.tsx",
+          "app/src/context/MarmotContext.tsx",
+          "app/src/lib/marmot/handlers/",
+          "app/src/lib/marmot/registerHandlers.ts"
+        ]
+      },
+      "dependencies": [],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "S7",
+      "name": "member-list-refresh-e2e",
+      "title": "Verify onMembersChanged fires on auto-remove commit and write e2e test",
+      "description": "Confirm that onMembersChanged at MarmotContext.tsx:599-609 fires when the auto-remove commit from S5 lands, causing the member list to refresh and drop the departed member. If existing wiring already handles this, this story is verification-only for that path. Covers the sole-admin and pre-admin-promotion no-op edge cases. Delivers the two-client Playwright e2e: User A creates group, invites User B; User B leaves; within 5s User A's client commits removal; User B's name disappears from User A's member list; User A can still send chat. Also asserts AC-ARCH boundary invariants as grep-based checks.",
+      "status": "done",
+      "story_order": 7,
+      "owning_module": "context/MarmotContext.tsx",
+      "lighter_path": false,
+      "lighter_path_reason": "S7 creates a new e2e test file and may touch MarmotContext.tsx; new_file = true and files_code is non-empty.",
+      "acceptance_criteria": [
+        "AC-MEMBERS-1",
+        "AC-MEMBERS-2",
+        "AC-EDGE-7",
+        "AC-ARCH-1",
+        "AC-ARCH-2",
+        "AC-ARCH-3"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/context/MarmotContext.tsx",
+          "app/tests/e2e/groups-leave-intent.spec.ts"
+        ],
+        "excludes": [
+          "app/src/context/ChatStoreContext.tsx",
+          "app/src/lib/marmot/handlers/",
+          "app/src/lib/marmot/registerHandlers.ts",
+          "app/src/components/"
+        ]
+      },
+      "dependencies": [
+        "S5",
+        "S6"
+      ],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7"
+  ],
+  "dependency_notes": "S1 (leaveSync.ts) is a prerequisite for S2 (handler needs parseLeaveIntent) and S3 (leaveGroup needs serialiseLeaveIntent + LEAVE_INTENT_KIND). S2 must precede S4 (S4 replaces the stub enqueueLeave wired in S2 with the real closure). S4 must precede S5 (S5 implements the timer body that S4 arms). S6 is independent — UI-only changes with no dependency on MLS state — placed at story_order 6 for serialized execution. S7 requires both S5 (auto-commit must exist) and S6 (e2e asserts the leave announcement renders) before e2e can pass. Execution order: S1 → S2 → S3 → S4 → S5 → S6 → S7.",
+  "seams": [
+    {
+      "seam_id": "SEAM-01",
+      "name": "handler-to-context enqueue callback",
+      "contract": {
+        "type_name": "LeaveHandlerDeps",
+        "fields": [
+          {
+            "name": "enqueueLeave",
+            "type": "(groupId: string, pubkey: string) => void"
+          }
+        ],
+        "invariants": [
+          "enqueueLeave is called exactly once per well-formed kind-13 rumor received",
+          "enqueueLeave is never called for a rumor where parseLeaveIntent returns null",
+          "enqueueLeave receives the groupId from RumorHandlerContext and the pubkey from LeaveIntentPayload"
+        ]
+      },
+      "source": {
+        "story": "S4",
+        "artifact": "app/src/context/MarmotContext.tsx — enqueueLeave closure"
+      },
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/lib/marmot/handlers/leaveHandler.ts — createLeaveIntentHandler deps"
+      },
+      "mock_in_story": "S2",
+      "resolved_in_story": "S4"
+    },
+    {
+      "seam_id": "SEAM-02",
+      "name": "leaveSync serialization contract",
+      "contract": {
+        "type_name": "LeaveIntentPayload",
+        "fields": [
+          {
+            "name": "pubkey",
+            "type": "string"
+          }
+        ],
+        "invariants": [
+          "serialiseLeaveIntent(p) produces JSON with exactly one key 'pubkey'",
+          "parseLeaveIntent(serialiseLeaveIntent(p)) returns {pubkey: p.pubkey} for any valid p",
+          "parseLeaveIntent returns null for any input where parsed.pubkey is not a string"
+        ]
+      },
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/marmot/leaveSync.ts"
+      },
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/lib/marmot/handlers/leaveHandler.ts"
+      }
+    },
+    {
+      "seam_id": "SEAM-03",
+      "name": "pending-removal queue to auto-commit timer",
+      "contract": {
+        "type_name": "PendingRemoval",
+        "fields": [
+          {
+            "name": "groupId",
+            "type": "string"
+          },
+          {
+            "name": "pubkey",
+            "type": "string"
+          },
+          {
+            "name": "receivedAt",
+            "type": "number"
+          }
+        ],
+        "invariants": [
+          "pendingRemovalsRef.current is a Map<string, PendingRemoval[]> keyed by groupId",
+          "entries added during the commit window survive to the next timer tick",
+          "entries for successfully committed pubkeys are removed after commit",
+          "entries for pubkeys not found in the ratchet tree are dropped without commit"
+        ]
+      },
+      "source": {
+        "story": "S4",
+        "artifact": "app/src/context/MarmotContext.tsx — pendingRemovalsRef"
+      },
+      "destination": {
+        "story": "S5",
+        "artifact": "app/src/context/MarmotContext.tsx — timer-fire handler"
+      }
+    }
+  ]
+}

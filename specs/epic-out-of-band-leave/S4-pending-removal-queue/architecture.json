@@ -1,0 +1,37 @@
+{
+  "module_name": "context/MarmotContext.tsx",
+  "purpose": "Add pending-removal queue infrastructure: two useRef Maps (pendingRemovalsRef, debounceTimersRef) at component top level, the enqueueLeave closure that arms/extends a per-group 5s debounce timer, cleanup integration in groupSubsRef teardown, and wiring of the real closure into buildDispatcher deps.",
+  "public_api": [
+    {
+      "name": "enqueueLeave",
+      "signature": "(groupId: string, pubkey: string) => void",
+      "description": "Appends a PendingRemoval entry to pendingRemovalsRef for groupId, then arms or resets a 5000ms debounce timer in debounceTimersRef. If a prior timer exists for the group it is cleared first. Timer callback is a no-op placeholder; S5 fills it in with auto-commit logic."
+    }
+  ],
+  "private_files": [
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "owned_data": [
+    "pendingRemovalsRef: Map<groupId, PendingRemoval[]> — the pending leave entries queued but not yet committed",
+    "debounceTimersRef: Map<groupId, NodeJS.Timeout> — the active per-group debounce timers"
+  ],
+  "dependencies_allowed": [
+    "react (useRef, useCallback — already imported)",
+    "app/src/lib/marmot/registerHandlers.ts (buildDispatcher — already imported)"
+  ],
+  "dependencies_forbidden": [
+    "No new imports of app/src/context/* modules",
+    "No IDB direct calls in enqueueLeave",
+    "No useState for the two new Maps (must be useRef)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [],
+  "design_decisions": {
+    "timer_clear_on_group_teardown": "Always clear the pending debounce timer when a group subscription is torn down. The timer MUST NOT fire after the subscription is gone — it would attempt a commit against a group that may have been re-subscribed in a different effect run.",
+    "queue_retention_on_teardown": "The pendingRemovalsRef queue is NOT cleared on group teardown. If the subscription tears down (due to effect re-run) while entries are queued, those entries will be repopulated by historical sync on re-subscribe. Clearing them on teardown would cause entries to be lost silently; leaving them causes at most a harmless duplicate enqueue on re-ingest (the 5s debounce on re-subscribe will arm again). The queue is effectively drained by the timer callback in S5.",
+    "enqueueLeave_placement": "Defined as a useCallback at the MarmotContext component top level (alongside other refs), NOT inside the per-group subscribeNewGroups loop. This gives all group subscriptions a stable closure reference captured at creation time.",
+    "mock_resolution": "MOCK-S2-001 (stub enqueueLeave in S2's buildDispatcher call) is resolved here. The real closure is now passed as deps.enqueueLeave. The ?? (() => {}) fallback in registerHandlers.ts is retained as a defensive default for tests that build the dispatcher without MarmotContext."
+  }
+}

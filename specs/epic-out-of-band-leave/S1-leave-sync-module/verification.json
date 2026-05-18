@@ -1,0 +1,123 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-18T00:00:00Z",
+  "questions": [
+    {
+      "id": "V-S1-PRE-1",
+      "type": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does app/src/lib/marmot/leaveSync.ts contain zero React imports, zero IDB imports, and zero imports from app/src/context/? The file must be a pure-function module with no side effects.",
+      "verification_method": "grep -E 'from .*(react|context/|idb)' app/src/lib/marmot/leaveSync.ts — must return empty",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S1-PRE-2",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does leaveSync.ts only import from within app/src/lib/marmot/ (or from node_modules), with no transitive imports outside that boundary? The module must remain self-contained within lib/marmot/.",
+      "verification_method": "Read app/src/lib/marmot/leaveSync.ts and inspect all import statements; verify every local import path starts with ./ and resolves within app/src/lib/marmot/",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S1-PRE-3",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could app/src/lib/marmot/leaveSync.ts be deleted and rewritten without modifying any file outside its owning module boundary (app/src/lib/marmot/)? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?",
+      "verification_method": "grep -r 'leaveSync' app/src/ --include='*.ts' --include='*.tsx' -l — all consumers must be in app/src/lib/marmot/ or app/src/lib/marmot/handlers/; no direct consumer in app/src/context/ or app/src/components/",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S1-PRE-4",
+      "type": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/marmot/leaveSync.test.ts exist and follow the vitest pollSync.test.ts pattern (import from vitest, describe block, explicit it() cases for round-trip and null-return)?",
+      "verification_method": "Read app/tests/unit/marmot/leaveSync.test.ts and verify structure; then run: make test-unit 2>&1 | grep -E 'leaveSync|PASS|FAIL'",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S1-PRE-5",
+      "type": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the module export exactly the four symbols the spec requires — LEAVE_INTENT_KIND, LeaveIntentPayload (type/interface), serialiseLeaveIntent, parseLeaveIntent — with no additional exports that widen the public surface?",
+      "verification_method": "grep -E 'export' app/src/lib/marmot/leaveSync.ts — should list exactly: const LEAVE_INTENT_KIND, interface LeaveIntentPayload (or type), function serialiseLeaveIntent, function parseLeaveIntent",
+      "severity": 6,
+      "optional": false
+    },
+    {
+      "id": "V-S1-PRE-6",
+      "type": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does parseLeaveIntent perform defensive type checking on the parsed JSON before returning a payload, ensuring it cannot return a non-null value when pubkey is absent, non-string, or when the input is not valid JSON?",
+      "verification_method": "Read app/src/lib/marmot/leaveSync.ts — verify the parse function wraps JSON.parse in try/catch and checks typeof parsed.pubkey === 'string' before returning non-null",
+      "severity": 6,
+      "optional": false
+    },
+    {
+      "id": "V-S1-SPEC-1",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-SYNC-1",
+      "question": "Does leaveSync.ts export LEAVE_INTENT_KIND with value 13 and a TypeScript interface LeaveIntentPayload with exactly { pubkey: string }?",
+      "verification_method": "grep 'LEAVE_INTENT_KIND' app/src/lib/marmot/leaveSync.ts — must show = 13; grep 'LeaveIntentPayload' app/src/lib/marmot/leaveSync.ts — must show interface with pubkey: string",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S1-SPEC-2",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-SYNC-2",
+      "question": "Does serialiseLeaveIntent(payload) return exactly JSON.stringify({ pubkey: payload.pubkey }) with no additional fields in the serialized output?",
+      "verification_method": "Read the function body in app/src/lib/marmot/leaveSync.ts; run unit test case in leaveSync.test.ts that checks JSON.parse(serialiseLeaveIntent({pubkey:'x'})) deep-equals {pubkey:'x'} with no extra keys",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S1-SPEC-3",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-SYNC-3",
+      "question": "Does parseLeaveIntent return null for inputs where typeof parsed.pubkey !== 'string' (including invalid JSON, missing pubkey, and non-string pubkey), and return { pubkey: parsed.pubkey } otherwise?",
+      "verification_method": "vitest run app/tests/unit/marmot/leaveSync.test.ts — all null-return test cases must pass; read function body to confirm condition is typeof parsed.pubkey !== 'string'",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S1-SPEC-4",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-SYNC-4",
+      "question": "Does app/tests/unit/marmot/leaveSync.test.ts assert all three required cases: round-trip returns {pubkey:'abcd'}, parseLeaveIntent('not-json') returns null, and parseLeaveIntent('{\"foo\":1}') returns null?",
+      "verification_method": "Read app/tests/unit/marmot/leaveSync.test.ts and verify each of the three it() cases is present with the exact inputs named; run make test-unit and confirm all three pass",
+      "severity": 7,
+      "optional": false
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "id": "V-S1-POST-1",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "Does parseLeaveIntent('null') return null? The implementation parses JSON null successfully (JSON.parse('null') === null), and then attempts typeof null.pubkey which evaluates to 'undefined' — does the typeof guard correctly catch this without a runtime TypeError?",
+      "verification_method": "Run: node -e \"const {parseLeaveIntent} = require('./app/src/lib/marmot/leaveSync'); console.log(parseLeaveIntent('null'));\" — must print null without throwing",
+      "severity": 5,
+      "optional": false
+    },
+    {
+      "id": "V-S1-POST-2",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "Does serialiseLeaveIntent strip any extra properties that callers may inadvertently add to the payload object (i.e., does it destructure only `pubkey` rather than forwarding the whole object via JSON.stringify(payload))?",
+      "verification_method": "Read serialiseLeaveIntent body — must use JSON.stringify({ pubkey: payload.pubkey }) not JSON.stringify(payload); verify with: JSON.parse(serialiseLeaveIntent({pubkey:'x', extra:'y'})) should equal {pubkey:'x'} only",
+      "severity": 6,
+      "optional": false
+    }
+  ]
+}

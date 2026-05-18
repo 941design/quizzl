@@ -1,0 +1,45 @@
+{
+  "module_name": "lib/marmot/parseStructured",
+  "purpose": "Extend StructuredContent union to include leave_intent variant; extend parseStructured dispatch; add LeaveChatAnnouncement presentational component; add ChatBox render branch; add i18n keys",
+  "public_api": [
+    {
+      "name": "StructuredContent",
+      "signature": "type StructuredContent = { type: 'poll_open'; ... } | { type: 'poll_close'; ... } | { type: 'image'; ... } | { type: 'invite_cancelled'; pubkey: string; by: string } | { type: 'leave_intent'; pubkey: string } | null",
+      "description": "Union type for all known structured chat message payloads"
+    },
+    {
+      "name": "parseStructured",
+      "signature": "(content: string) => StructuredContent",
+      "description": "Parses a JSON string into a typed StructuredContent variant, returns null for unknown/invalid input"
+    },
+    {
+      "name": "LeaveChatAnnouncement",
+      "signature": "({ memberDisplay: string }) => JSX.Element",
+      "description": "Presentational component rendering a gray-sidebar announcement that a member left the group. Uses useCopy() for all strings."
+    }
+  ],
+  "private_files": [
+    "app/src/components/groups/LeaveChatAnnouncement.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/context/LanguageContext (useCopy)",
+    "@chakra-ui/react",
+    "app/src/lib/marmot/parseStructured.ts",
+    "app/src/lib/nostrKeys (truncateNpub, pubkeyToNpub)",
+    "app/src/lib/i18n.ts"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/ChatStoreContext.tsx",
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/marmot/handlers/",
+    "app/src/lib/marmot/registerHandlers.ts"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/parseStructured.test.ts",
+    "app/tests/unit/leaveIntent.i18n.test.ts"
+  ]
+}

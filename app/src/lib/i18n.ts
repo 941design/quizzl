@@ -325,6 +325,7 @@ type Copy = {
     cancelInviteRaceNotice: string;
     cancelInviteAnnouncementWarning: string;
     cancelledByAnnouncement: (member: string, canceller: string) => string;
+    leftGroup: (member: string) => string;
     chatLoading: string;
     chatEmpty: string;
     chatPlaceholder: string;
@@ -755,6 +756,7 @@ const copy: Record<LanguageCode, Copy> = {
       cancelInviteRaceNotice: 'This invitation is no longer pending',
       cancelInviteAnnouncementWarning: 'Invitation cancelled, but the group chat could not be notified',
       cancelledByAnnouncement: (member: string, canceller: string) => `${member} was uninvited by ${canceller}`,
+      leftGroup: (member: string) => `${member} left the group`,
       chatLoading: 'Loading messages...',
       chatEmpty: 'No messages yet. Say hello!',
       chatPlaceholder: 'Type a message...',
@@ -1173,6 +1175,7 @@ const copy: Record<LanguageCode, Copy> = {
       cancelInviteRaceNotice: 'Diese Einladung ist nicht mehr ausstehend',
       cancelInviteAnnouncementWarning: 'Einladung zurückgezogen, aber der Gruppenchat konnte nicht benachrichtigt werden',
       cancelledByAnnouncement: (member: string, canceller: string) => `${member} wurde von ${canceller} ausgeladen`,
+      leftGroup: (member: string) => `${member} hat die Gruppe verlassen`,
       chatLoading: 'Nachrichten werden geladen...',
       chatEmpty: 'Noch keine Nachrichten. Sag Hallo!',
       chatPlaceholder: 'Nachricht eingeben...',

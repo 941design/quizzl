@@ -1,0 +1,10 @@
+{
+  "story_id": "S4",
+  "captured_at": "2026-05-18T00:00:00Z",
+  "test_counts": {
+    "unit": 856,
+    "e2e": 0
+  },
+  "tests_passing": true,
+  "notes": "856 unit tests passing across 63 test files. Baseline captured before S4 implementation."
+}

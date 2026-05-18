@@ -1,0 +1,30 @@
+{
+  "story_id": "S6",
+  "status": "done",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/src/components/groups/LeaveChatAnnouncement.tsx",
+    "app/tests/unit/leaveIntent.i18n.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/parseStructured.ts",
+    "app/src/components/chat/ChatBox.tsx",
+    "app/src/lib/i18n.ts",
+    "app/tests/unit/marmot/parseStructured.test.ts"
+  ],
+  "implementation_summary": "Extended StructuredContent union and parseStructured dispatch with leave_intent variant. Created LeaveChatAnnouncement presentational component mirroring InviteCancelledChatAnnouncement (gray sidebar, useCopy, data-testid). Added leave_intent render branch to ChatBox.tsx renderStructuredMessage, gated on allowPollMessages consistent with invite_cancelled. Added groups.leftGroup translation key in both en and de. Added 2 unit tests for parseStructured and 1 new i18n test file.",
+  "test_counts": {
+    "baseline": 862,
+    "final": 866,
+    "new_tests": 4,
+    "test_files_baseline": 64,
+    "test_files_final": 65
+  },
+  "mocks_introduced": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-18T04:00:00Z"
+}

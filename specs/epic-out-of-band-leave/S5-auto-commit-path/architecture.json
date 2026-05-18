@@ -1,0 +1,53 @@
+{
+  "module_name": "context/MarmotContext.tsx (fireAutoCommit helper)",
+  "purpose": "Implements the auto-commit timer body for the out-of-band leave epic. When the 5-second debounce timer fires, fireAutoCommit re-fetches the live mlsGroup, checks each pending pubkey's leaf index, builds plain-object Remove proposals, and issues a single mlsGroup.commit with both Remove proposals and an adminPubkeys update in one extraProposals array.",
+  "public_api": [
+    {
+      "name": "fireAutoCommit",
+      "signature": "async function fireAutoCommit(deps: FireAutoCommitDeps): Promise<void>",
+      "description": "Executes the auto-commit logic for a single debounce timer fire. Reads pendingQueue (snapshot), checks each pubkey via getPubkeyLeafNodeIndexes, drops stale entries, builds Remove proposals as plain objects with PROPOSAL_TYPE_REMOVE=3, computes remainingAdmins from live mlsGroup.groupData?.adminPubkeys, issues exactly one mlsGroup.commit with all proposals in extraProposals, then calls onCommitted with the successfully committed pubkeys. On commit failure does NOT modify the queue. Exported for unit testing."
+    }
+  ],
+  "private_files": [
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "owned_data": [
+    "pendingRemovalsRef (Map<groupId, PendingRemoval[]>) — mutated only via onCommitted callback and enqueueLeave",
+    "debounceTimersRef (Map<groupId, NodeJS.Timeout>) — timer entry deleted at callback start"
+  ],
+  "dependencies_allowed": [
+    "@internet-privacy/marmot-ts (dynamic import: getPubkeyLeafNodeIndexes, Proposals.proposeUpdateMetadata)",
+    "clientRef.current?.groups.get(groupId) — re-fetch live mlsGroup at fire time"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/marmot/handlers/ — handlers must not be called from MarmotContext auto-commit path",
+    "app/src/lib/marmot/registerHandlers.ts — composition root, not called from timer",
+    "React state (useState) — queue mutations must not trigger re-renders; useRef only"
+  ],
+  "external_ports": [
+    "mlsGroup.commit({ extraProposals }) — single MLS commit per timer fire",
+    "getPubkeyLeafNodeIndexes(state, pubkey) — leaf index lookup from marmot-ts",
+    "Proposals.proposeUpdateMetadata({ adminPubkeys }) — metadata proposal from marmot-ts"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/autoCommitLeave.test.ts — new file, covers AC-COMMIT-8: (a) single pubkey → one commit; (b) empty leafIndexes → no commit, entry dropped; (c) two pubkeys → one commit with two Removes; plus AC-COMMIT-7 (commit throws → queue preserved) and AC-EDGE-3 (burst of N enqueues → single commit)"
+  ],
+  "interface": {
+    "FireAutoCommitDeps": {
+      "mlsGroup": "MarmotGroupLike — re-fetched live mlsGroup (from clientRef.current?.groups.get(groupId))",
+      "getPubkeyLeafNodeIndexes": "(state: any, pubkey: string) => number[]",
+      "proposeUpdateMetadata": "(args: { adminPubkeys: string[] }) => unknown",
+      "pendingQueue": "PendingRemoval[] — snapshot of pending entries at fire time",
+      "onCommitted": "(committedPubkeys: string[]) => void — callback to filter the live queue after success"
+    }
+  },
+  "invariants": {
+    "single_commit": "Exactly one mlsGroup.commit() call per fireAutoCommit invocation (never two).",
+    "plain_remove": "Remove proposals are plain objects { proposalType: 3, remove: { removed: leafIndex } } — never proposeRemoveUser() or Proposals.Remove().",
+    "stale_leaf_guard": "If getPubkeyLeafNodeIndexes returns [] for a pubkey, that entry is dropped from the queue but commit is still issued for remaining valid entries.",
+    "failure_semantics": "On commit exception, onCommitted is NOT called — queue entries remain for next timer cycle.",
+    "remaining_admins_source": "remainingAdmins is computed from the VALID entries (those with non-empty leaf indexes) and the live mlsGroup.groupData?.adminPubkeys at fire time."
+  }
+}

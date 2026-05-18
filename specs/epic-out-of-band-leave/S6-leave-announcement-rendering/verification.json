@@ -1,0 +1,171 @@
+{
+  "story_id": "S6",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-18T00:00:00Z",
+  "questions": [
+    {
+      "id": "V-S6-PRE-1",
+      "type": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does LeaveChatAnnouncement.tsx contain zero hardcoded English or German strings? All user-visible text must come from useCopy() referencing the i18n key groups.leftGroup.",
+      "verification_method": "grep -n '\"left\\|hat die Gruppe\\|verlassen' app/src/components/groups/LeaveChatAnnouncement.tsx — must return empty; grep -n 'useCopy' LeaveChatAnnouncement.tsx — must return at least 1 match",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S6-PRE-2",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does ChatStoreContext.tsx remain unmodified after S6? The leave-intent chat announcement must flow through the existing chatHandler → appendMessage → chatVersion chain without any new listener or kind branch in ChatStoreContext.",
+      "verification_method": "git diff app/src/context/ChatStoreContext.tsx — must show zero changes; grep 'leave_intent\\|leaveIntent\\|LEAVE_INTENT' app/src/context/ChatStoreContext.tsx — must return empty",
+      "severity": 9,
+      "optional": false
+    },
+    {
+      "id": "V-S6-PRE-3",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could app/src/lib/marmot/parseStructured.ts and LeaveChatAnnouncement.tsx be deleted and rewritten without modifying any file outside their owning module boundaries (lib/marmot/ and components/groups/)? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?",
+      "verification_method": "Read parseStructured.ts imports — must only import from lib/marmot/ or node_modules; read LeaveChatAnnouncement.tsx imports — must only import from lib/ (useCopy) or node_modules; no context/ imports",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S6-PRE-4",
+      "type": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/marmot/parseStructured.test.ts include the leave_intent branch coverage, and does app/tests/unit/leaveIntent.i18n.test.ts include both en and de assertions following the cancelPendingInvitation.i18n.test.ts pattern?",
+      "verification_method": "Read app/tests/unit/marmot/parseStructured.test.ts — verify leave_intent test cases are present; read app/tests/unit/leaveIntent.i18n.test.ts — verify two it() blocks (en + de) with exact string assertions; run make test-unit",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S6-PRE-5",
+      "type": "pre-impl",
+      "category": "SPEC",
+      "question": "Does LeaveChatAnnouncement set data-testid='leave-chat-announcement' on its root element, enabling Playwright e2e selectors to locate the component?",
+      "verification_method": "grep -n 'data-testid' app/src/components/groups/LeaveChatAnnouncement.tsx — must show data-testid=\"leave-chat-announcement\"",
+      "severity": 6,
+      "optional": false
+    },
+    {
+      "id": "V-S6-PRE-6",
+      "type": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does renderStructuredMessage in ChatBox.tsx resolve memberDisplay using profileMap lookup with truncateNpub fallback — never using structured.pubkey directly as display text — preventing unsanitized pubkey strings from appearing as UI content?",
+      "verification_method": "Read the leave_intent branch in ChatBox.tsx renderStructuredMessage — must show: memberDisplay = profileMap[structured.pubkey]?.nickname ?? truncateNpub(pubkeyToNpub(structured.pubkey)); this value (not structured.pubkey) is passed to LeaveChatAnnouncement",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S6-SPEC-1",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-CHAT-1",
+      "question": "Does the StructuredContent union in parseStructured.ts include the variant { type: 'leave_intent'; pubkey: string }?",
+      "verification_method": "grep -n \"leave_intent\" app/src/lib/marmot/parseStructured.ts — must show the variant in the StructuredContent union type definition; cd app && npx tsc --noEmit must pass",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S6-SPEC-2",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-CHAT-2",
+      "question": "Does parseStructured(content) return { type: 'leave_intent', pubkey: string } for valid JSON with type === 'leave_intent' and string pubkey, and return null when pubkey is missing or non-string?",
+      "verification_method": "Read the leave_intent guard branch in parseStructured(); run unit test: parseStructured('{\"type\":\"leave_intent\",\"pubkey\":\"abcd\"}') === { type: 'leave_intent', pubkey: 'abcd' } and parseStructured('{\"type\":\"leave_intent\"}') === null",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S6-SPEC-3",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-CHAT-3",
+      "question": "Is LeaveChatAnnouncement a new presentational component accepting { memberDisplay: string } props, rendering copy.groups.leftGroup(memberDisplay) inside a gray-sidebar styled box with data-testid='leave-chat-announcement'?",
+      "verification_method": "Read app/src/components/groups/LeaveChatAnnouncement.tsx — verify props interface, useCopy() call, gray sidebar styling (CSS class or inline), and data-testid attribute",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S6-SPEC-4",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-CHAT-4",
+      "question": "Does LeaveChatAnnouncement use useCopy() to retrieve all display strings, with zero hardcoded English or German text?",
+      "verification_method": "grep -n 'useCopy' app/src/components/groups/LeaveChatAnnouncement.tsx — must return 1 match; grep -n '\"left the group\\|hat die Gruppe verlassen' LeaveChatAnnouncement.tsx — must return empty",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S6-SPEC-5",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-CHAT-5",
+      "question": "Does renderStructuredMessage in ChatBox.tsx include a branch for structured?.type === 'leave_intent' that resolves memberDisplay via profileMap lookup with truncateNpub fallback and renders <LeaveChatAnnouncement memberDisplay={memberDisplay} />?",
+      "verification_method": "Read the leave_intent branch in ChatBox.tsx renderStructuredMessage — verify the profileMap lookup, truncateNpub fallback, and LeaveChatAnnouncement render; grep 'leave_intent' app/src/components/chat/ChatBox.tsx — must return at least 2 matches (type check + render)",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S6-SPEC-6",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-CHAT-6",
+      "question": "Does a unit test assert that parseStructured('{\"type\":\"leave_intent\",\"pubkey\":\"abcd1234\"}') returns { type: 'leave_intent', pubkey: 'abcd1234' }, and that parseStructured('{\"type\":\"leave_intent\"}') (missing pubkey) returns null?",
+      "verification_method": "Read app/tests/unit/marmot/parseStructured.test.ts and verify both assertions are present with the exact inputs; run make test-unit to confirm both pass",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S6-SPEC-7",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-I18N-1",
+      "question": "Does the Copy type in app/src/lib/i18n.ts include groups.leftGroup: (member: string) => string as a new key in the groups namespace?",
+      "verification_method": "grep -n 'leftGroup' app/src/lib/i18n.ts — must appear in the Copy type definition with the function signature (member: string) => string; cd app && npx tsc --noEmit must pass",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S6-SPEC-8",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-I18N-2",
+      "question": "Does the English translation include groups.leftGroup: (member) => `${member} left the group` and the German translation include groups.leftGroup: (member) => `${member} hat die Gruppe verlassen`?",
+      "verification_method": "grep -A1 'leftGroup' app/src/lib/i18n.ts — must show the exact en template literal `${member} left the group` and the exact de template literal `${member} hat die Gruppe verlassen`",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S6-SPEC-9",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-I18N-3",
+      "question": "Does a vitest test in app/tests/unit/ assert exact string values for both en and de groups.leftGroup keys, following the cancelPendingInvitation.i18n.test.ts pattern with separate it() blocks per language?",
+      "verification_method": "Read app/tests/unit/leaveIntent.i18n.test.ts — verify two separate it() blocks (en and de), each calling getCopy() and asserting groups.leftGroup('Alice') equals the exact expected string; run make test-unit",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S6-POST-1",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Is the leave_intent branch in renderStructuredMessage gated on allowPollMessages, consistent with the invite_cancelled branch? If the allowPollMessages gate is ever removed from invite_cancelled, does leave_intent also need to be updated for consistency?",
+      "verification_method": "grep -n 'allowPollMessages' app/src/components/chat/ChatBox.tsx — both leave_intent and invite_cancelled branches should show the same gate; confirm no behavioral difference is intended.",
+      "severity": 5,
+      "optional": true
+    },
+    {
+      "id": "V-S6-POST-2",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The leaveIntent.i18n.test.ts uses 'Alice' as the test member display name. Does any future refactor of the en/de leftGroup template break this exact assertion?",
+      "verification_method": "If groups.leftGroup template is ever changed, update both the i18n.ts implementation and the leaveIntent.i18n.test.ts assertions atomically.",
+      "severity": 4,
+      "optional": true
+    }
+  ]
+}

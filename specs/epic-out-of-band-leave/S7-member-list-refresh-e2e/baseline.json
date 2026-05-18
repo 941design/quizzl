@@ -1,0 +1,14 @@
+{
+  "story_id": "S7",
+  "captured_at": "2026-05-18T00:00:00Z",
+  "test_counts": {
+    "unit": 866,
+    "e2e": 0
+  },
+  "test_files": {
+    "unit_files": 65,
+    "e2e_files_existing": ["app/tests/e2e/groups-cancel-pending.spec.ts"]
+  },
+  "passing": true,
+  "notes": "866 unit tests passing across 65 test files. No e2e tests run (requires Docker strfry + static build). Baseline captured before any S7 changes."
+}

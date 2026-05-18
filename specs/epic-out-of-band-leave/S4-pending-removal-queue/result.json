@@ -1,0 +1,34 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "remediation_rounds": 0,
+  "files_created": [
+    "specs/epic-out-of-band-leave/S4-pending-removal-queue/baseline.json",
+    "specs/epic-out-of-band-leave/S4-pending-removal-queue/architecture.json",
+    "specs/epic-out-of-band-leave/S4-pending-removal-queue/result.json"
+  ],
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/marmot/registerHandlers.ts",
+    "specs/epic-out-of-band-leave/mocks-registry.json"
+  ],
+  "implementation_summary": "Added PendingRemoval interface (inline before MarmotProvider). Added pendingRemovalsRef (useRef<Map<string, PendingRemoval[]>>(new Map())) and debounceTimersRef (useRef<Map<string, NodeJS.Timeout>>(new Map())) at component top level alongside groupSubsRef. Defined enqueueLeave as useCallback with empty deps array — appends PendingRemoval with receivedAt: Date.now(), clears any prior timer with clearTimeout, sets new 5000ms setTimeout (no-op body with comment marking S5 fill-in), writes timer to debounceTimersRef. Wired enqueueLeave into buildDispatcher deps call as deps.enqueueLeave (replacing MOCK-S2-001 stub). Added timer cleanup in groupSubsRef teardown loop: clearTimeout + debounceTimersRef.current.delete(groupId) per group. Queue (pendingRemovalsRef) is NOT cleared on teardown — retained for historical-sync repopulation on re-subscribe. Updated mocks-registry.json: MOCK-S2-001.resolved = true, all_resolved = true. Updated registerHandlers.ts comment on the ?? fallback to document it as resolved.",
+  "test_counts": {
+    "baseline": 856,
+    "final": 856,
+    "new_tests": 0
+  },
+  "mocks_introduced": [],
+  "mock_resolutions": [
+    {
+      "mock_id": "MOCK-S2-001",
+      "description": "Stub enqueueLeave from S2 replaced by real closure in MarmotContext.tsx. The ?? (() => {}) fallback in registerHandlers.ts is retained as a defensive default for unit tests that construct the dispatcher without MarmotContext."
+    }
+  ],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-05-18T03:00:00Z"
+}

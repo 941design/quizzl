@@ -34,6 +34,7 @@ import {
 import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscription';
 import { serialiseScoreUpdate, nextSequenceNumber, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
 import { serialiseProfileUpdate, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
+import { LEAVE_INTENT_KIND, serialiseLeaveIntent } from '@/src/lib/marmot/leaveSync';
 import { PROFILE_REQUEST_KIND } from '@/src/lib/marmot/profileRequestSync';
 import { recordRequestEmitted, recordRequestAnswered, loadProfileRequestMemo, clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage';
 import { handleIncomingProfileRequest, notifyProfileObserved, sweepStaleProfiles } from '@/src/lib/marmot/profileRequestRunner';
@@ -117,6 +118,113 @@ function buildRumor(kind: number, content: string, pubkey: string, tags: string[
 type MarmotClientType = import('@internet-privacy/marmot-ts').MarmotClient;
 type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 
+// ts-mls proposalType constant for Remove (RFC 9420 §12.1.3).
+// Mirrors the constant in cancelInvitationImpl.ts — defined locally so this
+// module stays self-contained and never imports from a sibling lib/ file.
+const PROPOSAL_TYPE_REMOVE = 3;
+
+/** Shape accepted by fireAutoCommit so the function is testable without React. */
+export interface FireAutoCommitDeps {
+  /** Live MLS group re-fetched at timer-fire time (not a stale closure). */
+  mlsGroup: {
+    state: any;
+    groupData?: { adminPubkeys?: string[] } | null;
+    commit: (opts: { extraProposals: any[] }) => Promise<unknown>;
+  };
+  /** Returns leaf node indexes for the pubkey in the current ratchet tree. */
+  getPubkeyLeafNodeIndexes: (state: any, pubkey: string) => number[];
+  /** Builds a metadata-update proposal. Passed in to avoid repeating the dynamic import. */
+  proposeUpdateMetadata: (args: { adminPubkeys: string[] }) => unknown;
+  /** Snapshot of pending removals for this group at timer-fire time. */
+  pendingQueue: Array<{ groupId: string; pubkey: string; receivedAt: number }>;
+  /**
+   * Called on successful commit with the list of pubkeys that were committed.
+   * The callback must filter them out of the live queue without clearing entries
+   * that arrived during the commit window.
+   */
+  onCommitted: (committedPubkeys: string[]) => void;
+}
+
+/**
+ * S5 — auto-commit timer body.
+ *
+ * Exported (not just module-scope) so unit tests can call it directly without
+ * rendering MarmotProvider or manipulating timers.
+ *
+ * Invariants:
+ *   - Exactly ONE mlsGroup.commit() call per invocation (AC-COMMIT-4).
+ *   - Remove proposals are plain objects { proposalType: 3, remove: { removed } }
+ *     — never proposeRemoveUser() or Proposals.Remove() (AC-COMMIT-3).
+ *   - remainingAdmins is derived from VALID entries (non-empty leaf indexes) and
+ *     the live mlsGroup.groupData?.adminPubkeys at fire time (AC-COMMIT-5).
+ *   - On commit failure onCommitted is NOT called — entries stay for next cycle (AC-COMMIT-7).
+ */
+export async function fireAutoCommit(deps: FireAutoCommitDeps): Promise<void> {
+  const { mlsGroup, getPubkeyLeafNodeIndexes, proposeUpdateMetadata, pendingQueue, onCommitted } =
+    deps;
+
+  // Deduplicate: collect unique pubkeys from the snapshot.
+  const uniquePubkeys = [...new Set(pendingQueue.map((e) => e.pubkey))];
+
+  // Build Remove proposals — one per leaf index per pubkey.
+  // Stale-leaf guard (AC-COMMIT-2 / AC-EDGE-1): if getPubkeyLeafNodeIndexes returns []
+  // the pubkey was already removed (concurrent admin commit). Drop the entry silently.
+  const validEntries: Array<{ pubkey: string; leafIndexes: number[] }> = [];
+  const droppedPubkeys: string[] = [];
+
+  for (const pubkey of uniquePubkeys) {
+    const leafIndexes = getPubkeyLeafNodeIndexes(mlsGroup.state, pubkey);
+    if (leafIndexes.length === 0) {
+      // Race-detected or already removed — drop silently (AC-COMMIT-2, AC-EDGE-1, AC-EDGE-2).
+      droppedPubkeys.push(pubkey);
+      continue;
+    }
+    validEntries.push({ pubkey, leafIndexes });
+  }
+
+  // Drop stale entries from the live queue immediately even if nothing is left to commit.
+  if (droppedPubkeys.length > 0) {
+    onCommitted(droppedPubkeys);
+  }
+
+  // Nothing valid to commit — exit without calling mlsGroup.commit().
+  if (validEntries.length === 0) {
+    return;
+  }
+
+  // Build plain-object Remove proposals (AC-COMMIT-3).
+  // One Remove per leaf index; a pubkey with multiple leaf entries (degenerate)
+  // gets one Remove per index.
+  const removeProposals = validEntries.flatMap(({ leafIndexes }) =>
+    leafIndexes.map((leafIndex) => ({
+      proposalType: PROPOSAL_TYPE_REMOVE,
+      remove: { removed: leafIndex },
+    })),
+  );
+
+  // Compute remainingAdmins from VALID entries at fire time (AC-COMMIT-5).
+  const departingPubkeys = validEntries.map((e) => e.pubkey);
+  const currentAdmins = mlsGroup.groupData?.adminPubkeys ?? [];
+  const remainingAdmins = currentAdmins.filter((pk) => !departingPubkeys.includes(pk));
+
+  // Single commit — both Remove proposals AND adminPubkeys update in one call (AC-COMMIT-4).
+  try {
+    await mlsGroup.commit({
+      extraProposals: [...removeProposals, proposeUpdateMetadata({ adminPubkeys: remainingAdmins })],
+    });
+  } catch (err) {
+    // AC-COMMIT-7 / AC-EDGE-4 / AC-EDGE-8: leave entries in queue for next timer cycle.
+    // Do NOT call onCommitted — the next cycle will re-derive leaf indexes freshly.
+    console.warn('[Marmot] fireAutoCommit: commit failed, entries retained for retry:', err);
+    return;
+  }
+
+  // Success: remove committed pubkeys from the live queue (AC-COMMIT-6).
+  // Entries enqueued during the commit window survive because onCommitted
+  // filters by pubkey, not by clearing the whole array.
+  onCommitted(departingPubkeys);
+}
+
 type MarmotContextValue = {
   /** Whether marmot client has been initialized */
   ready: boolean;
@@ -176,6 +284,13 @@ type MarmotContextValue = {
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
 
+/** Shape of a queued out-of-band leave event pending the 5-second debounce commit (S4). */
+interface PendingRemoval {
+  groupId: string;
+  pubkey: string;
+  receivedAt: number;
+}
+
 export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const { privateKeyHex, pubkeyHex, hydrated: identityHydrated } = useNostrIdentity();
   const { profile: localProfile } = useProfile();
@@ -188,6 +303,12 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const welcomeSubRef = useRef<(() => void) | null>(null);
   // Track group message subscription cleanup functions keyed by groupId
   const groupSubsRef = useRef<Map<string, () => void>>(new Map());
+  // S4: Pending out-of-band leave entries queued for debounced auto-commit (AC-QUEUE-1).
+  // MUST be useRef — mutations must not trigger re-renders.
+  const pendingRemovalsRef = useRef<Map<string, PendingRemoval[]>>(new Map());
+  // S4: Per-group 5-second debounce timers for the pending-removal queue (AC-QUEUE-1).
+  // MUST be useRef — timer handles must not trigger re-renders.
+  const debounceTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   // Track groups where profile has been published (to avoid re-publishing)
   const profilePublishedRef = useRef<Set<string>>(new Set());
   // Ref for the app-start stale-profile sweep guard (runs once after ready+groups+pubkeyHex)
@@ -224,6 +345,81 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     groupsRef.current = groups;
   }, [groups]);
+
+  /**
+   * S4 (AC-QUEUE-2): Enqueue a pending-removal entry and arm/reset the per-group
+   * 5-second debounce timer. The real closure is injected into buildDispatcher via
+   * deps.enqueueLeave, replacing the MOCK-S2-001 stub from S2.
+   *
+   * Arms-or-extends semantics: if a timer already exists for the group it is cleared
+   * before the new one is set, so rapid-fire leave events extend the window.
+   *
+   * S5: timer-fire handler replaces this no-op with auto-commit.
+   */
+  const enqueueLeave = useCallback((groupId: string, pubkey: string) => {
+    // Append to the pending queue (create the array if absent).
+    const existing = pendingRemovalsRef.current.get(groupId) ?? [];
+    existing.push({ groupId, pubkey, receivedAt: Date.now() });
+    pendingRemovalsRef.current.set(groupId, existing);
+
+    // Arm or extend the debounce timer for this group.
+    const prior = debounceTimersRef.current.get(groupId);
+    if (prior !== undefined) {
+      clearTimeout(prior);
+    }
+    const timer = setTimeout(() => {
+      // S5: Delete the timer ref first so a subsequent enqueueLeave can arm a fresh timer
+      // without trying to clear a stale handle (AC-COMMIT-1 preamble).
+      debounceTimersRef.current.delete(groupId);
+
+      // Snapshot the pending entries at fire time before any async work.
+      const pendingQueue = pendingRemovalsRef.current.get(groupId) ?? [];
+      if (pendingQueue.length === 0) return;
+
+      // Fire-and-forget async IIFE: the timer callback cannot be async itself,
+      // but we need await for the dynamic import and commit. Any unhandled
+      // rejection is caught by the outer try/catch inside fireAutoCommit.
+      void (async () => {
+        // AC-COMMIT-1: re-fetch live mlsGroup at fire time (not a stale closure).
+        const mlsGroup = await (async () => {
+          try {
+            return (await clientRef.current?.groups.get(groupId)) ?? null;
+          } catch {
+            return null;
+          }
+        })();
+        if (!mlsGroup) {
+          // Group no longer accessible — leave queue entries in place for next cycle.
+          return;
+        }
+
+        try {
+          const { getPubkeyLeafNodeIndexes, Proposals } = await import(
+            '@internet-privacy/marmot-ts'
+          );
+          await fireAutoCommit({
+            mlsGroup,
+            getPubkeyLeafNodeIndexes,
+            proposeUpdateMetadata: Proposals.proposeUpdateMetadata,
+            pendingQueue,
+            onCommitted: (committedPubkeys) => {
+              const current = pendingRemovalsRef.current.get(groupId) ?? [];
+              const filtered = current.filter((e) => !committedPubkeys.includes(e.pubkey));
+              if (filtered.length === 0) {
+                pendingRemovalsRef.current.delete(groupId);
+              } else {
+                pendingRemovalsRef.current.set(groupId, filtered);
+              }
+            },
+          });
+        } catch (err) {
+          console.warn('[Marmot] auto-commit timer-fire failed (outer catch):', err);
+          // AC-COMMIT-7: entries remain in queue for next timer cycle.
+        }
+      })();
+    }, 5000);
+    debounceTimersRef.current.set(groupId, timer);
+  }, []); // Refs are stable — no reactive dependencies needed.
 
   // Dev-only: expose parseProfilePayload so E2E tests can verify forged-sig rejection (AC-045 scenario 6)
   useEffect(() => {
@@ -700,6 +896,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             saveVote,
             getPoll,
             setPollVersion,
+            // S4 (AC-QUEUE-4): real enqueueLeave closure — replaces MOCK-S2-001 stub from S2.
+            enqueueLeave,
           }).subscribe(mlsGroup, dispatcherCtx);
 
           // Combine both unsubscribe functions so cleanup tears down both listeners.
@@ -723,6 +921,16 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       for (const [groupId, unsub] of Array.from(subsMap.entries())) {
         unsub();
         subsMap.delete(groupId);
+        // S4 (AC-QUEUE-3): cancel the pending debounce timer for this group so it
+        // cannot fire after the subscription has torn down. The pending-removals
+        // queue itself is NOT cleared — entries are retained so that historical
+        // sync on re-subscribe can repopulate the queue cleanly. See architecture.json
+        // design_decisions.queue_retention_on_teardown for rationale.
+        const timer = debounceTimersRef.current.get(groupId);
+        if (timer !== undefined) {
+          clearTimeout(timer);
+          debounceTimersRef.current.delete(groupId);
+        }
       }
       profilePublishedRef.current.clear();
     };
@@ -924,12 +1132,44 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     [groups, reloadGroups, markBackupDirty, pubkeyHex]
   );
 
-  // Soft-leave: purge local state only. No MLS Remove proposal is sent,
-  // so the group is never blocked by an unapplied proposal that needs an
-  // admin commit. The member simply disappears from the local UI.
-  // See specs/out-of-band-leave.md for the planned protocol-level solution.
+  // Out-of-band leave: emit kind-13 leave intent + kind-9 announcement before
+  // purging local state. mlsGroup.leave() is never called — the departing
+  // member never emits an MLS Remove proposal. The remaining admin observes the
+  // kind-13 rumor and issues the Remove commit on behalf of the group.
+  // See specs/epic-out-of-band-leave/spec.md.
   const leaveGroup = useCallback(async (groupId: string): Promise<boolean> => {
-    // Always remove from local storage — no MLS leave() call.
+    const selfPubkeyHex = pubkeyHex ?? '';
+
+    // Fetch live mlsGroup reference via clientRef so we don't rely on a stale
+    // closure (the subscription for this group may have torn down already).
+    const mlsGroup = await clientRef.current?.groups.get(groupId).catch(() => null);
+
+    if (mlsGroup && selfPubkeyHex) {
+      // AC-SEND-1 / AC-SEND-3: kind-13 leave-intent via sendRumorSafe (handles
+      // unapplied-proposals retry loop internally). If it still throws after
+      // MAX_RETRIES, log and continue — the purge must not be blocked.
+      const kind13Rumor = buildRumor(
+        LEAVE_INTENT_KIND,
+        serialiseLeaveIntent({ pubkey: selfPubkeyHex }),
+        selfPubkeyHex,
+      );
+      try {
+        await sendRumorSafe(mlsGroup, kind13Rumor as any);
+      } catch (err) {
+        console.warn('[Marmot] leaveGroup: kind-13 send failed, proceeding with purge:', err);
+      }
+
+      // AC-SEND-2 / AC-EDGE-5: kind-9 chat announcement — fire-and-forget.
+      // Failure must not block the purge or navigation.
+      const kind9Rumor = buildRumor(
+        9,
+        JSON.stringify({ type: 'leave_intent', pubkey: selfPubkeyHex }),
+        selfPubkeyHex,
+      );
+      mlsGroup.sendApplicationRumor(kind9Rumor as any).catch(() => {});
+    }
+
+    // AC-SEND-4: existing purge sequence — runs unconditionally.
     await removeGroupFromStorage(groupId);
     await clearMemberScores(groupId);
     await clearMemberProfiles(groupId);
@@ -944,7 +1184,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     await reloadGroups();
     markBackupDirty(true);
     return true;
-  }, [reloadGroups, markBackupDirty]);
+  }, [reloadGroups, markBackupDirty, pubkeyHex]);
 
   const publishScoreUpdate = useCallback(
     async (update: Omit<ScoreUpdate, 'sequenceNumber'>): Promise<void> => {

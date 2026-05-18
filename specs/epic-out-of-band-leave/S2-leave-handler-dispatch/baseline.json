@@ -1,0 +1,12 @@
+{
+  "captured_at": "2026-05-18T00:00:00Z",
+  "story_id": "S2",
+  "test_suite": "unit",
+  "command": "make test-unit",
+  "results": {
+    "status": "passed",
+    "test_files": 62,
+    "tests_passing": 852,
+    "tests_failing": 0
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "story_id": "S7",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-18T00:00:00Z",
+  "questions": [
+    {
+      "id": "V-S7-PRE-1",
+      "type": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does this story introduce zero new code in MarmotContext.tsx beyond what S5 already delivered? If onMembersChanged already fires on the auto-remove commit, S7 is a verification-only story — any new code would indicate scope creep.",
+      "verification_method": "git diff HEAD~1 app/src/context/MarmotContext.tsx (after S7 lands) — must show no additions beyond the e2e test file; if MarmotContext.tsx changes were required, document why the existing wiring was insufficient",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S7-PRE-2",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Do AR-1 and AR-3 boundary invariants still hold after S7 ships the full epic? Exactly one applicationMessage listener must exist; zero rumor.kind switches must exist in app/src/context/.",
+      "verification_method": "grep -r \"group.on('applicationMessage'\" app/src/ — must return exactly 1 line in applicationRumorDispatcher.ts; grep -rn 'rumor\\.kind' app/src/context/ — must return empty",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S7-PRE-3",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could app/src/context/MarmotContext.tsx be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?",
+      "verification_method": "Read MarmotContext.tsx imports — all external deps must be from declared seams in architecture.md (marmot-ts, handlers via buildDispatcher, lib/marmot/* utilities, react, next/router); no undeclared cross-context imports",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S7-PRE-4",
+      "type": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/e2e/groups-leave-intent.spec.ts exist and implement the full two-client flow: User A creates group, invites User B; User B leaves; within 5 seconds User A's client commits the removal; User B's name disappears from User A's member list; User A can still send a chat message?",
+      "verification_method": "Read app/tests/e2e/groups-leave-intent.spec.ts — verify the five steps are present as distinct expect/assertion blocks; run make test-e2e-groups against a test environment with strfry docker",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S7-PRE-5",
+      "type": "pre-impl",
+      "category": "SPEC",
+      "question": "Does AR-4 hold after the full epic ships? grep -r 'from.*handlers/' app/src/ --include='*.ts' --include='*.tsx' -l must list only registerHandlers.ts — no other file imports directly from the handlers/ directory.",
+      "verification_method": "grep -r 'from.*handlers/' app/src/ --include='*.ts' --include='*.tsx' -l — output must contain only app/src/lib/marmot/registerHandlers.ts",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S7-PRE-6",
+      "type": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the e2e test verify that User A can still send a chat message after the removal commit succeeds, proving the group MLS state is not blocked or corrupted by the auto-remove operation?",
+      "verification_method": "Read app/tests/e2e/groups-leave-intent.spec.ts — verify the final step expects a successful chat send from User A after the removal, not just absence of User B from the member list",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S7-SPEC-1",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-MEMBERS-1",
+      "question": "When the auto-remove commit from S5 succeeds, does the onMembersChanged callback at MarmotContext.tsx lines 599-609 fire, causing the member list to refresh and no longer show the departed member?",
+      "verification_method": "Read MarmotContext.tsx lines 590-620 — confirm onMembersChanged is wired to the MLS group's notification mechanism; run e2e test in groups-leave-intent.spec.ts and verify User B's name disappears from User A's member list within the timeout",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S7-SPEC-2",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-MEMBERS-2",
+      "question": "Does app/tests/e2e/groups-leave-intent.spec.ts implement the full two-client scenario: User A creates group, invites User B; User B leaves; within 5 seconds User A's client commits the removal; User B's name disappears from User A's member list; User A can still send a chat message?",
+      "verification_method": "Read groups-leave-intent.spec.ts and verify all 5 scenario steps are explicit test assertions; run make test-e2e-groups and confirm the spec passes",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S7-SPEC-3",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-EDGE-7",
+      "question": "When the departing member is the sole admin or when only non-admin members remain, does the ghost leaf persist in the ratchet tree without blocking the group or raising an error (explicitly accepted limitation)?",
+      "verification_method": "Read MarmotContext.tsx timer-fire handler — confirm no error is thrown when remainingAdmins is empty or when the departing member is the only admin; verify no toast or error state is emitted for the sole-admin case",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S7-SPEC-4",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-ARCH-1",
+      "question": "Does leaveHandler.ts contain zero imports from app/src/context/ and zero direct IDB calls after the full epic ships?",
+      "verification_method": "grep -rn 'from.*context/' app/src/lib/marmot/handlers/leaveHandler.ts — must return empty; grep -rn 'idb\\|openDB\\|getDB' app/src/lib/marmot/handlers/leaveHandler.ts — must return empty",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S7-SPEC-5",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-ARCH-2",
+      "question": "Does app/src/context/ChatStoreContext.tsx remain unmodified by the full epic, with the kind-9 leave-intent announcement flowing through the existing chatHandler → appendMessage → chatVersion → re-read chain without any new listener or kind branch?",
+      "verification_method": "git log --oneline -- app/src/context/ChatStoreContext.tsx — must show no commits from this epic; grep 'leave_intent\\|leaveIntent\\|LEAVE_INTENT\\|kind.*9' app/src/context/ChatStoreContext.tsx — must return empty",
+      "severity": 9,
+      "optional": false
+    },
+    {
+      "id": "V-S7-SPEC-6",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-ARCH-3",
+      "question": "After the full epic ships, does grep -r 'from.*handlers/' app/src/ --include='*.ts' --include='*.tsx' -l list only registerHandlers.ts — no other file importing directly from the handlers/ directory?",
+      "verification_method": "grep -r 'from.*handlers/' app/src/ --include='*.ts' --include='*.tsx' -l — output must contain exactly one line: app/src/lib/marmot/registerHandlers.ts (or equivalent path); any additional lines are a violation",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S7-POST-1",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Does the e2e at groups-leave-intent.spec.ts correctly sequence USER_B's join before the leave? The test polls pgB for the group to appear, clicks the card, and verifies the member-item before proceeding. If the MLS Welcome round-trip takes longer than the 90s poll timeout, the test will time out at the join step rather than the auto-commit step — is the join timeout sufficient for CI relay latency?",
+      "verification_method": "Run make test-e2e-groups in CI; observe which test step times out first if flaky. Increase the join poll timeout from 90s to 120s if the join step is the bottleneck.",
+      "severity": 6,
+      "optional": true
+    },
+    {
+      "id": "V-S7-POST-2",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The onMembersChanged condition at MarmotContext.tsx:802 is length-based only (currentMembers.length !== stored.memberPubkeys.length). If a prior ghost-cleanup aligned the stored count before the auto-remove commit, reloadGroups would not fire on the commit. Is this gap acceptable for v1 or should it be logged in the backlog?",
+      "verification_method": "Review architecture.json ac_members_1_analysis.known_limitation. If a subsequent ghost-cleanup mechanism is added, tighten the condition to set-equality check and add a regression test.",
+      "severity": 5,
+      "optional": true
+    }
+  ]
+}

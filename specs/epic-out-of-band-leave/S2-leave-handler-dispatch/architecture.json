@@ -1,0 +1,45 @@
+{
+  "module_name": "lib/marmot/handlers/leaveHandler.ts",
+  "purpose": "RumorHandler factory for LEAVE_INTENT_KIND (kind 13). Parses leave-intent MLS application messages and enqueues the leave action via injected dep. Zero context/ imports. Pure dispatch module.",
+  "public_api": [
+    {
+      "name": "LeaveHandlerDeps",
+      "signature": "interface LeaveHandlerDeps { enqueueLeave: (groupId: string, pubkey: string) => void }",
+      "description": "Dep bag for the leave handler. The single dep is a callback that enqueues the remove action. Provided as a stub in registerHandlers.ts (MOCK-S2-001) until S4 replaces it with the real MarmotContext closure."
+    },
+    {
+      "name": "createLeaveIntentHandler",
+      "signature": "createLeaveIntentHandler(deps: LeaveHandlerDeps): RumorHandler",
+      "description": "Factory that returns a RumorHandler for LEAVE_INTENT_KIND. The handle() body calls parseLeaveIntent(rumor.content), returns early on null, then calls deps.enqueueLeave(ctx.groupId, payload.pubkey)."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/leaveSync.ts",
+    "app/src/lib/marmot/applicationRumorDispatcher.ts",
+    "app/src/lib/marmot/registerHandlers.ts"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/",
+    "idb-keyval",
+    "react"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [
+    "LEAVE_INTENT_KIND (kind 13) application messages via RumorHandler.handle()"
+  ],
+  "test_targets": [
+    "app/tests/unit/marmot/leaveHandler.test.ts"
+  ],
+  "stub_mechanism": {
+    "mock_id": "MOCK-S2-001",
+    "description": "enqueueLeave stub in registerHandlers.ts buildDispatcher() uses Option A: required in HandlerDeps type, defaulting to a no-op closure when caller omits it. Comment marks it as placeholder to be replaced in S4.",
+    "resolution_story": "S4"
+  },
+  "registration": {
+    "file": "app/src/lib/marmot/registerHandlers.ts",
+    "change": "Add enqueueLeave to HandlerDeps interface; append createLeaveIntentHandler({ enqueueLeave: deps.enqueueLeave ?? (() => {}) }) to handlers[]"
+  }
+}

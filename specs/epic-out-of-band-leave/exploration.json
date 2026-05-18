@@ -1,0 +1,119 @@
+{
+  "explored_at": "2026-05-18",
+  "spec": "specs/epic-out-of-band-leave/spec.md",
+  "paradigm": "Modular monolith, package-by-layer within app/src/ (context/, lib/marmot/, components/, hooks/). Within lib/marmot/ the dominant seam is hexagonal — pure-function modules (handlers/, cancelInvitationImpl.ts, pollSync.ts, epochResolver.ts) have zero React or IDB imports; all side-effects are injected as deps. registerHandlers.ts is the composition root.",
+  "ar_contract_check": {
+    "ar1_single_listener": "app/src/lib/marmot/applicationRumorDispatcher.ts:106",
+    "ar3_context_dir_kind_branches": 0,
+    "verified": true
+  },
+  "patterns_to_mirror": [
+    {
+      "name": "pollSync template",
+      "primary_file": "app/src/lib/marmot/pollSync.ts",
+      "applies_to_stories": ["S1"],
+      "notes": "leaveSync.ts exports LEAVE_INTENT_KIND = 13, LeaveIntentPayload type, serialiseLeaveIntent(payload): string, parseLeaveIntent(content): LeaveIntentPayload | null. parse validates typeof d.pubkey === 'string'. No persistence counterpart."
+    },
+    {
+      "name": "pollHandler RumorHandler factory",
+      "primary_file": "app/src/lib/marmot/handlers/pollHandler.ts",
+      "applies_to_stories": ["S2"],
+      "notes": "leaveHandler.ts exports LeaveHandlerDeps { enqueueLeave: (groupId: string, pubkey: string) => void }, handleLeaveIntent(rumor, ctx, deps), createLeaveIntentHandler(deps): RumorHandler. Zero imports from app/src/context/."
+    },
+    {
+      "name": "buildDispatcher registration",
+      "primary_file": "app/src/lib/marmot/registerHandlers.ts:16-97",
+      "applies_to_stories": ["S2", "S4"],
+      "notes": "S2 adds enqueueLeave to HandlerDeps and appends createLeaveIntentHandler({ enqueueLeave: deps.enqueueLeave }) to handlers[]. S4 supplies the concrete closure from MarmotContext.tsx:648 inside subscribeNewGroups."
+    },
+    {
+      "name": "cancelInvitationImpl Remove+commit+metadata (single commit)",
+      "primary_file": "app/src/lib/marmot/cancelInvitationImpl.ts:73-98",
+      "applies_to_stories": ["S5"],
+      "notes": "CANONICAL: single mlsGroup.commit({ extraProposals: [...removeProposals, Proposals.proposeUpdateMetadata({ adminPubkeys: filteredAdmins })] }) — both proposals in the same array, NOT two separate awaits. Includes guard: leafIndexes.length === 0 → return { ok: true, raceDetected: true }. PROPOSAL_TYPE_REMOVE constant; getPubkeyLeafNodeIndexes(state, pubkey) for lookup."
+    },
+    {
+      "name": "InviteCancelledChatAnnouncement (closer LeaveChatAnnouncement template)",
+      "primary_file": "app/src/components/groups/InviteCancelledChatAnnouncement.tsx",
+      "applies_to_stories": ["S6"],
+      "notes": "LeaveChatAnnouncement is simpler (one actor). Props: memberDisplay: string. Gray sidebar (bg=gray.50, borderLeftColor=gray.400). data-testid='leave-chat-announcement'."
+    },
+    {
+      "name": "parseStructured union + dispatch",
+      "primary_file": "app/src/lib/marmot/parseStructured.ts:16-38",
+      "applies_to_stories": ["S6"],
+      "notes": "Add `| { type: 'leave_intent'; pubkey: string }` to StructuredContent union; add a guard branch in parseStructured(). Coverage: parseStructured.test.ts."
+    },
+    {
+      "name": "ChatBox renderStructuredMessage switch",
+      "primary_file": "app/src/components/chat/ChatBox.tsx:314-349",
+      "applies_to_stories": ["S6"],
+      "notes": "Add branch for structured?.type === 'leave_intent' (gated on allowPollMessages like invite_cancelled). Resolve memberDisplay from profileMap[structured.pubkey] with truncateNpub fallback. Render <LeaveChatAnnouncement memberDisplay={memberDisplay} />."
+    }
+  ],
+  "key_call_sites": [
+    {"purpose": "Remove proposal shape + API-nesting bug", "file": "app/src/lib/marmot/cancelInvitationImpl.ts:73-98"},
+    {"purpose": "leaveGroup() current body (soft-mute no-op)", "file": "app/src/context/MarmotContext.tsx:927-947"},
+    {"purpose": "buildDispatcher call site + dep injection", "file": "app/src/context/MarmotContext.tsx:648-703"},
+    {"purpose": "sendRumorSafe (module-scope inside MarmotContext)", "file": "app/src/context/MarmotContext.tsx:76-100"},
+    {"purpose": "onMembersChanged wiring", "file": "app/src/context/MarmotContext.tsx:599-609"},
+    {"purpose": "PollChatAnnouncement shape", "file": "app/src/components/groups/PollChatAnnouncement.tsx:1-37"},
+    {"purpose": "ChatBox kind-9 structured routing", "file": "app/src/components/chat/ChatBox.tsx:314-349"},
+    {"purpose": "Proposals dynamic import", "file": "app/src/context/MarmotContext.tsx:1118"},
+    {"purpose": "Existing per-group Map ref precedent", "file": "app/src/context/MarmotContext.tsx:190 (groupSubsRef)"}
+  ],
+  "modules_touched_by_epic": [
+    {"name": "lib/marmot/leaveSync.ts", "status": "NEW", "story": "S1"},
+    {"name": "lib/marmot/handlers/leaveHandler.ts", "status": "NEW", "story": "S2"},
+    {"name": "lib/marmot/registerHandlers.ts", "status": "MODIFIED", "story": "S2 (handler registration); S4 supplies enqueueLeave closure"},
+    {"name": "context/MarmotContext.tsx", "status": "MODIFIED", "story": "S3 (leaveGroup body), S4 (pendingRemovals + debounceTimers refs + enqueueLeave), S5 (auto-commit)"},
+    {"name": "context/ChatStoreContext.tsx", "status": "TOUCH-FREE per AR-3", "story": "(no kind-switching here)"},
+    {"name": "lib/marmot/parseStructured.ts", "status": "MODIFIED", "story": "S6"},
+    {"name": "components/chat/ChatBox.tsx", "status": "MODIFIED", "story": "S6 (render branch)"},
+    {"name": "components/groups/LeaveChatAnnouncement.tsx", "status": "NEW", "story": "S6"},
+    {"name": "lib/i18n.ts", "status": "MODIFIED", "story": "S6 (groups.leftGroup en + de)"}
+  ],
+  "test_invocations": {
+    "unit_test": "make test-unit",
+    "e2e_groups": "make test-e2e-groups",
+    "e2e_fast": "make test-e2e-fast",
+    "typecheck": "cd app && npx tsc --noEmit (no make wrapper)",
+    "lint": "cd app && npm run lint"
+  },
+  "test_patterns": [
+    {"purpose": "Sync-module unit test (round-trips, no mocks)", "example": "app/tests/unit/marmot/pollSync.test.ts", "story": "S1"},
+    {"purpose": "Handler unit test (vi.fn deps, vi.mock idb-keyval + marmot-ts)", "example": "app/tests/unit/marmot/pollHandler.test.ts", "story": "S2"},
+    {"purpose": "Impl unit test (makeDeps + mockGroup.commit spy)", "example": "app/tests/unit/marmot/cancelInvitationImpl.test.ts", "story": "S5"},
+    {"purpose": "i18n contract test", "example": "app/tests/unit/cancelPendingInvitation.i18n.test.ts", "story": "S6"},
+    {"purpose": "Two-client MLS e2e (bootUser × 2, real strfry, deterministic keypairs)", "example": "app/tests/e2e/groups-cancel-pending.spec.ts", "story": "S5, S7"}
+  ],
+  "translation_keys_needed": [
+    {
+      "namespace": "groups",
+      "key": "leftGroup",
+      "shape": "(member: string) => string",
+      "en": "(member: string) => `${member} left the group`",
+      "de": "(member: string) => `${member} hat die Gruppe verlassen`"
+    }
+  ],
+  "implementation_constraints": [
+    "Static export: query parameters only, no dynamic path segments. router.push('/groups') resolves to a real static /groups/index.html.",
+    "Multi-platform dev: invoke build/test via make. Platform stamps at app/node_modules/.platform_$(uname -s)-$(uname -m).",
+    "Pending-removals queue (Map<groupId, PendingRemoval[]>) and debounce timer map (Map<groupId, NodeJS.Timeout>) MUST be useRef, not useState — no re-renders on mutation. Clear timers in the existing groupSubsRef cleanup at MarmotContext.tsx:720-727.",
+    "getPubkeyLeafNodeIndexes returns number[] — could be multiple indexes per pubkey in degenerate cases. leafIndexes.length === 0 means 'already removed' (race) — drop from queue, skip commit.",
+    "adminPubkeys is read inline from mlsGroup.groupData?.adminPubkeys at each call site (no isAdmin selector). S5 follows the same pattern.",
+    "S5's timer callback should re-fetch mlsGroup via clientRef.current?.groups.get(groupId) rather than relying on the closed-over reference (the subscription effect may have torn down).",
+    "kind-13 send in S3 happens BEFORE the local-state purge — encrypted key material must still exist to encrypt the rumor.",
+    "Historical sync replays kind-13 messages on restart through the same handler path. The 5s debounce absorbs the resulting burst; no first-sync gate is required."
+  ],
+  "open_questions_for_planner": [
+    "S5's timer callback needs the mlsGroup reference. Cancel-invitation uses re-fetch via clientRef. The subscription effect captures mlsGroup as a const inside the for-loop — a tear-down race is possible if a 5s timer fires after the effect re-runs. Adopt clientRef.current.groups.get(groupId) as the canonical pattern in S5.",
+    "sendRumorSafe lives module-scope inside MarmotContext.tsx (not exported). S3 (leaveGroup) is fine — it's already in MarmotContext. S5's auto-commit is also fine — same scope. If the auto-commit logic were extracted to a separate file we'd need to move sendRumorSafe; staying inside MarmotContext avoids that.",
+    "S7 (member-list refresh) may be verification-only if the existing onMembersChanged callback at MarmotContext.tsx:599-609 already fires on local commits. Confirm during S7."
+  ],
+  "risks": [
+    "If S5 implements the spec's earlier two-await wording instead of the now-canonical single-commit form, the ratchet tree and adminPubkeys will diverge for one epoch transition. Spec has been amended; planner/architect must read the post-amendment spec.",
+    "If the pendingRemovals or debounceTimers Maps are scoped inside the per-group subscription loop instead of at MarmotContext top-level useRef, each group will own an isolated queue and cross-group batching won't matter (it's per-group anyway), but cross-render persistence will break.",
+    "Historical sync replays kind-13 on every cold start. If two admins both start cold and both have queued leave intents in the relay history, both will fire the 5s debounce → both attempt to commit. EpochResolver covers this (deterministic fork resolution), but it does mean we get more wasted commits than in steady-state. Acceptable for v1."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "created_at": "2026-05-18T00:00:00Z",
+  "updated_at": "2026-05-18T00:00:00Z",
+  "mocks": [
+    {
+      "mock_id": "MOCK-S2-001",
+      "description": "Stub enqueueLeave callback wired into buildDispatcher — no-op placeholder until S4 supplies the real MarmotContext closure",
+      "interface_mocked": "LeaveHandlerDeps.enqueueLeave: (groupId: string, pubkey: string) => void",
+      "resolution_story": "S4",
+      "created_in_story": "S2",
+      "resolved": true
+    }
+  ],
+  "all_resolved": true
+}

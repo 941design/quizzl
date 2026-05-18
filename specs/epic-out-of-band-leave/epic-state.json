@@ -1,0 +1,64 @@
+{
+  "epic_name": "out-of-band-leave",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-05-18T00:00:00Z",
+  "updated_at": "2026-05-18T04:30:00Z",
+  "pre_existing_dirty_files": [
+    ".claude/settings.local.json",
+    ".claude/verification-results.csv",
+    ".clauded.yaml",
+    ".envrc",
+    ".next/_events_1251764.json",
+    ".next/dev/cache/.rscinfo",
+    ".next/dev/cache/turbopack/ee6e79b1/CURRENT",
+    ".next/dev/logs/next-development.log",
+    ".next/dev/package.json",
+    ".serena/project.yml",
+    "BACKLOG.json",
+    "BACKLOG.migration-report.md",
+    "CLAUDE.md",
+    "bug-reports/avatar-images-placeholder-mobile-contract.json",
+    "bug-reports/avatar-images-placeholder-mobile-state.json",
+    "bug-reports/avatar-images-placeholder-mobile.md",
+    "bug-reports/e2e-iteration-2026-05-08.md",
+    "bug-reports/meta-retro-backlog-migration-2026-05-18.md",
+    "bug-reports/profile-propagation-new-members-contract.json",
+    "bug-reports/profile-propagation-new-members-state.json",
+    "bug-reports/profile-propagation-new-members.md",
+    "bug-reports/retro-emoji-feature-reopen-2026-05-08.md",
+    "node_modules/.vite/vitest/da39a3ee5e6b4b0d3255bfef95601890afd80709/results.json",
+    "specs/epic-event-sourced-receive-engine/spec.md",
+    "specs/epic-learning-groups-nostr-mls/spec.md",
+    "specs/epic-out-of-band-leave/spec.md",
+    "specs/out-of-band-leave.md"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-05-18T00:00:00Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "STORY_IN_PROGRESS",
+      "timestamp": "2026-05-18T01:00:00Z",
+      "trigger": "S1 started"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-05-18T04:30:00Z",
+      "trigger": "all stories done"
+    }
+  ],
+  "completed_at": "2026-05-18T04:30:00Z"
+}

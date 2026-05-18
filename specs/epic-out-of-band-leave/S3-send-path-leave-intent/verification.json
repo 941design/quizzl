@@ -1,0 +1,141 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-18T00:00:00Z",
+  "questions": [
+    {
+      "id": "V-S3-PRE-1",
+      "type": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does leaveGroup() in MarmotContext.tsx contain zero calls to mlsGroup.leave()? The departing member must never emit an MLS Remove proposal.",
+      "verification_method": "grep -n 'mlsGroup\\.leave\\|mls.*\\.leave()' app/src/context/MarmotContext.tsx — must return empty",
+      "severity": 9,
+      "optional": false
+    },
+    {
+      "id": "V-S3-PRE-2",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the kind-13 sendApplicationRumor call appear before the kind-9 fire-and-forget and before the local-state purge calls (removeGroupFromStorage, clearMemberScores, etc.) in the leaveGroup function body?",
+      "verification_method": "Read the leaveGroup() function in MarmotContext.tsx and verify call order: kind-13 send → kind-9 fire-and-forget → purge sequence → navigate('/groups')",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S3-PRE-3",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the MarmotContext.tsx leaveGroup function be rewritten in isolation without modifying any file outside its module boundary (context/MarmotContext.tsx)? If not, which cross-module seams are used and are they all declared in architecture.md?",
+      "verification_method": "Read leaveGroup() imports and call sites — serialiseLeaveIntent from leaveSync.ts (declared seam), sendRumorSafe (module-scope in MarmotContext), group.sendApplicationRumor (MLS seam) — all declared in architecture.md",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S3-PRE-4",
+      "type": "pre-impl",
+      "category": "TEST",
+      "question": "Is the kind-9 fire-and-forget wrapped in a .catch() or try/catch that swallows the error silently, ensuring the failure of the announcement send does not block the purge or navigation?",
+      "verification_method": "Read the kind-9 send in leaveGroup() — must be a fire-and-forget pattern: sendApplicationRumor(...).catch(() => {}) or equivalent with no await and no re-throw",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S3-PRE-5",
+      "type": "pre-impl",
+      "category": "SPEC",
+      "question": "Does leaveGroup() include the unapplied-proposals fallback path: if the kind-13 sendApplicationRumor throws due to unapplied proposals, does it fall back to sendRumorSafe and then retry the kind-13 send?",
+      "verification_method": "Read leaveGroup() for a try/catch or conditional that detects the unapplied-proposals error condition and calls sendRumorSafe before re-attempting the kind-13 send",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S3-PRE-6",
+      "type": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the kind-9 fire-and-forget payload use selfPubkeyHex from the MarmotContext's own identity, and not from any caller-supplied input? This prevents a caller from impersonating a different pubkey in the chat announcement.",
+      "verification_method": "Read the kind-9 send in leaveGroup() — pubkey in the JSON payload must be sourced from the same identity variable used for the kind-13 send (selfPubkeyHex or equivalent), not from a function parameter",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S3-SPEC-1",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-SEND-1",
+      "question": "Does leaveGroup(groupId) call group.sendApplicationRumor with kind LEAVE_INTENT_KIND (13) and content serialiseLeaveIntent({ pubkey: selfPubkeyHex }) before any local-state purge function is called?",
+      "verification_method": "Read leaveGroup() and trace the call order; confirm LEAVE_INTENT_KIND is imported from leaveSync.ts; confirm serialiseLeaveIntent is used for the content; confirm no purge function appears before this send",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S3-SPEC-2",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-SEND-2",
+      "question": "After the kind-13 send, does leaveGroup issue a fire-and-forget kind-9 chat rumor with content JSON.stringify({ type: 'leave_intent', pubkey: selfPubkeyHex }), and does failure of this send NOT prevent the purge or navigation from completing?",
+      "verification_method": "Read leaveGroup() — verify kind-9 send is fire-and-forget (no await propagated to enclosing try/catch); verify purge and navigate calls appear unconditionally after the kind-9 send",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S3-SPEC-3",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-SEND-3",
+      "question": "Does leaveGroup fall back to sendRumorSafe (which auto-commits first) when the kind-13 send fails due to unapplied proposals, before re-attempting the kind-13 send?",
+      "verification_method": "Read the error-handling path in leaveGroup() for the kind-13 send; confirm sendRumorSafe is called on the unapplied-proposals error path before the kind-13 retry",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S3-SPEC-4",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-SEND-4",
+      "question": "Does leaveGroup call all required purge functions — removeGroupFromStorage, clearMemberScores, clearMemberProfiles, clearMessages, clearPollData, clearGroupMedia, clearProfileRequestMemos, clearUnreadGroup — in sequence, followed by navigate('/groups')?",
+      "verification_method": "Read leaveGroup() and verify all 8 purge function calls are present and navigate('/groups') is called at the end; grep each function name in the leaveGroup body",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S3-SPEC-5",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-SEND-5",
+      "question": "Does leaveGroup contain zero calls to mlsGroup.leave()? No MLS Remove proposal must be emitted by the departing member.",
+      "verification_method": "grep -n 'mlsGroup\\.leave\\|\\.leave()' app/src/context/MarmotContext.tsx — must return empty or show no calls inside leaveGroup function; tsc --noEmit should still pass",
+      "severity": 9,
+      "optional": false
+    },
+    {
+      "id": "V-S3-SPEC-6",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-EDGE-5",
+      "question": "When the kind-9 leave-announcement send fails for any reason, does the departing member's local-state purge and navigation to /groups still complete (the failure is not surfaced to the user)?",
+      "verification_method": "Read the kind-9 error handling in leaveGroup() — must use .catch(() => {}) or equivalent that does NOT re-throw; run a unit test or manual inspection confirming purge and navigate are not gated on the kind-9 promise resolution",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S3-POST-1",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does leaveGroup skip the kind-13 and kind-9 sends (rather than crashing) when mlsGroup is undefined — i.e. when the group is no longer present in clientRef at leave time?",
+      "verification_method": "Read the guard condition in leaveGroup(): 'if (mlsGroup && selfPubkeyHex)' at MarmotContext.tsx — the two sends are inside this block; the purge runs unconditionally below it. Confirms graceful no-op for already-removed group.",
+      "severity": 6,
+      "optional": false
+    },
+    {
+      "id": "V-S3-POST-2",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Does the kind-13 send failure path (try/catch wrapping sendRumorSafe in leaveGroup) log a console.warn and then continue to the purge, rather than swallowing silently or re-throwing?",
+      "verification_method": "Read the try/catch block for the kind-13 send in leaveGroup(): console.warn('[Marmot] leaveGroup: kind-13 send failed, proceeding with purge:', err) must appear before the guard block exits and before removeGroupFromStorage is called.",
+      "severity": 5,
+      "optional": false
+    }
+  ]
+}

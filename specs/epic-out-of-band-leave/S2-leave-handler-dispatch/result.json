@@ -1,0 +1,43 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "completed_at": "2026-05-18T02:00:00Z",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/src/lib/marmot/handlers/leaveHandler.ts",
+    "app/tests/unit/marmot/leaveHandler.test.ts",
+    "specs/epic-out-of-band-leave/S2-leave-handler-dispatch/baseline.json",
+    "specs/epic-out-of-band-leave/S2-leave-handler-dispatch/architecture.json"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/registerHandlers.ts",
+    "specs/epic-out-of-band-leave/mocks-registry.json",
+    "specs/epic-out-of-band-leave/S2-leave-handler-dispatch/verification.json"
+  ],
+  "tests_added": {
+    "unit": 4
+  },
+  "test_counts": {
+    "baseline": 852,
+    "final": 856
+  },
+  "mocks": [
+    {
+      "name": "MOCK-S2-001",
+      "reason": "Stub enqueueLeave no-op closure in buildDispatcher; real MarmotContext closure provided in S4",
+      "resolution_story": "S4"
+    }
+  ],
+  "implementation_summary": "Created leaveHandler.ts following the pollHandler.ts factory pattern exactly — synchronous handle(), LeaveHandlerDeps with single enqueueLeave dep, createLeaveIntentHandler factory. Registered in registerHandlers.ts via Option A: enqueueLeave added to HandlerDeps (required type), stub fallback `deps.enqueueLeave ?? (() => {})` with MOCK-S2-001 comment. AR-1 and AR-3 still hold. 4 new unit tests cover happy path, two malformed-payload variants, and dispatcher LRU dedup.",
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The leaveHandler handle() function is synchronous (returns void, not Promise<void>) because it does no async work — enqueueLeave is a plain callback. The test template from pollHandler.test.ts uses `await expect(handler.handle(...)).resolves.not.toThrow()`, which only works when handle() returns a Promise. Applying the same pattern to the synchronous handler caused two test failures on the first run. The fix was trivial (switch to `expect(() => handler.handle(...)).not.toThrow()`), but the template pattern does not document this contingency.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted"
+}

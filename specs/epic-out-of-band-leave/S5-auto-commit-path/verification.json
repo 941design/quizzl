@@ -1,0 +1,231 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-18T00:00:00Z",
+  "questions": [
+    {
+      "id": "V-S5-PRE-1",
+      "type": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the timer-fire handler issue exactly one mlsGroup.commit() call (not two), combining all Remove proposals and the adminPubkeys update in a single extraProposals array? Two separate commit or proposeUpdateMetadata awaits are explicitly prohibited.",
+      "verification_method": "grep -n 'mlsGroup\\.commit\\|\\.commit(' app/src/context/MarmotContext.tsx — the timer-fire function body must show at most one .commit( call; grep -n 'proposeUpdateMetadata' app/src/context/MarmotContext.tsx — must not appear as a standalone await call",
+      "severity": 9,
+      "optional": false
+    },
+    {
+      "id": "V-S5-PRE-2",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the timer callback re-fetch the live mlsGroup via clientRef.current?.groups.get(groupId) at fire time — not relying on a closed-over reference captured at enqueue time?",
+      "verification_method": "Read the timer-fire handler in MarmotContext.tsx — the very first action after the timer fires must be: const mlsGroup = clientRef.current?.groups.get(groupId); if (!mlsGroup) return;",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S5-PRE-3",
+      "type": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the auto-commit timer-fire logic be deleted and rewritten without modifying any file outside MarmotContext.tsx? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?",
+      "verification_method": "Read the timer-fire handler — imports used: getPubkeyLeafNodeIndexes (from marmot-ts), Proposals.proposeUpdateMetadata (from marmot-ts), PROPOSAL_TYPE_REMOVE (constant, from marmot-ts) — all declared library deps; no imports from handlers/ or registerHandlers.ts",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S5-PRE-4",
+      "type": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/marmot/autoCommitLeave.test.ts exist and cover all three required assertions: (a) single-pubkey → one commit call with correct extraProposals shape; (b) empty getPubkeyLeafNodeIndexes → commit not called and entry dropped; (c) two simultaneous pubkeys → one commit with two Remove proposals and correct remainingAdmins?",
+      "verification_method": "Read app/tests/unit/marmot/autoCommitLeave.test.ts — verify three it() blocks covering cases (a), (b), (c); run make test-unit and confirm all three pass",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S5-PRE-5",
+      "type": "pre-impl",
+      "category": "SPEC",
+      "question": "Are Remove proposals built as plain objects { proposalType: PROPOSAL_TYPE_REMOVE, remove: { removed: leafIndex } } — not using proposeRemoveUser() or any Proposals.Remove(...) factory?",
+      "verification_method": "grep -n 'proposeRemoveUser\\|Proposals\\.Remove' app/src/context/MarmotContext.tsx — must return empty; grep -n 'PROPOSAL_TYPE_REMOVE' app/src/context/MarmotContext.tsx — must return at least 1 match in the timer-fire handler",
+      "severity": 9,
+      "optional": false
+    },
+    {
+      "id": "V-S5-PRE-6",
+      "type": "pre-impl",
+      "category": "SECURITY",
+      "question": "On commit failure (exception), does the timer handler leave the pending-removal entries in the queue for retry (not discard them), and does it NOT retry immediately with the cached removeProposals array?",
+      "verification_method": "Read the catch block in the timer-fire handler — must NOT clear the pending entries for the failed commit; must NOT call commit again inside the catch block; on next timer tick getPubkeyLeafNodeIndexes will re-derive leaf indexes",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-1",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-COMMIT-1",
+      "question": "When the debounce timer fires, does the callback re-fetch mlsGroup via clientRef.current?.groups.get(groupId), and return without committing (leaving queue entries in place) if mlsGroup is null?",
+      "verification_method": "Read timer-fire handler — first line must be mlsGroup re-fetch via clientRef; early-return on null must precede any queue mutation or commit attempt",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-2",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-COMMIT-2",
+      "question": "For each pending pubkey, does the timer callback call getPubkeyLeafNodeIndexes(mlsGroup.state, pubkey), and drop the entry from the queue (no Remove proposal built) when the returned array is empty?",
+      "verification_method": "Read the per-pubkey loop in the timer-fire handler — verify getPubkeyLeafNodeIndexes call and the if (indexes.length === 0) drop-and-continue branch; run unit test case (b) from autoCommitLeave.test.ts",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-3",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-COMMIT-3",
+      "question": "Are Remove proposals built as plain objects { proposalType: PROPOSAL_TYPE_REMOVE, remove: { removed: leafIndex } } with PROPOSAL_TYPE_REMOVE = 3, without using proposeRemoveUser() or Proposals.Remove(...)?",
+      "verification_method": "Read the proposal-building section in the timer-fire handler; grep -n 'proposeRemoveUser\\|Proposals\\.Remove' app/src/context/MarmotContext.tsx — must return empty; verify PROPOSAL_TYPE_REMOVE === 3 in the import or constant declaration",
+      "severity": 9,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-4",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-COMMIT-4",
+      "question": "Does the timer callback issue exactly one mlsGroup.commit({ extraProposals: [...removeProposals, Proposals.proposeUpdateMetadata({ adminPubkeys: remainingAdmins })] }) call combining all Remove proposals and the metadata update?",
+      "verification_method": "grep -c '\\.commit(' app/src/context/MarmotContext.tsx — count inside the timer-fire function must be exactly 1; read the commit call and verify extraProposals includes both removeProposals spread and proposeUpdateMetadata",
+      "severity": 9,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-5",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-COMMIT-5",
+      "question": "Is remainingAdmins computed as mlsGroup.groupData?.adminPubkeys.filter(pk => !departingPubkeys.includes(pk)) at timer-fire time from the live group object (not a stale closure)?",
+      "verification_method": "Read the remainingAdmins derivation in the timer-fire handler — must access mlsGroup.groupData?.adminPubkeys (from the re-fetched live mlsGroup) and filter out the departing pubkeys at the point of commit, not at enqueue time",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-6",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-COMMIT-6",
+      "question": "On successful commit, does the callback remove from pendingRemovalsRef only the entries for the pubkeys just committed, leaving entries added during the commit window in place for the next timer cycle?",
+      "verification_method": "Read the post-commit success path in the timer-fire handler — must filter pendingRemovalsRef.current.get(groupId) to keep entries not in the committed set, not clear the entire array",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-7",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-COMMIT-7",
+      "question": "On commit failure, do the failing entries remain in pendingRemovalsRef without an immediate retry using the cached removeProposals array?",
+      "verification_method": "Read the catch block — must NOT clear or modify pendingRemovalsRef on failure; must NOT call commit again; entries stay for the next timer tick's getPubkeyLeafNodeIndexes re-derivation",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-8",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-COMMIT-8",
+      "question": "Does app/tests/unit/marmot/autoCommitLeave.test.ts assert all three cases: (a) single-pubkey → one commit with correct extraProposals shape; (b) getPubkeyLeafNodeIndexes returns [] → commit not called and entry dropped; (c) two simultaneous pubkeys → one commit with two Remove proposals and correct remainingAdmins?",
+      "verification_method": "Read autoCommitLeave.test.ts and verify all three it() blocks are present with the named inputs; run make test-unit to confirm all three pass",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-9",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-EDGE-1",
+      "question": "When leaveHandler.ts receives a kind-13 rumor for a pubkey whose getPubkeyLeafNodeIndexes returns [] (already removed), is enqueueLeave still called (the stale-leaf guard is at commit time, not at enqueue time), and does the timer-fire silently drop the entry without entering an error state?",
+      "verification_method": "Read leaveHandler.ts handle() — enqueueLeave must be called on any valid kind-13 rumor regardless of ratchet-tree state; read timer-fire handler — getPubkeyLeafNodeIndexes empty → drop silently with no throw or error toast",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-10",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-EDGE-2",
+      "question": "When a losing admin's commit is rolled back after a dual-admin race, does the pending-queue re-check (getPubkeyLeafNodeIndexes returns [] after rollback) prevent a second Remove commit from being issued?",
+      "verification_method": "Read the timer-fire handler — the stale-leaf guard (getPubkeyLeafNodeIndexes returns [] → drop) is the sole defense; verify there is no additional first-wins deduplication that might accidentally bypass the guard; run unit test case (b) from autoCommitLeave.test.ts",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-11",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-EDGE-3",
+      "question": "When multiple members leave simultaneously within the 5-second debounce window, are their pubkeys batched into a single mlsGroup.commit call with multiple Remove proposals in one extraProposals array?",
+      "verification_method": "Read the timer-fire handler — pendingRemovalsRef.current.get(groupId) must iterate over all pending pubkeys and accumulate removeProposals before the single commit call; run unit test case (c) from autoCommitLeave.test.ts",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-12",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-EDGE-4",
+      "question": "When group.commit succeeds locally but publish fails, do the pending-removal entries remain in pendingRemovalsRef, and does the retry path re-derive leaf indexes via getPubkeyLeafNodeIndexes rather than using the cached removeProposals array from the failed attempt?",
+      "verification_method": "Read the catch block in the timer-fire handler — confirm entries are NOT cleared on publish failure; confirm the timer will re-arm (or will re-fire on next enqueueLeave), re-calling getPubkeyLeafNodeIndexes freshly",
+      "severity": 8,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-13",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-EDGE-6",
+      "question": "On admin cold-start, are kind-13 messages re-delivered through historical sync routed through leaveHandler.ts via the dispatcher, repopulating the pending-removal queue, with the 5-second debounce absorbing the burst into a single commit per group?",
+      "verification_method": "Read the dispatcher wiring in registerHandlers.ts and MarmotContext's subscribeToGroupMessages call — confirm historical messages go through the same buildDispatcher path; the 5s debounce reset-on-new-enqueue behavior in enqueueLeave is the burst absorber",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S5-SPEC-14",
+      "type": "spec",
+      "category": "SPEC",
+      "ac_id": "AC-EDGE-8",
+      "question": "When an auto-remove commit is rolled back by a concurrent chat or poll commit targeting the same epoch, do the pending-removal queue entries remain and does the auto-remove logic re-fire on the next timer tick with fresh getPubkeyLeafNodeIndexes derivation?",
+      "verification_method": "Read the catch block — commit rollback (exception) must leave entries in pendingRemovalsRef; verify no immediate retry inside catch; the next timer tick (or next enqueueLeave reset) will re-derive leaf indexes",
+      "severity": 7,
+      "optional": false
+    },
+    {
+      "id": "V-S5-POST-1",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "fireAutoCommit calls onCommitted for stale-leaf drops (empty leafIndexes) eagerly, BEFORE the mlsGroup.commit() call. Does this introduce a window where the stale entry is removed from the live queue but the commit for valid entries subsequently fails — leaving the queue in a partially cleaned state that prevents re-delivery of the stale pubkey on the next cycle?",
+      "verification_method": "Read fireAutoCommit: onCommitted([droppedPubkeys]) is called unconditionally for stale entries even when the subsequent commit throws. Since these pubkeys returned [] from getPubkeyLeafNodeIndexes they are already removed from the ratchet — no Remove commit is needed for them. Dropping them from the queue on failure is correct: they cannot be committed. Verify by the 'mixed stale + valid' test case in autoCommitLeave.test.ts.",
+      "severity": 6,
+      "optional": false
+    },
+    {
+      "id": "V-S5-POST-2",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The test file mocks React via vi.mock('react') to allow importing MarmotContext.tsx in a non-DOM environment. If React's API shape changes (e.g. useRef returns a different shape), the mock could silently mask import-time failures. Does the current mock adequately guard against MarmotContext.tsx import errors in the test environment?",
+      "verification_method": "Run make test-unit and confirm autoCommitLeave.test.ts imports succeed and all 6 tests pass. Review the vi.mock('react') mock in autoCommitLeave.test.ts — it returns stable stubs for all hooks called at MarmotProvider component scope, not at module scope. fireAutoCommit is module-scope (not inside the component), so the React mock only needs to prevent component-body execution at import time.",
+      "severity": 5,
+      "optional": true
+    },
+    {
+      "id": "V-S5-POST-3",
+      "type": "post-impl",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The timer callback in enqueueLeave uses a void IIFE (void (async () => { ... })()) to wrap the async auto-commit body. If the outer try/catch is somehow bypassed (e.g. synchronous throw before the async import), could an unhandled rejection leak through?",
+      "verification_method": "Read the timer body in enqueueLeave: the void IIFE wraps the entire body. The mlsGroup re-fetch is guarded with its own try/catch. The dynamic import and fireAutoCommit call are inside the outer try/catch. There is no code path between 'pendingQueue.length === 0 return' and the outer try/catch that could throw synchronously without being caught.",
+      "severity": 5,
+      "optional": true
+    }
+  ]
+}

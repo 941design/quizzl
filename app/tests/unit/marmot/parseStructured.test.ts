@@ -31,6 +31,16 @@ describe('parseStructured', () => {
     const result = parseStructured('{"type":"unknown","foo":"bar"}');
     expect(result).toBeNull();
   });
+
+  it('returns leave_intent variant for valid input', () => {
+    const result = parseStructured('{"type":"leave_intent","pubkey":"abcd1234"}');
+    expect(result).toEqual({ type: 'leave_intent', pubkey: 'abcd1234' });
+  });
+
+  it('returns null for leave_intent missing pubkey', () => {
+    const result = parseStructured('{"type":"leave_intent"}');
+    expect(result).toBeNull();
+  });
 });
 
 describe('resolveCancellerDisplay — trust boundary', () => {

@@ -1,0 +1,7 @@
+{
+  "captured_at": "2026-05-18T00:00:00Z",
+  "test_command": "make test-unit",
+  "test_files": 63,
+  "test_count": 856,
+  "status": "all_passing"
+}

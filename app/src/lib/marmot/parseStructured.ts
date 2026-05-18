@@ -18,6 +18,7 @@ export type StructuredContent =
   | { type: 'poll_close'; pollId: string; title: string; results: PollResult[]; totalVoters: number }
   | { type: 'image'; version: 1; caption: string }
   | { type: 'invite_cancelled'; pubkey: string; by: string }
+  | { type: 'leave_intent'; pubkey: string }
   | null;
 
 export function parseStructured(content: string): StructuredContent {
@@ -30,6 +31,9 @@ export function parseStructured(content: string): StructuredContent {
     }
     if (parsed?.type === 'invite_cancelled' && typeof parsed.pubkey === 'string' && typeof parsed.by === 'string') {
       return { type: 'invite_cancelled', pubkey: parsed.pubkey, by: parsed.by };
+    }
+    if (parsed?.type === 'leave_intent' && typeof parsed.pubkey === 'string') {
+      return { type: 'leave_intent', pubkey: parsed.pubkey };
     }
   } catch {
     // Not JSON — plain text message

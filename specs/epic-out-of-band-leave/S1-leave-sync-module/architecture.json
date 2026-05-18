@@ -1,0 +1,40 @@
+{
+  "module_name": "lib/marmot/leaveSync.ts",
+  "purpose": "Pure-function serialisation and deserialisation helpers for MLS application messages of kind 13 (leave intent). No side effects, no React, no IDB. Mirrors pollSync.ts / scoreSync.ts.",
+  "public_api": [
+    {
+      "name": "LEAVE_INTENT_KIND",
+      "signature": "const LEAVE_INTENT_KIND: 13",
+      "description": "MLS application-message kind discriminator for leave-intent payloads."
+    },
+    {
+      "name": "LeaveIntentPayload",
+      "signature": "interface LeaveIntentPayload { pubkey: string }",
+      "description": "Shape of the parsed leave-intent payload. Only contains the pubkey of the member who wishes to leave."
+    },
+    {
+      "name": "serialiseLeaveIntent",
+      "signature": "function serialiseLeaveIntent(payload: LeaveIntentPayload): string",
+      "description": "Returns JSON.stringify({ pubkey: payload.pubkey }). Emits no extra fields."
+    },
+    {
+      "name": "parseLeaveIntent",
+      "signature": "function parseLeaveIntent(content: string): LeaveIntentPayload | null",
+      "description": "Parses the JSON string and returns { pubkey } if typeof parsed.pubkey === 'string', otherwise null. Catches JSON.parse errors and returns null."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": [
+    "react",
+    "app/src/context/",
+    "idb"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/leaveSync.test.ts"
+  ]
+}

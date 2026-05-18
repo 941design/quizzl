@@ -1,0 +1,39 @@
+{
+  "module_name": "context/MarmotContext.tsx",
+  "purpose": "Rewrites leaveGroup() to emit kind-13 leave-intent via sendRumorSafe and kind-9 fire-and-forget announcement before purging local state. mlsGroup.leave() is never called.",
+  "public_api": [
+    {
+      "name": "leaveGroup",
+      "signature": "(groupId: string) => Promise<boolean>",
+      "description": "Emits kind-13 sendRumorSafe (with unapplied-proposals retry), fire-and-forget kind-9 announcement, then runs the existing 8-step purge sequence and returns true. Navigation to /groups is performed by the caller (LeaveGroupButton)."
+    }
+  ],
+  "private_files": [
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "owned_data": [
+    "clientRef (MarmotClient)",
+    "groupSubsRef",
+    "all version counters"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/leaveSync.ts (LEAVE_INTENT_KIND, serialiseLeaveIntent)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/ChatStoreContext.tsx",
+    "app/src/lib/marmot/handlers/",
+    "app/src/lib/marmot/registerHandlers.ts"
+  ],
+  "external_ports": [
+    "group.sendApplicationRumor (via sendRumorSafe wrapper for kind-13)",
+    "group.sendApplicationRumor (direct fire-and-forget for kind-9)"
+  ],
+  "events_emitted": [
+    "kind-13 MLS application rumor (LEAVE_INTENT_KIND) — encrypted leave intent",
+    "kind-9 MLS application rumor — chat leave announcement (fire-and-forget)"
+  ],
+  "events_consumed": [],
+  "test_targets": [
+    "No new unit test file for leaveGroup (React context with extensive setup). Behavioral correctness verified by unit suite non-regression (856+ passing) and AC verification via code inspection."
+  ]
+}

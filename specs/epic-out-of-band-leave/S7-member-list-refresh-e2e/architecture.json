@@ -1,0 +1,92 @@
+{
+  "module_name": "context/MarmotContext.tsx",
+  "purpose": "Verification-only story. No code changes to MarmotContext.tsx are required. The existing onMembersChanged wiring already refreshes the member list when the auto-remove commit from S5 lands. The sole deliverable is the new e2e test file.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/e2e/groups-leave-intent.spec.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "@playwright/test",
+    "./helpers/auth-helpers",
+    "./helpers/clear-state",
+    "./helpers/dismiss-error-overlay",
+    "./helpers/relay-query"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/",
+    "app/src/lib/marmot/handlers/",
+    "app/src/components/"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/e2e/groups-leave-intent.spec.ts"
+  ],
+
+  "ac_members_1_analysis": {
+    "ac": "AC-MEMBERS-1",
+    "decision": "(a) verification-only — no MarmotContext.tsx changes",
+    "code_path": "MarmotContext.tsx subscribeToGroupMessages passes an onMembersChanged callback at line 797. This callback fires after every MLS event (commit, proposal) via subscribeToGroupMessages's internal listener. At lines 800-804 it bumps setGroupDataVersion() unconditionally, then calls persistGroup + reloadGroups when currentMembers.length !== stored.memberPubkeys.length. The auto-remove commit from S5 is an MLS commit that reduces the member set by one, so the count changes and reloadGroups fires. The UI then re-renders without the departed member.",
+    "length_only_condition_edge_case": {
+      "condition": "currentMembers.length !== stored.memberPubkeys.length",
+      "decision": "Leave as-is (option a). The edge case — two simultaneous leaves where ghost cleanup already ran — is theoretical and not a regression from S1-S6. The e2e covers the canonical one-leave case. Documented as a known limitation: if stored.memberPubkeys was already pruned to match the post-leave count by another mechanism, the reloadGroups call would not fire. In practice S5's auto-remove is the only pruning path, so the count always changes.",
+      "known_limitation": "If a prior ghost-cleanup already aligned the stored member count with the post-leave count before the auto-remove commit lands, the reloadGroups call is skipped. The setGroupDataVersion bump still fires (line 800), so isAdmin and other derived state remain up-to-date, but the groups list view would not re-render until the next navigation. Acceptable for v1."
+    }
+  },
+
+  "ac_edge_7_analysis": {
+    "ac": "AC-EDGE-7",
+    "verification_method": "code-inspection",
+    "argument": "fireAutoCommit (MarmotContext.tsx line 162) fetches adminPubkeys from mlsGroup.groupData?.adminPubkeys at fire time. If the departing member is the only admin, remainingAdmins is empty. The function then proceeds to call mlsGroup.commit() with the remove proposals. The MLS library will reject the commit if the local client lacks admin rights (not an API-level admin check — this is MLS key-material enforcement). On rejection, the catch block at line 218 logs a warning and retains the queue entries for retry. No error is thrown to the caller, no toast is shown, and no failed-commit error surfaces to the user. The ghost leaf persists. This is the correct behavior: the queue sits untouched because no admin is present to commit it.",
+    "test_coverage": "Covered by code-inspection in this architecture.json per AC-EDGE-7 spec guidance (option C). The existing autoCommit.test.ts unit tests in S5 cover the fireAutoCommit error path. No new unit test is added in S7's scope."
+  },
+
+  "ar_grep_results": {
+    "ac_arch_1": {
+      "command": "grep -E 'from .*(context/|idb)' app/src/lib/marmot/handlers/leaveHandler.ts",
+      "result": "empty — only comments mentioning the constraint, no actual import statements",
+      "actual_imports": [
+        "import { LEAVE_INTENT_KIND, parseLeaveIntent } from '@/src/lib/marmot/leaveSync';",
+        "import type { ApplicationRumor, DispatcherContext, RumorHandler } from '@/src/lib/marmot/applicationRumorDispatcher';"
+      ],
+      "verdict": "PASS — zero context/ or idb imports"
+    },
+    "ac_arch_2": {
+      "command": "git diff HEAD -- app/src/context/ChatStoreContext.tsx",
+      "result": "empty — ChatStoreContext.tsx was not touched by this epic",
+      "secondary_check": "grep 'leave_intent|leaveIntent|LEAVE_INTENT_KIND' app/src/context/ChatStoreContext.tsx — exit 1 (no matches)",
+      "verdict": "PASS — ChatStoreContext.tsx is unmodified"
+    },
+    "ac_arch_3": {
+      "command": "grep -r 'from.*handlers/' app/src/ --include='*.ts' --include='*.tsx' -l",
+      "result": [
+        "app/src/lib/marmot/registerHandlers.ts"
+      ],
+      "verdict": "PASS — only registerHandlers.ts imports from handlers/"
+    },
+    "ar1_single_listener": {
+      "command": "grep -rn \"group.on('applicationMessage'\" app/src/",
+      "result": [
+        "app/src/lib/marmot/applicationRumorDispatcher.ts:4 (comment)",
+        "app/src/lib/marmot/applicationRumorDispatcher.ts:106 (single call site)"
+      ],
+      "verdict": "PASS — exactly one call site at applicationRumorDispatcher.ts:106"
+    },
+    "ar2_no_kind_switching_in_context": {
+      "command": "grep -rn 'rumor\\.kind' app/src/context/",
+      "result": "empty",
+      "verdict": "PASS — zero kind-switching in context/"
+    }
+  },
+
+  "marmot_context_edit_decision": "NO EDIT — verification-only story. onMembersChanged already fires via the existing wiring at MarmotContext.tsx:797-814. No code additions beyond the e2e test file.",
+
+  "design_decisions": {
+    "e2e_structure": "Mirrors groups-cancel-pending.spec.ts exactly: bootUser x2, describe.serial, real strfry relay at ws://localhost:7777, deterministic keypairs from auth-helpers, clearAppState on boot.",
+    "b_joins_before_leaving": "Unlike cancel-pending where User B is offline, this test requires User B to actually join the group (accept the MLS Welcome) before leaving. User B's browser must stay open through join, then navigate to the group and click Leave.",
+    "auto_commit_timing": "The auto-commit fires 5 seconds after User B's kind-13 leave intent reaches User A's relay subscription. The e2e uses expect.poll with a 15-second timeout and 3-second intervals to wait for User B's member-item to disappear from User A's view.",
+    "group_still_usable": "User A's ability to send a chat message after removal confirms the MLS state is not blocked — the auto-remove commit advanced the epoch cleanly."
+  }
+}

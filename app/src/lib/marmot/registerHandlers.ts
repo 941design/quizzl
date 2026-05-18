@@ -11,6 +11,7 @@ import { createScoreHandler } from './handlers/scoreHandler';
 import { createProfileHandler } from './handlers/profileHandler';
 import { createProfileRequestHandler } from './handlers/profileRequestHandler';
 import { createPollOpenHandler, createPollVoteHandler, createPollCloseHandler } from './handlers/pollHandler';
+import { createLeaveIntentHandler } from './handlers/leaveHandler';
 
 // Composition root — all application rumor handlers registered here.
 export interface HandlerDeps {
@@ -52,6 +53,8 @@ export interface HandlerDeps {
   saveVote: (vote: PollVote) => Promise<void>;
   getPoll: (groupId: string, pollId: string) => Promise<Poll | null>;
   setPollVersion: (updater: (v: number) => number) => void;
+  // Leave handler deps
+  enqueueLeave: (groupId: string, pubkey: string) => void;
 }
 
 export function buildDispatcher(deps: HandlerDeps): Dispatcher {
@@ -92,6 +95,11 @@ export function buildDispatcher(deps: HandlerDeps): Dispatcher {
     createPollOpenHandler(pollDeps),
     createPollVoteHandler(pollDeps),
     createPollCloseHandler(pollDeps),
+    createLeaveIntentHandler({
+      // MOCK-S2-001 — resolved by S4; fallback retained for tests that build the
+      // dispatcher without MarmotContext (production path always supplies the real closure).
+      enqueueLeave: deps.enqueueLeave ?? (() => {}),
+    }),
   ];
   return createDispatcher(handlers);
 }
