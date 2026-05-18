@@ -1,10 +1,21 @@
 version: '1'
+harness: claude-code
 vm:
   name: clauded-quizzl-482529
-  distro: ubuntu
   cpus: 4
   memory: 8GiB
   disk: 20GiB
+  claude_code_router:
+    enabled: false
+    providers:
+    - minimax
+    overrides:
+      haiku: minimax/MiniMax-M2.7
+      sonnet: minimax/MiniMax-M2.7
+  forward_env:
+  - MINIMAX_API_KEY
+  - OLLAMA_REVIEW_MODEL
+  - OLLAMA_HOST
 mount:
   host: /Users/mrother/Projects/941design/quizzl
   guest: /Users/mrother/Projects/941design/quizzl

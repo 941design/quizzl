@@ -25,3 +25,9 @@ All user-facing UI text must be translated. The app supports English (`en`) and 
 - Never hardcode user-visible strings in components. Use `useCopy()` from `@/src/context/LanguageContext` and reference the appropriate key.
 - When adding new UI text, add both `en` and `de` entries to the `Copy` type and both language objects in `i18n.ts`.
 - Dynamic strings use functions (e.g. `(count: number) => string`). Use the same pattern for new entries.
+
+## Project state
+Project orientation lives in `BACKLOG.json`. On a fresh session — or when
+resuming work after idle time — run `/base:orient` to get a 3-line
+"you are here" plus ranked next moves. Do not inline backlog content
+into this file.
