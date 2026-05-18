@@ -1,0 +1,117 @@
+{
+  "$schema": "bug-contract",
+  "bug_name": "avatar-images-placeholder-mobile",
+  "bug_report_file": "bug-reports/avatar-images-placeholder-mobile.md",
+  "created_at": "2026-03-24T00:00:00Z",
+  "root_cause": {
+    "explanation": "Avatar imageUrl values in avatarManifest.json are hardcoded as http:// URLs (e.g. http://wp10665333.server-he.de/avatars/{id}.png). When the app is served over HTTPS (GitHub Pages production, all mobile browsers), browsers silently block these mixed-content HTTP image requests, causing all avatar images to fail loading with no visible error.",
+    "sequence": [
+      "generate-avatar-manifest.mjs bakes absolute HTTP URLs into imageUrl fields at manifest generation time",
+      "avatarManifest.json is committed with 649 entries all using http://wp10665333.server-he.de/avatars/{id}.png",
+      "App is served over HTTPS on GitHub Pages; mobile browsers always enforce HTTPS",
+      "Browser mixed-content policy silently blocks HTTP image loads from HTTPS page",
+      "Image components render placeholders because src URL never resolves"
+    ],
+    "evidence": [
+      {
+        "file": "app/src/config/profile.ts",
+        "line": "16",
+        "description": "endpointBaseUrl: 'http://wp10665333.server-he.de' — hardcoded HTTP protocol in runtime config"
+      },
+      {
+        "file": "app/scripts/generate-avatar-manifest.mjs",
+        "line": "4",
+        "description": "const BASE_URL = 'http://wp10665333.server-he.de' — HTTP base URL used at manifest generation time"
+      },
+      {
+        "file": "app/scripts/generate-avatar-manifest.mjs",
+        "line": "119",
+        "description": "imageUrl: `${BASE_URL}${relativeUrl}` — absolute HTTP URL baked into each manifest item"
+      },
+      {
+        "file": "app/src/data/avatarManifest.json",
+        "line": "130",
+        "description": "\"imageUrl\": \"http://wp10665333.server-he.de/avatars/01000f37-a015-4997-8923-43b40c9ee182.png\" — confirmed HTTP URLs in committed manifest data (all 649 entries)"
+      },
+      {
+        "file": "app/src/components/AvatarBrowserModal.tsx",
+        "line": "191",
+        "description": "src={avatar.imageUrl} — no crossOrigin, no onError fallback; silently shows placeholder on block"
+      },
+      {
+        "file": "app/src/components/ProfileSummary.tsx",
+        "line": "42",
+        "description": "src={profile.avatar.imageUrl} — same pattern, no error handling"
+      },
+      {
+        "file": "app/pages/settings.tsx",
+        "line": "327",
+        "description": "src={profile.avatar.imageUrl} — same pattern, no error handling"
+      }
+    ]
+  },
+  "changes": [
+    {
+      "file": "app/scripts/generate-avatar-manifest.mjs",
+      "function": "buildManifest (imageUrl construction)",
+      "change": "Change BASE_URL from 'http://wp10665333.server-he.de' to '//wp10665333.server-he.de' (protocol-relative) so generated imageUrl values use protocol-relative URLs that inherit http or https from the page context",
+      "reason": "Removes the hardcoded http:// from the source of truth for manifest generation. Protocol-relative URLs let the browser choose the same protocol as the hosting page, eliminating mixed-content blocking."
+    },
+    {
+      "file": "app/src/config/profile.ts",
+      "function": "AVATAR_BROWSER_CONFIG",
+      "change": "Change endpointBaseUrl from 'http://wp10665333.server-he.de' to '//wp10665333.server-he.de'",
+      "reason": "This runtime config is used for any dynamic avatar URL construction. Must match the manifest fix so all avatar URL sources are consistent."
+    },
+    {
+      "file": "app/src/data/avatarManifest.json",
+      "function": "all imageUrl fields",
+      "change": "Replace all 649 occurrences of '\"imageUrl\": \"http://wp10665333.server-he.de/' with '\"imageUrl\": \"//wp10665333.server-he.de/' using a global string replacement",
+      "reason": "The committed manifest is the actual data consumed at runtime. Without updating it, existing imageUrl values in the JSON remain http:// regardless of script changes. This is a data-layer fix to match the script fix."
+    },
+    {
+      "file": "app/scripts/generate-avatar-manifest.mjs",
+      "function": "listAllAvatarUrls / buildManifest fetch calls",
+      "change": "Keep fetch calls using BASE_URL with explicit https:// for server-side fetching (Node.js at manifest generation time does not have mixed-content restrictions). Only the stored imageUrl value should be protocol-relative.",
+      "reason": "Node.js build script needs an absolute URL with scheme to fetch from the server. Split into FETCH_BASE_URL (https://) for requests and STORED_BASE_URL (//) for the imageUrl field stored in the manifest."
+    }
+  ],
+  "invariants": {
+    "api_contracts": "AvatarItem.imageUrl type remains string; no interface changes",
+    "existing_behavior": "All avatar filtering, selection, display, and persistence logic unchanged. Protocol-relative URLs resolve identically to http:// on HTTP and to https:// on HTTPS.",
+    "performance": "No change — same CDN, same images, same lazy loading",
+    "backward_compatibility": "Profiles with saved avatar.imageUrl containing http:// will still resolve (browsers follow the stored URL as-is). Only newly generated manifest and new selections get protocol-relative URLs."
+  },
+  "fix_approach": "In generate-avatar-manifest.mjs: introduce two constants — FETCH_BASE_URL = 'https://wp10665333.server-he.de' (for Node.js fetch calls) and STORED_BASE_URL = '//wp10665333.server-he.de' (for imageUrl values written to the manifest). Update imageUrl construction on line 119 to use STORED_BASE_URL. In profile.ts: change endpointBaseUrl to '//wp10665333.server-he.de'. In avatarManifest.json: bulk-replace all existing imageUrl http:// prefixes with //.",
+  "constraints": [
+    "No refactoring",
+    "No optimizations beyond fix",
+    "No features",
+    "Exact behavior preservation except bug",
+    "Do not change avatar manifest generation process beyond URL scheme"
+  ],
+  "expected_collateral": {
+    "regression_test": "app/tests/unit/avatarManifest.test.ts",
+    "documentation": ["CHANGELOG.md"],
+    "similar_patterns_fixed": ["none — endpointBaseUrl and manifest imageUrl are the only two avatar URL sources"]
+  },
+  "verification_criteria": [
+    "avatarManifest.json contains zero occurrences of 'http://wp10665333' in imageUrl fields",
+    "profile.ts endpointBaseUrl uses protocol-relative URL",
+    "generate-avatar-manifest.mjs imageUrl construction uses protocol-relative base",
+    "Regression test asserting no http:// imageUrl in manifest PASSES",
+    "All 124 unit tests pass (no regressions)",
+    "E2E pre-existing failure (story-04-notes-editor timeout) remains the only E2E failure"
+  ],
+  "baseline": {
+    "total_unit_tests": 124,
+    "passing_unit_tests": 124,
+    "failing_unit_tests": [],
+    "total_e2e_tests": 66,
+    "passing_e2e_tests": 65,
+    "failing_e2e_tests": [
+      "[chromium] › tests/e2e/story-04-notes-editor.spec.ts:34:7 › Story 04 - Notes Editor › user can type notes and see save status (pre-existing timeout failure, unrelated to this bug)"
+    ],
+    "test_command": "cd /Users/mrother/Projects/941design/quizzl && make test"
+  }
+}

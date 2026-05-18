@@ -1,0 +1,57 @@
+{
+  "$schema": "bug-state",
+  "bug_name": "profile-propagation-new-members",
+  "bug_report_file": "bug-reports/profile-propagation-new-members.md",
+  "contract_file": "bug-reports/profile-propagation-new-members-contract.json",
+  "created_at": "2026-03-24T18:18:30Z",
+  "updated_at": "2026-03-24T18:18:30Z",
+  "phase": "COMPLETE",
+  "complexity": "HIGH",
+  "verification_questions": [
+    { "id": "BVQ-001", "question": "Root cause addressed — profile republish triggered on member join?", "batch": 1, "domain": "ROOT_CAUSE" },
+    { "id": "BVQ-002", "question": "Undocumented changes outside contract scope?", "batch": 2, "domain": "ROOT_CAUSE" },
+    { "id": "BVQ-003", "question": "Regression test exists and catches the bug?", "batch": 3, "domain": "TESTING" },
+    { "id": "BVQ-004", "question": "Similar patterns where member join misses state updates?", "batch": 4, "domain": "CODE_PATTERNS" },
+    { "id": "BVQ-005", "question": "Dead code introduced or left behind?", "batch": 4, "domain": "CODE_PATTERNS" },
+    { "id": "BVQ-006", "question": "Parallel profile sync implementations needing the same update?", "batch": 5, "domain": "CODE_PATTERNS" },
+    { "id": "BVQ-007", "question": "All obsolete files cleaned up?", "batch": 5, "domain": "CLEANUP" },
+    { "id": "BVQ-008", "question": "Fix respects MLS epoch — republish called after epoch sync, not during Welcome?", "batch": 6, "domain": "CONTEXT_SPECIFIC" },
+    { "id": "BVQ-009", "question": "Profile republish scoped to the specific group where membership changed?", "batch": 7, "domain": "CONTEXT_SPECIFIC" },
+    { "id": "BVQ-010", "question": "Guard against redundant republishes — only fires when member count increases?", "batch": 7, "domain": "CONTEXT_SPECIFIC" }
+  ],
+  "agent_sessions": { "bug_fixer": "aee5e8f4a96667887" },
+  "baseline": {
+    "command": "cd /Users/mrother/Projects/941design/quizzl && make test-unit",
+    "total_tests": 125,
+    "passed": 125,
+    "failed": [],
+    "captured_at": "2026-03-24T18:18:30Z"
+  },
+  "reproduction": { "method": "code_analysis", "test_file": null, "reproduced_at": "2026-03-24T18:18:30Z" },
+  "fix": {
+    "applied_at": "2026-03-24T18:18:30Z",
+    "files_changed": [
+      "app/src/context/MarmotContext.tsx",
+      "app/tests/unit/marmot/welcomeSubscription.test.ts"
+    ],
+    "regression_test": "app/tests/unit/marmot/welcomeSubscription.test.ts"
+  },
+  "verification_rounds": [
+    { "round": 1, "timestamp": "2026-03-24T18:18:30Z", "verdict": "ACCEPTED", "examiner_count": 7 }
+  ],
+  "remediation_attempts": [],
+  "gates_passed": {
+    "BUG_BASELINE_READY": "2026-03-24T18:18:30Z",
+    "BUG_FIX_COMPLETE": "2026-03-24T18:18:30Z"
+  },
+  "commit": { "sha": "f6dd0cc", "message": "fix(groups): republish profile to group when new member joins", "committed_at": "2026-03-24T18:18:30Z" },
+  "phase_history": [
+    { "phase": "INITIALIZED", "timestamp": "2026-03-24T18:18:30Z", "trigger": "workflow_start" },
+    { "phase": "COMPLEXITY_ASSESSED", "timestamp": "2026-03-24T18:18:30Z", "trigger": "complexity_assessment_complete" },
+    { "phase": "REPRODUCED", "timestamp": "2026-03-24T18:18:30Z", "trigger": "reproduction_complete" },
+    { "phase": "FIXING", "timestamp": "2026-03-24T18:18:30Z", "trigger": "bug_baseline_ready_gate_passed" },
+    { "phase": "FIX_APPLIED", "timestamp": "2026-03-24T18:18:30Z", "trigger": "fix_implementation_complete" },
+    { "phase": "VERIFYING", "timestamp": "2026-03-24T18:18:30Z", "trigger": "bug_fix_complete_gate_passed" },
+    { "phase": "VERIFIED", "timestamp": "2026-03-24T18:18:30Z", "trigger": "verification_round_1_accepted" }
+  ]
+}

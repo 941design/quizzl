@@ -1,0 +1,86 @@
+{
+  "$schema": "bug-contract",
+  "bug_name": "profile-propagation-new-members",
+  "bug_report_file": "bug-reports/profile-propagation-new-members.md",
+  "created_at": "2026-03-24T00:00:00Z",
+  "root_cause": {
+    "explanation": "Profile publishing in subscribeNewGroups() only fires once per group via the onHistorySynced callback. This means when a new member joins a group (User B joins User A's group), User A's profile is NOT republished. User B only sees User A's profile if it was published in a historical MLS application message that was relayed and replayed. If User A has never published, or published a stale profile, User B sees nothing or outdated data. The onMembersChanged callback in MarmotContext.tsx only updates the memberPubkeys in storage — it does not trigger a profile republish to the group.",
+    "sequence": [
+      "User A creates group; onHistorySynced fires and publishes A's profile to the group once; profilePublishedRef.current marks group as published",
+      "User B receives Welcome, joins group, and opens group detail view",
+      "User B's client fetches historical kind 445 events and ingests them via subscribeToGroupMessages()",
+      "User A's profile may appear in history if published early enough — but any profile change since then is invisible to User B",
+      "When User B joins, the MLS commit advancing the epoch fires onMembersChanged on User A's client — but current onMembersChanged handler only updates memberPubkeys in storage, never republishes A's profile",
+      "User B never receives a current profile from User A unless User A manually triggers publishProfileUpdate()"
+    ],
+    "evidence": [
+      {
+        "file": "app/src/context/MarmotContext.tsx",
+        "line": "97-98",
+        "description": "profilePublishedRef guards onHistorySynced to publish exactly once per group — no mechanism to re-publish when new members arrive"
+      },
+      {
+        "file": "app/src/context/MarmotContext.tsx",
+        "line": "397-403",
+        "description": "onMembersChanged callback only calls persistGroup and reloadGroups — no profile republish triggered"
+      },
+      {
+        "file": "app/src/context/MarmotContext.tsx",
+        "line": "404-424",
+        "description": "onHistorySynced callback publishes profile but is gated by profilePublishedRef — it runs exactly once and never again for that group"
+      },
+      {
+        "file": "app/src/lib/marmot/welcomeSubscription.ts",
+        "line": "218-225",
+        "description": "onMembersChanged fires after EVERY event ingest (commits, proposals) by calling getGroupMembers — including the commit that adds a new member. Epoch is already updated at this point, so sendApplicationRumor is safe."
+      },
+      {
+        "file": "app/tests/e2e/groups-member-profiles.spec.ts",
+        "line": "87",
+        "description": "10-second waitForTimeout workaround inserted to compensate for the missing republish — evidence of the bug's real-world impact"
+      }
+    ]
+  },
+  "changes": [
+    {
+      "file": "app/src/context/MarmotContext.tsx",
+      "function": "subscribeNewGroups (onMembersChanged callback, lines 397-403)",
+      "change": "Track the previous member count in a closure variable (initialized from the MLS member list before subscribing). In onMembersChanged, compare newMembers.length to prevMemberCount. If newMembers.length > prevMemberCount (i.e. members were added), republish the local profile to this group via sendApplicationRumor. Always update prevMemberCount to newMembers.length after the comparison. Do NOT gate this on profilePublishedRef — it must always re-publish when new members arrive regardless of whether it fired once before.",
+      "reason": "When onMembersChanged fires with a larger member list, the commit adding the new member has already been ingested and the local MLS epoch is current. It is safe to call sendApplicationRumor at this point. Re-publishing ensures the new member receives the current profile in a live message that cannot be missed by history gaps."
+    }
+  ],
+  "invariants": {
+    "api_contracts": "subscribeToGroupMessages() signature unchanged; onMembersChanged parameter type (members: string[]) => void unchanged",
+    "existing_behavior": "All profile publishing via onHistorySynced unchanged. Score sync, group storage, member list updates all unchanged. publishProfileUpdate() manual path unchanged.",
+    "performance": "Only fires sendApplicationRumor when member count increases — not on every ingest event. No busy-loop or duplicate sends on stable membership.",
+    "backward_compatibility": "No protocol changes. Profile message format identical to what onHistorySynced already sends. New members receive a duplicate profile message if they also trigger onHistorySynced on A's side — last-writer-wins by updatedAt handles deduplication."
+  },
+  "fix_approach": "In the subscribeNewGroups() for-loop, before calling subscribeToGroupMessages(), capture the initial member count in a closure-scoped variable: let prevMemberCount = mlsMembers.length. Then inside the onMembersChanged callback (currently lines 397-403), after updating storage, add: if (newMembers.length > prevMemberCount) { const payload = serialiseProfileUpdate(localProfile); const rumor = { kind: 1, content: payload, tags: [['t', 'quizzl-profile']], created_at: Math.floor(Date.now() / 1000), pubkey: pubkeyHex ?? '', id: '' }; void mlsGroup.sendApplicationRumor(rumor).catch(...); } prevMemberCount = newMembers.length;",
+  "constraints": [
+    "No refactoring",
+    "No optimizations beyond fix",
+    "No features",
+    "Exact behavior preservation except bug",
+    "Do not change subscribeToGroupMessages signature",
+    "Do not remove profilePublishedRef guard from onHistorySynced",
+    "Only republish when member count INCREASES — not on leave or stable membership"
+  ],
+  "expected_collateral": {
+    "regression_test": "app/tests/unit/marmot/welcomeSubscription.test.ts",
+    "documentation": ["CHANGELOG.md"],
+    "similar_patterns_fixed": ["none — this is the only onMembersChanged callback site"]
+  },
+  "verification_criteria": [
+    "onMembersChanged fires sendApplicationRumor when newMembers.length > prevMemberCount",
+    "onMembersChanged does NOT fire sendApplicationRumor when members leave (count decreases or stays same)",
+    "Regression test asserting member-join triggers profile republish PASSES",
+    "All 125 unit tests pass (no regressions)",
+    "E2E groups-member-profiles.spec.ts 10s waitForTimeout workaround can eventually be removed"
+  ],
+  "baseline": {
+    "total_unit_tests": 125,
+    "passing_unit_tests": 125,
+    "failing_unit_tests": [],
+    "test_command": "cd /Users/mrother/Projects/941design/quizzl && make test-unit"
+  }
+}

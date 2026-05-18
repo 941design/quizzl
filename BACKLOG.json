@@ -1,0 +1,139 @@
+{
+  "version": 3,
+  "updated_at": "2026-05-18T15:30:00Z",
+  "epics": [
+    {
+      "path": "specs/epic-cancel-pending-invitations/",
+      "status": "DONE",
+      "next_action": "seeded by /base:backlog init 2026-05-12"
+    },
+    {
+      "path": "specs/epic-dm-message-recovery/",
+      "status": "DONE",
+      "next_action": "seeded by /base:backlog init 2026-05-12"
+    },
+    {
+      "path": "specs/epic-emoji-feature/",
+      "status": "DONE",
+      "next_action": "seeded by /base:backlog init 2026-05-12"
+    },
+    {
+      "path": "specs/epic-feature-spec-unified-mls-application-rumor-dispatch/",
+      "status": "DONE",
+      "next_action": "seeded by /base:backlog init 2026-05-12"
+    },
+    {
+      "path": "specs/epic-group-invite-links/",
+      "status": "DONE",
+      "next_action": "seeded by /base:backlog init 2026-05-12"
+    },
+    {
+      "path": "specs/epic-group-learning-prototype/",
+      "status": "DONE",
+      "next_action": "seeded by /base:backlog init 2026-05-12"
+    },
+    {
+      "path": "specs/epic-group-polls/",
+      "status": "DONE",
+      "next_action": "seeded by /base:backlog init 2026-05-12"
+    },
+    {
+      "path": "specs/epic-image-sharing/",
+      "status": "DONE",
+      "next_action": "seeded by /base:backlog init 2026-05-12"
+    },
+    {
+      "path": "specs/epic-learning-groups-nostr-mls/",
+      "status": "DONE",
+      "next_action": "Legacy epic — shipped pre-spec-template convention. See spec.md stub + stories.json."
+    },
+    {
+      "path": "specs/epic-member-profile-discovery-and-relay-on-behalf/",
+      "status": "DONE",
+      "next_action": "Closed reopen-remediation in f53eacf (AC-039 fix + AC-047 spec amendment). AC-045 scenario 5 / B3 retry-attempts flake tracked as separate finding."
+    },
+    {
+      "path": "specs/epic-mls-fork-resolution/",
+      "status": "DONE",
+      "next_action": "seeded by /base:backlog init 2026-05-12"
+    },
+    {
+      "path": "specs/epic-relay-backup/",
+      "status": "DONE",
+      "next_action": "seeded by /base:backlog init 2026-05-12"
+    },
+    {
+      "path": "specs/epic-out-of-band-leave/",
+      "status": "DONE",
+      "next_action": "completed 2026-05-18"
+    },
+    {
+      "path": "specs/epic-event-sourced-receive-engine/",
+      "status": "PLANNED",
+      "next_action": "Architectural refactor — run /base:arch-debate first; do not /base:feature directly until the receive-engine boundary is debated."
+    }
+  ],
+  "findings": [
+    {
+      "slug": "members-changed-length-only-misses-ghost-cleanup",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/context/MarmotContext.tsx",
+        "line": 802
+      },
+      "text": "onMembersChanged fires only when currentMembers.length differs from stored.memberPubkeys.length; a future ghost-cleanup pass that removes a ghost but adds a real member in the same commit would leave the departed member visible in the UI even after AC-MEMBERS-1 passes.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "e2e-leave-intent-not-executed-only-structural",
+      "scope": "any",
+      "anchor": {
+        "path": "app/tests/e2e/groups-leave-intent.spec.ts",
+        "line": 1
+      },
+      "text": "make test-e2e-groups was not executed during S7 (Docker/static-build unavailable in worker); the two-client leave flow (AC-MEMBERS-2) passed only structural validation (tsc clean, playwright --list enumerates 9 tests) and has never been run end-to-end in CI.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "makefile-envrc-not-pin-playwright-browsers",
+      "scope": "any",
+      "anchor": {
+        "path": "Makefile",
+        "line": 45
+      },
+      "text": "Makefile/.envrc do not pin PLAYWRIGHT_BROWSERS_PATH; e2e runs depend on a shared /opt cache that drifts across project Playwright versions (see bug-reports/e2e-iteration-2026-05-08.md § C1 for three documented permanent-fix candidates).",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "profile-rumor-kind-from-one-peer",
+      "scope": "any",
+      "anchor": {
+        "path": "app/tests/e2e/groups-member-profiles.spec.ts",
+        "line": 175
+      },
+      "text": "PROFILE_RUMOR_KIND from one peer fails to reach a newly-joined member on ~33–60% of e2e runs; test is fixme. Diagnosis incomplete — candidates include NDK historical→live sub gap or MLS epoch divergence during admin-promotion. See bug-reports/profile-rumor-undeliverable-to-new-member.md.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "dm-rendering-produced-multiple-bubbles-per",
+      "scope": "any",
+      "anchor": {
+        "path": "app/tests/e2e/groups-contacts.spec.ts",
+        "line": 107
+      },
+      "text": "DM rendering produced multiple bubbles per single send (3 distinct msg-<rumorId> ids); locator narrowed via .first() in 3ea1716 masks the underlying duplication. The af27581 fix may be incomplete or a different surface. Capture kind:1059 WS frames on Bob to separate publish-vs-subscription-vs-render duplication.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "profile-request-memo-attempts-stays-at",
+      "scope": "any",
+      "anchor": {
+        "path": "app/tests/e2e/groups-profile-request.spec.ts",
+        "line": 308
+      },
+      "text": "Profile-request memo.attempts stays at 0 under Playwright fake-clock cycling — AC-045 scenario 5 deferred (test.fixme). Real cause undiagnosed; candidates: fake-clock + setInterval interaction, recordEmitted Date.now() racing real-time write, or requestedOnEntryForRef cycling under cross-navigation re-mount. Boundary contract already vitest-covered.",
+      "created_at": "2026-05-18"
+    }
+  ],
+  "archive": []
+}
