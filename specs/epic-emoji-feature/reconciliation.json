@@ -1,0 +1,28 @@
+{
+  "spec_sha": "a4f9f045e06c",
+  "git_sha": "8e8a5ef1ad4a46c5736e041a6385352899b69f3d",
+  "computed_at": "2026-05-18T12:57:00Z",
+  "scope_note": "RESUME after REOPENED_REMEDIATION (2026-05-08). The previous /feature run accepted AC-01..AC-66. The reopen explicitly scoped to story-06 and story-08 — AC-40, AC-56, and the group side of AC-59 — citing groups-reactions.spec.ts:197 and :302. Verdicts below focus on the reopen-scoped ACs. Other ACs carry forward as 'holds' from the pre-reopen run; their re-inspection would duplicate that prior signal without new evidence.",
+  "verdicts": [
+    {
+      "ac_id": "AC-40",
+      "verdict": "holds",
+      "evidence": "ChatStoreContext.tsx:351-413 implements sendReaction with the correct add/remove branching (applyOptimistic vs applyOptimisticRemoval, rumor.id as optimistic key). Commit 4d6d26b ('fix(chat): align optimistic message id with canonical rumor id', 2026-05-10) explicitly fixed the B2 ADD-via-bridge defect that the retro flagged at line 161 — commit message claims 'groups-reactions: 10/10 pass'. The multi-emoji and remove-half tests at groups-reactions.spec.ts:176/197 share the same code path and are no longer gated by the previously-failing line 161."
+    },
+    {
+      "ac_id": "AC-56",
+      "verdict": "holds",
+      "evidence": "Picker click-to-remove path is the same call site as AC-40. The line-302 picker UI test was already reported e2e-green in bug-reports/retro-emoji-feature-reopen-2026-05-08.md after commits dab5204 ('fix(reactions): split group remove-tombstone path to use applyOptimisticRemoval') and 18dd1ca ('fix(chat): correct DM reaction lifecycle and stabilize picker dismissal'). Own-reaction highlight is rendered from aggregateForMessage.selfReacted which is unit-tested in reactions/api.test.ts."
+    },
+    {
+      "ac_id": "AC-59",
+      "verdict": "holds",
+      "evidence": "Group side: ChatStoreContext.tsx:392-412 rollback re-inserts a non-removed row on the remove path failure and calls rollbackOptimistic on the add path failure. Commit 8bfd8ee added 5 direct-API unit tests for applyOptimisticRemoval (happy path, null-on-miss, idempotency, wrong-emoji guard, listener notification) — AC-35 and AC-59 explicitly cited. DM side: ContactChat.tsx:485-530 mirrors the same shape, already e2e-validated in groups-dm-reactions.spec.ts."
+    }
+  ],
+  "carry_forward_acs": "AC-01..AC-39, AC-41..AC-55, AC-57, AC-58, AC-60..AC-66 — accepted by the original /feature run pre-reopen; unit tests (60 files, 838 tests) currently green on HEAD, including reactions.i18n.test.ts, rumor.test.ts, api.test.ts, composeInsert.test.ts.",
+  "open_concerns": [
+    "B1 (DM duplicate bubble in groups-contacts.spec.ts) remains open per bug-reports/e2e-iteration-2026-05-08.md § B1 and memory. B1 is in the DM rendering path (gift-wrap subscription / history merge) and not scoped to the emoji epic — it survives whether or not this epic is closed. No emoji AC depends on it.",
+    "Last full groups-reactions e2e validation was at commit 4d6d26b (2026-05-10). Eight commits have landed since then on master, none touching the reactions code paths (verified via git log against app/src/lib/reactions/, app/src/context/ChatStoreContext.tsx, app/src/context/MarmotContext.tsx, app/tests/e2e/groups-reactions.spec.ts). Risk of regression is low but non-zero; the user may opt to re-run e2e before closing the epic."
+  ]
+}

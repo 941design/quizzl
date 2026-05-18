@@ -1,14 +1,17 @@
 {
   "epic_name": "emoji-feature",
-  "status": "in_progress",
-  "phase": "REOPENED_REMEDIATION",
+  "status": "done",
+  "phase": "COMPLETE",
   "created_at": "2026-05-05T12:59:15Z",
-  "updated_at": "2026-05-08T00:00:00Z",
+  "updated_at": "2026-05-18T13:00:00Z",
+  "completed_at": "2026-05-18T13:00:00Z",
   "completed_stories": ["story-01-types-i18n", "story-02-reactions-store", "story-03-dm-transport", "story-04-rumor-builder", "story-05-compose-picker", "story-06-group-reactions", "story-07-dm-reactions", "story-08-reaction-ui"],
   "reopened": {
     "reason": "Group reaction remove path uses applyOptimistic with a fresh UUID and removed:true, inserting a tombstone instead of flipping the existing add row. Same shape as DM bug fixed in commit 18dd1ca; never replicated to ChatStoreContext.tsx. Breaks AC-40 (remove half), AC-56 (own-reaction badge removal), and the group side of AC-59 (rollback). Failing tests: app/tests/e2e/groups-reactions.spec.ts:197 and :302.",
     "scope": "story-06-group-reactions and story-08-reaction-ui",
-    "reopened_at": "2026-05-08T00:00:00Z"
+    "reopened_at": "2026-05-08T00:00:00Z",
+    "resolved_at": "2026-05-18T13:00:00Z",
+    "resolution": "Closed by commits dab5204 (split group remove-tombstone path to applyOptimisticRemoval), 18dd1ca (DM reaction lifecycle + picker dismissal), 4d6d26b (align optimistic message id with canonical rumor id — fixed B2 ADD-via-bridge), and 8bfd8ee (direct API tests for applyOptimisticRemoval covering AC-35/AC-59). Verified 2026-05-18 on commit 8e8a5ef: groups-reactions.spec.ts 10/10 pass including the reopen-cited lines 197 and 302."
   },
   "escalated_stories": [],
   "phase_history": [
@@ -61,6 +64,11 @@
       "phase": "REOPENED_REMEDIATION",
       "timestamp": "2026-05-08T00:00:00Z",
       "trigger": "Post-merge e2e iteration surfaced deterministic failures at groups-reactions.spec.ts:197 and :302. Group sendReaction remove path was never updated with applyOptimisticRemoval (story-07 helper). Story-08 verifier closed AC-56 without ground-truthing the group remove flow."
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-05-18T13:00:00Z",
+      "trigger": "RESUME RECONCILE on commit 8e8a5ef: reopen-scoped ACs (AC-40, AC-56, AC-59 group side) all verdict=holds. groups-reactions.spec.ts e2e re-run on HEAD: 10/10 pass including lines 161 (B2 fixed by 4d6d26b), 197 (AC-40 remove, reopen-cited), and 302 (AC-49+AC-51+AC-56, reopen-cited). Epic closed."
     }
   ]
 }
