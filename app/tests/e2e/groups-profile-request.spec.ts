@@ -294,7 +294,17 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
   // -------------------------------------------------------------------------
   // Scenario 5: Retry state machine — capped at UNANSWERED_MAX_ATTEMPTS
   // -------------------------------------------------------------------------
-  // FIXME: requestProfilesIfStale is exported from MarmotContext but no component calls it; in-session retry never fires. Pending epic-member-profile-discovery-and-relay-on-behalf wiring story.
+  // Deferred (AC-045 amended 2026-05-18 in RECONCILE). The 1h/7d/UNANSWERED_MAX_ATTEMPTS=3
+  // boundary contract is verified deterministically by
+  // app/tests/unit/profileRequestStorage.integration.test.ts (8 tests over the real
+  // recordRequestEmitted / shouldEmitRequest storage path via fake-indexeddb + idb-keyval).
+  // Under Playwright's page.clock.install() + page.goto() cycling, memo.attempts stays at 0
+  // across simulated 2h jumps — real root cause is undiagnosed (candidates: fake-clock +
+  // setInterval interaction, fake-clock-driven memo update path, or requestedOnEntryForRef
+  // cycling under cross-navigation re-mount). Earlier fixme comment cited a wiring gap —
+  // that diagnosis was wrong; pages/groups.tsx:130 does call requestProfilesIfStale per
+  // AC-026 which holds. Unfixme this scenario once the Playwright-clock interaction is
+  // root-caused.
   test.fixme('5. Retry state machine: attempts capped at UNANSWERED_MAX_ATTEMPTS (AC-045)', async () => {
     test.setTimeout(120_000);
 

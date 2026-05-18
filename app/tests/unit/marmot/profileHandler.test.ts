@@ -40,7 +40,43 @@ const { PROFILE_RUMOR_KIND } = await import('@/src/lib/marmot/profileSync');
 
 const PEER_PUBKEY = 'bb'.repeat(32);
 const SELF_PUBKEY = 'aa'.repeat(32);
+const AUTHOR_PUBKEY = 'cc'.repeat(32); // distinct from PEER_PUBKEY — used for relay-on-behalf tests
 const GROUP_ID = 'group-profile-test';
+
+/**
+ * Build a profile rumor whose content carries an embedded SignedProfileEvent
+ * signed by `authorPubkey` (which may differ from `rumorSenderPubkey`).
+ * This is the relay-on-behalf wire shape: relayer sends under their own pubkey,
+ * but the inner event is signed by the original author.
+ * verifyEvent is mocked to return true so no real key material is needed.
+ */
+function makeSignedProfileRumor({
+  rumorSenderPubkey = PEER_PUBKEY,
+  authorPubkey = AUTHOR_PUBKEY,
+  updatedAt = new Date().toISOString(),
+}: {
+  rumorSenderPubkey?: string;
+  authorPubkey?: string;
+  updatedAt?: string;
+} = {}) {
+  const signedEvent = {
+    id: 'event-id-' + authorPubkey.slice(0, 8),
+    pubkey: authorPubkey,
+    created_at: Math.floor(Date.now() / 1000),
+    kind: 0 as const,
+    tags: [] as string[][],
+    content: JSON.stringify({ nickname: 'Bob', avatar: null, badgeIds: [], updatedAt }),
+    sig: 'fake-sig-' + authorPubkey.slice(0, 8),
+  };
+  return {
+    id: 'relay-rumor-' + rumorSenderPubkey.slice(0, 8),
+    pubkey: rumorSenderPubkey,
+    created_at: Math.floor(Date.now() / 1000),
+    kind: 0 as const,
+    content: JSON.stringify(signedEvent),
+    tags: [] as string[][],
+  };
+}
 
 /** Build a legacy flat-profile rumor (no SignedProfileEvent envelope). */
 function makeProfileRumor(overrides: Partial<{
@@ -185,5 +221,35 @@ describe('profileHandler', () => {
 
     // signedEvent is absent in legacy profiles → notifyProfileObserved not called
     expect(deps.notifyProfileObserved).not.toHaveBeenCalled();
+  });
+
+  it('relay-on-behalf (signedEvent.pubkey !== rumor.pubkey) is accepted, NOT dropped (AC-047 amended)', async () => {
+    // AC-047 amended interpretation: the embedded sig is the trust anchor.
+    // Cross-pubkey relay is legitimate — receivers key the MemberProfile under
+    // the signed author (signedEvent.pubkey), not the relayer (rumor.pubkey).
+    // verifyEvent is mocked to return true above, so sig verification passes.
+    const deps = makeDeps(true);
+    const handler = createProfileHandler(deps);
+    // rumorSenderPubkey = PEER_PUBKEY (the relayer), authorPubkey = AUTHOR_PUBKEY (the original author)
+    const rumor = makeSignedProfileRumor({
+      rumorSenderPubkey: PEER_PUBKEY,
+      authorPubkey: AUTHOR_PUBKEY,
+    });
+    const ctx = makeCtx();
+
+    await handler.handle(rumor, ctx);
+
+    // Must NOT be dropped — merge fires
+    expect(deps.mergeMemberProfile).toHaveBeenCalledOnce();
+    // The resulting MemberProfile should be keyed under the AUTHOR, not the relayer
+    const mergedProfile = deps.mergeMemberProfile.mock.calls[0][1];
+    expect(mergedProfile.pubkeyHex).toBe(AUTHOR_PUBKEY);
+    // notifyProfileObserved fires because signedEvent is present
+    expect(deps.notifyProfileObserved).toHaveBeenCalledOnce();
+    expect(deps.notifyProfileObserved.mock.calls[0][0].targetPubkey).toBe(AUTHOR_PUBKEY);
+    // Contact cache entry is keyed under the author
+    expect(deps.writeContactEntry).toHaveBeenCalledOnce();
+    const [contactPubkey] = deps.writeContactEntry.mock.calls[0];
+    expect(contactPubkey).toBe(AUTHOR_PUBKEY);
   });
 });

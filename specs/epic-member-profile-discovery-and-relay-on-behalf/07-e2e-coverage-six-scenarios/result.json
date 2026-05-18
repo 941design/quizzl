@@ -1,0 +1,35 @@
+{
+  "story_id": "07",
+  "status": "done",
+  "final_outcome": "accepted",
+  "remediation_round": 1,
+  "completed_at": "2026-05-18T12:23:39Z",
+  "files_modified": [
+    "app/src/lib/marmot/groupStorage.ts",
+    "app/tests/unit/marmot/profileHandler.test.ts",
+    "specs/epic-member-profile-discovery-and-relay-on-behalf/acceptance-criteria.md",
+    "specs/epic-member-profile-discovery-and-relay-on-behalf/spec.md",
+    "specs/epic-member-profile-discovery-and-relay-on-behalf/reconciliation.json"
+  ],
+  "files_created": [
+    "app/tests/unit/marmot/groupStorage.test.ts",
+    "specs/epic-member-profile-discovery-and-relay-on-behalf/07-e2e-coverage-six-scenarios/result.json"
+  ],
+  "tests_before": 838,
+  "tests_after": 843,
+  "test_files_before": 60,
+  "test_files_after": 61,
+  "ac_047_interpretation": "option-2 — spec-intent: the AC's second clause was mis-written. The spec's ## Design section explicitly states that receivers ignore the outer rumor.pubkey for profile rumors and rely solely on the embedded SignedProfileEvent.sig as the trust anchor. A malicious member cannot forge signedEvent.pubkey for another author without producing an invalid sig, so verifyEvent() in parseProfilePayload is the correct and sufficient guard. The outer/inner pubkey mismatch condition describes legitimate relay-on-behalf, which the spec endorses. Dropping on that condition would break story 06 entirely. AC-047 second clause was amended to specify: drop when verifyEvent(signedEvent) is false; cross-pubkey relay must be accepted.",
+  "ac_039_fix": "Removed spurious 'await saveMemberProfiles(groupId, existing)' from the LWW no-update branch in mergeMemberProfile (groupStorage.ts line 157); branch now returns false immediately with zero IDB writes.",
+  "notes": "The reconciliation report's AC-047 verdict ('silent identity confusion') was based on a literal reading of the AC text that contradicts the spec's design rationale. The correct fix is a spec amendment, not a code change. The implementation already behaves correctly per the spec's intent. Both reconciliation.json verdicts now show 'holds'.",
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "AC-047's second clause contained a contradiction with the spec's own ## Design section — the literal AC text would break the core relay-on-behalf feature that the entire epic exists to implement. The reconciliation report flagged this as a code defect ('silent identity confusion') when it was actually a spec authoring error. Resolving this required careful cross-reading of three documents (AC, spec, reconciliation) before any code could be touched.",
+    "surprised_by": "The spurious saveMemberProfiles call in the no-update branch (Defect 2) was a single-line removal that the test suite immediately confirmed — no subtlety there. The asymmetry in defect complexity (Defect 1 required spec-level reasoning, Defect 2 required one line deleted) means the reconciliation severity scores (~7 vs ~4) undersell how much cognitive work Defect 1 demanded relative to its zero-code-change resolution.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

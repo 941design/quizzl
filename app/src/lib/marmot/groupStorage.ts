@@ -154,8 +154,7 @@ export async function mergeMemberProfile(
         ...(profile.signedEvent ? {} : { signedEvent: existing[idx].signedEvent }),
       };
     } else {
-      await saveMemberProfiles(groupId, existing);
-      return false; // stored profile is equally or more recent — no change
+      return false; // stored profile is equally or more recent — no-op, zero IDB write (AC-039)
     }
   }
 
