@@ -3,12 +3,20 @@
 
 # Secrets
 .env
+.envrc
 
 # SSL certificates (private keys!)
 .ssl/
 
 # Project state (session-specific)
 implementation-state.json
+
+# Build artifacts (root — app/.gitignore covers app/*)
+/.next/
+/node_modules/
+
+# Claude Code local state (per-machine)
+.claude/
 
 # Test artifacts
 app/test-results/
