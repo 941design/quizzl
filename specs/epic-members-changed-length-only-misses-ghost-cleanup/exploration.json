@@ -1,0 +1,30 @@
+{
+  "created_at": "2026-05-18T18:00:00Z",
+  "focuses": ["similar-features+architecture", "testing-and-conventions"],
+  "findings": {
+    "member_types": {
+      "Group_type": "app/src/types/index.ts:163-173",
+      "memberPubkeys_type": "string[]",
+      "getGroupMembers_return": "string[] (marmot-ts: dist/core/group-members.d.ts:3)",
+      "note": "Both sides of both guards are plain string[]. No coercion needed."
+    },
+    "call_sites": {
+      "startup_sync": "MarmotContext.tsx:785 — mlsMembers.length !== stored.memberPubkeys.length",
+      "on_members_changed": "MarmotContext.tsx:802 — currentMembers.length !== stored.memberPubkeys.length"
+    },
+    "no_existing_set_equality_helper": "No sameMembers(), sorted-join, or Set-based identity check exists anywhere in app/src/",
+    "test_infrastructure": {
+      "unit_test_root": "app/tests/unit/",
+      "include_glob": "tests/unit/**/*.test.ts",
+      "environment": "node (no jsdom, no React rendering)",
+      "idb_mock": "Map-backed vi.mock('idb-keyval') — see groupStorage.test.ts:12-22",
+      "marmot_ts_mock": "vi.mock('@internet-privacy/marmot-ts') — see chatHandler.test.ts:23-26",
+      "full_context_import_pattern": "12+ vi.mock() calls required — see autoCommitLeave.test.ts:19-131"
+    },
+    "recommended_approach": {
+      "extract_pure_helper": "Export membersChanged(stored: string[], current: string[]): boolean from a new app/src/lib/marmot/memberGuard.ts",
+      "rationale": "Pure function has no React/IDB deps — test needs zero mocks. Mirrors groupStorage.ts pattern.",
+      "test_file": "app/tests/unit/marmot/membersChanged.test.ts"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "captured_at": "2026-05-18T20:42:22Z",
+  "command": "cd app && npx vitest run",
+  "test_files": 65,
+  "tests_passed": 866,
+  "tests_failed": 0,
+  "snapshot": "65 passed (65 files), 866 tests, 0 failures. Duration 8.08s."
+}

@@ -44,6 +44,7 @@ import { buildDispatcher } from '@/src/lib/marmot/registerHandlers';
 import { applyInboundRumor } from '@/src/lib/reactions/api';
 import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
 import { clearGroupMedia } from '@/src/lib/marmot/mediaPersistence';
+import { membersChanged } from '@/src/lib/marmot/memberGuard';
 import type { Poll, PollVote } from '@/src/lib/marmot/pollPersistence';
 import { useProfile } from '@/src/context/ProfileContext';
 import { useBackup } from '@/src/context/BackupContext';
@@ -782,7 +783,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
           const mlsMembers = getGroupMembers(mlsGroup.state);
           const stored = groups.find((g) => g.id === group.id);
-          if (stored && mlsMembers.length !== stored.memberPubkeys.length) {
+          if (stored && membersChanged(stored.memberPubkeys, mlsMembers)) {
             await persistGroup({ ...stored, memberPubkeys: mlsMembers });
             await reloadGroups();
           }
@@ -799,7 +800,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               // group metadata after any MLS commit, even when member count is unchanged.
               setGroupDataVersion((v) => v + 1);
               const stored = groups.find((g) => g.id === group.id);
-              if (stored && currentMembers.length !== stored.memberPubkeys.length) {
+              if (stored && membersChanged(stored.memberPubkeys, currentMembers)) {
                 await persistGroup({ ...stored, memberPubkeys: currentMembers });
                 await reloadGroups();
               }

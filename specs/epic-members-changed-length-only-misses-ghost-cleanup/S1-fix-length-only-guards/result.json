@@ -1,0 +1,26 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "remediation_rounds": 0,
+  "completed_at": "2026-05-18T20:44:00Z",
+  "files_created": [
+    "app/src/lib/marmot/memberGuard.ts",
+    "app/tests/unit/marmot/membersChanged.test.ts"
+  ],
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "tests_added": {
+    "unit": 5
+  },
+  "test_counts": {
+    "baseline": 866,
+    "final": 871
+  },
+  "mocks": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  }
+}

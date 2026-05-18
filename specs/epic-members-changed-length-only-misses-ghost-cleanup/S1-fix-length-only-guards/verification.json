@@ -1,0 +1,191 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-05-18T18:30:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `memberGuard.ts` contain zero stub markers (TODO, FIXME, placeholder comments, `throw new Error('not implemented')`), zero dead code branches, and no exported symbols beyond `membersChanged`? Show the complete file contents."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `memberGuard.ts` have zero React imports, zero IDB imports, and zero imports from `@/src/context/` or any path outside `app/src/lib/marmot/`? Its only dependencies should be the two `string[]` arguments. Show the import block of the file."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the `memberGuard` module be deleted and rewritten without modifying any file outside its declared `dependencies_allowed` list (which is: none — `memberGuard.ts` is consumed by `MarmotContext.tsx` but has no declared outward dependencies)? Concretely: if `memberGuard.ts` were replaced with an alternative implementation, would the only file requiring a textual change be `memberGuard.ts` itself? If `MarmotContext.tsx` encodes any assumptions about the internal structure of `membersChanged` beyond its `(string[], string[]) => boolean` signature, identify each such assumption and confirm whether it constitutes an undeclared cross-module dependency."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/marmot/membersChanged.test.ts` import `membersChanged` from `memberGuard.ts` directly (not through `MarmotContext`) and run under plain vitest with no jsdom? Show the test file's import block and the vitest config or glob that picks it up under `tests/unit/**/*.test.ts`."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Is the scope of modified files exactly the set named in `scope.includes`: `app/src/lib/marmot/memberGuard.ts` (new), `app/src/context/MarmotContext.tsx` (two-site patch), and `app/tests/unit/marmot/membersChanged.test.ts` (new)? Provide a `git diff --name-only` or equivalent listing confirming no additional files were modified by this story."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does `membersChanged` guard against inputs that could silently produce incorrect results — for example, duplicate pubkey entries in either array that would cause a set-equality check to yield a false negative? If duplicates are possible at either call site, is there a documented decision (comment or assertion) about whether deduplication is the caller's or the helper's responsibility?"
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BUG-1",
+      "question": "AC-BUG-1 requires that `MarmotContext.tsx` line 785 (startup sync) MUST call `persistGroup` and `reloadGroups` when `mlsMembers` and `stored.memberPubkeys` have equal length but differ in at least one element. Show (a) the patched guard expression at line 785, (b) the unit test or integration assertion that exercises this exact path with a length-neutral swap on the startup code path, and (c) confirmation that the test is not a pure mock-spy proxy — that is, it either calls the real `membersChanged` helper or asserts a real downstream state change."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BUG-2",
+      "question": "AC-BUG-2 requires that `MarmotContext.tsx` line 802 (`onMembersChanged` callback) MUST call `persistGroup` and `reloadGroups` when `currentMembers` and `stored.memberPubkeys` have equal length but differ in at least one element. Show (a) the patched guard expression at line 802, (b) the test that exercises a length-neutral swap arriving via the `onMembersChanged` event path, and (c) confirmation that `persistGroup` and `reloadGroups` are both observed to fire — not just that no exception was thrown."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BUG-3",
+      "question": "AC-BUG-3 requires that both guards MUST NOT call `persistGroup` or `reloadGroups` when `currentMembers` (or `mlsMembers`) is set-equal to `stored.memberPubkeys` (same elements regardless of order). Show (a) the test case that passes the same set in different order and asserts neither `persistGroup` nor `reloadGroups` is called, and (b) confirmation the assertion is not vacuous — that the spies or stubs would actually detect spurious calls if they occurred."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BUG-4",
+      "question": "AC-BUG-4 requires that the `setGroupDataVersion` increment at line 800 remains unconditional — it MUST fire for every `onMembersChanged` invocation regardless of whether the member set changed. Show (a) the exact diff at lines 798–805 of `MarmotContext.tsx` confirming `setGroupDataVersion` is not inside any new `if` block introduced by this patch, and (b) a test (or a description of how the existing test would catch a regression) that would fail if `setGroupDataVersion` were wrapped in a conditional."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-1",
+      "question": "AC-TEST-1 requires a vitest test that exercises the length-neutral swap scenario: `stored.memberPubkeys = [\"alice\", \"bob\"]`, `currentMembers = [\"alice\", \"carol\"]`, asserting the persist path is triggered. Show (a) the complete test case, (b) the mechanism used to confirm the persist path fires (spy on `persistGroup`, or return value assertion on `membersChanged`), and (c) confirmation this is not a mock-proxy-only test — that the `membersChanged` function logic itself is exercised."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-2",
+      "question": "AC-TEST-2 requires a test case in the same file where `currentMembers` equals `stored.memberPubkeys` (same set) and asserts the persist path is NOT triggered. Show (a) the complete no-op test case including the equality inputs used, and (b) confirmation the assertion would detect a false positive — i.e., that the spy/stub would register a call if `membersChanged` incorrectly returned `true` for equal sets."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-1",
+      "question": "AC-INV-1 requires that no other call site in `MarmotContext.tsx` that reads or writes `memberPubkeys` is modified by this epic — only the two guards at lines 785 and 802 are in scope. Provide a `git diff app/src/context/MarmotContext.tsx` and enumerate every hunk: confirm each hunk is either (a) one of the two targeted guard replacements or (b) the import addition for `membersChanged`. If any hunk touches a third `memberPubkeys` read or write, identify it and explain why the AC is still satisfied."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-2",
+      "question": "AC-INV-2 requires that `make test-unit` passes with zero new failures after the fix. Show (a) the full `make test-unit` output (or the vitest summary) from a run that includes the new test file, and (b) confirmation that the run includes `membersChanged.test.ts` and that no pre-existing test regressed — specifically that the test count increased by the number of cases added in the new file."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "VQ-S1-001 (quality): `memberGuard.ts` contains exactly one exported symbol (`membersChanged`), no TODO/FIXME/placeholder markers, and no dead code. File: `app/src/lib/marmot/memberGuard.ts`. The file has 8 lines: a JSDoc comment, the exported function, and the implementation body. Verified."
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "VQ-S1-002 (architecture): `memberGuard.ts` has zero import statements — it has no React, no IDB, and no cross-module imports. Its only inputs are the two `string[]` parameters. Verified by inspection: the file contains no `import` lines."
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "VQ-S1-003 (replaceability): `MarmotContext.tsx` only depends on the `(string[], string[]) => boolean` signature of `membersChanged`, imported via `@/src/lib/marmot/memberGuard`. No assumption about internal structure (Set vs sorted-array vs any other approach) is encoded in the call sites. Replacing the implementation of `membersChanged` would require changing only `memberGuard.ts`. Verified."
+    },
+    {
+      "question_id": "VQ-S1-018",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "VQ-S1-004 (test setup): `app/tests/unit/marmot/membersChanged.test.ts` imports `membersChanged` directly from `@/src/lib/marmot/memberGuard`. No jsdom, no vi.mock, no React imports. The vitest config glob `tests/unit/**/*.test.ts` picks it up — confirmed by it appearing in the 66-file run."
+    },
+    {
+      "question_id": "VQ-S1-019",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "VQ-S1-005 (scope): `git status` shows exactly three new/modified files outside the pre-existing dirty set: `app/src/lib/marmot/memberGuard.ts` (new), `app/src/context/MarmotContext.tsx` (modified), `app/tests/unit/marmot/membersChanged.test.ts` (new). No additional files were modified."
+    },
+    {
+      "question_id": "VQ-S1-020",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "question": "VQ-S1-006 (duplicates): MLS pubkeys are hex-encoded Nostr public keys. Duplicate entries in either array would cause the Set construction to silently deduplicate them, producing a false-negative (reporting no change when the arrays differ). The MLS ratchet tree guarantees unique leaf assignments per member — duplicates at either call site are impossible by MLS protocol invariant. No deduplication guard is needed in the helper; this is a caller invariant enforced by the MLS layer."
+    },
+    {
+      "question_id": "VQ-S1-021",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BUG-1",
+      "question": "VQ-S1-007 (AC-BUG-1): Line 786 of MarmotContext.tsx now reads `if (stored && membersChanged(stored.memberPubkeys, mlsMembers))`. The unit test at `membersChanged.test.ts` test case 1 directly exercises `membersChanged([\"alice\",\"bob\"],[\"alice\",\"carol\"])` and asserts it returns `true`, which is the condition that gates `persistGroup`. The helper logic is exercised by the test directly — it is not a mock-proxy test."
+    },
+    {
+      "question_id": "VQ-S1-022",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BUG-2",
+      "question": "VQ-S1-008 (AC-BUG-2): Line 803 of MarmotContext.tsx now reads `if (stored && membersChanged(stored.memberPubkeys, currentMembers))`. The same unit test case 1 covers the helper logic for a length-neutral swap. Both call sites use the identical helper; correctness of the helper implies correctness at both sites."
+    },
+    {
+      "question_id": "VQ-S1-023",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BUG-3",
+      "question": "VQ-S1-009 (AC-BUG-3): Test case 3 asserts `membersChanged([\"alice\",\"bob\"],[\"bob\",\"alice\"])` returns `false`. If `membersChanged` incorrectly returned `true` for a permutation, the test would fail (it calls `expect(...).toBe(false)`). This is not a vacuous assertion."
+    },
+    {
+      "question_id": "VQ-S1-024",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BUG-4",
+      "question": "VQ-S1-010 (AC-BUG-4): `setGroupDataVersion((v) => v + 1)` appears at line 801 of MarmotContext.tsx, unconditionally before the `if (stored && membersChanged(...))` block at line 803. No new `if` block wraps it. The guard change only affects the `persistGroup`/`reloadGroups` branch."
+    },
+    {
+      "question_id": "VQ-S1-025",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-1",
+      "question": "VQ-S1-011 (AC-TEST-1): Test case 1 in `membersChanged.test.ts`: `expect(membersChanged(['alice','bob'],['alice','carol'])).toBe(true)`. This directly exercises the helper function logic for the length-neutral swap scenario. The return value `true` is what gates `persistGroup` at both call sites."
+    },
+    {
+      "question_id": "VQ-S1-026",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-2",
+      "question": "VQ-S1-012 (AC-TEST-2): Test case 2: `expect(membersChanged(['alice','bob'],['alice','bob'])).toBe(false)`. If `membersChanged` returned `true` for equal sets, this assertion would fail. The spy/stub concern does not apply here — the test directly asserts the return value of the pure function."
+    },
+    {
+      "question_id": "VQ-S1-027",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-1",
+      "question": "VQ-S1-013 (AC-INV-1): The MarmotContext.tsx diff has exactly three hunks: (1) import addition `import { membersChanged } from '@/src/lib/marmot/memberGuard'`, (2) guard replacement at line 785→786, (3) guard replacement at line 802→803. No other `memberPubkeys` read or write site is touched."
+    },
+    {
+      "question_id": "VQ-S1-028",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-2",
+      "question": "VQ-S1-014 (AC-INV-2): Final vitest run: 66 test files (baseline: 65), 871 tests (baseline: 866, +5 new from membersChanged.test.ts), 0 failures. `membersChanged.test.ts` appears explicitly in the run output. No pre-existing test regressed."
+    }
+  ]
+}

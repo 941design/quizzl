@@ -1,0 +1,26 @@
+{
+  "module_name": "memberGuard",
+  "purpose": "Pure set-equality helper for comparing MLS member lists order-independently. Extracts the comparison logic from MarmotContext.tsx so it is testable without React or IDB dependencies.",
+  "public_api": [
+    {
+      "name": "membersChanged",
+      "signature": "membersChanged(stored: string[], current: string[]): boolean",
+      "description": "Returns true when stored and current differ as sets of pubkeys. Order-independent; same identities in any order returns false. Returns true immediately when lengths differ."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": [
+    "react",
+    "@/src/context/",
+    "idb-keyval",
+    "@internet-privacy/marmot-ts"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/membersChanged.test.ts"
+  ]
+}

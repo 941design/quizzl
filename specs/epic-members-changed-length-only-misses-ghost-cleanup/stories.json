@@ -1,0 +1,49 @@
+{
+  "epic_name": "members-changed-length-only-misses-ghost-cleanup",
+  "created_at": "2026-05-18T18:10:00Z",
+  "total_stories": 1,
+  "story_order": ["S1"],
+  "dependency_notes": "Single story with no cross-story dependencies. All changes (new pure helper, two context call-site patches, unit tests) land together atomically.",
+  "seams": [],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "fix-length-only-guards",
+      "title": "Replace length-only member guards with set-equality checks",
+      "description": "Extract a pure `membersChanged(stored: string[], current: string[]): boolean` helper into `app/src/lib/marmot/memberGuard.ts`. Patch the two length-only guards in `MarmotContext.tsx` (line 785 startup sync, line 802 onMembersChanged callback) to call this helper so that a length-neutral member swap (same count, different identities) correctly triggers `persistGroup` and `reloadGroups`. Add a vitest unit test at `app/tests/unit/marmot/membersChanged.test.ts` covering both the triggering case (swap) and the no-op case (equal set).",
+      "acceptance_criteria": [
+        "AC-BUG-1",
+        "AC-BUG-2",
+        "AC-BUG-3",
+        "AC-BUG-4",
+        "AC-TEST-1",
+        "AC-TEST-2",
+        "AC-INV-1",
+        "AC-INV-2"
+      ],
+      "scope": {
+        "includes": [
+          "create new file app/src/lib/marmot/memberGuard.ts exporting membersChanged(stored: string[], current: string[]): boolean",
+          "patch MarmotContext.tsx line 785 to call membersChanged instead of length comparison",
+          "patch MarmotContext.tsx line 802 to call membersChanged instead of length comparison",
+          "create new file app/tests/unit/marmot/membersChanged.test.ts with length-neutral swap test and equal-set no-op test"
+        ],
+        "excludes": [
+          "ghost-cleanup pass logic",
+          "changes to persistGroup or reloadGroups implementations",
+          "changes to setGroupDataVersion semantics",
+          "modifications to any other call site that reads or writes memberPubkeys"
+        ]
+      },
+      "complexity": "low",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "owning_module": "memberGuard",
+      "creates_seam": false,
+      "lighter_path": false,
+      "notes": "lighter_path is false: files_code is non-empty (memberGuard.ts, MarmotContext.tsx, membersChanged.test.ts are all .ts/.tsx). The first lighter_path predicate (len(files_code)==0) fails immediately. Two of the three file targets do not exist on disk at planning time (memberGuard.ts, membersChanged.test.ts), which would also flip new_file=true."
+    }
+  ]
+}
