@@ -245,6 +245,21 @@ export async function subscribeToGroupMessages(
     ? NDKRelaySet.fromRelayUrls(relays, ndk)
     : undefined;
 
+  // Anchor for the Phase-2 live sub's `since` filter. Captured BEFORE Phase-1
+  // begins so the relay replays any event published between Phase-1 EOSE and
+  // Phase-2 WebSocket REQ registration — without it, events landing in that
+  // gap are silently dropped. `processedIds` dedups the resulting overlap.
+  //
+  // The `CLOCK_SKEW_MARGIN_SEC` backdate exists because relays filter `since`
+  // against the event's signed `created_at`, not the relay's receipt time. 30s
+  // is the chosen window because it covers (a) sub-second JS scheduling jitter
+  // that produced the reported 33–60% flake, (b) modest NTP drift between
+  // publisher and subscriber clocks, and (c) brief mobile sleep/resume or
+  // pre-signed-event lag. `processedIds` absorbs the wider replay window at
+  // zero correctness cost — every duplicate is dropped before dispatch.
+  const CLOCK_SKEW_MARGIN_SEC = 30;
+  const fetchStartedAt = Math.floor(Date.now() / 1000) - CLOCK_SKEW_MARGIN_SEC;
+
   // Fetch and ingest all existing kind 445 events (historical sync).
   // This ensures commits published before subscription started are processed.
   let historicalCount = 0;
@@ -290,8 +305,10 @@ export async function subscribeToGroupMessages(
   // (for profile publish) is safe after historical sync because the local
   // epoch is up-to-date. The onHistorySynced callback handles this.
 
-  // Live subscription for future events, scoped to the group's relays
-  const sub = ndk.subscribe(filter, { closeOnEose: false }, relaySet);
+  // Live subscription for future events, scoped to the group's relays.
+  // `since: fetchStartedAt` closes the EOSE→REQ gap (see fetchStartedAt above).
+  const liveFilter = { ...filter, since: fetchStartedAt };
+  const sub = ndk.subscribe(liveFilter, { closeOnEose: false }, relaySet);
   sub.on('event', (ndkEvent) => void ingestNdkEvent(ndkEvent));
 
   return () => {

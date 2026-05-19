@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-05-18T15:30:00Z",
+  "updated_at": "2026-05-18T21:11:44Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -71,19 +71,14 @@
       "path": "specs/epic-event-sourced-receive-engine/",
       "status": "PLANNED",
       "next_action": "Architectural refactor — run /base:arch-debate first; do not /base:feature directly until the receive-engine boundary is debated."
+    },
+    {
+      "path": "specs/epic-members-changed-length-only-misses-ghost-cleanup/",
+      "status": "DONE",
+      "next_action": "completed 2026-05-18"
     }
   ],
   "findings": [
-    {
-      "slug": "members-changed-length-only-misses-ghost-cleanup",
-      "scope": "any",
-      "anchor": {
-        "path": "app/src/context/MarmotContext.tsx",
-        "line": 802
-      },
-      "text": "onMembersChanged fires only when currentMembers.length differs from stored.memberPubkeys.length; a future ghost-cleanup pass that removes a ghost but adds a real member in the same commit would leave the departed member visible in the UI even after AC-MEMBERS-1 passes.",
-      "created_at": "2026-05-18"
-    },
     {
       "slug": "e2e-leave-intent-not-executed-only-structural",
       "scope": "any",
@@ -105,16 +100,6 @@
       "created_at": "2026-05-18"
     },
     {
-      "slug": "profile-rumor-kind-from-one-peer",
-      "scope": "any",
-      "anchor": {
-        "path": "app/tests/e2e/groups-member-profiles.spec.ts",
-        "line": 175
-      },
-      "text": "PROFILE_RUMOR_KIND from one peer fails to reach a newly-joined member on ~33–60% of e2e runs; test is fixme. Diagnosis incomplete — candidates include NDK historical→live sub gap or MLS epoch divergence during admin-promotion. See bug-reports/profile-rumor-undeliverable-to-new-member.md.",
-      "created_at": "2026-05-18"
-    },
-    {
       "slug": "dm-rendering-produced-multiple-bubbles-per",
       "scope": "any",
       "anchor": {
@@ -133,7 +118,156 @@
       },
       "text": "Profile-request memo.attempts stays at 0 under Playwright fake-clock cycling — AC-045 scenario 5 deferred (test.fixme). Real cause undiagnosed; candidates: fake-clock + setInterval interaction, recordEmitted Date.now() racing real-time write, or requestedOnEntryForRef cycling under cross-navigation re-mount. Boundary contract already vitest-covered.",
       "created_at": "2026-05-18"
+    },
+    {
+      "slug": "test-gap-chat-persistence-no-unit-coverage",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/lib/marmot/chatPersistence.ts"
+      },
+      "text": "app/src/lib/marmot/chatPersistence.ts (317 LOC) is the largest marmot persistence module — performs IDB writes for group chat history — and has no direct unit test; regressions here only surface via e2e.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "test-gap-register-handlers-no-unit-coverage",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/lib/marmot/registerHandlers.ts"
+      },
+      "text": "app/src/lib/marmot/registerHandlers.ts wires every marmot handler; a regression that silently drops a registration would be invisible until the relevant e2e fails. No unit-level guard on the registration chain.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "test-gap-key-packages-no-unit-coverage",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/lib/keyPackages.ts"
+      },
+      "text": "app/src/lib/keyPackages.ts handles MLS key-package generation/parse (protocol-critical) — no unit test exercises malformed inputs, encoding boundaries, or roundtrip identity.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "tooling-no-vitest-coverage-instrumentation",
+      "scope": "any",
+      "anchor": {
+        "path": "app/package.json",
+        "line": 51
+      },
+      "text": "app/package.json lacks @vitest/coverage-v8 or equivalent; make test-unit runs 866 tests but cannot report line/branch coverage, leaving 'mocks-the-helper-at-the-SUT-call-site' blind spots structurally invisible.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "test-gap-context-providers-no-unit-coverage",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/context"
+      },
+      "text": "Six of seven React contexts (ChatStore, NostrIdentity, Profile, PollStore, Backup, Marmot) ship substantial state logic with no unit-level guard; only LanguageContext is exercised indirectly via i18n tests.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "test-gap-hooks-no-unit-coverage",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/hooks"
+      },
+      "text": "Seven of nine custom hooks (useDirectReactions, useMoodTheme, useOnlineStatus, useSelectedTopics, useStudyTimer, useThemeStyles, useTopicProgress) have no unit test; only useDecryptedImage and useImageSend are covered.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "base-plugin-e2e-testing-skill-swallows-results",
+      "scope": "base-plugin",
+      "anchor": null,
+      "text": "base:e2e-testing skill runs in a forked context but returns only 'Skill execution completed' to the parent — no pass/fail counts, no failure messages. Caller has to re-run the runner directly to learn whether tests passed.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "backup-restore-materially-lossy-full-state-claim",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/lib/backup/relayBackup.ts",
+        "line": 113
+      },
+      "text": "High: backup/restore is materially lossy while presenting itself as a full-state restore. relayBackup.ts only backs up a small subset of localStorage plus per-group data, and truncates each group chat to MAX_CHAT_MESSAGES = 10 (relayBackup.ts:110, :178). On restore, the code wipes all storage keys including contacts/contact cache (types/index.ts:127) and deletes every quizzl:messages:* thread (relayBackup.ts:364, chatPersistence.ts:306). Result: a restore silently drops DM history, stored contacts/contact metadata, and all but the last 10 group messages.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "unread-store-startup-clobbers-live-increments",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/lib/unreadStore.ts",
+        "line": 125
+      },
+      "text": "Medium: unread-count initialization can clobber live increments during startup. unreadStore.ts:125 and :155 recompute state asynchronously then replace counts/joinRequests wholesale, so any message or join request arriving while IDB is being scanned can be lost. The DM path tries to preserve concurrent updates, but :298 still lets stale computed values overwrite newer live counts for peers it re-evaluated, contradicting the comment and lowering the badge count after startup.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "restore-failure-reported-as-success",
+      "scope": "any",
+      "anchor": {
+        "path": "app/pages/settings.tsx",
+        "line": 219
+      },
+      "text": "Medium: failed backup restore is reported as success. In the error path of settings.tsx:219, a thrown restoreFromBackup() closes the dialog, clears the pending payload, and calls setRestoreSuccess(true) at :229 — producing a false-positive success state precisely when restore has failed.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "e2e-suite-scale-bleed-groups-profile-request",
+      "scope": "any",
+      "anchor": {
+        "path": "app/tests/e2e/groups-profile-request.spec.ts",
+        "line": 149
+      },
+      "text": "groups+dm e2e suite scale-bleed: 177-test single-run cumulative had a 1-test failure at #130 (groups-profile-request.spec.ts:149 scenario 1 'aged-history backfill AC-045'), but the same scenario passes in 2.6s when run in isolation. After ~10min the dev server's HMR cache, strfry's tmpfs event log, and per-context IDB state accumulate enough drift to make subscription-driven assertions miss their deadline. Generalises the scenario-5 finding (profile-request-memo-attempts-stays-at) — same root pattern, different AC-045 scenario surfacing it.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "make-test-skips-fast-e2e-suite",
+      "scope": "any",
+      "anchor": {
+        "path": "Makefile",
+        "line": 74
+      },
+      "text": "Make: no umbrella target runs the full e2e suite. 'make test' runs unit + test-e2e (groups mode only). The fast non-relay suite (86 tests across story-01..08, profile, avatar, banner, emoji, notification-bell) is only reachable via 'make test-e2e-fast' and is not invoked by any aggregate target. Result: a regression in story-* paths can ship without any local Make target catching it. Either fold test-e2e-fast into 'test' or introduce a 'test-e2e-all' that runs both modes back-to-back.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "dm-tests-never-run-no-collection-gate",
+      "scope": "any",
+      "anchor": {
+        "path": "app/playwright.config.ts",
+        "line": 36
+      },
+      "text": "Process gap: the dm-*.spec.ts files added in e9762ec (dm-giftwrap-bell, dm-historical-recovery, dm-self-heal, dm-third-party-inbound) shipped with multiple latent infra bugs and were never executed end-to-end — they were structurally invisible in BOTH run modes because playwright.config testMatch was 'groups-*.spec.ts' for groups mode and testIgnore: 'groups-*.spec.ts' for fast mode, so dm-* matched neither pattern. Bugs found: (a) wrong IDB schema in dm-self-heal (wrote to 'quizzl-messages' DB; app reads 'keyval-store'), (b) reference to global.__testPage never wired up in dm-historical-recovery, (c) removed nostr-tools API getSignature in dm-third-party-inbound, (d) closure-shadowing bug in lp_contacts_v1 seed shared by all four files, (e) stale selectors that no longer match the DOM. All fixed in this session (testMatch widened to ['groups-*', 'dm-*']), but the underlying CI gap remains: structural validation passed for tests that could not run.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "contactchat-tsx-uses-same-fetch-then",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/components/Chat/ContactChat.tsx",
+        "line": 213
+      },
+      "text": "ContactChat.tsx uses the same fetch-then-live-sub anti-pattern fixed in welcomeSubscription.ts: Phase-1 runs three parallel fetchEventsWithTimeout calls for DM history then Phase-2 opens three live ndk.subscribe calls, leaving a gap where events are silently lost.",
+      "created_at": "2026-05-18"
+    },
+    {
+      "slug": "subscribetogroupmessages-creates-fresh",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/lib/marmot/welcomeSubscription.ts",
+        "line": 206
+      },
+      "text": "subscribeToGroupMessages creates a fresh processedIds Set on every call; if two subscription instances overlap during rapid re-subscribe (e.g. on groups state change), the same event ID can be dispatched twice across instances — cross-instance dedup requires module-level state or guaranteed teardown ordering.",
+      "created_at": "2026-05-18"
     }
   ],
-  "archive": []
+  "archive": [
+    {
+      "date": "2026-05-18",
+      "text": "onMembersChanged fires only when currentMembers.length differs from stored.memberPubkeys.length; a future ghost-cleanup pass that removes a ghost but adds a real member in the same commit would leave the departed member visible in the UI even after AC-MEMBERS-1 passes.",
+      "reason": "promoted to specs/epic-members-changed-length-only-misses-ghost-cleanup/spec.md",
+      "source_slug": "members-changed-length-only-misses-ghost-cleanup"
+    }
+  ]
 }

@@ -1,0 +1,17 @@
+{
+  "bug_slug": "profile-rumor-kind-from-one-peer",
+  "fix_summary": "Close the EOSE→live-sub gap in subscribeToGroupMessages by capturing a fetchStartedAt timestamp before Phase-1 and passing it as `since` on the Phase-2 live subscription. The existing processedIds dedup set absorbs any overlap.",
+  "allowed_files": [
+    "app/src/lib/marmot/welcomeSubscription.ts",
+    "app/tests/unit/marmot/welcomeSubscription.test.ts"
+  ],
+  "non_goals": [
+    "Refactoring the `groups` dependency cascade in MarmotContext.tsx that triggers re-subscribes on every membership change.",
+    "Changing MLS epoch logic, EpochResolver behaviour, or futureBuffer flushing.",
+    "Modifying profile publishing in inviteByNpub or sendSelfProfile.",
+    "Removing the test.fixme from app/tests/e2e/groups-member-profiles.spec.ts (separate decision, requires e2e validation).",
+    "Touching analogous fetch-then-live-sub patterns in ContactChat.tsx (deferred; see VQ-007)."
+  ],
+  "estimated_loc_production": 3,
+  "estimated_loc_test": 60
+}

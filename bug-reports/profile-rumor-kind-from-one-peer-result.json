@@ -1,0 +1,135 @@
+{
+  "bug_slug": "profile-rumor-kind-from-one-peer",
+  "root_cause": "`subscribeToGroupMessages` in `app/src/lib/marmot/welcomeSubscription.ts` uses a two-phase pattern: Phase-1 calls `fetchEventsWithTimeout(..., closeOnEose: true)` to collect historical kind-445 events, then Phase-2 opens a live `ndk.subscribe(filter, { closeOnEose: false })`. Between Phase-1 EOSE and Phase-2 WebSocket REQ registration there is a real time gap. Events published into that gap (notably the admin's profile rumor that `MarmotContext.inviteByNpub` republishes synchronously after the admin-promotion commit at MarmotContext.tsx:1115-1119) land on the relay but are never delivered to the new member's `applicationRumorDispatcher`: they postdate the historical fetch result set, and the live sub does not yet exist (and carried no `since` filter, so the relay had no signal to backfill on REQ open). Which peer's profile is lost varies run-to-run because the gap window's start drifts with browser scheduling.",
+  "fix_description": "Capture a `fetchStartedAt` anchor (Unix seconds) immediately before Phase-1 begins, then construct the Phase-2 live filter as `{ ...filter, since: fetchStartedAt }`. The relay replays every event whose `created_at >= fetchStartedAt` when the live REQ opens, closing the gap. The pre-existing `processedIds` Set dedups any event that arrives both in the Phase-1 historical result set and the Phase-2 live sub's backfill, so the overlap is harmless. Unix-seconds matches Nostr's wire format; capturing before Phase-1 (not after) is essential — capturing after would re-open the same gap. The anchor is additionally backdated by `CLOCK_SKEW_MARGIN_SEC = 30` seconds (round-1 introduced 5 s; round-2 bumped to 30 s after Decider escalation) because relays filter `since` against the event's signed `created_at`, not relay receipt time. 30 s covers JS scheduling jitter (the source of the reported 33–60% flake), modest NTP drift between publisher and subscriber clocks, and brief mobile sleep/resume or pre-signed-event lag. `processedIds` absorbs the wider replay window at zero correctness cost.",
+  "clock_skew_margin": {
+    "constant": "CLOCK_SKEW_MARGIN_SEC",
+    "value_sec": 30,
+    "rationale": "Relay filters `since` against signed `created_at`, not receipt time. The 30 s backdate covers (a) sub-second JS scheduling jitter that produced the reported 33–60% flake, (b) modest NTP drift between publisher and subscriber clocks, and (c) brief mobile sleep/resume or pre-signed-event lag. `processedIds` absorbs the wider replay window at zero correctness cost — every duplicate is dropped before dispatch. Per Decider's ratchet rule, the value stops at 30: the named bug is the synchronous-publish gap, not clock drift, so any further 'could be larger' push from a future review is out-of-scope.",
+    "introduced_in": "round-1 remediation 2026-05-18 (initial 5 s)",
+    "current_value_set_in": "round-2 remediation 2026-05-18 (bumped to 30 s after Decider RETRY on Reviewer round-1 REJECT)"
+  },
+  "files_changed": [
+    {
+      "path": "app/src/lib/marmot/welcomeSubscription.ts",
+      "description": "Added `fetchStartedAt` Unix-seconds anchor before the historical fetch and passed `since: fetchStartedAt` on the Phase-2 live `ndk.subscribe` filter. Two comment blocks explain the gap and the dedup rationale. Round-1 remediation: introduced `CLOCK_SKEW_MARGIN_SEC = 5` and subtracted it from the anchor; comment block extended to explain why the backdate is required (relays filter `since` by signed `created_at`, not receipt time)."
+    },
+    {
+      "path": "app/tests/unit/marmot/welcomeSubscription.test.ts",
+      "description": "Added `vi.mock` declarations for `@/src/lib/ndkClient`, `@nostr-dev-kit/ndk`, and `@/src/lib/marmot/epochResolver` (no-op for pre-existing unwrapGiftWrap tests). Added a `describe` block with three regression tests: (1) the Phase-2 live sub filter carries a `since` field with a value that does not exceed wall-clock at call time and stays in Unix-seconds range; (2) two successive calls capture independent `since` anchors that strictly increase across a 1.1s delay; (3) the `since` anchor is backdated by at least 1 s (proves the clock-skew margin is actually applied) and at most 60 s (sanity ceiling). Bound on test #1 widened to accommodate the margin."
+    }
+  ],
+  "tests_added": [
+    "subscribeToGroupMessages — passes a since filter to ndk.subscribe approximating the Phase-1 start timestamp",
+    "subscribeToGroupMessages — captures an independent `since` anchor on each re-subscribe call",
+    "subscribeToGroupMessages — backdates the `since` anchor by a clock-skew safety margin (round-1 remediation)"
+  ],
+  "baseline_test_count": {
+    "files": 66,
+    "tests": 871,
+    "passed": 871,
+    "failed": 0
+  },
+  "final_test_count": {
+    "files": 66,
+    "tests": 874,
+    "passed": 874,
+    "failed": 0
+  },
+  "verification_question_answers": [
+    {
+      "id": "VQ-001",
+      "verdict": "YES",
+      "evidence": "welcomeSubscription.ts now constructs `const liveFilter = { ...filter, since: fetchStartedAt }` and passes it to `ndk.subscribe`. `fetchStartedAt` is captured immediately before Phase-1's `fetchEventsWithTimeout` call, so the `since` anchor strictly precedes any event the historical fetch could observe. The relay backfills any event published between Phase-1 EOSE and Phase-2 REQ registration when the live sub opens. The new regression test 'passes a since filter to ndk.subscribe approximating the Phase-1 start timestamp' fails on `main` (verified by running the test before applying the fix: AssertionError: expected filter to have property 'since') and passes after."
+    },
+    {
+      "id": "VQ-002",
+      "verdict": "YES",
+      "evidence": "The pre-existing `processedIds = new Set<string>()` (welcomeSubscription.ts, formerly line 206, unchanged) is consulted in `ingestNdkEvent` before dispatch: `if (!eventId || processedIds.has(eventId)) return; processedIds.add(eventId);`. Both Phase-1 (historical loop) and Phase-2 (live sub `sub.on('event', ...)`) call `ingestNdkEvent`, so any event delivered twice — once in the historical result set, once via the `since`-triggered live backfill — is dispatched exactly once. The fix is intentionally limited to adding `since`; the dedup mechanism was already in place precisely for this overlap concern."
+    },
+    {
+      "id": "VQ-003",
+      "verdict": "YES",
+      "evidence": "Baseline `make test-unit`: 66 files / 871 tests passed. Post-fix `make test-unit`: 66 files / 873 tests passed (the +2 are the new regression tests). No pre-existing test regressed. The fixme test at app/tests/e2e/groups-member-profiles.spec.ts:175 is left as-is per the brief; the unit regression tests guard the fix at the SUT level. Re-enablement of the e2e fixme is a separate decision requiring CI/e2e validation."
+    },
+    {
+      "id": "VQ-004",
+      "verdict": "YES",
+      "evidence": "Production change is confined to `subscribeToGroupMessages` in `app/src/lib/marmot/welcomeSubscription.ts`: ~5 lines (the timestamp capture, an explanatory comment block, the new `liveFilter` constant with its own comment, and the swap from `filter` to `liveFilter` in the `ndk.subscribe` call). No helper extraction, no signature changes, no surrounding refactor. The other modified file is the corresponding test. The contract at bug-reports/profile-rumor-kind-from-one-peer-contract.json enumerates the two allowed files; the diff respects it."
+    },
+    {
+      "id": "VQ-005",
+      "verdict": "YES",
+      "evidence": "`fetchStartedAt = Math.floor(Date.now() / 1000) - CLOCK_SKEW_MARGIN_SEC` yields Unix seconds (Nostr's wire format for `created_at` and `since`). The assignment lives immediately above the `try { ... fetchEventsWithTimeout(...) ... }` block — before Phase-1 begins — so the anchor strictly precedes any event Phase-1 could observe. The `CLOCK_SKEW_MARGIN_SEC = 30` backdate (round-1 introduced 5 s; round-2 bumped to 30 s) is intentional, not a bug: it covers peers whose signed `created_at` is slightly behind our wall clock (NTP skew, JS scheduling jitter, mobile sleep/resume, pre-signed events), since relays apply `since` against the signed timestamp rather than receipt time. `processedIds` absorbs the resulting historical/live overlap. Regression tests assert `since` is in Unix-seconds range (`< 1e11`), is backdated by at least 10 seconds (proves the round-2 margin is materially applied), and is not more than 60 s in the past (sanity ceiling)."
+    },
+    {
+      "id": "VQ-006",
+      "verdict": "YES",
+      "evidence": "`fetchStartedAt` is a local `const` inside `subscribeToGroupMessages`. Each call to `subscribeToGroupMessages` (including every re-subscribe triggered by the `groups` dependency cascade in MarmotContext.tsx) declares a fresh `fetchStartedAt` and captures a new anchor at that call's wall-clock. There is no module-level state, no caching, no shared closure between invocations. The second regression test 'captures an independent `since` anchor on each re-subscribe call' makes two back-to-back calls with a 1.1s sleep between them and asserts `since2 > since1`, locking in this property."
+    },
+    {
+      "id": "VQ-007",
+      "verdict": "PARTIAL",
+      "evidence": "Audited every `fetchEventsWithTimeout` and `ndk.subscribe` call site in `app/src`. Most are pure one-shots or pure live subs and do not have the gap:\n\n• `welcomeSubscription.ts` — fixed.\n• `welcomeSubscription.subscribeToWelcomes:75` — live sub only, no historical fetch, no gap.\n• `directMessageNotifications.ts:67,86` — live subs only, no gap.\n• `NdkNetworkAdapter.ts:124,166` (`request`, `getUserInboxRelays`) — one-shot fetches; `NdkNetworkAdapter.subscription:142` is a separate, subscribe-only API. marmot-ts internally decides whether to combine them; not a fetch-then-live-sub pair in user code.\n• `MarmotContext.tsx:1041` (KeyPackage fetch in `inviteByNpub`) — one-shot fetch only, no follow-up live sub.\n• `relayBackup.ts:291,328` — one-shot fetches only.\n\nOne site DOES have the same anti-pattern but was deliberately excluded from this fix's contract: `ContactChat.tsx:213-216` runs three parallel `fetchEventsWithTimeout` calls for DM history, then `ContactChat.tsx:279-295` opens three `ndk.subscribe` live subs for the same filters. The gap exists, but the failure mode is materially different: ContactChat is per-conversation (the peer keeps sending), the chat re-mounts re-runs the historical fetch (so missed events surface on next open), and the bell-watcher in `directMessageNotifications.ts` is a pure live sub running concurrently which also catches the gap-window event for unread-count purposes. Fixing it is a legitimate follow-up but out of scope for this bug per the contract's non-goals (and would also need a separate test). Recommend a follow-up bug `dm-history-eose-livesub-gap` to track it.",
+      "root_cause_category": "scope_decision"
+    }
+  ],
+  "retrospective": {
+    "skipped": false,
+    "reason": null,
+    "scope": "project_specific",
+    "harder_than_needed": "The investigation in bug-reports/profile-rumor-undeliverable-to-new-member.md spent considerable effort on futureBuffer/MLS-epoch hypotheses because the 2026-05-08 author had explicitly listed the closeOnEose gap as 'ruled out' on the basis that 'live events for the OTHER peer arriving fine'. That reasoning is invalid — the other peer's events arrive later (after their own onHistorySynced cycle, hundreds of ms later) so they typically land outside the gap. The promoted report (-report.md) corrected this, but the original ruled-out list could have misled a fresh fixer into re-investigating MLS internals first. Lesson: 'ruled out' notes in bug reports should cite the experimental evidence with timing, not just an inferred observation.",
+    "surprised_by": "vitest's vi.mock hoisting is friendly enough that adding three mocks at the top of an existing test file (welcomeSubscription.test.ts) does NOT disturb pre-existing tests that don't exercise the mocked modules. The pre-existing unwrapGiftWrap and onMembersChanged tests continued to pass unchanged, with no need to scope mocks per-describe.",
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "codex_review": {
+    "ran": true,
+    "verdict": "no_findings",
+    "note": "Codex review failed to inspect repo state due to sandbox networking limitation (bwrap loopback RTM_NEWADDR permission denied). No findings returned; not treated as a blocker per the brief ('treat findings as input, real issues only'). Reviewer subsequently ran a separate Codex adversarial review which DID surface findings — addressed in remediation_rounds[0]."
+  },
+  "remediation_rounds": [
+    {
+      "round": 1,
+      "date": "2026-05-18",
+      "trigger": "Reviewer's Codex adversarial review identified a high-severity finding: the original `since: fetchStartedAt` filters by signed `created_at`, not relay receipt time. Events published into the gap with `created_at < fetchStartedAt` (publisher clock skew or pre-signed) could still be missed.",
+      "scope": "high-severity finding only; two medium findings (cross-instance dedup on re-subscribe, ContactChat deferral) are out of scope per team-lead direction.",
+      "production_change": "Introduced `const CLOCK_SKEW_MARGIN_SEC = 5;` and backdated the anchor: `const fetchStartedAt = Math.floor(Date.now() / 1000) - CLOCK_SKEW_MARGIN_SEC;`. Extended the comment block above the anchor to explain WHY (relays apply `since` to signed `created_at`, not receipt time; processedIds absorbs the resulting overlap).",
+      "test_change": "Widened bounds on regression test #1 to accommodate the margin (lower bound now `beforeCallSec - 30` instead of `beforeCallSec - 2`). Added a third regression test `backdates the since anchor by a clock-skew safety margin` that asserts the margin is actively applied (`since <= beforeCallSec - 1`) and bounded above by 60 s.",
+      "test_count_delta": "+1 (873 → 874)",
+      "verification": "make test-unit: 66 files / 874 tests passed, 0 failed.",
+      "files_touched": [
+        "app/src/lib/marmot/welcomeSubscription.ts",
+        "app/tests/unit/marmot/welcomeSubscription.test.ts"
+      ],
+      "deferred_findings": [
+        {
+          "severity": "medium",
+          "summary": "Cross-instance dedup on re-subscribe: each call to `subscribeToGroupMessages` constructs its own `processedIds` Set, so an event that arrives in the overlap window of two successive subscriptions can be processed twice across instances.",
+          "disposition": "Deferred per team-lead direction; needs architectural design discussion. File as BACKLOG.json finding during wrap-up if a clean capture is found."
+        },
+        {
+          "severity": "medium",
+          "summary": "ContactChat.tsx has the same fetch-then-live-sub anti-pattern for DMs.",
+          "disposition": "Already deferred per original contract non-goals (VQ-007 PARTIAL). project-curator to file follow-up bug `dm-history-eose-livesub-gap` during wrap-up."
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "date": "2026-05-18",
+      "trigger": "Decider RETRY after Reviewer round-1 REJECTED on a new Codex high finding that 5 s was insufficient to absorb the realistic skew window (JS scheduling jitter + NTP drift + mobile sleep/resume + pre-signed-event lag).",
+      "scope": "Single constant + single test assertion. No other code or test changes; ContactChat still owned by follow-up `dm-history-eose-livesub-gap`.",
+      "production_change": "Bumped `CLOCK_SKEW_MARGIN_SEC` from 5 to 30 in `app/src/lib/marmot/welcomeSubscription.ts`. Replaced the adjacent comment with an explicit rationale: 30 s covers (a) sub-second JS scheduling jitter (source of the 33–60% flake), (b) modest NTP drift between publisher and subscriber clocks, and (c) brief mobile sleep/resume or pre-signed-event lag. `processedIds` absorbs the wider replay window at zero correctness cost.",
+      "test_change": "Tightened test #3 lower bound: `expect(since).toBeLessThanOrEqual(beforeCallSec - 10)` (was `- 1`). Upper bound `>= beforeCallSec - 60` unchanged. Comment updated to explain that the 10-s lower bound proves the margin is materially applied while preserving room to retune within 10–60 without breaking the test.",
+      "test_count_delta": "+0 (874 → 874; only an assertion changed)",
+      "verification": "make test-unit: 66 files / 874 tests passed, 0 failed.",
+      "files_touched": [
+        "app/src/lib/marmot/welcomeSubscription.ts",
+        "app/tests/unit/marmot/welcomeSubscription.test.ts"
+      ],
+      "decider_ratchet_rule": "Decider explicitly ruled: the ratchet stops at 30. Any further 'could be larger' push from Codex on subsequent reviews is overridden as out-of-scope, because the named bug is the synchronous-publish gap, not clock drift. Future remediations on this bug slug must justify any additional bump against a new, distinct symptom.",
+      "deferred_findings": []
+    }
+  ]
+}

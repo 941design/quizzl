@@ -1,0 +1,72 @@
+{
+  "bug_name": "profile-rumor-kind-from-one-peer",
+  "bug_report_file": "bug-reports/profile-rumor-kind-from-one-peer-report.md",
+  "created_at": "2026-05-18T20:00:00Z",
+  "updated_at": "2026-05-18T20:00:00Z",
+  "phase": "ACCEPTED",
+  "complexity": "medium",
+  "verification_questions": [
+    {
+      "id": "VQ-001",
+      "category": "TEST",
+      "question": "Does the live sub now carry a `since` filter covering the Phase-1 fetch start timestamp, ensuring no event published during the gap is silently dropped?"
+    },
+    {
+      "id": "VQ-002",
+      "category": "TEST",
+      "question": "Does the `processedIds` dedup set prevent double-processing of events that arrive in both the Phase-1 historical result set and the Phase-2 live sub (when `since` causes overlap)?"
+    },
+    {
+      "id": "VQ-003",
+      "category": "TEST",
+      "question": "Do the existing unit tests pass with no regressions, and does the reproduction test (groups-member-profiles.spec.ts:175 fixme) become re-enableable?"
+    },
+    {
+      "id": "VQ-004",
+      "category": "QUALITY",
+      "question": "Is the fix minimal — confined to `subscribeToGroupMessages` in `welcomeSubscription.ts` and any directly-needed helper, with no unrelated modifications?"
+    },
+    {
+      "id": "VQ-005",
+      "category": "ARCHITECTURE",
+      "question": "Does the `since` filter correctly use Unix seconds (not milliseconds) to match the relay's timestamp format, and is the start timestamp captured before Phase-1 begins (not after)?"
+    },
+    {
+      "id": "VQ-006",
+      "category": "ARCHITECTURE",
+      "question": "Does the fix handle the re-subscribe path correctly — when `subscribeToGroupMessages` is called again after a `groups` state change, does each new call establish its own `since` anchor independently?"
+    },
+    {
+      "id": "VQ-007",
+      "category": "SPEC",
+      "question": "Are there any other call sites of `subscribeToGroupMessages` or analogous fetch-then-live-sub patterns in the codebase that have the same gap and need the same fix?"
+    }
+  ],
+  "baseline": null,
+  "fix": null,
+  "review_rounds": [],
+  "remediation_round": 2,
+  "phase_history": [
+    { "phase": "INITIALIZED", "timestamp": "2026-05-18T20:00:00Z", "trigger": "workflow_start" },
+    { "phase": "FIXING", "timestamp": "2026-05-18T20:35:00Z", "trigger": "fixer_spawned" },
+    { "phase": "REVIEWING", "timestamp": "2026-05-18T20:50:00Z", "trigger": "round_0_review_started" },
+    { "phase": "REMEDIATING", "timestamp": "2026-05-18T20:53:00Z", "trigger": "round_0_rejected_codex_high_clock_skew" },
+    { "phase": "REVIEWING", "timestamp": "2026-05-18T20:57:00Z", "trigger": "round_1_review_started" },
+    { "phase": "REMEDIATING", "timestamp": "2026-05-18T21:03:00Z", "trigger": "round_1_rejected_decider_retry_30s" },
+    { "phase": "REVIEWING", "timestamp": "2026-05-18T21:06:00Z", "trigger": "round_2_review_started" },
+    { "phase": "ACCEPTED", "timestamp": "2026-05-18T21:09:00Z", "trigger": "round_2_reviewer_accepted_codex_clean" }
+  ],
+  "final_outcome": {
+    "verdict": "ACCEPTED",
+    "remediation_rounds": 2,
+    "final_test_count": { "files": 66, "tests": 874, "passed": 874, "failed": 0 },
+    "files_changed": [
+      "app/src/lib/marmot/welcomeSubscription.ts",
+      "app/tests/unit/marmot/welcomeSubscription.test.ts"
+    ],
+    "deferred_followups": [
+      "dm-history-eose-livesub-gap — same fetch-then-live anti-pattern in ContactChat.tsx:213-295 (excluded by contract non-goals)",
+      "cross-instance dedup on rapid re-subscribe — Codex round-0 medium; architectural, requires design discussion"
+    ]
+  }
+}

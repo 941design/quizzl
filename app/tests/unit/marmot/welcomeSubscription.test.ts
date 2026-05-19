@@ -1,5 +1,35 @@
 import { describe, it, expect, vi } from 'vitest';
-import { unwrapGiftWrap } from '@/src/lib/marmot/welcomeSubscription';
+
+// ---------------------------------------------------------------------------
+// Module mocks for subscribeToGroupMessages tests. Hoisted by vitest, applied
+// to every test in this file. The other tests in this file don't exercise the
+// dynamically-imported `@nostr-dev-kit/ndk` (NDKRelaySet) or `@/src/lib/ndkClient`
+// (fetchEventsWithTimeout), so these mocks are no-ops for them.
+// ---------------------------------------------------------------------------
+
+const mockFetchEventsWithTimeout = vi.fn();
+
+vi.mock('@/src/lib/ndkClient', () => ({
+  fetchEventsWithTimeout: (...args: unknown[]) => mockFetchEventsWithTimeout(...args),
+}));
+
+vi.mock('@nostr-dev-kit/ndk', () => ({
+  NDKRelaySet: {
+    fromRelayUrls: (_relays: string[], _ndk: unknown) => 'mock-relay-set',
+  },
+}));
+
+// EpochResolver is statically imported by welcomeSubscription.ts; mock it so the
+// test doesn't need a real MarmotGroup with event-emitter shape.
+vi.mock('@/src/lib/marmot/epochResolver', () => ({
+  EpochResolver: class {
+    constructor(_group: unknown, _opts: unknown) {}
+    ingestEvent(_event: unknown) { return Promise.resolve(); }
+    dispose() {}
+  },
+}));
+
+import { unwrapGiftWrap, subscribeToGroupMessages } from '@/src/lib/marmot/welcomeSubscription';
 
 // ---------------------------------------------------------------------------
 // unwrapGiftWrap tests
@@ -208,5 +238,150 @@ describe('onMembersChanged profile republish logic (MarmotContext)', () => {
 
     await onMembersChanged(['aabbcc', 'ddeeff']); // new member joins: 1→2 — publishes
     expect(sendApplicationRumor).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression test: EOSE → live-sub gap on subscribeToGroupMessages
+//
+// Bug: bug-reports/profile-rumor-kind-from-one-peer-report.md
+// Root cause: the Phase-2 live subscription was opened *after* the Phase-1
+// historical fetch closed on EOSE. Events published on the relay during that
+// gap (notably the admin's profile rumor republished synchronously after the
+// invite commit) were silently dropped — not in the historical result set and
+// not yet visible to the live sub.
+//
+// Fix: capture a `fetchStartedAt` timestamp before Phase-1 and pass it as
+// `since` on the Phase-2 live sub. The relay then replays any event from the
+// gap window. The existing `processedIds` set absorbs the overlap.
+// ---------------------------------------------------------------------------
+
+describe('subscribeToGroupMessages — Phase-2 live sub carries `since` covering Phase-1 gap', () => {
+  it('passes a since filter to ndk.subscribe approximating the Phase-1 start timestamp', async () => {
+    mockFetchEventsWithTimeout.mockReset();
+    // Resolve historical fetch synchronously with no events so we get past
+    // Phase-1 quickly and reach the live-sub setup.
+    mockFetchEventsWithTimeout.mockResolvedValue({ events: new Set(), timedOut: false });
+
+    const subscribeCalls: Array<{ filter: Record<string, unknown>; opts: unknown; relaySet: unknown }> = [];
+    const mockSubInstance = {
+      on: vi.fn(),
+      stop: vi.fn(),
+    };
+    const mockNdk = {
+      subscribe: vi.fn((filter: Record<string, unknown>, opts: unknown, relaySet: unknown) => {
+        subscribeCalls.push({ filter, opts, relaySet });
+        return mockSubInstance;
+      }),
+    };
+
+    // Minimal MarmotGroup stub — only the fields touched by subscribeToGroupMessages.
+    // nostrGroupId is a 32-byte Uint8Array → hex-encoded for the #h filter.
+    const groupIdBytes = new Uint8Array(32).fill(0xab);
+    const mlsGroup = {
+      groupData: { nostrGroupId: groupIdBytes },
+    };
+
+    const beforeCallSec = Math.floor(Date.now() / 1000);
+    const unsubscribe = await subscribeToGroupMessages(
+      'group-id-1234567890abcdef',
+      ['wss://relay.example.com'],
+      mlsGroup as never,
+      mockNdk as never,
+    );
+    const afterCallSec = Math.floor(Date.now() / 1000);
+
+    // Exactly one live subscription was opened (the Phase-2 live sub).
+    expect(mockNdk.subscribe).toHaveBeenCalledTimes(1);
+
+    const liveSubCall = subscribeCalls[0];
+    // The live sub must carry a `since` field — without it, events published
+    // between Phase-1 EOSE and Phase-2 REQ registration are dropped.
+    expect(liveSubCall.filter).toHaveProperty('since');
+    const since = liveSubCall.filter.since as number;
+    expect(typeof since).toBe('number');
+    // Unix seconds (not milliseconds): a value in the seconds range, not ms.
+    expect(since).toBeLessThan(1e11);
+    // The anchor must be captured BEFORE Phase-1 starts AND backdated by the
+    // clock-skew safety margin (currently 30 s; allow a wide window so the test
+    // does not become brittle if the margin is retuned in either direction).
+    // Lower bound = call wall-clock minus margin headroom; -60s leaves 30s of
+    // slack above today's 30s margin so a future bump stays inside the bound.
+    // Upper bound = call wall-clock plus 2 s slack (must never exceed wall-clock).
+    expect(since).toBeGreaterThanOrEqual(beforeCallSec - 60);
+    expect(since).toBeLessThanOrEqual(afterCallSec + 2);
+
+    // The live sub still uses closeOnEose: false for continuous listening.
+    expect(liveSubCall.opts).toMatchObject({ closeOnEose: false });
+
+    unsubscribe();
+  });
+
+  it('captures an independent `since` anchor on each re-subscribe call', async () => {
+    mockFetchEventsWithTimeout.mockReset();
+    mockFetchEventsWithTimeout.mockResolvedValue({ events: new Set(), timedOut: false });
+
+    const subscribeCalls: Array<Record<string, unknown>> = [];
+    const mockNdk = {
+      subscribe: vi.fn((filter: Record<string, unknown>) => {
+        subscribeCalls.push(filter);
+        return { on: vi.fn(), stop: vi.fn() };
+      }),
+    };
+
+    const mlsGroup = {
+      groupData: { nostrGroupId: new Uint8Array(32).fill(0xcd) },
+    };
+
+    const unsub1 = await subscribeToGroupMessages('g1', ['wss://r'], mlsGroup as never, mockNdk as never);
+    // Wait long enough to guarantee a distinct Unix-second tick on the second call.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const unsub2 = await subscribeToGroupMessages('g1', ['wss://r'], mlsGroup as never, mockNdk as never);
+
+    expect(subscribeCalls).toHaveLength(2);
+    const since1 = subscribeCalls[0].since as number;
+    const since2 = subscribeCalls[1].since as number;
+    expect(since2).toBeGreaterThan(since1);
+
+    unsub1();
+    unsub2();
+  });
+
+  it('backdates the `since` anchor by a clock-skew safety margin', async () => {
+    // Round-1 remediation: relays filter `since` against the event's signed
+    // `created_at`, not relay receipt time. A peer with a slow clock or a
+    // pre-signed event can publish into the EOSE→REQ gap with a created_at
+    // that is slightly behind our local wall clock. The anchor must therefore
+    // be backdated by a margin (>= 1 second to lock in that the margin is
+    // actually applied, not just an unmargined Math.floor).
+    mockFetchEventsWithTimeout.mockReset();
+    mockFetchEventsWithTimeout.mockResolvedValue({ events: new Set(), timedOut: false });
+
+    const subscribeCalls: Array<Record<string, unknown>> = [];
+    const mockNdk = {
+      subscribe: vi.fn((filter: Record<string, unknown>) => {
+        subscribeCalls.push(filter);
+        return { on: vi.fn(), stop: vi.fn() };
+      }),
+    };
+
+    const mlsGroup = {
+      groupData: { nostrGroupId: new Uint8Array(32).fill(0xef) },
+    };
+
+    const beforeCallSec = Math.floor(Date.now() / 1000);
+    const unsub = await subscribeToGroupMessages('g-skew', ['wss://r'], mlsGroup as never, mockNdk as never);
+    const since = subscribeCalls[0].since as number;
+
+    // Round-2 tightening: 5 s was deemed insufficient to absorb realistic
+    // NTP drift + scheduling jitter, so the constant was bumped to 30 s. The
+    // lower bound here (>= 10 s) proves the margin is materially applied,
+    // while leaving room to retune within 10–60 without breaking the test.
+    expect(since).toBeLessThanOrEqual(beforeCallSec - 10);
+    // Upper sanity bound on the margin so a future refactor doesn't silently
+    // backdate by hours. 60 s is the loose Nostr-convention ceiling.
+    expect(since).toBeGreaterThanOrEqual(beforeCallSec - 60);
+
+    unsub();
   });
 });
