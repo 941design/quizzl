@@ -13,7 +13,7 @@
  * Uses deterministic alice/bob keypairs from helpers/auth-helpers.ts.
  */
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { USER_A, USER_B, injectIdentity, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 
@@ -44,78 +44,71 @@ async function nip04Encrypt(
 }
 
 /**
- * Compute the kind-4 event id from its fields (same algorithm as NIP-01).
- */
-async function computeKind4Id(
-  pubkey: string,
-  createdAt: number,
-  kind: number,
-  tags: string[][],
-  content: string,
-): Promise<string> {
-  const { getEventHash } = await import('nostr-tools/pure');
-  return getEventHash({ pubkey, created_at: createdAt, kind, tags, content });
-}
-
-/**
  * Publish a hand-crafted kind-4 NIP-04 event directly to the relay WebSocket.
  * Returns the event id.
  */
 async function publishKind4ToRelay(
-  page: Page,
   senderPrivHex: string,
-  senderPubHex: string,
   recipientPubHex: string,
   plaintext: string,
 ): Promise<{ eventId: string; content: string }> {
   const encrypted = await nip04Encrypt(plaintext, senderPrivHex, recipientPubHex);
   const createdAt = Math.floor(Date.now() / 1000);
-  const eventId = await computeKind4Id(senderPubHex, createdAt, 4, [['p', recipientPubHex]], encrypted);
 
-  // Sign the event — for NIP-04 kind-4, sig is a schnorr signature over the event id.
-  // We use nostr-tools to sign it properly.
-  const { getSignature } = await import('nostr-tools/pure');
-  const sig = getSignature({ pubkey: senderPubHex, created_at: createdAt, kind: 4, tags: [['p', recipientPubHex]], content: encrypted }, new Uint8Array(Buffer.from(senderPrivHex, 'hex')));
-
-  const event = {
-    id: eventId,
-    pubkey: senderPubHex,
-    created_at: createdAt,
-    kind: 4,
-    tags: [['p', recipientPubHex]],
-    content: encrypted,
-    sig,
-  };
-
-  // Publish to relay via WebSocket
-  await page.evaluate(
-    ({ relayUrl, eventJson }) =>
-      new Promise<void>((resolve, reject) => {
-        const ws = new WebSocket(relayUrl);
-        ws.onopen = () => {
-          ws.send(JSON.stringify(['EVENT', eventJson]));
-          // Wait briefly for relay to process, then close
-          setTimeout(() => { ws.close(); resolve(); }, 500);
-        };
-        ws.onerror = () => reject(new Error('WebSocket error publishing kind-4 event'));
-      }),
-    { relayUrl: RELAY_URL, eventJson: event },
+  const { finalizeEvent } = await import('nostr-tools/pure');
+  const signed = finalizeEvent(
+    {
+      kind: 4,
+      created_at: createdAt,
+      tags: [['p', recipientPubHex]],
+      content: encrypted,
+    },
+    new Uint8Array(Buffer.from(senderPrivHex, 'hex')),
   );
 
-  return { eventId, content: plaintext };
+  await new Promise<void>((resolve, reject) => {
+    const ws = new WebSocket(RELAY_URL);
+    const timeout = setTimeout(() => {
+      try { ws.close(); } catch { /* ignore */ }
+      reject(new Error('Timed out publishing kind-4 to relay'));
+    }, 10_000);
+    ws.onopen = () => {
+      ws.send(JSON.stringify(['EVENT', signed]));
+      setTimeout(() => {
+        clearTimeout(timeout);
+        try { ws.close(); } catch { /* ignore */ }
+        resolve();
+      }, 500);
+    };
+    ws.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error(`WebSocket error publishing to ${RELAY_URL}`));
+    };
+  });
+
+  return { eventId: signed.id, content: plaintext };
 }
 
 test('alice receives a bare-plaintext kind-4 from bob; bell rings and chat bubble renders plaintext (AC-12)', async ({ browser }) => {
-  const alicePage = await browser.newPage();
-  const alicePriv = USER_A.privateKeyHex;
-  const alicePub = USER_A.pubkeyHex;
+  const ctx = await browser.newContext();
+  const alicePage = await ctx.newPage();
   const bobPriv = USER_B.privateKeyHex;
   const bobPub = USER_B.pubkeyHex;
+  const alicePub = USER_A.pubkeyHex;
 
   try {
-    // 1. Alice signs in
+    // 1. Alice signs in and gets Bob seeded as a contact so the chat view loads.
     await alicePage.goto('/');
     await injectIdentity(alicePage, USER_A);
+    const now = new Date().toISOString();
+    await alicePage.evaluate(
+      ({ peerPubkeyHex, ts }) => {
+        localStorage.setItem('lp_contacts_v1', JSON.stringify({
+          [peerPubkeyHex]: { pubkeyHex: peerPubkeyHex, firstSeenAt: ts, lastSeenAt: ts, archivedAt: null },
+        }));
+      },
+      { peerPubkeyHex: bobPub, ts: now },
+    );
     await alicePage.reload();
 
     // 2. Alice opens /contacts so the bell watcher is mounted
@@ -124,37 +117,29 @@ test('alice receives a bare-plaintext kind-4 from bob; bell rings and chat bubbl
 
     // 3. Bob publishes a bare-plaintext kind-4 to Alice
     const plaintext = 'hello from third-party client';
-    await publishKind4ToRelay(alicePage, bobPriv, bobPub, alicePub, plaintext);
+    await publishKind4ToRelay(bobPriv, alicePub, plaintext);
 
-    // 4. Wait for bell badge to become 1
+    // 4. Wait for the notification badge to appear (>= 1).
     await alicePage.waitForFunction(
       () => {
-        // Bell badge lives in the notification bell element — check the DOM.
-        const badge = document.querySelector('[data-testid="dm-bell-badge"], .dm-badge, [aria-label*="message"]');
+        const badge = document.querySelector('[data-testid="notification-badge"]');
         if (!badge) return false;
-        const count = parseInt(badge.textContent ?? badge.getAttribute('data-count') ?? '0', 10);
+        const count = parseInt((badge.textContent ?? '0').trim(), 10);
         return count >= 1;
       },
-      { timeout: 10_000 },
+      null,
+      { timeout: 15_000 },
     );
 
-    // 5. Click the bell to open the DM dropdown, find Bob, click into the chat
-    // The bell button lives at the top of the contacts page.
-    const bellButton = alicePage.getByRole('button', { name: /messages?|direct/i }).first();
-    await bellButton.click();
-    // Wait for the unread DM list to appear
-    const dmList = alicePage.getByRole('list', { name: /unread/i }).first();
+    // 5. Click the visible bell to open the dropdown, then click Bob's row.
+    await alicePage.getByTestId('notification-bell').filter({ visible: true }).first().click();
+    await alicePage.getByTestId(`notification-dm-${bobPub}`).filter({ visible: true }).first().click();
 
-    // Click Bob's row
-    const bobRow = dmList.getByText(/bob/i, { exact: false }).first();
-    await bobRow.click();
-
-    // 6. Assert the message bubble renders the plaintext
-    await alicePage.waitForLoadState('networkidle');
-    const bubbles = alicePage.locator('[data-testid="message-bubble"], .message-bubble').first();
-    await expect(bubbles).toBeVisible();
-    await expect(bubbles).toContainText(plaintext);
+    // 6. The chat opens — assert a message bubble renders the plaintext.
+    await alicePage.waitForURL(/\/contacts\/?\?id=/, { timeout: 10_000 });
+    const bubble = alicePage.locator('[data-testid^="msg-"]').filter({ hasText: plaintext }).first();
+    await expect(bubble).toBeVisible({ timeout: 15_000 });
   } finally {
-    await alicePage.close();
+    await ctx.close();
   }
 });

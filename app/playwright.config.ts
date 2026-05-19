@@ -32,9 +32,11 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
       },
+      // DM tests need the strfry relay just like groups tests, so they run in
+      // the same "groups" mode and are excluded from the fast suite.
       ...(isGroups
-        ? { testMatch: 'groups-*.spec.ts' }
-        : { testIgnore: 'groups-*.spec.ts' }),
+        ? { testMatch: ['groups-*.spec.ts', 'dm-*.spec.ts'] }
+        : { testIgnore: ['groups-*.spec.ts', 'dm-*.spec.ts'] }),
     },
   ],
 });

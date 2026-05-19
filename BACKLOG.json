@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-05-18T21:11:44Z",
+  "updated_at": "2026-05-19T06:02:43Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -260,6 +260,15 @@
       },
       "text": "subscribeToGroupMessages creates a fresh processedIds Set on every call; if two subscription instances overlap during rapid re-subscribe (e.g. on groups state change), the same event ID can be dispatched twice across instances — cross-instance dedup requires module-level state or guaranteed teardown ordering.",
       "created_at": "2026-05-18"
+    },
+    {
+      "slug": "dm-e2e-publish-via-app-refactor",
+      "scope": "any",
+      "anchor": {
+        "path": "app/tests/e2e/dm-giftwrap-bell.spec.ts"
+      },
+      "text": "DM e2e specs (dm-giftwrap-bell, dm-historical-recovery, dm-third-party-inbound) publish gift-wraps / kind-4 events directly to strfry via raw WebSocket from the test process. Violates the publish-via-app guideline (see CLAUDE.md \"E2E tests\"): tests pass even when the app's NDK/publish path is broken. Rewrite to publish through a second browser.newContext() that boots the peer and calls the app's publish helper. Open question for dm-third-party-inbound: the app likely has no kind-4 NIP-04 publish path; either confirm an existing UI/bridge route, or document this spec as the narrow exception with a fixture-loader pattern rather than inline WebSocket.",
+      "created_at": "2026-05-19"
     }
   ],
   "archive": [

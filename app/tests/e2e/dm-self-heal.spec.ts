@@ -33,77 +33,83 @@ test.afterEach(async ({ page }) => {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Seed a malformed DM row directly into IndexedDB before the chat mount. */
-async function seedMalformedRow(page: import('@playwright/test').Page, alicePrivHex: string): Promise<void> {
-  const now = Date.now();
-  // The raw JSON envelope string — this is the malformed content we expect
-  // the self-heal pass to correct.
-  const envelopeContent = JSON.stringify({ type: 'text', text: 'hello from envelope' });
-  const envelopeId = 'a'.repeat(64); // canonical id
+const ENVELOPE_CONTENT = JSON.stringify({ type: 'text', text: 'hello from envelope' });
+const ENVELOPE_ID = 'a'.repeat(64); // canonical 64-hex id
 
+/**
+ * Seed a malformed DM row in the idb-keyval store the app actually reads from.
+ *
+ * The app uses `idb-keyval` (DB="keyval-store", store="keyval") and the chat
+ * persistence layer keys rows under `quizzl:messages:dm:<peer-lowercase>`.
+ * The whole record is the message array — the IDB record's value is
+ * `ChatMessage[]`, not a single row.
+ */
+async function seedMalformedRow(page: import('@playwright/test').Page): Promise<void> {
+  const now = Date.now();
   await page.evaluate(
-    ({ alicePriv, alicePub, bobPub, envelopeContent, envelopeId, now }) => {
-      // Open IndexedDB and write directly to the messages store
-      const openReq = indexedDB.open('quizzl-messages');
-      openReq.onupgradeneeded = () => {
-        const db = openReq.result;
-        if (!db.objectStoreNames.contains('messages')) {
-          db.createObjectStore('messages', { keyPath: 'id' });
-        }
+    ({ bobPub, envelopeContent, envelopeId, now }) => {
+      const groupId = `dm:${bobPub.toLowerCase()}`;
+      const storageKey = `quizzl:messages:${groupId}`;
+      const malformedRow = {
+        id: envelopeId,
+        content: envelopeContent,
+        senderPubkey: bobPub,
+        groupId,
+        createdAt: now - 60_000,
       };
-      openReq.onsuccess = () => {
-        const db = openReq.result;
-        const tx = db.transaction('messages', 'readwrite');
-        const store = tx.objectStore('messages');
-        const malformedRow = {
-          id: envelopeId,
-          content: envelopeContent, // raw JSON string — the bug
-          senderPubkey: bobPub,     // peer-authored
-          groupId: `dm:${bobPub.slice(0, 64).toLowerCase()}`,
-          createdAt: now - 60_000,
+      return new Promise<void>((resolve, reject) => {
+        const openReq = indexedDB.open('keyval-store', 1);
+        openReq.onupgradeneeded = () => {
+          const db = openReq.result;
+          if (!db.objectStoreNames.contains('keyval')) {
+            db.createObjectStore('keyval');
+          }
         };
-        store.put(malformedRow);
-        tx.oncomplete = () => db.close();
-        tx.onerror = () => db.close();
-      };
+        openReq.onsuccess = () => {
+          const db = openReq.result;
+          const tx = db.transaction('keyval', 'readwrite');
+          tx.objectStore('keyval').put([malformedRow], storageKey);
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onerror = () => { db.close(); reject(tx.error); };
+        };
+        openReq.onerror = () => reject(openReq.error);
+      });
     },
     {
-      alicePriv,
-      alicePub: USER_A.pubkeyHex,
       bobPub: USER_B.pubkeyHex,
-      envelopeContent,
-      envelopeId,
+      envelopeContent: ENVELOPE_CONTENT,
+      envelopeId: ENVELOPE_ID,
       now,
     },
   );
 }
 
-/** Read a message row from IndexedDB by id. */
-async function readIdbRow(
+/** Read the persisted thread array for a DM key from the idb-keyval store. */
+async function readDmThread(
   page: import('@playwright/test').Page,
-  messageId: string,
-): Promise<any | null> {
-  return page.evaluate(
-    (id) =>
-      new Promise<any | null>((resolve) => {
-        const openReq = indexedDB.open('quizzl-messages');
-        openReq.onsuccess = () => {
-          const db = openReq.result;
-          if (!db.objectStoreNames.contains('messages')) {
-            resolve(null);
-            return;
-          }
-          const tx = db.transaction('messages', 'readonly');
-          const store = tx.objectStore('messages');
-          const getReq = store.get(id);
-          getReq.onsuccess = () => resolve(getReq.result ?? null);
-          getReq.onerror = () => resolve(null);
-          tx.oncomplete = () => db.close();
-        };
-        openReq.onerror = () => resolve(null);
-      }),
-    messageId,
-  );
+  peerPubkeyHex: string,
+): Promise<Array<{ id: string; content: string; senderPubkey: string; createdAt: number }> | null> {
+  return page.evaluate((peer) => {
+    const storageKey = `quizzl:messages:dm:${peer.toLowerCase()}`;
+    return new Promise<any[] | null>((resolve) => {
+      const openReq = indexedDB.open('keyval-store', 1);
+      openReq.onupgradeneeded = () => {
+        const db = openReq.result;
+        if (!db.objectStoreNames.contains('keyval')) {
+          db.createObjectStore('keyval');
+        }
+      };
+      openReq.onsuccess = () => {
+        const db = openReq.result;
+        const tx = db.transaction('keyval', 'readonly');
+        const getReq = tx.objectStore('keyval').get(storageKey);
+        getReq.onsuccess = () => resolve((getReq.result as any[]) ?? null);
+        getReq.onerror = () => resolve(null);
+        tx.oncomplete = () => db.close();
+      };
+      openReq.onerror = () => resolve(null);
+    });
+  }, peerPubkeyHex);
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
@@ -133,77 +139,49 @@ test(
     // Seed contact for Bob
     const now = new Date().toISOString();
     await page.evaluate(
-      ({ peerPubkeyHex, pubkeyHex, ts }) => {
+      ({ peerPubkeyHex, ts }) => {
         localStorage.setItem('lp_contacts_v1', JSON.stringify({
-          [peerPubkeyHex]: { pubkeyHex, firstSeenAt: ts, lastSeenAt: ts, archivedAt: null },
+          [peerPubkeyHex]: { pubkeyHex: peerPubkeyHex, firstSeenAt: ts, lastSeenAt: ts, archivedAt: null },
         }));
       },
-      { peerPubkeyHex: bobPub, pubkeyHex: alicePub, now },
+      { peerPubkeyHex: bobPub, ts: now },
     );
 
     // Seed the malformed row into IndexedDB
-    await seedMalformedRow(page, alicePriv);
+    await seedMalformedRow(page);
     await page.waitForTimeout(200); // let IDB write settle
 
     // Verify the malformed row is in IDB before opening the chat
-    const preChatRow = await readIdbRow(page, 'a'.repeat(64));
-    expect(preChatRow).not.toBeNull();
-    expect(preChatRow.content).toBe(JSON.stringify({ type: 'text', text: 'hello from envelope' }));
-    expect(preChatRow.content).not.toBe('hello from envelope');
+    const preChat = await readDmThread(page, bobPub);
+    expect(preChat).not.toBeNull();
+    expect(preChat!.length).toBe(1);
+    expect(preChat![0].content).toBe(ENVELOPE_CONTENT);
+    expect(preChat![0].content).not.toBe('hello from envelope');
 
     // ── 2. Navigate to Bob's DM chat ────────────────────────────────────────
-    await page.goto(`/contacts?id=bob&peer=${bobPub}`);
+    await page.goto(`/contacts?id=${bobPub}`);
     await page.waitForLoadState('networkidle');
 
     // The self-heal pass runs inside loadMessages inside ContactChat.init.
-    // We need to wait for the message to appear.
-    await page.waitForFunction(
-      () => {
-        // Look for any message element with the decoded text
-        const els = document.querySelectorAll('[data-testid="chat-bubble"], .chat-bubble, [class*="message"]');
-        return Array.from(els).some((el) => el.textContent?.includes('hello from envelope'));
-      },
-      null,
-      { timeout: 15_000 },
-    );
-
-    // ── 3. Assert: bubble renders the DECODED text (not the JSON string) ──
-    const bubbles = page.locator('[data-testid="chat-bubble"], .chat-bubble, [class*="message"]');
-    const bubbleCount = await bubbles.count();
-    expect(bubbleCount, 'at least one message bubble should be visible').toBeGreaterThan(0);
-
-    const firstBubble = bubbles.first();
-    const bubbleText = await firstBubble.textContent();
-    expect(bubbleText).toContain('hello from envelope');
-    // Must NOT contain the JSON string
-    expect(bubbleText).not.toContain('{"type":"text"');
+    // Look for the decoded text rendered in a chat bubble.
+    const bubble = page.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
+    await expect(bubble).toBeVisible({ timeout: 15_000 });
+    await expect(bubble).not.toContainText('{"type":"text"');
 
     // ── 4. page.reload() — verify persistence ───────────────────────────────
     await page.reload();
     await page.waitForLoadState('networkidle');
-
-    // Wait for the message to re-appear after reload
-    await page.waitForFunction(
-      () => {
-        const els = document.querySelectorAll('[data-testid="chat-bubble"], .chat-bubble, [class*="message"]');
-        return Array.from(els).some((el) => el.textContent?.includes('hello from envelope'));
-      },
-      null,
-      { timeout: 15_000 },
-    );
-
-    // ── 5. Assert: bubble STILL renders the decoded text after reload ─────
-    const afterReloadBubbles = page.locator('[data-testid="chat-bubble"], .chat-bubble, [class*="message"]');
-    const afterReloadText = (await afterReloadBubbles.first().textContent()) ?? '';
-    expect(afterReloadText).toContain('hello from envelope');
-    expect(afterReloadText).not.toContain('{"type":"text"');
+    const bubbleAfter = page.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
+    await expect(bubbleAfter).toBeVisible({ timeout: 15_000 });
+    await expect(bubbleAfter).not.toContainText('{"type":"text"');
 
     // ── 6. Inspect IDB directly — assert row was rewritten in place ──────
-    const idbRow = await readIdbRow(page, 'a'.repeat(64));
-    expect(idbRow).not.toBeNull();
-    expect(idbRow.content).toBe('hello from envelope'); // decoded, not the JSON string
-    // id and createdAt unchanged
-    expect(idbRow.id).toBe('a'.repeat(64));
+    const healed = await readDmThread(page, bobPub);
+    expect(healed).not.toBeNull();
+    const healedRow = healed!.find((m) => m.id === ENVELOPE_ID);
+    expect(healedRow).toBeDefined();
+    expect(healedRow!.content).toBe('hello from envelope');
+    expect(healedRow!.id).toBe(ENVELOPE_ID);
 
     await ctx.close();
   },
@@ -226,16 +204,16 @@ test(
 
     const now = new Date().toISOString();
     await page.evaluate(
-      ({ peerPubkeyHex, pubkeyHex, ts }) => {
+      ({ peerPubkeyHex, ts }) => {
         localStorage.setItem('lp_contacts_v1', JSON.stringify({
-          [peerPubkeyHex]: { pubkeyHex, firstSeenAt: ts, lastSeenAt: ts, archivedAt: null },
+          [peerPubkeyHex]: { pubkeyHex: peerPubkeyHex, firstSeenAt: ts, lastSeenAt: ts, archivedAt: null },
         }));
       },
-      { peerPubkeyHex: bobPub, pubkeyHex: alicePub, now },
+      { peerPubkeyHex: bobPub, ts: now },
     );
 
     // Seed malformed row
-    await seedMalformedRow(page, USER_A.privateKeyHex);
+    await seedMalformedRow(page);
     await page.waitForTimeout(200);
 
     // Verify healed marker is NOT set yet
@@ -245,16 +223,10 @@ test(
     expect(markerBefore).toBeNull();
 
     // First chat open
-    await page.goto(`/contacts?id=bob&peer=${bobPub}`);
+    await page.goto(`/contacts?id=${bobPub}`);
     await page.waitForLoadState('networkidle');
-    await page.waitForFunction(
-      () => {
-        const els = document.querySelectorAll('[data-testid="chat-bubble"], .chat-bubble, [class*="message"]');
-        return Array.from(els).some((el) => el.textContent?.includes('hello from envelope'));
-      },
-      null,
-      { timeout: 15_000 },
-    );
+    const bubble = page.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
+    await expect(bubble).toBeVisible({ timeout: 15_000 });
 
     // Healed marker should now be set
     const markerAfter = await page.evaluate(() =>
@@ -269,17 +241,8 @@ test(
     // in its healed form, not just decoded in-memory).
     await page.reload();
     await page.waitForLoadState('networkidle');
-    await page.waitForFunction(
-      () => {
-        const els = document.querySelectorAll('[data-testid="chat-bubble"], .chat-bubble, [class*="message"]');
-        return Array.from(els).some((el) => el.textContent?.includes('hello from envelope'));
-      },
-      null,
-      { timeout: 10_000 },
-    );
-
-    const text = (await page.locator('[data-testid="chat-bubble"], .chat-bubble, [class*="message"]').first().textContent()) ?? '';
-    expect(text).toContain('hello from envelope');
+    const bubbleAfter = page.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
+    await expect(bubbleAfter).toBeVisible({ timeout: 15_000 });
 
     await ctx.close();
   },

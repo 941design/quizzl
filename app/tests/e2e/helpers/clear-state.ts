@@ -17,6 +17,10 @@ const INDEXEDDB_DATABASES = [
  * IndexedDB deletions are properly awaited to prevent stale data on page reload.
  */
 export async function clearAppState(page: Page): Promise<void> {
+  // Skip if the page hasn't been navigated yet — about:blank denies access
+  // to localStorage and indexedDB, which would otherwise throw a SecurityError
+  // and mask the real test failure that prevented navigation.
+  if (page.url() === 'about:blank') return;
   await page.evaluate(async (dbNames) => {
     // Clear lp_* localStorage keys
     const keysToRemove: string[] = [];
