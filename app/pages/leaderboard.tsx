@@ -13,6 +13,7 @@ import {
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import NextLink from 'next/link';
+import { useRouter } from 'next/router';
 import { Button } from '@chakra-ui/react';
 import { readProgress, readSelectedTopics, readStudyTimes } from '@/src/lib/storage';
 import { useCopy } from '@/src/context/LanguageContext';
@@ -62,6 +63,7 @@ function calculateStreak(studyTimes: { sessions: { startedAt: string }[] }): num
 
 export default function LeaderboardPage() {
   const copy = useCopy();
+  const router = useRouter();
   const { profile } = useProfile();
   const { groups, getMemberScores, getMemberProfiles, ready: marmotReady } = useMarmot();
   const { pubkeyHex, npub } = useNostrIdentity();
@@ -180,6 +182,8 @@ export default function LeaderboardPage() {
               totalPoints={totalPoints}
               isYou={true}
               profile={profile}
+              onViewProfile={() => router.push('/settings')}
+              viewProfileLabel={copy.profile.viewProfile}
             />
 
             <Divider />
@@ -264,6 +268,8 @@ export default function LeaderboardPage() {
                     rank={idx + 2}
                     avatar={profileMap[score.pubkeyHex]?.avatar}
                     profileNickname={profileMap[score.pubkeyHex]?.nickname}
+                    onViewProfile={() => router.push(`/profile?pubkey=${score.pubkeyHex}`)}
+                    viewProfileLabel={copy.profile.viewProfile}
                   />
                   <Text fontSize="xs" color="textMuted" pl={2} mt={0.5}>
                     {copy.groups.fromGroup(groupName)}

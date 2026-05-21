@@ -115,6 +115,11 @@ const ICON_MAP: Record<string, Record<string, string>> = {
     toy: 'ph:bell-ringing-fill',
     default: 'ph:bell-bold',
   },
+  person: {
+    pixel: 'pixelarticons:user',
+    toy: 'ph:user-circle-fill',
+    default: 'ph:user-circle-bold',
+  },
 };
 
 type ThemeIconProps = {

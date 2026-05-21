@@ -363,6 +363,17 @@ type Copy = {
     backToContacts: string;
     contactNotFound: string;
   };
+  profile: {
+    pageTitle: string;
+    backLabel: string;
+    copyNpub: string;
+    copiedNpub: string;
+    sendDm: string;
+    archiveAction: string;
+    unarchiveAction: string;
+    viewProfile: string;
+    notFound: string;
+  };
   polls: {
     heading: (count: number) => string;
     noPolls: string;
@@ -794,6 +805,17 @@ const copy: Record<LanguageCode, Copy> = {
       backToContacts: 'Back to Contacts',
       contactNotFound: 'Contact not found.',
     },
+    profile: {
+      pageTitle: 'Profile',
+      backLabel: 'Back',
+      copyNpub: 'Copy',
+      copiedNpub: 'Copied!',
+      sendDm: 'Send message',
+      archiveAction: 'Hide contact',
+      unarchiveAction: 'Unarchive contact',
+      viewProfile: 'View profile',
+      notFound: 'Profile not found.',
+    },
     polls: {
       heading: (count: number) => count > 0 ? `Polls (${count})` : 'Polls',
       noPolls: 'No polls yet',
@@ -1212,6 +1234,17 @@ const copy: Record<LanguageCode, Copy> = {
       profileNameFallback: 'Kontakt ohne Namen',
       backToContacts: 'Zurück zu Kontakten',
       contactNotFound: 'Kontakt nicht gefunden.',
+    },
+    profile: {
+      pageTitle: 'Profil',
+      backLabel: 'Zurück',
+      copyNpub: 'Kopieren',
+      copiedNpub: 'Kopiert!',
+      sendDm: 'Nachricht senden',
+      archiveAction: 'Kontakt ausblenden',
+      unarchiveAction: 'Kontakt wieder einblenden',
+      viewProfile: 'Profil ansehen',
+      notFound: 'Profil nicht gefunden.',
     },
     polls: {
       heading: (count: number) => count > 0 ? `Umfragen (${count})` : 'Umfragen',

@@ -7,6 +7,7 @@ import {
   Box,
   Badge,
   Button,
+  IconButton,
   Image,
   Modal,
   ModalOverlay,
@@ -17,10 +18,10 @@ import {
   ModalCloseButton,
   useDisclosure,
 } from '@chakra-ui/react';
+import { useRouter } from 'next/router';
 import { useCopy } from '@/src/context/LanguageContext';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
-import NpubQrButton from '@/src/components/groups/NpubQrButton';
-import NpubQrModal from '@/src/components/groups/NpubQrModal';
+import ThemeIcon from '@/src/components/ThemeIcon';
 import type { MemberProfile } from '@/src/types';
 
 type MemberListProps = {
@@ -60,9 +61,7 @@ export default function MemberList({ memberPubkeys, ownPubkeyHex, memberProfiles
             isYou={isYou}
             isPending={isPending}
             profile={profile}
-            showQrLabel={copy.groups.showQr}
-            qrTitle={copy.groups.qrModalTitle}
-            qrErrorMessage={copy.groups.qrGenerationError}
+            viewProfileLabel={copy.profile.viewProfile}
             pendingLabel={copy.groups.memberPending}
             youLabel={copy.groups.memberYou}
             cancelInviteLabel={copy.groups.cancelInviteButton}
@@ -84,9 +83,7 @@ type MemberListItemProps = {
   isYou: boolean;
   isPending: boolean;
   profile?: MemberProfile;
-  showQrLabel: string;
-  qrTitle: string;
-  qrErrorMessage: string;
+  viewProfileLabel: string;
   pendingLabel: string;
   youLabel: string;
   cancelInviteLabel: string;
@@ -103,9 +100,7 @@ function MemberListItem({
   isYou,
   isPending,
   profile,
-  showQrLabel,
-  qrTitle,
-  qrErrorMessage,
+  viewProfileLabel,
   pendingLabel,
   youLabel,
   cancelInviteLabel,
@@ -115,7 +110,7 @@ function MemberListItem({
   cancelLabel,
   onCancelInvite,
 }: MemberListItemProps) {
-  const qrDisclosure = useDisclosure();
+  const router = useRouter();
   const cancelDisclosure = useDisclosure();
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -180,10 +175,13 @@ function MemberListItem({
                 {pendingLabel}
               </Badge>
             )}
-            <NpubQrButton
-              label={showQrLabel}
-              onClick={qrDisclosure.onOpen}
-              data-testid={`member-show-qr-${pubkey.slice(0, 8)}`}
+            <IconButton
+              aria-label={viewProfileLabel}
+              icon={<ThemeIcon name="person" size={18} />}
+              variant="ghost"
+              size="xs"
+              onClick={() => isYou ? router.push('/settings') : router.push(`/profile?pubkey=${pubkey}`)}
+              data-testid={`member-view-profile-${pubkey.slice(0, 8)}`}
             />
           </HStack>
           <HStack spacing={2}>
@@ -211,15 +209,6 @@ function MemberListItem({
           </HStack>
         </HStack>
       </Box>
-
-      <NpubQrModal
-        isOpen={qrDisclosure.isOpen}
-        onClose={qrDisclosure.onClose}
-        title={qrTitle}
-        mode="display"
-        npub={npub}
-        qrErrorMessage={qrErrorMessage}
-      />
 
       <Modal isOpen={cancelDisclosure.isOpen} onClose={cancelDisclosure.onClose} isCentered>
         <ModalOverlay />

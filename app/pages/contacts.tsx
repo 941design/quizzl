@@ -12,6 +12,7 @@ import {
   Divider,
   Flex,
   Heading,
+  IconButton,
   LinkBox,
   LinkOverlay,
   Radio,
@@ -19,6 +20,7 @@ import {
   Text,
   VStack,
 } from '@chakra-ui/react';
+import ThemeIcon from '@/src/components/ThemeIcon';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import ContactChat from '@/src/components/contacts/ContactChat';
 import { useCopy } from '@/src/context/LanguageContext';
@@ -31,6 +33,7 @@ import type { MemberProfile, UserProfile } from '@/src/types';
 
 function ContactListView() {
   const copy = useCopy();
+  const router = useRouter();
   const { pubkeyHex } = useNostrIdentity();
   const [showHidden, setShowHidden] = useState(false);
   const contacts = useMemo(
@@ -114,6 +117,18 @@ function ContactListView() {
                         {copy.contacts.hiddenBadge}
                       </Badge>
                     ) : null}
+                    <IconButton
+                      aria-label={copy.profile.viewProfile}
+                      icon={<ThemeIcon name="person" size={18} />}
+                      variant="ghost"
+                      size="sm"
+                      flexShrink={0}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        router.push(`/profile?pubkey=${contact.pubkeyHex}`);
+                      }}
+                    />
                   </Flex>
                 </LinkBox>
               );

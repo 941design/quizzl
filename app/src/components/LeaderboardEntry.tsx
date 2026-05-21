@@ -1,5 +1,5 @@
 import React from 'react';
-import { HStack, Box, Text, Badge } from '@chakra-ui/react';
+import { HStack, Box, Text, Badge, IconButton } from '@chakra-ui/react';
 import { useCopy } from '@/src/context/LanguageContext';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
@@ -12,6 +12,8 @@ type LeaderboardEntryProps = {
   totalPoints: number;
   isYou?: boolean;
   profile?: UserProfile | null;
+  onViewProfile?: () => void;
+  viewProfileLabel?: string;
 };
 
 export default function LeaderboardEntry({
@@ -20,6 +22,8 @@ export default function LeaderboardEntry({
   totalPoints,
   isYou = false,
   profile = null,
+  onViewProfile,
+  viewProfileLabel,
 }: LeaderboardEntryProps) {
   const copy = useCopy();
   const { cardStyle, isFunTheme } = useThemeStyles();
@@ -56,11 +60,22 @@ export default function LeaderboardEntry({
       </Box>
       {/* Label */}
       <Box flex="1">
-        <ProfileSummary
-          profile={profile ?? { nickname: label, avatar: null, badgeIds: [] }}
-          fallbackName={label}
-          size="sm"
-        />
+        <HStack spacing={2} align="center">
+          <ProfileSummary
+            profile={profile ?? { nickname: label, avatar: null, badgeIds: [] }}
+            fallbackName={label}
+            size="sm"
+          />
+          {onViewProfile && (
+            <IconButton
+              aria-label={viewProfileLabel ?? 'View profile'}
+              icon={<ThemeIcon name="person" size={16} />}
+              variant="ghost"
+              size="xs"
+              onClick={onViewProfile}
+            />
+          )}
+        </HStack>
         {isYou && (
           <Badge fontSize="xs" variant="subtle">
             {copy.leaderboard.youBadge}
