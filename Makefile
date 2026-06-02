@@ -6,7 +6,7 @@ PLAYWRIGHT_STAMP := $(APP_DIR)/node_modules/.playwright_$(shell uname -s)-$(shel
 -include .env
 export
 
-.PHONY: help test build test-unit test-e2e test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check deploy-dryrun ssl-cert ssl-cert-assets ensure-deps ensure-playwright
+.PHONY: help test build test-unit test-e2e test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check deploy-dryrun maintenance maintenance-check ssl-cert ssl-cert-assets ensure-deps ensure-playwright
 
 # Default target
 .DEFAULT_GOAL := help
@@ -19,6 +19,10 @@ FTP_PATH := $(or $(HOSTEUROPE_FTP_PATH),/)
 
 # Local paths for deployment
 LOCAL_DIST := $(APP_DIR)/out
+
+# Maintenance-mode source tree (must contain only index.html and any assets the
+# maintenance page references). Mirrored as-is to the remote root with --delete.
+MAINTENANCE_DIST := maintenance
 
 help: ## Show this help message
 	@echo "Quizzl"
@@ -153,6 +157,36 @@ deploy-dryrun: ## Show what would be deployed (no upload)
 	@echo "  HOSTEUROPE_FTP_USER=$(FTP_USER)"
 	@if [ -n "$(FTP_PASS)" ]; then echo "  HOSTEUROPE_FTP_PASS=****"; else echo "  HOSTEUROPE_FTP_PASS=[NOT SET]"; fi
 	@echo "  HOSTEUROPE_FTP_PATH=$(FTP_PATH)"
+
+# =============================================================================
+# Maintenance Mode
+# =============================================================================
+# Takes the live site offline by mirroring $(MAINTENANCE_DIST) onto the remote
+# root with --delete. After this target completes, the only file served from
+# $(FTP_HOST)$(FTP_PATH) is the maintenance index.html (all subpages,
+# _next/ chunks, assets, etc. are removed). Restore by running `make deploy`.
+
+maintenance-check: ## Verify maintenance prerequisites
+	@echo "Checking maintenance prerequisites..."
+	@if [ -z "$(FTP_HOST)" ]; then echo "ERROR: HOSTEUROPE_FTP_HOST not set"; exit 1; fi
+	@if [ -z "$(FTP_USER)" ]; then echo "ERROR: HOSTEUROPE_FTP_USER not set"; exit 1; fi
+	@if [ -z "$(FTP_PASS)" ]; then echo "ERROR: HOSTEUROPE_FTP_PASS not set"; exit 1; fi
+	@if [ ! -d $(MAINTENANCE_DIST) ]; then echo "ERROR: $(MAINTENANCE_DIST)/ not found"; exit 1; fi
+	@if [ ! -f $(MAINTENANCE_DIST)/index.html ]; then echo "ERROR: $(MAINTENANCE_DIST)/index.html missing"; exit 1; fi
+	@if ! command -v lftp >/dev/null 2>&1; then echo "ERROR: lftp not installed. Run: brew install lftp"; exit 1; fi
+	@echo "All prerequisites satisfied."
+
+maintenance: maintenance-check ## Take site offline: wipe remote tree and publish only $(MAINTENANCE_DIST)/index.html
+	@echo "Putting $(FTP_HOST)$(FTP_PATH) into maintenance mode..."
+	@echo "(this DELETES every remote file/dir not present in $(MAINTENANCE_DIST)/)"
+	@lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
+		set ssl:verify-certificate no; \
+		mkdir -p $(FTP_PATH); \
+		mirror -R --delete --verbose --parallel=4 \
+			$(MAINTENANCE_DIST)/ $(FTP_PATH)/; \
+		bye"
+	@echo ""
+	@echo "Maintenance mode active. Restore with: make deploy"
 
 # =============================================================================
 # SSL Certificate (Let's Encrypt for HostEurope)

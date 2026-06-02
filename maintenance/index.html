@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Quizzl — Maintenance</title>
+<style>
+  :root { color-scheme: light dark; }
+  html, body { margin: 0; padding: 0; min-height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #f7f7f8;
+    color: #1d1d1f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.25rem;
+    box-sizing: border-box;
+    line-height: 1.55;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0d0d10; color: #e7e7ea; }
+    .card { background: #16161a; box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.45); }
+    .divider { background: #2a2a30; }
+    .muted { color: #9a9aa3; }
+  }
+  .card {
+    max-width: 640px;
+    width: 100%;
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 2rem 1.75rem;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02) inset, 0 12px 32px rgba(20,20,40,0.07);
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 0.25rem; letter-spacing: -0.01em; }
+  h2 { font-size: 1.1rem; margin: 0 0 0.25rem; letter-spacing: -0.01em; }
+  p { margin: 0.5rem 0; }
+  .muted { color: #6a6a73; font-size: 0.92rem; }
+  .divider { height: 1px; background: #ececf0; margin: 1.5rem 0; border: 0; }
+  .lang { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: #8a8a93; margin-bottom: 0.35rem; }
+  .brand { font-weight: 600; }
+</style>
+</head>
+<body>
+  <main class="card" role="main">
+    <p class="lang">English</p>
+    <h1>Quizzl is temporarily offline for maintenance.</h1>
+    <p>We have taken the app down while we investigate and fix an issue with how inbound direct messages are filtered. No action is required on your side.</p>
+    <p class="muted">Your account, groups, and messages remain intact. We will be back shortly.</p>
+
+    <hr class="divider">
+
+    <p class="lang">Deutsch</p>
+    <h2>Quizzl ist vorübergehend wegen Wartungsarbeiten offline.</h2>
+    <p>Wir haben die App kurzzeitig abgeschaltet, während wir ein Problem mit der Filterung eingehender Direktnachrichten untersuchen und beheben. Es ist nichts zu tun.</p>
+    <p class="muted">Konto, Gruppen und Nachrichten bleiben erhalten. Wir sind in Kürze wieder da.</p>
+
+    <hr class="divider">
+    <p class="muted">— <span class="brand">Quizzl</span></p>
+  </main>
+</body>
+</html>
