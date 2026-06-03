@@ -11,8 +11,6 @@
  *   - Alice has a group visible in her groups list.
  *   - Bob has received the Welcome and the group appears in his list.
  *   - isAllowedDmSender(bob, alice.groups, alice.pubkey) === true.
- *
- * Both pages must already be on /groups/ (groups-empty-state or groups-list visible).
  */
 
 import { Page, expect } from '@playwright/test';
@@ -22,9 +20,15 @@ import { dismissErrorOverlay } from './dismiss-error-overlay';
 /**
  * Alice creates a named group, invites Bob by npub, and waits for Bob to join.
  *
- * @param alicePage    Page where Alice is already on /groups/
+ * Bob navigates to /groups/ BEFORE Alice's flow so that stale gift wraps from
+ * previous test runs arrive and are processed (their eventIds get marked as seen
+ * by the production fix in welcomeSubscription). We then clear only the pending
+ * invitations queue (not the seen-set), so when Alice's fresh invite arrives it
+ * is the sole entry in the queue.
+ *
+ * @param alicePage    Page logged in as Alice
  * @param inviteeNpub  Bob's npub (bech32 public key)
- * @param bobPage      Page where Bob can receive Welcome events
+ * @param bobPage      Page logged in as Bob
  * @param groupName    Display name for the new group
  */
 export async function createGroupAndInvite(
@@ -33,13 +37,30 @@ export async function createGroupAndInvite(
   bobPage: Page,
   groupName: string,
 ): Promise<void> {
-  // Ensure Alice is on the groups page
+  // Step 1: Bob navigates to /groups/ early so the welcome subscription is live.
+  // Stale relay gift wraps arrive and are processed here; their eventIds are
+  // recorded in the seen-set by the production fix.
+  await bobPage.goto('/groups/');
+  await expect(
+    bobPage.getByTestId('groups-empty-state').or(bobPage.getByTestId('groups-list')),
+  ).toBeVisible({ timeout: 30_000 });
+
+  // Step 2: Wait for stale relay events to arrive and be marked as seen.
+  await bobPage.waitForTimeout(10_000);
+
+  // Step 3: Clear only the pending invitations queue — NOT the seen-set.
+  // Stale eventIds remain marked so they cannot re-appear as new invitations.
+  await bobPage.evaluate(() => {
+    localStorage.removeItem('lp_pendingInvitations_v1');
+  });
+
+  // Step 4: Alice navigates to the groups page.
   await alicePage.goto('/groups/');
   await expect(
     alicePage.getByTestId('groups-empty-state').or(alicePage.getByTestId('groups-list')),
   ).toBeVisible({ timeout: 30_000 });
 
-  // Alice creates the group
+  // Step 5: Alice creates the group.
   await alicePage.getByTestId('create-group-btn').click();
   await expect(alicePage.getByTestId('create-group-modal-content')).toBeVisible();
   await alicePage.getByTestId('create-group-name-input').fill(groupName);
@@ -47,10 +68,10 @@ export async function createGroupAndInvite(
   await expect(alicePage.getByText(groupName)).toBeVisible({ timeout: 30_000 });
   await expect(alicePage.getByTestId('create-group-modal-content')).not.toBeVisible({ timeout: 10_000 });
   await dismissErrorOverlay(alicePage);
-  // Give the group state time to stabilise before inviting
+  // Give the group state time to stabilise before inviting.
   await alicePage.waitForTimeout(3_000);
 
-  // Open the group detail and invite Bob
+  // Step 6: Open the group detail and invite Bob.
   await alicePage.locator('[data-testid^="group-card-"]', { hasText: groupName }).click();
   await expect(alicePage.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
@@ -58,17 +79,26 @@ export async function createGroupAndInvite(
   await expect(alicePage.getByTestId('invite-member-modal-content')).toBeVisible();
   await alicePage.getByTestId('invite-npub-input').fill(inviteeNpub);
   await alicePage.getByTestId('invite-submit-btn').click();
+
+  // Step 7: Wait for invite-success before timing relay delivery.
   await expect(alicePage.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
   await dismissErrorOverlay(alicePage);
-  // Give the Welcome event time to propagate
-  await alicePage.waitForTimeout(3_000);
 
-  // Bob waits for the Welcome and the group to appear in his list
+  // Step 8: Give the relay a few seconds to deliver Alice's fresh gift wrap to
+  // Bob's already-running subscription. The eventId is NOT in the seen-set so
+  // it will be enqueued as the only pending invitation.
   await bobPage.waitForTimeout(5_000);
-  await bobPage.goto('/groups/');
-  await expect(
-    bobPage.getByTestId('groups-empty-state').or(bobPage.getByTestId('groups-list')),
-  ).toBeVisible({ timeout: 30_000 });
+
+  // Step 9: Bob is already on /groups/ — wait for the pending invitations section.
+  // Under pull-only invitations (Walled Garden v2), Bob must explicitly Accept
+  // the pending invitation before the group appears in his list.
+  await expect(bobPage.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 30_000 });
+
+  // Step 10: Accept the first (and only) pending invitation.
+  // The queue contains exactly one entry — Alice's fresh invite — because stale
+  // eventIds were cleared above and the seen-set prevented their re-enqueue.
+  await bobPage.locator('[data-testid^="accept-invitation-"]').first().click();
+
   await expect(bobPage.getByText(groupName)).toBeVisible({ timeout: 90_000 });
 
   // Decode inviteeNpub to hex so the IDB poll can compare memberPubkeys

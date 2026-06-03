@@ -1,0 +1,106 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-03T14:50:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the migration backfill effect live exclusively in `MarmotContext.tsx` with no new module or file introduced for the migration logic itself? Are the four purge helpers (`contacts.ts`, `chatPersistence.ts`, `unreadStore.ts`, `reactions/api.ts`) byte-for-byte unchanged in their function bodies — with the only change being the `knownPeers` value threaded in via the `getWhitelist` closure?"
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the `MarmotContext` module be deleted and rewritten without modifying any file outside `app/src/context/MarmotContext.tsx`? Specifically: does the migration backfill effect access `knownPeers` only through the `rememberKnownPeers` / `loadKnownPeers` API from `knownPeers.ts`, and does it trigger the purge sweep only through the existing `getWhitelist` closure pattern — with no new direct calls into purge helper internals?"
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the migration backfill effect contain any TODO, FIXME, or stub marker? Is there any code path where the migration flag `lp_knownPeersMigrated_v2` is set BEFORE the purge sweep completes — which would leave the migration in a half-applied state on a mid-run tab close?"
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Is the migration backfill effect idempotent across page reloads? Specifically: if `lp_knownPeersMigrated_v2` is absent on boot, does the migration run exactly once and set the flag? If the tab is closed between `rememberKnownPeers` and the flag write (simulated by calling the seed step but not the flag-write step), does the next boot re-run the full migration from scratch without producing duplicate or corrupted `lp_knownPeers_v1` data?"
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the migration notice banner ONLY display a static, hardcoded UI string (from `i18n.ts`) and NEVER render any peer pubkey, contact name, or other user-derived content? Is the banner's dismissal gated on a localStorage flag (`lp_knownPeersMigrationNoticeAck_v1`) so that a page-injected script cannot permanently suppress the notice by writing that key before migration runs?"
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-7",
+      "question": "After migration backfill seeds `lp_knownPeers_v1` from current group members and the purge sweep runs, are ALL of the following true: (a) IDB DM threads for current-group members still exist; (b) IDB DM threads for strangers (peers in IDB but not in any current group and not in `knownPeers`) are deleted; (c) unread counters for strangers are cleared; (d) contact entries for strangers are removed; (e) reaction state for strangers is purged? Do the four purge helper function bodies contain no new code — only the `knownPeers` argument threading changed?"
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-8",
+      "question": "In a scenario where a user has both a current group member (peer A) and a former group member now in `knownPeers` but not in any current group (peer B), does the purge sweep spare both A and B across all four surfaces (threads, unread counters, contacts, reactions)? Does a stranger (peer C, in neither set) get purged from all four surfaces in the same sweep?"
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-1",
+      "question": "On boot, does `MarmotContext.tsx` check `localStorage['lp_knownPeersMigrated_v2']` BEFORE the purge sweep fires? If the flag is truthy, is the migration backfill skipped entirely — with the purge sweep still running normally using whatever `knownPeers` is already in localStorage? Show the conditional guard in the relevant code section."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-2",
+      "question": "Does the migration backfill call `rememberKnownPeers` with the union of ALL `group.memberPubkeys` across every currently joined MLS group, excluding own pubkey, and are all entries lowercased before storage? After `rememberKnownPeers` returns, does `loadKnownPeers()` return a set that includes every current-group member pubkey (lowercased, own pubkey excluded)?"
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-3",
+      "question": "Is `rememberKnownPeers` called BEFORE the purge sweep fires within the migration backfill sequence? (This ordering is critical: if the purge sweep runs with an empty `knownPeers`, ever-known peers will be misclassified as strangers.) Show the sequential call order in the migration effect body."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-4",
+      "question": "Is `localStorage['lp_knownPeersMigrated_v2']` set to a truthy value (e.g. the string `'1'`) AFTER — not before — the purge sweep completes? On subsequent boot (flag present), is the migration backfill effect skipped — confirmed by the absence of a second `dm:walled-garden-migration-complete` log entry?"
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-5",
+      "question": "On first navigation to `/contacts/` after a successful migration (with `lp_knownPeersMigrationNoticeAck_v1` absent), does a banner appear containing the exact text 'We've upgraded your contact privacy. Some old contacts may no longer be reachable unless you share a group with them again.'? After clicking the dismiss button, is `lp_knownPeersMigrationNoticeAck_v1` set in localStorage? On the next page reload, is the banner absent?"
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "question_id": "VQ-S3-PI-001",
+      "phase": "post-impl",
+      "category": "CORRECTNESS",
+      "question": "The migration backfill effect depends on `[ready, groups.length, pubkeyHex]`. If `groups.length` is 0 on first boot (user has no groups), does `rememberKnownPeers([])` followed by the purge sweep correctly delete ALL IDB DM threads, unread counters, contacts, and reactions — since every peer is a stranger when no groups exist?"
+    },
+    {
+      "question_id": "VQ-S3-PI-002",
+      "phase": "post-impl",
+      "category": "RACE_CONDITION",
+      "question": "The migration effect and the AC-EVER-4 maintenance effect both fire on `[ready, groups.length, pubkeyHex]`. React may batch or sequence these effects in any order within the same render cycle. If AC-EVER-4 fires BEFORE the migration effect, does this cause any double-write to `lp_knownPeers_v1`? Is a double-write of the same pubkeys via `rememberKnownPeers` safe (idempotent)?"
+    },
+    {
+      "question_id": "VQ-S3-PI-003",
+      "phase": "post-impl",
+      "category": "UX",
+      "question": "The `MigrationNoticeBanner` initialises `dismissed` with `useState(() => isMigrationNoticeAcknowledged())` — a lazy initialiser that runs once on mount. If the user opens the contacts page, dismisses the banner, then navigates away and back without a full page reload, does the banner remain hidden (React state preserved in the SPA) without re-checking localStorage?"
+    }
+  ]
+}

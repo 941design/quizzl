@@ -42,6 +42,7 @@ import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGr
 import { appendMessage, loadMessages, purgeStrangerDmThreads } from '@/src/lib/marmot/chatPersistence';
 import { purgeStrangerContacts } from '@/src/lib/contacts';
 import { purgeStrangerDmReactions } from '@/src/lib/reactions/api';
+import { loadKnownPeers, rememberKnownPeers, knownPeersMigrationComplete, markKnownPeersMigrationComplete } from '@/src/lib/knownPeers';
 import { buildDispatcher } from '@/src/lib/marmot/registerHandlers';
 import { applyInboundRumor } from '@/src/lib/reactions/api';
 import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
@@ -283,6 +284,10 @@ type MarmotContextValue = {
   cancelPendingInvitation: (groupId: string, pubkey: string, sendAnnouncement?: (content: string) => Promise<void>) => Promise<{ ok: boolean; error?: string; raceDetected?: boolean; announcementError?: string }>;
   /** Proactive sweep: emit PROFILE_REQUEST_KIND for all stale members in a single group. Fire-and-forget. */
   requestProfilesIfStale: (groupId: string) => Promise<void>;
+  /** Accept a pending invitation: calls joinGroupFromWelcome, removes from queue on success/failure. */
+  acceptPendingInvitation: (id: string) => Promise<void>;
+  /** Decline a pending invitation: removes from queue, no network call. */
+  declinePendingInvitation: (id: string) => Promise<void>;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -492,12 +497,106 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   // DM peers are strangers — the purge MUST run to clean up stale threads/contacts.
   // Trigger is reactive (useEffect dependency), NOT a polling timer (AC-PURGE-2,
   // VQ-S3-011).
+  //
+  // ORDERING: AC-EVER-4 maintenance runs FIRST (below), purge runs SECOND (this
+  // effect). On every membership change, knownPeers is seeded from current groups
+  // before the purge consults it, so ever-known ex-members are never misclassified
+  // as strangers even when knownPeers is cold (e.g. first boot of the S3 migration).
+
+  // AC-MIGRATE-1: One-time migration backfill effect (S3).
+  // Runs after boot hydration. If the migration flag is absent, seeds knownPeers
+  // from all current group members (AC-MIGRATE-2) and immediately runs the purge
+  // sweep with the freshly seeded set (AC-MIGRATE-3) before the normal purge fires.
+  // The flag is written ONLY after a successful purge (AC-MIGRATE-4) so that a
+  // mid-run tab-close causes a full retry on the next boot (idempotent).
+  //
+  // ORDERING: declared BEFORE the AC-EVER-4 maintenance effect and the normal purge
+  // sweep effect so that on first boot the migration seed runs first, preventing
+  // ever-known peers from being misclassified as strangers.
+  useEffect(() => {
+    if (!ready) return;
+    if (!pubkeyHex) return;
+    if (knownPeersMigrationComplete()) return; // AC-MIGRATE-1: already migrated
+
+    // AC-MIGRATE-2: seed from current group members, excluding own pubkey.
+    const ownLower = pubkeyHex.toLowerCase();
+    const allMemberPubkeys: string[] = [];
+    for (const group of groupsRef.current) {
+      for (const member of group.memberPubkeys) {
+        if (member.toLowerCase() === ownLower) continue;
+        allMemberPubkeys.push(member);
+      }
+    }
+    rememberKnownPeers(allMemberPubkeys);
+
+    // AC-MIGRATE-3: run the purge sweep with the freshly seeded knownPeers.
+    // getWhitelist reads loadKnownPeers() synchronously so it picks up the
+    // just-seeded set written above.
+    const getWhitelist = () => ({
+      groups: groupsRef.current,
+      knownPeers: loadKnownPeers(),
+      ownPubkeyHex: pubkeyHex,
+    });
+
+    void (async () => {
+      try {
+        purgeStrangerDmCounters(getWhitelist);
+        const contactsResult = purgeStrangerContacts(getWhitelist);
+        const [threadsResult] = await Promise.all([
+          purgeStrangerDmThreads(getWhitelist),
+          purgeStrangerDmReactions(getWhitelist),
+        ]);
+        // AC-MIGRATE-4: mark migration complete AFTER successful purge.
+        // If the async block throws before reaching this line, the flag is NOT
+        // set and the next boot retries the full migration from scratch.
+        markKnownPeersMigrationComplete();
+        console.info('[Marmot] dm:walled-garden-migration-complete', {
+          peersSeeded: allMemberPubkeys.length,
+          contactsDeleted: contactsResult.deleted,
+          threadsDeleted: threadsResult.deleted,
+        });
+      } catch (err) {
+        // Don't set flag — next boot retries (AC-MIGRATE-4: idempotent).
+        console.warn('[Marmot] migration purge failed, will retry on next boot', err);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, groups.length, pubkeyHex]);
+
+  // AC-EVER-4: Maintain the ever-known peers set.
+  // Runs after boot hydration and on every group-membership change. Collects all
+  // memberPubkeys across current groups, filters out own pubkey, and persists them
+  // to lp_knownPeers_v1 so that ex-members remain reachable after they leave.
+  // AC-EVER-5: rememberKnownPeers never removes entries — only adds.
+  useEffect(() => {
+    if (!ready) return;
+    // AC-EVER-2: own pubkey must be known to filter it out. If pubkeyHex is not
+    // resolved yet, skip — the effect re-fires when pubkeyHex becomes available.
+    if (!pubkeyHex) return;
+    const ownLower = pubkeyHex.toLowerCase();
+    const allMemberPubkeys: string[] = [];
+    for (const group of groupsRef.current) {
+      for (const memberPubkey of group.memberPubkeys) {
+        if (memberPubkey.toLowerCase() === ownLower) continue;
+        allMemberPubkeys.push(memberPubkey);
+      }
+    }
+    rememberKnownPeers(allMemberPubkeys);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, groups, pubkeyHex]);
+
   useEffect(() => {
     if (!ready) return;
 
     // Use groupsRef.current (not the stale closure var `groups`) so the whitelist
     // always reflects the current membership even when groups.length hasn't changed.
-    const getWhitelist = () => ({ groups: groupsRef.current, ownPubkeyHex: pubkeyHex });
+    // loadKnownPeers() is synchronous — reads localStorage at call time so the
+    // purge always works with the latest ever-known set (seeded above by AC-EVER-4).
+    const getWhitelist = () => ({
+      groups: groupsRef.current,
+      knownPeers: loadKnownPeers(),
+      ownPubkeyHex: pubkeyHex,
+    });
 
     void (async () => {
       try {
@@ -1429,6 +1528,25 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     [groups, reloadGroups, markBackupDirty, pubkeyHex],
   );
 
+  // S2: Accept a pending invitation — calls joinGroupFromWelcome via the stored
+  // welcomeEventJson, removes from queue on success or MLS failure, fires onGroupJoined.
+  const acceptPendingInvitation = useCallback(async (id: string): Promise<void> => {
+    const client = clientRef.current;
+    if (!client) throw new Error('Marmot client not initialized');
+    const { acceptPendingInvitation: doAccept } = await import('@/src/lib/marmot/welcomeSubscription');
+    await doAccept(id, client, async (joinedGroup) => {
+      await reloadGroups();
+      markBackupDirty(true);
+      console.info('[Marmot] Accepted invitation and joined group:', joinedGroup.name);
+    });
+  }, [reloadGroups, markBackupDirty]);
+
+  // S2: Decline a pending invitation — removes from queue, no network call.
+  const declinePendingInvitation = useCallback(async (id: string): Promise<void> => {
+    const { declinePendingInvitation: doDecline } = await import('@/src/lib/marmot/welcomeSubscription');
+    await doDecline(id);
+  }, []);
+
   // AC-025: Single-group variant of the app-start sweep. Emits PROFILE_REQUEST_KIND
   // for every stale member in the given group, scoped to that group only.
   const requestProfilesIfStale = useCallback(async (groupId: string): Promise<void> => {
@@ -1499,6 +1617,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       isPendingMember,
       cancelPendingInvitation,
       requestProfilesIfStale,
+      acceptPendingInvitation,
+      declinePendingInvitation,
     }),
     [
       ready,
@@ -1528,6 +1648,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       isPendingMember,
       cancelPendingInvitation,
       requestProfilesIfStale,
+      acceptPendingInvitation,
+      declinePendingInvitation,
     ]
   );
 
@@ -1567,6 +1689,8 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   isPendingMember: async () => false,
   cancelPendingInvitation: async () => ({ ok: false, error: 'not_ready' }),
   requestProfilesIfStale: NOOP_ASYNC,
+  acceptPendingInvitation: NOOP_ASYNC,
+  declinePendingInvitation: NOOP_ASYNC,
 };
 
 export function useMarmot(): MarmotContextValue {

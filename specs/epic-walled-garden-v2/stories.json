@@ -1,0 +1,274 @@
+{
+  "epic_name": "walled-garden-v2",
+  "created_at": "2026-06-03T14:45:00Z",
+  "updated_at": "2026-06-03T14:45:00Z",
+  "total_stories": 4,
+  "story_order": ["S1", "S2", "S3", "S4"],
+  "dependency_notes": "S1 is the foundation: it creates knownPeers.ts and extends isAllowedDmSender. S2 depends on S1 (MarmotContext wiring consumes knownPeers, welcomeSubscription queues instead of auto-accepts). S3 depends on S1 and S2 (migration effect calls rememberKnownPeers from S1; purge uses extended isAllowedDmSender from S1; migration notice is revealed after S2 acceptance flow is in place). S4 depends on S1, S2, and S3 (all features must exist before test surface can assert them end-to-end).",
+  "mock_resolution_plan": "No temporary mocks are introduced. S2 has a cross-story seam dependency on S1's knownPeers module and extended walledGarden signature; since stories are implemented sequentially this is satisfied by prior story completion rather than a mock contract.",
+  "seams": [
+    {
+      "data": "KnownPeers set passed to isAllowedDmSender",
+      "source": { "story": "S1", "artifact": "app/src/lib/knownPeers.ts" },
+      "destination": { "story": "S2", "artifact": "app/src/context/MarmotContext.tsx" },
+      "contract": {
+        "type_name": "KnownPeersSeam",
+        "fields": [
+          { "name": "knownPeers", "type": "ReadonlySet<string>", "optional": false }
+        ],
+        "invariants": [
+          "All entries are lowercased hex pubkeys",
+          "Own pubkey is never included",
+          "Set grows monotonically (no removal by S1 operations other than migration seed-from-scratch)",
+          "loadKnownPeers() returns a ReadonlySet; isAllowedDmSender receives it by value at call time"
+        ]
+      }
+    },
+    {
+      "data": "PendingInvitation queue read and mutated by UI and accept/decline actions",
+      "source": { "story": "S2", "artifact": "app/src/lib/pendingInvitations.ts" },
+      "destination": { "story": "S3", "artifact": "app/src/context/MarmotContext.tsx" },
+      "contract": {
+        "type_name": "PendingInvitation",
+        "fields": [
+          { "name": "id", "type": "string", "optional": false },
+          { "name": "inviterPubkeyHex", "type": "string", "optional": false },
+          { "name": "receivedAt", "type": "number", "optional": false },
+          { "name": "welcomeEventJson", "type": "string", "optional": false }
+        ],
+        "invariants": [
+          "Total queue size never exceeds 256 entries",
+          "Per-inviter entries never exceed 8",
+          "All entries are cryptographically validated Welcomes (NIP-59 seal verified) before enqueue",
+          "id is the hash of the Welcome event id (stable, unique per invitation)",
+          "inviterPubkeyHex is NOT displayed pre-acceptance beyond an 8-char prefix",
+          "removePendingInvitation is idempotent — removing a non-existent id is a no-op"
+        ]
+      }
+    },
+    {
+      "data": "acceptPendingInvitation / declinePendingInvitation actions exposed via MarmotContext",
+      "source": { "story": "S2", "artifact": "app/src/lib/marmot/welcomeSubscription.ts" },
+      "destination": { "story": "S4", "artifact": "app/src/components/groups/PendingInvitations.tsx" },
+      "contract": {
+        "type_name": "InvitationActions",
+        "fields": [
+          { "name": "acceptPendingInvitation", "type": "(id: string) => Promise<void>", "optional": false },
+          { "name": "declinePendingInvitation", "type": "(id: string) => Promise<void>", "optional": false }
+        ],
+        "invariants": [
+          "acceptPendingInvitation calls marmotClient.joinGroupFromWelcome on success then removes queue entry",
+          "acceptPendingInvitation removes the queue entry on MLS failure and throws with a user-facing message",
+          "declinePendingInvitation removes the queue entry with no side effects, no event published",
+          "Both functions are exposed via useMarmot() context value"
+        ]
+      }
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "ever-known-peers",
+      "title": "Ever-Known Peers + Extended walledGarden.ts",
+      "status": "done",
+      "description": "Creates the knownPeers.ts pure library module with its full public API. Extends isAllowedDmSender in walledGarden.ts to accept a ReadonlySet<string> of known peers, returning true when a peer appears in either current group membership or the known-peers set. Updates all call sites (DirectMessageNotificationsWatcher, ContactChat, and the four purge helpers). Wires the MarmotContext useEffect that calls rememberKnownPeers on every group-membership change. Adds all four new storage keys to STORAGE_KEYS in types/index.ts. Creates ADR-002 and updates ADR-001 status to Superseded.",
+      "acceptance_criteria": [
+        "AC-STRUCT-1",
+        "AC-STRUCT-2",
+        "AC-EVER-1",
+        "AC-EVER-2",
+        "AC-EVER-3",
+        "AC-EVER-4",
+        "AC-EVER-5",
+        "AC-SEC-12",
+        "AC-SEC-13",
+        "AC-SEC-14",
+        "AC-SEC-15"
+      ],
+      "scope": {
+        "includes": [
+          "create new file app/src/lib/knownPeers.ts with full exported API",
+          "modify app/src/lib/walledGarden.ts to extend isAllowedDmSender signature with knownPeers parameter",
+          "modify app/src/components/DirectMessageNotificationsWatcher.tsx to pass knownPeers to isAllowedDmSender",
+          "modify app/src/components/contacts/ContactChat.tsx (all five call sites) to pass knownPeers",
+          "modify app/src/lib/directMessageNotifications.ts call site to pass knownPeers",
+          "modify app/src/lib/contacts.ts purge helper to use extended isAllowedDmSender",
+          "modify app/src/lib/unreadStore.ts purge helper to use extended isAllowedDmSender",
+          "modify app/src/lib/reactions/api.ts purge helper to use extended isAllowedDmSender",
+          "modify app/src/lib/marmot/chatPersistence.ts purge helper to use extended isAllowedDmSender",
+          "modify app/src/context/MarmotContext.tsx to add knownPeers maintenance useEffect",
+          "modify app/src/types/index.ts to add four new STORAGE_KEYS",
+          "create new file docs/adr/ADR-002-mutual-contact-graph-and-pull-only-invitations.md",
+          "update docs/adr/ADR-001-gate-dm-reachability-exclusively-on-live-mls-group-membership.md status to Superseded by ADR-002"
+        ],
+        "excludes": [
+          "Pull-only invitation queue and UI (S2)",
+          "Migration backfill effect (S3)",
+          "Test files (S4)",
+          "Block/forget actions on knownPeers"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "pending",
+      "owning_module": "knownPeers",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "notes": "The walledGarden.ts signature change is breaking — the TypeScript compiler will surface any missed call sites. Five ContactChat.tsx call sites noted in architecture.md (lines 269, 336, 388, 429, plus kind-7). The knownPeers useEffect in MarmotContext piggybacks on the existing [groups, groupDataVersion] dependency array established by epic 1's purge sweep. The four new STORAGE_KEYS must be added to types/index.ts so that resetAllData clears them."
+    },
+    {
+      "id": "S2",
+      "name": "pull-only-invitations",
+      "status": "done",
+      "title": "Pull-Only Invitations: Queue, UI, Accept/Decline",
+      "description": "Creates the pendingInvitations.ts pure library module. Modifies welcomeSubscription.ts to queue inbound cryptographically-validated Welcomes instead of auto-accepting them, and exports acceptPendingInvitation / declinePendingInvitation. Creates the PendingInvitations.tsx UI component. Modifies groups.tsx to mount PendingInvitations above the joined-groups list with a nav badge. Modifies i18n.ts with all required copy keys. Wires accept/decline into MarmotContext context value.",
+      "acceptance_criteria": [
+        "AC-STRUCT-3",
+        "AC-INVITE-1",
+        "AC-INVITE-2",
+        "AC-INVITE-3",
+        "AC-INVITE-4",
+        "AC-INVITE-5",
+        "AC-INVITE-6",
+        "AC-INVITE-7",
+        "AC-INVITE-8",
+        "AC-INVITE-9",
+        "AC-OBS-3",
+        "AC-REACT-6"
+      ],
+      "scope": {
+        "includes": [
+          "create new file app/src/lib/pendingInvitations.ts with full exported API and localStorage persistence",
+          "modify app/src/lib/marmot/welcomeSubscription.ts to enqueue instead of auto-accept, export acceptPendingInvitation and declinePendingInvitation",
+          "create new file app/src/components/groups/PendingInvitations.tsx with Accept/Decline UI",
+          "modify app/pages/groups.tsx to mount PendingInvitations component and nav badge",
+          "modify app/src/lib/i18n.ts with pendingInvitations.* and migrationNotice.* copy keys for en and de",
+          "modify app/src/context/MarmotContext.tsx to expose acceptPendingInvitation/declinePendingInvitation via context value",
+          "implement unreadStore.ts singleton pattern for pending invitation count reactivity"
+        ],
+        "excludes": [
+          "knownPeers module (S1)",
+          "Migration backfill (S3)",
+          "Test files (S4)",
+          "Pending-invitation TTL or auto-expiry",
+          "Inviter notification on decline",
+          "Display of inviter-controlled metadata pre-acceptance"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "pending",
+      "owning_module": "pendingInvitations",
+      "creates_seam": true,
+      "consumes_seams": ["KnownPeersSeam"],
+      "lighter_path": false,
+      "notes": "The real marmot-ts API is marmotClient.joinGroupFromWelcome({ welcomeRumor }), not client.acceptWelcome. Reactivity for the badge count follows the unreadStore.ts singleton pattern (module-level state + emit() + useSyncExternalStore) — no additional React context layer. The pending-invitation card must show ONLY truncated inviter pubkey (first 8 + last 8 chars) and relative timestamp to mitigate social-engineering attacks pre-acceptance."
+    },
+    {
+      "id": "S3",
+      "name": "migration-backfill",
+      "status": "done",
+      "title": "Migration Backfill + Soft Purge Confirmation",
+      "description": "Wires the one-time migration backfill effect into MarmotContext: seeds lp_knownPeers_v1 from current MLS group memberships, runs the existing purge sweep (which now spares ever-known peers), and sets lp_knownPeersMigrated_v2. Adds the one-time migration notice banner shown on first /contacts/ visit post-migration, with localStorage-persisted dismissal. Verifies that the four purge helpers produce correct soft-purge behavior (strangers deleted, ever-known peers intact) without any logic changes to the helpers themselves.",
+      "acceptance_criteria": [
+        "AC-PURGE-7",
+        "AC-PURGE-8",
+        "AC-MIGRATE-1",
+        "AC-MIGRATE-2",
+        "AC-MIGRATE-3",
+        "AC-MIGRATE-4",
+        "AC-MIGRATE-5"
+      ],
+      "scope": {
+        "includes": [
+          "modify app/src/context/MarmotContext.tsx to add migration backfill effect (gated by lp_knownPeersMigrated_v2 flag)",
+          "modify app/src/context/MarmotContext.tsx to add migration notice state and expose it",
+          "create or modify a component for the migration notice banner (e.g. app/src/components/contacts/ area or new file)",
+          "modify app/src/lib/i18n.ts migrationNotice.* keys (if not already added in S2)",
+          "verify purge helpers (contacts.ts, chatPersistence.ts, unreadStore.ts, reactions/api.ts) produce correct soft-purge with seeded knownPeers without helper logic changes"
+        ],
+        "excludes": [
+          "knownPeers module implementation (S1)",
+          "pendingInvitations module implementation (S2)",
+          "Test files (S4)",
+          "Block/forget actions",
+          "Multi-device sync of knownPeers"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "pending",
+      "owning_module": "MarmotContext",
+      "creates_seam": false,
+      "consumes_seams": ["KnownPeersSeam", "PendingInvitation"],
+      "lighter_path": false,
+      "notes": "The migration effect ordering matters: rememberKnownPeers must be called BEFORE the purge sweep runs so the newly seeded set is used to classify peers. The migration is idempotent — if the user closes the tab mid-migration, the lp_knownPeersMigrated_v2 flag is not set and the next boot retries. The purge helpers require zero logic changes; the lenient behavior emerges from the extended isAllowedDmSender signature added in S1."
+    },
+    {
+      "id": "S4",
+      "name": "test-surface",
+      "status": "done",
+      "title": "Test Surface: Unit + E2E Coverage",
+      "description": "Creates the full test surface for the epic. Unit tests for knownPeers.ts, pendingInvitations.ts, walledGarden.ts (extended), and welcomeSubscription.ts (enqueue behavior). Four new e2e specs: pull-only invitation accept, pull-only invitation decline, ever-known survives leave, and migration backfill. Modifies groups-contacts.spec.ts to add Bob's Accept click before the survive-leave assertions, restoring the test to a passing state under lenient mode.",
+      "acceptance_criteria": [
+        "AC-TEST-1",
+        "AC-TEST-2",
+        "AC-TEST-3",
+        "AC-TEST-4",
+        "AC-TEST-5",
+        "AC-TEST-6",
+        "AC-TEST-7",
+        "AC-TEST-8",
+        "AC-TEST-9",
+        "AC-REACT-4",
+        "AC-REACT-5",
+        "AC-SEC-16",
+        "AC-SEC-17",
+        "AC-SEC-18",
+        "AC-SEC-19",
+        "AC-SEC-20",
+        "AC-OBS-4",
+        "AC-OBS-5"
+      ],
+      "scope": {
+        "includes": [
+          "create new file app/tests/unit/knownPeers.test.ts",
+          "create new file app/tests/unit/pendingInvitations.test.ts",
+          "extend app/tests/unit/walledGarden.test.ts for knownPeers disjunction cases",
+          "extend app/tests/unit/marmot/welcomeSubscription.test.ts for enqueue-not-accept behavior",
+          "create new file app/tests/e2e/groups-pull-only-invitation-accept.spec.ts",
+          "create new file app/tests/e2e/groups-pull-only-invitation-decline.spec.ts",
+          "create new file app/tests/e2e/groups-ever-known-survives-leave.spec.ts",
+          "create new file app/tests/e2e/groups-migration-backfill.spec.ts",
+          "modify app/tests/e2e/groups-contacts.spec.ts to add Bob's Accept click before group-join assertions"
+        ],
+        "excludes": [
+          "Production code implementation (S1, S2, S3)",
+          "Modifying or deleting existing passing walled-garden e2e specs from epic 1"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [
+        {
+          "fixture_id": "FIXTURE-04-001",
+          "description": "Two-context Playwright helper that signs in Alice and Bob simultaneously for invitation flow tests",
+          "interface": "Playwright BrowserContext pair with signed-in users",
+          "reason": "External actor simulation (a peer on the Nostr/MLS network) cannot be represented by the app itself — requires a second authenticated browser context",
+          "permanent": true
+        }
+      ],
+      "status": "pending",
+      "owning_module": "walledGarden",
+      "creates_seam": false,
+      "consumes_seams": ["KnownPeersSeam", "PendingInvitation", "InvitationActions"],
+      "lighter_path": false,
+      "notes": "E2e specs must use the groups-*.spec.ts naming convention to match the Playwright relay-suite testMatch pattern. The groups-contacts.spec.ts modification adds Bob's Accept click at ~line 63-66 area (per architecture.md) but does NOT touch the survive-leave assertion at ~line 84. Unit tests for knownPeers.test.ts must simulate localStorage via jsdom (or equivalent) and test persistence across simulated reload. The welcomeSubscription.test.ts extension asserts enqueue behavior on valid Welcomes and drop behavior on invalid ones — it must NOT assert that marmotClient.joinGroupFromWelcome is called (that call is now behind the user's Accept action)."
+    }
+  ]
+}

@@ -328,10 +328,13 @@ export async function clearAllMessages(): Promise<void> {
  *
  * AC-PERF-1: logs a warning when sweep exceeds 500 ms; throws when it
  * exceeds 2 000 ms.
+ *
+ * @returns `{ deleted: number }` — number of IDB DM thread keys deleted
+ *   (AC-OBS-5).
  */
 export async function purgeStrangerDmThreads(
   getWhitelist: () => walledGarden.WhitelistArgs,
-): Promise<void> {
+): Promise<{ deleted: number }> {
   const { isAllowedDmSender } = walledGarden;
   const start = performance.now();
 
@@ -341,11 +344,11 @@ export async function purgeStrangerDmThreads(
     (k): k is string => typeof k === 'string' && k.startsWith(dmPrefix),
   );
 
-  const { groups, ownPubkeyHex } = getWhitelist();
+  const { groups, knownPeers, ownPubkeyHex } = getWhitelist();
   const strangerKeys: string[] = [];
   for (const key of dmKeys) {
     const peerHex = key.slice(dmPrefix.length);
-    if (!isAllowedDmSender(peerHex, groups, ownPubkeyHex)) {
+    if (!isAllowedDmSender(peerHex, groups, knownPeers, ownPubkeyHex)) {
       strangerKeys.push(key);
     }
   }
@@ -376,4 +379,6 @@ export async function purgeStrangerDmThreads(
   if (elapsed > 500) {
     console.warn(`[purgeStrangerDmThreads] sweep took ${elapsed.toFixed(0)} ms (warn threshold: 500 ms)`);
   }
+
+  return { deleted: strangerKeys.length };
 }

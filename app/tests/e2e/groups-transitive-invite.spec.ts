@@ -97,6 +97,12 @@ async function waitForGroupAndOpen(page: Page, groupName: string): Promise<void>
   await expect(
     page.getByTestId('groups-empty-state').or(page.getByTestId('groups-list')),
   ).toBeVisible({ timeout: 60_000 });
+  // Pull-only invitations (Walled Garden v2): accept the most recently received
+  // invitation (.last()) before the group appears in the joined list.
+  await expect(
+    page.locator('[data-testid^="accept-invitation-"]').last(),
+  ).toBeVisible({ timeout: 60_000 });
+  await page.locator('[data-testid^="accept-invitation-"]').last().click();
   await expect(page.getByText(groupName)).toBeVisible({ timeout: 60_000 });
   await openGroupDetail(page, groupName);
 }

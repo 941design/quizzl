@@ -82,6 +82,14 @@ test.describe.serial('DM walled garden: group member allowed (AC-TEST-5)', () =>
 
     ({ context: aliceCtx, page: alicePage } = await bootUserOnGroups(browser, USER_A, 'Alice'));
     ({ context: bobCtx, page: bobPage } = await bootUserOnGroups(browser, USER_B, 'Bob'));
+
+    // Drain stale pending invitations from previous test runs. The relay retains
+    // old gift wraps; after clearAppState the seen-set is empty so they re-arrive.
+    // Wait for them to be processed (and their eventIds marked as seen by the
+    // production fix), then clear the invitation queue so only Alice's fresh
+    // invite in the upcoming test will remain.
+    await bobPage.waitForTimeout(10_000);
+    await bobPage.evaluate(() => localStorage.removeItem('lp_pendingInvitations_v1'));
   });
 
   test.afterAll(async () => {
@@ -120,6 +128,15 @@ test.describe.serial('DM walled garden: group member allowed (AC-TEST-5)', () =>
     await expect(
       bobPage.getByTestId('groups-empty-state').or(bobPage.getByTestId('groups-list')),
     ).toBeVisible({ timeout: 60_000 });
+
+    // Under pull-only invitations (Walled Garden v2), Bob must explicitly accept
+    // the pending invitation before the group appears in his joined list.
+    // Use .last() — Alice's fresh invite is the most recently received one;
+    // stale invitations from prior runs (same Alice keypair) come first.
+    await expect(
+      bobPage.locator('[data-testid^="accept-invitation-"]').last(),
+    ).toBeVisible({ timeout: 60_000 });
+    await bobPage.locator('[data-testid^="accept-invitation-"]').last().click();
 
     // Wait for the group to appear (Welcome delivery can take time)
     await expect(bobPage.getByText('Walled Garden Test Group')).toBeVisible({ timeout: 90_000 });

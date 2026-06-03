@@ -337,7 +337,7 @@ describe('purgeStrangerContacts — storage only written when there are changes'
   const MEMBER = '11'.repeat(32);
   const OWN = '22'.repeat(32);
   const GROUP: Group = { id: 'g1', name: 'G', createdAt: 1, memberPubkeys: [MEMBER, OWN], relays: [] };
-  function getWhitelist() { return { groups: [GROUP], ownPubkeyHex: OWN }; }
+  function getWhitelist() { return { groups: [GROUP], knownPeers: new Set<string>(), ownPubkeyHex: OWN }; }
 
   it('does not write contacts store when all entries are members', () => {
     const now = isoAt(0);
@@ -436,7 +436,7 @@ describe('purgeStrangerContacts — null-raw early-returns', () => {
     memberPubkeys: [MEMBER_NR, OWN_NR],
     relays: [],
   };
-  function getWhitelist() { return { groups: [GROUP_NR], ownPubkeyHex: OWN_NR }; }
+  function getWhitelist() { return { groups: [GROUP_NR], knownPeers: new Set<string>(), ownPubkeyHex: OWN_NR }; }
 
   it('skips contacts block when lp_contacts_v1 is absent (null), processes contactCache', () => {
     // lp_contacts_v1 is NOT set (getItem returns null → !raw branch fires)

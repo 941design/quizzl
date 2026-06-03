@@ -1,0 +1,139 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-03T14:50:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `app/src/lib/pendingInvitations.ts` contain zero import statements referencing `idb-keyval`, any NDK package, `react`, `app/src/context/`, or `app/src/components/`? Provide the full import section and confirm no forbidden imports appear."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the `pendingInvitations` module be deleted and rewritten without modifying any file outside `app/src/lib/pendingInvitations.ts`? Specifically: do all cross-module usages flow through the declared `PendingInvitation` contract and the `InvitationActions` seam (exported from `welcomeSubscription.ts` and wired via `MarmotContext`)? Are there any direct imports of `pendingInvitations.ts` from UI components that bypass MarmotContext?"
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `pendingInvitations.ts` contain any TODO, FIXME, stub marker, or placeholder comment? Does the enqueue function contain any dead code branch — for example, a path that calls `joinGroupFromWelcome` directly instead of storing to localStorage?"
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "In `welcomeSubscription.ts`, does the NIP-59 cryptographic validation (`unwrapGiftWrap` / `unwrapAndOpen`) execute BEFORE `enqueuePendingInvitation` is called? Is there any code path — including error branches and race conditions — where an unvalidated Welcome can reach the queue? Show the validation-then-enqueue ordering in the relevant code section."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the pending-invitation badge count use `useSyncExternalStore` with a module-level singleton (matching the `unreadStore.ts` pattern), so that the badge updates reactively without page reload and without adding a new React context layer? Is there a `subscribe` + `getSnapshot` pair registered with the store?"
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-3",
+      "question": "Does `app/src/lib/pendingInvitations.ts` export EXACTLY the type `PendingInvitation` with fields `{ id: string; inviterPubkeyHex: string; receivedAt: number; welcomeEventJson: string }` and EXACTLY these five functions — `listPendingInvitations(): ReadonlyArray<PendingInvitation>`, `enqueuePendingInvitation(invite: PendingInvitation): void`, `removePendingInvitation(id: string): void`, `countPendingInvitations(): number`, `pendingInvitationsForInviter(inviterPubkeyHex: string): number` — and NO additional exported symbols? Does persistence use `localStorage['lp_pendingInvitations_v1']` as a JSON array?"
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INVITE-1",
+      "question": "In `welcomeSubscription.ts`, is there ANY call to `client.acceptWelcome` or `marmotClient.joinGroupFromWelcome` in the Welcome receipt handler (the path triggered by a freshly arriving kind-1059 → kind-444 event)? (Expected: no such call — the receipt handler MUST call `enqueuePendingInvitation` instead and stop there.)"
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INVITE-2",
+      "question": "When an invalid Welcome arrives (bad seal, failed schnorr, unwrap error), is it silently dropped without being passed to `enqueuePendingInvitation`? Can you show the test case or log trace where an invalid Welcome produces only the `unwrap-failed` log entry and no queue mutation?"
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INVITE-3",
+      "question": "When 257 valid Welcome events arrive from distinct inviters, does `countPendingInvitations()` return 256 (not 257)? When 9 valid Welcome events arrive from the same inviter, does `pendingInvitationsForInviter(inviterHex)` return 8 (not 9)? Do both overflow scenarios produce the correct `logger.info` log tags (`dm:walled-garden-invite-drop-overflow` and `dm:walled-garden-invite-drop-per-inviter` respectively)?"
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INVITE-4",
+      "question": "Does the PendingInvitations.tsx card render ONLY the truncated inviter pubkey (first 8 + last 8 hex chars) and a relative timestamp? Is there any code path — component props, context value, or i18n interpolation — that could render the inviter's display name, avatar URL, or any other inviter-controlled metadata before the user clicks Accept?"
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INVITE-5",
+      "question": "When the user clicks Accept on a pending invitation: (a) is `marmotClient.joinGroupFromWelcome({ welcomeRumor })` called with the deserialized welcome from the queue entry? (b) on success, is `removePendingInvitation(id)` called, and does the group subsequently appear in the user's `groups` array via the normal MarmotContext flow? (c) on MLS failure, is `removePendingInvitation(id)` still called, is an error toast shown with the text 'This invitation is no longer valid', and is a WARN log emitted with tag `dm:walled-garden-invite-stale`?"
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INVITE-6",
+      "question": "When the user clicks Decline: (a) is `removePendingInvitation(id)` called? (b) is there any call to `marmotClient.joinGroupFromWelcome`, `client.acceptWelcome`, or any relay-publish function? (c) is the only log entry an INFO with tag `dm:walled-garden-invite-decline`? (All three answers must be confirmed: yes, no, yes.)"
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INVITE-7",
+      "question": "Does the PendingInvitations component render on the `/groups/` page above the joined-groups list? When `listPendingInvitations()` returns an empty array, does the component render an empty-state element (not null, not hidden via CSS) that is visible in the DOM?"
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INVITE-8",
+      "question": "When `countPendingInvitations()` returns a value greater than zero, is a badge rendered on the Groups navigation icon showing that count? When the count drops to zero (e.g., after Decline), does the badge disappear without requiring a page reload?"
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INVITE-9",
+      "question": "If a pending invitation is enqueued and then the page is reloaded (simulated by clearing module-level state and calling `listPendingInvitations()` again), is the invitation still present? Does `localStorage['lp_pendingInvitations_v1']` contain a parseable JSON array with the invitation's `id`, `inviterPubkeyHex`, `receivedAt`, and `welcomeEventJson` fields intact?"
+    },
+    {
+      "question_id": "VQ-S2-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-OBS-3",
+      "question": "Do the enqueue, accept, and decline log entries use EXACTLY the tags `dm:walled-garden-invite-pending`, `dm:walled-garden-invite-accept`, and `dm:walled-garden-invite-decline` at INFO level? Do any of these log entries contain a full pubkey (more than 8 chars), raw Welcome event bytes, or group metadata? (Expected: no full pubkeys, no raw bytes, no group metadata.)"
+    },
+    {
+      "question_id": "VQ-S2-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REACT-6",
+      "question": "In an e2e scenario where a Welcome event arrives at the relay, does the pending-invitation card appear on Bob's `/groups/` page within 2 seconds of relay delivery (accounting for relay latency)? Does the nav badge count increment reactively — visible without a manual page reload — immediately after the invitation lands?"
+    },
+    {
+      "question_id": "VQ-S2-018",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The `acceptPendingInvitation` function marks the invitation id (rumor id) in `lp_processedGiftWraps` after a successful join. However, the seen-set guard in `subscribeToWelcomes` checks the outer gift-wrap event id, not the rumor id. Is there a scenario where the same gift-wrap arrives again after acceptance and causes a re-enqueue? Confirm that the `enqueuePendingInvitation` idempotency guard (checking the rumor id) prevents this without requiring the gift-wrap eventId in the seen-set."
+    },
+    {
+      "question_id": "VQ-S2-019",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The `pendingInvitations.ts` module initialises `_snapshot` at module load time via a `readRaw()` call wrapped in a try/catch. On SSR (Node.js, no localStorage), this try/catch catches the ReferenceError and leaves `_snapshot` as an empty array. Does the `getServerSnapshot` function in `PendingInvitations.tsx` and `Layout.tsx` always return a stable empty array reference, preventing hydration mismatches between the server render and the first client render?"
+    },
+    {
+      "question_id": "VQ-S2-020",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "question": "The inviter pubkey shown in the PendingInvitations card is taken from `welcomeRumor.pubkey` (the NIP-59 inner rumor, proven by seal decryption). Is there any code path where an unverified pubkey (e.g. from the gift wrap's outer `ndkEvent.pubkey`, which is ephemeral) could be stored as `inviterPubkeyHex` in the queue entry?"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "test_snapshot": "pre-implementation",
+  "timestamp": "2026-06-03T15:00:00Z",
+  "test_files": 74,
+  "tests": 1125,
+  "lint": "NO_LINT",
+  "typecheck": "clean"
+}

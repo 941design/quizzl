@@ -1,0 +1,55 @@
+{
+  "module_name": "MigrationBackfill+SoftPurgeConfirmation",
+  "purpose": "One-time migration that seeds knownPeers from current group members, runs the purge sweep, and shows a dismissible notice banner to the user on first post-migration visit to /contacts.",
+  "public_api": [
+    {
+      "name": "isMigrationNoticeAcknowledged",
+      "signature": "() => boolean",
+      "description": "Returns true when the user has dismissed the S3 migration notice banner (lp_knownPeersMigrationNoticeAck_v1 is set)."
+    },
+    {
+      "name": "acknowledgeMigrationNotice",
+      "signature": "() => void",
+      "description": "Writes lp_knownPeersMigrationNoticeAck_v1='1' to localStorage. Idempotent and never throws."
+    },
+    {
+      "name": "MigrationNoticeBanner",
+      "signature": "() => JSX.Element | null",
+      "description": "Dismissible info banner for contacts page. Renders when knownPeersMigrationComplete() and not yet acknowledged. Sets ack flag and hides on dismiss click."
+    }
+  ],
+  "private_files": [
+    "app/src/components/contacts/MigrationNoticeBanner.tsx"
+  ],
+  "owned_data": [
+    "lp_knownPeersMigrationNoticeAck_v1 (localStorage)"
+  ],
+  "dependencies_allowed": [
+    "knownPeers.ts",
+    "LanguageContext",
+    "MarmotContext.tsx (migration effect host)",
+    "@chakra-ui/react"
+  ],
+  "dependencies_forbidden": [
+    "idb-keyval (from knownPeers.ts)",
+    "NDK",
+    "React context from app/src/context/ (from knownPeers.ts)"
+  ],
+  "external_ports": [],
+  "events_emitted": [
+    "dm:walled-garden-migration-complete (console.info, after successful purge)"
+  ],
+  "events_consumed": [],
+  "test_targets": [
+    "isMigrationNoticeAcknowledged returns false before acknowledgeMigrationNotice",
+    "acknowledgeMigrationNotice sets flag; subsequent isMigrationNoticeAcknowledged returns true",
+    "MigrationNoticeBanner hidden when knownPeersMigrationComplete() is false",
+    "MigrationNoticeBanner visible when migration complete and not acknowledged",
+    "MigrationNoticeBanner hides after dismiss click and sets ack flag",
+    "Migration effect seeds knownPeers then purges before setting flag",
+    "Migration effect skipped on subsequent boot when flag is present"
+  ],
+  "seam": {
+    "cross_story": false
+  }
+}

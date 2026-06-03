@@ -1,0 +1,80 @@
+{
+  "epic": "walled-garden-v2",
+  "concepts": [
+    {
+      "id": "known-peers-persistence",
+      "name": "Ever-known peers persistent set (lp_knownPeers_v1)",
+      "owning_module": "knownPeers",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "pending-invitations-queue",
+      "name": "Pull-only invitation queue (lp_pendingInvitations_v1)",
+      "owning_module": "pendingInvitations",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "walled-garden-predicate",
+      "name": "isAllowedDmSender pure predicate (whitelist = current members ∪ ever-known)",
+      "owning_module": "walledGarden",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "welcome-enqueue-not-auto-accept",
+      "name": "Welcome events enqueued into pending queue, not auto-accepted",
+      "owning_module": "welcomeSubscription",
+      "type": "validation_rule",
+      "added_by_story": null
+    },
+    {
+      "id": "marmot-context-knownpeers-effect",
+      "name": "MarmotContext useEffect maintains knownPeers from group membership changes",
+      "owning_module": "MarmotContext",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "pending-invitations-ui-minimal-disclosure",
+      "name": "PendingInvitations UI shows only truncated pubkey and timestamp pre-acceptance",
+      "owning_module": "PendingInvitations",
+      "type": "validation_rule",
+      "added_by_story": null
+    },
+    {
+      "id": "storage-keys-registry",
+      "name": "All four new localStorage keys registered in STORAGE_KEYS (types/index.ts)",
+      "owning_module": "knownPeers",
+      "type": "path_convention",
+      "added_by_story": null
+    },
+    {
+      "id": "invitation-copy-keys",
+      "name": "i18n copy keys for invitation UI and migration notice (en + de)",
+      "owning_module": "i18n",
+      "type": "naming_scheme",
+      "added_by_story": null
+    },
+    {
+      "id": "lib-boundary-no-react-idb",
+      "name": "Pure lib modules (knownPeers, pendingInvitations) must not import React, idb-keyval, NDK, context, or components",
+      "owning_module": "knownPeers",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "accept-decline-context-contract",
+      "name": "acceptPendingInvitation/declinePendingInvitation exposed via useMarmot() context value",
+      "owning_module": "MarmotContext",
+      "type": "public_contract",
+      "added_by_story": null
+    }
+  ],
+  "stories": [],
+  "reviewer_state": {
+    "last_story_reviewed": null,
+    "model_at": "2026-06-03T14:45:00Z"
+  }
+}

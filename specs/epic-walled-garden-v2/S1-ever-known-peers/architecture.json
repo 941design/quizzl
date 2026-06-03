@@ -1,0 +1,55 @@
+{
+  "module_name": "knownPeers",
+  "purpose": "Pure localStorage-based library for persisting ever-known peer pubkeys. Forms the second half of the walled-garden whitelist alongside live MLS group membership. No React, no IDB, no NDK dependencies.",
+  "public_api": [
+    {
+      "name": "loadKnownPeers",
+      "signature": "(): ReadonlySet<string>",
+      "description": "Reads lp_knownPeers_v1 from localStorage and returns a frozen Set of lowercase hex pubkeys."
+    },
+    {
+      "name": "rememberKnownPeer",
+      "signature": "(peerHex: string): void",
+      "description": "Lowercases and persists a single peer hex. Idempotent. Silent no-op on empty string or falsy input."
+    },
+    {
+      "name": "rememberKnownPeers",
+      "signature": "(peerHexes: ReadonlyArray<string>): void",
+      "description": "Bulk-adds multiple peer hexes in a single localStorage write. Filters empty strings."
+    },
+    {
+      "name": "isKnownPeer",
+      "signature": "(peerHex: string): boolean",
+      "description": "Returns true if the peer (case-insensitive) is in lp_knownPeers_v1."
+    },
+    {
+      "name": "knownPeersMigrationComplete",
+      "signature": "(): boolean",
+      "description": "Returns true when lp_knownPeersMigrated_v2 is set in localStorage."
+    },
+    {
+      "name": "markKnownPeersMigrationComplete",
+      "signature": "(): void",
+      "description": "Sets lp_knownPeersMigrated_v2 in localStorage."
+    }
+  ],
+  "private_files": [],
+  "owned_data": ["lp_knownPeers_v1", "lp_knownPeersMigrated_v2", "lp_knownPeersMigrationNoticeAck_v1"],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": ["idb-keyval", "@nostr-dev-kit/ndk", "react", "app/src/context/", "app/src/components/"],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": ["app/tests/unit/knownPeers.test.ts"],
+  "decision": "full-path",
+  "modules_touched": ["knownPeers", "walledGarden", "MarmotContext", "ContactChat", "DirectMessageNotificationsWatcher", "purgeHelpers"],
+  "seams_implemented": ["KnownPeersSeam"],
+  "boundary_contracts": [
+    {
+      "seam": "KnownPeersSeam",
+      "type": "ReadonlySet<string>",
+      "direction": "knownPeers -> walledGarden (via isAllowedDmSender parameter)",
+      "cross_story": false
+    }
+  ]
+}

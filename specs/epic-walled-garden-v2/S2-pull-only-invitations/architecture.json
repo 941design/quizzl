@@ -1,0 +1,78 @@
+{
+  "module_name": "pendingInvitations",
+  "purpose": "Pure localStorage queue for inbound MLS Welcome invitations awaiting explicit user accept/decline. Enforces global cap (256) and per-inviter cap (8) to prevent flooding.",
+  "public_api": [
+    {
+      "name": "PendingInvitation",
+      "signature": "type PendingInvitation = { id: string; inviterPubkeyHex: string; receivedAt: number; welcomeEventJson: string }",
+      "description": "Serialised pending invitation stored in localStorage"
+    },
+    {
+      "name": "listPendingInvitations",
+      "signature": "listPendingInvitations(): ReadonlyArray<PendingInvitation>",
+      "description": "Read all pending invitations from localStorage"
+    },
+    {
+      "name": "enqueuePendingInvitation",
+      "signature": "enqueuePendingInvitation(invite: PendingInvitation): void",
+      "description": "Add invitation to queue; enforces global 256 cap and per-inviter 8 cap"
+    },
+    {
+      "name": "removePendingInvitation",
+      "signature": "removePendingInvitation(id: string): void",
+      "description": "Idempotently remove invitation by id"
+    },
+    {
+      "name": "countPendingInvitations",
+      "signature": "countPendingInvitations(): number",
+      "description": "Return total count of pending invitations"
+    },
+    {
+      "name": "pendingInvitationsForInviter",
+      "signature": "pendingInvitationsForInviter(inviterPubkeyHex: string): number",
+      "description": "Count pending invitations from a specific inviter"
+    },
+    {
+      "name": "subscribe (module-level)",
+      "signature": "subscribe(listener: () => void): () => void",
+      "description": "Module-level subscribe for useSyncExternalStore integration"
+    },
+    {
+      "name": "getSnapshot (module-level)",
+      "signature": "getSnapshot(): ReadonlyArray<PendingInvitation>",
+      "description": "Module-level snapshot for useSyncExternalStore integration"
+    }
+  ],
+  "private_files": [
+    "app/src/lib/pendingInvitations.ts"
+  ],
+  "owned_data": [
+    "localStorage['lp_pendingInvitations_v1'] — JSON array of PendingInvitation"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/logger.ts"
+  ],
+  "dependencies_forbidden": [
+    "idb-keyval",
+    "@nostr-dev-kit/ndk",
+    "react",
+    "app/src/context/",
+    "app/src/components/"
+  ],
+  "external_ports": [
+    "InvitationActions seam — acceptPendingInvitation / declinePendingInvitation exported from welcomeSubscription.ts, wired via MarmotContext"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "enqueuePendingInvitation: global cap 256, per-inviter cap 8, idempotent re-add",
+    "removePendingInvitation: idempotent removal",
+    "listPendingInvitations: survives page reload (localStorage persistence)",
+    "countPendingInvitations: accurate count",
+    "pendingInvitationsForInviter: count per inviter",
+    "welcomeSubscription: NIP-59 validation runs BEFORE enqueuePendingInvitation",
+    "welcomeSubscription: invalid Welcome dropped silently",
+    "acceptPendingInvitation: calls joinGroupFromWelcome, removes from queue on success and failure",
+    "declinePendingInvitation: removes from queue, no joinGroupFromWelcome call"
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "files_created": [
+    "app/src/lib/knownPeers.ts",
+    "app/tests/unit/knownPeers.test.ts",
+    "docs/adr/ADR-002-mutual-contact-graph-and-pull-only-invitations.md",
+    "specs/epic-walled-garden-v2/S1-ever-known-peers/architecture.json",
+    "specs/epic-walled-garden-v2/S1-ever-known-peers/baseline.json",
+    "specs/epic-walled-garden-v2/S1-ever-known-peers/result.json",
+    "specs/epic-walled-garden-v2/S1-ever-known-peers/verification.json"
+  ],
+  "files_modified": [
+    "app/src/lib/walledGarden.ts",
+    "app/src/types/index.ts",
+    "app/src/lib/contacts.ts",
+    "app/src/lib/unreadStore.ts",
+    "app/src/lib/reactions/api.ts",
+    "app/src/lib/marmot/chatPersistence.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/src/components/contacts/ContactChat.tsx",
+    "app/src/components/DirectMessageNotificationsWatcher.tsx",
+    "app/tests/unit/walledGarden.test.ts",
+    "app/tests/unit/contacts-property.test.ts",
+    "app/tests/unit/contacts-ssr-guard.test.ts",
+    "app/tests/unit/unreadStore-property.test.ts",
+    "app/tests/unit/chatPersistence-purge.test.ts",
+    "app/tests/unit/contactChat.test.ts",
+    "docs/adr/ADR-001-gate-dm-reachability-exclusively-on-live-mls-group-membership.md"
+  ],
+  "modules_touched": [
+    "knownPeers",
+    "walledGarden",
+    "MarmotContext",
+    "ContactChat",
+    "DirectMessageNotificationsWatcher",
+    "purgeHelpers"
+  ],
+  "remediation_rounds": 0,
+  "completed_at": "2026-06-03T17:10:00Z",
+  "test_counts": {
+    "baseline_files": 74,
+    "baseline_tests": 1125,
+    "final_files": 75,
+    "final_tests": 1161,
+    "new_tests": 36
+  },
+  "mocks_introduced": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The test environment does not provide a global `localStorage` — tests that use it must declare their own mock via `Object.defineProperty(globalThis, 'localStorage', ...)`. This pattern is established in contacts.test.ts but not documented anywhere in the project. First run of knownPeers.test.ts failed with 'ReferenceError: localStorage is not defined' because the test was written assuming jsdom would provide it. No test setup file or CLAUDE.md note covers this.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

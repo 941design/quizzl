@@ -89,6 +89,12 @@ test.describe.serial('Image Sharing', () => {
     await expect(
       pageB.getByTestId('groups-empty-state').or(pageB.getByTestId('groups-list')),
     ).toBeVisible({ timeout: 60_000 });
+
+    // Pull-only invitations (Walled Garden v2): accept the most recently received
+    // invitation before the group appears in the joined list.
+    await expect(pageB.locator('[data-testid^="accept-invitation-"]').last()).toBeVisible({ timeout: 60_000 });
+    await pageB.locator('[data-testid^="accept-invitation-"]').last().click();
+
     await expect(pageB.getByText('Image Test Group')).toBeVisible({ timeout: 60_000 });
     await pageB.locator(`[data-testid^="group-card-"]`, { hasText: 'Image Test Group' }).click();
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });

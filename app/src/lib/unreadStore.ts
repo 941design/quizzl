@@ -317,7 +317,7 @@ export async function initDirectMessageCounts(peerPubkeysHex: string[], ownPubke
 export function purgeStrangerDmCounters(
   getWhitelist: () => WhitelistArgs,
 ): void {
-  const { groups, ownPubkeyHex } = getWhitelist();
+  const { groups, knownPeers, ownPubkeyHex } = getWhitelist();
 
   // Collect all peers tracked anywhere: in-memory counts + persisted timestamps.
   const peers = new Set<string>();
@@ -330,7 +330,7 @@ export function purgeStrangerDmCounters(
   }
 
   for (const peer of peers) {
-    if (!isAllowedDmSender(peer, groups, ownPubkeyHex)) {
+    if (!isAllowedDmSender(peer, groups, knownPeers, ownPubkeyHex)) {
       clearDirectMessageContact(peer);
     }
   }

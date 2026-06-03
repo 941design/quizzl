@@ -1,0 +1,40 @@
+{
+  "epic_name": "walled-garden-v2",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-06-03T14:35:04Z",
+  "updated_at": "2026-06-03T22:15:00Z",
+  "pre_existing_dirty_files": [
+    "app/reports/mutation/chatPersistence.json",
+    "app/reports/mutation/contacts.json",
+    "app/reports/mutation/directMessageNotifications.json",
+    "app/reports/mutation/gate-chatPersistence.json",
+    "app/reports/mutation/gate-contacts.json",
+    "app/reports/mutation/gate-dmnotif.json",
+    "app/reports/mutation/gate-reactionsApi.json",
+    "app/reports/mutation/gate-unreadStore.json",
+    "app/reports/mutation/marmot-chatPersistence.json",
+    "app/reports/mutation/reactions-api.json",
+    "app/reports/mutation/reactionsApi.json",
+    "app/reports/mutation/unreadStore.json",
+    "app/reports/mutation/walledGarden.json",
+    "specs/epic-walled-garden-v2/acceptance-criteria.md",
+    "specs/epic-walled-garden-v2/spec.md",
+    "test-results/.last-run.json"
+  ],
+  "completed_stories": ["S1", "S2", "S3", "S4"],
+  "escalated_stories": [],
+  "phase_history": [
+    {"phase": "SPEC_VALIDATED", "timestamp": "2026-06-03T14:35:04Z", "trigger": "validation_passed"},
+    {"phase": "STORIES_PLANNED", "timestamp": "2026-06-03T15:00:00Z", "trigger": "planning_complete"},
+    {"phase": "COMPLETE", "timestamp": "2026-06-03T22:15:00Z", "trigger": "all_stories_done_gates_passed"}
+  ],
+  "plugin_sha": "1b6099eb7e04f90fea0f4e2a195881ffffd53315",
+  "consumer_sha": "16e4a41728279bcf366244dbead9a0f9777b30dc",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json"
+}

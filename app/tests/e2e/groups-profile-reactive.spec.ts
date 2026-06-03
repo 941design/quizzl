@@ -70,6 +70,10 @@ async function inviteAndJoin(
 
   // Invitee receives Welcome and joins
   await inviteePage.goto('/groups/');
+  // Pull-only invitations (Walled Garden v2): accept the most recently received
+  // invitation before the group appears in the joined list.
+  await expect(inviteePage.locator('[data-testid^="accept-invitation-"]').last()).toBeVisible({ timeout: 60_000 });
+  await inviteePage.locator('[data-testid^="accept-invitation-"]').last().click();
   await expect(inviteePage.getByText(groupName)).toBeVisible({ timeout: 60_000 });
 
   // Wait for profile exchange to complete
@@ -150,6 +154,10 @@ test.describe.serial('Pending member indicator', () => {
   test('Pending badge disappears after member joins and sends profile', async () => {
     // Bring B back online — app re-initialises, processes the pending Welcome
     await pgB.goto('/groups/');
+    // Pull-only invitations (Walled Garden v2): accept the most recently received
+    // invitation before the group appears in the joined list.
+    await expect(pgB.locator('[data-testid^="accept-invitation-"]').last()).toBeVisible({ timeout: 60_000 });
+    await pgB.locator('[data-testid^="accept-invitation-"]').last().click();
     await expect(pgB.getByText(GROUP_NAME)).toBeVisible({ timeout: 60_000 });
 
     // Wait for profile exchange

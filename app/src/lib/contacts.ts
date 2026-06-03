@@ -185,13 +185,17 @@ export function getContact(
  * writes the cleaned objects back to localStorage.
  *
  * No-ops when localStorage is unavailable (SSR or restricted context).
+ *
+ * @returns `{ deleted: number }` — total number of contact entries deleted
+ *   across both storage keys (AC-OBS-5).
  */
 export function purgeStrangerContacts(
   getWhitelist: () => WhitelistArgs,
-): void {
-  if (!isStorageAvailable()) return;
+): { deleted: number } {
+  if (!isStorageAvailable()) return { deleted: 0 };
 
-  const { groups, ownPubkeyHex } = getWhitelist();
+  const { groups, knownPeers, ownPubkeyHex } = getWhitelist();
+  let deleted = 0;
 
   // --- contacts store ---
   try {
@@ -200,9 +204,10 @@ export function purgeStrangerContacts(
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       let changed = false;
       for (const pubkey of Object.keys(parsed)) {
-        if (!isAllowedDmSender(pubkey, groups, ownPubkeyHex)) {
+        if (!isAllowedDmSender(pubkey, groups, knownPeers, ownPubkeyHex)) {
           delete parsed[pubkey];
           changed = true;
+          deleted++;
         }
       }
       if (changed) {
@@ -220,9 +225,10 @@ export function purgeStrangerContacts(
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       let changed = false;
       for (const pubkey of Object.keys(parsed)) {
-        if (!isAllowedDmSender(pubkey, groups, ownPubkeyHex)) {
+        if (!isAllowedDmSender(pubkey, groups, knownPeers, ownPubkeyHex)) {
           delete parsed[pubkey];
           changed = true;
+          deleted++;
         }
       }
       if (changed) {
@@ -232,4 +238,6 @@ export function purgeStrangerContacts(
   } catch {
     // Non-fatal — storage may be full or corrupt
   }
+
+  return { deleted };
 }

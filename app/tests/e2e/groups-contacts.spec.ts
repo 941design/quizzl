@@ -60,8 +60,16 @@ test.describe.serial('Contacts and direct chat', () => {
     await pageA.getByTestId('invite-submit-btn').click();
     await expect(pageA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
 
+    // AC-TEST-9: Bob sees pending invitation and explicitly Accepts it
     await pageB.goto('/groups/');
-    await expect(pageB.getByText('Contacts Test Group')).toBeVisible({ timeout: 60_000 });
+    // Wait for the pending invitations section to appear with an invitation row
+    await expect(pageB.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 60_000 });
+    // Click the Accept button on the most recently received invitation (.last()).
+    // Stale invitations from prior relay history are queued earlier; Alice's
+    // fresh invite is the newest and last in the pending list.
+    await pageB.locator('[data-testid^="accept-invitation-"]').last().click();
+    // After accepting, the group card should appear
+    await expect(pageB.getByText('Contacts Test Group')).toBeVisible({ timeout: 90_000 });
     await pageB.locator('[data-testid^="group-card-"]', { hasText: 'Contacts Test Group' }).click();
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 

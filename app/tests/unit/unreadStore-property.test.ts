@@ -439,7 +439,7 @@ describe('purgeStrangerDmCounters — NoCoverage baseline + walled-garden guard'
   const STRANGER_HEX = 'bb'.repeat(32);
   const OWN_HEX = 'cc'.repeat(32);
   const GROUP: Group = { id: 'g-purge', name: 'Purge Group', createdAt: 1, memberPubkeys: [MEMBER_HEX, OWN_HEX], relays: [] };
-  const getWhitelist = () => ({ groups: [GROUP], ownPubkeyHex: OWN_HEX });
+  const getWhitelist = () => ({ groups: [GROUP], knownPeers: new Set<string>(), ownPubkeyHex: OWN_HEX });
 
   it('removes in-memory DM counter for a stranger', () => {
     incrementDirectMessage(STRANGER_HEX);

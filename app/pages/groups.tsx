@@ -34,6 +34,7 @@ import GenerateInviteLinkModal from '@/src/components/groups/GenerateInviteLinkM
 import ManageInviteLinksModal from '@/src/components/groups/ManageInviteLinksModal';
 import JoinRequestCard from '@/src/components/groups/JoinRequestCard';
 import PendingRequestsSection from '@/src/components/groups/PendingRequestsSection';
+import PendingInvitations from '@/src/components/groups/PendingInvitations';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
 import GroupChat from '@/src/components/groups/GroupChat';
 import { ChatStoreProvider, useChatStore } from '@/src/context/ChatStoreContext';
@@ -483,6 +484,9 @@ export default function GroupsPage() {
             <Text>{copy.groups.loading}</Text>
           </Box>
         )}
+
+        {/* AC-INVITE-7: PendingInvitations renders ABOVE joined-groups list */}
+        {ready && !unsupported && <PendingInvitations />}
 
         {ready && groups.length === 0 && (
           <Alert

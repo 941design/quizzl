@@ -18,8 +18,18 @@ import { getGroupMembers } from '@internet-privacy/marmot-ts';
 import { EpochResolver } from './epochResolver';
 import { handleJoinRequest, JOIN_REQUEST_KIND } from './joinRequestHandler';
 import type { JoinRequestReceivedCallback } from './joinRequestHandler';
+import {
+  enqueuePendingInvitation,
+  removePendingInvitation,
+  countPendingInvitations,
+  listPendingInvitations,
+} from '@/src/lib/pendingInvitations';
+import type { PendingInvitation } from '@/src/lib/pendingInvitations';
+import { createLogger } from '@/src/lib/logger';
 
-export type WelcomeReceivedCallback = (group: Group) => void;
+const logger = createLogger('welcomeSubscription');
+
+export type WelcomeReceivedCallback = (group: Group) => void | Promise<void>;
 
 /**
  * Unwrap a NIP-59 gift wrap event to extract the inner rumor.
@@ -130,46 +140,55 @@ export async function subscribeToWelcomes(
         return;
       }
 
-      // Attempt to join from Welcome
-      const { group: mlsGroup } = await marmotClient.joinGroupFromWelcome({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        welcomeRumor: welcomeRumor as any,
-      });
+      // AC-INVITE-1: DO NOT call joinGroupFromWelcome here. Instead, enqueue the
+      // invitation so the user can explicitly accept or decline it (S2).
+      //
+      // The seal pubkey is the sender's real key (proven authorship after NIP-59
+      // decryption). We need it now because the two-layer decryption in
+      // unwrapGiftWrap reads the seal pubkey internally — re-derive it from the
+      // gift wrap event so we don't have to re-parse the seal after the fact.
+      // The unwrapGiftWrap function returns the rumor (inner layer); the seal
+      // pubkey is not directly returned. We obtain it by re-reading from the
+      // gift wrap. The NIP-59 convention is:
+      //   gift wrap pubkey = ephemeral  (already consumed by decrypt)
+      //   seal pubkey = real sender     (ndkEvent.pubkey is the gift wrap pubkey,
+      //                                  NOT the seal — we need to store the seal
+      //                                  pubkey which is in the rumor's pubkey field
+      //                                  since the rumor is authored by the sender).
+      // The rumor's own pubkey IS the inviter's real key (the sender signed it).
+      const inviterPubkeyHex = welcomeRumor.pubkey || '';
 
-      // Mark as successfully processed BEFORE saving overlay data.
-      // This prevents re-processing even if the page navigates away before
-      // saveGroup completes — a re-join would overwrite MLS state.
-      try {
-        const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') as string[];
-        seen.push(eventId);
-        localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
-      } catch { /* ignore */ }
-
-      // Build our overlay Group metadata
-      const groupData = mlsGroup.groupData;
-      const groupName = groupData?.name ?? 'Unnamed Group';
-      const groupRelays = mlsGroup.relays ?? [...DEFAULT_RELAYS];
-
-      const group: Group = {
-        id: mlsGroup.idStr,
-        name: groupName,
-        createdAt: Date.now(),
-        memberPubkeys: getGroupMembers(mlsGroup.state),
-        relays: groupRelays,
+      const invitation: PendingInvitation = {
+        id: welcomeRumor.id || eventId,
+        inviterPubkeyHex,
+        receivedAt: Date.now(),
+        welcomeEventJson: JSON.stringify(welcomeRumor),
       };
 
-      await saveGroup(group);
+      enqueuePendingInvitation(invitation);
 
-      // NOTE: selfUpdate and sendApplicationRumor are intentionally NOT done
-      // here. They advance the local MLS epoch, causing subsequent commits
-      // from other members to become undecryptable.
+      // Mark the gift wrap eventId as processed NOW so that relay resends and
+      // page-reload re-subscriptions don't re-enqueue the same Welcome. The
+      // invitation remains in the pending queue for the user to accept/decline.
+      // On accept, the eventId will be re-added (idempotent).
+      try {
+        const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') as string[];
+        if (!seen.includes(eventId)) {
+          seen.push(eventId);
+          localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+        }
+      } catch { /* ignore */ }
 
-      onGroupJoined(group);
+      logger.info('dm:walled-garden-invite-pending', {
+        inviter: inviterPubkeyHex.slice(0, 8),
+        queueSize: countPendingInvitations(),
+      });
     } catch (err) {
       // Expected: not every kind 1059 is a Welcome for us. The p-tag filter
-      // matches any gift wrap addressed to us (e.g. DMs). Decryption or
-      // joinGroupFromWelcome will fail for non-Welcome content — that's fine.
-      console.debug('[welcomeSubscription] Could not join from event:', err);
+      // matches any gift wrap addressed to us (e.g. DMs). Decryption will fail
+      // for non-Welcome content — that's fine (AC-INVITE-2: invalid Welcomes
+      // are dropped silently here).
+      console.debug('[welcomeSubscription] Could not process gift wrap event:', err);
     }
   });
 
@@ -315,4 +334,86 @@ export async function subscribeToGroupMessages(
     resolver.dispose();
     sub.stop();
   };
+}
+
+/**
+ * Accept a pending invitation: parse the stored welcomeEventJson, call
+ * joinGroupFromWelcome, persist the group, and remove the entry from the queue.
+ *
+ * On MLS failure: removes from queue, throws a user-visible error, logs WARN.
+ *
+ * AC-INVITE-5, AC-OBS-3
+ */
+export async function acceptPendingInvitation(
+  id: string,
+  marmotClient: import('@internet-privacy/marmot-ts').MarmotClient,
+  onGroupJoined: WelcomeReceivedCallback,
+): Promise<void> {
+  const list = listPendingInvitations();
+  const entry = list.find((inv) => inv.id === id);
+  if (!entry) {
+    // Already removed (race: double-click or stale state)
+    return;
+  }
+
+  let parsedWelcome: unknown;
+  try {
+    parsedWelcome = JSON.parse(entry.welcomeEventJson);
+  } catch {
+    removePendingInvitation(id);
+    logger.warn('dm:walled-garden-invite-stale', { id: id.slice(0, 8), reason: 'json-parse-failed' });
+    throw new Error('This invitation is no longer valid');
+  }
+
+  let joinedGroup: Group | null = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { group: mlsGroup } = await marmotClient.joinGroupFromWelcome({ welcomeRumor: parsedWelcome as any });
+
+    // Build overlay Group metadata
+    const groupData = mlsGroup.groupData;
+    const groupName = groupData?.name ?? 'Unnamed Group';
+    const groupRelays = mlsGroup.relays ?? [...DEFAULT_RELAYS];
+
+    joinedGroup = {
+      id: mlsGroup.idStr,
+      name: groupName,
+      createdAt: Date.now(),
+      memberPubkeys: getGroupMembers(mlsGroup.state),
+      relays: groupRelays,
+    };
+
+    await saveGroup(joinedGroup);
+    removePendingInvitation(id);
+    logger.info('dm:walled-garden-invite-accept', { id: id.slice(0, 8) });
+  } catch (err) {
+    // MLS failure: remove from queue so the user isn't stuck, log WARN, rethrow
+    removePendingInvitation(id);
+    logger.warn('dm:walled-garden-invite-stale', {
+      id: id.slice(0, 8),
+      reason: err instanceof Error ? err.message : 'unknown',
+    });
+    throw new Error('This invitation is no longer valid');
+  }
+
+  // Fire the caller's group-joined callback OUTSIDE the try-catch so that a
+  // callback failure (e.g. reloadGroups IDB error) does not produce a
+  // misleading "invitation invalid" error — the join already succeeded.
+  if (joinedGroup) {
+    try {
+      await (onGroupJoined(joinedGroup) ?? Promise.resolve());
+    } catch (err) {
+      logger.warn('dm:walled-garden-invite-accept-callback-failed', { id: id.slice(0, 8) });
+    }
+  }
+}
+
+/**
+ * Decline a pending invitation: remove from queue, no network call.
+ *
+ * AC-INVITE-6, AC-OBS-3
+ */
+export async function declinePendingInvitation(id: string): Promise<void> {
+  removePendingInvitation(id);
+  logger.info('dm:walled-garden-invite-decline', { id: id.slice(0, 8) });
 }

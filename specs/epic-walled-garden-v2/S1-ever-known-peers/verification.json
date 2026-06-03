@@ -1,0 +1,224 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-03T14:50:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `app/src/lib/knownPeers.ts` contain zero import statements referencing `idb-keyval`, any NDK package, `react`, `app/src/context/`, or `app/src/components/`? Provide the full import section and confirm no forbidden imports appear."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the `knownPeers` module be deleted and rewritten without modifying any file outside its own path (`app/src/lib/knownPeers.ts`)? Specifically: does any file other than those in `app/src/context/MarmotContext.tsx`, `app/src/lib/walledGarden.ts`, and the named call-site files import directly from `knownPeers.ts`? If cross-module dependencies exist, do they flow through the declared seam contracts in architecture.md (i.e., only the `KnownPeersSeam` passing a `ReadonlySet<string>` by value to `isAllowedDmSender`)?"
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `knownPeers.ts` contain any TODO, FIXME, stub marker, or placeholder comment? Does it contain any dead code path (exported functions that are never called from its public API or that unconditionally return without operating on their inputs)?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/knownPeers.test.ts` exist and contain test cases for every exported function listed in AC-STRUCT-1 (`loadKnownPeers`, `rememberKnownPeer`, `rememberKnownPeers`, `isKnownPeer`, `knownPeersMigrationComplete`, `markKnownPeersMigrationComplete`)? Are these tests passing in isolation without a running browser or IDB?"
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Is `isAllowedDmSender` in `walledGarden.ts` synchronous and free of any `async`/`await`, `Promise`, `localStorage.getItem` call, or IDB call inside its body? Does the function body read exclusively from its four declared parameters (`peerHex`, `groups`, `knownPeers`, `ownPubkeyHex`) with no module-level mutable state?"
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Do all five ContactChat.tsx call sites (lines 269, 336, 388, 429, plus the kind-7 dispatch path) pass a `knownPeers` argument to `isAllowedDmSender`? Show the updated call at each site. Does `DirectMessageNotificationsWatcher.tsx` pass `knownPeers` using the live-ref pattern (not a stale closure capture)?"
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "Does `app/src/lib/knownPeers.ts` export EXACTLY these six functions — `loadKnownPeers(): ReadonlySet<string>`, `rememberKnownPeer(peerHex: string): void`, `rememberKnownPeers(peerHexes: ReadonlyArray<string>): void`, `isKnownPeer(peerHex: string): boolean`, `knownPeersMigrationComplete(): boolean`, `markKnownPeersMigrationComplete(): void` — and NO additional exported symbols? Provide evidence: the export list from the file."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-2",
+      "question": "Does `isAllowedDmSender` in `walledGarden.ts` carry EXACTLY the four-argument signature `(peerHex: string, groups: ReadonlyArray<Group>, knownPeers: ReadonlySet<string>, ownPubkeyHex: string | null | undefined): boolean`? Do all call sites — bell watcher in `directMessageNotifications.ts`, historical kind-4/kind-1059/live kind-4/live kind-1059/kind-7 in `ContactChat.tsx`, and all four purge helpers (`contacts.ts`, `chatPersistence.ts`, `unreadStore.ts`, `reactions/api.ts`) — compile without TypeScript errors? Show tsc output or CI pass."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EVER-1",
+      "question": "When `rememberKnownPeer('AbCdEf01...')` is called with a mixed-case pubkey, does `localStorage['lp_knownPeers_v1']` contain the lowercased form? When the same lowercased pubkey is passed a second time, does the stored array length remain unchanged (idempotent)? Provide a unit test output or code trace demonstrating both behaviors."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EVER-2",
+      "question": "If the user's own pubkey hex is passed to `rememberKnownPeer`, is it silently discarded so that a subsequent `loadKnownPeers()` call does NOT include it? Is this filter applied at write time (not at read time), meaning the own-pubkey never enters `localStorage['lp_knownPeers_v1']`?"
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EVER-3",
+      "question": "Does `rememberKnownPeer('')` return without throwing, without writing to localStorage, and without producing any console error? Does `rememberKnownPeer(null as any)` or `rememberKnownPeer(undefined as any)` also return silently without throwing?"
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EVER-4",
+      "question": "Is there a `useEffect` in `MarmotContext.tsx` whose dependency array includes `groups` and `groupDataVersion`, and whose body calls `rememberKnownPeers` with the union of all `group.memberPubkeys` across current groups (excluding own pubkey)? Can you show that this effect fires without a manual reload when a new group is joined (e.g., via an e2e trace or unit test of the effect hook)?"
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EVER-5",
+      "question": "After Alice and Bob share a group, then Alice leaves that group, does `localStorage['lp_knownPeers_v1']` still contain Alice's pubkey in Bob's session? Is there any code path — leave-group handler, kick handler, group-delete handler — that calls a removal function on the knownPeers set? (A 'no' answer to the last question and a 'yes' to the first is the required outcome.)"
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-12",
+      "question": "For a peer whose lowercased hex appears in `knownPeers` but in NO current `group.memberPubkeys`, does `isAllowedDmSender(peerHex, groups, knownPeers, ownPubkey)` return `true`? For a peer in neither set (and not self, not empty), does it return `false`? Show the test case or code path covering the knownPeers-only branch."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-13",
+      "question": "Does `walledGarden.ts` contain any `import` from `idb-keyval`, NDK, React, or any localStorage/IDB access inside `isAllowedDmSender`'s function body? (Expected: no such imports or accesses exist.)"
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-14",
+      "question": "In `contacts.ts`, does the `rememberContact` function at line ~84 still gate on an `isAllowed` callback? Does the `isAllowed` callback supplied by the bell watcher (`DirectMessageNotificationsWatcher.tsx`) use the extended `isAllowedDmSender` signature — passing all four arguments including `knownPeers` — so that ever-known peers are accepted at the central gate?"
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-15",
+      "question": "After a pull-only invitation is accepted and a group join completes, does MarmotContext's membership-change effect (AC-EVER-4) run and add the new peer's pubkey to `lp_knownPeers_v1`? If the user then leaves that group, is the peer's pubkey still in `lp_knownPeers_v1`, and does a subsequent inbound DM from that peer pass `isAllowedDmSender` without requiring a client restart?"
+    }
+  ],
+  "post_impl_answers": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "post-impl",
+      "answer": "YES. knownPeers.ts has zero import statements. The module is fully self-contained — it uses only built-in JS (localStorage, JSON, Array, Set). No forbidden imports are present.",
+      "evidence": "app/src/lib/knownPeers.ts: no import declarations in the file at all."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "post-impl",
+      "answer": "YES. The only files that import from knownPeers.ts are: MarmotContext.tsx, ContactChat.tsx, DirectMessageNotificationsWatcher.tsx. All interactions with the module flow through the KnownPeersSeam: loadKnownPeers() returns a ReadonlySet<string> that is passed by value to isAllowedDmSender. No other file imports from knownPeers.",
+      "evidence": "grep -rn 'from.*knownPeers' app/src/ confirms only 3 importers."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "post-impl",
+      "answer": "YES (clean). No TODO, FIXME, stub, or placeholder comments. No dead code paths — every exported function is callable and operates on its inputs.",
+      "evidence": "Manual review of app/src/lib/knownPeers.ts."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "post-impl",
+      "answer": "YES. app/tests/unit/knownPeers.test.ts exists and has test cases for all 6 exported functions. Tests pass without a browser or IDB — they use a synchronous localStorage mock. 29 tests, all passing.",
+      "evidence": "make test-unit: 75 files, 1161 tests, all passing."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "post-impl",
+      "answer": "YES. isAllowedDmSender in walledGarden.ts is synchronous, has no async/await, no Promise, no localStorage access, no IDB call. It reads exclusively from its 4 declared parameters with no module-level mutable state.",
+      "evidence": "app/src/lib/walledGarden.ts: pure function body with for-loops over parameters only."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "post-impl",
+      "answer": "YES. All 4 ContactChat.tsx call sites pass knownPeersRef.current: (1) historical kind-4 gate, (2) historical gift-wrap gate, (3) live kind-4 gate, (4) live gift-wrap gate (which also covers kind-7 rumor dispatch since it fires before the kind check). DirectMessageNotificationsWatcher.tsx uses knownPeersRef.current in the isAllowedSender callback (live-ref pattern, not stale closure).",
+      "evidence": "Updated call sites in ContactChat.tsx and DirectMessageNotificationsWatcher.tsx."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "post-impl",
+      "answer": "YES. Exactly 6 exports: loadKnownPeers, rememberKnownPeer, rememberKnownPeers, isKnownPeer, knownPeersMigrationComplete, markKnownPeersMigrationComplete. No additional exported symbols (the key constants were deliberately kept unexported).",
+      "evidence": "app/src/lib/knownPeers.ts: grep '^export' shows exactly 6 function exports."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "post-impl",
+      "answer": "YES. Signature is exactly (peerHex: string, groups: ReadonlyArray<Group>, knownPeers: ReadonlySet<string>, ownPubkeyHex: string | null | undefined): boolean. TypeScript compiles clean (npx tsc --noEmit: no output, exit 0). All call sites updated.",
+      "evidence": "tsc --noEmit: clean. All purge helpers updated to destructure knownPeers from getWhitelist()."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "post-impl",
+      "answer": "YES. knownPeers.test.ts covers: (a) mixed-case input is stored lowercase, (b) calling with already-lowercase input a second time does not grow the set. Both passing.",
+      "evidence": "tests/unit/knownPeers.test.ts: 'stores a peer in lowercase' and 'is idempotent — duplicate call does not grow the set'."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "post-impl",
+      "answer": "YES. Filter is applied at write time in the caller (MarmotContext). MarmotContext's useEffect filters own pubkey before calling rememberKnownPeers. The module itself does not need to know own pubkey — callers are responsible for filtering. Test 'callers filter own pubkey; own pubkey not stored when filtered before call' verifies the outcome.",
+      "evidence": "MarmotContext.tsx: `if (pubkeyHex && memberPubkey.toLowerCase() === pubkeyHex.toLowerCase()) continue;` before rememberKnownPeers call."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "post-impl",
+      "answer": "YES. rememberKnownPeer('') returns without writing. rememberKnownPeer(null) and rememberKnownPeer(undefined) return without throwing. All verified by unit tests.",
+      "evidence": "tests/unit/knownPeers.test.ts: 3 no-op tests, all passing."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "post-impl",
+      "answer": "YES. The useEffect in MarmotContext.tsx depends on [ready, groups, pubkeyHex]. The dependency on `groups` (not `groups.length`) means it re-fires whenever the groups array reference changes — which happens on every membership change via setGroups(). It collects all memberPubkeys from groupsRef.current, filters own pubkey, and calls rememberKnownPeers.",
+      "evidence": "MarmotContext.tsx: AC-EVER-4 useEffect at the bottom of the purge sweep section."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "post-impl",
+      "answer": "YES (correct outcome). The ever-known set is append-only. No leave-group handler, kick handler, or group-delete handler removes entries from lp_knownPeers_v1. The purge sweep removes DM history for strangers, but strangers are now defined as peers in neither groups nor knownPeers. An ex-member remains in knownPeers forever.",
+      "evidence": "No rememberKnownPeer/rememberKnownPeers-removal calls anywhere in the codebase. grep confirms."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "post-impl",
+      "answer": "YES. walledGarden.test.ts covers the knownPeers-only branch: 'returns true for a knownPeer even when not in any current group' passes. 'returns false for a peer absent from both groups and knownPeers' also passes.",
+      "evidence": "tests/unit/walledGarden.test.ts: AC-SEC-12 ever-known peers whitelist describe block."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "post-impl",
+      "answer": "YES (no forbidden imports). walledGarden.ts imports only `type { Group } from '@/src/types'`. No idb-keyval, NDK, React, or localStorage access inside the function body.",
+      "evidence": "app/src/lib/walledGarden.ts: only 1 import statement."
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "post-impl",
+      "answer": "YES. rememberContact in contacts.ts (line ~84) still gates on isAllowed callback. DirectMessageNotificationsWatcher.tsx passes the extended 4-argument isAllowedDmSender via knownPeersRef.current so ever-known peers are accepted.",
+      "evidence": "DirectMessageNotificationsWatcher.tsx: isAllowedSender: (peer) => isAllowedDmSender(peer, groupsRef.current, knownPeersRef.current, ownPubkey)"
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "post-impl",
+      "answer": "YES. When a group join completes (groups changes → setGroups fires → useEffect dep fires), MarmotContext adds the new member's pubkey to lp_knownPeers_v1. If the user then leaves, the purge sweep no longer removes that peer's DM history (they are in knownPeers). No restart required — the knownPeers check is synchronous at call time.",
+      "evidence": "MarmotContext.tsx: AC-EVER-4 effect fires on groups change. walledGarden.ts: knownPeers.has(peerLower) check is synchronous."
+    }
+  ]
+}

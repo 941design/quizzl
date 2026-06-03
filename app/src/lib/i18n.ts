@@ -343,6 +343,21 @@ type Copy = {
     imageDownload: string;
     imageTooLarge: string;
     imageRemove: string;
+    pendingInvitations: {
+      heading: string;
+      acceptBtn: string;
+      declineBtn: string;
+      empty: string;
+      acceptError: string;
+      relativeJustNow: string;
+      relativeMinutesAgo: (n: number) => string;
+      relativeHoursAgo: (n: number) => string;
+      relativeDaysAgo: (n: number) => string;
+      migrationNotice: {
+        body: string;
+        dismissBtn: string;
+      };
+    };
   };
   contacts: {
     pageTitle: string;
@@ -785,6 +800,21 @@ const copy: Record<LanguageCode, Copy> = {
       imageDownload: 'Download',
       imageTooLarge: 'Image is too large',
       imageRemove: 'Remove image',
+      pendingInvitations: {
+        heading: 'Pending Invitations',
+        acceptBtn: 'Accept',
+        declineBtn: 'Decline',
+        empty: 'No pending invitations',
+        acceptError: 'This invitation is no longer valid',
+        relativeJustNow: 'just now',
+        relativeMinutesAgo: (n: number) => `${n}m ago`,
+        relativeHoursAgo: (n: number) => `${n}h ago`,
+        relativeDaysAgo: (n: number) => `${n}d ago`,
+        migrationNotice: {
+          body: "We've upgraded your contact privacy. Some old contacts may no longer be reachable unless you share a group with them again.",
+          dismissBtn: 'Got it',
+        },
+      },
     },
     contacts: {
       pageTitle: 'Contacts',
@@ -1215,6 +1245,21 @@ const copy: Record<LanguageCode, Copy> = {
       imageDownload: 'Herunterladen',
       imageTooLarge: 'Bild ist zu groß',
       imageRemove: 'Bild entfernen',
+      pendingInvitations: {
+        heading: 'Ausstehende Einladungen',
+        acceptBtn: 'Annehmen',
+        declineBtn: 'Ablehnen',
+        empty: 'Keine ausstehenden Einladungen',
+        acceptError: 'Diese Einladung ist nicht mehr gültig',
+        relativeJustNow: 'gerade eben',
+        relativeMinutesAgo: (n: number) => `vor ${n} Min.`,
+        relativeHoursAgo: (n: number) => `vor ${n} Std.`,
+        relativeDaysAgo: (n: number) => `vor ${n} Tagen`,
+        migrationNotice: {
+          body: 'Wir haben deine Kontaktdatenschutzeinstellungen verbessert. Manche alten Kontakte sind möglicherweise nicht mehr erreichbar, es sei denn, ihr teilt wieder eine Gruppe.',
+          dismissBtn: 'Verstanden',
+        },
+      },
     },
     contacts: {
       pageTitle: 'Kontakte',

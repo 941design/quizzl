@@ -521,7 +521,7 @@ describe('ContactChat — handleHistoricalKind4Event walled-garden gate (AC-SEC-
     return async (evt: { id: string; pubkey: string; content: string; created_at?: number }) => {
       const senderPeer = evt.pubkey.toLowerCase();
       const isSelf = senderPeer === opts.pubkeyHex.toLowerCase();
-      if (!isSelf && !isAllowedDmSender(senderPeer, opts.groups, opts.pubkeyHex)) {
+      if (!isSelf && !isAllowedDmSender(senderPeer, opts.groups, new Set<string>(), opts.pubkeyHex)) {
         opts.onDrop(senderPeer);
         return null;
       }

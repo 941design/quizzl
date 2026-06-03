@@ -1,0 +1,39 @@
+{
+  "module_name": "walledGarden",
+  "purpose": "Test surface story — verifies AC-TEST-1 through AC-TEST-9 via unit tests and e2e specs. No new production modules are created; this story owns the test artifacts that exercise the S1–S3 production modules.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/unit/walledGarden.test.ts",
+    "app/tests/unit/marmot/welcomeSubscription.test.ts",
+    "app/tests/e2e/groups-pull-only-invitation-accept.spec.ts",
+    "app/tests/e2e/groups-pull-only-invitation-decline.spec.ts",
+    "app/tests/e2e/groups-ever-known-survives-leave.spec.ts",
+    "app/tests/e2e/groups-migration-backfill.spec.ts",
+    "app/tests/e2e/groups-contacts.spec.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/walledGarden.ts",
+    "app/src/lib/knownPeers.ts",
+    "app/src/lib/pendingInvitations.ts",
+    "app/src/lib/marmot/welcomeSubscription.ts"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/",
+    "app/src/components/"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "AC-TEST-1",
+    "AC-TEST-2",
+    "AC-TEST-3",
+    "AC-TEST-4",
+    "AC-TEST-5",
+    "AC-TEST-6",
+    "AC-TEST-7",
+    "AC-TEST-8",
+    "AC-TEST-9"
+  ]
+}

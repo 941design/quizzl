@@ -1,0 +1,43 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "final_outcome": "accepted",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/src/lib/pendingInvitations.ts",
+    "app/src/components/groups/PendingInvitations.tsx",
+    "app/tests/unit/pendingInvitations.test.ts",
+    "app/tests/unit/pendingInvitations.i18n.test.ts",
+    "specs/epic-walled-garden-v2/S2-pull-only-invitations/architecture.json",
+    "specs/epic-walled-garden-v2/S2-pull-only-invitations/baseline.json",
+    "specs/epic-walled-garden-v2/S2-pull-only-invitations/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/welcomeSubscription.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/pages/groups.tsx",
+    "app/src/lib/i18n.ts",
+    "app/src/components/Layout.tsx"
+  ],
+  "modules_touched": [
+    "pendingInvitations",
+    "welcomeSubscription",
+    "MarmotContext",
+    "groups",
+    "i18n",
+    "Layout"
+  ],
+  "implementation_summary": "Implemented a pure-localStorage pending invitation queue (pendingInvitations.ts) with global cap 256 and per-inviter cap 8. Modified welcomeSubscription.ts to enqueue instead of auto-accepting Welcomes, and exported acceptPendingInvitation/declinePendingInvitation. Wired both actions into MarmotContext. Created PendingInvitations.tsx UI component using useSyncExternalStore for reactive updates. Mounted the component above the groups list in groups.tsx. Added an orange badge on the Groups nav item in Layout.tsx when invitations are pending. Added 7 new copy keys (en+de) to i18n.ts including migrationNotice keys for S3.",
+  "test_counts": {
+    "baseline_files": 75,
+    "final_files": 77,
+    "baseline_tests": 1161,
+    "final_tests": 1183,
+    "new_tests": 22
+  },
+  "mocks_introduced": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  }
+}

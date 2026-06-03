@@ -1,0 +1,181 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-03T14:50:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Do all new e2e spec files follow the `groups-*.spec.ts` naming convention (`groups-pull-only-invitation-accept.spec.ts`, `groups-pull-only-invitation-decline.spec.ts`, `groups-ever-known-survives-leave.spec.ts`, `groups-migration-backfill.spec.ts`) so they are picked up by the Playwright relay-suite `testMatch` pattern? Run `ls app/tests/e2e/groups-*.spec.ts` and confirm all four appear."
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the `walledGarden` test module (owning module for S4) be deleted and rewritten without modifying any production file? Specifically: do the new unit tests import ONLY from `app/src/lib/knownPeers.ts`, `app/src/lib/pendingInvitations.ts`, `app/src/lib/walledGarden.ts`, and `app/src/lib/marmot/welcomeSubscription.ts` — with no imports from context/, components/, or pages/? Do the e2e specs use the published two-context Playwright helper (FIXTURE-04-001) rather than raw WebSocket relay writes?"
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Do any of the new unit tests (`knownPeers.test.ts`, `pendingInvitations.test.ts`, `walledGarden.test.ts` additions, `welcomeSubscription.test.ts` additions) contain spy or mock calls that shadow the actual module under test — specifically: does `welcomeSubscription.test.ts` mock `enqueuePendingInvitation` in a way that prevents the real queue logic from running, making the enqueue assertion a no-op?"
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do the four unit test files (`knownPeers.test.ts`, `pendingInvitations.test.ts`, and the two extended files) all pass with `make test` (unit runner only, no browser required)? Do any tests import or reference `idb-keyval`, NDK, or a running relay — which would indicate the test is integration-class rather than unit-class?"
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does `groups-contacts.spec.ts` add Bob's Accept click at line ~63-66 WITHOUT modifying the 'survive leave' assertion at ~line 84? Produce a diff of `groups-contacts.spec.ts` that shows only the Accept-click addition and no change to the survive-leave block. Does the spec pass end-to-end with this single addition?"
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-1",
+      "question": "Does `app/tests/unit/knownPeers.test.ts` contain passing test cases for ALL of: (a) empty initial state returns empty set; (b) `rememberKnownPeer` stores a single lowercased peer; (c) `rememberKnownPeers` stores multiple peers and deduplicates; (d) case-insensitive comparison (mixed-case input matches lowercase stored entry); (e) own pubkey is filtered at write time; (f) empty/falsy input is a silent no-op; (g) `loadKnownPeers()` after a simulated reload (re-reading from a pre-populated localStorage mock) returns the stored peers; (h) `knownPeersMigrationComplete` and `markKnownPeersMigrationComplete` behave correctly?"
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-2",
+      "question": "Does `app/tests/unit/pendingInvitations.test.ts` contain passing test cases for ALL of: (a) `enqueuePendingInvitation` stores an entry; (b) `listPendingInvitations` returns stored entries; (c) `removePendingInvitation` is idempotent on a non-existent id; (d) `countPendingInvitations` matches list length; (e) the 256-total cap drops the 257th entry silently; (f) the 8-per-inviter cap drops the 9th entry from the same inviter silently; (g) entries survive a simulated reload (re-reading from a pre-populated localStorage mock); (h) malformed JSON in localStorage causes `listPendingInvitations` to return an empty array rather than throw?"
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-3",
+      "question": "Does `app/tests/unit/walledGarden.test.ts` include passing test cases for ALL five disjunction branches: (a) peer in current groups only → `isAllowedDmSender` returns `true`; (b) peer in `knownPeers` only (not in any group) → returns `true`; (c) peer in both → returns `true`; (d) peer in neither (non-empty, not self) → returns `false`; (e) mixed-case peer hex in `knownPeers` branch (peer stored lowercase, passed uppercase) → returns `true`?"
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-4",
+      "question": "Does the extended `app/tests/unit/marmot/welcomeSubscription.test.ts` assert that (a) a cryptographically valid Welcome event triggers `enqueuePendingInvitation` and does NOT trigger `marmotClient.joinGroupFromWelcome`; and (b) an invalid Welcome (bad seal or failed signature) is dropped silently with no call to `enqueuePendingInvitation`? Is there any assertion that `joinGroupFromWelcome` was called on valid-Welcome receipt? (Expected: no such assertion — that call is now behind the user's Accept action.)"
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-5",
+      "question": "Does `groups-pull-only-invitation-accept.spec.ts`: (a) open two `browser.newContext()` sessions for Alice and Bob; (b) assert Bob sees a pending-invitation card with Alice's truncated pubkey BEFORE any Welcome is auto-processed; (c) simulate Bob's Accept click; (d) assert Bob's groups array includes the group; (e) assert Alice sees Bob in the member list; (f) assert Alice DMs Bob, Bob's bell increments, and the message renders in Bob's view — all without any raw WebSocket relay write?"
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-6",
+      "question": "Does `groups-pull-only-invitation-decline.spec.ts`: (a) simulate Bob's Decline click; (b) assert the pending-invitation card is removed from the UI; (c) assert Bob's groups array is unchanged (no new group); (d) assert Alice's group state does NOT include Bob; (e) assert that after Alice publishes a DM via `publishDirectMessage`, Bob's bell counter remains at zero (because Alice is a stranger to Bob post-decline)?"
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-7",
+      "question": "Does `groups-ever-known-survives-leave.spec.ts`: (a) complete a pull-only group join (Accept) so Alice is in `lp_knownPeers_v1` for Bob; (b) have Alice DM Bob and assert the message lands; (c) have Alice leave the group; (d) after membership change settles, have Alice DM Bob again and assert Bob's bell increments and the message renders; (e) assert Bob's contact list still contains Alice; (f) assert Bob's IDB DM thread with Alice still exists?"
+    },
+    {
+      "question_id": "VQ-S4-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-8",
+      "question": "Does `groups-migration-backfill.spec.ts` pre-seed Alice's localStorage and IDB state (Bob in a current group, Mallory not in any group), ensure `lp_knownPeersMigrated_v2` is absent, boot Alice, and then assert ALL of: (a) `lp_knownPeers_v1` contains Bob's lowercased pubkey; (b) `lp_knownPeers_v1` does NOT contain Mallory; (c) Bob's IDB DM thread still exists; (d) Mallory's IDB DM thread is gone; (e) Mallory is absent from `lp_contacts_v1`; (f) `lp_knownPeersMigrated_v2` is set; (g) the migration notice banner appears on `/contacts/` and disappears after dismiss + reload?"
+    },
+    {
+      "question_id": "VQ-S4-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-9",
+      "question": "Does the modified `groups-contacts.spec.ts` add Bob's explicit Accept click (navigating to `/groups/`, finding the invitation row for Alice, clicking Accept, asserting the group card appears) BEFORE the survive-leave assertions? Is the survive-leave assertion block at ~line 84 unchanged from the pre-epic-1 form? Does the full spec pass end-to-end after the Accept-click addition alone, without any other modification to the test body?"
+    },
+    {
+      "question_id": "VQ-S4-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REACT-4",
+      "question": "After a pull-only invitation is accepted and the group join completes, does the next inbound DM from the newly joined peer pass `isAllowedDmSender` and land in the inbox WITHOUT requiring a client restart? Is there any code path where the `knownPeers` set read by `isAllowedDmSender` at DM ingress time is stale (a closed-over snapshot from before the Accept action)?"
+    },
+    {
+      "question_id": "VQ-S4-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REACT-5",
+      "question": "After a group leave, does `lp_knownPeers_v1` still contain the former group-mate's pubkey, and does the next inbound DM from them pass `isAllowedDmSender` without a client restart? Show the e2e trace or unit test that confirms the non-removal invariant after a leave event."
+    },
+    {
+      "question_id": "VQ-S4-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-16",
+      "question": "Are there EXACTLY four ContactChat.tsx DM ingress handlers (historical kind-4, historical kind-1059, live kind-4, live kind-1059) plus the kind-7 dispatch path — and no fifth or later handler — that could receive an inbound DM event without calling `isAllowedDmSender`? Enumerate all handler registrations in `ContactChat.tsx` that process inbound DM events and confirm each one calls `isAllowedDmSender` before acting on the payload."
+    },
+    {
+      "question_id": "VQ-S4-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-17",
+      "question": "Is `unwrapAndOpen` in `app/src/lib/directMessages.ts:230` byte-for-byte identical to the pre-epic-2 version? Run `git diff HEAD~N -- app/src/lib/directMessages.ts` (where N covers all S1–S3 commits) and confirm zero changes to lines 225-240."
+    },
+    {
+      "question_id": "VQ-S4-019",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-18",
+      "question": "Is `shouldIngestRumor` in `app/src/lib/directMessages.ts:204` still present and still called from the same call site(s) as before this epic? Does `git diff` show any modification to lines 200-215 of `directMessages.ts`?"
+    },
+    {
+      "question_id": "VQ-S4-020",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-19",
+      "question": "Does the entire epic 2 implementation introduce zero new relay subscriptions, zero relay-side filter calls, and zero external-service calls for whitelist decisions? Does `isAllowedDmSender` remain a synchronous in-process predicate with no network I/O?"
+    },
+    {
+      "question_id": "VQ-S4-021",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-20",
+      "question": "Is there any code path in `isAllowedDmSender` or in the DM ingress handlers where the presence of a pubkey in `lp_pendingInvitations_v1` causes a DM from that pubkey to be accepted? (Expected: no — the pending queue is never read by `isAllowedDmSender`. Only after Accept, when the peer becomes a group member and MarmotContext writes them to `knownPeers`, do their DMs pass the gate.)"
+    },
+    {
+      "question_id": "VQ-S4-022",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-OBS-4",
+      "question": "Do all six new log tags (`dm:walled-garden-invite-pending`, `dm:walled-garden-invite-accept`, `dm:walled-garden-invite-decline`, `dm:walled-garden-invite-drop-overflow`, `dm:walled-garden-invite-drop-per-inviter`, `dm:walled-garden-invite-stale`) appear in production code at the correct log levels (INFO for the first five, WARN for `-stale`)? Does any log call at any of these tags include a field containing more than 8 hex characters of a pubkey, raw Welcome event content, or group metadata?"
+    },
+    {
+      "question_id": "VQ-S4-023",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-OBS-5",
+      "question": "Does the migration backfill emit exactly one INFO log entry with tag `dm:walled-garden-migration-complete` after the purge sweep completes? Does that log entry include the number of peers seeded, the number of stranger threads purged, and the number of stranger contacts purged — with no raw pubkeys in any field?"
+    },
+    {
+      "question_id": "VQ-S4-P01",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "groups-contacts.spec.ts was modified to add Bob's Accept click using `locator('[data-testid^=\"accept-invitation-\"]').first()`. If the PendingInvitations component changes the `accept-invitation-{id}` data-testid pattern, this test will break silently (wrong selector, no match). Is the data-testid pattern documented as a stable contract in PendingInvitations.tsx?"
+    },
+    {
+      "question_id": "VQ-S4-P02",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "groups-migration-backfill.spec.ts asserts that Bob's IDB thread (quizzl:messages:dm:{bobHex}) is NOT purged after migration. This relies on Bob being in the MLS group snapshot when the migration effect fires. If the MLS state loads asynchronously and the migration effect fires before groups are loaded (groups.length === 0), both Bob and Mallory's threads would be purged and the test would fail non-deterministically. Is there a race guard in the migration useEffect that prevents it from running before group state is hydrated?"
+    },
+    {
+      "question_id": "VQ-S4-P03",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The AC-TEST-3 additions to walledGarden.test.ts add 5 explicit disjunction cases. Cases (a), (b), (d), and (e) overlap semantically with existing tests in the AC-SEC-2 and AC-SEC-12 describe blocks. Is the redundancy intentional (belt-and-suspenders for AC-TEST-3 traceability) or should the pre-existing tests be removed to avoid duplication?"
+    }
+  ]
+}

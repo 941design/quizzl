@@ -1,0 +1,37 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "modules_touched": ["walledGarden"],
+  "remediation_rounds": 1,
+  "files_created": [
+    "specs/epic-walled-garden-v2/S4-test-surface/architecture.json",
+    "specs/epic-walled-garden-v2/S4-test-surface/baseline.json",
+    "specs/epic-walled-garden-v2/S4-test-surface/result.json",
+    "app/tests/e2e/groups-pull-only-invitation-accept.spec.ts",
+    "app/tests/e2e/groups-pull-only-invitation-decline.spec.ts",
+    "app/tests/e2e/groups-ever-known-survives-leave.spec.ts",
+    "app/tests/e2e/groups-migration-backfill.spec.ts"
+  ],
+  "files_modified": [
+    "app/tests/unit/walledGarden.test.ts",
+    "app/tests/e2e/groups-contacts.spec.ts",
+    "specs/epic-walled-garden-v2/S4-test-surface/verification.json",
+    "app/src/lib/contacts.ts",
+    "app/src/lib/marmot/chatPersistence.ts",
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "implementation_summary": "Added 5 AC-TEST-3 disjunction cases to walledGarden.test.ts (peer-in-both, peer-in-groups-only, peer-in-knownPeers-only, peer-in-neither, case-insensitive-knownPeers). Confirmed AC-TEST-4 already covered in welcomeSubscription.test.ts (valid Welcome → enqueue only, no auto-join; invalid → silent drop). Modified groups-contacts.spec.ts to add Bob's explicit Accept click before group-card assertion (AC-TEST-9). Created 4 new relay-suite e2e specs (groups-pull-only-invitation-accept, groups-pull-only-invitation-decline, groups-ever-known-survives-leave, groups-migration-backfill). All new specs follow groups-*.spec.ts naming convention for relay testMatch. Code inspections confirm AC-SEC-16 through AC-OBS-5.",
+  "test_counts": {
+    "baseline_unit_files": 77,
+    "baseline_unit_tests": 1185,
+    "final_unit_files": 77,
+    "final_unit_tests": 1190,
+    "e2e_specs_added": 4,
+    "unit_tests_added": 5
+  },
+  "mocks_introduced": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  }
+}

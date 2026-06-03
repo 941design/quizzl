@@ -88,6 +88,10 @@ test.describe.serial('Group member profiles — names instead of npubs', () => {
 
     // User B receives Welcome and joins
     await pageB.goto('/groups/');
+    // Pull-only invitations (Walled Garden v2): accept the most recently received
+    // invitation before the group appears in the joined list.
+    await expect(pageB.locator('[data-testid^="accept-invitation-"]').last()).toBeVisible({ timeout: 60_000 });
+    await pageB.locator('[data-testid^="accept-invitation-"]').last().click();
     await expect(pageB.getByText('Profile Test Group')).toBeVisible({ timeout: 60_000 });
 
     // Wait for User B's profile to be published and User A to receive it.
@@ -161,6 +165,10 @@ test.describe.serial('New member receives all existing member profiles', () => {
 
     // B receives Welcome and joins
     await pgB.goto('/groups/');
+    // Pull-only invitations (Walled Garden v2): accept the most recently received
+    // invitation before the group appears in the joined list.
+    await expect(pgB.locator('[data-testid^="accept-invitation-"]').last()).toBeVisible({ timeout: 60_000 });
+    await pgB.locator('[data-testid^="accept-invitation-"]').last().click();
     await expect(pgB.getByText('Three Member Profile Group')).toBeVisible({ timeout: 60_000 });
 
     // Wait for profile exchange between A and B
@@ -189,6 +197,10 @@ test.describe.serial('New member receives all existing member profiles', () => {
 
     // C receives Welcome and joins
     await pgC.goto('/groups/');
+    // Pull-only invitations (Walled Garden v2): accept the most recently received
+    // invitation before the group appears in the joined list.
+    await expect(pgC.locator('[data-testid^="accept-invitation-"]').last()).toBeVisible({ timeout: 60_000 });
+    await pgC.locator('[data-testid^="accept-invitation-"]').last().click();
     await expect(pgC.getByText('Three Member Profile Group')).toBeVisible({ timeout: 60_000 });
 
     // Wait for A and B to republish profiles after detecting new member

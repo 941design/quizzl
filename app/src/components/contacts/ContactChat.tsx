@@ -5,6 +5,7 @@ import type { MemberProfile } from '@/src/types';
 import ChatBox from '@/src/components/chat/ChatBox';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { isAllowedDmSender } from '@/src/lib/walledGarden';
+import { loadKnownPeers } from '@/src/lib/knownPeers';
 import { createLogger } from '@/src/lib/logger';
 import { appendMessage, loadMessages, removeMessages, type ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import { connectNdk, fetchEventsWithTimeout } from '@/src/lib/ndkClient';
@@ -71,6 +72,10 @@ export default function ContactChat({
   // without the effect needing to re-subscribe on every membership change.
   const groupsRef = useRef(groups);
   useEffect(() => { groupsRef.current = groups; }, [groups]);
+  // Ref for ever-known peers — refreshed whenever groups change (which is also
+  // when knownPeers may have been updated by MarmotContext's maintenance effect).
+  const knownPeersRef = useRef(loadKnownPeers());
+  useEffect(() => { knownPeersRef.current = loadKnownPeers(); }, [groups]);
   // Track MarmotContext readiness so the historical fetch can wait for the
   // group whitelist to be fully loaded before running the walled-garden gate.
   // Without this, a fast relay (< 100 ms) resolves the historical fetch before
@@ -266,7 +271,7 @@ export default function ContactChat({
         ): Promise<ChatMessage | null> => {
           const senderPeer = evt.pubkey.toLowerCase();
           const isSelf = senderPeer === pubkeyHex.toLowerCase();
-          if (!isSelf && !isAllowedDmSender(senderPeer, groupsRef.current, pubkeyHex)) {
+          if (!isSelf && !isAllowedDmSender(senderPeer, groupsRef.current, knownPeersRef.current, pubkeyHex)) {
             dmLogger.info('dm:walled-garden-drop', { pubkey: senderPeer.slice(0, 8), kind: 4 });
             return null;
           }
@@ -333,7 +338,7 @@ export default function ContactChat({
           if (!shouldIngestRumor(rumor, peerPubkeyHex)) continue;
           // AC-SEC-6: walled-garden gate — in addition to thread isolation.
           const senderPeer = rumor.pubkey.toLowerCase();
-          if (!isAllowedDmSender(senderPeer, groupsRef.current, pubkeyHex)) {
+          if (!isAllowedDmSender(senderPeer, groupsRef.current, knownPeersRef.current, pubkeyHex)) {
             dmLogger.info('dm:walled-garden-drop', { pubkey: senderPeer.slice(0, 8), kind: rumor.kind });
             continue;
           }
@@ -385,7 +390,7 @@ export default function ContactChat({
           // returns false for own pubkey by design, but own messages are legitimate.
           const senderPeer = evt.pubkey.toLowerCase();
           const isSelf = senderPeer === pubkeyHex.toLowerCase();
-          if (!isSelf && !isAllowedDmSender(senderPeer, groupsRef.current, pubkeyHex)) {
+          if (!isSelf && !isAllowedDmSender(senderPeer, groupsRef.current, knownPeersRef.current, pubkeyHex)) {
             dmLogger.info('dm:walled-garden-drop', { pubkey: senderPeer.slice(0, 8), kind: 4 });
             return;
           }
@@ -426,7 +431,7 @@ export default function ContactChat({
               // AC-SEC-6/7: walled-garden gate — runs after thread isolation, before
               // any write path (appendMessage, upsertMessages, applyInboundRumor).
               const rumorSender = rumor.pubkey.toLowerCase();
-              if (!isAllowedDmSender(rumorSender, groupsRef.current, pubkeyHex)) {
+              if (!isAllowedDmSender(rumorSender, groupsRef.current, knownPeersRef.current, pubkeyHex)) {
                 dmLogger.info('dm:walled-garden-drop', { pubkey: rumorSender.slice(0, 8), kind: rumor.kind });
                 return;
               }

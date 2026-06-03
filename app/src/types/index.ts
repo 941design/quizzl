@@ -137,6 +137,10 @@ export const STORAGE_KEYS = {
   processedGiftWraps: 'lp_processedGiftWraps',
   contactCache: 'lp_contactCache_v1',
   contacts: 'lp_contacts_v1',
+  knownPeers: 'lp_knownPeers_v1',
+  knownPeersMigrated: 'lp_knownPeersMigrated_v2',
+  knownPeersMigrationNoticeAck: 'lp_knownPeersMigrationNoticeAck_v1',
+  pendingInvitations: 'lp_pendingInvitations_v1',
 } as const;
 
 // ============================

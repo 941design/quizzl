@@ -44,7 +44,7 @@ const { purgeStrangerContacts } = await import('@/src/lib/contacts');
 // ── Whitelist factory ─────────────────────────────────────────────────────────
 const OWN = 'cc'.repeat(32);
 function getWhitelist() {
-  return { groups: [], ownPubkeyHex: OWN };
+  return { groups: [], knownPeers: new Set<string>(), ownPubkeyHex: OWN };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

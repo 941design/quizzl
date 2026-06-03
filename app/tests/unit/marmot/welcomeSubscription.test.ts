@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Module mocks for subscribeToGroupMessages tests. Hoisted by vitest, applied
@@ -8,6 +8,23 @@ import { describe, it, expect, vi } from 'vitest';
 // ---------------------------------------------------------------------------
 
 const mockFetchEventsWithTimeout = vi.fn();
+
+// ---------------------------------------------------------------------------
+// Module mock for pendingInvitations — allows asserting on enqueuePendingInvitation
+// calls without touching localStorage. Hoisted by vitest.
+// ---------------------------------------------------------------------------
+
+const mockEnqueuePendingInvitation = vi.fn();
+const mockCountPendingInvitations = vi.fn().mockReturnValue(1);
+const mockRemovePendingInvitation = vi.fn();
+const mockListPendingInvitations = vi.fn().mockReturnValue([]);
+
+vi.mock('@/src/lib/pendingInvitations', () => ({
+  enqueuePendingInvitation: (...args: unknown[]) => mockEnqueuePendingInvitation(...args),
+  countPendingInvitations: () => mockCountPendingInvitations(),
+  removePendingInvitation: (...args: unknown[]) => mockRemovePendingInvitation(...args),
+  listPendingInvitations: () => mockListPendingInvitations(),
+}));
 
 vi.mock('@/src/lib/ndkClient', () => ({
   fetchEventsWithTimeout: (...args: unknown[]) => mockFetchEventsWithTimeout(...args),
@@ -29,7 +46,7 @@ vi.mock('@/src/lib/marmot/epochResolver', () => ({
   },
 }));
 
-import { unwrapGiftWrap, subscribeToGroupMessages } from '@/src/lib/marmot/welcomeSubscription';
+import { unwrapGiftWrap, subscribeToGroupMessages, subscribeToWelcomes } from '@/src/lib/marmot/welcomeSubscription';
 
 // ---------------------------------------------------------------------------
 // unwrapGiftWrap tests
@@ -381,6 +398,164 @@ describe('subscribeToGroupMessages — Phase-2 live sub carries `since` covering
     // Upper sanity bound on the margin so a future refactor doesn't silently
     // backdate by hours. 60 s is the loose Nostr-convention ceiling.
     expect(since).toBeGreaterThanOrEqual(beforeCallSec - 60);
+
+    unsub();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// subscribeToWelcomes — receipt-handler integration tests
+//
+// Verifies that the event handler installed by subscribeToWelcomes:
+//   AC-INVITE-1: valid kind-444 rumor → enqueuePendingInvitation called, NOT
+//                joinGroupFromWelcome (join is deferred to user acceptance).
+//   AC-INVITE-2: invalid Welcome (decryption failure) → silently dropped,
+//                enqueuePendingInvitation NOT called, no error thrown.
+// ---------------------------------------------------------------------------
+
+describe('subscribeToWelcomes — receipt-handler integration', () => {
+  // localStorage stub: subscribeToWelcomes reads/writes the processedGiftWraps key.
+  // Provide a minimal in-memory stub so tests don't depend on a real DOM.
+  let localStorageStore: Record<string, string> = {};
+
+  beforeEach(() => {
+    localStorageStore = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => localStorageStore[key] ?? null,
+      setItem: (key: string, value: string) => { localStorageStore[key] = value; },
+      removeItem: (key: string) => { delete localStorageStore[key]; },
+    });
+
+    mockEnqueuePendingInvitation.mockReset();
+    mockCountPendingInvitations.mockReset().mockReturnValue(1);
+  });
+
+  /**
+   * Build a minimal signer that returns the supplied decrypted layers via nip44.decrypt.
+   * The first call decrypts the gift wrap → seal JSON.
+   * The second call decrypts the seal → rumor JSON.
+   */
+  function makeDecryptSigner(seal: object, rumor: object) {
+    return {
+      nip44: {
+        decrypt: vi.fn()
+          .mockResolvedValueOnce(JSON.stringify(seal))
+          .mockResolvedValueOnce(JSON.stringify(rumor)),
+      },
+    };
+  }
+
+  /**
+   * Build a minimal NDK mock that captures the event handler installed by
+   * subscribeToWelcomes so that tests can fire it manually.
+   * Returns { mockNdk, fireEvent }.
+   */
+  function makeNdkWithEventCapture() {
+    let capturedHandler: ((event: unknown) => Promise<void>) | null = null;
+
+    const mockSubInstance = {
+      on: vi.fn((eventName: string, handler: (event: unknown) => Promise<void>) => {
+        if (eventName === 'event') {
+          capturedHandler = handler;
+        }
+      }),
+      stop: vi.fn(),
+    };
+
+    const mockNdk = {
+      subscribe: vi.fn(() => mockSubInstance),
+    };
+
+    const fireEvent = async (ndkEvent: unknown) => {
+      if (!capturedHandler) throw new Error('Event handler not yet installed');
+      await capturedHandler(ndkEvent);
+    };
+
+    return { mockNdk, fireEvent };
+  }
+
+  it('valid kind-444 rumor → enqueuePendingInvitation called; joinGroupFromWelcome NOT called', async () => {
+    const { mockNdk, fireEvent } = makeNdkWithEventCapture();
+
+    const rumor = {
+      id: 'rumor-abc',
+      pubkey: 'inviter-pubkey-hex',
+      created_at: 1700000001,
+      kind: 444,
+      tags: [['e', 'group-id']],
+      content: 'welcome-payload',
+      sig: '',
+    };
+    const seal = { pubkey: 'inviter-pubkey-hex', content: 'encrypted-rumor' };
+    const signer = makeDecryptSigner(seal, rumor);
+
+    // marmotClient — joinGroupFromWelcome must NOT be called
+    const mockMarmotClient = {
+      joinGroupFromWelcome: vi.fn(),
+    };
+
+    const unsub = await subscribeToWelcomes(
+      'my-pubkey-hex',
+      mockMarmotClient as never,
+      mockNdk as never,
+      signer as never,
+      vi.fn(), // onGroupJoined callback
+    );
+
+    // Fire a gift-wrap NDK event addressed to us
+    await fireEvent({
+      id: 'giftwrap-id-001',
+      pubkey: 'ephemeral-pubkey',
+      content: 'encrypted-seal',
+    });
+
+    // AC-INVITE-1: enqueuePendingInvitation must have been called once with the rumor data
+    expect(mockEnqueuePendingInvitation).toHaveBeenCalledTimes(1);
+    const [enqueued] = mockEnqueuePendingInvitation.mock.calls[0] as [{ id: string; inviterPubkeyHex: string }];
+    expect(enqueued.id).toBe('rumor-abc');
+    expect(enqueued.inviterPubkeyHex).toBe('inviter-pubkey-hex');
+
+    // AC-INVITE-1: joinGroupFromWelcome must NOT have been called
+    expect(mockMarmotClient.joinGroupFromWelcome).not.toHaveBeenCalled();
+
+    unsub();
+  });
+
+  it('invalid Welcome (decryption failure) → silently dropped; enqueuePendingInvitation NOT called', async () => {
+    const { mockNdk, fireEvent } = makeNdkWithEventCapture();
+
+    // Signer that always throws on decrypt — simulates a DM or other non-Welcome
+    // gift wrap that we cannot decrypt (the expected case for non-Welcome kind 1059s)
+    const signer = {
+      nip44: {
+        decrypt: vi.fn().mockRejectedValue(new Error('Decryption failed — wrong key')),
+      },
+    };
+
+    const mockMarmotClient = {
+      joinGroupFromWelcome: vi.fn(),
+    };
+
+    const unsub = await subscribeToWelcomes(
+      'my-pubkey-hex',
+      mockMarmotClient as never,
+      mockNdk as never,
+      signer as never,
+      vi.fn(),
+    );
+
+    // Fire an event that will fail decryption; the handler must NOT throw
+    await expect(
+      fireEvent({
+        id: 'giftwrap-id-002',
+        pubkey: 'some-pubkey',
+        content: 'undecryptable-content',
+      })
+    ).resolves.toBeUndefined();
+
+    // AC-INVITE-2: no invitation enqueued, no joinGroupFromWelcome call
+    expect(mockEnqueuePendingInvitation).not.toHaveBeenCalled();
+    expect(mockMarmotClient.joinGroupFromWelcome).not.toHaveBeenCalled();
 
     unsub();
   });

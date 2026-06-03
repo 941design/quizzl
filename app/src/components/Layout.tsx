@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
 import {
   Box,
   Flex,
@@ -25,6 +25,11 @@ import ThemeIcon from '@/src/components/ThemeIcon';
 import NotificationBell from '@/src/components/NotificationBell';
 import DirectMessageNotificationsWatcher from '@/src/components/DirectMessageNotificationsWatcher';
 import { rememberContactsFromGroups } from '@/src/lib/contacts';
+import { subscribe as subscribePendingInvitations, getSnapshot as getPendingInvitationsSnapshot } from '@/src/lib/pendingInvitations';
+
+function getPendingInvitationsServerSnapshot() {
+  return [] as ReturnType<typeof getPendingInvitationsSnapshot>;
+}
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -38,6 +43,15 @@ export default function Layout({ children }: LayoutProps) {
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
   const { navStyle, surfaceStyle, bannerDecorStyle } = useThemeStyles();
+
+  // AC-INVITE-8: reactive pending invitation count for Groups nav badge
+  const pendingInvitations = useSyncExternalStore(
+    subscribePendingInvitations,
+    getPendingInvitationsSnapshot,
+    getPendingInvitationsServerSnapshot,
+  );
+  const pendingInvitationCount = pendingInvitations.length;
+
   const navItems = [
     { label: copy.layout.nav.home, href: '/' },
     { label: copy.layout.nav.topics, href: '/topics' },
@@ -89,6 +103,8 @@ export default function Layout({ children }: LayoutProps) {
               <HStack as="ul" spacing={{ base: 2, md: 6 }} listStyleType="none">
                 {navItems.map((item) => {
                   const isActive = router.pathname === item.href;
+                  const isGroups = item.href === '/groups';
+                  const showBadge = isGroups && pendingInvitationCount > 0;
                   return (
                     <Box as="li" key={item.href}>
                       <NextLink href={item.href} passHref legacyBehavior>
@@ -97,8 +113,32 @@ export default function Layout({ children }: LayoutProps) {
                           color={isActive ? 'brand.500' : 'textMuted'}
                           _hover={{ color: 'brand.500', textDecoration: 'none' }}
                           aria-current={isActive ? 'page' : undefined}
+                          position="relative"
+                          display="inline-flex"
+                          alignItems="center"
+                          gap={1}
                         >
                           {item.label}
+                          {showBadge && (
+                            <Box
+                              as="span"
+                              display="inline-flex"
+                              alignItems="center"
+                              justifyContent="center"
+                              bg="orange.500"
+                              color="white"
+                              fontSize="2xs"
+                              fontWeight="bold"
+                              lineHeight="1"
+                              minW="16px"
+                              h="16px"
+                              borderRadius="full"
+                              px="4px"
+                              data-testid="groups-invitation-badge"
+                            >
+                              {pendingInvitationCount > 99 ? '99+' : pendingInvitationCount}
+                            </Box>
+                          )}
                         </Link>
                       </NextLink>
                     </Box>
@@ -210,11 +250,15 @@ export default function Layout({ children }: LayoutProps) {
               </Box>
               {navItems.map((item) => {
                 const isActive = router.pathname === item.href;
+                const isGroups = item.href === '/groups';
+                const showBadge = isGroups && pendingInvitationCount > 0;
                 return (
                   <Box as="li" key={item.href} w="100%">
                     <NextLink href={item.href} passHref legacyBehavior>
                       <Link
-                        display="block"
+                        display="flex"
+                        alignItems="center"
+                        gap={2}
                         py={2}
                         px={3}
                         borderRadius="md"
@@ -226,6 +270,26 @@ export default function Layout({ children }: LayoutProps) {
                         onClick={onToggle}
                       >
                         {item.label}
+                        {showBadge && (
+                          <Box
+                            as="span"
+                            display="inline-flex"
+                            alignItems="center"
+                            justifyContent="center"
+                            bg="orange.500"
+                            color="white"
+                            fontSize="2xs"
+                            fontWeight="bold"
+                            lineHeight="1"
+                            minW="16px"
+                            h="16px"
+                            borderRadius="full"
+                            px="4px"
+                            data-testid="groups-invitation-badge-mobile"
+                          >
+                            {pendingInvitationCount > 99 ? '99+' : pendingInvitationCount}
+                          </Box>
+                        )}
                       </Link>
                     </NextLink>
                   </Box>

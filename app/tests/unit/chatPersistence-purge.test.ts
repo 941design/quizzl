@@ -30,7 +30,7 @@ const MEMBER_GROUP: Group = {
 };
 
 function getWhitelist() {
-  return { groups: [MEMBER_GROUP], ownPubkeyHex: OWN_HEX };
+  return { groups: [MEMBER_GROUP], knownPeers: new Set<string>(), ownPubkeyHex: OWN_HEX };
 }
 
 // ── idb-keyval mock (Map-backed, shared store) ─────────────────────────────────

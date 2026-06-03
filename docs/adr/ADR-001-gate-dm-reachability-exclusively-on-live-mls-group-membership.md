@@ -1,11 +1,11 @@
 # ADR-001: Gate DM reachability exclusively on live MLS group membership
 
-**Status**: Proposed
+**Status**: Superseded by ADR-002
 **Date**: 2026-06-03
 **Type**: Lightweight
 **Affects**: specs/epic-dm-walled-garden/, app/src/lib/walledGarden.ts, app/src/components/contacts/ContactChat.tsx, app/src/lib/directMessageNotifications.ts, app/src/context/MarmotContext.tsx
 **Supersedes**: none
-**Superseded by**: none
+**Superseded by**: ADR-002
 
 ## Context
 

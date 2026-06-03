@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-03T07:02:45Z",
+  "updated_at": "2026-06-03T20:16:15Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -79,6 +79,11 @@
     },
     {
       "path": "specs/epic-dm-walled-garden/",
+      "status": "DONE",
+      "next_action": "completed 2026-06-03"
+    },
+    {
+      "path": "specs/epic-walled-garden-v2/",
       "status": "DONE",
       "next_action": "completed 2026-06-03"
     }

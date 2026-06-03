@@ -474,7 +474,7 @@ export async function purgeStrangerDmReactions(
   const { isAllowedDmSender } = walledGarden;
   const { keys, delMany } = await import('idb-keyval');
 
-  const { groups, ownPubkeyHex } = getWhitelist();
+  const { groups, knownPeers, ownPubkeyHex } = getWhitelist();
   const dmReactionPrefix = 'quizzl:reactions:dm:';
 
   const allKeys = await keys();
@@ -485,7 +485,7 @@ export async function purgeStrangerDmReactions(
   const strangerKeys: string[] = [];
   for (const key of dmReactionKeys) {
     const peerHex = key.slice(dmReactionPrefix.length);
-    if (!isAllowedDmSender(peerHex, groups, ownPubkeyHex)) {
+    if (!isAllowedDmSender(peerHex, groups, knownPeers, ownPubkeyHex)) {
       strangerKeys.push(key);
     }
   }

@@ -4,6 +4,7 @@ import { initDirectMessageCounts } from '@/src/lib/unreadStore';
 import { readStoredContacts } from '@/src/lib/contacts';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { isAllowedDmSender } from '@/src/lib/walledGarden';
+import { loadKnownPeers } from '@/src/lib/knownPeers';
 
 export default function DirectMessageNotificationsWatcher() {
   const { hydrated, pubkeyHex, privateKeyHex } = useNostrIdentity();
@@ -13,6 +14,10 @@ export default function DirectMessageNotificationsWatcher() {
   // every group membership change. Pattern matches ContactChat.tsx groupsRef.
   const groupsRef = useRef(groups);
   useEffect(() => { groupsRef.current = groups; }, [groups]);
+  // Ever-known peers ref — refreshed whenever groups change (when MarmotContext's
+  // maintenance effect may have updated lp_knownPeers_v1).
+  const knownPeersRef = useRef(loadKnownPeers());
+  useEffect(() => { knownPeersRef.current = loadKnownPeers(); }, [groups]);
 
   useEffect(() => {
     if (!hydrated || !pubkeyHex || !privateKeyHex) return;
@@ -44,7 +49,7 @@ export default function DirectMessageNotificationsWatcher() {
           ndk,
           ownPubkeyHex: ownPubkey,
           privateKeyHex,
-          isAllowedSender: (peer) => isAllowedDmSender(peer, groupsRef.current, ownPubkey),
+          isAllowedSender: (peer) => isAllowedDmSender(peer, groupsRef.current, knownPeersRef.current, ownPubkey),
         });
       } catch (err) {
         console.warn('[DMNotifications] subscribe failed:', err);

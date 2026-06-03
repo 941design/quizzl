@@ -1,0 +1,27 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "modules_touched": ["MarmotContext", "knownPeers", "contacts"],
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/src/components/contacts/MigrationNoticeBanner.tsx"
+  ],
+  "files_modified": [
+    "app/src/lib/knownPeers.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/pages/contacts.tsx"
+  ],
+  "tests_added": 0,
+  "test_counts": {
+    "baseline_files": 77,
+    "baseline_tests": 1185,
+    "final_files": 77,
+    "final_tests": 1185
+  },
+  "mocks_introduced": [],
+  "implementation_summary": "Added isMigrationNoticeAcknowledged/acknowledgeMigrationNotice helpers to knownPeers.ts. Added AC-MIGRATE-1 through AC-MIGRATE-4 boot-time migration backfill effect to MarmotContext — runs before AC-EVER-4 maintenance and normal purge effects, seeds knownPeers from current group members, runs all four purge helpers, then marks migration complete. Created MigrationNoticeBanner component (AC-MIGRATE-5): shows dismissible i18n info banner on contacts page after migration, hides permanently after user clicks dismiss. Mounted banner at top of ContactListView.",
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  }
+}
