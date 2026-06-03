@@ -1,0 +1,12 @@
+{
+  "story_id": "S3",
+  "captured_at": "2026-06-02T00:00:00Z",
+  "commit": "b5890d713f69644442b5242db42d1ed7ddbd772e",
+  "test_counts": {
+    "unit_files": 67,
+    "unit_tests": 900,
+    "all_passing": true
+  },
+  "lint": "NO_LINT",
+  "typecheck": "clean"
+}

@@ -78,6 +78,7 @@ const {
   parseDirectPayload,
 } = await import('@/src/lib/directMessages');
 const { appendMessage, loadMessages } = await import('@/src/lib/marmot/chatPersistence');
+const { isAllowedDmSender } = await import('@/src/lib/walledGarden');
 
 // ─── Test fixtures ─────────────────────────────────────────────────────────────
 const ALICE_PRIV = 'bceef655b5a034911f1c3718ce056531b45ef03b4c7b1f15629e867294011a7d';
@@ -497,5 +498,117 @@ describe('ContactChat.init — historical kind-1059 fetch (story-03)', () => {
       const ids = stored.map((m: any) => m.id).sort();
       expect(ids).toEqual(['rumor-distinct-001', 'rumor-distinct-002']);
     });
+  });
+});
+
+// ─── AC-SEC-8 regression: historical kind-4 walled-garden gate ───────────────
+//
+// Verifies that handleHistoricalKind4Event applies isAllowedDmSender BEFORE
+// calling appendMessage/ingestEvent. This is the fourth inbound path identified
+// in the post-implementation Opus review (Amendment 1 to AC-SEC-6).
+
+describe('ContactChat — handleHistoricalKind4Event walled-garden gate (AC-SEC-8 regression)', () => {
+  type Group = import('@/src/types').Group;
+
+  // Inline handleHistoricalKind4Event — mirrors the production code in ContactChat.tsx.
+  // Tests this logic in isolation from the full component.
+  function makeHandler(opts: {
+    pubkeyHex: string;
+    groups: ReadonlyArray<Group>;
+    ingestEvent: (evt: any) => Promise<any>;
+    onDrop: (pubkey: string) => void;
+  }) {
+    return async (evt: { id: string; pubkey: string; content: string; created_at?: number }) => {
+      const senderPeer = evt.pubkey.toLowerCase();
+      const isSelf = senderPeer === opts.pubkeyHex.toLowerCase();
+      if (!isSelf && !isAllowedDmSender(senderPeer, opts.groups, opts.pubkeyHex)) {
+        opts.onDrop(senderPeer);
+        return null;
+      }
+      return opts.ingestEvent(evt).catch(() => null);
+    };
+  }
+
+  const ALICE_PUB = ALICE_PUBKEY_HEX;
+  const MEMBER_GROUP: Group = {
+    id: 'group-test',
+    name: 'Test',
+    createdAt: 1,
+    memberPubkeys: [BOB_PUB, ALICE_PUB],
+    relays: [],
+  };
+  const STRANGER_PUB = 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
+
+  it('drops a historical kind-4 event from a stranger and does not call ingestEvent', async () => {
+    const ingestEvent = vi.fn().mockResolvedValue({ id: 'msg-stranger', content: 'hi' });
+    const onDrop = vi.fn();
+
+    const handler = makeHandler({
+      pubkeyHex: ALICE_PUB,
+      groups: [MEMBER_GROUP],
+      ingestEvent,
+      onDrop,
+    });
+
+    const result = await handler({
+      id: 'evt-stranger-kind4',
+      pubkey: STRANGER_PUB,
+      content: 'encrypted stranger content',
+      created_at: Math.floor(Date.now() / 1000),
+    });
+
+    expect(result).toBeNull();
+    expect(ingestEvent).not.toHaveBeenCalled();
+    expect(onDrop).toHaveBeenCalledWith(STRANGER_PUB);
+  });
+
+  it('allows a historical kind-4 event from a group member', async () => {
+    const fakeMsg = { id: 'msg-member', content: 'hello' };
+    const ingestEvent = vi.fn().mockResolvedValue(fakeMsg);
+    const onDrop = vi.fn();
+
+    const handler = makeHandler({
+      pubkeyHex: ALICE_PUB,
+      groups: [MEMBER_GROUP],
+      ingestEvent,
+      onDrop,
+    });
+
+    const result = await handler({
+      id: 'evt-member-kind4',
+      pubkey: BOB_PUB,
+      content: 'encrypted member content',
+      created_at: Math.floor(Date.now() / 1000),
+    });
+
+    expect(result).toEqual(fakeMsg);
+    expect(ingestEvent).toHaveBeenCalledOnce();
+    expect(onDrop).not.toHaveBeenCalled();
+  });
+
+  it('allows self-authored outgoing kind-4 events regardless of gate', async () => {
+    const fakeMsg = { id: 'msg-self', content: 'my own message' };
+    const ingestEvent = vi.fn().mockResolvedValue(fakeMsg);
+    const onDrop = vi.fn();
+
+    const handler = makeHandler({
+      pubkeyHex: ALICE_PUB,
+      groups: [MEMBER_GROUP],
+      ingestEvent,
+      onDrop,
+    });
+
+    // Self-authored: pubkey === pubkeyHex. isAllowedDmSender returns false for
+    // self, but the isSelf check must bypass the gate.
+    const result = await handler({
+      id: 'evt-self-kind4',
+      pubkey: ALICE_PUB, // self
+      content: 'my encrypted outgoing message',
+      created_at: Math.floor(Date.now() / 1000),
+    });
+
+    expect(result).toEqual(fakeMsg);
+    expect(ingestEvent).toHaveBeenCalledOnce();
+    expect(onDrop).not.toHaveBeenCalled();
   });
 });

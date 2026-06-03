@@ -1,0 +1,40 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "final_outcome": "accepted",
+  "architect_skipped": false,
+  "completed_at": "2026-06-02T16:45:00Z",
+  "remediation_rounds": 0,
+  "files_modified": [
+    "app/src/lib/directMessageNotifications.ts",
+    "app/src/components/contacts/ContactChat.tsx",
+    "app/src/components/DirectMessageNotificationsWatcher.tsx",
+    "app/tests/unit/directMessageNotifications.test.ts"
+  ],
+  "files_created": [
+    "specs/epic-dm-walled-garden/S2-ingress-gates-on-inbound-dm-paths/architecture.json",
+    "specs/epic-dm-walled-garden/S2-ingress-gates-on-inbound-dm-paths/baseline.json",
+    "specs/epic-dm-walled-garden/S2-ingress-gates-on-inbound-dm-paths/result.json"
+  ],
+  "implementation_summary": "Added isAllowedDmSender whitelist gates before every side-effect in both inbound DM subscribers. In directMessageNotifications.ts: added isAllowedSender callback parameter; gated kind-4 handler before seenMessageIds population and all side-effects (AC-SEC-3/4); gated kind-1059 handler before seenRumorIds population and all side-effects (AC-SEC-5); removed bug-documenting comment (AC-OBS-2). In DirectMessageNotificationsWatcher.tsx: added useMarmot() to get groups; passes (peer) => isAllowedDmSender(peer, groups, ownPubkeyHex) as isAllowedSender to the subscription; groups in dep array ensures subscription recreates on membership change. In ContactChat.tsx: added groupsRef (ref-pattern for stable handlers); gated handleHistoricalGiftWrapEvent, handleKind4Event (with isSelf bypass for own-authored echoes on outgoingSub), and handleGiftWrapEvent before all write paths (AC-SEC-6/7); INFO-level drop logging at each gate (AC-OBS-1). All gates run AFTER unwrapAndOpen and shouldIngestRumor, not instead of them (AC-SEC-9/10).",
+  "test_counts": {
+    "baseline_unit_tests": 897,
+    "final_unit_tests": 900,
+    "new_tests_added": 3,
+    "test_files_modified": 1
+  },
+  "mocks_introduced": [],
+  "reviews": {
+    "opus": "inline manual review — all 11 ACs verified by code inspection",
+    "codex": "sandbox-spawn-failure — reviewer could not access working tree; not a configuration issue"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The isAllowedSender injection point was DirectMessageNotificationsWatcher.tsx (not MarmotContext.tsx as the story guidance suggested). The watcher is a thin component, not the context — the guidance correctly flagged this but required reading the actual call site before the wiring approach was confirmed. Additionally, the kind-4 outgoing echo path (outgoingSub uses authors:[pubkeyHex]) shares handleKind4Event with the inbound path — isAllowedDmSender returns false for own pubkey by design, so a self-bypass check (isSelf) was needed to avoid blocking outgoing message echoes. This edge case was not called out in the spec.",
+    "surprised_by": "The bug-1 regression test in the existing test suite explicitly asserted the old 'any sender' behavior (expecting bell to ring for an unknown peer). Replacing it with new gate-behavior tests was correct per S2's intent, but the existing test comment described it as a regression guard against a real bug — meaning the change inverts a previously load-bearing test. The S4 test story will need to confirm the new expected behavior end-to-end.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": []
+  }
+}

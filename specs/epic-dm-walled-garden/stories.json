@@ -1,0 +1,230 @@
+{
+  "stories": [
+    {
+      "id": "S1",
+      "name": "whitelist-module-and-central-gate",
+      "title": "Whitelist module + central rememberContact gate",
+      "description": "Create app/src/lib/walledGarden.ts with the pure isAllowedDmSender(peerHex, groups, ownPubkeyHex) function. Gate rememberContact() in app/src/lib/contacts.ts so it becomes a silent no-op for any pubkey not in the whitelist. This story establishes the single source of truth for 'who may reach me' and the deepest defence-in-depth chokepoint; S2 and S3 both depend on this story's exports.",
+      "owning_module": "walledGarden",
+      "scope": {
+        "includes": [
+          "app/src/lib/walledGarden.ts (create new file)",
+          "app/src/lib/contacts.ts (modify rememberContact to add whitelist gate)"
+        ],
+        "excludes": [
+          "app/src/lib/directMessageNotifications.ts",
+          "app/src/components/contacts/ContactChat.tsx",
+          "app/src/lib/marmot/chatPersistence.ts",
+          "app/src/lib/unreadStore.ts",
+          "app/src/lib/reactions/api.ts",
+          "app/src/context/MarmotContext.tsx"
+        ]
+      },
+      "acceptance_criteria": [
+        "AC-STRUCT-1",
+        "AC-SEC-1",
+        "AC-SEC-2",
+        "AC-STRUCT-2"
+      ],
+      "dependencies": [],
+      "status": "done",
+      "lighter_path": false
+    },
+    {
+      "id": "S2",
+      "name": "ingress-gates-on-inbound-dm-paths",
+      "title": "Ingress gates on bell watcher and ContactChat",
+      "description": "Add isAllowedDmSender checks before every side-effect in the two inbound DM subscribers. In directMessageNotifications.ts: gate the kind-4 handler and the kind-1059 handler before rememberContact, incrementDirectMessage, and seenMessageIds/seenRumorIds population. In ContactChat.tsx: gate handleHistoricalGiftWrapEvent, handleKind4Event, handleGiftWrapEvent before appendMessage/upsertMessages, and gate the kind-7 dispatch branch. Remove the bug-documenting comment at ~line 106 of directMessageNotifications.ts. Log every stranger drop at INFO with tag dm:walled-garden-drop.",
+      "owning_module": "ingress-gates",
+      "status": "done",
+      "scope": {
+        "includes": [
+          "app/src/lib/directMessageNotifications.ts (modify: add whitelist gate in kind-4 and kind-1059 handlers; remove bug comment ~line 106; add stranger-drop logging)",
+          "app/src/components/contacts/ContactChat.tsx (modify: add whitelist gate in handleHistoricalGiftWrapEvent, handleKind4Event, handleGiftWrapEvent, and kind-7 dispatch branch)"
+        ],
+        "excludes": [
+          "app/src/lib/walledGarden.ts",
+          "app/src/lib/directMessages.ts",
+          "app/src/lib/marmot/chatPersistence.ts",
+          "app/src/lib/unreadStore.ts",
+          "app/src/lib/reactions/api.ts",
+          "app/src/context/MarmotContext.tsx"
+        ]
+      },
+      "acceptance_criteria": [
+        "AC-SEC-3",
+        "AC-SEC-4",
+        "AC-SEC-5",
+        "AC-SEC-6",
+        "AC-SEC-7",
+        "AC-OBS-1",
+        "AC-OBS-2",
+        "AC-SEC-8",
+        "AC-SEC-9",
+        "AC-SEC-10",
+        "AC-SEC-11"
+      ],
+      "dependencies": ["S1"],
+      "status": "pending",
+      "lighter_path": false
+    },
+    {
+      "id": "S3",
+      "name": "retroactive-purge",
+      "status": "done",
+      "title": "Retroactive purge helpers + MarmotContext wiring",
+      "description": "Add purge helpers: purgeStrangerDmThreads(getWhitelist) in chatPersistence.ts (IDB dm:* key sweep), purgeStrangerDmCounters(getWhitelist) in unreadStore.ts (using clearDirectMessageContact), purgeStrangerDmReactions(getWhitelist) in reactions/api.ts (following clearAllReactions pattern), and purgeStrangerContacts(getWhitelist) in contacts.ts (walks STORAGE_KEYS.contacts and STORAGE_KEYS.contactCache). Wire all four helpers into MarmotContext.tsx: invoke once after group hydration on boot, and re-invoke on every group-membership change event (useEffect on groups/groupDataVersion). Reactivity to join/leave/kick is part of this story.",
+      "owning_module": "retroactive-purge",
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/chatPersistence.ts (new export: purgeStrangerDmThreads)",
+          "app/src/lib/unreadStore.ts (new export: purgeStrangerDmCounters)",
+          "app/src/lib/reactions/api.ts (new export: purgeStrangerDmReactions)",
+          "app/src/lib/contacts.ts (new export: purgeStrangerContacts)",
+          "app/src/context/MarmotContext.tsx (wire purge sweep after boot hydration + on membership change)"
+        ],
+        "excludes": [
+          "app/src/lib/walledGarden.ts",
+          "app/src/lib/directMessageNotifications.ts",
+          "app/src/components/contacts/ContactChat.tsx",
+          "app/src/lib/directMessages.ts"
+        ]
+      },
+      "acceptance_criteria": [
+        "AC-PURGE-1",
+        "AC-PURGE-2",
+        "AC-PURGE-3",
+        "AC-PURGE-4",
+        "AC-PURGE-5",
+        "AC-PURGE-6",
+        "AC-PERF-1",
+        "AC-REACT-1",
+        "AC-REACT-2",
+        "AC-REACT-3"
+      ],
+      "dependencies": ["S1"],
+      "status": "pending",
+      "lighter_path": false
+    },
+    {
+      "id": "S4",
+      "name": "test-surface",
+      "status": "done",
+      "title": "Test surface — unit tests, e2e specs, bug-spec inversion",
+      "description": "Full test surface per DD-7 Option A. Unit tests: walledGarden.test.ts (isAllowedDmSender edge cases), directMessageNotifications.test.ts additions (stranger kind-4 + kind-1059 produce no side effects; member kind-1059 does), chatPersistence-purge.test.ts (seed stranger + member keys, run purgeStrangerDmThreads, assert outcomes; covers unread/contact/reaction surfaces). E2e specs: dm-walled-garden-stranger-blocked.spec.ts (Mallory via USER_C second context, bell stays 0, no IDB key), dm-walled-garden-group-member-allowed.spec.ts (Alice + Bob share group, DM lands), dm-walled-garden-retroactive-purge.spec.ts (pre-seeded IDB, boot, assert Mallory thread purged and Bob thread intact). Invert or delete dm-third-party-inbound.spec.ts per AC-TEST-7.",
+      "owning_module": "test-surface",
+      "scope": {
+        "includes": [
+          "app/tests/unit/walledGarden.test.ts (create new file)",
+          "app/tests/unit/directMessageNotifications.test.ts (modify or extend with stranger/member gate assertions)",
+          "app/tests/unit/chatPersistence-purge.test.ts (create new file)",
+          "app/tests/e2e/dm-walled-garden-stranger-blocked.spec.ts (create new file)",
+          "app/tests/e2e/dm-walled-garden-group-member-allowed.spec.ts (create new file)",
+          "app/tests/e2e/dm-walled-garden-retroactive-purge.spec.ts (create new file)",
+          "app/tests/e2e/dm-third-party-inbound.spec.ts (delete or invert)"
+        ],
+        "excludes": [
+          "app/src/lib/walledGarden.ts",
+          "app/src/lib/directMessageNotifications.ts",
+          "app/src/components/contacts/ContactChat.tsx",
+          "app/src/lib/marmot/chatPersistence.ts",
+          "app/src/lib/unreadStore.ts",
+          "app/src/lib/reactions/api.ts",
+          "app/src/context/MarmotContext.tsx",
+          "app/src/lib/contacts.ts"
+        ]
+      },
+      "acceptance_criteria": [
+        "AC-TEST-1",
+        "AC-TEST-2",
+        "AC-TEST-3",
+        "AC-TEST-4",
+        "AC-TEST-5",
+        "AC-TEST-6",
+        "AC-TEST-7"
+      ],
+      "dependencies": ["S1", "S2", "S3"],
+      "status": "pending",
+      "lighter_path": false
+    }
+  ],
+  "seams": [
+    {
+      "id": "seam-1",
+      "name": "isAllowedDmSender function signature",
+      "defined_by": "S1",
+      "consumed_by": ["S2", "S3"],
+      "cross_story": true,
+      "contract": {
+        "type_name": "IsAllowedDmSender",
+        "fields": [
+          { "name": "peerHex", "type": "string" },
+          { "name": "groups", "type": "ReadonlyArray<Group>" },
+          { "name": "ownPubkeyHex", "type": "string | null | undefined" }
+        ],
+        "return_type": "boolean",
+        "invariants": [
+          "Returns false when peerHex is empty string",
+          "Returns false when peerHex (case-insensitive) equals ownPubkeyHex",
+          "Returns false when groups is empty array",
+          "Returns true if and only if peerHex (case-insensitive) appears in group.memberPubkeys (case-insensitive) of at least one group in groups and neither of the first two preconditions applies",
+          "Has no side effects — does not read IDB, does not touch NDK, does not read React state"
+        ]
+      }
+    },
+    {
+      "id": "seam-2",
+      "name": "rememberContact whitelist gate",
+      "defined_by": "S1",
+      "consumed_by": ["S2"],
+      "cross_story": true,
+      "contract": {
+        "type_name": "RememberContactGate",
+        "fields": [
+          { "name": "peerHex", "type": "string" }
+        ],
+        "invariants": [
+          "Returns without mutating storage when isAllowedDmSender reports peerHex as a stranger",
+          "Does not throw on stranger input",
+          "Does not log an error on stranger input"
+        ]
+      }
+    },
+    {
+      "id": "seam-3",
+      "name": "purge helper exports",
+      "defined_by": "S3",
+      "consumed_by": [],
+      "cross_story": false,
+      "contract": {
+        "type_name": "PurgeSweep",
+        "fields": [
+          { "name": "getWhitelist", "type": "() => { groups: ReadonlyArray<Group>; ownPubkeyHex: string | null | undefined }" }
+        ],
+        "invariants": [
+          "purgeStrangerDmThreads deletes all quizzl:messages:dm:<peerHex> keys where isAllowedDmSender returns false",
+          "purgeStrangerDmThreads does not touch quizzl:messages:<groupId> keys lacking the dm: discriminator",
+          "purgeStrangerDmCounters calls clearDirectMessageContact for every stranger peer in unreadStore",
+          "purgeStrangerContacts removes entries from both STORAGE_KEYS.contacts and STORAGE_KEYS.contactCache for stranger pubkeys",
+          "purgeStrangerDmReactions removes quizzl:reactions:dm:<peerHex> keys where peerHex is a stranger"
+        ]
+      }
+    },
+    {
+      "id": "seam-4",
+      "name": "dm-third-party-inbound spec inversion",
+      "defined_by": "S4",
+      "consumed_by": [],
+      "cross_story": false,
+      "contract": {
+        "type_name": "BugSpecInversion",
+        "fields": [],
+        "invariants": [
+          "No passing suite run ends with the bug-as-feature assertions (badge>=1 or DM thread renders for stranger) intact in dm-third-party-inbound.spec.ts",
+          "The raw-WebSocket publishKind4ToRelay helper is not used in the surviving or replacement spec"
+        ]
+      }
+    }
+  ],
+  "story_order": ["S1", "S2", "S3", "S4"]
+}

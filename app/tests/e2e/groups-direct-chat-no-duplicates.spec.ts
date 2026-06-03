@@ -2,19 +2,20 @@ import { test, expect, BrowserContext, Page } from '@playwright/test';
 import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay } from './helpers/dismiss-error-overlay';
+import { createGroupAndInvite } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
-async function bootUserWithContact(
+/** Boot a user and navigate to /groups/ so the MLS group setup can run. */
+async function bootUserOnGroups(
   browser: { newContext: (opts: object) => Promise<BrowserContext> },
   user: typeof USER_A,
   nickname: string,
-  peerPubkeyHex: string,
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ baseURL: BASE_URL });
   await suppressErrorOverlay(context);
   await context.addInitScript(
-    ({ privateKeyHex, pubkeyHex, seedHex, nickname, peerPubkeyHex }) => {
+    ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
       localStorage.setItem(
         'lp_nostrIdentity_v1',
         JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }),
@@ -23,25 +24,12 @@ async function bootUserWithContact(
         'lp_userProfile_v1',
         JSON.stringify({ nickname, avatar: null, badgeIds: [] }),
       );
-      const now = new Date().toISOString();
-      localStorage.setItem(
-        'lp_contacts_v1',
-        JSON.stringify({
-          [peerPubkeyHex]: {
-            pubkeyHex: peerPubkeyHex,
-            firstSeenAt: now,
-            lastSeenAt: now,
-            archivedAt: null,
-          },
-        }),
-      );
     },
     {
       privateKeyHex: user.privateKeyHex,
       pubkeyHex: user.pubkeyHex,
       seedHex: user.seedHex,
       nickname,
-      peerPubkeyHex,
     },
   );
   const page = await context.newPage();
@@ -49,7 +37,7 @@ async function bootUserWithContact(
   await clearAppState(page);
   // re-seed after clearAppState wiped lp_* keys
   await page.evaluate(
-    ({ privateKeyHex, pubkeyHex, seedHex, nickname, peerPubkeyHex }) => {
+    ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
       localStorage.setItem(
         'lp_nostrIdentity_v1',
         JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }),
@@ -58,28 +46,19 @@ async function bootUserWithContact(
         'lp_userProfile_v1',
         JSON.stringify({ nickname, avatar: null, badgeIds: [] }),
       );
-      const now = new Date().toISOString();
-      localStorage.setItem(
-        'lp_contacts_v1',
-        JSON.stringify({
-          [peerPubkeyHex]: {
-            pubkeyHex: peerPubkeyHex,
-            firstSeenAt: now,
-            lastSeenAt: now,
-            archivedAt: null,
-          },
-        }),
-      );
     },
     {
       privateKeyHex: user.privateKeyHex,
       pubkeyHex: user.pubkeyHex,
       seedHex: user.seedHex,
       nickname,
-      peerPubkeyHex,
     },
   );
   await page.reload();
+  await page.goto('/groups/');
+  await expect(
+    page.getByTestId('groups-empty-state').or(page.getByTestId('groups-list')),
+  ).toBeVisible({ timeout: 60_000 });
   return { context, page };
 }
 
@@ -91,23 +70,17 @@ test.describe.serial('Direct chat: no duplicate messages on send', () => {
 
   test.beforeAll(async ({ browser }) => {
     await computeTestKeypairs();
-    ({ context: contextA, page: pageA } = await bootUserWithContact(
-      browser,
-      USER_A,
-      'Alice',
-      USER_B.pubkeyHex,
-    ));
-    ({ context: contextB, page: pageB } = await bootUserWithContact(
-      browser,
-      USER_B,
-      'Bob',
-      USER_A.pubkeyHex,
-    ));
+    ({ context: contextA, page: pageA } = await bootUserOnGroups(browser, USER_A, 'Alice'));
+    ({ context: contextB, page: pageB } = await bootUserOnGroups(browser, USER_B, 'Bob'));
   });
 
   test.afterAll(async () => {
     await contextA?.close();
     await contextB?.close();
+  });
+
+  test('Alice and Bob establish a shared MLS group (walled-garden prerequisite)', async () => {
+    await createGroupAndInvite(pageA, USER_B.npub, pageB, 'No-Dup Test Group');
   });
 
   test('a sent message appears exactly once in the sender\'s thread', async () => {
@@ -124,6 +97,11 @@ test.describe.serial('Direct chat: no duplicate messages on send', () => {
     // echo NDK dispatches into matching subs has no listener.
     await pageA.waitForTimeout(10_000);
     await pageB.waitForTimeout(2_000);
+
+    // Record the baseline bubble count BEFORE sending — the relay may have
+    // historical messages from previous test runs. The assertion is that sending
+    // ONE message increases the count by exactly 1, not that the absolute count is 1.
+    const baselineBubbleCount = await pageA.locator('[data-testid^="msg-"]').count();
 
     // Force the race deterministically. NDK dispatches a just-published event
     // into matching local subscriptions synchronously inside event.publish()
@@ -156,14 +134,21 @@ test.describe.serial('Direct chat: no duplicate messages on send', () => {
     // … then give the relay echo (own-author subscription) time to round-trip.
     await pageA.waitForTimeout(5_000);
 
-    // It must appear exactly once on the sender's screen.
+    // The unique text must appear exactly once (no duplicate rendering).
     await expect(pageA.getByText(uniqueText)).toHaveCount(1);
-    // And the *total* number of message bubbles must be exactly one (we only
-    // sent a single new message into a freshly-cleared relay).
-    await expect(pageA.locator('[data-testid^="msg-"]')).toHaveCount(1);
+
+    // The TOTAL bubble count must have increased by exactly 1 (no phantom duplicates).
+    // We compare against the baseline rather than asserting absolute count = 1,
+    // because the relay may have historical messages from previous test runs.
+    const bubbleCountAfterSend = await pageA.locator('[data-testid^="msg-"]').count();
+    expect(bubbleCountAfterSend).toBe(baselineBubbleCount + 1);
 
     // Reloading the page must not double the message either: the persisted
-    // log + the relay refetch must dedupe.
+    // log + the relay refetch must dedupe. We check that uniqueText appears
+    // exactly once after reload; the total bubble count is NOT checked against
+    // bubbleCountAfterSend because the relay may deliver gift-wrapped messages
+    // from concurrent/prior test runs between the send and the reload, making the
+    // absolute count non-deterministic in a full-suite run.
     await pageA.reload();
     await expect(pageA.getByTestId('contact-detail-page')).toBeVisible({ timeout: 30_000 });
     await expect(pageA.getByText(uniqueText)).toBeVisible({ timeout: 30_000 });

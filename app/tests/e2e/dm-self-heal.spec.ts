@@ -10,31 +10,64 @@
  *      (self-heal persisted to IDB, not just in-memory).
  *   3. Direct IDB inspection confirms the row was rewritten in place.
  *
+ * Walled-garden prerequisite: Alice and Bob must share an MLS group so that
+ * the retroactive purge sweep (AC-PURGE-1) does not remove the seeded thread.
+ * Both tests are wrapped in test.describe.serial with a group setup step first.
+ *
  * Keypairs: alice (USER_A), bob (USER_B) from helpers/auth-helpers.ts.
  * Requires the strfry relay harness: make e2e-up.
  * Run: node scripts/run-e2e.mjs tests/e2e/dm-self-heal.spec.ts
  */
 
-import { test, expect } from '@playwright/test';
-import { USER_A, USER_B, injectIdentity, computeTestKeypairs } from './helpers/auth-helpers';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
+import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay } from './helpers/dismiss-error-overlay';
+import { createGroupAndInvite } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
-const E2E_RELAY_URL = process.env.E2E_RELAY_URL ?? 'ws://localhost:7777';
-
-test.beforeAll(async () => {
-  await computeTestKeypairs();
-});
-
-test.afterEach(async ({ page }) => {
-  await clearAppState(page);
-});
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const ENVELOPE_CONTENT = JSON.stringify({ type: 'text', text: 'hello from envelope' });
 const ENVELOPE_ID = 'a'.repeat(64); // canonical 64-hex id
+
+/**
+ * Boot a user and navigate to /groups/ so MarmotContext initializes cleanly
+ * (KeyPackages published before createGroupAndInvite runs).
+ * This mirrors the bootUserOnGroups pattern used in other walled-garden tests.
+ */
+async function bootUserOnGroups(
+  browser: { newContext: (opts: object) => Promise<BrowserContext> },
+  user: typeof USER_A,
+  nickname: string,
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext({ baseURL: BASE_URL });
+  await suppressErrorOverlay(context);
+  await context.addInitScript(
+    ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
+      localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+    },
+    { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname },
+  );
+  const page = await context.newPage();
+  await page.goto('/');
+  await clearAppState(page);
+  await page.evaluate(
+    ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
+      localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+    },
+    { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname },
+  );
+  await page.reload();
+  await page.goto('/groups/');
+  await expect(
+    page.getByTestId('groups-empty-state').or(page.getByTestId('groups-list')),
+  ).toBeVisible({ timeout: 60_000 });
+  return { context, page };
+}
 
 /**
  * Seed a malformed DM row in the idb-keyval store the app actually reads from.
@@ -114,136 +147,125 @@ async function readDmThread(
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
 
-test(
-  'AC-29: malformed JSON-envelope content row is self-healed; '
-  + 'bubble renders decoded text; survives page reload; '
-  + 'IDB row is rewritten in place (AC-29)',
-  async ({ browser }) => {
-    const bobPub = USER_B.pubkeyHex;
-    const alicePriv = USER_A.privateKeyHex;
-    const alicePub = USER_A.pubkeyHex;
-    const THREAD_ID = `dm:${bobPub}`.toLowerCase();
+test.describe.serial('DM self-heal — AC-29 and AC-27', () => {
+  let ctxA: BrowserContext;
+  let ctxB: BrowserContext;
+  let pageA: Page;
+  let pageB: Page;
 
-    // ── 1. Pre-seed Alice's IDB with a malformed row ────────────────────────
-    // We'll use a helper context that opens the page once, seeds the row via
-    // page.evaluate, then navigates to the chat.
-    const ctx = await browser.newContext({ baseURL: BASE_URL });
-    await suppressErrorOverlay(ctx);
-    const page = await ctx.newPage();
+  test.beforeAll(async ({ browser }) => {
+    await computeTestKeypairs();
+    // Boot both users via groups page so MarmotContext initializes cleanly
+    // (KeyPackages published, purge whitelist ready). Without this, the
+    // retroactive purge sweep (AC-PURGE-1) would remove the seeded DM thread
+    // because Bob is a stranger with no shared group.
+    ({ context: ctxA, page: pageA } = await bootUserOnGroups(browser, USER_A, 'Alice'));
+    ({ context: ctxB, page: pageB } = await bootUserOnGroups(browser, USER_B, 'Bob'));
+  });
 
-    // Go to app first so we have a valid page context
-    await page.goto('/');
-    await injectIdentity(page, USER_A);
-    await page.waitForTimeout(500);
+  test.afterAll(async () => {
+    await ctxA?.close();
+    await ctxB?.close();
+  });
 
-    // Seed contact for Bob
-    const now = new Date().toISOString();
-    await page.evaluate(
-      ({ peerPubkeyHex, ts }) => {
-        localStorage.setItem('lp_contacts_v1', JSON.stringify({
-          [peerPubkeyHex]: { pubkeyHex: peerPubkeyHex, firstSeenAt: ts, lastSeenAt: ts, archivedAt: null },
-        }));
-      },
-      { peerPubkeyHex: bobPub, ts: now },
-    );
+  test('Alice and Bob establish a shared MLS group (walled-garden prerequisite)', async () => {
+    await createGroupAndInvite(pageA, USER_B.npub, pageB, 'Self-Heal Test Group');
+  });
 
-    // Seed the malformed row into IndexedDB
-    await seedMalformedRow(page);
-    await page.waitForTimeout(200); // let IDB write settle
+  test(
+    'AC-29: malformed JSON-envelope content row is self-healed; '
+    + 'bubble renders decoded text; survives page reload; '
+    + 'IDB row is rewritten in place (AC-29)',
+    async () => {
+      const bobPub = USER_B.pubkeyHex;
 
-    // Verify the malformed row is in IDB before opening the chat
-    const preChat = await readDmThread(page, bobPub);
-    expect(preChat).not.toBeNull();
-    expect(preChat!.length).toBe(1);
-    expect(preChat![0].content).toBe(ENVELOPE_CONTENT);
-    expect(preChat![0].content).not.toBe('hello from envelope');
+      // ── 1. Pre-seed Alice's IDB with a malformed row ────────────────────────
+      // The purge already ran on boot and Bob is whitelisted (shared group),
+      // so the seeded row will survive. Navigate away from groups first so
+      // the app is in a neutral state before seeding.
+      await pageA.goto('/');
+      await pageA.waitForLoadState('networkidle');
 
-    // ── 2. Navigate to Bob's DM chat ────────────────────────────────────────
-    await page.goto(`/contacts?id=${bobPub}`);
-    await page.waitForLoadState('networkidle');
+      // Seed the malformed row into IndexedDB
+      await seedMalformedRow(pageA);
+      await pageA.waitForTimeout(200); // let IDB write settle
 
-    // The self-heal pass runs inside loadMessages inside ContactChat.init.
-    // Look for the decoded text rendered in a chat bubble.
-    const bubble = page.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
-    await expect(bubble).toBeVisible({ timeout: 15_000 });
-    await expect(bubble).not.toContainText('{"type":"text"');
+      // Verify the malformed row is in IDB before opening the chat
+      const preChat = await readDmThread(pageA, bobPub);
+      expect(preChat).not.toBeNull();
+      expect(preChat!.length).toBe(1);
+      expect(preChat![0].content).toBe(ENVELOPE_CONTENT);
+      expect(preChat![0].content).not.toBe('hello from envelope');
 
-    // ── 4. page.reload() — verify persistence ───────────────────────────────
-    await page.reload();
-    await page.waitForLoadState('networkidle');
-    const bubbleAfter = page.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
-    await expect(bubbleAfter).toBeVisible({ timeout: 15_000 });
-    await expect(bubbleAfter).not.toContainText('{"type":"text"');
+      // ── 2. Navigate to Bob's DM chat ────────────────────────────────────────
+      await pageA.goto(`/contacts?id=${bobPub}`);
+      await pageA.waitForLoadState('networkidle');
 
-    // ── 6. Inspect IDB directly — assert row was rewritten in place ──────
-    const healed = await readDmThread(page, bobPub);
-    expect(healed).not.toBeNull();
-    const healedRow = healed!.find((m) => m.id === ENVELOPE_ID);
-    expect(healedRow).toBeDefined();
-    expect(healedRow!.content).toBe('hello from envelope');
-    expect(healedRow!.id).toBe(ENVELOPE_ID);
+      // The self-heal pass runs inside loadMessages inside ContactChat.init.
+      // Look for the decoded text rendered in a chat bubble.
+      const bubble = pageA.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
+      await expect(bubble).toBeVisible({ timeout: 15_000 });
+      await expect(bubble).not.toContainText('{"type":"text"');
 
-    await ctx.close();
-  },
-);
+      // ── 4. page.reload() — verify persistence ───────────────────────────────
+      await pageA.reload();
+      await pageA.waitForLoadState('networkidle');
+      const bubbleAfter = pageA.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
+      await expect(bubbleAfter).toBeVisible({ timeout: 15_000 });
+      await expect(bubbleAfter).not.toContainText('{"type":"text"');
 
-test(
-  'AC-27: self-heal marker is set; second loadMessages skips the pass '
-  + '(no duplicate write after reload)',
-  async ({ browser }) => {
-    const bobPub = USER_B.pubkeyHex;
-    const alicePub = USER_A.pubkeyHex;
+      // ── 6. Inspect IDB directly — assert row was rewritten in place ──────
+      const healed = await readDmThread(pageA, bobPub);
+      expect(healed).not.toBeNull();
+      const healedRow = healed!.find((m) => m.id === ENVELOPE_ID);
+      expect(healedRow).toBeDefined();
+      expect(healedRow!.content).toBe('hello from envelope');
+      expect(healedRow!.id).toBe(ENVELOPE_ID);
+    },
+  );
 
-    const ctx = await browser.newContext({ baseURL: BASE_URL });
-    await suppressErrorOverlay(ctx);
-    const page = await ctx.newPage();
+  test(
+    'AC-27: self-heal marker is set; second loadMessages skips the pass '
+    + '(no duplicate write after reload)',
+    async () => {
+      const bobPub = USER_B.pubkeyHex;
 
-    await page.goto('/');
-    await injectIdentity(page, USER_A);
-    await page.waitForTimeout(500);
+      // Navigate away then back to reset state
+      await pageA.goto('/');
+      await pageA.waitForLoadState('networkidle');
 
-    const now = new Date().toISOString();
-    await page.evaluate(
-      ({ peerPubkeyHex, ts }) => {
-        localStorage.setItem('lp_contacts_v1', JSON.stringify({
-          [peerPubkeyHex]: { pubkeyHex: peerPubkeyHex, firstSeenAt: ts, lastSeenAt: ts, archivedAt: null },
-        }));
-      },
-      { peerPubkeyHex: bobPub, ts: now },
-    );
+      // Seed malformed row (Bob is whitelisted via shared group)
+      await seedMalformedRow(pageA);
+      await pageA.waitForTimeout(200);
 
-    // Seed malformed row
-    await seedMalformedRow(page);
-    await page.waitForTimeout(200);
+      // Verify healed marker is NOT set yet
+      const markerBefore = await pageA.evaluate(() =>
+        localStorage.getItem('lp_dmHealed_v1'),
+      );
+      // Marker may already be set from the AC-29 test above; clear it first.
+      await pageA.evaluate(() => localStorage.removeItem('lp_dmHealed_v1'));
 
-    // Verify healed marker is NOT set yet
-    const markerBefore = await page.evaluate(() =>
-      localStorage.getItem('lp_dmHealed_v1'),
-    );
-    expect(markerBefore).toBeNull();
+      // First chat open
+      await pageA.goto(`/contacts?id=${bobPub}`);
+      await pageA.waitForLoadState('networkidle');
+      const bubble = pageA.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
+      await expect(bubble).toBeVisible({ timeout: 15_000 });
 
-    // First chat open
-    await page.goto(`/contacts?id=${bobPub}`);
-    await page.waitForLoadState('networkidle');
-    const bubble = page.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
-    await expect(bubble).toBeVisible({ timeout: 15_000 });
+      // Healed marker should now be set
+      const markerAfter = await pageA.evaluate(() =>
+        localStorage.getItem('lp_dmHealed_v1'),
+      );
+      expect(markerAfter).not.toBeNull();
+      const parsed = JSON.parse(markerAfter!);
+      expect(parsed.some((t: string) => t.startsWith('dm:'))).toBe(true);
 
-    // Healed marker should now be set
-    const markerAfter = await page.evaluate(() =>
-      localStorage.getItem('lp_dmHealed_v1'),
-    );
-    expect(markerAfter).not.toBeNull();
-    const parsed = JSON.parse(markerAfter!);
-    expect(parsed.some((t: string) => t.startsWith('dm:'))).toBe(true);
-
-    // After reload, the healed marker prevents re-running the self-heal pass.
-    // The bubble should still render correctly (proving the row was persisted
-    // in its healed form, not just decoded in-memory).
-    await page.reload();
-    await page.waitForLoadState('networkidle');
-    const bubbleAfter = page.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
-    await expect(bubbleAfter).toBeVisible({ timeout: 15_000 });
-
-    await ctx.close();
-  },
-);
+      // After reload, the healed marker prevents re-running the self-heal pass.
+      // The bubble should still render correctly (proving the row was persisted
+      // in its healed form, not just decoded in-memory).
+      await pageA.reload();
+      await pageA.waitForLoadState('networkidle');
+      const bubbleAfter = pageA.locator('[data-testid^="msg-"]').filter({ hasText: 'hello from envelope' }).first();
+      await expect(bubbleAfter).toBeVisible({ timeout: 15_000 });
+    },
+  );
+});

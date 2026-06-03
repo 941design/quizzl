@@ -1,0 +1,100 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-02T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-1",
+      "question": "Does `app/tests/unit/walledGarden.test.ts` exercise `isAllowedDmSender` against all five cases from AC-SEC-1 and AC-SEC-2: (a) own-pubkey rejection, (b) empty-groups rejection, (c) empty-peerHex rejection, (d) peer present in exactly one of many groups (accepted), and (e) case-insensitive comparison (uppercase pubkey vs lowercase member entry — still accepted)? Provide the test file's describe/it structure and confirm each case is a separate assertion, not a single compound test."
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-2",
+      "question": "Does `app/tests/unit/directMessageNotifications.test.ts` (or equivalent) assert: (a) a kind-4 from a stranger produces zero `rememberContact` calls and zero `incrementDirectMessage` calls, (b) a kind-1059 → kind-14 from a stranger produces the same zero-call result, and (c) a kind-1059 → kind-14 from a member produces exactly one `rememberContact` call and one `incrementDirectMessage` call (the floor sanity case)? Is case (c) present to confirm the gate is not accidentally blocking all events?"
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-3",
+      "question": "Does `app/tests/unit/chatPersistence-purge.test.ts` (or equivalent) seed `quizzl:messages:dm:<strangerHex>` and `quizzl:messages:dm:<memberHex>`, run `purgeStrangerDmThreads` with the whitelist set to `[memberHex]`, and assert: (a) the stranger key is deleted (returns `undefined` from idb-keyval `get`), and (b) the member key is intact (returns original seeded value)? Does the same test (or a sibling) cover unread counters, contact-list entries, and reaction-state surfaces with equivalent seed-purge-assert structure?"
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-4",
+      "question": "Does `app/tests/e2e/dm-walled-garden-stranger-blocked.spec.ts` sign Alice in as USER_A and Mallory as USER_C (`seedHex: 'cc'.repeat(16)`) via a second `browser.newContext()` (DD-8 Option α)? After Mallory sends a DM to Alice via the app's `publishDirectMessage` helper (NOT via raw WebSocket), does the test assert: (a) Alice's notification bell shows 0, (b) no DM thread appears in `/contacts`, and (c) `idb-keyval.get('quizzl:messages:dm:<malloryHex>')` returns `undefined` after a defined wait window?"
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-5",
+      "question": "Does `app/tests/e2e/dm-walled-garden-group-member-allowed.spec.ts` (or the equivalent assertion in an existing spec) exercise the floor case: Alice and Bob share an actual MLS group (created and joined via the app during the test, NOT just a `lp_contacts_v1` entry), Bob DMs Alice via `publishDirectMessage`, and the test asserts both (a) Alice's bell counter increments and (b) the message renders in the DM thread? Is the group membership real (not mocked) to exercise the actual `isAllowedDmSender` path?"
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-6",
+      "question": "Does `app/tests/e2e/dm-walled-garden-retroactive-purge.spec.ts` pre-seed Alice's IDB with BOTH a stranger DM thread key (`quizzl:messages:dm:<malloryHex>`) AND a member DM thread key (`quizzl:messages:dm:<bobHex>`), boot the app, wait for hydration, and assert: (a) the Mallory key is absent from idb-keyval, (b) the Mallory unread counter is at default, (c) the Mallory contact-list entry is absent, and (d) the Bob key, counter, and contact entry are all intact?"
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-7",
+      "question": "Is `app/tests/e2e/dm-third-party-inbound.spec.ts` either deleted or fully inverted? If inverted, do the new assertions match AC-TEST-4 (bell stays at 0, no DM thread, no IDB key for stranger)? Run `grep -rn 'badge.*>=.*1\\|expect.*badge.*toBeGreaterThan\\|DM thread renders\\|publishKind4ToRelay' app/tests/e2e/dm-third-party-inbound.spec.ts` on the post-implementation file — it MUST return no matches (file deleted gives the same result). Confirm `publishKind4ToRelay` is not used anywhere in the surviving or replacement spec."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the stranger-blocked e2e NOT use `publishKind4ToRelay` or any raw WebSocket publish — only `publishDirectMessage` via app context? Run `grep -n 'publishKind4ToRelay\\|WebSocket\\|ws://' app/tests/e2e/dm-walled-garden-stranger-blocked.spec.ts` — the output MUST show no matches. A raw-relay publish bypasses the app's signer and NDK stack, defeating the purpose of an e2e test."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Do all new e2e specs boot Mallory as USER_C (the available third identity from `auth-helpers.ts`)? Confirm that no new e2e spec invents a fourth identity or re-uses USER_A or USER_B as the stranger. Could the `test-surface` module be deleted and rewritten without touching any production file in `app/src/` — if any production file must change to accommodate the tests, identify the file and explain whether the required change is a test-only concern or a production behaviour gap from S1–S3."
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Are all new test files free of disabled test blocks (`test.skip`, `it.skip`, `describe.skip`, `xit`, `xdescribe`), stub markers (`TODO`, `FIXME`, `HACK`), and commented-out assertion bodies? Run `grep -rn 'test\\.skip\\|it\\.skip\\|describe\\.skip\\|xit\\|xdescribe\\|TODO\\|FIXME\\|HACK' app/tests/unit/walledGarden.test.ts app/tests/unit/chatPersistence-purge.test.ts app/tests/e2e/dm-walled-garden-stranger-blocked.spec.ts app/tests/e2e/dm-walled-garden-retroactive-purge.spec.ts` — it MUST return no matches."
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "question_id": "VQ-S4-PI-001",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The `purgeStrangerDmCounters` test in chatPersistence-purge.test.ts asserts idempotency and that `getDirectMessageLastReadAt(STRANGER_HEX)` returns 0 after purge. However, since `purgeStrangerDmCounters` clears in-memory counts (via `clearDirectMessageContact`) which resets both the count and the persisted timestamp, and since the mock `localStorage` does not persist across module-level state resets, does `getDirectMessageLastReadAt` truly reflect a cleared state — or could it return 0 by default because the mock was never written to for the `lp_unreadLastReadDM_v1` key in this test path? Verify by reading the unreadStore module to confirm `getDirectMessageLastReadAt` reads from persisted storage or in-memory state, and determine whether the test assertion is meaningful or vacuous."
+    },
+    {
+      "question_id": "VQ-S4-PI-002",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The `dm-walled-garden-retroactive-purge.spec.ts` test (AC-TEST-6) documents in a long inline comment that when Alice has no joined MLS groups, ALL DM peers are strangers. This means the Bob thread key is also purged in practice. The AC-TEST-6 spec requires asserting both (a) Mallory thread absent AND (b) Bob thread intact. Since the test as written cannot easily create a real MLS group (that requires the full groups lifecycle), it only asserts that the Mallory key is purged. Does this constitute a gap in AC-TEST-6 coverage (the member-vs-stranger split in the purge not being exercised)? Or is AC-TEST-5 (group-member-allowed) sufficient to cover the member-allowed path in the retroactive-purge context?"
+    },
+    {
+      "question_id": "VQ-S4-PI-003",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The `dm-walled-garden-stranger-blocked.spec.ts` waits 5 seconds after Mallory publishes before asserting bell=0. Is 5 seconds sufficient for the relay round-trip + bell watcher subscription to fire and be blocked, given that the bell watcher subscribes on `goto('/contacts')` which precedes Mallory's publish? Or could the 5-second window be too short in slow CI environments, causing the test to pass trivially before the event arrives?"
+    },
+    {
+      "question_id": "VQ-S4-PI-004",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "question": "REVIEW SKIPPED: codex unavailable (usage limit hit on 2026-06-02). The mandatory Stage-2 Codex review could not run. No findings were reviewed by Codex. The implementation has passed Stage-1 (manual Opus-equivalent review by architect) and all unit tests. Codex review should be re-run when the usage limit resets (Jun 7th, 2026)."
+    }
+  ]
+}

@@ -1,10 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { initDirectMessageCounts } from '@/src/lib/unreadStore';
 import { readStoredContacts } from '@/src/lib/contacts';
+import { useMarmot } from '@/src/context/MarmotContext';
+import { isAllowedDmSender } from '@/src/lib/walledGarden';
 
 export default function DirectMessageNotificationsWatcher() {
   const { hydrated, pubkeyHex, privateKeyHex } = useNostrIdentity();
+  const { groups } = useMarmot();
+
+  // Live ref keeps the gate current without recreating the subscription on
+  // every group membership change. Pattern matches ContactChat.tsx groupsRef.
+  const groupsRef = useRef(groups);
+  useEffect(() => { groupsRef.current = groups; }, [groups]);
 
   useEffect(() => {
     if (!hydrated || !pubkeyHex || !privateKeyHex) return;
@@ -14,11 +22,13 @@ export default function DirectMessageNotificationsWatcher() {
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
 
+    const ownPubkey = pubkeyHex;
+
     void (async () => {
       try {
         const peerPubkeys = Object.keys(readStoredContacts())
-          .filter((pk) => pk.toLowerCase() !== pubkeyHex.toLowerCase());
-        await initDirectMessageCounts(peerPubkeys, pubkeyHex);
+          .filter((pk) => pk.toLowerCase() !== ownPubkey.toLowerCase());
+        await initDirectMessageCounts(peerPubkeys, ownPubkey);
 
         const { connectNdk } = await import('@/src/lib/ndkClient');
         const ndk = await connectNdk(privateKeyHex);
@@ -27,7 +37,15 @@ export default function DirectMessageNotificationsWatcher() {
         const { subscribeDirectMessageNotifications } = await import(
           '@/src/lib/directMessageNotifications'
         );
-        unsubscribe = subscribeDirectMessageNotifications({ ndk, ownPubkeyHex: pubkeyHex, privateKeyHex });
+        // groupsRef.current is always up-to-date: the separate effect above
+        // keeps it in sync with the latest groups array without triggering a
+        // subscription teardown/rebuild on every membership change.
+        unsubscribe = subscribeDirectMessageNotifications({
+          ndk,
+          ownPubkeyHex: ownPubkey,
+          privateKeyHex,
+          isAllowedSender: (peer) => isAllowedDmSender(peer, groupsRef.current, ownPubkey),
+        });
       } catch (err) {
         console.warn('[DMNotifications] subscribe failed:', err);
       }
@@ -37,7 +55,7 @@ export default function DirectMessageNotificationsWatcher() {
       cancelled = true;
       unsubscribe?.();
     };
-  }, [hydrated, pubkeyHex, privateKeyHex]);
+  }, [hydrated, pubkeyHex, privateKeyHex]); // groups intentionally omitted — live ref handles updates
 
   return null;
 }

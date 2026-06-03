@@ -16,10 +16,49 @@ import { test, expect, BrowserContext, Page, WebSocket as PWWebSocket } from '@p
 import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay } from './helpers/dismiss-error-overlay';
+import { createGroupAndInvite } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
 // ─── Boot helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Boot a user on /groups/ with a clean MarmotContext init.
+ * Mirrors the bootUserOnGroups pattern used in walled-garden e2e specs.
+ * Does NOT pre-seed lp_contacts_v1 — the ContactChat works with just the pubkey.
+ * Used for AC-46 (requires createGroupAndInvite, which needs clean KeyPackage publish).
+ */
+async function bootUserOnGroups(
+  browser: { newContext: (opts: object) => Promise<BrowserContext> },
+  user: typeof USER_A,
+  nickname: string,
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext({ baseURL: BASE_URL });
+  await suppressErrorOverlay(context);
+  await context.addInitScript(
+    ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
+      localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+    },
+    { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname },
+  );
+  const page = await context.newPage();
+  await page.goto('/');
+  await clearAppState(page);
+  await page.evaluate(
+    ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
+      localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+    },
+    { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname },
+  );
+  await page.reload();
+  await page.goto('/groups/');
+  await expect(
+    page.getByTestId('groups-empty-state').or(page.getByTestId('groups-list')),
+  ).toBeVisible({ timeout: 60_000 });
+  return { context, page };
+}
 
 /**
  * Boot a user with DM-capable identity and a peer contact seeded in localStorage.
@@ -183,19 +222,16 @@ test.describe('DM reactions — outbound and inbound (AC-46)', () => {
     const aliceKeys = USER_A;
     const bobKeys = USER_B;
 
-    // Boot Alice and Bob with each other as contacts
-    const { page: alicePage } = await bootUserWithContact(
-      browser,
-      aliceKeys,
-      'Alice',
-      bobKeys.pubkeyHex,
-    );
-    const { page: bobPage } = await bootUserWithContact(
-      browser,
-      bobKeys,
-      'Bob',
-      aliceKeys.pubkeyHex,
-    );
+    // Boot Alice and Bob using bootUserOnGroups (clean MarmotContext init, KeyPackages
+    // published before createGroupAndInvite runs). bootUserWithContact clears IDB while
+    // MarmotContext is initializing, which can prevent KeyPackage publishing and cause
+    // the invite to fail with "no key package". bootUserOnGroups avoids this by doing
+    // page.reload() after clearAppState so MarmotContext re-initializes cleanly.
+    const { page: alicePage } = await bootUserOnGroups(browser, aliceKeys, 'Alice');
+    const { page: bobPage } = await bootUserOnGroups(browser, bobKeys, 'Bob');
+
+    // Establish a shared MLS group so the walled-garden gate allows DMs between them.
+    await createGroupAndInvite(alicePage, bobKeys.npub, bobPage, 'AC-46 Reactions Group');
 
     // Alice opens the DM with Bob and sends a message
     await openDmWithPeer(alicePage, bobKeys.pubkeyHex);
@@ -223,10 +259,19 @@ test.describe('DM reactions — outbound and inbound (AC-46)', () => {
     const bobBadge = bobPage.getByTestId(`reaction-badge-${messageId}-👍`);
     await expect(bobBadge).toBeVisible({ timeout: 10_000 });
 
-    // Alice sees Bob's reaction badge arrive (inbound via gift wrap, AC-45)
-    await openDmWithPeer(alicePage, bobKeys.pubkeyHex);
+    // Alice sees Bob's reaction badge arrive (inbound via gift wrap, AC-45).
+    // Wait for Alice's live subscription to receive the reaction from the relay.
+    // The __quizzlDmReactions bridge dispatches handleReact asynchronously (fire-and-forget),
+    // so the relay round-trip happens after the optimistic badge appears on Bob's side.
+    // We wait on Alice's page BEFORE any navigation so her active giftWrapSub can receive
+    // the reaction and write it to IDB via applyInboundRumor, avoiding a race where the
+    // reaction arrives after a post-navigation reload clears the subscription.
     const aliceBadge = alicePage.getByTestId(`reaction-badge-${messageId}-👍`);
     await expect(aliceBadge).toBeVisible({ timeout: 30_000 });
+
+    // Re-open the DM to confirm the badge persists (loaded from IDB, AC-45 steady state).
+    await openDmWithPeer(alicePage, bobKeys.pubkeyHex);
+    await expect(aliceBadge).toBeVisible({ timeout: 15_000 });
 
     // Bob removes the reaction via the bridge
     await sendDmReactionViaBridge(bobPage, aliceKeys.pubkeyHex, messageId, '👍', true);

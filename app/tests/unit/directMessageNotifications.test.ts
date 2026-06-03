@@ -71,6 +71,11 @@ const OWN_PRIV = 'bceef655b5a034911f1c3718ce056531b45ef03b4c7b1f15629e867294011a
 const OWN_PUB = 'a'.repeat(64); // not a real pubkey — used as-is for filtering
 const PEER_PUB = 'b'.repeat(64);
 
+/** Whitelist accessor that allows PEER_PUB and rejects everything else. */
+const allowPeerOnly = (peer: string) => peer === PEER_PUB.toLowerCase();
+/** Whitelist accessor that allows any non-empty peer (used for tests that don't exercise the gate). */
+const allowAll = (_peer: string) => true;
+
 // ── Mock targets ───────────────────────────────────────────────────────────────
 
 // Capture the logger returned by createLogger('dm') in the SUT module scope
@@ -139,7 +144,7 @@ describe('subscribeDirectMessageNotifications', () => {
   it('AC-15: opens two subscriptions with different filter objects', () => {
     const ndk = makeFakeNdk();
 
-    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
 
     // Two subscriptions must have been created
     expect(ndk.subs).toHaveLength(2);
@@ -172,7 +177,7 @@ describe('subscribeDirectMessageNotifications', () => {
     });
 
     const ndk = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowPeerOnly });
 
     const kind1059Sub = ndk.subs.find(
       (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
@@ -197,7 +202,7 @@ describe('subscribeDirectMessageNotifications', () => {
     vi.mocked(unwrapAndOpen).mockRejectedValue(new Error('decrypt failed'));
 
     const ndk = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
 
     const kind1059Sub = ndk.subs.find(
       (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
@@ -230,7 +235,7 @@ describe('subscribeDirectMessageNotifications', () => {
     });
 
     const ndk = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
 
     const kind1059Sub = ndk.subs.find(
       (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
@@ -257,7 +262,7 @@ describe('subscribeDirectMessageNotifications', () => {
     });
 
     const ndk = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
 
     const kind1059Sub = ndk.subs.find(
       (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
@@ -280,7 +285,7 @@ describe('subscribeDirectMessageNotifications', () => {
     });
 
     const ndk = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
 
     const kind1059Sub = ndk.subs.find(
       (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
@@ -295,6 +300,7 @@ describe('subscribeDirectMessageNotifications', () => {
   // ── AC-19 ────────────────────────────────────────────────────────────────────
 
   it('AC-19: kind-1059 event re-delivered with different outer id but same inner rumor id increments bell exactly once (seenRumorIds dedup)', async () => {
+    // isAllowedSender: PEER_PUB is the sender — allow it so we can test dedup behaviour
     vi.mocked(unwrapAndOpen).mockResolvedValue({
       id: 'stable-rumor-id',   // same inner id
       pubkey: PEER_PUB,
@@ -305,7 +311,7 @@ describe('subscribeDirectMessageNotifications', () => {
     });
 
     const ndk = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowPeerOnly });
 
     const kind1059Sub = ndk.subs.find(
       (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
@@ -326,7 +332,7 @@ describe('subscribeDirectMessageNotifications', () => {
     vi.mocked(unwrapAndOpen).mockRejectedValue(new Error('decrypt failed'));
 
     const ndk = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
 
     const kind1059Sub = ndk.subs.find(
       (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
@@ -344,7 +350,7 @@ describe('subscribeDirectMessageNotifications', () => {
     // unwrap throws
     vi.mocked(unwrapAndOpen).mockRejectedValue(new Error('bad'));
     const ndk1 = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk1 as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk1 as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
     const sub1 = ndk1.subs.find((s) => JSON.stringify(s.filter).includes('1059'))!;
     await emitEvent(sub1, { id: 'wrap-1', kind: 1059, pubkey: 'x' });
 
@@ -353,7 +359,7 @@ describe('subscribeDirectMessageNotifications', () => {
       id: 'r2', pubkey: PEER_PUB, kind: 7, content: '+', tags: [], created_at: 1,
     });
     const ndk2 = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk2 as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk2 as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
     const sub2 = ndk2.subs.find((s) => JSON.stringify(s.filter).includes('1059'))!;
     await emitEvent(sub2, { id: 'wrap-2', kind: 1059, pubkey: 'x' });
 
@@ -362,7 +368,7 @@ describe('subscribeDirectMessageNotifications', () => {
       id: 'r3', pubkey: OWN_PUB, kind: 14, content: 'self', tags: [], created_at: 1,
     });
     const ndk3 = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk3 as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk3 as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
     const sub3 = ndk3.subs.find((s) => JSON.stringify(s.filter).includes('1059'))!;
     await emitEvent(sub3, { id: 'wrap-3', kind: 1059, pubkey: 'x' });
 
@@ -370,37 +376,140 @@ describe('subscribeDirectMessageNotifications', () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
-  // ── Bug-1 regression (multi-peer bell) ────────────────────────────────────────
-  // Earlier code passed shouldIngestRumor(rumor, '') which always returned false
-  // for any real rumor pubkey, silently disabling the bell for all NIP-17 DMs.
-  // The unit test mocked shouldIngestRumor=true by default, hiding the bug.
-  // This test runs with no shouldIngestRumor mock and confirms the bell still fires
-  // for arbitrary peer pubkeys that we have no prior knowledge of.
+  // ── Walled-garden gate tests ──────────────────────────────────────────────────
+  // S2 (AC-SEC-3/4/5): isAllowedSender gates the bell. Stranger events must NOT
+  // ring the bell and must NOT be added to the dedup sets.
 
-  it('bug-1 regression: bell fires for an unknown peer pubkey (no shouldIngestRumor mock)', async () => {
-    const UNKNOWN_PEER = 'c'.repeat(64);
+  it('AC-SEC-5 (kind-1059): stranger rumor does NOT ring the bell and does NOT populate seenRumorIds', async () => {
+    const STRANGER = 'c'.repeat(64);
+    const MEMBER = PEER_PUB;
     vi.mocked(unwrapAndOpen).mockResolvedValue({
-      id: 'rumor-from-unknown-peer',
-      pubkey: UNKNOWN_PEER,
+      id: 'shared-rumor-id',  // same rumor id for both stranger and member delivery
+      pubkey: STRANGER,
       kind: 14,
-      content: 'first message',
+      content: 'stranger message',
       tags: [['p', OWN_PUB]],
       created_at: 1_700_000_000,
     });
 
     const ndk = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    // Only MEMBER is in the whitelist; STRANGER is not.
+    subscribeDirectMessageNotifications({
+      ndk: ndk as unknown as any,
+      ownPubkeyHex: OWN_PUB,
+      privateKeyHex: OWN_PRIV,
+      isAllowedSender: (peer) => peer === MEMBER.toLowerCase(),
+    });
 
     const kind1059Sub = ndk.subs.find(
       (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
     )!;
 
-    await emitEvent(kind1059Sub, { id: 'wrap-unknown-peer', kind: 1059, pubkey: 'ephemeral' });
+    // Stranger delivery — must be dropped, seenRumorIds must NOT be populated.
+    await emitEvent(kind1059Sub, { id: 'wrap-stranger', kind: 1059, pubkey: 'ephemeral' });
+    expect(rememberContact).not.toHaveBeenCalled();
+    expect(incrementDirectMessage).not.toHaveBeenCalled();
 
-    expect(rememberContact).toHaveBeenCalledTimes(1);
-    expect(rememberContact).toHaveBeenCalledWith(UNKNOWN_PEER);
+    // Now the same rumor id arrives from a MEMBER — it must be processed because
+    // the stranger delivery did NOT occupy the seenRumorIds slot.
+    vi.mocked(unwrapAndOpen).mockResolvedValue({
+      id: 'shared-rumor-id',  // same rumor id
+      pubkey: MEMBER,
+      kind: 14,
+      content: 'member message',
+      tags: [['p', OWN_PUB]],
+      created_at: 1_700_000_000,
+    });
+    await emitEvent(kind1059Sub, { id: 'wrap-member', kind: 1059, pubkey: 'ephemeral2' });
     expect(incrementDirectMessage).toHaveBeenCalledTimes(1);
-    expect(incrementDirectMessage).toHaveBeenCalledWith(UNKNOWN_PEER);
+    expect(incrementDirectMessage).toHaveBeenCalledWith(MEMBER.toLowerCase());
+  });
+
+  it('AC-SEC-3/4 (kind-4): stranger kind-4 does NOT ring the bell and does NOT populate seenMessageIds', async () => {
+    const STRANGER = 'c'.repeat(64);
+    const MEMBER = PEER_PUB;
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({
+      ndk: ndk as unknown as any,
+      ownPubkeyHex: OWN_PUB,
+      privateKeyHex: OWN_PRIV,
+      isAllowedSender: (peer) => peer === MEMBER.toLowerCase(),
+    });
+
+    const kind4Sub = ndk.subs.find(
+      (s) => JSON.stringify(s.filter).includes('"kinds":[4]'),
+    )!;
+
+    // Stranger delivery — must be dropped, seenMessageIds must NOT be populated.
+    await emitEvent(kind4Sub, { id: 'shared-event-id', pubkey: STRANGER, created_at: 1_700_000_000 });
+    expect(rememberContact).not.toHaveBeenCalled();
+    expect(incrementDirectMessage).not.toHaveBeenCalled();
+
+    // Same event id from a MEMBER — must be accepted because the stranger delivery
+    // did NOT occupy the seenMessageIds slot.
+    await emitEvent(kind4Sub, { id: 'shared-event-id', pubkey: MEMBER, created_at: 1_700_000_000 });
+    expect(incrementDirectMessage).toHaveBeenCalledTimes(1);
+    expect(incrementDirectMessage).toHaveBeenCalledWith(MEMBER.toLowerCase());
+  });
+
+  it('AC-OBS-1 (kind-1059): stranger drop emits INFO log with pubkey prefix and kind, no message content', async () => {
+    const STRANGER = 'd'.repeat(64);
+    vi.mocked(unwrapAndOpen).mockResolvedValue({
+      id: 'stranger-rumor',
+      pubkey: STRANGER,
+      kind: 14,
+      content: 'SECRET CONTENT — must not appear in logs',
+      tags: [],
+      created_at: 1_700_000_000,
+    });
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({
+      ndk: ndk as unknown as any,
+      ownPubkeyHex: OWN_PUB,
+      privateKeyHex: OWN_PRIV,
+      isAllowedSender: () => false,  // all strangers
+    });
+
+    const kind1059Sub = ndk.subs.find(
+      (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
+    )!;
+    await emitEvent(kind1059Sub, { id: 'wrap-s', kind: 1059, pubkey: 'eph' });
+
+    // Logger must have been called with the drop tag.
+    expect(capturedLoggerInfo).toHaveBeenCalledWith(
+      'dm:walled-garden-drop',
+      expect.objectContaining({ pubkey: STRANGER.slice(0, 8), kind: 1059 }),
+    );
+    // Log must NOT include message content.
+    const logArg = capturedLoggerInfo.mock.calls[0][1];
+    expect(JSON.stringify(logArg)).not.toContain('SECRET CONTENT');
+  });
+
+  it('AC-OBS-1 (kind-4): stranger drop emits INFO log, no message content', async () => {
+    const STRANGER = 'e'.repeat(64);
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({
+      ndk: ndk as unknown as any,
+      ownPubkeyHex: OWN_PUB,
+      privateKeyHex: OWN_PRIV,
+      isAllowedSender: () => false,
+    });
+
+    const kind4Sub = ndk.subs.find(
+      (s) => JSON.stringify(s.filter).includes('"kinds":[4]'),
+    )!;
+    // The content field of kind-4 is encrypted ciphertext — the handler never
+    // decrypts it for bell purposes, so there is nothing to leak. We confirm
+    // the log does not include it.
+    await emitEvent(kind4Sub, { id: 'event-s', pubkey: STRANGER, content: 'ENCRYPTED', created_at: 1_700_000_000 });
+
+    expect(capturedLoggerInfo).toHaveBeenCalledWith(
+      'dm:walled-garden-drop',
+      expect.objectContaining({ pubkey: STRANGER.slice(0, 8), kind: 4 }),
+    );
   });
 
   it('bug-1 regression: rumor pubkey casing differences do not break self-detection', async () => {
@@ -417,7 +526,7 @@ describe('subscribeDirectMessageNotifications', () => {
     });
 
     const ndk = makeFakeNdk();
-    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV });
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
 
     const kind1059Sub = ndk.subs.find(
       (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),

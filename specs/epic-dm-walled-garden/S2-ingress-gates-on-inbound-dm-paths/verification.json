@@ -1,0 +1,120 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-02T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-3",
+      "question": "In `app/src/lib/directMessageNotifications.ts`, does the kind-4 handler call `isAllowedDmSender` before any call to `rememberContact(peer)` or `incrementDirectMessage(peer)`? When `isAllowedDmSender` returns `false`, are BOTH `rememberContact` and `incrementDirectMessage` skipped — regardless of whether any dedup or last-read condition is satisfied? Provide the gated code path and a unit test asserting that a stranger kind-4 triggers zero calls to both functions."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-4",
+      "question": "For a stranger kind-4 event in `subscribeDirectMessageNotifications`, is `event.id` NOT added to `seenMessageIds`? The dedup set must remain reserved for accepted (member) events — a stranger event must not occupy a slot that could cause a later genuine member re-delivery to be falsely deduped. Provide a unit test that: (1) sends a stranger kind-4, (2) inspects `seenMessageIds` afterward and confirms the stranger `event.id` is absent, (3) then sends the same `event.id` as a member kind-4 and confirms it IS added and processed."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-5",
+      "question": "For a stranger kind-1059 whose unwrapped rumor is kind-14, does the handler skip `rememberContact`, `incrementDirectMessage`, AND also skip adding `rumor.id` to `seenRumorIds`? Provide a unit test parallel to VQ-S2-002 for the gift-wrap path: send stranger kind-1059, inspect `seenRumorIds` and confirm `rumor.id` is absent, then send the same `rumor.id` from a member and confirm it is accepted."
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-6",
+      "question": "In `app/src/components/contacts/ContactChat.tsx`, do all three handlers — `handleHistoricalGiftWrapEvent`, `handleKind4Event`, and `handleGiftWrapEvent` — call `isAllowedDmSender` before any `appendMessage(threadId, msg)` or `upsertMessages([msg])` invocation? When the sender is a stranger, are BOTH write paths skipped? Provide the modified guard in each handler and a test (or describe the manual check) that a stranger message never reaches the IDB write."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-7",
+      "question": "In `handleGiftWrapEvent` in `ContactChat.tsx` at approximately line 318, does the kind-7 reaction dispatch branch check `isAllowedDmSender` on the rumor's `pubkey` before calling `applyInboundRumor` (or any reaction-storage helper)? When the rumor pubkey is a stranger, is the entire kind-7 dispatch path skipped? Provide the modified code path and a test or integration check confirming no reaction is written for a stranger kind-7."
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-OBS-1",
+      "question": "Is every stranger event dropped by the ingress gates logged at INFO level with the fixed tag `dm:walled-garden-drop`, the sender pubkey truncated to 8 hex characters, and the event kind? Does the log statement contain NEITHER the message content NOR the inner rumor body? Provide the exact log call added in `directMessageNotifications.ts` and in `ContactChat.tsx`, and confirm they are called once per dropped event (not per handler invocation in the same subscriber cycle)."
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-OBS-2",
+      "question": "Has the bug-documenting comment block around line 106 of `app/src/lib/directMessageNotifications.ts` (the comment that describes the former 'any sender' / 'bell watcher accepts DMs from any sender' behaviour) been removed in this story's diff? Run `grep -n 'any sender\\|accepts DMs from' app/src/lib/directMessageNotifications.ts` — it MUST return no matches. Confirm the removal is in the same commit as the gate additions, not a separate cleanup commit."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-8",
+      "question": "Does the implementation audit confirm there is no third inbound DM path that bypasses the walled-garden gate? List every subscriber in the codebase that handles kind-4 or kind-1059 events and confirm each one has a gate. If any unguarded subscriber is found that processes DM-like events without calling `isAllowedDmSender`, the AC is not satisfied and the architect MUST escalate."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-9",
+      "question": "Is the NIP-59 four-step seal authentication in `unwrapAndOpen` at `app/src/lib/directMessages.ts:230-282` preserved byte-for-byte? The walled-garden gate in `directMessageNotifications.ts` MUST run AFTER the unwrap completes — i.e. the call sequence is `unwrapAndOpen(…)` → inspect `rumor.pubkey` → call `isAllowedDmSender`. Run `git diff app/src/lib/directMessages.ts` — it MUST show zero changes to that file."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-10",
+      "question": "Is `shouldIngestRumor` (declared at `app/src/lib/directMessages.ts:204`) still called by `ContactChat.tsx` after this story's changes? The walled-garden gate MUST be in addition to — not instead of — thread isolation. Confirm that `ContactChat.tsx`'s diff shows no removal of any `shouldIngestRumor` call site, and that the call order is: `shouldIngestRumor` check → `isAllowedDmSender` gate (or either order, as long as both remain active)."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-11",
+      "question": "Does this story introduce zero new relay subscriptions, zero relay-side filter changes, and zero calls to any external service for whitelist decisions? The whitelist MUST be computed entirely from the in-process group snapshot passed to `isAllowedDmSender`. Run `git diff app/src/lib/directMessageNotifications.ts app/src/components/contacts/ContactChat.tsx | grep -i 'subscribe\\|relay\\|fetch\\|http'` — the output MUST show no new subscription calls or network calls related to whitelist resolution."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the whitelist check performed BEFORE `seenMessageIds`/`seenRumorIds` population — not after? To confirm state-discrimination: checkpoint the set sizes before sending a stranger event, send the stranger event, and confirm set sizes are unchanged. Then send a member event with the same id and confirm the set size increments — proving the check is not a false-green from a pre-existing token."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Do `directMessages.ts`, `chatPersistence.ts`, `unreadStore.ts`, `reactions/api.ts`, and `MarmotContext.tsx` remain unmodified after S2 lands? Run `git diff app/src/lib/directMessages.ts app/src/lib/marmot/chatPersistence.ts app/src/lib/unreadStore.ts app/src/lib/reactions/api.ts app/src/context/MarmotContext.tsx` — the output MUST show zero changed lines. Could the ingress-gates module be deleted and rewritten without touching any of those files?"
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the INFO log truncate the pubkey to exactly 8 characters and NOT include the message body or inner rumor content? Run a test that captures the log output for a dropped stranger event and assert: (a) the log string contains the substring matching the first 8 chars of the stranger pubkey, (b) the log string does NOT contain the message content field, and (c) the log string does NOT contain the inner rumor's `content` field."
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "In `ContactChat.tsx`, `handleKind4Event` is shared by both `incomingSub` (from peerPubkeyHex) and `outgoingSub` (from pubkeyHex — self-authored echo). The gate was designed to allow self-authored messages even though `isAllowedDmSender` returns false for own pubkey. Does the `isSelf` bypass in `handleKind4Event` correctly allow own-authored messages while blocking strangers? Specifically: confirm that when `evt.pubkey === pubkeyHex`, the gate is bypassed, and when `evt.pubkey` is a stranger (not self, not in whitelist), the event is dropped with a log. Provide the exact guard code path."
+    },
+    {
+      "question_id": "VQ-S2-016",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "In `DirectMessageNotificationsWatcher.tsx`, the `groups` snapshot is captured at the top of the `useEffect` IIFE and closed over by `isAllowedSender`. The effect dependency array includes `groups`, which means when `groups` changes, the effect tears down and recreates the subscription with a fresh snapshot. Is there a window between `groups` changing and the old subscription stopping where events from newly-removed members could still pass the old whitelist? Describe the worst-case race and whether it is acceptable."
+    },
+    {
+      "question_id": "VQ-S2-017",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "In `ContactChat.tsx`, `groupsRef.current` is used inside subscription handlers (which outlive renders) to avoid stale closure over the `groups` state array. Is `groupsRef.current` always at least as fresh as the latest `groups` value at the time the handler fires? In particular, if a MLS membership change arrives and `groups` is updated while an inbound DM event is being processed asynchronously, could the handler read a stale whitelist from `groupsRef.current`? Describe the ordering guarantee."
+    }
+  ]
+}

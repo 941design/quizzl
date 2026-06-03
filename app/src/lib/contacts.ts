@@ -1,6 +1,8 @@
 import type { Group, ProfileAvatar } from '@/src/types';
 import { STORAGE_KEYS } from '@/src/types';
 import { isStorageAvailable } from '@/src/lib/storage';
+import { isAllowedDmSender } from '@/src/lib/walledGarden';
+import type { WhitelistArgs } from '@/src/lib/walledGarden';
 
 export type StoredContact = {
   pubkeyHex: string;
@@ -62,8 +64,26 @@ function writeStoredContacts(next: StoredContactMap): void {
   }
 }
 
-export function rememberContact(pubkeyHex: string, seenAt: string = new Date().toISOString()): void {
+/**
+ * Persists a contact by pubkeyHex and last-seen timestamp.
+ *
+ * @param pubkeyHex - Hex pubkey of the contact to remember.
+ * @param seenAt    - ISO timestamp of the event that triggered the remember.
+ * @param isAllowed - Optional whitelist accessor injected by callers on the DM
+ *                    inbound path (AC-STRUCT-2, DD-6). When provided and returns
+ *                    `false` for `pubkeyHex`, the function silently no-ops without
+ *                    throwing. Callers that are NOT on the DM path (e.g.
+ *                    contactCache profile sync, rememberContactsFromGroups) omit
+ *                    this parameter to preserve the existing allow-all behaviour.
+ */
+export function rememberContact(
+  pubkeyHex: string,
+  seenAt: string = new Date().toISOString(),
+  isAllowed?: (peer: string) => boolean,
+): void {
   if (!pubkeyHex) return;
+  // AC-STRUCT-2: silently no-op when the whitelist accessor rejects this peer.
+  if (isAllowed !== undefined && !isAllowed(pubkeyHex)) return;
   const contacts = readStoredContacts();
   const existing = contacts[pubkeyHex];
   contacts[pubkeyHex] = existing
@@ -154,4 +174,62 @@ export function getContact(
   options?: { includeArchived?: boolean },
 ): ContactListItem | null {
   return listContacts(ownPubkeyHex, options).find((contact) => contact.pubkeyHex === pubkeyHex) ?? null;
+}
+
+/**
+ * Purges stranger entries from both contact storage keys (AC-PURGE-5).
+ *
+ * Reads `STORAGE_KEYS.contacts` (lp_contacts_v1) and
+ * `STORAGE_KEYS.contactCache` (lp_contactCache_v1), removes every entry
+ * whose key is a stranger pubkey according to `isAllowedDmSender`, then
+ * writes the cleaned objects back to localStorage.
+ *
+ * No-ops when localStorage is unavailable (SSR or restricted context).
+ */
+export function purgeStrangerContacts(
+  getWhitelist: () => WhitelistArgs,
+): void {
+  if (!isStorageAvailable()) return;
+
+  const { groups, ownPubkeyHex } = getWhitelist();
+
+  // --- contacts store ---
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.contacts);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      let changed = false;
+      for (const pubkey of Object.keys(parsed)) {
+        if (!isAllowedDmSender(pubkey, groups, ownPubkeyHex)) {
+          delete parsed[pubkey];
+          changed = true;
+        }
+      }
+      if (changed) {
+        localStorage.setItem(STORAGE_KEYS.contacts, JSON.stringify(parsed));
+      }
+    }
+  } catch {
+    // Non-fatal — storage may be full or corrupt
+  }
+
+  // --- contactCache store ---
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.contactCache);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      let changed = false;
+      for (const pubkey of Object.keys(parsed)) {
+        if (!isAllowedDmSender(pubkey, groups, ownPubkeyHex)) {
+          delete parsed[pubkey];
+          changed = true;
+        }
+      }
+      if (changed) {
+        localStorage.setItem(STORAGE_KEYS.contactCache, JSON.stringify(parsed));
+      }
+    }
+  } catch {
+    // Non-fatal — storage may be full or corrupt
+  }
 }

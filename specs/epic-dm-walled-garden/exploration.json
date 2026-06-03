@@ -1,0 +1,110 @@
+{
+  "created_at": "2026-06-02T00:00:00Z",
+  "updated_at": "2026-06-02T00:00:00Z",
+  "similar_features": {
+    "focus": "similar-features",
+    "key_files": [
+      "app/src/lib/directMessages.ts:554",
+      "app/src/lib/directMessageNotifications.ts:141",
+      "app/src/components/contacts/ContactChat.tsx:582",
+      "app/src/lib/contacts.ts:158",
+      "app/src/lib/unreadStore.ts:332",
+      "app/src/lib/marmot/chatPersistence.ts:318",
+      "app/src/types/index.ts:226",
+      "app/src/lib/reactions/api.ts:449",
+      "app/src/context/MarmotContext.tsx:1530",
+      "app/src/lib/storage.ts:242"
+    ],
+    "findings": {
+      "thread_isolation_guard": "shouldIngestRumor(rumor, peerPubkeyHex) at directMessages.ts:204 — thread isolation only (sender must match expected peer). Explicitly bypassed by bell watcher (comment at directMessageNotifications.ts:107-108). NOT a whitelist guard.",
+      "unwrap_and_open_auth_chain": "4-step NIP-59 auth at directMessages.ts:230-282: outer wrap decrypt → seal schnorr verify → seal decrypt → rumor.pubkey===seal.pubkey binding → rumor.id hash check. Must be preserved verbatim (AC-SEC-9).",
+      "contact_store_write_paths": "3 paths: (1) rememberContactsFromGroups(groups, own) — safe, MLS-derived; (2) rememberContact(peer) from bell watcher kind-4+kind-1059 handlers — NO whitelist gate currently; (3) writeContactEntry() from buildDispatcher on profile rumors — safe (MLS member).",
+      "bell_watcher_guards": "Only 2 guards before incrementDirectMessage: self-exclusion (peer===ownLower) and timestamp dedup (createdMs <= lastReadAt). NO contact-membership check.",
+      "contactchat_ingest_paths": "3 paths all call appendMessage without member check: handleKind4Event (line 282, filtered by NDK subscription authors:[peer]), handleGiftWrapEvent (line 297, after unwrapAndOpen+shouldIngestRumor), handleHistoricalGiftWrapEvent (line 236, same).",
+      "unread_store_api": "clearDirectMessageContact(peerPubkeyHex) at unreadStore.ts:256 removes both localStorage timestamp and in-memory counter. This is the correct teardown call for purge.",
+      "idb_key_pattern": "DM threads: quizzl:messages:dm:<peerHex-lowercase>. Reaction aggregates: quizzl:reactions:dm:<peerHex>. keys() from idb-keyval imported in chatPersistence.ts:310 and reactions/api.ts:436 — both use prefix-filter patterns.",
+      "group_member_pubkeys": "Group.memberPubkeys at types/index.ts:170. Updated by membersChanged() guard in MarmotContext.tsx:803. Already iterated by rememberContactsFromGroups — natural whitelist source.",
+      "storage_keys": "STORAGE_KEYS.contacts = 'lp_contacts_v1', STORAGE_KEYS.contactCache = 'lp_contactCache_v1' (types/index.ts:127-140). Separate localStorage entries."
+    },
+    "patterns": [
+      "shouldIngestRumor is thread-isolation, not whitelist — callers must add the whitelist check on top of it",
+      "seenMessageIds/seenRumorIds dedup sets per subscription lifetime — must NOT be populated for stranger events (AC-SEC-4, AC-SEC-5)",
+      "self-exclusion guard (peer===ownLower) present in both bell-watcher handlers",
+      "serialised-write queue per IDB key prevents concurrent read-modify-write races",
+      "Group.memberPubkeys is the only existing structured 'trusted peers' set in the codebase"
+    ]
+  },
+  "architecture": {
+    "focus": "architecture",
+    "key_files": [
+      "app/src/lib/directMessageNotifications.ts",
+      "app/src/components/contacts/ContactChat.tsx",
+      "app/src/context/MarmotContext.tsx",
+      "app/src/lib/contacts.ts",
+      "app/src/lib/unreadStore.ts",
+      "app/src/lib/marmot/chatPersistence.ts",
+      "app/src/lib/reactions/api.ts",
+      "app/src/lib/directMessages.ts",
+      "app/src/lib/storage.ts",
+      "app/src/types/index.ts"
+    ],
+    "findings": {
+      "layer_order": "types/ → lib/ → context/ → components/ → pages/hooks/. Strict direction enforced in practice. New walledGarden.ts belongs in lib/ (pure function, no React deps).",
+      "marmot_context_lifecycle": "Group-lifecycle events: group joined (client.groups.on joined, line 625), member list changed (onMembersChanged callback in subscribeToGroupMessages, line 798 — calls persistGroup + reloadGroups), group left (leaveGroup(), line 1141 — purges per-group IDB). NO exported callback for 'member added/removed'; consumers must react to the groups array re-render or groupDataVersion counter bump.",
+      "marmot_lib_modules": "chatPersistence.ts (IDB R/W), groupStorage.ts (metadata), applicationRumorDispatcher.ts+registerHandlers.ts (pub/sub), handlers/ (per-kind), welcomeSubscription.ts (kind-1059 Welcome), memberGuard.ts (membersChanged utility).",
+      "idb_key_namespaces": "quizzl:messages:<groupId> (group threads), quizzl:messages:dm:<peerHex> (DM threads), quizzl:reactions:group:<groupId>, quizzl:reactions:dm:<peerHex>. keys() API available in both chatPersistence and reactions/api.",
+      "unread_store_structure": "Module-singleton (let state, line 23). directMessages keyed by peerPubkeyHex.toLowerCase(). Persistence: lp_unreadLastReadDM_v1 localStorage as Record<string,number>. clearDirectMessageContact(peer) is the purge API.",
+      "contacts_write_paths": "StoredContact: {pubkeyHex, firstSeenAt, lastSeenAt, archivedAt}. No 'trusted' boolean. Contact existence IS the implicit trust signal. writeContactEntry via contactCache.ts:41 also writes contact on profile rumors.",
+      "no_exported_member_change_callback": "MarmotContext does not export a callback for 'peer added' or 'peer removed'. The purge must be triggered by detecting group array changes via useEffect on groups/groupDataVersion.",
+      "clearAllReactions_pattern": "reactions/api.ts:425 clearAllReactions() already enumerates quizzl:reactions:group:* and quizzl:reactions:dm:* via keys()+prefix filter — pattern to follow for purgeStrangerReactions.",
+      "test_bridge": "window.__quizzlTest.onChatIdbWrite fires on every appendMessage write — available for e2e assertion of zero IDB writes for stranger events."
+    }
+  },
+  "testing_and_conventions": {
+    "focus": "testing-and-conventions",
+    "key_files": [
+      "app/tests/e2e/helpers/auth-helpers.ts:74",
+      "app/tests/e2e/helpers/clear-state.ts:46",
+      "app/tests/e2e/helpers/idb-record.ts:105",
+      "app/tests/e2e/dm-giftwrap-bell.spec.ts:242",
+      "app/tests/e2e/dm-third-party-inbound.spec.ts:145",
+      "app/tests/e2e/dm-self-heal.spec.ts:188",
+      "app/src/lib/directMessages.ts:554",
+      "app/src/lib/directMessageNotifications.ts:140",
+      "app/vitest.config.ts:13",
+      "app/tests/unit/directMessageNotifications.test.ts"
+    ],
+    "findings": {
+      "test_framework": "Unit: Vitest (app/vitest.config.ts:7, include: tests/unit/**/*.test.ts). E2E: Playwright (node scripts/run-e2e.mjs <spec>). Path alias @ → app/ root.",
+      "identities": "USER_A (aa.repeat(16)), USER_B (bb.repeat(16)), USER_C (cc.repeat(16)) in auth-helpers.ts:10-32. USER_C is available for Mallory role — no dedicated stranger identity exists. Must be designated as Mallory in walled-garden specs.",
+      "two_context_boot_pattern": "context.addInitScript seeds identity → page.goto('/') → clearAppState(page) wipes it → page.evaluate re-seeds. Then peer publishes via in-browser dynamic import of publishDirectMessage. Canonical template: dm-giftwrap-bell.spec.ts:98-196.",
+      "in_browser_publish": "page.evaluate(async (...) => { const { publishDirectMessage } = await import('@/src/lib/directMessages'); ... }) — honouring publish-via-app rule. dm-giftwrap-bell.spec.ts:166-192.",
+      "idb_seeding_pattern": "Pre-seed via page.evaluate with raw indexedDB.open / tx.objectStore('keyval').put(value, key). DB: 'keyval-store', store: 'keyval'. Key: 'quizzl:messages:dm:<peerHex>'. Helper: idb-record.ts writeIdbRecord. Pattern: dm-self-heal.spec.ts:47-85.",
+      "dm_third_party_assertions": "Must invert: badge>=1 → badge==0; notification-dm-${bobPub} appears → does NOT appear; msg bubble renders → does NOT render; IDB key present → absent. The raw-WebSocket publishKind4ToRelay must be replaced by a second app context + publishDirectMessage (DD-8 Option α).",
+      "unit_mock_patterns": "Map-backed idb-keyval mock. FakeNdk with handlers[]. globalThis.crypto=webcrypto polyfill. localStorage via Object.defineProperty. Dynamic import after vi.mock.",
+      "member_allowed_setup": "AC-TEST-5 requires actual MLS group membership (not just a contact record). Must create a group and invite Bob before the DM test. groups-direct-chat-no-duplicates.spec.ts predates walled garden and uses only contact records.",
+      "dm_third_party_is_raw_websocket": "dm-third-party-inbound.spec.ts uses publishKind4ToRelay (raw WebSocket, CLAUDE.md narrow exception). Inversion must NOT inherit this publish method — replace with second-context publishDirectMessage.",
+      "data_testids": "notification-badge, notification-bell, notification-dm-${peerPubkeyHex}, msg-* (prefix), contact-detail-page, chat-input, chat-send-btn."
+    }
+  },
+  "prior_learnings": [
+    {
+      "id": "kind-445-events-have-ephemeral-authors",
+      "title": "kind-445 events have ephemeral authors — never filter NDK subscriptions by author",
+      "tags": ["mls", "mip-03", "kind-445", "marmot-ts", "nostr-filter", "e2e"],
+      "relevance": "low — affects group message subscriptions, not DM ingest paths"
+    },
+    {
+      "id": "marmot-ts-self-leave-propose-single",
+      "title": "marmot-ts self-leave: propose single-leaf Remove for per-device forget",
+      "tags": ["marmot-ts", "mls", "forget-device"],
+      "relevance": "low — affects leave mechanics, not DM filtering"
+    },
+    {
+      "id": "e2e-global-setup-port-check-must",
+      "title": "e2e global-setup: port check must precede child-process spawns to avoid orphan leaks",
+      "tags": ["e2e", "playwright", "global-setup"],
+      "relevance": "low — general e2e hygiene, no direct impact on walled-garden specs"
+    }
+  ]
+}

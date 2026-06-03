@@ -1,0 +1,113 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-02T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-1",
+      "question": "Does the purge sweep run exactly once after boot, triggered at the point `MarmotContext` first has a non-null group list? Provide the `useEffect` dependency array and the guard condition that prevents a second run on re-renders before the first non-null group list arrives. In a test or via manual observation, confirm the purge helpers are each called exactly once during app start-up — not zero times (missing trigger) and not twice (double-fire on re-render)."
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-2",
+      "question": "Does the purge sweep re-run after every group-membership change observable to `MarmotContext` — group joined via Welcome, member added, member removed, group left? Is the trigger a `useEffect` dependency on `groups` or `groupDataVersion` (NOT a polling timer)? Provide the `useEffect` hook that wires the re-trigger, and confirm via a test or code trace that a membership-change event causes the purge helpers to be called again without a page reload."
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-3",
+      "question": "Does `purgeStrangerDmThreads` enumerate idb-keyval keys matching `quizzl:messages:dm:*` using `keys()`, call `isAllowedDmSender` on the `<peerHex>` suffix, and call `del()` only for stranger keys? Does it leave `quizzl:messages:<groupId>` keys that lack the `dm:` discriminator completely untouched? Provide a unit test seeding: (a) `quizzl:messages:dm:<strangerHex>`, (b) `quizzl:messages:dm:<memberHex>`, (c) `quizzl:messages:<groupId>` — run the purge and assert only (a) is deleted."
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-4",
+      "question": "Does `purgeStrangerDmCounters` remove unread-counter entries for every stranger peer, such that calling `getDirectMessageLastReadAt(strangerHex)` after the sweep returns the module's unset/default sentinel? Provide the implementation of `purgeStrangerDmCounters` showing it calls `clearDirectMessageContact` for each stranger peer, and a unit test asserting the default sentinel is returned post-sweep for a previously-seeded stranger counter."
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-5",
+      "question": "Does `purgeStrangerContacts` remove entries from BOTH `localStorage[STORAGE_KEYS.contacts]` AND `localStorage[STORAGE_KEYS.contactCache]` for every stranger pubkey? Provide a unit test that seeds both keys with a stranger entry and a member entry, runs the purge, and asserts: (a) the stranger entry is absent from both storage keys, (b) the member entry remains in both storage keys, (c) no unrelated storage key is modified."
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-6",
+      "question": "Does the reaction-aggregate sweep remove `quizzl:reactions:dm:<strangerHex>` keys? After the sweep, is there zero reaction state attributable to a stranger sender or a stranger-owned DM thread in the reactions store? Provide the implementation showing it follows the `clearAllReactions` pattern (from `app/src/lib/reactions/api.ts`) and a unit test seeding a stranger reaction and a member reaction, confirming the purge removes only the stranger's."
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PERF-1",
+      "question": "Does a purge sweep on a client with ≤200 stored DM threads complete in ≤500 ms wall-clock on the e2e test hardware? Is there an explicit timing assertion or warning log in the implementation that fires when the sweep exceeds 500 ms and a hard failure when it exceeds 2 s? Describe the measurement approach (performance.now() before/after, a test with 200 seeded keys) and confirm the implementation is not accidentally O(n²) — e.g. no per-key full-IDB scan inside the loop."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REACT-1",
+      "question": "When a peer transitions stranger → member-pubkey (the user joins a group containing them), does the NEXT inbound DM event from that peer pass the ingress gate without a client restart? Confirm that `isAllowedDmSender` reads the current group snapshot at call time (not a stale captured closure from subscription setup), so that a membership change between subscription setup and the next event is reflected immediately."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REACT-2",
+      "question": "When a peer transitions member-pubkey → stranger (user leaves group, peer is kicked, peer leaves), are in-flight and relay-redelivered events from that peer dropped by the ingress gates starting from the next event after the transition is observable in `MarmotContext`'s group list? Show how the group snapshot passed to `isAllowedDmSender` is kept current in the bell-watcher and ContactChat subscribers — are they reading the latest group array from MarmotContext at each event, not from a stale closure?"
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REACT-3",
+      "question": "Following the member-pubkey → stranger transition in AC-REACT-2, does the next purge sweep (per AC-PURGE-2) delete the former member's DM thread key from IDB, remove their unread counter, remove their contact-list entry from both storage keys, and remove their reaction state? Provide an end-to-end trace or integration test that: (1) adds a peer as a member and seeds their DM data, (2) triggers a group-leave event, (3) asserts all four data stores are cleaned after the purge sweep fires."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the purge trigger a `useEffect` on `groups` or `groupDataVersion` (event-driven), NOT a polling timer? Run `grep -n 'setInterval\\|setTimeout' app/src/context/MarmotContext.tsx` on the post-implementation file and confirm no new timer-based purge trigger is introduced. The only purge trigger MUST be reactive to the group array changing."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `purgeStrangerDmThreads` NOT import from `context/` or `components/` — it receives `getWhitelist` as a parameter? Run `grep -n 'from.*context\\|from.*components' app/src/lib/marmot/chatPersistence.ts app/src/lib/unreadStore.ts app/src/lib/reactions/api.ts app/src/lib/contacts.ts` after implementation — the output MUST show zero new imports from those paths introduced by this story. Could the retroactive-purge module be deleted and rewritten without modifying any file outside its `dependencies_allowed` list?"
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `purgeStrangerDmThreads` NOT touch any `quizzl:messages:<groupId>` key that lacks the `dm:` discriminator? To state-discriminate this check: seed one `quizzl:messages:dm:<strangerHex>` key and one `quizzl:messages:someGroupId` key, run the purge, then call `get('quizzl:messages:someGroupId')` — it MUST return the seeded value unchanged, while `get('quizzl:messages:dm:<strangerHex>')` MUST return `undefined`."
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "post-impl",
+      "category": "CORRECTNESS",
+      "question": "The `useEffect` dependency array in MarmotContext.tsx includes both `groups` (the array reference, which changes on every `reloadGroups()` call) and `groupDataVersion` (which bumps on MLS commits). Does this mean a single membership event (which triggers both `reloadGroups()` and a `setGroupDataVersion` bump) causes the purge sweep to fire twice in rapid succession? Verify that the React batching or the async IIFE pattern makes this harmless (duplicate purge runs are idempotent) and that there is no double-write race into IDB during rapid successive sweeps."
+    },
+    {
+      "question_id": "VQ-S3-015",
+      "phase": "post-impl",
+      "category": "CORRECTNESS",
+      "question": "In `purgeStrangerDmThreads`, after `delMany(strangerKeys)` the code calls `appendQueues.delete(key)` for each purged key. However, `appendQueues` uses full IDB key strings (e.g. `quizzl:messages:dm:<peerHex>`), and the purge function receives those same key strings. Confirm that the key format used in `appendQueues` exactly matches the `quizzl:messages:dm:<peerHex>` strings enumerated from IDB — specifically that `storageKey('dm:<peerHex>')` returns `'quizzl:messages:dm:<peerHex>'`, so the queue eviction is addressing the right keys."
+    },
+    {
+      "question_id": "VQ-S3-016",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "REVIEW SKIPPED: codex unavailable (hit usage limit at review time). The Opus Stage-1 review ran and found no severity-5+ findings. The batched `delMany` pattern in `purgeStrangerDmReactions` was corrected to match the `clearAllReactions` pattern as a result of the Opus review. Codex Stage-2 review could not run — this question documents the gap for the verifier."
+    }
+  ]
+}

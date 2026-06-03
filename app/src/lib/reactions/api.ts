@@ -19,6 +19,7 @@
  */
 
 import type { Reaction, ReactionThreadKey } from '@/src/lib/reactions/types';
+import * as walledGarden from '@/src/lib/walledGarden';
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
@@ -388,6 +389,15 @@ export async function applyInboundRumor(
 
     let updated: Reaction[];
     if (existingIdx !== -1) {
+      // If the existing row is already removed, a later-arriving reaction event
+      // (out-of-order on the live subscription) must not revive it. The removal
+      // wins regardless of the order events arrive. This prevents the live-sub
+      // re-delivery race where both the reaction and its removal are in the relay
+      // and arrive in reverse order.
+      if (current[existingIdx].removed) {
+        // Removal wins — treat as already-processed, no write.
+        return null;
+      }
       // Update existing row (e.g. confirm optimistic row by assigning eventId)
       updated = [...current];
       updated[existingIdx] = {
@@ -444,5 +454,60 @@ export async function clearAllReactions(): Promise<void> {
     }
   } finally {
     clearingInProgress = false;
+  }
+}
+
+/**
+ * Purges reaction-aggregate IDB keys for stranger DM peers (AC-PURGE-6).
+ *
+ * Follows the `clearAllReactions` pattern: enumerates keys matching
+ * `quizzl:reactions:dm:<peerHex>`, calls `isAllowedDmSender` on the
+ * `<peerHex>` suffix, and `del()`s the key when the peer is a stranger.
+ * Keys in the `quizzl:reactions:group:` namespace are NEVER touched.
+ *
+ * In-memory cache entries for purged keys are evicted so the next
+ * `loadReactions` call re-reads from IDB (which will return undefined/[]).
+ */
+export async function purgeStrangerDmReactions(
+  getWhitelist: () => walledGarden.WhitelistArgs,
+): Promise<void> {
+  const { isAllowedDmSender } = walledGarden;
+  const { keys, delMany } = await import('idb-keyval');
+
+  const { groups, ownPubkeyHex } = getWhitelist();
+  const dmReactionPrefix = 'quizzl:reactions:dm:';
+
+  const allKeys = await keys();
+  const dmReactionKeys = allKeys.filter(
+    (k): k is string => typeof k === 'string' && k.startsWith(dmReactionPrefix),
+  );
+
+  const strangerKeys: string[] = [];
+  for (const key of dmReactionKeys) {
+    const peerHex = key.slice(dmReactionPrefix.length);
+    if (!isAllowedDmSender(peerHex, groups, ownPubkeyHex)) {
+      strangerKeys.push(key);
+    }
+  }
+
+  // Optimization guard: delMany([]) is a no-op; this guard avoids the call.
+  if (strangerKeys.length > 0) {
+    // Drain in-flight write queue entries for the stranger keys BEFORE delMany.
+    // Without this, an enqueue that is mid-flight when delMany fires may
+    // resolve AFTER the delete, re-creating the key (in-flight write race).
+    // Mirror the clearAllReactions() pattern: await Promise.allSettled(inflight)
+    // first, then clear cache + queue handles, then delete from IDB.
+    const inflightForKeys = strangerKeys
+      .map((k) => writeQueues.get(k))
+      .filter((p): p is Promise<unknown> => p !== undefined);
+    if (inflightForKeys.length > 0) {
+      await Promise.allSettled(inflightForKeys);
+    }
+    // Evict in-memory cache and write-queue handles for purged keys.
+    for (const key of strangerKeys) {
+      cache.delete(key);
+      writeQueues.delete(key);
+    }
+    await delMany(strangerKeys);
   }
 }

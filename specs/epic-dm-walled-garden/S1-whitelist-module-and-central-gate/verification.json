@@ -1,0 +1,102 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-02T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "Does `app/src/lib/walledGarden.ts` export a pure function with the exact signature `isAllowedDmSender(peerHex: string, groups: ReadonlyArray<Group>, ownPubkeyHex: string | null | undefined): boolean`? Does a static analysis of its import graph confirm zero imports from `idb-keyval`, NDK packages, or any React module? Provide (a) the export statement, (b) the full import block of the new file, and (c) a test demonstrating the function returns a boolean for a known input without any async or side-effectful call."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-1",
+      "question": "Does `isAllowedDmSender` return `false` in every one of these three boundary cases: (a) `peerHex` is the empty string `\"\"`, (b) `peerHex` (compared case-insensitively) equals `ownPubkeyHex`, and (c) `groups` is an empty array? Show the three unit-test assertions and the corresponding code path in `walledGarden.ts` for each case."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-2",
+      "question": "Does `isAllowedDmSender` return `true` if and only if `peerHex` (lowercased) matches at least one entry in any `group.memberPubkeys` (also lowercased), AND neither AC-SEC-1 precondition applies? Show the unit test for (a) peer present in exactly one of many groups, (b) peer present with mixed-case pubkey, and (c) peer absent from all groups — confirm no false positives or false negatives."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-2",
+      "question": "Does `rememberContact(peerHex)` in `app/src/lib/contacts.ts` return silently (no throw, no error log) when `isAllowedDmSender` reports the peer as a stranger? Provide (a) the modified function body showing the early-return guard, (b) a unit test asserting that localStorage is not mutated after calling `rememberContact` with a stranger pubkey, and (c) confirmation that the function still writes storage when called with an allowed peer."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Are all pubkey comparisons inside `isAllowedDmSender` case-insensitive? Specifically: is `peerHex` lowercased before comparing, and are entries from `group.memberPubkeys` also lowercased before comparing? Run `grep -n '\\.toLowerCase' app/src/lib/walledGarden.ts` — the output MUST show at least two `.toLowerCase()` calls (one for `peerHex`, one for each `memberPubkeys` entry). If the result shows zero or one, the implementation violates AC-SEC-2."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `walledGarden.ts` have zero imports that traverse outside the `app/src/lib/` pure-computation boundary — specifically no imports from `app/src/context/`, `app/src/components/`, `idb-keyval`, any NDK package, or React? Run `grep -n '^import' app/src/lib/walledGarden.ts` and verify every import path. Any import containing `context`, `component`, `idb`, `ndk`, or `react` (case-insensitive) is an architecture violation."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does `rememberContact` silently return (no throw, no `console.error`, no `console.warn`) when the whitelist check fails? A test must call `rememberContact` with a stranger pubkey while spying on `console.error` and `console.warn` — both spies MUST show zero invocations. A thrown exception is also a failure: wrap the call in try/catch and assert no exception is caught."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `walledGarden.ts` (the `walledGarden` module) be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? The module owns only `app/src/lib/walledGarden.ts`; its only declared consumers are `contacts.ts` (S1), `directMessageNotifications.ts` (S2), `ContactChat.tsx` (S2), and the purge helpers (S3). If deleting `walledGarden.ts` would require changes to files outside those consumer modules (e.g. modifying `MarmotContext.tsx` or `directMessages.ts` for S1 to function), identify every cross-module dependency that does not flow through a declared seam contract in `architecture.md`."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "Does `isAllowedDmSender` satisfy the full cross-story seam contract? Assert all five invariants: (1) returns `false` for empty `peerHex`; (2) returns `false` when `peerHex` (case-insensitive) equals `ownPubkeyHex`; (3) returns `false` when `groups` is `[]`; (4) returns `true` if and only if `peerHex` (case-insensitive) appears in any `group.memberPubkeys` (case-insensitive) and neither precondition 1/2 applies; (5) has no side effects — provide the import-graph evidence (no IDB/NDK/React import). Each invariant needs a separate test assertion — not a single composite test."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does this story touch ONLY `app/src/lib/walledGarden.ts` (new file) and `app/src/lib/contacts.ts` (modified)? Confirm that `app/src/lib/directMessageNotifications.ts`, `app/src/components/contacts/ContactChat.tsx`, `app/src/lib/marmot/chatPersistence.ts`, `app/src/lib/unreadStore.ts`, `app/src/lib/reactions/api.ts`, and `app/src/context/MarmotContext.tsx` are all byte-for-byte identical before and after this story's diff lands."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the `isAllowedDmSender` function free of any dead-code, stub markers (`TODO`, `FIXME`, `HACK`, `XXX`), or partial-implementation comments? Run `grep -n 'TODO\\|FIXME\\|HACK\\|XXX' app/src/lib/walledGarden.ts` — it MUST return no matches. Additionally, does `rememberContact`'s new guard branch contain no placeholder logic — the early-return path must be a clean `return;` without any commented-out legacy body?"
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does `rememberContact` still correctly write to storage for an allowed (whitelisted) peer? Spy on `localStorage.setItem` in the unit test for the allowed-peer path and assert it IS called after `rememberContact` is invoked with a member's pubkey — confirming the whitelist guard does not accidentally block legitimate contact persistence."
+    },
+    {
+      "question_id": "VQ-S1-PI-001",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The isAllowed parameter on rememberContact is optional (not required), meaning callers on non-DM paths (contactCache.ts, rememberContactsFromGroups) are not gated. Intentional: contactCache.ts writes profile data for group members — gating it adds no security. S2 gates at ingress call sites before rememberContact is reached."
+    },
+    {
+      "question_id": "VQ-S1-PI-002",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "question": "The isAllowedDmSender self-check skips when ownPubkeyHex is null/undefined. No vulnerability: no self to protect without an identity, and the peer must still appear in group.memberPubkeys to pass. Empty-groups guard remains the backstop."
+    },
+    {
+      "question_id": "VQ-S1-PI-003",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "Codex review skipped (bwrap sandbox error). Opus Stage-1 manual self-review conducted against all ACs. No findings identified."
+    }
+  ]
+}

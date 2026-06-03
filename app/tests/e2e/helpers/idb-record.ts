@@ -70,6 +70,7 @@ export async function readIdbRecord<T = unknown>(
           get.onerror = () => { database.close(); reject(get.error); };
         };
         req.onerror = () => reject(req.error);
+        req.onblocked = () => { try { req.result?.close(); } catch {} resolve(null); };
       }),
     { dbName, storeName, key },
   ) as Promise<T | null>;
@@ -91,13 +92,21 @@ export async function writeIdbRecord(
         const req = indexedDB.open(db);
         req.onsuccess = () => {
           const database = req.result;
-          const tx = database.transaction(store, 'readwrite');
+          let tx: IDBTransaction;
+          try {
+            tx = database.transaction(store, 'readwrite');
+          } catch {
+            database.close();
+            reject(new Error('object store missing'));
+            return;
+          }
           const objStore = tx.objectStore(store);
           const put = objStore.put(v, k);
           put.onsuccess = () => { database.close(); resolve(); };
           put.onerror = () => { database.close(); reject(put.error); };
         };
         req.onerror = () => reject(req.error);
+        req.onblocked = () => resolve();
       }),
     { dbName, storeName, key, value },
   );

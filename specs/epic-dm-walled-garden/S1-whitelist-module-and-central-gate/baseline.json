@@ -1,0 +1,8 @@
+{
+  "captured_at": "2026-06-02T00:00:00Z",
+  "test_files": 66,
+  "tests_passing": 874,
+  "tests_failing": 0,
+  "lint": "NO_LINT",
+  "typecheck": "clean"
+}

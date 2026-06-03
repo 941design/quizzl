@@ -7,6 +7,8 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { isAllowedDmSender } from '@/src/lib/walledGarden';
+import type { WhitelistArgs } from '@/src/lib/walledGarden';
 
 const STORAGE_KEY = 'lp_unreadLastRead_v1';
 const DM_STORAGE_KEY = 'lp_unreadLastReadDM_v1';
@@ -301,6 +303,39 @@ export async function initDirectMessageCounts(peerPubkeysHex: string[], ownPubke
   emit();
 }
 
+/**
+ * Purges unread-counter entries for stranger peers (AC-PURGE-4).
+ *
+ * Checks both the in-memory `state.directMessages` map and the persisted
+ * `lp_unreadLastReadDM_v1` localStorage store.  For every peer that fails
+ * the whitelist check, `clearDirectMessageContact` is called, which removes
+ * both the in-memory count and the persisted timestamp.
+ *
+ * After the sweep, `getDirectMessageLastReadAt(strangerHex)` returns 0 (the
+ * module's unset sentinel).
+ */
+export function purgeStrangerDmCounters(
+  getWhitelist: () => WhitelistArgs,
+): void {
+  const { groups, ownPubkeyHex } = getWhitelist();
+
+  // Collect all peers tracked anywhere: in-memory counts + persisted timestamps.
+  const peers = new Set<string>();
+  for (const peer of Object.keys(state.directMessages)) {
+    peers.add(peer);
+  }
+  const persisted = loadDirectMessageLastRead();
+  for (const peer of Object.keys(persisted)) {
+    peers.add(peer);
+  }
+
+  for (const peer of peers) {
+    if (!isAllowedDmSender(peer, groups, ownPubkeyHex)) {
+      clearDirectMessageContact(peer);
+    }
+  }
+}
+
 // --- Test bridge ---
 // Expose store functions on window so e2e tests can inject unread state.
 if (typeof window !== 'undefined') {
@@ -308,6 +343,27 @@ if (typeof window !== 'undefined') {
     incrementUnread, markAsRead, clearUnreadGroup,
     incrementJoinRequest, markJoinRequestsRead, decrementJoinRequest, clearJoinRequestGroup,
     incrementDirectMessage, markDirectMessagesRead, clearDirectMessageContact,
+  };
+}
+
+// --- DM publish test bridge (dev only) ---
+// Exposes publishDirectMessage via the page's own identity so e2e tests can
+// send DMs without dynamic-importing webpack-aliased modules from page.evaluate.
+// The bridge reads the private key from localStorage at call time.
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  (window as any).__quizzlPublishDm = async (peerPubkeyHex: string, content: string): Promise<void> => {
+    try {
+      const identityRaw = localStorage.getItem('lp_nostrIdentity_v1');
+      if (!identityRaw) throw new Error('No identity in localStorage');
+      const identity = JSON.parse(identityRaw) as { privateKeyHex: string };
+      const { connectNdk } = await import('@/src/lib/ndkClient');
+      const { publishDirectMessage } = await import('@/src/lib/directMessages');
+      const ndk = await connectNdk(identity.privateKeyHex);
+      await publishDirectMessage({ ndk, privateKeyHex: identity.privateKeyHex, peerPubkeyHex, content });
+    } catch (err) {
+      console.error('[__quizzlPublishDm] failed:', err);
+      throw err;
+    }
   };
 }
 

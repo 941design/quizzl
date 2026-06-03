@@ -1,0 +1,9 @@
+{
+  "captured_at": "2026-06-02T17:14:11Z",
+  "commit": "b5890d7",
+  "test_files": 67,
+  "tests": 900,
+  "test_status": "passing",
+  "lint": "NO_LINT",
+  "typecheck": "clean"
+}

@@ -1,0 +1,36 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "final_outcome": "accepted",
+  "architect_skipped": false,
+  "files_created": [
+    "specs/epic-dm-walled-garden/S3-retroactive-purge/architecture.json",
+    "specs/epic-dm-walled-garden/S3-retroactive-purge/baseline.json"
+  ],
+  "files_modified": [
+    "app/src/lib/walledGarden.ts",
+    "app/src/lib/marmot/chatPersistence.ts",
+    "app/src/lib/unreadStore.ts",
+    "app/src/lib/contacts.ts",
+    "app/src/lib/reactions/api.ts",
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "remediation_rounds": 0,
+  "completed_at": "2026-06-02T00:00:00Z",
+  "review_notes": "REVIEW SKIPPED: codex unavailable (lead-authorized) — Codex usage limit exceeded until 2026-06-07. Opus Stage-1 review ran with 0 critical findings, 1 low-severity batching fix applied.",
+  "implementation_summary": "Added WhitelistArgs type export to walledGarden.ts. Added purgeStrangerDmThreads to chatPersistence.ts (IDB dm: key sweep with perf timing). Added purgeStrangerDmCounters to unreadStore.ts (in-memory + localStorage sweep). Added purgeStrangerContacts to contacts.ts (both STORAGE_KEYS.contacts and STORAGE_KEYS.contactCache). Added purgeStrangerDmReactions to reactions/api.ts (batched delMany pattern). Wired all four helpers into MarmotContext.tsx via a useEffect on [ready, groups, groupDataVersion, pubkeyHex] — event-driven, not timer-based.",
+  "test_counts": {
+    "baseline": 900,
+    "final": 900
+  },
+  "mocks_introduced": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The story guidance mentioned chatPersistence.ts already imports `keys` from idb-keyval at ~line 310 but the actual import is at line 8 as a static import. The dynamic import in purgeStrangerDmReactions (reactions/api.ts) needed to change to match the clearAllReactions pattern which also uses dynamic import — no issue there. The contacts.ts purge function needed static imports added at the top. The unreadStore.ts purge function initially used require() before being corrected to a static import, requiring one edit cycle.",
+    "surprised_by": "The `appendQueues` map in chatPersistence.ts uses the full IDB key string (e.g. `quizzl:messages:dm:<peerHex>`) as keys — not a groupId. This was non-obvious from the surrounding code where most callers pass a groupId through `storageKey()`. The DM path uses `dm:<peerHex>` as the groupId argument, which makes `storageKey('dm:<peerHex>') === 'quizzl:messages:dm:<peerHex>'`. This aligns correctly but required careful verification.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": []
+  }
+}

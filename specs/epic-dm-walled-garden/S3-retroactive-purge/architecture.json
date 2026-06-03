@@ -1,0 +1,67 @@
+{
+  "module_name": "S3-retroactive-purge",
+  "purpose": "Add purge helpers that sweep IDB DM threads, unread counters, reaction aggregates, and contact-list entries for non-member peers. Wire them into MarmotContext to run once after boot hydration and on every group-membership change.",
+  "public_api": [
+    {
+      "name": "purgeStrangerDmThreads",
+      "signature": "purgeStrangerDmThreads(getWhitelist: () => WhitelistArgs): Promise<void>",
+      "description": "Enumerates idb-keyval keys matching quizzl:messages:dm:*, calls isAllowedDmSender on each peerHex, and del()s keys for strangers. Keys without the dm: discriminator are untouched."
+    },
+    {
+      "name": "purgeStrangerDmCounters",
+      "signature": "purgeStrangerDmCounters(getWhitelist: () => WhitelistArgs): void",
+      "description": "Iterates in-memory state.directMessages and the lp_unreadLastReadDM_v1 localStorage timestamp store, calling clearDirectMessageContact for every stranger peer."
+    },
+    {
+      "name": "purgeStrangerContacts",
+      "signature": "purgeStrangerContacts(getWhitelist: () => WhitelistArgs): void",
+      "description": "Reads STORAGE_KEYS.contacts and STORAGE_KEYS.contactCache from localStorage, filters out stranger entries, and writes the cleaned objects back."
+    },
+    {
+      "name": "purgeStrangerDmReactions",
+      "signature": "purgeStrangerDmReactions(getWhitelist: () => WhitelistArgs): Promise<void>",
+      "description": "Follows the clearAllReactions pattern: enumerates idb-keyval keys matching quizzl:reactions:dm:*, checks peerHex against whitelist, del()s stranger keys."
+    },
+    {
+      "name": "WhitelistArgs",
+      "signature": "type WhitelistArgs = { groups: ReadonlyArray<Group>; ownPubkeyHex: string | null | undefined }",
+      "description": "Parameter bag passed to getWhitelist() by the caller in MarmotContext. Defined in walledGarden.ts and re-exported."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "quizzl:messages:dm:* IDB keys (purge only)",
+    "quizzl:reactions:dm:* IDB keys (purge only)",
+    "localStorage lp_unreadLastReadDM_v1 (via clearDirectMessageContact)",
+    "localStorage lp_contacts_v1 (via purgeStrangerContacts)",
+    "localStorage lp_contactCache_v1 (via purgeStrangerContacts)"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/walledGarden.ts",
+    "app/src/lib/marmot/chatPersistence.ts",
+    "app/src/lib/unreadStore.ts",
+    "app/src/lib/reactions/api.ts",
+    "app/src/lib/contacts.ts",
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "dependencies_forbidden": [
+    "context/ (from lib/ purge helpers)",
+    "components/ (from lib/ purge helpers)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [
+    "groups state change in MarmotContext (useEffect on [groups, groupDataVersion])"
+  ],
+  "test_targets": [
+    "purgeStrangerDmThreads: key enumeration, dm: discriminator filter, isAllowedDmSender gate, group-key preservation",
+    "purgeStrangerDmCounters: in-memory + localStorage sweep via clearDirectMessageContact",
+    "purgeStrangerContacts: both localStorage keys cleaned, member entries preserved",
+    "purgeStrangerDmReactions: reactions:dm: key sweep, reactions:group: keys untouched",
+    "MarmotContext wiring: purge runs once post-hydration, re-runs on groups change"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S4"]
+  }
+}

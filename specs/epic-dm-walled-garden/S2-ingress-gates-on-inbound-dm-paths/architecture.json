@@ -1,0 +1,53 @@
+{
+  "module_name": "S2-ingress-gates-on-inbound-dm-paths",
+  "purpose": "Add isAllowedDmSender whitelist checks before every side-effect in the two inbound DM subscribers (directMessageNotifications.ts and ContactChat.tsx). Gates protect rememberContact, incrementDirectMessage, dedup-set population, appendMessage/upsertMessages, and kind-7 applyInboundRumor. Adds INFO-level drop logging and removes the bug-documenting comment.",
+  "public_api": [
+    {
+      "name": "subscribeDirectMessageNotifications",
+      "signature": "function subscribeDirectMessageNotifications(params: { ndk: NDK; ownPubkeyHex: string; privateKeyHex: string; isAllowedSender: (peer: string) => boolean }): () => void",
+      "description": "Modified signature: adds isAllowedSender callback parameter. Caller (DirectMessageNotificationsWatcher) passes (peer) => isAllowedDmSender(peer, groups, ownPubkeyHex) built from useMarmot().groups."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/directMessageNotifications.ts",
+    "app/src/components/contacts/ContactChat.tsx",
+    "app/src/components/DirectMessageNotificationsWatcher.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/walledGarden.ts",
+    "app/src/lib/contacts.ts",
+    "app/src/lib/unreadStore.ts",
+    "app/src/lib/directMessages.ts",
+    "app/src/lib/logger.ts",
+    "app/src/lib/reactions/api.ts",
+    "app/src/lib/marmot/chatPersistence.ts",
+    "app/src/context/MarmotContext.tsx"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/directMessages.ts (modification)",
+    "app/src/lib/marmot/chatPersistence.ts (modification)",
+    "app/src/lib/unreadStore.ts (modification)",
+    "app/src/lib/reactions/api.ts (modification)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [
+    "kind-4 (DIRECT_MESSAGE_KIND) via NDK subscription",
+    "kind-1059 (GIFT_WRAP_KIND) via NDK subscription"
+  ],
+  "test_targets": [
+    "app/tests/unit/walledGarden/directMessageNotificationsGate.test.ts"
+  ],
+  "seam": {
+    "cross_story": false,
+    "consumed_by": []
+  },
+  "design_decisions": {
+    "isAllowedSender_injection": "subscribeDirectMessageNotifications receives isAllowedSender as a callback parameter rather than computing it internally. This keeps the function free of React context dependencies (lib/ boundary rule) and allows the caller to inject the current group snapshot via closure.",
+    "DirectMessageNotificationsWatcher_change": "DirectMessageNotificationsWatcher.tsx is updated to call useMarmot() to get groups, then pass (peer) => isAllowedDmSender(peer, groups, ownPubkeyHex) to subscribeDirectMessageNotifications. This is the minimal change required to thread groups into the notification path.",
+    "ContactChat_gate": "ContactChat.tsx already has access to MarmotContext via the component tree. It calls useMarmot() to get groups and constructs isAllowedDmSender checks inline at each of the three handler gate points.",
+    "dedup_gate_ordering": "The whitelist check in directMessageNotifications.ts runs BEFORE seenMessageIds/seenRumorIds population. A stranger event must not occupy a dedup slot — if it did, a later member re-delivery of the same event id would be falsely deduplicated (AC-SEC-4, AC-SEC-5).",
+    "logging": "Stranger drop events are logged via the existing createLogger('dm') logger at INFO level with tag 'dm:walled-garden-drop'. The log includes the first 8 characters of the sender pubkey and the event kind. No message content or inner rumor body is included (AC-OBS-1)."
+  }
+}

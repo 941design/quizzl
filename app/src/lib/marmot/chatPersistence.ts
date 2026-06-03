@@ -8,6 +8,7 @@
 import { get, set, del, keys, delMany } from 'idb-keyval';
 import { parseDirectPayload } from '@/src/lib/directMessages';
 import type { RoledAttachments } from '@/src/lib/media/imageMessage';
+import * as walledGarden from '@/src/lib/walledGarden';
 
 /** MLS application-message kind discriminator for chat messages. */
 export const CHAT_MESSAGE_KIND = 9;
@@ -313,5 +314,66 @@ export async function clearAllMessages(): Promise<void> {
   );
   if (messageKeys.length > 0) {
     await delMany(messageKeys);
+  }
+}
+
+/**
+ * Purges IDB DM thread keys belonging to stranger peers.
+ *
+ * Enumerates all keys matching `quizzl:messages:dm:<peerHex>`, calls
+ * `isAllowedDmSender` on each `<peerHex>`, and `del()`s the key when the
+ * peer is a stranger.  Keys that carry the `quizzl:messages:` prefix but
+ * lack the `dm:` discriminator (e.g. `quizzl:messages:<groupId>`) are
+ * NEVER touched (AC-PURGE-3, VQ-S3-013).
+ *
+ * AC-PERF-1: logs a warning when sweep exceeds 500 ms; throws when it
+ * exceeds 2 000 ms.
+ */
+export async function purgeStrangerDmThreads(
+  getWhitelist: () => walledGarden.WhitelistArgs,
+): Promise<void> {
+  const { isAllowedDmSender } = walledGarden;
+  const start = performance.now();
+
+  const allKeys = await keys();
+  const dmPrefix = 'quizzl:messages:dm:';
+  const dmKeys = allKeys.filter(
+    (k): k is string => typeof k === 'string' && k.startsWith(dmPrefix),
+  );
+
+  const { groups, ownPubkeyHex } = getWhitelist();
+  const strangerKeys: string[] = [];
+  for (const key of dmKeys) {
+    const peerHex = key.slice(dmPrefix.length);
+    if (!isAllowedDmSender(peerHex, groups, ownPubkeyHex)) {
+      strangerKeys.push(key);
+    }
+  }
+
+  // Optimization guard: delMany([]) is a no-op; this guard avoids the call.
+  if (strangerKeys.length > 0) {
+    // Drain in-flight append queue entries for the stranger keys BEFORE delMany.
+    // Without this, an appendMessage that is mid-flight when delMany fires may
+    // resolve AFTER the delete, re-creating the key (in-flight write race).
+    // Mirror the clearAllMessages() pattern: await Promise.allSettled(inflight)
+    // first, then clear the queue handles, then delete from IDB.
+    const inflightForKeys = strangerKeys
+      .map((k) => appendQueues.get(k))
+      .filter((p): p is Promise<void> => p !== undefined);
+    if (inflightForKeys.length > 0) {
+      await Promise.allSettled(inflightForKeys);
+    }
+    for (const key of strangerKeys) {
+      appendQueues.delete(key);
+    }
+    await delMany(strangerKeys);
+  }
+
+  const elapsed = performance.now() - start;
+  if (elapsed > 2000) {
+    throw new Error(`[purgeStrangerDmThreads] sweep exceeded 2 000 ms (${elapsed.toFixed(0)} ms)`);
+  }
+  if (elapsed > 500) {
+    console.warn(`[purgeStrangerDmThreads] sweep took ${elapsed.toFixed(0)} ms (warn threshold: 500 ms)`);
   }
 }

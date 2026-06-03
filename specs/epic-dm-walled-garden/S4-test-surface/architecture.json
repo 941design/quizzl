@@ -1,0 +1,39 @@
+{
+  "module_name": "test-surface",
+  "purpose": "Test coverage for the DM walled-garden feature: unit tests for whitelist helper, bell-watcher gates, and purge sweep; three new e2e specs; bug-spec deletion.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/unit/walledGarden.test.ts",
+    "app/tests/unit/directMessageNotifications.test.ts",
+    "app/tests/unit/chatPersistence-purge.test.ts",
+    "app/tests/e2e/dm-walled-garden-stranger-blocked.spec.ts",
+    "app/tests/e2e/dm-walled-garden-group-member-allowed.spec.ts",
+    "app/tests/e2e/dm-walled-garden-retroactive-purge.spec.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/walledGarden.ts",
+    "app/src/lib/marmot/chatPersistence.ts",
+    "app/src/lib/unreadStore.ts",
+    "app/src/lib/contacts.ts",
+    "app/src/lib/reactions/api.ts",
+    "app/tests/e2e/helpers/auth-helpers.ts",
+    "app/tests/e2e/helpers/clear-state.ts",
+    "app/tests/e2e/helpers/idb-record.ts"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/directMessageNotifications.ts"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "isAllowedDmSender",
+    "subscribeDirectMessageNotifications",
+    "purgeStrangerDmThreads",
+    "purgeStrangerDmCounters",
+    "purgeStrangerContacts",
+    "purgeStrangerDmReactions"
+  ]
+}

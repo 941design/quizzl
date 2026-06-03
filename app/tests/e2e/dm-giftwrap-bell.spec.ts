@@ -3,11 +3,12 @@
  *
  * Two-context scenario (Alice = recipient with closed chat, Bob = sender).
  *
- *   1. Alice signs in and navigates to /contacts (bell watcher is mounted).
- *      Alice does NOT open any chat — the bell watcher must fire on subscription.
- *   2. Bob signs in, connects NDK, and calls publishDirectMessage to Alice.
- *   3. Assert Alice's bell badge becomes ≥ 1 without Alice ever opening the chat.
- *   4. Alice opens the DM chat with Bob → message renders.
+ *   1. Alice and Bob boot on /groups/ and establish a shared MLS group
+ *      (required by the DM walled-garden gate).
+ *   2. Alice navigates to /contacts — the bell watcher is mounted.
+ *   3. Bob calls window.__quizzlPublishDm to send a NIP-17 gift-wrapped DM to Alice.
+ *   4. Assert Alice's bell badge becomes ≥ 1 without Alice ever opening the chat.
+ *   5. Alice navigates to the DM thread → message renders.
  *
  * This exercises the full relay → NDK subscription → bell watcher subscription
  * (kind-1059 branch) → bell badge pipeline end-to-end.
@@ -18,12 +19,12 @@
  */
 
 import { test, expect, BrowserContext, Page } from '@playwright/test';
-import { USER_A, USER_B, computeTestKeypairs, injectIdentity } from './helpers/auth-helpers';
+import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
-import { suppressErrorOverlay } from './helpers/dismiss-error-overlay';
+import { suppressErrorOverlay, dismissErrorOverlay } from './helpers/dismiss-error-overlay';
+import { createGroupAndInvite } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
-const E2E_RELAY_URL = process.env.E2E_RELAY_URL ?? 'ws://localhost:7777';
 
 async function waitForBridge(page: Page) {
   await page.waitForFunction(
@@ -34,209 +35,112 @@ async function waitForBridge(page: Page) {
 }
 
 /**
- * Boot a user in a fresh Playwright context with identity + peer contact seeded.
+ * Boot a user in a fresh Playwright context, navigating to /groups/ so the
+ * full app bundle (including unreadStore + __quizzlPublishDm bridge) is loaded.
  */
-async function bootUser(
+async function bootUserOnGroups(
   browser: { newContext: (opts: object) => Promise<BrowserContext> },
   user: typeof USER_A,
   nickname: string,
-  peerPubkeyHex: string,
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ baseURL: BASE_URL });
   await suppressErrorOverlay(context);
-
-  const now = new Date().toISOString();
   await context.addInitScript(
-    ({ privateKeyHex, pubkeyHex, seedHex, nickname, peerPubkeyHex, now }) => {
+    ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
       localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
       localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
-      localStorage.setItem('lp_contacts_v1', JSON.stringify({
-        [peerPubkeyHex]: { pubkeyHex, firstSeenAt: now, lastSeenAt: now, archivedAt: null },
-      }));
     },
-    { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname, peerPubkeyHex, now },
+    { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname },
   );
-
   const page = await context.newPage();
   await page.goto('/');
   await clearAppState(page);
-
-  // Re-seed after clearAppState wipes lp_* keys
   await page.evaluate(
-    ({ privateKeyHex, pubkeyHex, seedHex, nickname, peerPubkeyHex, now }) => {
+    ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
       localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
       localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
-      localStorage.setItem('lp_contacts_v1', JSON.stringify({
-        [peerPubkeyHex]: { pubkeyHex, firstSeenAt: now, lastSeenAt: now, archivedAt: null },
-      }));
     },
-    { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname, peerPubkeyHex, now },
+    { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname },
   );
-
+  await page.reload();
+  await page.goto('/groups/');
+  await expect(
+    page.getByTestId('groups-empty-state').or(page.getByTestId('groups-list')),
+  ).toBeVisible({ timeout: 60_000 });
   return { context, page };
 }
 
-test.describe('DM gift-wrapped bell — AC-22', () => {
-  test.beforeAll(async () => {
+test.describe.serial('DM gift-wrapped bell — AC-22', () => {
+  let aliceCtx: BrowserContext;
+  let bobCtx: BrowserContext;
+  let alicePage: Page;
+  let bobPage: Page;
+
+  test.beforeAll(async ({ browser }) => {
     await computeTestKeypairs();
+    ({ context: aliceCtx, page: alicePage } = await bootUserOnGroups(browser, USER_A, 'alice-test'));
+    ({ context: bobCtx, page: bobPage } = await bootUserOnGroups(browser, USER_B, 'bob-test'));
   });
 
-  test.afterEach(async ({ browser }) => {
-    // Clean up both contexts
-    const ctxs = browser.contexts();
-    await Promise.all(ctxs.map((c) => c.close()));
+  test.afterAll(async () => {
+    await aliceCtx?.close();
+    await bobCtx?.close();
+  });
+
+  test('Alice and Bob establish a shared MLS group (walled-garden prerequisite)', async () => {
+    await createGroupAndInvite(alicePage, USER_B.npub, bobPage, 'AC-22 Bell Test Group');
   });
 
   test(
-    'AC-22: alice receives a NIP-17 gift-wrapped DM from bob; bell badge becomes 1 '
-    + 'without alice opening the chat; opening the chat renders the message (AC-22)',
-    async ({ browser }) => {
-      const ALICE_NICK = 'alice-test';
-      const BOB_NICK = 'bob-test';
+    'AC-22: alice receives a NIP-17 gift-wrapped DM from bob; bell badge increments; '
+    + 'opening the chat renders the message',
+    async () => {
+      const RUMOR_CONTENT = `hello-from-bob-giftwrap-${Date.now()}`;
 
-      // ── 1. Alice boots with Bob as a contact (closed chat) ──────────────────
-      const aliceCtx = await browser.newContext({ baseURL: BASE_URL });
-      await suppressErrorOverlay(aliceCtx);
-      const alicePage = await aliceCtx.newPage();
-
-      const now = new Date().toISOString();
-      await aliceCtx.addInitScript(
-        ({ privateKeyHex, pubkeyHex, seedHex, nickname, peerPubkeyHex, now }) => {
-          localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
-          localStorage.setItem('lp_contacts_v1', JSON.stringify({
-            [peerPubkeyHex]: { pubkeyHex, firstSeenAt: now, lastSeenAt: now, archivedAt: null },
-          }));
-        },
-        {
-          privateKeyHex: USER_A.privateKeyHex,
-          pubkeyHex: USER_A.pubkeyHex,
-          seedHex: USER_A.seedHex,
-          nickname: ALICE_NICK,
-          peerPubkeyHex: USER_B.pubkeyHex,
-          now,
-        },
-      );
-      await alicePage.goto('/');
-      await clearAppState(alicePage);
-      await aliceCtx.addInitScript(
-        ({ privateKeyHex, pubkeyHex, seedHex, nickname, peerPubkeyHex, now }) => {
-          localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
-          localStorage.setItem('lp_contacts_v1', JSON.stringify({
-            [peerPubkeyHex]: { pubkeyHex, firstSeenAt: now, lastSeenAt: now, archivedAt: null },
-          }));
-        },
-        {
-          privateKeyHex: USER_A.privateKeyHex,
-          pubkeyHex: USER_A.pubkeyHex,
-          seedHex: USER_A.seedHex,
-          nickname: ALICE_NICK,
-          peerPubkeyHex: USER_B.pubkeyHex,
-          now,
-        },
-      );
-
-      // ── 2. Alice navigates to /contacts to mount the bell watcher ───────────
+      // ── 1. Alice navigates to /contacts to mount the bell watcher ───────────
       await alicePage.goto('/contacts');
       await alicePage.waitForLoadState('networkidle');
       await waitForBridge(alicePage);
+      await dismissErrorOverlay(alicePage);
 
-      // ── 3. Bob boots, connects NDK, publishes a NIP-17 gift-wrapped DM ─────
-      const bobCtx = await browser.newContext({ baseURL: BASE_URL });
-      await suppressErrorOverlay(bobCtx);
-      const bobPage = await bobCtx.newPage();
+      // Record baseline badge count (may be > 0 from group setup notifications)
+      const initialBadgeCount = await alicePage.evaluate(() => {
+        const badge = document.querySelector('[data-testid="notification-badge"]');
+        if (!badge) return 0;
+        return parseInt((badge.textContent ?? '0').trim(), 10);
+      });
 
-      await injectIdentity(bobPage, USER_B);
-      await bobPage.reload();
-
-      // Wait for NDK to be ready, then publish the DM via the app's publishDirectMessage
-      // Use a page.evaluate that imports the app's DM publisher and calls it.
-      const RUMOR_CONTENT = 'hello from bob via gift wrap';
-      let publishOk = false;
-      let publishError = '';
-
+      // ── 2. Bob sends a NIP-17 gift-wrapped DM via the __quizzlPublishDm bridge ─
       await bobPage.waitForFunction(
-        () => !!(window as any).__quizzlUnread,
+        () => typeof (window as any).__quizzlPublishDm === 'function',
         null,
-        { timeout: 15_000 },
+        { timeout: 10_000 },
       );
-
-      try {
-        await bobPage.evaluate(
-          async ({ bobPriv, alicePub, content, relayUrl }) => {
-            const { getNdk } = await import('@/src/lib/ndkClient');
-            const { publishDirectMessage } = await import('@/src/lib/directMessages');
-
-            const ndk = await (await import('@/src/lib/ndkClient')).connectNdk(bobPriv);
-            await ndk.connect();
-
-            try {
-              await publishDirectMessage({
-                ndk,
-                privateKeyHex: bobPriv,
-                peerPubkeyHex: alicePub,
-                content,
-              });
-              return { ok: true };
-            } catch (err) {
-              return { ok: false, error: String(err) };
-            }
-          },
-          {
-            bobPriv: USER_B.privateKeyHex,
-            alicePub: USER_A.pubkeyHex,
-            content: RUMOR_CONTENT,
-            relayUrl: E2E_RELAY_URL,
-          },
-        );
-        publishOk = true;
-      } catch (err) {
-        publishError = String(err);
-      }
-
-      // Verify Bob was able to publish (NDK + relay must be up)
-      expect(publishOk, `Bob's publishDirectMessage call failed: ${publishError}`).toBe(true);
-
-      // ── 4. Wait for Alice's bell badge to become ≥ 1 ────────────────────────
-      // The bell badge lives on the notification bell button or the DM dropdown.
-      await alicePage.waitForFunction(
-        () => {
-          const badge = document.querySelector('[data-testid="notification-badge"]');
-          if (!badge) {
-            // Bell badge may live inside a button or nav item — check aria-label
-            const bell = document.querySelector('[aria-label*="message"], [aria-label*="notification"]');
-            if (bell) {
-              const count = parseInt(bell.getAttribute('data-count') ?? bell.textContent ?? '0', 10);
-              return count >= 1;
-            }
-            return false;
-          }
-          const count = parseInt(badge.textContent ?? badge.getAttribute('data-count') ?? '0', 10);
-          return count >= 1;
+      await bobPage.evaluate(
+        async ({ alicePub, content }) => {
+          await (window as any).__quizzlPublishDm(alicePub, content);
         },
-        null,
-        { timeout: 15_000 },
+        { alicePub: USER_A.pubkeyHex, content: RUMOR_CONTENT },
       );
 
-      // ── 5. Alice opens the DM chat with Bob and verifies the message renders ─
-      await alicePage.goto('/contacts');
+      // ── 3. Wait for Alice's bell badge to increment above baseline ────────────
+      await alicePage.waitForFunction(
+        (baseline) => {
+          const badge = document.querySelector('[data-testid="notification-badge"]');
+          if (!badge) return false;
+          const count = parseInt((badge.textContent ?? '0').trim(), 10);
+          return count > baseline;
+        },
+        initialBadgeCount,
+        { timeout: 30_000 },
+      );
+
+      // ── 4. Alice navigates to the DM chat and the message renders ─────────────
+      await alicePage.goto(`/contacts?id=${USER_B.pubkeyHex}`);
       await alicePage.waitForLoadState('networkidle');
 
-      // Click the bell to open the DM dropdown, find Bob, click into the chat
-      const bellButton = alicePage.getByRole('button', { name: /messages?|direct/i }).first();
-      await bellButton.click();
-
-      // Wait for the unread DM list to appear in the dropdown
-      const dmList = alicePage.getByRole('list', { name: /unread/i }).first();
-      const bobRow = dmList.getByText(/bob/i, { exact: false }).first();
-      await bobRow.click();
-
-      // Wait for the chat to load and the message bubble to appear
-      await alicePage.waitForLoadState('networkidle');
-      const bubbles = alicePage.locator('[data-testid="message-bubble"], .message-bubble').first();
-      await expect(bubbles).toBeVisible();
-      await expect(bubbles).toContainText(RUMOR_CONTENT);
+      const bubble = alicePage.locator('[data-testid^="msg-"]').filter({ hasText: RUMOR_CONTENT }).first();
+      await expect(bubble).toBeVisible({ timeout: 30_000 });
     },
   );
 });

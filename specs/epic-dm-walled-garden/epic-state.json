@@ -1,0 +1,38 @@
+{
+  "epic_name": "dm-walled-garden",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-06-02T00:00:00Z",
+  "updated_at": "2026-06-03T00:00:00Z",
+  "completed_at": "2026-06-03T00:00:00Z",
+  "pre_existing_dirty_files": [
+    "bug-reports/dm-walled-garden-stranger-bypass.md",
+    "specs/epic-dm-walled-garden/acceptance-criteria.md",
+    "specs/epic-dm-walled-garden/spec.md"
+  ],
+  "completed_stories": ["S1", "S2", "S3", "S4"],
+  "escalated_stories": [],
+  "phase_history": [
+    {"phase": "SPEC_VALIDATED", "timestamp": "2026-06-02T00:00:00Z", "trigger": "validation_passed"},
+    {"phase": "IMPLEMENTATION", "timestamp": "2026-06-02T00:00:00Z", "trigger": "stories_in_progress"},
+    {"phase": "COMPLETE", "timestamp": "2026-06-03T00:00:00Z", "trigger": "all_gates_passed"}
+  ],
+  "plugin_sha": "unknown",
+  "consumer_sha": "b5890d713f69644442b5242db42d1ed7ddbd772e",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "mutation_gate_residuals": [],
+  "e2e_gate_accepted": {
+    "tests": [
+      "tests/e2e/groups-profile-request.spec.ts:171 — Profile request discovery — six scenarios (AC-045/AC-046) — 1. Aged-history backfill"
+    ],
+    "reason": "user-authorized; pre-existing failure since commit f53eacf (before walled-garden epic); profile fan-out after history gap unrelated to walled-garden gate"
+  },
+  "review_skip": {
+    "backend": "codex",
+    "reason": "Codex usage limit exceeded until 2026-06-07; user-authorized to ship without Codex review; Opus Stage-1 review ran with 8 findings — 6 fixed, 2 deferred to backlog"
+  }
+}

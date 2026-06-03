@@ -43,18 +43,25 @@ export type IncomingDmEvent = {
  * Subscribe to inbound DMs (kind-4 NIP-04 and kind-1059 NIP-17 gift wraps)
  * and bump the notification bell for each new message from a non-self sender.
  *
- * @param params.ndk        NDK instance for relay subscriptions.
- * @param params.ownPubkeyHex  The local user's hex pubkey.
- * @param params.privateKeyHex The local user's hex private key. Required to
- *                             unwrap NIP-17 gift wraps. Obtained from
- *                             `useNostrIdentity()` in the watcher component.
+ * @param params.ndk              NDK instance for relay subscriptions.
+ * @param params.ownPubkeyHex     The local user's hex pubkey.
+ * @param params.privateKeyHex    The local user's hex private key. Required to
+ *                                unwrap NIP-17 gift wraps. Obtained from
+ *                                `useNostrIdentity()` in the watcher component.
+ * @param params.isAllowedSender  Whitelist accessor injected by the caller
+ *                                (AC-SEC-3, AC-SEC-5). Returns `true` only for
+ *                                peers that share at least one MLS group with
+ *                                the local user. Stranger events are dropped
+ *                                before any side-effect (rememberContact,
+ *                                incrementDirectMessage, dedup-set population).
  */
 export function subscribeDirectMessageNotifications(params: {
   ndk: NDK;
   ownPubkeyHex: string;
   privateKeyHex: string;
+  isAllowedSender: (peer: string) => boolean;
 }): () => void {
-  const { ndk, ownPubkeyHex, privateKeyHex } = params;
+  const { ndk, ownPubkeyHex, privateKeyHex, isAllowedSender } = params;
   const ownLower = ownPubkeyHex.toLowerCase();
 
   // kind-4 dedup key: event id (the outer event is the DM itself)
@@ -72,6 +79,13 @@ export function subscribeDirectMessageNotifications(params: {
   const kind4Handler = (event: IncomingDmEvent) => {
     const peer = (event.pubkey ?? '').toLowerCase();
     if (!peer || peer === ownLower) return;
+    // AC-SEC-3/4: gate before dedup-set population and all side-effects.
+    // Stranger events must NOT occupy a seenMessageIds slot — a later member
+    // re-delivery of the same event id must not be falsely deduped.
+    if (!isAllowedSender(peer)) {
+      logger.info('dm:walled-garden-drop', { pubkey: peer.slice(0, 8), kind: 4 });
+      return;
+    }
     if (event.id && seenMessageIds.has(event.id)) return;
     if (event.id) seenMessageIds.add(event.id);
     const createdMs = (event.created_at ?? 0) * 1000;
@@ -103,10 +117,16 @@ export function subscribeDirectMessageNotifications(params: {
       // kind-7 reactions, kind-444 welcomes, kind-21059 join requests — silently skip.
       if (rumor.kind !== CHAT_MESSAGE_KIND) return;
 
-      // Bell watcher accepts DMs from any sender (it has no peer to filter against).
-      // shouldIngestRumor is for thread-isolation in ContactChat, not here.
       const peer = rumor.pubkey.toLowerCase();
       if (peer === ownLower) return;
+
+      // AC-SEC-5: gate before dedup-set population and all side-effects.
+      // Stranger events must NOT occupy a seenRumorIds slot — a later member
+      // re-delivery of the same rumor id must not be falsely deduped.
+      if (!isAllowedSender(peer)) {
+        logger.info('dm:walled-garden-drop', { pubkey: peer.slice(0, 8), kind: 1059 });
+        return;
+      }
 
       const createdMs = rumor.created_at * 1000;
       if (createdMs <= getDirectMessageLastReadAt(peer)) return;

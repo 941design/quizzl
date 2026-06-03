@@ -36,11 +36,16 @@ export function useDirectReactions(
   messages: ChatMessage[],
 ): Map<string, ReactionAggregate[]> {
   const [reactionsByMessageId, setReactionsByMessageId] = useState<Map<string, ReactionAggregate[]>>(new Map());
-  // Keep a stable ref to messages so the subscribe listener closure uses the latest value.
+  // Keep a stable ref to messages so the subscribe listener closure always uses the latest value.
   const messagesRef = useRef<ChatMessage[]>(messages);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // recomputeRef lets the messages-change effect call the same recompute function
+  // that is defined inside the subscription effect, without recreating the subscription
+  // on every messages change.
+  const recomputeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!peerPubkeyHex || !selfPubkey) {
@@ -67,6 +72,8 @@ export function useDirectReactions(
       }).catch(() => {});
     }
 
+    recomputeRef.current = recompute;
+
     // Initial load
     recompute();
 
@@ -75,12 +82,26 @@ export function useDirectReactions(
 
     return () => {
       cancelled = true;
+      recomputeRef.current = null;
       unsub();
     };
   // selfPubkey and peerPubkeyHex are stable for the lifetime of the component.
   // messagesRef is updated above; the listener closure reads the latest ref value.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peerPubkeyHex, selfPubkey]);
+
+  // Re-run recompute when messages change so that reactions already written to
+  // IDB (before the current render cycle's messages were loaded) are picked up.
+  // Without this, the initial recompute runs with empty messagesRef.current and
+  // the map is empty; subsequent message loads don't trigger a new recompute
+  // because the subscription effect has [peerPubkeyHex, selfPubkey] as deps.
+  // This is the "re-open" scenario: navigate back to a DM chat that already has
+  // reactions in IDB from a prior session.
+  useEffect(() => {
+    if (messages.length > 0) {
+      recomputeRef.current?.();
+    }
+  }, [messages]);
 
   return reactionsByMessageId;
 }

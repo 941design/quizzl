@@ -970,3 +970,8 @@ describe('applyOptimisticRemoval — direct API (AC-35, AC-59)', () => {
   });
 });
 
+// Note: reactions/api.ts:492 `if (strangerKeys.length > 0)` is an optimization guard.
+// delMany([]) is a no-op in idb-keyval; the guard only avoids the overhead of the call.
+// This is a KNOWN-EQUIVALENT mutant — `> 0` vs `>= 0` produces identical behavior.
+// No killing test is possible without requiring a behavioral change to delMany itself.
+

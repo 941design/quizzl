@@ -3,6 +3,9 @@ import { NDKEvent } from '@nostr-dev-kit/ndk';
 import type { EventSigner } from 'applesauce-core';
 import type { MemberProfile } from '@/src/types';
 import ChatBox from '@/src/components/chat/ChatBox';
+import { useMarmot } from '@/src/context/MarmotContext';
+import { isAllowedDmSender } from '@/src/lib/walledGarden';
+import { createLogger } from '@/src/lib/logger';
 import { appendMessage, loadMessages, removeMessages, type ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import { connectNdk, fetchEventsWithTimeout } from '@/src/lib/ndkClient';
 import {
@@ -52,6 +55,8 @@ function toMessage(
   };
 }
 
+const dmLogger = createLogger('dm');
+
 export default function ContactChat({
   peerPubkeyHex,
   pubkeyHex,
@@ -61,6 +66,18 @@ export default function ContactChat({
 }: ContactChatProps) {
   const copy = useCopy();
   const toast = useToast();
+  const { groups, ready: marmotReady } = useMarmot();
+  // Ref for groups so subscription handlers always see the latest whitelist
+  // without the effect needing to re-subscribe on every membership change.
+  const groupsRef = useRef(groups);
+  useEffect(() => { groupsRef.current = groups; }, [groups]);
+  // Track MarmotContext readiness so the historical fetch can wait for the
+  // group whitelist to be fully loaded before running the walled-garden gate.
+  // Without this, a fast relay (< 100 ms) resolves the historical fetch before
+  // MarmotContext.init() calls setGroups(), causing groupsRef.current === [] and
+  // dropping all historical events from allowed senders.
+  const marmotReadyRef = useRef(marmotReady);
+  useEffect(() => { marmotReadyRef.current = marmotReady; }, [marmotReady]);
   const threadId = useMemo(() => directConversationId(peerPubkeyHex), [peerPubkeyHex]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -215,15 +232,55 @@ export default function ContactChat({
           fetchEventsWithTimeout(ndk, { kinds: [GIFT_WRAP_KIND], '#p': [pubkeyHex], limit: 500 }),
         ]);
 
+        // AC-SEC-6 race guard: wait for MarmotContext to finish loading groups
+        // before running the walled-garden gate on ALL historical events (both kind-4
+        // and kind-1059). On a fast relay (localhost strfry) the historical fetch
+        // resolves in < 100 ms, well before MarmotContext.init() calls setGroups().
+        // Without this wait, groupsRef.current is [] when we call isAllowedDmSender,
+        // which drops every historical event from an allowed sender (false-positive
+        // walled-garden drop).
+        // We poll marmotReadyRef with a 5-second ceiling so the chat still renders
+        // on slow networks / degraded state rather than hanging indefinitely.
+        if (!marmotReadyRef.current) {
+          await new Promise<void>((resolve) => {
+            const POLL_INTERVAL_MS = 50;
+            const MAX_WAIT_MS = 5_000;
+            let elapsed = 0;
+            const poll = setInterval(() => {
+              elapsed += POLL_INTERVAL_MS;
+              if (marmotReadyRef.current || elapsed >= MAX_WAIT_MS || cancelled) {
+                clearInterval(poll);
+                resolve();
+              }
+            }, POLL_INTERVAL_MS);
+          });
+        }
+
         // Process kind-4 results (existing path — D9a).
+        // AC-SEC-6/AC-SEC-8: apply the walled-garden gate to peer-authored historical
+        // kind-4 events (the fourth inbound path).  Self-authored outgoing events
+        // bypass the gate — isAllowedDmSender returns false for own pubkey by design,
+        // but the user's own messages must always be allowed.
+        const handleHistoricalKind4Event = async (
+          evt: { id: string; pubkey: string; content: string; created_at?: number },
+        ): Promise<ChatMessage | null> => {
+          const senderPeer = evt.pubkey.toLowerCase();
+          const isSelf = senderPeer === pubkeyHex.toLowerCase();
+          if (!isSelf && !isAllowedDmSender(senderPeer, groupsRef.current, pubkeyHex)) {
+            dmLogger.info('dm:walled-garden-drop', { pubkey: senderPeer.slice(0, 8), kind: 4 });
+            return null;
+          }
+          return ingestEvent(evt).catch(() => null);
+        };
+
         const remoteMessages = (
           await Promise.all(
-            [...incoming.events, ...outgoing.events].map((evt) => ingestEvent({
+            [...incoming.events, ...outgoing.events].map((evt) => handleHistoricalKind4Event({
               id: evt.id,
               pubkey: evt.pubkey,
               content: evt.content,
               created_at: evt.created_at,
-            }).catch(() => null)),
+            })),
           )
         ).filter((msg): msg is ChatMessage => !!msg);
 
@@ -232,8 +289,22 @@ export default function ContactChat({
         // merged into upsertMessages alongside the kind-4 results — without this,
         // historical NIP-17 DMs land in IDB but stay invisible until the user
         // closes and reopens the chat (the §3.5 merge requirement).
+        //
+        // Implementation note: kind-7 (reaction) rumors are processed here too so
+        // that the reactions IDB is in the correct terminal state before the live
+        // subscription opens. Without this, the live sub re-delivers all stored
+        // events (reaction + removal) in arbitrary order, which can result in the
+        // removal event arriving before the reaction and being silently discarded,
+        // leaving the reaction in IDB as non-removed. Processing historically
+        // (with sort by created_at) eliminates the ordering race.
+        //
+        // Approach: unwrap all events in parallel (expensive crypto), then sort
+        // the successfully-unwrapped rumors by created_at and apply sequentially
+        // so that reactions are always processed before their removals.
         const giftWrapMessages: ChatMessage[] = [];
-        const handleHistoricalGiftWrapEvent = async (evt: NDKEvent) => {
+
+        type UnwrappedRumor = Awaited<ReturnType<typeof unwrapAndOpen>>;
+        const unwrapHistoricalEvent = async (evt: NDKEvent): Promise<{ rumor: UnwrappedRumor; evt: NDKEvent } | null> => {
           try {
             const rawEvt = {
               kind: evt.kind ?? GIFT_WRAP_KIND,
@@ -245,27 +316,56 @@ export default function ContactChat({
               sig: (evt as any).sig ?? '',
             };
             const rumor = await unwrapAndOpen(rawEvt as any, privateKeyHex);
-            if (!shouldIngestRumor(rumor, peerPubkeyHex)) return;
-            if (rumor.kind === CHAT_MESSAGE_KIND) {
-              const parsed = parseDirectPayload(rumor.content);
-              if (!parsed) return;
-              const msg = toMessage(threadId, {
-                id: rumor.id,
-                pubkey: rumor.pubkey,
-                created_at: rumor.created_at,
-                content: parsed.content,
-                attachments: parsed.attachments,
-              });
-              await appendMessage(threadId, msg);
-              giftWrapMessages.push(msg);
-            }
+            return { rumor, evt };
           } catch {
             // Silently ignore gift wraps we can't decrypt (other-conversation traffic).
-            // Matches the spec §3.6 silent-skip policy; no change needed.
+            return null;
           }
         };
 
-        await Promise.all([...giftWrapHistorical.events].map(handleHistoricalGiftWrapEvent));
+        const unwrappedHistorical = (
+          await Promise.all([...giftWrapHistorical.events].map(unwrapHistoricalEvent))
+        )
+          .filter((r): r is { rumor: UnwrappedRumor; evt: NDKEvent } => r !== null)
+          .sort((a, b) => (a.rumor.created_at ?? 0) - (b.rumor.created_at ?? 0));
+
+        for (const { rumor } of unwrappedHistorical) {
+          if (!shouldIngestRumor(rumor, peerPubkeyHex)) continue;
+          // AC-SEC-6: walled-garden gate — in addition to thread isolation.
+          const senderPeer = rumor.pubkey.toLowerCase();
+          if (!isAllowedDmSender(senderPeer, groupsRef.current, pubkeyHex)) {
+            dmLogger.info('dm:walled-garden-drop', { pubkey: senderPeer.slice(0, 8), kind: rumor.kind });
+            continue;
+          }
+          if (rumor.kind === 7) {
+            // Kind-7 reaction/removal: apply in created_at order so that reactions
+            // always land before their removals, giving applyInboundRumor the correct
+            // row state to work with. The knownMessageIdsRef guard mirrors the live
+            // subscription dispatcher: silently discard reactions for unknown messages.
+            const targetETag = rumor.tags?.find((t: string[]) => t[0] === 'e');
+            const targetMessageId = targetETag?.[1];
+            if (targetMessageId && knownMessageIdsRef.current.has(targetMessageId)) {
+              await applyInboundRumor({ kind: 'dm', peerPubkeyHex }, rumor);
+            }
+            continue;
+          }
+          if (rumor.kind === CHAT_MESSAGE_KIND) {
+            const parsed = parseDirectPayload(rumor.content);
+            if (!parsed) continue;
+            const msg = toMessage(threadId, {
+              id: rumor.id,
+              pubkey: rumor.pubkey,
+              created_at: rumor.created_at,
+              content: parsed.content,
+              attachments: parsed.attachments,
+            });
+            await appendMessage(threadId, msg);
+            // Update knownMessageIdsRef immediately so that a kind-7 reaction
+            // processed later in this same loop can find the message.
+            knownMessageIdsRef.current.add(msg.id);
+            giftWrapMessages.push(msg);
+          }
+        }
 
         // Step 5 (§3.5): merge both result sets, sort by createdAt, call upsertMessages once.
         // Sort is required so the rendered list is monotonic regardless of fetch order.
@@ -280,6 +380,15 @@ export default function ContactChat({
         outgoingSub = ndk.subscribe({ kinds: [DIRECT_MESSAGE_KIND], '#p': [peerPubkeyHex], authors: [pubkeyHex] });
 
         const handleKind4Event = (evt: { id: string; pubkey: string; content: string; created_at?: number }) => {
+          // AC-SEC-6: walled-garden gate before appendMessage (via ingestEvent).
+          // Self-authored echoes (outgoingSub) bypass the gate — isAllowedDmSender
+          // returns false for own pubkey by design, but own messages are legitimate.
+          const senderPeer = evt.pubkey.toLowerCase();
+          const isSelf = senderPeer === pubkeyHex.toLowerCase();
+          if (!isSelf && !isAllowedDmSender(senderPeer, groupsRef.current, pubkeyHex)) {
+            dmLogger.info('dm:walled-garden-drop', { pubkey: senderPeer.slice(0, 8), kind: 4 });
+            return;
+          }
           void ingestEvent(evt).then((msg) => {
             if (!msg || cancelled) return;
             upsertMessages([msg]);
@@ -313,6 +422,14 @@ export default function ContactChat({
               // kind-1059's outer key is ephemeral per NIP-59, so we must validate the
               // inner rumor pubkey here.
               if (!shouldIngestRumor(rumor, peerPubkeyHex)) return;
+
+              // AC-SEC-6/7: walled-garden gate — runs after thread isolation, before
+              // any write path (appendMessage, upsertMessages, applyInboundRumor).
+              const rumorSender = rumor.pubkey.toLowerCase();
+              if (!isAllowedDmSender(rumorSender, groupsRef.current, pubkeyHex)) {
+                dmLogger.info('dm:walled-garden-drop', { pubkey: rumorSender.slice(0, 8), kind: rumor.kind });
+                return;
+              }
 
               // Story-07: kind-7 (reaction) inbound dispatch (AC-45, S4).
               if (rumor.kind === 7) {

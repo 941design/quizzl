@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   archiveContact,
   getContact,
@@ -104,5 +104,67 @@ describe('contacts', () => {
 
     expect(listContacts(null).map((contact) => contact.pubkeyHex)).toEqual(['bob', 'alice']);
     expect(getContact('bob', null)?.isArchived).toBe(false);
+  });
+});
+
+describe('rememberContact — whitelist gate (AC-STRUCT-2)', () => {
+  // Reuses the top-level localStorageMock already wired above.
+  beforeEach(() => {
+    localStorageMock.clear();
+  });
+
+  it('silently no-ops (does not mutate storage) when isAllowed returns false for the peer', () => {
+    const strangerPubkey = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+    const isAllowed = vi.fn(() => false);
+
+    rememberContact(strangerPubkey, '2026-06-01T00:00:00.000Z', isAllowed);
+
+    expect(isAllowed).toHaveBeenCalledWith(strangerPubkey);
+    expect(localStorageMock.getItem(STORAGE_KEYS.contacts)).toBeNull();
+  });
+
+  it('does not throw when isAllowed returns false', () => {
+    const strangerPubkey = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+    const isAllowed = vi.fn(() => false);
+    expect(() => rememberContact(strangerPubkey, '2026-06-01T00:00:00.000Z', isAllowed)).not.toThrow();
+  });
+
+  it('does not call console.error or console.warn when isAllowed returns false', () => {
+    const strangerPubkey = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+    const isAllowed = vi.fn(() => false);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    rememberContact(strangerPubkey, '2026-06-01T00:00:00.000Z', isAllowed);
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    errorSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it('writes storage when isAllowed returns true for an allowed peer (VQ-S1-012)', () => {
+    const memberPubkey = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const isAllowed = vi.fn(() => true);
+    const setItemSpy = vi.spyOn(localStorageMock, 'setItem');
+
+    rememberContact(memberPubkey, '2026-06-01T00:00:00.000Z', isAllowed);
+
+    expect(isAllowed).toHaveBeenCalledWith(memberPubkey);
+    expect(setItemSpy).toHaveBeenCalledWith(STORAGE_KEYS.contacts, expect.any(String));
+
+    setItemSpy.mockRestore();
+  });
+
+  it('writes storage when no isAllowed parameter is provided (backward compatibility)', () => {
+    const pubkey = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const setItemSpy = vi.spyOn(localStorageMock, 'setItem');
+
+    rememberContact(pubkey, '2026-06-01T00:00:00.000Z');
+
+    expect(setItemSpy).toHaveBeenCalledWith(STORAGE_KEYS.contacts, expect.any(String));
+
+    setItemSpy.mockRestore();
   });
 });

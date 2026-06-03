@@ -1,0 +1,28 @@
+{
+  "module_name": "walledGarden",
+  "purpose": "Pure whitelist computation — determines whether a given peer pubkey is an allowed DM sender based on current MLS group membership. Zero IDB, NDK, or React dependencies.",
+  "public_api": [
+    {
+      "name": "isAllowedDmSender",
+      "signature": "isAllowedDmSender(peerHex: string, groups: ReadonlyArray<Group>, ownPubkeyHex: string | null | undefined): boolean",
+      "description": "Returns true if and only if peerHex (case-insensitive) appears in group.memberPubkeys of at least one group, peerHex is non-empty, and peerHex does not equal ownPubkeyHex (case-insensitive). Returns false for empty peerHex, self-addressing, and empty groups."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": ["@/src/types"],
+  "dependencies_forbidden": ["idb-keyval", "@nostr-dev-kit/ndk", "react", "@/src/context/", "@/src/components/"],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": ["app/tests/unit/walledGarden.test.ts"],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S2", "S3", "S4"]
+  },
+  "contacts_modification": {
+    "function": "rememberContact",
+    "change": "Add optional isAllowed?: (peer: string) => boolean parameter. When provided and returns false for pubkeyHex, the function returns immediately without writing storage. Default behavior (no parameter) is unchanged — all callers that are not on the DM path pass nothing.",
+    "rationale": "Optional parameter avoids breaking non-DM callers (contactCache.ts writes group-member profiles; gating that path would incorrectly block profile sync for legitimate contacts). DM-path callers (S2) will pass the whitelist accessor. contactCache.ts and rememberContactsFromGroups do not pass it."
+  }
+}

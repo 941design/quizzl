@@ -38,8 +38,10 @@ import { LEAVE_INTENT_KIND, serialiseLeaveIntent } from '@/src/lib/marmot/leaveS
 import { PROFILE_REQUEST_KIND } from '@/src/lib/marmot/profileRequestSync';
 import { recordRequestEmitted, recordRequestAnswered, loadProfileRequestMemo, clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage';
 import { handleIncomingProfileRequest, notifyProfileObserved, sweepStaleProfiles } from '@/src/lib/marmot/profileRequestRunner';
-import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, decrementJoinRequest } from '@/src/lib/unreadStore';
-import { appendMessage, loadMessages } from '@/src/lib/marmot/chatPersistence';
+import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, decrementJoinRequest, purgeStrangerDmCounters } from '@/src/lib/unreadStore';
+import { appendMessage, loadMessages, purgeStrangerDmThreads } from '@/src/lib/marmot/chatPersistence';
+import { purgeStrangerContacts } from '@/src/lib/contacts';
+import { purgeStrangerDmReactions } from '@/src/lib/reactions/api';
 import { buildDispatcher } from '@/src/lib/marmot/registerHandlers';
 import { applyInboundRumor } from '@/src/lib/reactions/api';
 import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
@@ -480,6 +482,51 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         console.warn('[Marmot] app-start sweepStaleProfiles failed:', err);
       }
     })();
+  }, [ready, groups.length, pubkeyHex]);
+
+  // S3 (AC-PURGE-1, AC-PURGE-2): Retroactive purge sweep.
+  // Runs once after boot hydration completes (ready becomes true), and re-runs
+  // on every group-membership change (groups / groupDataVersion deps).
+  // Guard: skip until hydration is complete (ready is the hydration flag).
+  // When groups.length === 0 AND ready === true, the user has no groups and all
+  // DM peers are strangers — the purge MUST run to clean up stale threads/contacts.
+  // Trigger is reactive (useEffect dependency), NOT a polling timer (AC-PURGE-2,
+  // VQ-S3-011).
+  useEffect(() => {
+    if (!ready) return;
+
+    // Use groupsRef.current (not the stale closure var `groups`) so the whitelist
+    // always reflects the current membership even when groups.length hasn't changed.
+    const getWhitelist = () => ({ groups: groupsRef.current, ownPubkeyHex: pubkeyHex });
+
+    void (async () => {
+      try {
+        // Synchronous purges first (counters + contacts) — no IDB needed.
+        purgeStrangerDmCounters(getWhitelist);
+        purgeStrangerContacts(getWhitelist);
+        // Async IDB purges in parallel for speed.
+        await Promise.all([
+          purgeStrangerDmThreads(getWhitelist),
+          purgeStrangerDmReactions(getWhitelist),
+        ]);
+      } catch (err) {
+        console.warn('[Marmot] retroactive purge sweep failed:', err);
+      }
+    })();
+  // Use groups.length (not the full array) to avoid firing on every setGroups()
+  // reference change. The whitelist is group-membership-scoped: purge re-runs
+  // when the member count changes (member joined / group created / group left).
+  //
+  // groupDataVersion is intentionally EXCLUDED: it bumps on every MLS protocol
+  // event (including application messages), causing many concurrent idb-keyval
+  // `keys()` readonly transactions that serialise against the appendMessage `set`
+  // (readwrite) and can delay group chat message persistence by 500ms+, breaking
+  // the cancel-invite announcement. The purge only needs membership-count
+  // awareness, which groups.length already provides.
+  //
+  // The stale-closure problem (groups.length unchanged but memberPubkeys changed)
+  // is avoided by reading groupsRef.current inside the effect body.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, groups.length, pubkeyHex]);
 
   // Load groups from storage on mount

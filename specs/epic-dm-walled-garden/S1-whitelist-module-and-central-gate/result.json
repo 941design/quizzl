@@ -1,0 +1,39 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "architect_skipped": false,
+  "files_created": [
+    "app/src/lib/walledGarden.ts",
+    "app/tests/unit/walledGarden.test.ts",
+    "specs/epic-dm-walled-garden/S1-whitelist-module-and-central-gate/architecture.json",
+    "specs/epic-dm-walled-garden/S1-whitelist-module-and-central-gate/baseline.json"
+  ],
+  "files_modified": [
+    "app/src/lib/contacts.ts",
+    "app/tests/unit/contacts.test.ts",
+    "specs/epic-dm-walled-garden/S1-whitelist-module-and-central-gate/verification.json",
+    "specs/epic-dm-walled-garden/S1-whitelist-module-and-central-gate/result.json"
+  ],
+  "remediation_rounds": 0,
+  "completed_at": "2026-06-02T00:00:00Z",
+  "tests": {
+    "baseline": 874,
+    "final": 897,
+    "new": 23,
+    "files_baseline": 66,
+    "files_final": 67
+  },
+  "lint": "NO_LINT",
+  "typecheck": "clean",
+  "reviews": {
+    "opus": "manual self-review — all ACs verified against implementation",
+    "codex": "skipped: bwrap execution environment error (bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted)"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Determining isAllowed parameter optionality required reading contactCache.ts to confirm it was not a DM ingest path — that call site is outside S1 scope and cannot be changed.",
+    "scope": "project_specific",
+    "outcome": "merged"
+  }
+}
