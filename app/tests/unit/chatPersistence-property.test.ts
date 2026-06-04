@@ -68,6 +68,7 @@ const {
   loadMessages,
   appendMessage,
   removeMessages,
+  clearMessages,
   clearAllMessages,
 } = await import('@/src/lib/marmot/chatPersistence');
 
@@ -661,3 +662,114 @@ describe('selfHealMessages — peer orphan image: content suppressed (lines 137,
 // delMany([]) is a no-op in idb-keyval; the guard only avoids the overhead of the call.
 // Classified EQUIVALENT under mutation — no behavioral test can distinguish `> 0` from `>= 0`.
 // Comment added in production code at that line.
+
+// ── clearMessages — group-leave purge (lines 289-298, NoCoverage cluster) ─────
+//
+// User story: leaving a group drops the group's local chat history from this
+// device, while other groups' histories are untouched. This is part of the
+// purge sequence specified by epic-out-of-band-leave:AC-SEND-4, which lists
+// `clearMessages(groupId)` alongside `removeGroupFromStorage`, `clearMemberScores`,
+// `clearMemberProfiles`, etc. as the per-group state to wipe when leaveGroup() fires.
+//
+// Family C (output contract: state-after on IDB) + Family B (isolation between
+// groups, idempotence, per-key serialization vs in-flight appendMessage).
+
+describe('clearMessages — group-leave drops local history (epic-out-of-band-leave:AC-SEND-4)', () => {
+  /**
+   * Property: after clearMessages(groupId), the persisted history for that
+   * group is gone — loadMessages(groupId) reads an empty array.
+   *
+   * Covers the NoCoverage cluster in clearMessages (lines 289-298), including:
+   *   - the function body itself (L289 BlockStatement)
+   *   - the queue-chaining LogicalOperator (L291)
+   *   - the post-settlement queue-cleanup arrow body (L292, L294-295)
+   */
+
+  it('after clearMessages, the group has no persisted messages', async () => {
+    // Seed via the production writer (appendMessage) — not by hand-setting idbStore —
+    // so any drift in the storage-key contract would surface here.
+    await appendMessage('group-leaving', makeMsg({ id: 'a'.repeat(64) }));
+    await appendMessage('group-leaving', makeMsg({ id: 'b'.repeat(64) }));
+
+    // Sanity: the messages are there before the leave.
+    const before = await loadMessages('group-leaving');
+    expect(before.messages).toHaveLength(2);
+
+    await clearMessages('group-leaving');
+
+    const after = await loadMessages('group-leaving');
+    expect(after.messages).toEqual([]);
+  });
+
+  it('only the leaving group is affected; sibling groups keep their history (isolation)', async () => {
+    // Two unrelated groups, each with messages written via the production writer.
+    await appendMessage('group-A', makeMsg({ id: 'a'.repeat(64), content: 'A1' }));
+    await appendMessage('group-A', makeMsg({ id: 'b'.repeat(64), content: 'A2' }));
+    await appendMessage('group-B', makeMsg({ id: 'c'.repeat(64), content: 'B1' }));
+
+    // Leave only group-A.
+    await clearMessages('group-A');
+
+    // group-A history is gone.
+    const a = await loadMessages('group-A');
+    expect(a.messages).toEqual([]);
+
+    // group-B history is untouched.
+    const b = await loadMessages('group-B');
+    expect(b.messages).toHaveLength(1);
+    expect(b.messages[0].content).toBe('B1');
+  });
+
+  it('clearMessages is idempotent: calling it twice is a no-op the second time', async () => {
+    await appendMessage('group-idem', makeMsg({ id: 'd'.repeat(64) }));
+
+    await clearMessages('group-idem');
+    // Second call must not throw and must not resurrect the key.
+    await expect(clearMessages('group-idem')).resolves.toBeUndefined();
+
+    const result = await loadMessages('group-idem');
+    expect(result.messages).toEqual([]);
+  });
+
+  it('clearMessages serialises with an in-flight appendMessage on the same key', async () => {
+    // Per-key queue contract: when an appendMessage is queued, a clearMessages
+    // on the same key must run after that append settles. The end state must
+    // be "no key" regardless of submission order — i.e. the delete is NOT
+    // racing the append; it is ordered after it on the per-key promise chain.
+    //
+    // Without await between the two calls, we capture the queued-vs-fired
+    // ordering. The end state is what AC-SEND-4 asserts: post-leave, no
+    // history.
+    const appendPromise = appendMessage('group-race', makeMsg({ id: 'e'.repeat(64) }));
+    const clearPromise = clearMessages('group-race');
+
+    await Promise.all([appendPromise, clearPromise]);
+
+    const result = await loadMessages('group-race');
+    expect(result.messages).toEqual([]);
+  });
+
+  it('a fresh appendMessage after clearMessages starts a new history (queue handle was released)', async () => {
+    // The post-settlement cleanup (L292-295) removes the appendQueues entry for
+    // the key. If it didn't, a subsequent appendMessage would chain after the
+    // already-resolved delete and still work — but the queue-handle leak would
+    // accumulate forever. The behavioral assertion: after a full clear cycle,
+    // a new append takes effect.
+    await appendMessage('group-reuse', makeMsg({ id: 'f'.repeat(64) }));
+    await clearMessages('group-reuse');
+
+    await appendMessage('group-reuse', makeMsg({ id: '9'.repeat(64), content: 'fresh' }));
+
+    const result = await loadMessages('group-reuse');
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content).toBe('fresh');
+  });
+
+  it('clearMessages on a group that has no history is a no-op (does not throw)', async () => {
+    // The leave path may fire on groups that never had any local messages
+    // (just joined, never sent). The purge must still succeed silently.
+    await expect(clearMessages('group-never-used')).resolves.toBeUndefined();
+    const result = await loadMessages('group-never-used');
+    expect(result.messages).toEqual([]);
+  });
+});
