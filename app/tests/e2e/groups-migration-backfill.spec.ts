@@ -86,6 +86,14 @@ test.describe.serial('Migration backfill: knownPeers seeded from groups; strange
   });
 
   test('Alice creates a group and invites Bob', async () => {
+    // Walled Garden v2 pull-only: warm up Bob's seen-set with stale wraps
+    // from earlier specs, then clear the queue so Alice's invite is the only
+    // entry Bob has to accept.
+    await bobPage.waitForTimeout(10_000);
+    await bobPage.evaluate(() => {
+      localStorage.removeItem('lp_pendingInvitations_v1');
+    });
+
     await alicePage.getByTestId('create-group-btn').click();
     await expect(alicePage.getByTestId('create-group-modal-content')).toBeVisible();
     await alicePage.getByTestId('create-group-name-input').fill(GROUP_NAME);
@@ -108,8 +116,8 @@ test.describe.serial('Migration backfill: knownPeers seeded from groups; strange
     await bobPage.waitForTimeout(5_000);
     await bobPage.goto('/groups/');
     await expect(bobPage.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
-    await expect(bobPage.locator('[data-testid^="pending-invitation-row-"]').first()).toBeVisible({ timeout: 30_000 });
-    await bobPage.locator('[data-testid^="accept-invitation-"]').first().click();
+    await expect(bobPage.locator('[data-testid^="pending-invitation-row-"]').last()).toBeVisible({ timeout: 30_000 });
+    await bobPage.locator('[data-testid^="accept-invitation-"]').last().click();
     await expect(bobPage.getByText(GROUP_NAME)).toBeVisible({ timeout: 90_000 });
     // Wait for MLS group state to propagate on Alice's side
     await alicePage.waitForTimeout(10_000);

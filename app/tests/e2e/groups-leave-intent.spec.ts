@@ -130,20 +130,16 @@ test.describe.serial('Out-of-band group leave (kind-13 leave intent)', () => {
   // MarmotContext's Welcome subscription processes the MLS Welcome message and
   // calls reloadGroups(), making the group appear in USER_B's list.
   test('USER_B joins the group via Welcome', async () => {
-    // Wait for the group to appear in USER_B's group list.
-    await expect
-      .poll(
-        async () => {
-          await pgB.goto('/groups/');
-          await expect(
-            pgB.getByTestId('groups-empty-state').or(pgB.getByTestId('groups-list')),
-          ).toBeVisible({ timeout: 30_000 });
-          const count = await pgB.getByText(GROUP_NAME).count();
-          return count;
-        },
-        { timeout: 90_000, intervals: [5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000] },
-      )
-      .toBeGreaterThanOrEqual(1);
+    // Walled Garden v2 pull-only flow: the Welcome arrives as a pending
+    // invitation; USER_B must explicitly accept before the group appears.
+    await pgB.waitForTimeout(5_000);
+    await pgB.goto('/groups/');
+    await expect(pgB.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
+    await expect(pgB.locator('[data-testid^="pending-invitation-row-"]').last()).toBeVisible({ timeout: 60_000 });
+    await pgB.locator('[data-testid^="accept-invitation-"]').last().click();
+
+    // Wait for the group to appear in USER_B's group list after acceptance.
+    await expect(pgB.getByText(GROUP_NAME)).toBeVisible({ timeout: 90_000 });
 
     // Open the group — this triggers the full MLS subscription and sync.
     await pgB.locator(`[data-testid^="group-card-"]`, { hasText: GROUP_NAME }).click();

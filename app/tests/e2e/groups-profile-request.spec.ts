@@ -78,14 +78,27 @@ async function inviteAndJoin(
   inviteePage: Page,
   groupName: string,
 ): Promise<void> {
+  // Walled Garden v2 pull-only: warm up invitee's seen-set, then clear queue.
+  await inviteePage.goto('/groups/');
+  await inviteePage.waitForTimeout(10_000);
+  await inviteePage.evaluate(() => {
+    localStorage.removeItem('lp_pendingInvitations_v1');
+  });
+
   await dismissErrorOverlay(inviterPage);
   await inviterPage.getByTestId('invite-member-btn').click();
   await expect(inviterPage.getByTestId('invite-member-modal-content')).toBeVisible();
   await inviterPage.getByTestId('invite-npub-input').fill(inviteeNpub);
   await inviterPage.getByTestId('invite-submit-btn').click();
   await expect(inviterPage.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
+
+  // Invitee must explicitly accept the pending invitation.
+  await inviteePage.waitForTimeout(5_000);
   await inviteePage.goto('/groups/');
-  await expect(inviteePage.getByText(groupName)).toBeVisible({ timeout: 60_000 });
+  await expect(inviteePage.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
+  await expect(inviteePage.locator('[data-testid^="pending-invitation-row-"]').last()).toBeVisible({ timeout: 30_000 });
+  await inviteePage.locator('[data-testid^="accept-invitation-"]').last().click();
+  await expect(inviteePage.getByText(groupName)).toBeVisible({ timeout: 90_000 });
 }
 
 // ---------------------------------------------------------------------------
@@ -147,10 +160,18 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
   // Scenario 1: Aged-history backfill (target online)
   // -------------------------------------------------------------------------
   test('1. Aged-history backfill: C gets profiles after simulated history gap (AC-045)', async () => {
-    test.setTimeout(90_000);
+    test.setTimeout(120_000);
 
     const bobPrefix = USER_B.pubkeyHex.slice(0, 8);
     const alicePrefix = USER_A.pubkeyHex.slice(0, 8);
+
+    // Warm up A's and B's group subscriptions so their dispatchers are active
+    // when C's profile request arrives. Under suite-accumulated relay load,
+    // group subscriptions can take noticeable time to drain historical kind-445
+    // backlog before they start handling fresh events promptly.
+    await openGroup(pgA, GROUP_NAME);
+    await openGroup(pgB, GROUP_NAME);
+    await pgA.waitForTimeout(5_000);
 
     // Simulate aged history: delete C's stored profiles and memos for A and B
     await deleteIdbRecord(pgC, 'quizzl-member-profiles', 'profiles', `group:${groupId}`);
@@ -166,9 +187,11 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
     // Navigate C into the group — requestProfilesIfStale triggers any remaining stale members
     await openGroup(pgC, GROUP_NAME);
 
-    // A and B are online and should reply to C's request within a few seconds
-    await expect(pgC.getByTestId(`member-name-${bobPrefix}`)).toHaveText('Bob', { timeout: 30_000 });
-    await expect(pgC.getByTestId(`member-name-${alicePrefix}`)).toHaveText('Alice', { timeout: 30_000 });
+    // A and B are online and should reply to C's request. Timeouts are generous
+    // because under suite-accumulated relay load, Alice's MLS dispatcher can be
+    // slow to drain the kind-445 backlog and respond to C's profile request.
+    await expect(pgC.getByTestId(`member-name-${bobPrefix}`)).toHaveText('Bob', { timeout: 60_000 });
+    await expect(pgC.getByTestId(`member-name-${alicePrefix}`)).toHaveText('Alice', { timeout: 60_000 });
 
     // Leave C on the groups list so the next scenario's reload() lands on /groups/
     await pgC.goto('/groups/');

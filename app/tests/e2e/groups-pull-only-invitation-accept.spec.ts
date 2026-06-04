@@ -72,6 +72,13 @@ test.describe.serial('Pull-only invitation: Accept (AC-TEST-5)', () => {
   });
 
   test('Alice creates a group and invites Bob', async () => {
+    // Walled Garden v2: warm up Bob's seen-set with stale wraps from prior
+    // tests, then clear the queue so the fresh invite is the entry to accept.
+    await bobPage.waitForTimeout(10_000);
+    await bobPage.evaluate(() => {
+      localStorage.removeItem('lp_pendingInvitations_v1');
+    });
+
     await alicePage.getByTestId('create-group-btn').click();
     await expect(alicePage.getByTestId('create-group-modal-content')).toBeVisible();
     await alicePage.getByTestId('create-group-name-input').fill(GROUP_NAME);
@@ -97,14 +104,15 @@ test.describe.serial('Pull-only invitation: Accept (AC-TEST-5)', () => {
 
     // AC-TEST-5(b): Bob sees a pending invitation row (before the group appears)
     await expect(bobPage.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
-    const invitationRow = bobPage.locator('[data-testid^="pending-invitation-row-"]').first();
+    const invitationRow = bobPage.locator('[data-testid^="pending-invitation-row-"]').last();
     await expect(invitationRow).toBeVisible({ timeout: 30_000 });
 
     // Confirm the group card is NOT yet visible (invitation not yet accepted)
     await expect(bobPage.locator('[data-testid^="group-card-"]', { hasText: GROUP_NAME })).toHaveCount(0);
 
-    // AC-TEST-5(c): Bob clicks Accept
-    await bobPage.locator('[data-testid^="accept-invitation-"]').first().click();
+    // AC-TEST-5(c): Bob clicks Accept (pick the most recent so we don't grab a
+    // stale invitation from earlier specs in the same suite run).
+    await bobPage.locator('[data-testid^="accept-invitation-"]').last().click();
 
     // AC-TEST-5(d): After accepting, the group appears in Bob's list
     await expect(bobPage.getByText(GROUP_NAME)).toBeVisible({ timeout: 90_000 });

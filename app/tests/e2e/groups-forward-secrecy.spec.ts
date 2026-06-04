@@ -56,6 +56,17 @@ async function inviteAndJoin(
   inviteePage: Page,
   groupName: string,
 ): Promise<void> {
+  // Walled Garden v2 pull-only flow: stale gift wraps published by earlier
+  // tests in the same suite stream into the invitee's pending-invitation queue
+  // and would cause `.first().click()` to accept the wrong invitation. Let the
+  // welcome subscription consume them into the seen-set, then clear the queue
+  // so the fresh invite below is the sole entry.
+  await inviteePage.goto('/groups/');
+  await inviteePage.waitForTimeout(10_000);
+  await inviteePage.evaluate(() => {
+    localStorage.removeItem('lp_pendingInvitations_v1');
+  });
+
   await dismissErrorOverlay(inviterPage);
   await inviterPage.getByTestId('invite-member-btn').click();
   await expect(inviterPage.getByTestId('invite-member-modal-content')).toBeVisible();
@@ -64,8 +75,13 @@ async function inviteAndJoin(
   await expect(inviterPage.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
   await inviterPage.keyboard.press('Escape');
 
+  // Walled Garden v2: pull-only invitations — invitee must explicitly accept.
+  await inviteePage.waitForTimeout(5_000);
   await inviteePage.goto('/groups/');
-  await expect(inviteePage.getByText(groupName)).toBeVisible({ timeout: 60_000 });
+  await expect(inviteePage.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
+  await expect(inviteePage.locator('[data-testid^="pending-invitation-row-"]').first()).toBeVisible({ timeout: 30_000 });
+  await inviteePage.locator('[data-testid^="accept-invitation-"]').first().click();
+  await expect(inviteePage.getByText(groupName)).toBeVisible({ timeout: 90_000 });
   await inviteePage.waitForTimeout(10_000);
 }
 

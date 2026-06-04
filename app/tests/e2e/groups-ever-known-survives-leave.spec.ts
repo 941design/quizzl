@@ -77,6 +77,15 @@ test.describe.serial('Ever-known peer survives group leave (AC-TEST-7)', () => {
   });
 
   test('Alice creates a group and invites Bob', async () => {
+    // Walled Garden v2 pull-only flow: let Bob's welcome subscription consume
+    // any stale gift wraps left in the relay from prior runs (populates the
+    // seen-set), then clear only the pending-invitations queue so Alice's
+    // fresh invite below is the sole entry Bob has to accept.
+    await bobPage.waitForTimeout(10_000);
+    await bobPage.evaluate(() => {
+      localStorage.removeItem('lp_pendingInvitations_v1');
+    });
+
     await alicePage.getByTestId('create-group-btn').click();
     await expect(alicePage.getByTestId('create-group-modal-content')).toBeVisible();
     await alicePage.getByTestId('create-group-name-input').fill(GROUP_NAME);

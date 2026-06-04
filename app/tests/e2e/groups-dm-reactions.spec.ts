@@ -400,8 +400,11 @@ test.describe('DM reactions UI — story-08', () => {
     const badge = alicePage.getByTestId(`reaction-badge-${messageId}-👍`);
     await expect(badge).toBeVisible({ timeout: 10_000 });
 
-    // AC-52+AC-56: click badge (selfReacted=true → 'remove'); badge disappears
-    await badge.click();
+    // AC-52+AC-56: click badge (selfReacted=true → 'remove'); badge disappears.
+    // Use force: true because relay-confirmation re-renders briefly detach the
+    // badge element from the DOM, causing the default click's element-stability
+    // check to keep retrying past the timeout under suite-accumulated load.
+    await badge.click({ force: true });
     await expect(badge).not.toBeVisible({ timeout: 10_000 });
 
     await aliceContext.close();

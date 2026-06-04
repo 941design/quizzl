@@ -79,7 +79,12 @@ test-unit: ensure-deps ## Run unit tests (Vitest)
 
 ## Run all Playwright E2E tests (with relay)
 test-e2e: ensure-playwright ## Run all Playwright E2E tests (with relay)
-	-docker compose -f docker-compose.e2e.yml up -d --wait
+	# Wipe relay state between runs — strfry uses tmpfs but only loses state on
+	# container removal, not on `up -d`. Without a clean slate, gift wraps from
+	# prior runs accumulate and pollute the Walled Garden v2 pending-invitation
+	# queue in tests that drive the invite/accept flow.
+	-docker compose -f docker-compose.e2e.yml down -v
+	docker compose -f docker-compose.e2e.yml up -d --wait
 	cd $(APP_DIR) && E2E_GROUPS=1 node scripts/run-e2e.mjs
 
 ## Run fast Playwright E2E tests (without relay)

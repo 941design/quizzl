@@ -50,6 +50,14 @@ async function inviteAndJoin(
   inviteePage: Page,
   groupName: string,
 ): Promise<void> {
+  // Walled Garden v2 pull-only flow: warm-up + clear so invitee's queue holds
+  // only the fresh invite after Alice publishes.
+  await inviteePage.goto('/groups/');
+  await inviteePage.waitForTimeout(10_000);
+  await inviteePage.evaluate(() => {
+    localStorage.removeItem('lp_pendingInvitations_v1');
+  });
+
   await dismissErrorOverlay(inviterPage);
   await inviterPage.getByTestId('invite-member-btn').click();
   await expect(inviterPage.getByTestId('invite-member-modal-content')).toBeVisible();
@@ -58,9 +66,13 @@ async function inviteAndJoin(
   await expect(inviterPage.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
   await inviterPage.keyboard.press('Escape');
 
-  // Invitee receives Welcome and joins
+  // Invitee receives Welcome as pending invitation and must explicitly accept.
+  await inviteePage.waitForTimeout(5_000);
   await inviteePage.goto('/groups/');
-  await expect(inviteePage.getByText(groupName)).toBeVisible({ timeout: 60_000 });
+  await expect(inviteePage.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
+  await expect(inviteePage.locator('[data-testid^="pending-invitation-row-"]').last()).toBeVisible({ timeout: 30_000 });
+  await inviteePage.locator('[data-testid^="accept-invitation-"]').last().click();
+  await expect(inviteePage.getByText(groupName)).toBeVisible({ timeout: 90_000 });
 
   // Wait for profile exchange to complete
   await inviteePage.waitForTimeout(10_000);

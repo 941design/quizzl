@@ -129,9 +129,13 @@ test.describe.serial('Group Reactions — story-06', () => {
     await expect(pageA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
     await pageA.locator('[data-testid="invite-member-modal-content"] button[aria-label="Close"]').click().catch(() => {});
 
-    // Bob navigates to the group
+    // Walled Garden v2 pull-only: Bob accepts the pending invitation.
+    await pageB.waitForTimeout(5_000);
     await pageB.goto('/groups/');
-    await expect(pageB.getByText('Reactions Test Group')).toBeVisible({ timeout: 60_000 });
+    await expect(pageB.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
+    await expect(pageB.locator('[data-testid^="pending-invitation-row-"]').last()).toBeVisible({ timeout: 60_000 });
+    await pageB.locator('[data-testid^="accept-invitation-"]').last().click();
+    await expect(pageB.getByText('Reactions Test Group')).toBeVisible({ timeout: 90_000 });
     await pageB.locator('[data-testid^="group-card-"]', { hasText: 'Reactions Test Group' }).click();
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
@@ -324,8 +328,10 @@ test.describe.serial('Group Reactions UI — story-08', () => {
     // The border is applied as a 1px solid brand.300 — verify borderWidth is '1px'.
     await expect(badge).toBeVisible();
 
-    // AC-52+AC-56: click the badge (selfReacted=true → op='remove'); badge disappears
-    await badge.click();
+    // AC-52+AC-56: click the badge (selfReacted=true → op='remove'); badge disappears.
+    // Use force: true because relay-confirmation re-renders briefly detach the
+    // badge element from the DOM under suite-accumulated load.
+    await badge.click({ force: true });
     await expect(badge).not.toBeVisible({ timeout: 10_000 });
   });
 

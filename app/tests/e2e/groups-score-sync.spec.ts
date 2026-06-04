@@ -59,9 +59,13 @@ test.describe.serial('Score Sync via MLS', () => {
     await pageA.getByTestId('invite-submit-btn').click();
     await expect(pageA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
 
-    // User B joins via Welcome
+    // Walled Garden v2 pull-only: User B accepts the pending invitation.
+    await pageB.waitForTimeout(5_000);
     await pageB.goto('/groups/');
-    await expect(pageB.getByText('Score Sync Group')).toBeVisible({ timeout: 60_000 });
+    await expect(pageB.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
+    await expect(pageB.locator('[data-testid^="pending-invitation-row-"]').last()).toBeVisible({ timeout: 60_000 });
+    await pageB.locator('[data-testid^="accept-invitation-"]').last().click();
+    await expect(pageB.getByText('Score Sync Group')).toBeVisible({ timeout: 90_000 });
   });
 
   test.afterAll(async () => {

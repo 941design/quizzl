@@ -159,6 +159,15 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
       pageB.getByTestId('groups-empty-state').or(pageB.getByTestId('groups-list')),
     ).toBeVisible({ timeout: 60_000 });
 
+    // Walled Garden v2 pull-only flow: even Welcomes triggered by join-request
+    // approval go through the pending-invitation queue. Bob must accept before
+    // the group card appears. Stale gift wraps from earlier tests are already
+    // in Bob's seen-set by this point (this is the last test in the file), so
+    // .last() reliably picks the freshly approved invitation.
+    await expect(pageB.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
+    await expect(pageB.locator('[data-testid^="pending-invitation-row-"]').last()).toBeVisible({ timeout: 60_000 });
+    await pageB.locator('[data-testid^="accept-invitation-"]').last().click();
+
     // Wait for the group to appear
     await expect(pageB.getByText(GROUP_NAME)).toBeVisible({ timeout: 60_000 });
 

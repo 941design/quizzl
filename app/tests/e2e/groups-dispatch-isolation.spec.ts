@@ -141,8 +141,17 @@ test.describe.serial('groups-dispatch-isolation', () => {
     // Boot User B using the shared helper (no IDB counter needed for B in this story).
     ({ context: contextB, page: pageB } = await bootUserWithProfile(browser, USER_B, 'Bob'));
 
-    // Bob needs time to publish a KeyPackage before Alice can invite him.
-    await pageB.waitForTimeout(5_000);
+    // Bob is already on /groups/ from bootUserWithProfile — wait for the welcome
+    // subscription to consume any stale gift wraps left in the relay by prior
+    // runs. The production fix marks their event ids as seen so they cannot
+    // re-enqueue.
+    await pageB.waitForTimeout(10_000);
+
+    // Clear only the pending-invitations queue (not the seen-set). When Alice's
+    // fresh invite arrives below it will be the sole entry in Bob's queue.
+    await pageB.evaluate(() => {
+      localStorage.removeItem('lp_pendingInvitations_v1');
+    });
 
     // Alice creates the shared test group.
     await pageA.getByTestId('create-group-btn').click();
@@ -168,9 +177,14 @@ test.describe.serial('groups-dispatch-isolation', () => {
     await expect(pageA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
     await pageA.locator('[data-testid="invite-member-modal-content"] button[aria-label="Close"]').click().catch(() => {});
 
-    // Bob navigates to the group.
+    // Walled Garden v2: pull-only invitations. Bob must explicitly accept the
+    // pending invitation before the group appears in his list.
+    await pageB.waitForTimeout(5_000);
     await pageB.goto('/groups/');
-    await expect(pageB.getByText('Dispatch Isolation Test')).toBeVisible({ timeout: 60_000 });
+    await expect(pageB.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
+    await expect(pageB.locator('[data-testid^="pending-invitation-row-"]').first()).toBeVisible({ timeout: 30_000 });
+    await pageB.locator('[data-testid^="accept-invitation-"]').first().click();
+    await expect(pageB.getByText('Dispatch Isolation Test')).toBeVisible({ timeout: 90_000 });
     await pageB.locator('[data-testid^="group-card-"]', { hasText: 'Dispatch Isolation Test' }).click();
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
   });

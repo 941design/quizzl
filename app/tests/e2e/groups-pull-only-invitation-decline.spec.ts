@@ -72,6 +72,13 @@ test.describe.serial('Pull-only invitation: Decline (AC-TEST-6)', () => {
   });
 
   test('Alice creates a group and invites Bob', async () => {
+    // Walled Garden v2: warm up Bob's seen-set with stale wraps from prior
+    // tests, then clear the queue so the fresh invite is the entry to handle.
+    await bobPage.waitForTimeout(10_000);
+    await bobPage.evaluate(() => {
+      localStorage.removeItem('lp_pendingInvitations_v1');
+    });
+
     await alicePage.getByTestId('create-group-btn').click();
     await expect(alicePage.getByTestId('create-group-modal-content')).toBeVisible();
     await alicePage.getByTestId('create-group-name-input').fill(GROUP_NAME);
@@ -97,12 +104,13 @@ test.describe.serial('Pull-only invitation: Decline (AC-TEST-6)', () => {
 
     // Wait for the pending invitation to appear
     await expect(bobPage.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
-    await expect(bobPage.locator('[data-testid^="pending-invitation-row-"]').first()).toBeVisible({ timeout: 30_000 });
+    await expect(bobPage.locator('[data-testid^="pending-invitation-row-"]').last()).toBeVisible({ timeout: 30_000 });
 
-    // AC-TEST-6(a): Bob clicks Decline
-    await bobPage.locator('[data-testid^="decline-invitation-"]').first().click();
+    // AC-TEST-6(a): Bob clicks Decline on the most recent (fresh) invitation.
+    await bobPage.locator('[data-testid^="decline-invitation-"]').last().click();
 
-    // AC-TEST-6(a): The invitation row must disappear
+    // AC-TEST-6(a): The fresh invitation row must disappear (the warm-up at the
+    // start of the previous test cleared any stale entries so only one remained).
     await expect(bobPage.locator('[data-testid^="pending-invitation-row-"]')).toHaveCount(0, { timeout: 10_000 });
 
     // AC-TEST-6(b): The group does NOT appear in Bob's list
