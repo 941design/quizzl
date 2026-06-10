@@ -5,6 +5,11 @@ test.describe('Story 01 - Project Scaffold and Routing', () => {
     await page.goto('/');
     await expect(page).toHaveTitle(/Quizzl/);
     await expect(page.getByRole('heading', { name: /Welcome to Quizzl/i })).toBeVisible();
+    const subheading = page.getByTestId('home-subheading');
+    await expect(subheading).toBeVisible();
+    await expect(subheading.getByRole('listitem')).toHaveCount(4);
+    await expect(subheading).toContainText(/no email address required/i);
+    await expect(subheading).toContainText(/no phone number needed/i);
     await expect(page.getByTestId('home-contacts-btn')).toBeVisible();
     await expect(page.getByTestId('home-groups-btn')).toBeVisible();
   });

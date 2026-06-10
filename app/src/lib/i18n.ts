@@ -21,6 +21,7 @@ type Copy = {
   home: {
     title: string;
     description: string;
+    subheadingPoints: string[];
     contactsTitle: string;
     contactsSubtitle: string;
     groupsTitle: string;
@@ -345,6 +346,12 @@ const copy: Record<LanguageCode, Copy> = {
       title: 'Welcome to Quizzl',
       description:
         'Private, end-to-end encrypted chats. Message your contacts directly or talk together in groups.',
+      subheadingPoints: [
+        'No email address required',
+        'No login or password to remember',
+        'No phone number needed',
+        'Completely free',
+      ],
       contactsTitle: 'Contacts',
       contactsSubtitle: 'Message the people you know directly.',
       groupsTitle: 'Groups',
@@ -662,6 +669,12 @@ const copy: Record<LanguageCode, Copy> = {
       title: 'Willkommen bei Quizzl',
       description:
         'Private, Ende-zu-Ende-verschlüsselte Chats. Schreibe deinen Kontakten direkt oder unterhalte dich gemeinsam in Gruppen.',
+      subheadingPoints: [
+        'Keine E-Mail-Adresse nötig',
+        'Kein Login, kein Passwort zum Merken',
+        'Keine Telefonnummer erforderlich',
+        'Völlig kostenlos',
+      ],
       contactsTitle: 'Kontakte',
       contactsSubtitle: 'Schreibe den Personen, die du kennst, direkt.',
       groupsTitle: 'Gruppen',

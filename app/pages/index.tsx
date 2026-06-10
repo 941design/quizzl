@@ -6,6 +6,8 @@ import {
   SimpleGrid,
   LinkBox,
   LinkOverlay,
+  UnorderedList,
+  ListItem,
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import NextLink from 'next/link';
@@ -49,6 +51,13 @@ export default function HomePage() {
           <Heading as="h1" size="2xl" textAlign="center">
             {copy.home.title}
           </Heading>
+          <UnorderedList spacing={3} maxW="600px" data-testid="home-subheading">
+            {copy.home.subheadingPoints.map((point) => (
+              <ListItem key={point} color="textMuted" fontSize="lg">
+                {point}
+              </ListItem>
+            ))}
+          </UnorderedList>
           <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} w="full">
             {tiles.map((tile) => (
               <LinkBox
