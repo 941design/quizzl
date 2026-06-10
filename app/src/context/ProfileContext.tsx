@@ -6,7 +6,6 @@ import { useBackup } from '@/src/context/BackupContext';
 const EMPTY_USER_PROFILE: UserProfile = {
   nickname: '',
   avatar: null,
-  badgeIds: [],
 };
 
 type ProfileContextValue = {

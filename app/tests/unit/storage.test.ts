@@ -53,7 +53,7 @@ describe('Settings', () => {
 
 describe('UserProfile', () => {
   it('returns an empty profile when nothing stored', () => {
-    expect(readUserProfile()).toEqual({ nickname: '', avatar: null, badgeIds: [] });
+    expect(readUserProfile()).toEqual({ nickname: '', avatar: null });
   });
 
   it('writes and reads a profile', () => {
@@ -65,14 +65,13 @@ describe('UserProfile', () => {
         subject: 'strawberry',
         accessories: ['glasses'],
       },
-      badgeIds: ['quiz-whiz', 'book-buddy'],
     };
 
     writeUserProfile(profile);
     expect(readUserProfile()).toEqual(profile);
   });
 
-  it('normalizes oversized nickname and badge selection', () => {
+  it('normalizes oversized nickname', () => {
     const oversized = 'A'.repeat(PROFILE_NICKNAME_MAX_LENGTH + 10);
     store[STORAGE_KEYS.userProfile] = JSON.stringify({
       nickname: oversized,
@@ -82,7 +81,6 @@ describe('UserProfile', () => {
         subject: 'apple',
         accessories: ['hat'],
       },
-      badgeIds: ['1', '2', '3', '4'],
     });
 
     expect(readUserProfile()).toEqual({
@@ -93,7 +91,6 @@ describe('UserProfile', () => {
         subject: 'apple',
         accessories: ['hat'],
       },
-      badgeIds: ['1', '2', '3'],
     });
   });
 });
@@ -101,7 +98,7 @@ describe('UserProfile', () => {
 describe('resetAllData', () => {
   it('clears all lp_* keys', () => {
     writeSettings({ theme: 'playful', language: 'de' });
-    writeUserProfile({ nickname: 'Pineapple Pal', avatar: null, badgeIds: ['quiz-whiz'] });
+    writeUserProfile({ nickname: 'Pineapple Pal', avatar: null });
 
     expect(store[STORAGE_KEYS.settings]).toBeDefined();
     expect(store[STORAGE_KEYS.userProfile]).toBeDefined();

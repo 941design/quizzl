@@ -6,7 +6,7 @@
  * Nostr kind:0 event (SignedProfileEvent). The outer MLS rumor stays unsigned
  * per MIP-03; authentication of the original author lives inside the embedded
  * envelope. The inner event's `content` is the same flat ProfilePayload JSON
- * (nickname/avatar/badgeIds/updatedAt) we have always shipped.
+ * (nickname/avatar/updatedAt) we have always shipped.
  *
  * Backward compatibility: legacy peers may still emit a flat ProfilePayload
  * with no envelope. parseProfilePayload accepts both shapes; legacy parses
@@ -26,7 +26,6 @@ export const PROFILE_RUMOR_KIND = 0;
 export type ProfilePayload = {
   nickname: string;
   avatar: { id: string; subject: string; accessories: string[] } | null;
-  badgeIds: string[];
   updatedAt: string;
   /** Present when the rumor carried a verified SignedProfileEvent envelope. */
   signedEvent?: SignedProfileEvent;
@@ -38,7 +37,6 @@ function buildPayloadJson(profile: UserProfile): string {
     avatar: profile.avatar
       ? { id: profile.avatar.id, subject: profile.avatar.subject, accessories: profile.avatar.accessories }
       : null,
-    badgeIds: profile.badgeIds,
     updatedAt: new Date().toISOString(),
   };
   return JSON.stringify(payload);
@@ -91,14 +89,12 @@ function looksLikeEnvelope(parsed: unknown): parsed is SignedProfileEvent {
 function parseInnerProfile(content: string): {
   nickname: string;
   avatar: ProfilePayload['avatar'];
-  badgeIds: string[];
   updatedAt: string;
 } | null {
   try {
     const d = JSON.parse(content) as Partial<ProfilePayload>;
     if (
       typeof d.nickname !== 'string' ||
-      !Array.isArray(d.badgeIds) ||
       typeof d.updatedAt !== 'string'
     ) {
       return null;
@@ -106,7 +102,6 @@ function parseInnerProfile(content: string): {
     return {
       nickname: d.nickname,
       avatar: d.avatar ?? null,
-      badgeIds: d.badgeIds,
       updatedAt: d.updatedAt,
     };
   } catch {
@@ -178,7 +173,6 @@ export function payloadToMemberProfile(fallbackPubkeyHex: string, payload: Profi
     pubkeyHex: authorPubkey,
     nickname: payload.nickname,
     avatar,
-    badgeIds: payload.badgeIds,
     updatedAt: payload.updatedAt,
     ...(payload.signedEvent ? { signedEvent: payload.signedEvent } : {}),
   };

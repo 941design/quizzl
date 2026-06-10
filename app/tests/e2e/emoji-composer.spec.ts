@@ -38,7 +38,7 @@ async function setupPage(browser: import('@playwright/test').Browser) {
       );
       localStorage.setItem(
         'lp_userProfile_v1',
-        JSON.stringify({ nickname: 'Tester', avatar: null, badgeIds: [] }),
+        JSON.stringify({ nickname: 'Tester', avatar: null }),
       );
       localStorage.setItem(
         'lp_contacts_v1',

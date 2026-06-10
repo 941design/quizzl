@@ -41,7 +41,7 @@ async function bootUserWithProfile(
   await suppressErrorOverlay(context);
   await context.addInitScript(({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
     localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-    localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+    localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null }));
   }, { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname });
   const page = await context.newPage();
   await page.goto('/');
@@ -116,7 +116,7 @@ test.describe.serial('groups-dispatch-isolation', () => {
     // Seed identity so clearAppState does not wipe it.
     await contextA.addInitScript(({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
       localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null }));
       // IDB write counter for AC-AR-22
       (window as any).__quizzlTest = (window as any).__quizzlTest ?? {};
       (window as any).__chatIdbWriteCount = 0;

@@ -59,7 +59,6 @@ export default function HomePage() {
           <ProfileSummary
             profile={profile}
             fallbackName={copy.layout.profileFallbackName}
-            showBadges={true}
           />
           <Text color="textMuted" mt={3}>
             {copy.home.profileCardBody}

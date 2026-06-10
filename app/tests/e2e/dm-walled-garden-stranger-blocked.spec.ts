@@ -55,7 +55,7 @@ test.describe('DM walled garden: stranger blocked (AC-TEST-4)', () => {
       await aliceCtx.addInitScript(
         ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
           localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null }));
           // No contacts, no groups — Alice is alone
         },
         {
@@ -74,7 +74,7 @@ test.describe('DM walled garden: stranger blocked (AC-TEST-4)', () => {
       await alicePage.evaluate(
         ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
           localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null }));
         },
         {
           privateKeyHex: USER_A.privateKeyHex,
@@ -98,7 +98,7 @@ test.describe('DM walled garden: stranger blocked (AC-TEST-4)', () => {
       await malloryCtx.addInitScript(
         ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
           localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null }));
         },
         {
           privateKeyHex: USER_C.privateKeyHex,
@@ -115,7 +115,7 @@ test.describe('DM walled garden: stranger blocked (AC-TEST-4)', () => {
       await malloryPage.evaluate(
         ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
           localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null }));
         },
         {
           privateKeyHex: USER_C.privateKeyHex,

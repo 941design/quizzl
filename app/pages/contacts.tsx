@@ -90,7 +90,6 @@ function ContactListView() {
               const profile: UserProfile = {
                 nickname: contact.nickname,
                 avatar: contact.avatar,
-                badgeIds: [],
               };
               return (
                 <LinkBox
@@ -206,14 +205,12 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
       pubkeyHex,
       nickname: ownProfile.nickname || truncateNpub(pubkeyToNpub(pubkeyHex)),
       avatar: ownProfile.avatar,
-      badgeIds: ownProfile.badgeIds,
       updatedAt: new Date().toISOString(),
     },
     [contact.pubkeyHex]: {
       pubkeyHex: contact.pubkeyHex,
       nickname: contact.nickname || fallbackName,
       avatar: contact.avatar,
-      badgeIds: [],
       updatedAt: contact.updatedAt ?? contact.lastSeenAt,
     },
   };

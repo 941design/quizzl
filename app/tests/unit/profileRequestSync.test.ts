@@ -190,7 +190,6 @@ describe('isProfileStale', () => {
       pubkeyHex: 'pk',
       nickname: 'Test',
       avatar: null,
-      badgeIds: [],
       updatedAt: updatedAtIso,
     };
   }

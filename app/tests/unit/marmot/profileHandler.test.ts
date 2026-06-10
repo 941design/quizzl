@@ -65,7 +65,7 @@ function makeSignedProfileRumor({
     created_at: Math.floor(Date.now() / 1000),
     kind: 0 as const,
     tags: [] as string[][],
-    content: JSON.stringify({ nickname: 'Bob', avatar: null, badgeIds: [], updatedAt }),
+    content: JSON.stringify({ nickname: 'Bob', avatar: null, updatedAt }),
     sig: 'fake-sig-' + authorPubkey.slice(0, 8),
   };
   return {
@@ -90,7 +90,6 @@ function makeProfileRumor(overrides: Partial<{
   const validContent = JSON.stringify({
     nickname: 'Alice',
     avatar: null,
-    badgeIds: [],
     updatedAt: new Date().toISOString(),
   });
   return {

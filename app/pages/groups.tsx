@@ -149,7 +149,6 @@ function GroupDetailView({ id }: { id: string }) {
               pubkeyHex: pk,
               nickname: contactCache[pk].nickname,
               avatar: contactCache[pk].avatar,
-              badgeIds: [],
               updatedAt: contactCache[pk].updatedAt,
             };
           }
@@ -163,7 +162,6 @@ function GroupDetailView({ id }: { id: string }) {
               pubkeyHex,
               nickname: ownProfile.nickname,
               avatar: ownProfile.avatar,
-              badgeIds: ownProfile.badgeIds,
               updatedAt: new Date().toISOString(),
             };
           }

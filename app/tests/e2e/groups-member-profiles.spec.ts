@@ -23,7 +23,7 @@ async function bootUserWithProfile(
   // Inject identity + profile via init script BEFORE any page JavaScript runs.
   await context.addInitScript(({ privateKeyHex, pubkeyHex, seedHex, nickname, avatar }) => {
     localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-    localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar, badgeIds: [] }));
+    localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar }));
   }, { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname, avatar });
   const page = await context.newPage();
   await page.goto('/');

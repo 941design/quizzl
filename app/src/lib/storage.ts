@@ -4,7 +4,7 @@ import type {
 } from '@/src/types';
 import { STORAGE_KEYS } from '@/src/types';
 import { DEFAULT_THEME_NAME, normalizeThemeName } from '@/src/lib/theme';
-import { PROFILE_BADGE_LIMIT, PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
+import { PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
 
 // ============================
 // localStorage availability check
@@ -56,7 +56,7 @@ function writeItem<T>(key: string, value: T): void {
 // ============================
 
 const DEFAULT_SETTINGS: Settings = { theme: DEFAULT_THEME_NAME, language: 'en' };
-const DEFAULT_USER_PROFILE: UserProfile = { nickname: '', avatar: null, badgeIds: [] };
+const DEFAULT_USER_PROFILE: UserProfile = { nickname: '', avatar: null };
 
 export function readSettings(): Settings {
   const stored = readItem<Partial<Settings> | null>(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
@@ -98,14 +98,9 @@ function normalizeUserProfile(raw: Partial<UserProfile> | null | undefined): Use
       }
     : null;
 
-  const badgeIds = Array.isArray(raw?.badgeIds)
-    ? raw.badgeIds.filter((item): item is string => typeof item === 'string').slice(0, PROFILE_BADGE_LIMIT)
-    : [];
-
   return {
     nickname,
     avatar,
-    badgeIds,
   };
 }
 

@@ -27,7 +27,6 @@ export type ProfileAvatar = {
 export type UserProfile = {
   nickname: string;
   avatar: ProfileAvatar | null;
-  badgeIds: string[];
 };
 
 // ============================
@@ -106,7 +105,6 @@ export type MemberProfile = {
   pubkeyHex: string;
   nickname: string;
   avatar: ProfileAvatar | null;
-  badgeIds: string[];
   /** ISO timestamp for LWW resolution */
   updatedAt: string;
   /** Verified signed envelope when the profile arrived via a sig-bearing rumor. Absent for legacy peers. */

@@ -5,7 +5,6 @@ import {
   Alert,
   AlertDescription,
   AlertIcon,
-  Badge,
   Box,
   Button,
   HStack,
@@ -13,15 +12,12 @@ import {
   Image,
   Text,
   VStack,
-  Wrap,
-  WrapItem,
   Code,
 } from '@chakra-ui/react';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { archiveContact, getContact, unarchiveContact } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
-import { PROFILE_BADGES } from '@/src/config/profile';
 import type { ContactListItem } from '@/src/lib/contacts';
 import type { ProfileAvatar } from '@/src/types';
 
@@ -89,8 +85,6 @@ export default function ProfilePage() {
   const npub = pubkeyToNpub(pubkeyHex);
   const displayName = contact?.nickname || truncateNpub(npub);
   const avatar = contact?.avatar ?? null;
-  const badgeIds: string[] = [];
-  const selectedBadges = PROFILE_BADGES.filter((b) => badgeIds.includes(b.id));
 
   function handleCopyNpub() {
     navigator.clipboard.writeText(npub).catch(() => {});
@@ -125,15 +119,6 @@ export default function ProfilePage() {
               <Heading as="h1" size="lg">
                 {displayName}
               </Heading>
-              {selectedBadges.length > 0 && (
-                <Wrap spacing={2}>
-                  {selectedBadges.map((badge) => (
-                    <WrapItem key={badge.id}>
-                      <Badge colorScheme={badge.colorScheme}>{badge.label}</Badge>
-                    </WrapItem>
-                  ))}
-                </Wrap>
-              )}
             </VStack>
           </HStack>
 

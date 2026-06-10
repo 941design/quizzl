@@ -202,7 +202,6 @@ describe('collectBackupPayload', () => {
     const profile = {
       nickname: 'Alice',
       avatar: { id: 'a1', subject: 'cat', accessories: ['hat'] },
-      badgeIds: ['b1'],
     };
     localStore[STORAGE_KEYS.userProfile] = JSON.stringify(profile);
 
@@ -250,7 +249,6 @@ describe('collectBackupPayload', () => {
         pubkeyHex: 'pk1',
         nickname: 'Alice',
         avatar: null,
-        badgeIds: [],
         updatedAt: '2024-01-01T00:00:00Z',
       },
     ];
@@ -706,7 +704,6 @@ describe('restoreFromBackup', () => {
     const profile = {
       nickname: 'Alice',
       avatar: { id: 'a1', subject: 'cat', accessories: ['hat'] },
-      badgeIds: ['b1'],
     };
 
     await restoreFromBackup(makeEmptyPayload({ userProfile: profile }));
@@ -732,7 +729,7 @@ describe('restoreFromBackup', () => {
 
   it('rehydrates member profiles into IDB', async () => {
     const profiles = [
-      { pubkeyHex: 'pk1', nickname: 'Alice', avatar: null, badgeIds: [], updatedAt: '2024-01-01T00:00:00Z' },
+      { pubkeyHex: 'pk1', nickname: 'Alice', avatar: null, updatedAt: '2024-01-01T00:00:00Z' },
     ];
     await restoreFromBackup(
       makeEmptyPayload({

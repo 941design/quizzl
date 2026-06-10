@@ -14,7 +14,6 @@ function makeUserProfile(over: Partial<UserProfile> = {}): UserProfile {
   return {
     nickname: 'Alice',
     avatar: null,
-    badgeIds: ['founder'],
     ...over,
   };
 }
@@ -35,7 +34,6 @@ describe('profileSync wire format', () => {
 
     expect(parsed).not.toBeNull();
     expect(parsed!.nickname).toBe('Alice');
-    expect(parsed!.badgeIds).toEqual(['founder']);
     expect(parsed!.avatar).toBeNull();
     expect(typeof parsed!.updatedAt).toBe('string');
     expect(parsed!.signedEvent).toBeDefined();
@@ -82,7 +80,6 @@ describe('profileSync wire format', () => {
     const member = payloadToMemberProfile('fallbackpub', {
       nickname: 'Legacy',
       avatar: null,
-      badgeIds: [],
       updatedAt: '2026-04-01T00:00:00.000Z',
     });
     expect(member.pubkeyHex).toBe('fallbackpub');
@@ -93,7 +90,6 @@ describe('profileSync wire format', () => {
     const member = payloadToMemberProfile('deadbeef', {
       nickname: 'Legacy',
       avatar: null,
-      badgeIds: [],
       updatedAt: '2026-05-06T00:00:00.000Z',
     });
     expect(member.signedEvent).toBeUndefined();
@@ -104,7 +100,6 @@ describe('profileSync wire format', () => {
     const flat = JSON.stringify({
       nickname: 'OldPeer',
       avatar: null,
-      badgeIds: [],
       updatedAt: '2026-04-01T00:00:00.000Z',
     });
     const parsed = parseProfilePayload(flat);
@@ -136,7 +131,6 @@ describe('profileSync wire format', () => {
         content: JSON.stringify({
           nickname: 'Imposter',
           avatar: null,
-          badgeIds: [],
           updatedAt: '2026-05-06T00:00:00.000Z',
         }),
       },

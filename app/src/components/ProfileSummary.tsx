@@ -1,23 +1,19 @@
 import React from 'react';
-import { Badge, Box, HStack, Image, Text, VStack, Wrap, WrapItem } from '@chakra-ui/react';
+import { Box, HStack, Image, Text, VStack } from '@chakra-ui/react';
 import type { UserProfile } from '@/src/types';
-import { PROFILE_BADGES } from '@/src/config/profile';
 
 type ProfileSummaryProps = {
   profile: UserProfile;
   fallbackName: string;
   size?: 'sm' | 'md';
-  showBadges?: boolean;
 };
 
 export default function ProfileSummary({
   profile,
   fallbackName,
   size = 'md',
-  showBadges = false,
 }: ProfileSummaryProps) {
   const displayName = profile.nickname || fallbackName;
-  const selectedBadges = PROFILE_BADGES.filter((badge) => profile.badgeIds.includes(badge.id));
   const avatarSize = size === 'sm' ? '44px' : '64px';
   const nameSize = size === 'sm' ? 'sm' : 'lg';
 
@@ -52,22 +48,12 @@ export default function ProfileSummary({
         )}
       </Box>
 
-      <VStack align="start" spacing={showBadges ? 1 : 0}>
+      <VStack align="start" spacing={0}>
         <Box>
           <Text fontWeight="bold" fontSize={nameSize} data-testid="profile-display-name">
             {displayName}
           </Text>
         </Box>
-
-        {showBadges && selectedBadges.length > 0 && (
-          <Wrap spacing={2}>
-            {selectedBadges.map((badge) => (
-              <WrapItem key={badge.id}>
-                <Badge colorScheme={badge.colorScheme}>{badge.label}</Badge>
-              </WrapItem>
-            ))}
-          </Wrap>
-        )}
       </VStack>
     </HStack>
   );

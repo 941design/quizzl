@@ -34,7 +34,6 @@ function makeProfile(updatedAt: string, overrides: Partial<MemberProfile> = {}):
     pubkeyHex: AUTHOR_PUBKEY,
     nickname: 'Alice',
     avatar: null,
-    badgeIds: [],
     updatedAt,
     ...overrides,
   };

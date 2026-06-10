@@ -37,7 +37,7 @@ async function bootUser(
   await context.addInitScript(
     ({ privateKeyHex, pubkeyHex, seedHex, nick }) => {
       localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: nick, avatar: null, badgeIds: [] }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: nick, avatar: null }));
     },
     { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nick: nickname },
   );
@@ -47,7 +47,7 @@ async function bootUser(
   await page.evaluate(
     ({ privateKeyHex, pubkeyHex, seedHex, nick }) => {
       localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: nick, avatar: null, badgeIds: [] }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: nick, avatar: null }));
     },
     { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nick: nickname },
   );

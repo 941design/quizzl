@@ -159,7 +159,7 @@ describe('onMembersChanged profile republish logic (MarmotContext)', () => {
     initialMemberCount: number,
     mlsGroup: { sendApplicationRumor: (rumor: unknown) => Promise<void> },
     pubkeyHex: string,
-    localProfile: { nickname: string; avatar: null; badgeIds: string[] },
+    localProfile: { nickname: string; avatar: null },
   ): (currentMembers: string[]) => Promise<void> {
     let prevMemberCount = initialMemberCount;
 
@@ -185,7 +185,7 @@ describe('onMembersChanged profile republish logic (MarmotContext)', () => {
   it('calls sendApplicationRumor when new member joins (count increases)', async () => {
     const sendApplicationRumor = vi.fn().mockResolvedValue(undefined);
     const mlsGroup = { sendApplicationRumor };
-    const localProfile = { nickname: 'Alice', avatar: null, badgeIds: [] };
+    const localProfile = { nickname: 'Alice', avatar: null };
 
     // Initial: 1 member (creator). New member joins → 2 members.
     const onMembersChanged = makeOnMembersChangedCallback(1, mlsGroup, 'aabbcc', localProfile);
@@ -201,7 +201,7 @@ describe('onMembersChanged profile republish logic (MarmotContext)', () => {
   it('does NOT call sendApplicationRumor when member count stays the same', async () => {
     const sendApplicationRumor = vi.fn().mockResolvedValue(undefined);
     const mlsGroup = { sendApplicationRumor };
-    const localProfile = { nickname: 'Alice', avatar: null, badgeIds: [] };
+    const localProfile = { nickname: 'Alice', avatar: null };
 
     const onMembersChanged = makeOnMembersChangedCallback(2, mlsGroup, 'aabbcc', localProfile);
     await onMembersChanged(['aabbcc', 'ddeeff']); // same count: 2 → 2
@@ -215,7 +215,7 @@ describe('onMembersChanged profile republish logic (MarmotContext)', () => {
     // NOT be republished in that case — only on joins (count increase).
     const sendApplicationRumor = vi.fn().mockResolvedValue(undefined);
     const mlsGroup = { sendApplicationRumor };
-    const localProfile = { nickname: 'Alice', avatar: null, badgeIds: [] };
+    const localProfile = { nickname: 'Alice', avatar: null };
 
     const onMembersChanged = makeOnMembersChangedCallback(3, mlsGroup, 'aabbcc', localProfile);
     await onMembersChanged(['aabbcc', 'ddeeff']); // member removed: 3 → 2
@@ -226,7 +226,7 @@ describe('onMembersChanged profile republish logic (MarmotContext)', () => {
   it('calls sendApplicationRumor again on a second join after first join', async () => {
     const sendApplicationRumor = vi.fn().mockResolvedValue(undefined);
     const mlsGroup = { sendApplicationRumor };
-    const localProfile = { nickname: 'Alice', avatar: null, badgeIds: [] };
+    const localProfile = { nickname: 'Alice', avatar: null };
 
     const onMembersChanged = makeOnMembersChangedCallback(1, mlsGroup, 'aabbcc', localProfile);
 
@@ -242,7 +242,7 @@ describe('onMembersChanged profile republish logic (MarmotContext)', () => {
   it('does NOT call sendApplicationRumor when re-joining after a removal does not exceed prior peak', async () => {
     const sendApplicationRumor = vi.fn().mockResolvedValue(undefined);
     const mlsGroup = { sendApplicationRumor };
-    const localProfile = { nickname: 'Alice', avatar: null, badgeIds: [] };
+    const localProfile = { nickname: 'Alice', avatar: null };
 
     // Start with 2, drop to 1 (admin committed Remove), then back to 2
     // (new invite) — count goes 2→1→2. The second fire (back to 2) DOES

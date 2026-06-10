@@ -74,9 +74,7 @@ describe('sweepStaleProfiles', () => {
     const freshProfile: MemberProfile = {
       pubkeyHex: 'fresh-pk',
       nickname: 'F',
-      avatar: null,
-      badgeIds: [],
-      updatedAt: new Date(NOW).toISOString(), // age = 0 → not stale
+      avatar: null,      updatedAt: new Date(NOW).toISOString(), // age = 0 → not stale
     };
     fakes.loadProfile.mockResolvedValue(freshProfile);
     fakes.loadMemo.mockResolvedValue(null);
@@ -186,7 +184,6 @@ describe('sweepStaleProfiles', () => {
         pubkeyHex: 'c',
         nickname: 'C',
         avatar: null,
-        badgeIds: [],
         updatedAt: new Date(NOW).toISOString(), // age = 0 → fresh
       });
     fakes.loadMemo.mockResolvedValue(null);
@@ -213,9 +210,7 @@ describe('sweepStaleProfiles', () => {
     const staleProfile: MemberProfile = {
       pubkeyHex: 'stale-pk',
       nickname: 'Stale',
-      avatar: null,
-      badgeIds: [],
-      updatedAt: new Date(NOW - SEVEN_DAYS - 1).toISOString(), // 8 days old → stale
+      avatar: null,      updatedAt: new Date(NOW - SEVEN_DAYS - 1).toISOString(), // 8 days old → stale
     };
     fakes.getGroupMembers.mockResolvedValue(['stale-pk']);
     fakes.loadProfile.mockResolvedValue(staleProfile);
@@ -318,7 +313,7 @@ const FAKE_SIGNED_EVENT: SignedProfileEvent = {
   created_at: 1700000000,
   kind: 0,
   tags: [],
-  content: JSON.stringify({ nickname: 'Target', avatar: null, badgeIds: [], updatedAt: '2026-01-01T00:00:00.000Z' }),
+  content: JSON.stringify({ nickname: 'Target', avatar: null, updatedAt: '2026-01-01T00:00:00.000Z' }),
   sig: 'deadbeef',
 };
 
@@ -326,7 +321,6 @@ const PROFILE_WITH_SIGNED_EVENT: MemberProfile = {
   pubkeyHex: 'target-pk',
   nickname: 'Target',
   avatar: null,
-  badgeIds: [],
   updatedAt: '2026-01-01T00:00:00.000Z',
   signedEvent: FAKE_SIGNED_EVENT,
 };
@@ -368,9 +362,7 @@ describe('handleIncomingProfileRequest', () => {
     fakes.loadProfile.mockResolvedValue({
       pubkeyHex: 'target-pk',
       nickname: 'T',
-      avatar: null,
-      badgeIds: [],
-      updatedAt: '2025-01-01T00:00:00.000Z',
+      avatar: null,      updatedAt: '2025-01-01T00:00:00.000Z',
     });
 
     await handleIncomingProfileRequest({

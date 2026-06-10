@@ -86,7 +86,7 @@ test.describe('DM walled garden: retroactive purge on boot (AC-TEST-6)', () => {
       await aliceCtx.addInitScript(
         ({ privateKeyHex, pubkeyHex, seedHex, malloryPub, bobPub }) => {
           localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: 'alice', avatar: null, badgeIds: [] }));
+          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: 'alice', avatar: null }));
 
           // Pre-seed both Mallory and Bob as contacts
           const now = new Date().toISOString();
@@ -142,7 +142,7 @@ test.describe('DM walled garden: retroactive purge on boot (AC-TEST-6)', () => {
       await alicePage.evaluate(
         ({ privateKeyHex, pubkeyHex, seedHex, malloryPub, bobPub, ts }) => {
           localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: 'alice', avatar: null, badgeIds: [] }));
+          localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: 'alice', avatar: null }));
           localStorage.setItem('lp_contacts_v1', JSON.stringify({
             [malloryPub]: { pubkeyHex: malloryPub, firstSeenAt: ts, lastSeenAt: ts, archivedAt: null },
             [bobPub]: { pubkeyHex: bobPub, firstSeenAt: ts, lastSeenAt: ts, archivedAt: null },

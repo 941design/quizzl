@@ -5,8 +5,6 @@ import {
   Text,
   VStack,
   HStack,
-  Wrap,
-  WrapItem,
   Button,
   Divider,
   Badge,
@@ -36,7 +34,7 @@ import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
 import NpubQrButton from '@/src/components/groups/NpubQrButton';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
-import { PROFILE_BADGES, PROFILE_BADGE_LIMIT, PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
+import { PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
 import { resetAllData } from '@/src/lib/storage';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { APP_THEMES } from '@/src/lib/theme';
@@ -56,7 +54,7 @@ export default function SettingsPage() {
   const ownQrDisclosure = useDisclosure();
   const toast = useToast();
   const [resetDone, setResetDone] = useState(false);
-  const [profile, setProfile] = useState<UserProfile>({ nickname: '', avatar: null, badgeIds: [] });
+  const [profile, setProfile] = useState<UserProfile>({ nickname: '', avatar: null });
   const [npubCopied, setNpubCopied] = useState(false);
 
   // Backup flow state
@@ -165,7 +163,6 @@ export default function SettingsPage() {
             const recovered = {
               nickname,
               avatar: savedProfile.avatar,
-              badgeIds: savedProfile.badgeIds,
             };
             saveProfile(recovered);
             setProfile(recovered);
@@ -239,7 +236,7 @@ export default function SettingsPage() {
   function handleReset() {
     resetAllData();
     setResetDone(true);
-    const emptyProfile = { nickname: '', avatar: null, badgeIds: [] };
+    const emptyProfile = { nickname: '', avatar: null };
     setProfile(emptyProfile);
     saveProfile(emptyProfile);
     resetDisclosure.onClose();
@@ -252,28 +249,6 @@ export default function SettingsPage() {
   function handleAvatarSelect(avatar: ProfileAvatar) {
     setProfile((current) => ({ ...current, avatar }));
     avatarDisclosure.onClose();
-  }
-
-  function toggleBadge(badgeId: string) {
-    setProfile((current) => {
-      const alreadySelected = current.badgeIds.includes(badgeId);
-
-      if (alreadySelected) {
-        return {
-          ...current,
-          badgeIds: current.badgeIds.filter((item) => item !== badgeId),
-        };
-      }
-
-      if (current.badgeIds.length >= PROFILE_BADGE_LIMIT) {
-        return current;
-      }
-
-      return {
-        ...current,
-        badgeIds: [...current.badgeIds, badgeId],
-      };
-    });
   }
 
   function handleProfileSave() {
@@ -418,39 +393,6 @@ export default function SettingsPage() {
                     </HStack>
                   </VStack>
                 </HStack>
-              </Box>
-
-              <Box>
-                <Heading as="h3" size="sm" mb={1}>
-                  {copy.settings.badgesHeading}
-                </Heading>
-                <Text fontSize="sm" color="textMuted" mb={3}>
-                  {copy.settings.badgesDescription}
-                </Text>
-                <Text fontSize="xs" color="textMuted" mb={3}>
-                  {copy.settings.badgesSelected(profile.badgeIds.length, PROFILE_BADGE_LIMIT)}
-                </Text>
-                <Wrap spacing={3}>
-                  {PROFILE_BADGES.map((badge) => {
-                    const isSelected = profile.badgeIds.includes(badge.id);
-                    const atLimit = profile.badgeIds.length >= PROFILE_BADGE_LIMIT;
-                    const isDisabled = !isSelected && atLimit;
-
-                    return (
-                      <WrapItem key={badge.id}>
-                        <Button
-                          size="sm"
-                          variant={isSelected ? 'solid' : 'outline'}
-                          colorScheme={badge.colorScheme}
-                          onClick={() => toggleBadge(badge.id)}
-                          isDisabled={isDisabled}
-                        >
-                          {badge.label}
-                        </Button>
-                      </WrapItem>
-                    );
-                  })}
-                </Wrap>
               </Box>
 
               <Button alignSelf="flex-start" onClick={handleProfileSave} data-testid="save-profile-btn">

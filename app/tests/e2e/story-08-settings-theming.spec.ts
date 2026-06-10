@@ -85,7 +85,7 @@ test.describe('Story 08: Theme Settings + Reset', () => {
     // Set up some data
     await page.goto('/');
     await page.evaluate(() => {
-      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: 'Tester', avatar: null, badgeIds: [] }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: 'Tester', avatar: null }));
     });
 
     await page.goto('/settings');
@@ -109,7 +109,7 @@ test.describe('Story 08: Theme Settings + Reset', () => {
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'playful' }));
-      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: 'Tester', avatar: null, badgeIds: [] }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: 'Tester', avatar: null }));
     });
 
     await page.goto('/settings');

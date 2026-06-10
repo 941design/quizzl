@@ -46,9 +46,6 @@ type Copy = {
     changeAvatar: string;
     removeAvatar: string;
     noAvatarSelected: string;
-    badgesHeading: string;
-    badgesDescription: string;
-    badgesSelected: (count: number, limit: number) => string;
     saveProfile: string;
     avatarModalTitle: string;
     avatarModalDescription: string;
@@ -374,9 +371,6 @@ const copy: Record<LanguageCode, Copy> = {
       changeAvatar: 'Change Avatar',
       removeAvatar: 'Remove Avatar',
       noAvatarSelected: 'No avatar picked yet.',
-      badgesHeading: 'Badges',
-      badgesDescription: 'Choose up to 3 badges that show your style.',
-      badgesSelected: (count, limit) => `${count}/${limit} badges selected`,
       saveProfile: 'Save Profile',
       avatarModalTitle: 'Choose Your Avatar',
       avatarModalDescription: 'Pick a fruit, add accessories if you want, and choose a favorite.',
@@ -697,9 +691,6 @@ const copy: Record<LanguageCode, Copy> = {
       changeAvatar: 'Avatar aendern',
       removeAvatar: 'Avatar entfernen',
       noAvatarSelected: 'Noch kein Avatar ausgewaehlt.',
-      badgesHeading: 'Badges',
-      badgesDescription: 'Waehle bis zu 3 Badges, die zu dir passen.',
-      badgesSelected: (count, limit) => `${count}/${limit} Badges ausgewaehlt`,
       saveProfile: 'Profil speichern',
       avatarModalTitle: 'Waehle deinen Avatar',
       avatarModalDescription: 'Suche dir eine Frucht aus, fuege Accessoires hinzu und nimm deinen Favoriten.',

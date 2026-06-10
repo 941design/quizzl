@@ -44,7 +44,7 @@ test.describe('Profile display name — prefer nickname, fall back to npub', () 
     await page.evaluate(() => {
       localStorage.setItem(
         'lp_userProfile_v1',
-        JSON.stringify({ nickname: 'Jo', avatar: null, badgeIds: [] }),
+        JSON.stringify({ nickname: 'Jo', avatar: null }),
       );
     });
     await page.reload();
@@ -61,7 +61,7 @@ test.describe('Profile display name — prefer nickname, fall back to npub', () 
     await page.evaluate(() => {
       localStorage.setItem(
         'lp_userProfile_v1',
-        JSON.stringify({ nickname: 'Jo', avatar: null, badgeIds: [] }),
+        JSON.stringify({ nickname: 'Jo', avatar: null }),
       );
     });
     await page.reload();

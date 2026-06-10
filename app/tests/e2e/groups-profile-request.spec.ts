@@ -38,7 +38,7 @@ async function bootUser(
   await context.addInitScript(
     ({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
       localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
-      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null, badgeIds: [] }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null }));
     },
     { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname },
   );
@@ -415,7 +415,6 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
       content: JSON.stringify({
         nickname: 'FORGED_BOB',
         avatar: null,
-        badgeIds: [],
         updatedAt: new Date().toISOString(),
       }),
       sig: 'a'.repeat(128),

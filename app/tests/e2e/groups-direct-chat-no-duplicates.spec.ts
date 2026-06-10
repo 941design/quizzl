@@ -22,7 +22,7 @@ async function bootUserOnGroups(
       );
       localStorage.setItem(
         'lp_userProfile_v1',
-        JSON.stringify({ nickname, avatar: null, badgeIds: [] }),
+        JSON.stringify({ nickname, avatar: null }),
       );
     },
     {
@@ -44,7 +44,7 @@ async function bootUserOnGroups(
       );
       localStorage.setItem(
         'lp_userProfile_v1',
-        JSON.stringify({ nickname, avatar: null, badgeIds: [] }),
+        JSON.stringify({ nickname, avatar: null }),
       );
     },
     {

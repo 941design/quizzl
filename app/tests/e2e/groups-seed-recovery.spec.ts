@@ -21,7 +21,7 @@ test.describe.serial('Seed phrase recovery — profile and groups', () => {
     await contextA.addInitScript(({ nickname }) => {
       localStorage.setItem(
         'lp_userProfile_v1',
-        JSON.stringify({ nickname, avatar: null, badgeIds: [] }),
+        JSON.stringify({ nickname, avatar: null }),
       );
     }, { nickname: NICKNAME });
     pageA = await contextA.newPage();
