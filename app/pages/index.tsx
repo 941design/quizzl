@@ -2,21 +2,40 @@ import {
   Box,
   Heading,
   Text,
-  Button,
   VStack,
-  HStack,
+  SimpleGrid,
+  LinkBox,
+  LinkOverlay,
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import NextLink from 'next/link';
 import { useCopy } from '@/src/context/LanguageContext';
-import ProfileSummary from '@/src/components/ProfileSummary';
-import { useProfile } from '@/src/context/ProfileContext';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 
 export default function HomePage() {
   const copy = useCopy();
-  const { profile } = useProfile();
   const { cardStyle } = useThemeStyles();
+
+  const tiles = [
+    {
+      href: '/contacts',
+      title: copy.home.contactsTitle,
+      subtitle: copy.home.contactsSubtitle,
+      testid: 'home-contacts-btn',
+    },
+    {
+      href: '/groups',
+      title: copy.home.groupsTitle,
+      subtitle: copy.home.groupsSubtitle,
+      testid: 'home-groups-btn',
+    },
+    {
+      href: '/profile',
+      title: copy.home.profileTitle,
+      subtitle: copy.home.profileSubtitle,
+      testid: 'home-profile-btn',
+    },
+  ];
 
   return (
     <>
@@ -26,44 +45,35 @@ export default function HomePage() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <Box>
-        <VStack spacing={8} textAlign="center" py={16}>
-          <Heading as="h1" size="2xl">
+        <VStack spacing={8} py={16}>
+          <Heading as="h1" size="2xl" textAlign="center">
             {copy.home.title}
           </Heading>
-          <Text fontSize="xl" color="textMuted" maxW="600px">
-            {copy.home.description}
-          </Text>
-          <HStack spacing={4}>
-            <NextLink href="/contacts" passHref legacyBehavior>
-              <Button as="a" size="lg" data-testid="home-contacts-btn">
-                {copy.home.openContacts}
-              </Button>
-            </NextLink>
-            <NextLink href="/groups" passHref legacyBehavior>
-              <Button as="a" size="lg" variant="outline" data-testid="home-groups-btn">
-                {copy.home.openGroups}
-              </Button>
-            </NextLink>
-            <NextLink href="/settings" passHref legacyBehavior>
-              <Button as="a" size="lg" variant="ghost">
-                {copy.home.settings}
-              </Button>
-            </NextLink>
-          </HStack>
+          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} w="full">
+            {tiles.map((tile) => (
+              <LinkBox
+                key={tile.href}
+                as="article"
+                p={6}
+                bg="surfaceBg"
+                borderRadius="xl"
+                shadow="sm"
+                borderWidth="1px"
+                borderColor="borderSubtle"
+                transition="all 0.15s ease"
+                _hover={{ shadow: 'md', transform: 'translateY(-2px)' }}
+                {...cardStyle}
+              >
+                <Heading as="h2" size="md" mb={2}>
+                  <NextLink href={tile.href} passHref legacyBehavior>
+                    <LinkOverlay data-testid={tile.testid}>{tile.title}</LinkOverlay>
+                  </NextLink>
+                </Heading>
+                <Text color="textMuted">{tile.subtitle}</Text>
+              </LinkBox>
+            ))}
+          </SimpleGrid>
         </VStack>
-
-        <Box p={6} mt={4} bg="surfaceBg" borderRadius="xl" shadow="sm" borderWidth="1px" borderColor="borderSubtle" {...cardStyle}>
-          <Text fontSize="sm" color="textMuted" mb={3}>
-            {copy.home.profileCardTitle}
-          </Text>
-          <ProfileSummary
-            profile={profile}
-            fallbackName={copy.layout.profileFallbackName}
-          />
-          <Text color="textMuted" mt={3}>
-            {copy.home.profileCardBody}
-          </Text>
-        </Box>
       </Box>
     </>
   );

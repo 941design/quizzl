@@ -22,11 +22,12 @@ type Copy = {
   home: {
     title: string;
     description: string;
-    openContacts: string;
-    openGroups: string;
-    settings: string;
-    profileCardTitle: string;
-    profileCardBody: string;
+    contactsTitle: string;
+    contactsSubtitle: string;
+    groupsTitle: string;
+    groupsSubtitle: string;
+    profileTitle: string;
+    profileSubtitle: string;
   };
   settings: {
     pageTitle: string;
@@ -346,11 +347,12 @@ const copy: Record<LanguageCode, Copy> = {
       title: 'Welcome to Quizzl',
       description:
         'Private, end-to-end encrypted chats. Message your contacts directly or talk together in groups.',
-      openContacts: 'Open Contacts',
-      openGroups: 'Open Groups',
-      settings: 'Settings',
-      profileCardTitle: 'Your profile',
-      profileCardBody: 'Your nickname and avatar show up to the people you chat with.',
+      contactsTitle: 'Contacts',
+      contactsSubtitle: 'Message the people you know directly.',
+      groupsTitle: 'Groups',
+      groupsSubtitle: 'Learn and chat together in groups.',
+      profileTitle: 'Profile',
+      profileSubtitle: 'Manage your nickname and avatar.',
     },
     settings: {
       pageTitle: 'Settings',
@@ -663,11 +665,12 @@ const copy: Record<LanguageCode, Copy> = {
       title: 'Willkommen bei Quizzl',
       description:
         'Private, Ende-zu-Ende-verschlüsselte Chats. Schreibe deinen Kontakten direkt oder unterhalte dich gemeinsam in Gruppen.',
-      openContacts: 'Kontakte öffnen',
-      openGroups: 'Gruppen öffnen',
-      settings: 'Einstellungen',
-      profileCardTitle: 'Dein Profil',
-      profileCardBody: 'Dein Spitzname und Avatar erscheinen bei den Personen, mit denen du chattest.',
+      contactsTitle: 'Kontakte',
+      contactsSubtitle: 'Schreibe den Personen, die du kennst, direkt.',
+      groupsTitle: 'Gruppen',
+      groupsSubtitle: 'Lernt und chattet gemeinsam in Gruppen.',
+      profileTitle: 'Profil',
+      profileSubtitle: 'Verwalte deinen Spitznamen und Avatar.',
     },
     settings: {
       pageTitle: 'Einstellungen',
