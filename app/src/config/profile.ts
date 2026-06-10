@@ -1,4 +1,4 @@
-export const PROFILE_NICKNAME_MAX_LENGTH = 16;
+export const PROFILE_NICKNAME_MAX_LENGTH = 32;
 export const PROFILE_BADGE_LIMIT = 3;
 
 export const PROFILE_BADGES = [

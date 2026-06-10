@@ -7,6 +7,7 @@ import {
   resetAllData,
 } from '@/src/lib/storage';
 import { STORAGE_KEYS } from '@/src/types';
+import { PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
 
 // Mock localStorage for Node environment
 const store: Record<string, string> = {};
@@ -72,8 +73,9 @@ describe('UserProfile', () => {
   });
 
   it('normalizes oversized nickname and badge selection', () => {
+    const oversized = 'A'.repeat(PROFILE_NICKNAME_MAX_LENGTH + 10);
     store[STORAGE_KEYS.userProfile] = JSON.stringify({
-      nickname: 'A very very very long nickname',
+      nickname: oversized,
       avatar: {
         id: 'berry-2',
         imageUrl: 'http://example.test/apple.png',
@@ -84,7 +86,7 @@ describe('UserProfile', () => {
     });
 
     expect(readUserProfile()).toEqual({
-      nickname: 'A very very very',
+      nickname: 'A'.repeat(PROFILE_NICKNAME_MAX_LENGTH),
       avatar: {
         id: 'berry-2',
         imageUrl: 'http://example.test/apple.png',
