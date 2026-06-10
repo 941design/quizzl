@@ -658,7 +658,7 @@ export default function SettingsPage() {
           <ModalBody>
             <Text>
               A backup was found on the relay network. Restoring will replace all
-              local data (topics, progress, groups, and chat messages) with the
+              local data (groups and chat messages) with the
               backed-up version. This cannot be undone.
             </Text>
           </ModalBody>

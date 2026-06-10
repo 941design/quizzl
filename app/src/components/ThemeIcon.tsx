@@ -10,36 +10,6 @@ import { useAppTheme } from '@/src/hooks/useMoodTheme';
  * - default uses ph:*-bold (Phosphor bold, clean line style)
  */
 const ICON_MAP: Record<string, Record<string, string>> = {
-  quiz: {
-    pixel: 'pixelarticons:bullseye-arrow',
-    toy: 'ph:target-fill',
-    default: 'ph:target-bold',
-  },
-  flashcard: {
-    pixel: 'pixelarticons:book-open',
-    toy: 'ph:cards-fill',
-    default: 'ph:cards-bold',
-  },
-  notes: {
-    pixel: 'pixelarticons:notes',
-    toy: 'ph:note-pencil-fill',
-    default: 'ph:note-pencil-bold',
-  },
-  task: {
-    pixel: 'pixelarticons:checkbox-on',
-    toy: 'ph:check-square-fill',
-    default: 'ph:check-square-bold',
-  },
-  trophy: {
-    pixel: 'pixelarticons:trophy',
-    toy: 'ph:trophy-fill',
-    default: 'ph:trophy-bold',
-  },
-  star: {
-    pixel: 'pixelarticons:coin',
-    toy: 'ph:star-fill',
-    default: 'ph:star-bold',
-  },
   heart: {
     pixel: 'pixelarticons:heart',
     toy: 'ph:heart-fill',
@@ -65,40 +35,10 @@ const ICON_MAP: Record<string, Record<string, string>> = {
     toy: 'ph:gear-fill',
     default: 'ph:gear-bold',
   },
-  leaderboard: {
-    pixel: 'pixelarticons:chart-bar',
-    toy: 'ph:chart-bar-fill',
-    default: 'ph:chart-bar-bold',
-  },
   clock: {
     pixel: 'pixelarticons:clock',
     toy: 'ph:clock-fill',
     default: 'ph:clock-bold',
-  },
-  topics: {
-    pixel: 'pixelarticons:label',
-    toy: 'ph:books-fill',
-    default: 'ph:books-bold',
-  },
-  correct: {
-    pixel: 'pixelarticons:check',
-    toy: 'ph:check-circle-fill',
-    default: 'ph:check-circle-bold',
-  },
-  incorrect: {
-    pixel: 'pixelarticons:close',
-    toy: 'ph:x-circle-fill',
-    default: 'ph:x-circle-bold',
-  },
-  reveal: {
-    pixel: 'pixelarticons:visible',
-    toy: 'ph:eye-fill',
-    default: 'ph:eye-bold',
-  },
-  retry: {
-    pixel: 'pixelarticons:reload',
-    toy: 'ph:arrow-counter-clockwise-fill',
-    default: 'ph:arrow-counter-clockwise-bold',
   },
   prev: {
     pixel: 'pixelarticons:chevron-left',

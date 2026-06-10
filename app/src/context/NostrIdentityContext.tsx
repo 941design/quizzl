@@ -161,7 +161,7 @@ async function publishIdentityToRelays(stored: StoredNostrIdentity): Promise<voi
       kind: 0,
       content: JSON.stringify({
         name: profile.nickname || 'Quizzl User',
-        about: 'Learning with Quizzl',
+        about: 'Chatting with Quizzl',
         client: 'quizzl',
       }),
       tags: [],

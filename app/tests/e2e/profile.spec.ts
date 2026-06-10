@@ -28,23 +28,6 @@ test.describe('Profile updates', () => {
     await expect(headerChip.getByTestId('profile-avatar-thumb').locator('img')).toBeVisible();
   });
 
-  test('leaderboard uses the saved nickname and avatar without requiring a reload', async ({ page }) => {
-    await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
-
-    await page.getByTestId('profile-nickname-input').fill('Apple Ace');
-    await page.getByTestId('choose-avatar-btn').click();
-    await page.locator('[data-testid^="select-avatar-"]').first().click();
-    await page.getByTestId('save-profile-btn').click();
-
-    await page.getByRole('navigation').getByRole('link', { name: 'Leaderboard' }).click();
-    await expect(page).toHaveURL(/\/leaderboard/);
-
-    const leaderboardEntry = page.getByTestId('leaderboard-entry-1');
-    await expect(leaderboardEntry.getByTestId('profile-display-name')).toHaveText('Apple Ace');
-    await expect(leaderboardEntry.getByTestId('profile-avatar-thumb').locator('img')).toBeVisible();
-  });
-
   test('mobile header keeps the profile visible inside the navigation drawer', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/settings');
