@@ -254,6 +254,7 @@ type Copy = {
     profileNameFallback: string;
     backToContacts: string;
     contactNotFound: string;
+    commonGroups: (names: string[]) => string;
   };
   profile: {
     pageTitle: string;
@@ -265,6 +266,11 @@ type Copy = {
     unarchiveAction: string;
     viewProfile: string;
     notFound: string;
+    addToGroupLabel: string;
+    addToGroupSelect: string;
+    addToGroupBtn: string;
+    addToGroupSuccess: string;
+    addToGroupError: string;
   };
   polls: {
     heading: (count: number) => string;
@@ -586,6 +592,7 @@ const copy: Record<LanguageCode, Copy> = {
       profileNameFallback: 'Unnamed contact',
       backToContacts: 'Back to Contacts',
       contactNotFound: 'Contact not found.',
+      commonGroups: (names: string[]) => `Groups: ${names.join(', ')}`,
     },
     profile: {
       pageTitle: 'Profile',
@@ -597,6 +604,11 @@ const copy: Record<LanguageCode, Copy> = {
       unarchiveAction: 'Unarchive contact',
       viewProfile: 'View profile',
       notFound: 'Profile not found.',
+      addToGroupLabel: 'Add to a group',
+      addToGroupSelect: 'Choose a group',
+      addToGroupBtn: 'Add to group',
+      addToGroupSuccess: 'Contact added to the group.',
+      addToGroupError: 'Could not add the contact to the group. Please try again.',
     },
     polls: {
       heading: (count: number) => count > 0 ? `Polls (${count})` : 'Polls',
@@ -906,6 +918,7 @@ const copy: Record<LanguageCode, Copy> = {
       profileNameFallback: 'Kontakt ohne Namen',
       backToContacts: 'Zurück zu Kontakten',
       contactNotFound: 'Kontakt nicht gefunden.',
+      commonGroups: (names: string[]) => `Gruppen: ${names.join(', ')}`,
     },
     profile: {
       pageTitle: 'Profil',
@@ -917,6 +930,11 @@ const copy: Record<LanguageCode, Copy> = {
       unarchiveAction: 'Kontakt wieder einblenden',
       viewProfile: 'Profil ansehen',
       notFound: 'Profil nicht gefunden.',
+      addToGroupLabel: 'Zu einer Gruppe hinzufügen',
+      addToGroupSelect: 'Gruppe auswählen',
+      addToGroupBtn: 'Zur Gruppe hinzufügen',
+      addToGroupSuccess: 'Kontakt zur Gruppe hinzugefügt.',
+      addToGroupError: 'Kontakt konnte nicht zur Gruppe hinzugefügt werden. Bitte versuche es erneut.',
     },
     polls: {
       heading: (count: number) => count > 0 ? `Umfragen (${count})` : 'Umfragen',

@@ -25,9 +25,10 @@ import ProfileSummary from '@/src/components/ProfileSummary';
 import ContactChat from '@/src/components/contacts/ContactChat';
 import { MigrationNoticeBanner } from '@/src/components/contacts/MigrationNoticeBanner';
 import { useCopy } from '@/src/context/LanguageContext';
+import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useProfile } from '@/src/context/ProfileContext';
-import { archiveContact, getContact, listContacts, unarchiveContact } from '@/src/lib/contacts';
+import { archiveContact, commonGroups, getContact, listContacts, unarchiveContact } from '@/src/lib/contacts';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import type { MemberProfile, UserProfile } from '@/src/types';
@@ -36,6 +37,7 @@ function ContactListView() {
   const copy = useCopy();
   const router = useRouter();
   const { pubkeyHex } = useNostrIdentity();
+  const { groups } = useMarmot();
   const [showHidden, setShowHidden] = useState(false);
   const contacts = useMemo(
     () => listContacts(pubkeyHex, { includeArchived: showHidden }),
@@ -91,6 +93,7 @@ function ContactListView() {
                 nickname: contact.nickname,
                 avatar: contact.avatar,
               };
+              const sharedGroupNames = commonGroups(groups, contact.pubkeyHex).map((group) => group.name);
               return (
                 <LinkBox
                   as="article"
@@ -112,6 +115,17 @@ function ContactListView() {
                           <ProfileSummary profile={profile} fallbackName={fallbackName} size="sm" />
                         </LinkOverlay>
                       </NextLink>
+                      {sharedGroupNames.length > 0 ? (
+                        <Text
+                          mt={1}
+                          fontSize="xs"
+                          color="textMuted"
+                          noOfLines={1}
+                          data-testid={`contact-common-groups-${contact.pubkeyHex}`}
+                        >
+                          {copy.contacts.commonGroups(sharedGroupNames)}
+                        </Text>
+                      ) : null}
                     </Box>
                     {contact.isArchived ? (
                       <Badge colorScheme="gray" flexShrink={0}>

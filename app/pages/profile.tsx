@@ -10,13 +10,15 @@ import {
   HStack,
   Heading,
   Image,
+  Select,
   Text,
   VStack,
   Code,
 } from '@chakra-ui/react';
 import { useCopy } from '@/src/context/LanguageContext';
+import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
-import { archiveContact, getContact, unarchiveContact } from '@/src/lib/contacts';
+import { archiveContact, eligibleGroupsForContact, getContact, unarchiveContact } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import type { ContactListItem } from '@/src/lib/contacts';
 import type { ProfileAvatar } from '@/src/types';
@@ -51,8 +53,11 @@ export default function ProfilePage() {
   const router = useRouter();
   const copy = useCopy();
   const { pubkeyHex: ownPubkeyHex } = useNostrIdentity();
+  const { groups, inviteByNpub } = useMarmot();
   const [version, setVersion] = useState(0);
   const [npubCopied, setNpubCopied] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [addToGroupStatus, setAddToGroupStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   const pubkeyHex = typeof router.query.pubkey === 'string' ? router.query.pubkey : null;
 
@@ -86,6 +91,11 @@ export default function ProfilePage() {
   const displayName = contact?.nickname || truncateNpub(npub);
   const avatar = contact?.avatar ?? null;
 
+  const eligibleGroups = eligibleGroupsForContact(groups, pubkeyHex);
+  // The Select defaults to the first eligible group when the user hasn't picked
+  // one yet, so the submit handler always has a valid target.
+  const effectiveGroupId = selectedGroupId || eligibleGroups[0]?.id || '';
+
   function handleCopyNpub() {
     navigator.clipboard.writeText(npub).catch(() => {});
     setNpubCopied(true);
@@ -100,6 +110,22 @@ export default function ProfilePage() {
       archiveContact(contact.pubkeyHex);
     }
     setVersion((v) => v + 1);
+  }
+
+  async function handleAddToGroup() {
+    if (!effectiveGroupId || !pubkeyHex) return;
+    setAddToGroupStatus('loading');
+    try {
+      const result = await inviteByNpub(effectiveGroupId, pubkeyToNpub(pubkeyHex));
+      if (result.ok) {
+        setAddToGroupStatus('success');
+        setSelectedGroupId('');
+      } else {
+        setAddToGroupStatus('error');
+      }
+    } catch {
+      setAddToGroupStatus('error');
+    }
   }
 
   return (
@@ -138,6 +164,54 @@ export default function ProfilePage() {
           >
             {copy.profile.sendDm}
           </Button>
+
+          {contact && eligibleGroups.length > 0 && (
+            <Box w="100%" maxW="sm" data-testid="profile-add-to-group">
+              <Text fontWeight="medium" mb={2}>
+                {copy.profile.addToGroupLabel}
+              </Text>
+              {addToGroupStatus === 'success' && (
+                <Alert status="success" borderRadius="md" mb={3} data-testid="profile-add-to-group-success">
+                  <AlertIcon />
+                  <AlertDescription>{copy.profile.addToGroupSuccess}</AlertDescription>
+                </Alert>
+              )}
+              {addToGroupStatus === 'error' && (
+                <Alert status="error" borderRadius="md" mb={3} data-testid="profile-add-to-group-error">
+                  <AlertIcon />
+                  <AlertDescription>{copy.profile.addToGroupError}</AlertDescription>
+                </Alert>
+              )}
+              <HStack spacing={3} align="stretch">
+                <Select
+                  value={effectiveGroupId}
+                  onChange={(e) => {
+                    setSelectedGroupId(e.target.value);
+                    setAddToGroupStatus('idle');
+                  }}
+                  aria-label={copy.profile.addToGroupSelect}
+                  data-testid="profile-add-to-group-select"
+                  bg="surfaceBg"
+                >
+                  {eligibleGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  colorScheme="brand"
+                  flexShrink={0}
+                  onClick={() => void handleAddToGroup()}
+                  isLoading={addToGroupStatus === 'loading'}
+                  isDisabled={!effectiveGroupId}
+                  data-testid="profile-add-to-group-btn"
+                >
+                  {copy.profile.addToGroupBtn}
+                </Button>
+              </HStack>
+            </Box>
+          )}
 
           {contact && (
             <Button

@@ -1,0 +1,26 @@
+{
+  "epic_name": "contact-group-context",
+  "story_order": ["S1", "S2"],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "common-groups-in-contacts-list",
+      "status": "done",
+      "owning_module": "contacts-page",
+      "acceptance_criteria": ["AC-UX-1", "AC-UX-2", "AC-I18N-1", "AC-STRUCT-1"],
+      "scope": {
+        "includes": ["app/src/lib/contacts.ts", "app/pages/contacts.tsx", "app/src/lib/i18n.ts", "app/tests/unit/contacts-groups.test.ts"]
+      }
+    },
+    {
+      "id": "S2",
+      "name": "add-to-group-on-profile",
+      "status": "done",
+      "owning_module": "profile-page",
+      "acceptance_criteria": ["AC-UX-3", "AC-UX-4", "AC-UX-5", "AC-I18N-2", "AC-ERR-1"],
+      "scope": {
+        "includes": ["app/pages/profile.tsx", "app/src/lib/contacts.ts", "app/src/lib/i18n.ts"]
+      }
+    }
+  ]
+}

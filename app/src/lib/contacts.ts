@@ -177,6 +177,48 @@ export function getContact(
 }
 
 /**
+ * Returns the groups shared by the current user and a given contact — i.e. the
+ * groups whose `memberPubkeys` contains the contact's pubkey. Pubkey comparison
+ * is case-insensitive, consistent with membership checks elsewhere
+ * (MarmotContext.tsx).
+ *
+ * Pure: no storage access, no React. Callers pass the group list (typically
+ * `useMarmot().groups`). The current user's own membership is implicit — the
+ * groups array already only contains groups the user belongs to.
+ *
+ * @param groups        - Groups the current user belongs to.
+ * @param contactPubkeyHex - Hex pubkey of the contact to test membership for.
+ * @returns The subset of `groups` that also contain the contact, preserving
+ *          input order. Empty array when none match or inputs are empty.
+ */
+export function commonGroups(groups: Group[], contactPubkeyHex: string): Group[] {
+  if (!contactPubkeyHex) return [];
+  const target = contactPubkeyHex.toLowerCase();
+  return groups.filter((group) =>
+    group.memberPubkeys.some((member) => member.toLowerCase() === target),
+  );
+}
+
+/**
+ * Returns the groups a contact can still be added to — groups the current user
+ * belongs to where the contact is NOT already a member. Pubkey comparison is
+ * case-insensitive. The complement of {@link commonGroups} over the same input.
+ *
+ * @param groups        - Groups the current user belongs to.
+ * @param contactPubkeyHex - Hex pubkey of the contact to test membership for.
+ * @returns The subset of `groups` that do NOT contain the contact, preserving
+ *          input order. Empty array when all groups already contain them or
+ *          inputs are empty.
+ */
+export function eligibleGroupsForContact(groups: Group[], contactPubkeyHex: string): Group[] {
+  if (!contactPubkeyHex) return [];
+  const target = contactPubkeyHex.toLowerCase();
+  return groups.filter(
+    (group) => !group.memberPubkeys.some((member) => member.toLowerCase() === target),
+  );
+}
+
+/**
  * Purges stranger entries from both contact storage keys (AC-PURGE-5).
  *
  * Reads `STORAGE_KEYS.contacts` (lp_contacts_v1) and
