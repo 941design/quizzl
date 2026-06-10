@@ -225,10 +225,6 @@ type Copy = {
       relativeMinutesAgo: (n: number) => string;
       relativeHoursAgo: (n: number) => string;
       relativeDaysAgo: (n: number) => string;
-      migrationNotice: {
-        body: string;
-        dismissBtn: string;
-      };
     };
   };
   contacts: {
@@ -561,10 +557,6 @@ const copy: Record<LanguageCode, Copy> = {
         relativeMinutesAgo: (n: number) => `${n}m ago`,
         relativeHoursAgo: (n: number) => `${n}h ago`,
         relativeDaysAgo: (n: number) => `${n}d ago`,
-        migrationNotice: {
-          body: "We've upgraded your contact privacy. Some old contacts may no longer be reachable unless you share a group with them again.",
-          dismissBtn: 'Got it',
-        },
       },
     },
     contacts: {
@@ -885,10 +877,6 @@ const copy: Record<LanguageCode, Copy> = {
         relativeMinutesAgo: (n: number) => `vor ${n} Min.`,
         relativeHoursAgo: (n: number) => `vor ${n} Std.`,
         relativeDaysAgo: (n: number) => `vor ${n} Tagen`,
-        migrationNotice: {
-          body: 'Wir haben deine Kontaktdatenschutzeinstellungen verbessert. Manche alten Kontakte sind möglicherweise nicht mehr erreichbar, es sei denn, ihr teilt wieder eine Gruppe.',
-          dismissBtn: 'Verstanden',
-        },
       },
     },
     contacts: {

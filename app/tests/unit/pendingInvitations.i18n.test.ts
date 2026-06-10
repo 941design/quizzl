@@ -15,8 +15,6 @@ describe('pendingInvitations i18n keys', () => {
     expect(pi.declineBtn).toBe('Decline');
     expect(pi.empty).toBe('No pending invitations');
     expect(pi.acceptError).toBe('This invitation is no longer valid');
-    expect(pi.migrationNotice.body).toContain('contact privacy');
-    expect(pi.migrationNotice.dismissBtn).toBe('Got it');
   });
 
   it('German copy has all pendingInvitations keys', () => {
@@ -27,7 +25,5 @@ describe('pendingInvitations i18n keys', () => {
     expect(pi.declineBtn).toBe('Ablehnen');
     expect(pi.empty).toBe('Keine ausstehenden Einladungen');
     expect(pi.acceptError).toBe('Diese Einladung ist nicht mehr gültig');
-    expect(pi.migrationNotice.body).toContain('Kontaktdatenschutz');
-    expect(pi.migrationNotice.dismissBtn).toBe('Verstanden');
   });
 });

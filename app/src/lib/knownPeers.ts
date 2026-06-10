@@ -14,12 +14,10 @@
  * Storage keys:
  *   lp_knownPeers_v1             — JSON array of lowercase hex pubkeys
  *   lp_knownPeersMigrated_v2     — presence flag: migration S3 has run
- *   lp_knownPeersMigrationNoticeAck_v1 — user has acknowledged the notice
  */
 
 const KNOWN_PEERS_KEY = 'lp_knownPeers_v1';
 const KNOWN_PEERS_MIGRATED_KEY = 'lp_knownPeersMigrated_v2';
-const MIGRATION_NOTICE_ACK_KEY = 'lp_knownPeersMigrationNoticeAck_v1';
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -153,31 +151,6 @@ export function markKnownPeersMigrationComplete(): void {
   if (!isLocalStorageAvailable()) return;
   try {
     localStorage.setItem(KNOWN_PEERS_MIGRATED_KEY, '1');
-  } catch {
-    // Non-fatal
-  }
-}
-
-/**
- * Returns true when the user has acknowledged the S3 migration notice banner.
- */
-export function isMigrationNoticeAcknowledged(): boolean {
-  if (!isLocalStorageAvailable()) return false;
-  try {
-    return localStorage.getItem(MIGRATION_NOTICE_ACK_KEY) !== null;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Records that the user has dismissed the S3 migration notice banner.
- * Subsequent calls to isMigrationNoticeAcknowledged() will return true.
- */
-export function acknowledgeMigrationNotice(): void {
-  if (!isLocalStorageAvailable()) return;
-  try {
-    localStorage.setItem(MIGRATION_NOTICE_ACK_KEY, '1');
   } catch {
     // Non-fatal
   }

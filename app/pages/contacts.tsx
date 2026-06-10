@@ -23,7 +23,6 @@ import {
 import ThemeIcon from '@/src/components/ThemeIcon';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import ContactChat from '@/src/components/contacts/ContactChat';
-import { MigrationNoticeBanner } from '@/src/components/contacts/MigrationNoticeBanner';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
@@ -55,7 +54,6 @@ function ContactListView() {
         <title>{`${copy.contacts.pageTitle} - ${copy.appName}`}</title>
       </Head>
       <Box data-testid="contacts-page">
-        <MigrationNoticeBanner />
         <Box mb={6}>
           <Heading as="h1" size="xl" mb={2}>
             {copy.contacts.heading}

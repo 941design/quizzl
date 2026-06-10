@@ -14,8 +14,6 @@
  *   (d) Mallory's IDB DM thread is gone.
  *   (e) Mallory is absent from lp_contacts_v1.
  *   (f) lp_knownPeersMigrated_v2 is set.
- *   (g) Navigation to /contacts/ shows the migration notice banner.
- *       Dismiss it → reload → banner is gone.
  *
  * Requires: make e2e-up (strfry relay at ws://localhost:7777).
  */
@@ -205,22 +203,5 @@ test.describe.serial('Migration backfill: knownPeers seeded from groups; strange
     const malloryThreadKey = `quizzl:messages:dm:${USER_C.pubkeyHex.toLowerCase()}`;
     const malloryAfter = await readIdbRecord(alicePage, 'keyval-store', 'keyval', malloryThreadKey);
     expect(malloryAfter).toBeNull();
-  });
-
-  test('AC-TEST-8(g): Migration notice banner appears on /contacts/, dismiss, reload, gone', async () => {
-    await alicePage.goto('/contacts/');
-    await alicePage.waitForLoadState('networkidle');
-
-    // AC-TEST-8(g): The migration notice banner is visible
-    await expect(alicePage.getByTestId('migration-notice-banner')).toBeVisible({ timeout: 15_000 });
-
-    // Dismiss the banner
-    await alicePage.getByTestId('migration-notice-dismiss').click();
-    await expect(alicePage.getByTestId('migration-notice-banner')).not.toBeVisible({ timeout: 5_000 });
-
-    // Reload and verify the banner stays dismissed
-    await alicePage.reload();
-    await alicePage.waitForLoadState('networkidle');
-    await expect(alicePage.getByTestId('migration-notice-banner')).not.toBeVisible({ timeout: 10_000 });
   });
 });

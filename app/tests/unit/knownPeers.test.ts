@@ -1,13 +1,11 @@
 /**
- * Unit tests for knownPeers.ts — covers all 6 exported functions (AC-STRUCT-1, VQ-S1-004).
+ * Unit tests for knownPeers.ts — covers all exported functions (AC-STRUCT-1, VQ-S1-004).
  * Runs without a browser or IDB — uses a synchronous localStorage mock.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  acknowledgeMigrationNotice,
   isKnownPeer,
-  isMigrationNoticeAcknowledged,
   knownPeersMigrationComplete,
   loadKnownPeers,
   markKnownPeersMigrationComplete,
@@ -252,58 +250,5 @@ describe('AC-EVER-5: no removal operations', () => {
     const result = loadKnownPeers();
     expect(result.has(ALICE)).toBe(true); // ALICE still present — AC-EVER-5
     expect(result.has(BOB)).toBe(true);
-  });
-});
-
-// ─── AC-MIGRATE-5: migration notice acknowledgement ──────────────────────────
-//
-// AC-MIGRATE-5 specifies: on first navigation after migration, a UI banner
-// shows. A dismiss button sets lp_knownPeersMigrationNoticeAck_v1 so the
-// banner does not re-show. isMigrationNoticeAcknowledged() and
-// acknowledgeMigrationNotice() are the localStorage-layer primitives
-// that back this contract.
-//
-// Property: once the user has dismissed the migration notice, any subsequent
-// check always reports acknowledged — across calls, simulated reloads,
-// and idempotent re-acknowledgements.
-
-const MIGRATION_NOTICE_ACK_KEY = 'lp_knownPeersMigrationNoticeAck_v1';
-
-describe('isMigrationNoticeAcknowledged + acknowledgeMigrationNotice (AC-MIGRATE-5)', () => {
-  it('returns false before the user has dismissed the migration banner', () => {
-    expect(isMigrationNoticeAcknowledged()).toBe(false);
-  });
-
-  it('returns true immediately after acknowledgeMigrationNotice is called', () => {
-    acknowledgeMigrationNotice();
-    expect(isMigrationNoticeAcknowledged()).toBe(true);
-  });
-
-  it('stays acknowledged across multiple subsequent checks (banner does not re-show)', () => {
-    acknowledgeMigrationNotice();
-    expect(isMigrationNoticeAcknowledged()).toBe(true);
-    expect(isMigrationNoticeAcknowledged()).toBe(true);
-    expect(isMigrationNoticeAcknowledged()).toBe(true);
-  });
-
-  it('acknowledgeMigrationNotice is idempotent — calling twice does not break acknowledged state', () => {
-    acknowledgeMigrationNotice();
-    acknowledgeMigrationNotice();
-    expect(isMigrationNoticeAcknowledged()).toBe(true);
-  });
-
-  it('persists the acknowledgement key in localStorage so a page reload would see it', () => {
-    acknowledgeMigrationNotice();
-    // The raw store entry must be present so a fresh module load (simulated
-    // page reload) reads acknowledged = true without an extra call.
-    expect(store[MIGRATION_NOTICE_ACK_KEY]).not.toBeUndefined();
-    expect(store[MIGRATION_NOTICE_ACK_KEY]).not.toBeNull();
-  });
-
-  it('clears to unacknowledged when localStorage is wiped (e.g. account reset)', () => {
-    acknowledgeMigrationNotice();
-    expect(isMigrationNoticeAcknowledged()).toBe(true);
-    localStorageMock.clear();
-    expect(isMigrationNoticeAcknowledged()).toBe(false);
   });
 });
