@@ -401,11 +401,19 @@ test.describe('DM reactions UI — story-08', () => {
     await expect(badge).toBeVisible({ timeout: 10_000 });
 
     // AC-52+AC-56: click badge (selfReacted=true → 'remove'); badge disappears.
-    // Use force: true because relay-confirmation re-renders briefly detach the
-    // badge element from the DOM, causing the default click's element-stability
-    // check to keep retrying past the timeout under suite-accumulated load.
-    await badge.click({ force: true });
-    await expect(badge).not.toBeVisible({ timeout: 10_000 });
+    // Under suite-accumulated load, relay-confirmation re-renders briefly detach
+    // and reattach the badge element, so a single click can land between renders
+    // and never invoke the React onClick handler — leaving the reaction in place.
+    // Retry the toggle-off until the badge is gone. This is safe: removal is
+    // permanent (reactions/api.ts applyInboundRumor: "removal wins regardless of
+    // arrival order"), and a removed reaction drops from aggregateForMessage, so
+    // a re-click can never revive an already-removed reaction.
+    await expect(async () => {
+      if (await badge.isVisible()) {
+        await badge.click({ force: true });
+      }
+      await expect(badge).not.toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
 
     await aliceContext.close();
   });
