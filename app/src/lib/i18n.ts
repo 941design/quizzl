@@ -21,6 +21,7 @@ type Copy = {
   home: {
     title: string;
     description: string;
+    subheadingLead: string;
     subheadingPoints: string[];
     contactsTitle: string;
     contactsSubtitle: string;
@@ -346,6 +347,7 @@ const copy: Record<LanguageCode, Copy> = {
       title: 'Welcome to Nostling',
       description:
         'Private, end-to-end encrypted chats. Message your contacts directly or talk together in groups.',
+      subheadingLead: 'Just chat.',
       subheadingPoints: [
         'No email address required',
         'No login or password to remember',
@@ -669,6 +671,7 @@ const copy: Record<LanguageCode, Copy> = {
       title: 'Willkommen bei Nostling',
       description:
         'Private, Ende-zu-Ende-verschlüsselte Chats. Schreibe deinen Kontakten direkt oder unterhalte dich gemeinsam in Gruppen.',
+      subheadingLead: 'Einfach nur chatten.',
       subheadingPoints: [
         'Keine E-Mail-Adresse nötig',
         'Kein Login, kein Passwort zum Merken',

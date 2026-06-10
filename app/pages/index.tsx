@@ -51,13 +51,18 @@ export default function HomePage() {
           <Heading as="h1" size="2xl" textAlign="center">
             {copy.home.title}
           </Heading>
-          <UnorderedList spacing={3} maxW="600px" data-testid="home-subheading">
-            {copy.home.subheadingPoints.map((point) => (
-              <ListItem key={point} color="textMuted" fontSize="lg">
-                {point}
-              </ListItem>
-            ))}
-          </UnorderedList>
+          <VStack spacing={3} maxW="600px" data-testid="home-subheading">
+            <Heading as="h2" size="lg" textAlign="center">
+              {copy.home.subheadingLead}
+            </Heading>
+            <UnorderedList spacing={3}>
+              {copy.home.subheadingPoints.map((point) => (
+                <ListItem key={point} color="textMuted" fontSize="lg">
+                  {point}
+                </ListItem>
+              ))}
+            </UnorderedList>
+          </VStack>
           <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} w="full">
             {tiles.map((tile) => (
               <LinkBox
