@@ -5,7 +5,6 @@ type Copy = {
   languageNames: Record<LanguageCode, string>;
   layout: {
     nav: {
-      home: string;
       contacts: string;
       groups: string;
       settings: string;
@@ -329,7 +328,6 @@ const copy: Record<LanguageCode, Copy> = {
     languageNames: { en: 'English', de: 'Deutsch' },
     layout: {
       nav: {
-        home: 'Home',
         contacts: 'Contacts',
         groups: 'Groups',
         settings: 'Settings',
@@ -647,7 +645,6 @@ const copy: Record<LanguageCode, Copy> = {
     languageNames: { en: 'English', de: 'Deutsch' },
     layout: {
       nav: {
-        home: 'Start',
         contacts: 'Kontakte',
         groups: 'Gruppen',
         settings: 'Einstellungen',

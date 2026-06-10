@@ -14,7 +14,8 @@ test.describe('Story 01 - Project Scaffold and Routing', () => {
     const nav = page.getByRole('navigation', { name: 'Main navigation' });
     const primaryNavList = nav.locator('ul').first();
     await expect(nav).toBeVisible();
-    await expect(primaryNavList.getByRole('link', { name: 'Home' })).toBeVisible();
+    // The "Home" item was removed; the app name logo still links back home.
+    await expect(primaryNavList.getByRole('link', { name: 'Home' })).toHaveCount(0);
     await expect(primaryNavList.getByRole('link', { name: 'Contacts' })).toBeVisible();
     await expect(primaryNavList.getByRole('link', { name: 'Groups' })).toBeVisible();
     // Learning-platform nav links (Topics/Leaderboard/Study Times) are gone.

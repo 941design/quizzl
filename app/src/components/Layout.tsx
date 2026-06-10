@@ -53,7 +53,6 @@ export default function Layout({ children }: LayoutProps) {
   const pendingInvitationCount = pendingInvitations.length;
 
   const navItems = [
-    { label: copy.layout.nav.home, href: '/' },
     { label: copy.layout.nav.contacts, href: '/contacts' },
     { label: copy.layout.nav.groups, href: '/groups' },
   ];
