@@ -35,7 +35,6 @@ import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
 import NpubQrButton from '@/src/components/groups/NpubQrButton';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
-import { resetAllData } from '@/src/lib/storage';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { APP_THEMES } from '@/src/lib/theme';
 import { truncateNpub, derivePublicKeyHex } from '@/src/lib/nostrKeys';
@@ -49,11 +48,9 @@ export default function SettingsPage() {
   const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
   const { npub, privateKeyHex, seedHex, backedUp, hydrated: identityHydrated, replaceIdentity } = useNostrIdentity();
   const { publishProfileUpdate } = useMarmot();
-  const resetDisclosure = useDisclosure();
   const avatarDisclosure = useDisclosure();
   const ownQrDisclosure = useDisclosure();
   const toast = useToast();
-  const [resetDone, setResetDone] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({ nickname: '', avatar: null });
   const [npubCopied, setNpubCopied] = useState(false);
 
@@ -233,15 +230,6 @@ export default function SettingsPage() {
     setRestoreSuccess(true);
   }, [backupRestoreDisclosure]);
 
-  function handleReset() {
-    resetAllData();
-    setResetDone(true);
-    const emptyProfile = { nickname: '', avatar: null };
-    setProfile(emptyProfile);
-    saveProfile(emptyProfile);
-    resetDisclosure.onClose();
-  }
-
   useEffect(() => {
     setProfile(savedProfile);
   }, [savedProfile]);
@@ -274,13 +262,6 @@ export default function SettingsPage() {
         <Text color="textMuted" mb={6}>
           {copy.settings.description}
         </Text>
-
-        {resetDone && (
-          <Alert status="success" borderRadius="md" mb={6} data-testid="reset-success-banner">
-            <AlertIcon />
-            <AlertDescription>{copy.settings.resetSuccess}</AlertDescription>
-          </Alert>
-        )}
 
         <VStack spacing={6} align="stretch">
           <Box>
@@ -654,68 +635,15 @@ export default function SettingsPage() {
               </Text>
             )}
           </Box>
-
-          <Divider />
-
-          {/* Reset Section */}
-          <Box>
-            <Heading as="h2" size="md" mb={1}>
-              {copy.settings.resetHeading}
-            </Heading>
-            <Text fontSize="sm" color="textMuted" mb={4}>
-              {copy.settings.resetDescription}
-            </Text>
-
-            <Button
-              colorScheme="danger"
-              variant="outline"
-              onClick={resetDisclosure.onOpen}
-              data-testid="reset-data-btn"
-            >
-              {copy.settings.resetButton}
-            </Button>
-          </Box>
         </VStack>
       </Box>
 
-      {/* Reset Confirmation Modal */}
       <AvatarBrowserModal
         isOpen={avatarDisclosure.isOpen}
         onClose={avatarDisclosure.onClose}
         onSelect={handleAvatarSelect}
         initialAvatar={profile.avatar}
       />
-
-      <Modal
-        isOpen={resetDisclosure.isOpen}
-        onClose={resetDisclosure.onClose}
-        isCentered
-        data-testid="reset-modal"
-      >
-        <ModalOverlay />
-        <ModalContent data-testid="reset-modal-content">
-          <ModalHeader>{copy.settings.resetModalTitle}</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <Text>
-              {copy.settings.resetModalBody}
-            </Text>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant="ghost"
-              mr={3}
-              onClick={resetDisclosure.onClose}
-              data-testid="reset-cancel-btn"
-            >
-              {copy.settings.cancel}
-            </Button>
-            <Button colorScheme="danger" onClick={handleReset} data-testid="reset-confirm-btn">
-              {copy.settings.confirmReset}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
 
       {/* Relay backup restore confirmation dialog */}
       <Modal

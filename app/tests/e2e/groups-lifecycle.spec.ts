@@ -128,22 +128,9 @@ test.describe.serial('Group Lifecycle', () => {
     await expect(pageB.getByText('E2E Test Group')).not.toBeVisible({ timeout: 30_000 });
   });
 
-  test('Reset clears processedGiftWraps cache', async () => {
-    // lp_processedGiftWraps should still exist (set during Welcome join, not
-    // cleared by leaveGroup — only resetAllData should remove it).
-    const before = await pageB.evaluate(() => localStorage.getItem('lp_processedGiftWraps'));
-    expect(before).not.toBeNull();
-
-    // Navigate to settings and perform reset
-    await pageB.goto('/settings');
-    await pageB.getByTestId('reset-data-btn').click();
-    await pageB.getByTestId('reset-confirm-btn').click();
-
-    // Wait for reset to complete
-    await pageB.waitForTimeout(2_000);
-
-    // lp_processedGiftWraps must be cleared by resetAllData
-    const after = await pageB.evaluate(() => localStorage.getItem('lp_processedGiftWraps'));
-    expect(after).toBeNull();
-  });
+  // NOTE: A "Reset clears processedGiftWraps cache" test previously lived here. It
+  // drove the Settings "Reset All Data" button, which was removed from the
+  // frontend (accidental misuse would irreversibly wipe the identity). The
+  // resetAllData() logic that clears lp_* keys is retained and unit-tested in
+  // app/tests/unit/storage.test.ts.
 });

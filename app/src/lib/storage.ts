@@ -112,6 +112,13 @@ export function writeUserProfile(profile: UserProfile): void {
 // ============================
 // Reset all app data
 // ============================
+//
+// CURRENTLY UNUSED. The "Reset All Data" / "Clear all data" action was removed
+// from the frontend (the Settings page) because an accidental trigger would
+// irreversibly wipe the user's identity and all local state. The logic below is
+// intentionally retained — it is still correct and unit-tested — so the
+// capability can be re-exposed behind stronger safeguards in the future. Do not
+// wire it back into the UI without a deliberate, hard-to-misfire confirmation flow.
 
 export function resetAllData(): void {
   if (!isStorageAvailable()) return;

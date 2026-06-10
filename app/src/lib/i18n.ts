@@ -32,7 +32,6 @@ type Copy = {
     pageTitle: string;
     heading: string;
     description: string;
-    resetSuccess: string;
     profileSaved: string;
     profileHeading: string;
     profileDescription: string;
@@ -75,13 +74,7 @@ type Copy = {
     legoDescription: string;
     minecraftDescription: string;
     flowerDescription: string;
-    resetHeading: string;
-    resetDescription: string;
-    resetButton: string;
-    resetModalTitle: string;
-    resetModalBody: string;
     cancel: string;
-    confirmReset: string;
   };
   storage: {
     title: string;
@@ -363,7 +356,6 @@ const copy: Record<LanguageCode, Copy> = {
       pageTitle: 'Settings',
       heading: 'Settings',
       description: 'Customize your learning experience.',
-      resetSuccess: 'All data has been reset. Start fresh!',
       profileSaved: 'Your profile look has been saved.',
       profileHeading: 'My Profile',
       profileDescription: 'Pick a nickname, an avatar, and a few fun badges.',
@@ -406,15 +398,7 @@ const copy: Record<LanguageCode, Copy> = {
       legoDescription: 'Bold brick colors, toy-like contrast, and a stud-patterned background.',
       minecraftDescription: 'Earthy block tones, squared surfaces, and a pixelated backdrop.',
       flowerDescription: 'Soft blossom tones, petal-like shapes, and a bright floral backdrop.',
-      resetHeading: 'Reset All Data',
-      resetDescription:
-        'Clear all your progress, notes, study sessions, and settings. This cannot be undone.',
-      resetButton: 'Reset All Data',
-      resetModalTitle: 'Reset All Data?',
-      resetModalBody:
-        'This will permanently delete all your quiz answers, notes, study sessions, and settings. This action cannot be undone.',
       cancel: 'Cancel',
-      confirmReset: 'Yes, Reset Everything',
     },
     storage: {
       title: 'Storage Unavailable',
@@ -689,7 +673,6 @@ const copy: Record<LanguageCode, Copy> = {
       pageTitle: 'Einstellungen',
       heading: 'Einstellungen',
       description: 'Passe dein Erlebnis an.',
-      resetSuccess: 'Alle Daten wurden zurückgesetzt. Du kannst neu starten.',
       profileSaved: 'Dein Profil wurde gespeichert.',
       profileHeading: 'Mein Profil',
       profileDescription: 'Wähle einen Spitznamen, einen Avatar und ein paar lustige Badges.',
@@ -732,15 +715,7 @@ const copy: Record<LanguageCode, Copy> = {
       legoDescription: 'Kräftige Steinfarben, spielzeughafte Kontraste und ein Noppen-Hintergrund.',
       minecraftDescription: 'Erdige Blockfarben, eckige Flächen und ein verpixelter Hintergrund.',
       flowerDescription: 'Sanfte Blütentöne, blütenartige Formen und ein heller floraler Hintergrund.',
-      resetHeading: 'Alle Daten zurücksetzen',
-      resetDescription:
-        'Lösche deinen Fortschritt, Notizen, Lernsitzungen und Einstellungen. Das kann nicht rückgängig gemacht werden.',
-      resetButton: 'Alle Daten zurücksetzen',
-      resetModalTitle: 'Alle Daten zurücksetzen?',
-      resetModalBody:
-        'Dadurch werden alle Quiz-Antworten, Notizen, Lernsitzungen und Einstellungen dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.',
       cancel: 'Abbrechen',
-      confirmReset: 'Ja, alles zurücksetzen',
     },
     storage: {
       title: 'Speicher nicht verfügbar',

@@ -417,7 +417,12 @@ Advanced options (settings, details) must not block usage.
 ## 5.3 Settings
 
 * Mood toggle calm/playful
-* “Reset all data” action (clears localStorage keys used by app)
+
+> Note: A "Reset all data" action was previously exposed here but has been
+> removed from the frontend. An accidental trigger would irreversibly wipe the
+> user's identity and all local state. The underlying `resetAllData()` logic is
+> retained (currently unused) in `app/src/lib/storage.ts` for possible future
+> re-exposure behind a stronger safeguard.
 
 ## 5.4 Error/Empty States
 

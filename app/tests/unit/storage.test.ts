@@ -105,6 +105,9 @@ describe('UserProfile', () => {
   });
 });
 
+// resetAllData is currently unused by the frontend — the "Reset All Data" UI was
+// removed from the Settings page to prevent accidental, irreversible identity
+// wipes. These tests keep the retained logic covered for any future re-exposure.
 describe('resetAllData', () => {
   it('clears all lp_* keys', () => {
     writeSettings({ theme: 'playful', language: 'de' });
