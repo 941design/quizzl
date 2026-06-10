@@ -42,7 +42,7 @@ export default function Layout({ children }: LayoutProps) {
   const { groups, ready } = useMarmot();
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
-  const { navStyle, surfaceStyle, bannerDecorStyle } = useThemeStyles();
+  const { navStyle, surfaceStyle, bannerDecorStyle, contentPanelStyle } = useThemeStyles();
 
   // AC-INVITE-8: reactive pending invitation count for Groups nav badge
   const pendingInvitations = useSyncExternalStore(
@@ -298,10 +298,21 @@ export default function Layout({ children }: LayoutProps) {
       </Box>
 
       {/* Main Content */}
-      <Container maxW="container.xl" py={8} as="main" {...surfaceStyle}>
-        <StorageWarning />
-        {children}
-      </Container>
+      {contentPanelStyle ? (
+        // Dark-background themes (e.g. minecraft) float content on a light
+        // GUI panel so dark text tokens stay legible against the backdrop.
+        <Container maxW="container.xl" py={8} as="main">
+          <Box data-testid="content-panel" {...contentPanelStyle} {...surfaceStyle}>
+            <StorageWarning />
+            {children}
+          </Box>
+        </Container>
+      ) : (
+        <Container maxW="container.xl" py={8} as="main" {...surfaceStyle}>
+          <StorageWarning />
+          {children}
+        </Container>
+      )}
     </Box>
   );
 }

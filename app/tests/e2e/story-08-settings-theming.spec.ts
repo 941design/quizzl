@@ -69,4 +69,40 @@ test.describe('Story 08: Theme Settings', () => {
   // accidental trigger would irreversibly wipe the user's identity and all local
   // state. The underlying resetAllData() logic is retained but currently unused;
   // its behavior is covered by app/tests/unit/storage.test.ts.
+
+  test('4. dark-background minecraft theme floats content on a light panel', async ({ page }) => {
+    // minecraft has a dark dirt appBg; without a light panel, page-level text
+    // (dark tokens) would be illegible against it. Assert the panel exists and
+    // is genuinely light so descriptions stay readable.
+    await page.goto('/');
+    await page.evaluate(() =>
+      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'minecraft', language: 'en' })),
+    );
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    const panel = page.getByTestId('content-panel');
+    await expect(panel).toBeVisible();
+
+    const luminance = await panel.evaluate((el) => {
+      const bg = getComputedStyle(el).backgroundColor; // rgb(...) / rgba(...)
+      const [r, g, b] = bg.match(/\d+/g)!.map(Number);
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    });
+    // A light "stone/parchment" panel — comfortably above mid-grey.
+    expect(luminance).toBeGreaterThan(0.7);
+  });
+
+  test('5. light-background calm theme renders no content panel', async ({ page }) => {
+    // Light themes paint content directly on a light appBg; the panel must not
+    // appear, so the layout stays unchanged for them.
+    await page.goto('/');
+    await page.evaluate(() =>
+      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'calm', language: 'en' })),
+    );
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByTestId('content-panel')).toHaveCount(0);
+  });
 });

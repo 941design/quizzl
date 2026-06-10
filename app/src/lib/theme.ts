@@ -58,6 +58,13 @@ export type AppThemeDefinition = {
   surfacePattern?: string;
   fontFamily?: string;
   buttonVariant?: 'solid' | 'outline';
+  /**
+   * When true, page content is floated on a light surface panel instead of
+   * sitting directly on appBg. Required for themes with a dark appBg (e.g.
+   * minecraft) whose text tokens are tuned for light surfaces — otherwise
+   * page-level text fails contrast against the dark background.
+   */
+  contentSurface?: boolean;
   chakraTheme: ThemeOverride;
 };
 
@@ -551,14 +558,14 @@ const minecraftTheme = createTheme({
     body: '"VT323", "Trebuchet MS", monospace',
   },
   fontSizes: {
-    xs: '0.7rem',
-    sm: '0.85rem',
-    md: '1rem',
-    lg: '1.1rem',
-    xl: '1.2rem',
-    '2xl': '1.35rem',
-    '3xl': '1.6rem',
-    '4xl': '1.9rem',
+    xs: '0.8rem',
+    sm: '0.95rem',
+    md: '1.12rem',
+    lg: '1.25rem',
+    xl: '1.35rem',
+    '2xl': '1.5rem',
+    '3xl': '1.8rem',
+    '4xl': '2.1rem',
   },
   radii: {
     sm: '2px',
@@ -708,6 +715,7 @@ export const APP_THEMES: Record<AppThemeName, AppThemeDefinition> = {
     surfacePattern: 'grid',
     fontFamily: '"Press Start 2P", "Trebuchet MS", monospace',
     buttonVariant: 'solid',
+    contentSurface: true,
     chakraTheme: minecraftTheme,
   },
   flower: {

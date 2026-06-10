@@ -128,6 +128,30 @@ function buttonOverlay(visualStyle: ThemeVisualStyle): BoxProps {
   }
 }
 
+/**
+ * Light "GUI panel" that floats page content above a dark themed background.
+ * Mirrors how blocky/pixel games render their inventory screens — a light
+ * stone panel over the world — so dark text tokens stay legible.
+ */
+function contentPanel(visualStyle: ThemeVisualStyle): BoxProps {
+  switch (visualStyle) {
+    case 'pixel':
+      return {
+        bg: 'surfaceBg',
+        borderWidth: '3px',
+        borderStyle: 'solid',
+        borderColor: 'borderStrong',
+        borderRadius: 'md',
+        boxShadow:
+          'inset -3px -3px 0 rgba(0,0,0,0.18), inset 3px 3px 0 rgba(255,255,255,0.45)',
+        px: { base: 4, md: 8 },
+        py: { base: 5, md: 8 },
+      };
+    default:
+      return {};
+  }
+}
+
 function navOverlay(visualStyle: ThemeVisualStyle): BoxProps {
   switch (visualStyle) {
     case 'toy':
@@ -308,6 +332,12 @@ export function useThemeStyles() {
     cardStyle: cardOverlay(vs),
     /** Spread onto large surface areas for pattern overlay */
     surfaceStyle: surfaceOverlay(vs),
+    /**
+     * Light panel styling for the main content area, or null when the theme
+     * paints content directly on a light appBg. Present only for themes whose
+     * definition sets `contentSurface` (dark-background themes like minecraft).
+     */
+    contentPanelStyle: activeThemeDefinition.contentSurface ? contentPanel(vs) : null,
     /** Extra props for primary action buttons */
     buttonStyle: buttonOverlay(vs),
     /** Extra props for the nav bar */
