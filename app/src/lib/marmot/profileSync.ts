@@ -25,7 +25,12 @@ export const PROFILE_RUMOR_KIND = 0;
 /** Wire format for the profile data section (carried inside SignedProfileEvent.content). */
 export type ProfilePayload = {
   nickname: string;
-  avatar: { id: string; subject: string; accessories: string[] } | null;
+  /**
+   * Canonical shape carries only `imageUrl`. `id` is accepted on read for
+   * backward compatibility with peers who synced before the imageUrl-only
+   * change; the imageUrl is reconstructed from it.
+   */
+  avatar: { imageUrl?: string; id?: string } | null;
   updatedAt: string;
   /** Present when the rumor carried a verified SignedProfileEvent envelope. */
   signedEvent?: SignedProfileEvent;
@@ -34,9 +39,7 @@ export type ProfilePayload = {
 function buildPayloadJson(profile: UserProfile): string {
   const payload = {
     nickname: profile.nickname,
-    avatar: profile.avatar
-      ? { id: profile.avatar.id, subject: profile.avatar.subject, accessories: profile.avatar.accessories }
-      : null,
+    avatar: profile.avatar ? { imageUrl: profile.avatar.imageUrl } : null,
     updatedAt: new Date().toISOString(),
   };
   return JSON.stringify(payload);
@@ -162,12 +165,15 @@ export function payloadToMemberProfile(fallbackPubkeyHex: string, payload: Profi
   const authorPubkey = payload.signedEvent?.pubkey ?? fallbackPubkeyHex;
   let avatar: ProfileAvatar | null = null;
   if (payload.avatar) {
-    avatar = {
-      id: payload.avatar.id,
-      subject: payload.avatar.subject,
-      accessories: payload.avatar.accessories,
-      imageUrl: `${AVATAR_BROWSER_CONFIG.endpointBaseUrl}/${payload.avatar.id}.png`,
-    };
+    // Prefer the imageUrl sent directly; fall back to reconstructing it from a
+    // legacy `id` for peers who synced before the imageUrl-only change.
+    const imageUrl = payload.avatar.imageUrl
+      ?? (payload.avatar.id
+        ? `${AVATAR_BROWSER_CONFIG.endpointBaseUrl}/${payload.avatar.id}.png`
+        : undefined);
+    if (imageUrl) {
+      avatar = { imageUrl };
+    }
   }
   return {
     pubkeyHex: authorPubkey,

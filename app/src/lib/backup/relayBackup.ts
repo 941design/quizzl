@@ -36,7 +36,7 @@ export interface BackupPayload {
   settings: { theme: string; language: string } | null;
   userProfile: {
     nickname: string;
-    avatar: { id: string; subject: string; accessories: string[] } | null;
+    avatar: { imageUrl: string } | null;
   } | null;
   groups: Array<{
     id: string;
@@ -110,7 +110,7 @@ export async function collectBackupPayload(): Promise<BackupPayload> {
 
   const rawProfile = readJsonItem<{
     nickname: string;
-    avatar: { id: string; subject: string; accessories: string[] } | null;
+    avatar: { imageUrl: string } | null;
   }>(STORAGE_KEYS.userProfile);
   const userProfile = rawProfile ?? null;
 

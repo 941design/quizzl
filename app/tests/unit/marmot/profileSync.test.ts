@@ -163,23 +163,27 @@ describe('profileSync wire format', () => {
     expect(parseProfilePayload('null')).toBeNull();
   });
 
-  it('round-trip preserves the avatar object structure', async () => {
+  it('round-trip carries only the avatar imageUrl', async () => {
     const sk = generateSecretKey();
     const signer = createPrivateKeySigner(bytesToHex(sk));
     const profile = makeUserProfile({
-      avatar: {
-        id: 'fox',
-        imageUrl: 'https://example.test/fox.png',
-        subject: 'fox',
-        accessories: ['hat'],
-      },
+      avatar: { imageUrl: 'https://example.test/fox.png' },
     });
     const wire = await serialiseProfileUpdate(profile, signer);
     const parsed = parseProfilePayload(wire)!;
-    expect(parsed.avatar).toEqual({ id: 'fox', subject: 'fox', accessories: ['hat'] });
+    expect(parsed.avatar).toEqual({ imageUrl: 'https://example.test/fox.png' });
     const member = payloadToMemberProfile(getPublicKey(sk), parsed);
-    expect(member.avatar).not.toBeNull();
-    expect(member.avatar!.id).toBe('fox');
-    expect(member.avatar!.imageUrl).toMatch(/fox\.png$/);
+    expect(member.avatar).toEqual({ imageUrl: 'https://example.test/fox.png' });
+  });
+
+  it('reconstructs imageUrl from a legacy id-only payload', () => {
+    const wire = JSON.stringify({
+      nickname: 'Legacy',
+      avatar: { id: 'fox', subject: 'fox', accessories: ['hat'] },
+      updatedAt: '2024-01-01T00:00:00Z',
+    });
+    const parsed = parseProfilePayload(wire)!;
+    const member = payloadToMemberProfile('pk-legacy', parsed);
+    expect(member.avatar).toEqual({ imageUrl: '//assets.941design.de/fox.png' });
   });
 });

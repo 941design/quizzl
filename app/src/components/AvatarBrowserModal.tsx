@@ -31,10 +31,23 @@ type AvatarBrowserModalProps = {
   initialAvatar: ProfileAvatar | null;
 };
 
+/**
+ * Catalog item shape from avatarManifest.json. `subject`/`accessories` exist
+ * only to power the browse filters here — they are not persisted on the
+ * selected {@link ProfileAvatar}, which carries just `imageUrl`.
+ */
+type AvatarCatalogItem = {
+  id: string;
+  imageUrl: string;
+  subject: string;
+  accessories: string[];
+  sortOrder: number;
+};
+
 type AvatarManifest = {
   subjects: string[];
   accessories: string[];
-  items: Array<ProfileAvatar & { sortOrder: number }>;
+  items: AvatarCatalogItem[];
 };
 
 const manifest = avatarManifest as AvatarManifest;
@@ -53,10 +66,10 @@ export default function AvatarBrowserModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    setSelectedSubject(initialAvatar?.subject ?? AVATAR_BROWSER_CONFIG.defaultSubjects[0] ?? '');
-    setSelectedAccessories(initialAvatar?.accessories ?? []);
+    setSelectedSubject(AVATAR_BROWSER_CONFIG.defaultSubjects[0] ?? '');
+    setSelectedAccessories([]);
     setVisibleCount(AVATAR_BROWSER_CONFIG.resultPageSize);
-  }, [initialAvatar, isOpen]);
+  }, [isOpen]);
 
   const matchingAvatars = useMemo(() => {
     const filtered = manifest.items.filter((item) => {
@@ -183,10 +196,12 @@ export default function AvatarBrowserModal({
                         borderRadius="xl"
                         overflow="hidden"
                         bg="surfaceBg"
-                        borderColor={initialAvatar?.id === avatar.id ? 'brand.500' : 'borderSubtle'}
+                        borderColor={
+                          initialAvatar?.imageUrl === avatar.imageUrl ? 'brand.500' : 'borderSubtle'
+                        }
                         cursor="pointer"
                         _hover={{ borderColor: 'brand.400' }}
-                        onClick={() => onSelect(avatar)}
+                        onClick={() => onSelect({ imageUrl: avatar.imageUrl })}
                         data-testid={`avatar-card-${avatar.id}`}
                       >
                         <Box p={3}>
@@ -211,7 +226,7 @@ export default function AvatarBrowserModal({
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onSelect(avatar);
+                              onSelect({ imageUrl: avatar.imageUrl });
                             }}
                             data-testid={`select-avatar-${avatar.id}`}
                           >

@@ -5,10 +5,7 @@ import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-err
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 const TEST_AVATAR = {
-  id: 'apple',
   imageUrl: '//assets.941design.de/apple.png',
-  subject: 'apple',
-  accessories: [] as string[],
 };
 
 /** Boot a user with identity AND profile nickname pre-set in localStorage. */
@@ -16,7 +13,7 @@ async function bootUserWithProfile(
   browser: { newContext: (opts: object) => Promise<BrowserContext> },
   user: typeof USER_A,
   nickname: string,
-  avatar: { id: string; imageUrl: string; subject: string; accessories: string[] } | null = null,
+  avatar: { imageUrl: string } | null = null,
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ baseURL: BASE_URL });
   await suppressErrorOverlay(context);

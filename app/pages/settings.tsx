@@ -371,13 +371,6 @@ export default function SettingsPage() {
                   </Box>
 
                   <VStack align="stretch" spacing={3} flex={1}>
-                    {profile.avatar && (
-                      <Text fontSize="sm" color="textMuted">
-                        {profile.avatar.accessories.length > 0
-                          ? profile.avatar.accessories.join(', ')
-                          : copy.settings.avatarNoAccessories}
-                      </Text>
-                    )}
                     <HStack spacing={3} flexWrap="wrap">
                       <Button onClick={avatarDisclosure.onOpen} data-testid="choose-avatar-btn">
                         {profile.avatar ? copy.settings.changeAvatar : copy.settings.chooseAvatar}

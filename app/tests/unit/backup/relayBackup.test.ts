@@ -201,7 +201,7 @@ describe('collectBackupPayload', () => {
   it('reads userProfile from localStorage', async () => {
     const profile = {
       nickname: 'Alice',
-      avatar: { id: 'a1', subject: 'cat', accessories: ['hat'] },
+      avatar: { imageUrl: '//assets.941design.de/a1.png' },
     };
     localStore[STORAGE_KEYS.userProfile] = JSON.stringify(profile);
 
@@ -703,7 +703,7 @@ describe('restoreFromBackup', () => {
   it('rehydrates userProfile from payload', async () => {
     const profile = {
       nickname: 'Alice',
-      avatar: { id: 'a1', subject: 'cat', accessories: ['hat'] },
+      avatar: { imageUrl: '//assets.941design.de/a1.png' },
     };
 
     await restoreFromBackup(makeEmptyPayload({ userProfile: profile }));

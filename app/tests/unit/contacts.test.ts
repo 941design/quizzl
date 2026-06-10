@@ -53,12 +53,7 @@ describe('contacts', () => {
     localStorage.setItem(STORAGE_KEYS.contactCache, JSON.stringify({
       alice: {
         nickname: 'Alice',
-        avatar: {
-          id: 'apple',
-          imageUrl: 'https://example.test/alice.png',
-          subject: 'apple',
-          accessories: [],
-        },
+        avatar: { imageUrl: 'https://example.test/alice.png' },
         updatedAt: '2026-05-02T10:00:00.000Z',
       },
     }));

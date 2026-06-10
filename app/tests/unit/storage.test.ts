@@ -59,12 +59,7 @@ describe('UserProfile', () => {
   it('writes and reads a profile', () => {
     const profile = {
       nickname: 'Rocket Reader',
-      avatar: {
-        id: 'berry-1',
-        imageUrl: 'http://example.test/berry.png',
-        subject: 'strawberry',
-        accessories: ['glasses'],
-      },
+      avatar: { imageUrl: 'http://example.test/berry.png' },
     };
 
     writeUserProfile(profile);
@@ -75,6 +70,18 @@ describe('UserProfile', () => {
     const oversized = 'A'.repeat(PROFILE_NICKNAME_MAX_LENGTH + 10);
     store[STORAGE_KEYS.userProfile] = JSON.stringify({
       nickname: oversized,
+      avatar: { imageUrl: 'http://example.test/apple.png' },
+    });
+
+    expect(readUserProfile()).toEqual({
+      nickname: 'A'.repeat(PROFILE_NICKNAME_MAX_LENGTH),
+      avatar: { imageUrl: 'http://example.test/apple.png' },
+    });
+  });
+
+  it('drops obsolete subject/accessories, keeping only imageUrl', () => {
+    store[STORAGE_KEYS.userProfile] = JSON.stringify({
+      nickname: 'Legacy',
       avatar: {
         id: 'berry-2',
         imageUrl: 'http://example.test/apple.png',
@@ -83,14 +90,17 @@ describe('UserProfile', () => {
       },
     });
 
-    expect(readUserProfile()).toEqual({
-      nickname: 'A'.repeat(PROFILE_NICKNAME_MAX_LENGTH),
-      avatar: {
-        id: 'berry-2',
-        imageUrl: 'http://example.test/apple.png',
-        subject: 'apple',
-        accessories: ['hat'],
-      },
+    expect(readUserProfile().avatar).toEqual({ imageUrl: 'http://example.test/apple.png' });
+  });
+
+  it('reconstructs imageUrl from a legacy id-only avatar', () => {
+    store[STORAGE_KEYS.userProfile] = JSON.stringify({
+      nickname: 'Legacy',
+      avatar: { id: 'berry-9', subject: 'apple', accessories: [] },
+    });
+
+    expect(readUserProfile().avatar).toEqual({
+      imageUrl: '//assets.941design.de/berry-9.png',
     });
   });
 });

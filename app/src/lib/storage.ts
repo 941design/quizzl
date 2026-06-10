@@ -4,7 +4,7 @@ import type {
 } from '@/src/types';
 import { STORAGE_KEYS } from '@/src/types';
 import { DEFAULT_THEME_NAME, normalizeThemeName } from '@/src/lib/theme';
-import { PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
+import { AVATAR_BROWSER_CONFIG, PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
 
 // ============================
 // localStorage availability check
@@ -84,19 +84,15 @@ function normalizeUserProfile(raw: Partial<UserProfile> | null | undefined): Use
     ? raw.nickname.trim().slice(0, PROFILE_NICKNAME_MAX_LENGTH)
     : '';
 
-  const avatar = raw?.avatar
-    && typeof raw.avatar.id === 'string'
-    && typeof raw.avatar.imageUrl === 'string'
-    && typeof raw.avatar.subject === 'string'
-    ? {
-        id: raw.avatar.id,
-        imageUrl: raw.avatar.imageUrl,
-        subject: raw.avatar.subject,
-        accessories: Array.isArray(raw.avatar.accessories)
-          ? raw.avatar.accessories.filter((item): item is string => typeof item === 'string')
-          : [],
-      }
-    : null;
+  // Canonical shape carries only imageUrl. Legacy profiles (and restored legacy
+  // backups) stored an `id` instead — reconstruct the imageUrl from it.
+  const rawAvatar = raw?.avatar as { imageUrl?: unknown; id?: unknown } | null | undefined;
+  let avatar: UserProfile['avatar'] = null;
+  if (rawAvatar && typeof rawAvatar.imageUrl === 'string') {
+    avatar = { imageUrl: rawAvatar.imageUrl };
+  } else if (rawAvatar && typeof rawAvatar.id === 'string') {
+    avatar = { imageUrl: `${AVATAR_BROWSER_CONFIG.endpointBaseUrl}/${rawAvatar.id}.png` };
+  }
 
   return {
     nickname,

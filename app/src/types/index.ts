@@ -18,10 +18,7 @@ export type Settings = {
 };
 
 export type ProfileAvatar = {
-  id: string;
   imageUrl: string;
-  subject: string;
-  accessories: string[];
 };
 
 export type UserProfile = {
