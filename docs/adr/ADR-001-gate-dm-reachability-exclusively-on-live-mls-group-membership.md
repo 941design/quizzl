@@ -9,10 +9,10 @@
 
 ## Context
 
-Quizzl is a walled-garden product: a user should only be reachable by
+Nostling is a walled-garden product: a user should only be reachable by
 people they share a learning group with. Prior to the DM Walled Garden
 epic (2026-06-03), arbitrary Nostr pubkeys could deliver direct messages
-to a Quizzl client and have them stored in IndexedDB, counted on the
+to a Nostling client and have them stored in IndexedDB, counted on the
 notification bell, and promoted to the contact list. This was not
 intentional — it was a gap in the original DM ingestion implementation.
 
@@ -20,7 +20,7 @@ The gap caused a production maintenance window. The live site was
 replaced with a maintenance page until the invariant was enforced.
 
 The decision that emerged from that forced fix is load-bearing: it
-defines what "reachable" means in the Quizzl product model, and it
+defines what "reachable" means in the Nostling product model, and it
 constrains every future inbound-event path (current and not-yet-written).
 
 Key facts about the implementation at `app/src/lib/walledGarden.ts`:
@@ -79,7 +79,7 @@ new" was explicitly rejected — see Alternatives).
 | Lenient purge — mark stranger threads read-only | Leaves the original leak visible to users and contradicts the bug report wording ("must not even be stored", "already fetched messages must be removed"). (DD-5, spec.md) |
 | Relay-side filtering | Relays are untrusted. The client is the enforcement boundary. Relay-side filtering would require trusting relay operators and does not protect against relay-operator bypass. (AC-SEC-11) |
 | Pre-admission reachability (pending join requests) | Pre-admission contact is the exact attack surface the walled garden exists to close. A pubkey becomes reachable only after their MLS Welcome has been processed and they appear in `group.memberPubkeys`. (DD-2, spec.md) |
-| NIP-02 follow-list as supplementary allow source | Follow lists are not managed by Quizzl and can be manipulated externally. Adding them as a reachability source would bypass the MLS-group enforcement boundary. |
+| NIP-02 follow-list as supplementary allow source | Follow lists are not managed by Nostling and can be manipulated externally. Adding them as a reachability source would bypass the MLS-group enforcement boundary. |
 
 ## Consequences
 

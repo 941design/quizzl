@@ -325,7 +325,7 @@ export function detectBrowserLanguage(): LanguageCode {
 
 const copy: Record<LanguageCode, Copy> = {
   en: {
-    appName: 'Quizzl',
+    appName: 'Nostling',
     languageNames: { en: 'English', de: 'Deutsch' },
     layout: {
       nav: {
@@ -343,7 +343,7 @@ const copy: Record<LanguageCode, Copy> = {
       directMessageNotification: (count: number) => count === 1 ? '1 new direct message' : `${count} new direct messages`,
     },
     home: {
-      title: 'Welcome to Quizzl',
+      title: 'Welcome to Nostling',
       description:
         'Private, end-to-end encrypted chats. Message your contacts directly or talk together in groups.',
       subheadingPoints: [
@@ -416,7 +416,7 @@ const copy: Record<LanguageCode, Copy> = {
     identity: {
       sectionHeading: 'Nostr Identity',
       sectionDescription:
-        'Your Quizzl identity is used for groups and direct messages. It is stored in your browser.',
+        'Your Nostling identity is used for groups and direct messages. It is stored in your browser.',
       npubLabel: 'Your public key (npub)',
       copyNpub: 'Copy npub',
       copiedNpub: 'Copied!',
@@ -461,11 +461,11 @@ const copy: Record<LanguageCode, Copy> = {
       inviteTitle: 'Invite by Npub',
       inviteNpubLabel: "Member's npub",
       inviteNpubPlaceholder: 'npub1...',
-      inviteHelp: 'Enter or scan the npub of the person you want to invite. They must have used Quizzl at least once to appear.',
+      inviteHelp: 'Enter or scan the npub of the person you want to invite. They must have used Nostling at least once to appear.',
       inviteSubmit: 'Send Invite',
       inviteSuccess: 'Invitation sent successfully.',
       inviteWarningAdminPromotion: 'Invited, but admin promotion failed. The new member may not be able to invite others.',
-      inviteErrorNoKeyPackage: 'This user has not set up their Quizzl identity yet.',
+      inviteErrorNoKeyPackage: 'This user has not set up their Nostling identity yet.',
       inviteErrorInvalidNpub: 'Invalid npub format.',
       inviteErrorOffline: 'You are offline. Please connect to invite members.',
       inviteErrorTimeout: 'Relay timed out. Please try again.',
@@ -648,7 +648,7 @@ const copy: Record<LanguageCode, Copy> = {
     },
   },
   de: {
-    appName: 'Quizzl',
+    appName: 'Nostling',
     languageNames: { en: 'English', de: 'Deutsch' },
     layout: {
       nav: {
@@ -666,7 +666,7 @@ const copy: Record<LanguageCode, Copy> = {
       directMessageNotification: (count: number) => count === 1 ? '1 neue Direktnachricht' : `${count} neue Direktnachrichten`,
     },
     home: {
-      title: 'Willkommen bei Quizzl',
+      title: 'Willkommen bei Nostling',
       description:
         'Private, Ende-zu-Ende-verschlüsselte Chats. Schreibe deinen Kontakten direkt oder unterhalte dich gemeinsam in Gruppen.',
       subheadingPoints: [
@@ -739,7 +739,7 @@ const copy: Record<LanguageCode, Copy> = {
     identity: {
       sectionHeading: 'Nostr-Identität',
       sectionDescription:
-        'Deine Quizzl-Identität wird für Gruppen und Direktnachrichten verwendet und ist in deinem Browser gespeichert.',
+        'Deine Nostling-Identität wird für Gruppen und Direktnachrichten verwendet und ist in deinem Browser gespeichert.',
       npubLabel: 'Dein öffentlicher Schlüssel (npub)',
       copyNpub: 'npub kopieren',
       copiedNpub: 'Kopiert!',
@@ -784,11 +784,11 @@ const copy: Record<LanguageCode, Copy> = {
       inviteTitle: 'Per Npub einladen',
       inviteNpubLabel: 'Npub des Mitglieds',
       inviteNpubPlaceholder: 'npub1...',
-      inviteHelp: 'Gib die npub der Person ein oder scanne sie. Die Person muss Quizzl bereits einmal verwendet haben.',
+      inviteHelp: 'Gib die npub der Person ein oder scanne sie. Die Person muss Nostling bereits einmal verwendet haben.',
       inviteSubmit: 'Einladung senden',
       inviteSuccess: 'Einladung erfolgreich gesendet.',
       inviteWarningAdminPromotion: 'Eingeladen, aber Admin-Beförderung fehlgeschlagen. Das neue Mitglied kann möglicherweise keine anderen einladen.',
-      inviteErrorNoKeyPackage: 'Dieser Nutzer hat seine Quizzl-Identität noch nicht eingerichtet.',
+      inviteErrorNoKeyPackage: 'Dieser Nutzer hat seine Nostling-Identität noch nicht eingerichtet.',
       inviteErrorInvalidNpub: 'Ungültiges npub-Format.',
       inviteErrorOffline: 'Du bist offline. Bitte verbinde dich, um Mitglieder einzuladen.',
       inviteErrorTimeout: 'Relay-Zeitüberschreitung. Bitte erneut versuchen.',

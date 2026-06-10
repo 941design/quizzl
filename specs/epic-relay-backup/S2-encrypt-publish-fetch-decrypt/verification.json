@@ -3,7 +3,7 @@
   "questions": [
     {
       "id": "V1",
-      "question": "Does createBackupEvent encrypt with NIP-44 and produce kind 30078 with d:quizzl tag?",
+      "question": "Does createBackupEvent encrypt with NIP-44 and produce kind 30078 with d:nostling tag?",
       "check": "implementation"
     },
     {

@@ -44,7 +44,7 @@ describe('inviteLinkGeneration', () => {
       });
 
       const parsed = new URL(url);
-      expect(parsed.origin + parsed.pathname).toBe('https://quizzl.941design.de/groups');
+      expect(parsed.origin + parsed.pathname).toBe('https://nostling.941design.de/groups');
       expect(parsed.searchParams.get('join')).toBe('aabbccdd11223344aabbccdd11223344');
       expect(parsed.searchParams.get('admin')).toBe('npub1test123');
       expect(parsed.searchParams.get('name')).toBe('Biology Study Group');
@@ -90,7 +90,7 @@ describe('inviteLinkGeneration', () => {
         adminNpub: 'npub1x',
         groupName: 'X',
       });
-      expect(url.startsWith('https://quizzl.941design.de/groups?')).toBe(true);
+      expect(url.startsWith('https://nostling.941design.de/groups?')).toBe(true);
     });
   });
 });

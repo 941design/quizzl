@@ -20,7 +20,7 @@
 
 ## AC-3: Invite Link Generation
 - `GenerateInviteLinkModal` renders a Chakra Modal with auto-generated 16-byte hex nonce via `crypto.getRandomValues`
-- The URL follows format `https://quizzl.941design.de/groups?join={nonce}&admin={adminNpub}&name={urlEncodedGroupName}`
+- The URL follows format `https://nostling.941design.de/groups?join={nonce}&admin={adminNpub}&name={urlEncodedGroupName}`
 - "Copy Link" button copies the URL to clipboard and shows a success toast
 - Optional label input (text field) is stored with the `InviteLink` record
 - On copy or close, `saveInviteLink()` persists the `InviteLink` to IndexedDB with `muted: false`
@@ -52,7 +52,7 @@
 - `clearJoinRequestGroup(groupId: string)` removes the group key from `joinRequests` and calls `emit()`
 - `totalUnread` in `useUnreadCounts()` sums both `counts` and `joinRequests` values
 - `useUnreadCounts()` returns `joinRequests` alongside existing `counts`
-- The test bridge on `window.__quizzlUnread` exposes the new functions
+- The test bridge on `window.__nostlingUnread` exposes the new functions
 
 ## AC-7: Notification Bell Integration
 - `NotificationBell` badge count reflects the combined total from chat messages and join requests

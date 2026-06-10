@@ -49,7 +49,7 @@
       "scenario": 6,
       "scenario_name": "Forged-sig rejection",
       "question": "Does the spec inject a kind:0 with mismatched sig (sig='a'.repeat(128)) and assert parseProfilePayload returns null?",
-      "answer": "Yes. groups-profile-request.spec.ts:365-398. Constructs a forged SignedProfileEvent with all-'a' sig, calls window.__quizzlTest.parseProfilePayload via page.evaluate, asserts return is null. AC-040 is also exercised here (sig verification rejects before merge). Status: included."
+      "answer": "Yes. groups-profile-request.spec.ts:365-398. Constructs a forged SignedProfileEvent with all-'a' sig, calls window.__nostlingTest.parseProfilePayload via page.evaluate, asserts return is null. AC-040 is also exercised here (sig verification rejects before merge). Status: included."
     },
     {
       "id": "AC-046",

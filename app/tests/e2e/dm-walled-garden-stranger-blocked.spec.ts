@@ -26,7 +26,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
 async function waitForBridge(page: Page) {
   await page.waitForFunction(
-    () => !!(window as any).__quizzlUnread,
+    () => !!(window as any).__nostlingUnread,
     null,
     { timeout: 10_000 },
   );
@@ -130,18 +130,18 @@ test.describe('DM walled garden: stranger blocked (AC-TEST-4)', () => {
       await malloryPage.waitForLoadState('networkidle');
       await waitForBridge(malloryPage);
 
-      // Publish via the app's __quizzlPublishDm bridge (NOT raw WebSocket, NOT @/ imports).
+      // Publish via the app's __nostlingPublishDm bridge (NOT raw WebSocket, NOT @/ imports).
       // The bridge is installed by unreadStore.ts in dev mode and uses the page's own identity.
       const DM_CONTENT = 'stranger-dm-should-be-blocked';
       await malloryPage.waitForFunction(
-        () => typeof (window as any).__quizzlPublishDm === 'function',
+        () => typeof (window as any).__nostlingPublishDm === 'function',
         null,
         { timeout: 10_000 },
       );
       await malloryPage.evaluate(
         async ({ alicePub, content }) => {
           try {
-            await (window as any).__quizzlPublishDm(alicePub, content);
+            await (window as any).__nostlingPublishDm(alicePub, content);
           } catch {
             // Ignore publish errors — the relay may reject or the event may
             // still land; what matters is Alice's gate blocks it on receipt.

@@ -44,7 +44,7 @@ A Welcome from another user does NOT automatically add them to the whitelist. Th
 |---|---|
 | Keep ADR-001 (live-only) | Correct but too aggressive: ex-members whose groups disbanded lose DM reachability even though they were legitimately admitted. Creates surprising UX when groups are temporary (study-session-scoped groups). |
 | Read-only threads for ex-members (keep history, block new) | Already rejected in ADR-001 — creates ghost contacts with ambiguous trust state. The ever-known-peer approach avoids this by continuing to allow new DMs from known-good peers. |
-| NIP-02 follow-list as trust source | Still rejected — follow lists are not Quizzl-managed and can be manipulated externally. |
+| NIP-02 follow-list as trust source | Still rejected — follow lists are not Nostling-managed and can be manipulated externally. |
 | Per-group contact lists (allow only while group is live) | Equivalent to ADR-001 but more complex. Provides no additional safety benefit over live-only membership while incurring the same UX cost. |
 | Auto-accept all Welcomes immediately | Widens the pre-admission attack surface — anyone who can craft a Welcome event could become reachable. Rejected for security. |
 

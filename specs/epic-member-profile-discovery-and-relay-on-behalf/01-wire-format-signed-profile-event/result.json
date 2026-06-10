@@ -55,7 +55,7 @@
         "tests_passed": 19,
         "tests_failed": 0,
         "duration_minutes": 5.0,
-        "log": "/tmp/quizzl-e2e-profile-regression-r2.log"
+        "log": "/tmp/nostling-e2e-profile-regression-r2.log"
       }
     },
     "policy_decision": "Strict mismatch policy applied per verifier recommendation. For story 01, signedEvent-bearing rumors with outer/inner pubkey mismatch are dropped — there is no legitimate relay-on-behalf path in this story. Story 06 will introduce its own carve-out (likely a distinct rumor kind or an explicit relay flag) and re-evaluate the dispatcher gate then. Permissive (always-trust-inner-author) was rejected because for story 01 alone the two are equivalent and strict provides better defence-in-depth against a malicious peer wrapping arbitrary other-author profiles."
@@ -99,7 +99,7 @@
       "tests_passed": 19,
       "tests_failed": 0,
       "duration_minutes": 5.2,
-      "log": "/tmp/quizzl-e2e-profile-regression.log"
+      "log": "/tmp/nostling-e2e-profile-regression.log"
     },
     "full_e2e_groups": {
       "deferred_until": "story 07",

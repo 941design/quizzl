@@ -137,6 +137,6 @@
     "The media factory/store for GroupMediaStore uses sha256 of PLAINTEXT as the key (per marmot-group.d.ts comments) but Blossom URLs are addressed by sha256 of the ENCRYPTED blob. Both hashes need to be tracked: plaintext sha256 is in attachment.sha256 (for IDB cache key), encrypted sha256 is needed to construct the Blossom URL.",
     "Does the receive pipeline in MarmotContext subscribeToGroupMessages already handle kind 9 rumors with imeta tags, or does the kind 9 branch only extract rumor.content? Currently it only reads rumor.content and rumor.pubkey (MarmotContext.tsx:547-559). Tag extraction would need to be added.",
     "No fullscreen/lightbox modal example exists — the largest modal is size='lg'. A lightbox for viewing a full-size image would need size='full' or 'xl' with a custom layout. Chakra supports size='full' but no example is in the codebase yet.",
-    "The quizzl static export (output: 'export') means no server-side API routes are available. Blossom upload must be a direct client-to-server fetch without a proxy. Auth token (NIP-98) signing must happen in the browser using the existing signerAdapter."
+    "The nostling static export (output: 'export') means no server-side API routes are available. Blossom upload must be a direct client-to-server fetch without a proxy. Auth token (NIP-98) signing must happen in the browser using the existing signerAdapter."
   ]
 }

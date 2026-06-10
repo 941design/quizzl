@@ -28,7 +28,7 @@ export type ImageMessageContent = {
  * This is the *persisted* shape: parsed from the original `imeta` tags so the
  * `full` vs `thumb` classification stays explicit. Earlier we stored a flat
  * `MediaAttachment[]` and inferred role from filename or index — that broke
- * for any sender outside Quizzl's exact filename convention.
+ * for any sender outside Nostling's exact filename convention.
  */
 export type RoledAttachments = {
   full: ChatMediaAttachment | null;

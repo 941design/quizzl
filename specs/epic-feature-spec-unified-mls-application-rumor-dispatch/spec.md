@@ -73,7 +73,7 @@ The header comment at `ChatStoreContext.tsx:5-10` claims its kind-7 branch "cove
 Pick **the event-bus channel** (`MarmotGroup.on('applicationMessage', ...)`) as the canonical source. Reasons:
 
 - It naturally carries own-send echoes, which is necessary for the optimistic UI to converge with remote-truth state without a separate code path. The current `ChatStoreContext` already relies on this for kind-7.
-- It is the marmot-ts-native event surface; the callback path is a quizzl-side adapter (`subscribeToGroupMessages`) that wraps the same machinery and exists primarily to deliver the historical-sync hook. After unification, `subscribeToGroupMessages` returns nothing application-layer; it only owns relay-subscription lifecycle and history-sync signalling.
+- It is the marmot-ts-native event surface; the callback path is a nostling-side adapter (`subscribeToGroupMessages`) that wraps the same machinery and exists primarily to deliver the historical-sync hook. After unification, `subscribeToGroupMessages` returns nothing application-layer; it only owns relay-subscription lifecycle and history-sync signalling.
 - The callback path's "skip own messages" filter is a workaround for a problem that does not exist on the bus channel: the bus delivers own-echoes, and consumers can dedupe on `rumor.id` against the optimistic record they already wrote. Centralising deduplication at one place is simpler than partitioning by source.
 
 The bus channel is wired into one dispatcher module that owns the kind table.
@@ -120,7 +120,7 @@ The dispatcher:
 1. Maintains an LRU `Set<string>` of recently-seen `rumor.id`s, capped at 1000 entries per group, and short-circuits on a hit. This is the **only** dedup point in the system. (Today, dedup is split between `loadMessages` IDB reads and `messagesRef.current` React state.)
 2. Calls each registered handler whose `kind` matches the rumor's `kind`. Multiple handlers may register for the same kind; they run in registration order, sequentially (await between each), so a handler may rely on prior handlers' state.
 3. Catches per-handler errors with `console.warn` and a structured tag (`[dispatcher.<kind>]`) so one failing handler does not silence others or crash the subscription.
-4. Tracks per-handler metrics for observability (count, last-error, last-duration) on a debug surface attached to `window.__quizzlTest` in development.
+4. Tracks per-handler metrics for observability (count, last-error, last-duration) on a debug surface attached to `window.__nostlingTest` in development.
 
 ### Handler registration
 
@@ -166,7 +166,7 @@ The same pattern holds for kind-7 (reactions), where the optimistic write goes t
 
 ### Removing the callback path
 
-`subscribeToGroupMessages` keeps its lifecycle responsibility — opening the NDK kind-445 subscription, running `EpochResolver` for fork resolution, signalling `onHistorySynced` — but loses its `onApplicationMessage` parameter. Internally the resolver still drives `mlsGroup.ingest()`; the rumor reaches consumers via the bus, not via a quizzl-supplied callback.
+`subscribeToGroupMessages` keeps its lifecycle responsibility — opening the NDK kind-445 subscription, running `EpochResolver` for fork resolution, signalling `onHistorySynced` — but loses its `onApplicationMessage` parameter. Internally the resolver still drives `mlsGroup.ingest()`; the rumor reaches consumers via the bus, not via a nostling-supplied callback.
 
 `MarmotContext` calls `subscribeToGroupMessages(groupId, relays, mlsGroup, ndk, { onMembersChanged, onHistorySynced })` and a separate `dispatcher.subscribe(group, ctx)` for application rumors. The two are independent: even if the dispatcher unsubscribes (e.g. on context tear-down), the kind-445 ingest continues.
 

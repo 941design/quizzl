@@ -152,7 +152,7 @@ export async function buildBlossomAuthEvent(
   const draft = {
     kind: 24242,
     created_at: now,
-    content: 'quizzl image upload',
+    content: 'nostling image upload',
     tags: [
       ['t', 'upload'],
       ['x', ciphertextSha256],

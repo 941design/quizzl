@@ -112,14 +112,14 @@
       "chat_idb_key": "'quizzl:messages:{groupId}' in keyval-store/keyval",
       "clearAppState_note": "clearAppState deletes 9 MDK-named IDB databases but NOT the keyval-store used by reactions/chat/unread — tests verifying IDB write counts must use readIdbRecord against 'keyval-store'/'keyval'"
     },
-    "window_quizzlTest_surface": {
+    "window_nostlingTest_surface": {
       "exists": true,
       "declaration_file": "app/tests/e2e/helpers/rumor-counter.ts",
       "current_hooks": {
         "onRumorSent": "profile/request send paths only",
         "onRumorReceived": "PROFILE_RUMOR_KIND only"
       },
-      "ar6_idb_write_counter": "Does NOT exist. Must be added. Options: (a) extend __quizzlTest.onChatIdbWrite hooked into chatPersistence.appendMessage, or (b) use readIdbRecord after dispatch to count IDB rows."
+      "ar6_idb_write_counter": "Does NOT exist. Must be added. Options: (a) extend __nostlingTest.onChatIdbWrite hooked into chatPersistence.appendMessage, or (b) use readIdbRecord after dispatch to count IDB rows."
     },
     "test_conventions": {
       "ac_references_in_descriptions": "Every test description references AC numbers (AC-38, AC-40, etc.)",

@@ -91,7 +91,7 @@ After this refactor, version counters (`setChatVersion`, `setProfileVersion`, et
 
 ### IDB write counter for AR-6
 
-`window.__quizzlTest.onChatIdbWrite` callback does not currently exist. Story 2 (or Story 1) must add this hook to `chatPersistence.appendMessage` guarded by `process.env.NODE_ENV !== 'production' && typeof window !== 'undefined'`. Alternatively, AR-6's unit test can use the Map-mock idb-keyval and count `set(key, value)` calls directly — the e2e variant uses `readIdbRecord` to count rows.
+`window.__nostlingTest.onChatIdbWrite` callback does not currently exist. Story 2 (or Story 1) must add this hook to `chatPersistence.appendMessage` guarded by `process.env.NODE_ENV !== 'production' && typeof window !== 'undefined'`. Alternatively, AR-6's unit test can use the Map-mock idb-keyval and count `set(key, value)` calls directly — the e2e variant uses `readIdbRecord` to count rows.
 
 ### CHAT_MESSAGE_KIND kind-7 literal → named constant
 

@@ -58,7 +58,7 @@
     "clearAppState_update": "clearAppState() in app/tests/e2e/helpers/clear-state.ts clears lp_* localStorage keys (covers new lp_knownPeers_v1, lp_pendingInvitations_v1). IDB databases list must NOT need updating since knownPeers/pendingInvitations use localStorage, not IDB.",
     "groups_contacts_change": "After Alice invites Bob (invite-submit-btn, invite-success visible), Bob must see pending invitation and click Accept before groups list shows the group. The test at line 63-66 needs: navigate to /groups/, find pending invitation row for Alice, click Accept button, THEN expect group card visible.",
     "existing_walled_garden_e2e": {
-      "dm_publish_bridge": "window.__quizzlPublishDm — app-side publish bridge, NOT raw WebSocket. Required per CLAUDE.md e2e rule.",
+      "dm_publish_bridge": "window.__nostlingPublishDm — app-side publish bridge, NOT raw WebSocket. Required per CLAUDE.md e2e rule.",
       "all_three_specs_keep": "dm-walled-garden-stranger-blocked, group-member-allowed, retroactive-purge — all kept unchanged per DD-12."
     }
   },

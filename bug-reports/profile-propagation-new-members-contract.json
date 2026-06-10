@@ -55,7 +55,7 @@
     "performance": "Only fires sendApplicationRumor when member count increases — not on every ingest event. No busy-loop or duplicate sends on stable membership.",
     "backward_compatibility": "No protocol changes. Profile message format identical to what onHistorySynced already sends. New members receive a duplicate profile message if they also trigger onHistorySynced on A's side — last-writer-wins by updatedAt handles deduplication."
   },
-  "fix_approach": "In the subscribeNewGroups() for-loop, before calling subscribeToGroupMessages(), capture the initial member count in a closure-scoped variable: let prevMemberCount = mlsMembers.length. Then inside the onMembersChanged callback (currently lines 397-403), after updating storage, add: if (newMembers.length > prevMemberCount) { const payload = serialiseProfileUpdate(localProfile); const rumor = { kind: 1, content: payload, tags: [['t', 'quizzl-profile']], created_at: Math.floor(Date.now() / 1000), pubkey: pubkeyHex ?? '', id: '' }; void mlsGroup.sendApplicationRumor(rumor).catch(...); } prevMemberCount = newMembers.length;",
+  "fix_approach": "In the subscribeNewGroups() for-loop, before calling subscribeToGroupMessages(), capture the initial member count in a closure-scoped variable: let prevMemberCount = mlsMembers.length. Then inside the onMembersChanged callback (currently lines 397-403), after updating storage, add: if (newMembers.length > prevMemberCount) { const payload = serialiseProfileUpdate(localProfile); const rumor = { kind: 1, content: payload, tags: [['t', 'nostling-profile']], created_at: Math.floor(Date.now() / 1000), pubkey: pubkeyHex ?? '', id: '' }; void mlsGroup.sendApplicationRumor(rumor).catch(...); } prevMemberCount = newMembers.length;",
   "constraints": [
     "No refactoring",
     "No optimizations beyond fix",
@@ -81,6 +81,6 @@
     "total_unit_tests": 125,
     "passing_unit_tests": 125,
     "failing_unit_tests": [],
-    "test_command": "cd /Users/mrother/Projects/941design/quizzl && make test-unit"
+    "test_command": "cd /Users/mrother/Projects/941design/nostling && make test-unit"
   }
 }

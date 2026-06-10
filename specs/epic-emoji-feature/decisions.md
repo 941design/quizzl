@@ -1,7 +1,7 @@
 # Project-specific Decisions for the Emoji Feature Epic
 
 These resolve the explicit "pick one and document it" choices in
-`spec.md` for the **quizzl / notestr** project. They are binding for all
+`spec.md` for the **nostling / nostling** project. They are binding for all
 stories in this epic; reopen via a follow-up epic if requirements change.
 
 ## D1 — Scope

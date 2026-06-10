@@ -26,7 +26,7 @@
       "question_id": "VQ-05-004",
       "phase": "pre-impl",
       "category": "TEST",
-      "question": "Does `groups-dispatch-isolation.spec.ts` use the `window.__quizzlTest.onChatIdbWrite` counter (shipped in Story 02 per AC-AR-22) to measure the IDB write count for the sent message — specifically, does the test set up the `onChatIdbWrite` handler before User A sends the message and assert the counter value is exactly 1 (or 2, for optimistic + bus-echo path) after network settle, with an inline comment citing AC-AR-22?"
+      "question": "Does `groups-dispatch-isolation.spec.ts` use the `window.__nostlingTest.onChatIdbWrite` counter (shipped in Story 02 per AC-AR-22) to measure the IDB write count for the sent message — specifically, does the test set up the `onChatIdbWrite` handler before User A sends the message and assert the counter value is exactly 1 (or 2, for optimistic + bus-echo path) after network settle, with an inline comment citing AC-AR-22?"
     },
     {
       "question_id": "VQ-05-005",

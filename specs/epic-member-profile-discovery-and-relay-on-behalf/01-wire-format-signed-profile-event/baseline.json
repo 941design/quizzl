@@ -27,7 +27,7 @@
     "runs": [
       {
         "run": 1,
-        "log": "/tmp/quizzl-e2e-baseline.log (deleted between runs)",
+        "log": "/tmp/nostling-e2e-baseline.log (deleted between runs)",
         "passed": 108,
         "failed": 16,
         "did_not_run": 36,
@@ -35,7 +35,7 @@
       },
       {
         "run": 2,
-        "log": "/tmp/quizzl-e2e-baseline-2.log",
+        "log": "/tmp/nostling-e2e-baseline-2.log",
         "passed": 119,
         "failed": 11,
         "did_not_run": 30,

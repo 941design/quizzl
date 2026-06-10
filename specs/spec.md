@@ -1,4 +1,4 @@
-# Technical Specification: Quizzl (Next.js + React + TypeScript + Chakra UI)
+# Technical Specification: Nostling (Next.js + React + TypeScript + Chakra UI)
 
 ## 1. Purpose and Scope
 

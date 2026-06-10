@@ -132,7 +132,7 @@ User A receives the kind 200 response, decrypts, rehydrates.
 ## Combined Restore Flow (Relay + Peer)
 
 1. Restore nsec from mnemonic
-2. Fetch relay backup (kind 30078 `d:quizzl`) — if found, decrypt and rehydrate
+2. Fetch relay backup (kind 30078 `d:nostling`) — if found, decrypt and rehydrate
 3. Process pending Welcome invitations → rejoin groups
 4. Send `BACKUP_REQUEST` to each group
 5. If any peer responds with a newer backup (compare `created_at` or embedded timestamp) → update local state

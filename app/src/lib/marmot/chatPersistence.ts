@@ -250,7 +250,7 @@ export function appendMessage(groupId: string, message: ChatMessage): Promise<vo
     await set(key, [...existing, message]);
     // Dev-only hook: notify E2E tests when a message is written to IDB.
     if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-      (window as any).__quizzlTest?.onChatIdbWrite?.({ groupId, messageId: message.id });
+      (window as any).__nostlingTest?.onChatIdbWrite?.({ groupId, messageId: message.id });
     }
   });
   const settled = next.catch(() => {});

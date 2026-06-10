@@ -112,6 +112,6 @@
     "failing_e2e_tests": [
       "[chromium] › tests/e2e/story-04-notes-editor.spec.ts:34:7 › Story 04 - Notes Editor › user can type notes and see save status (pre-existing timeout failure, unrelated to this bug)"
     ],
-    "test_command": "cd /Users/mrother/Projects/941design/quizzl && make test"
+    "test_command": "cd /Users/mrother/Projects/941design/nostling && make test"
   }
 }

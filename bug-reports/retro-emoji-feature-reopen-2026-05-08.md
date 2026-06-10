@@ -1,7 +1,7 @@
 ---
 epic: epic-emoji-feature
-project: quizzl
-project_path: /Users/mrother/Projects/941design/quizzl
+project: nostling
+project_path: /Users/mrother/Projects/941design/nostling
 git_remote: <not-recorded-by-lead>
 commit_at_start: <reopen baseline — pre-dab5204>
 commit_at_end: d9ceec9
@@ -24,7 +24,7 @@ stories_escalated: 0
 ## Per-story findings
 
 ### S1 — Remove-tombstone bug fix at `ChatStoreContext.tsx:396-443`
-**Provenance**: quizzl @ commits [dab5204, d9ceec9]
+**Provenance**: nostling @ commits [dab5204, d9ceec9]
 **Source agents**: base:pbt-dev, base:verification-examiner
 **Scope**: project_specific
 **What made this harder**:
@@ -43,7 +43,7 @@ stories_escalated: 0
 ### Verifier rubber-stamping is a recurring failure mode, not a one-off
 **Source stories**: epic-emoji-feature/story-08 (prior round), epic-image-sharing/story-07, epic-emoji-feature S1 (this round, near-miss)
 **Source agents**: base:verification-examiner (this round, retrospectively flagging the prior round), lead cross-check against working tree and `bug-reports/e2e-iteration-2026-05-08.md`
-**Provenance**: quizzl — no commits for the bad verifications (the implementing diffs are missing or were missing); referenced artifacts: `groups-reactions.spec.ts:328`, `MarmotContext.tsx` vs. `ChatStoreContext.tsx` discrepancy in epic-image-sharing
+**Provenance**: nostling — no commits for the bad verifications (the implementing diffs are missing or were missing); referenced artifacts: `groups-reactions.spec.ts:328`, `MarmotContext.tsx` vs. `ChatStoreContext.tsx` discrepancy in epic-image-sharing
 **Observation**:
 > The original story-08 verifier closed AC-56 as YES while groups-reactions.spec.ts:328 was deterministically failing — the fix was not yet landed.
 

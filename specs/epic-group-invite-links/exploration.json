@@ -73,7 +73,7 @@
   "backup": {
     "file": "app/src/lib/backup/relayBackup.ts",
     "lines": "1-491",
-    "description": "BackupPayload type at lines 30-63. collectBackupPayload() at 107-198 gathers all state. restoreFromBackup() at 354-428 rehydrates. BackupScheduler with 5min debounce. Kind 30078 with d-tag 'quizzl'. NIP-44 encrypted.",
+    "description": "BackupPayload type at lines 30-63. collectBackupPayload() at 107-198 gathers all state. restoreFromBackup() at 354-428 rehydrates. BackupScheduler with 5min debounce. Kind 30078 with d-tag 'nostling'. NIP-44 encrypted.",
     "extension": "Add inviteLinks: InviteLink[] to BackupPayload, collect from IDB, restore to IDB."
   },
   "component_patterns": {

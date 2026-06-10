@@ -20,7 +20,7 @@
         "clearJoinRequestGroup(groupId) removes group key and calls emit() (unreadStore.ts:148-155)",
         "totalUnread in useUnreadCounts() sums both counts and joinRequests (unreadStore.ts:170-172)",
         "useUnreadCounts() returns joinRequests alongside counts (unreadStore.ts:176)",
-        "Test bridge on window.__quizzlUnread exposes all 3 new functions (unreadStore.ts:161-164)"
+        "Test bridge on window.__nostlingUnread exposes all 3 new functions (unreadStore.ts:161-164)"
       ]
     },
     "AC-7": {

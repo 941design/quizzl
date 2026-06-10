@@ -964,7 +964,7 @@ describe('initDirectMessageCounts — NoCoverage baseline: IDB-backed DM counts'
 
 // ── Unclassified survivors: test-bridge blocks (lines 342, 354-364) ───────────
 // Re-classified as equivalent / side-effect-only:
-//  L342 ObjectLiteral — window.__quizzlUnread assignment: this is the dev-only
+//  L342 ObjectLiteral — window.__nostlingUnread assignment: this is the dev-only
 //    test bridge setup. The bridge is never observable through any exported API
 //    in unit tests (window is undefined in Vitest). Equivalent.
 //  L354 BlockStatement — the outer `if (window !== undefined && NODE_ENV !== 'production')`.
@@ -980,7 +980,7 @@ describe('initDirectMessageCounts — NoCoverage baseline: IDB-backed DM counts'
 
 describe('test-bridge window assignment (lines 342, 354-364) — classified as equivalent', () => {
   /**
-   * The window.__quizzlUnread and window.__quizzlPublishDm bridges are dev-only
+   * The window.__nostlingUnread and window.__nostlingPublishDm bridges are dev-only
    * side effects that run only in browser (window !== undefined) and are not
    * observable through the module's exported functions in a Vitest environment.
    * These mutations are equivalent: no exported function's return value changes.

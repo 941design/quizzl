@@ -28,7 +28,7 @@ When User B joins:
 - **Affected Workflows**: Group member discovery, leaderboard display, collaborative quizzing features
 
 ## Environment/Context
-- Quizzl learning groups with MLS (Messaging Layer Security)
+- Nostling learning groups with MLS (Messaging Layer Security)
 - Nostr-based profile sync via application rumors
 - IndexedDB caching of member profiles per group
 - GitHub Pages hosting with Nostr relay network

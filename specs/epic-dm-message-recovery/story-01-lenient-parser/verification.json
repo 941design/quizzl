@@ -69,7 +69,7 @@
       "id": "pre-02",
       "question": "Does the existing text-envelope check need to be case-sensitive? Specifically, does `parsed.type === 'text'` also need to handle `'TEXT'` or `'Text'`?",
       "answer_required": "NO",
-      "notes": "quizzl always writes lowercase; third-party clients likely do too. Check whether existing tests assert lowercase-only. If lowercase is assumed, no change. Architect should verify against live relay samples of known third-party clients."
+      "notes": "nostling always writes lowercase; third-party clients likely do too. Check whether existing tests assert lowercase-only. If lowercase is assumed, no change. Architect should verify against live relay samples of known third-party clients."
     },
     {
       "id": "pre-03",

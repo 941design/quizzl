@@ -48,7 +48,7 @@
   "gaps_identified": [
     {
       "id": "G1",
-      "gap": "parseDirectPayload returns null for bare plaintext NIP-04 DMs from non-quizzl clients",
+      "gap": "parseDirectPayload returns null for bare plaintext NIP-04 DMs from non-nostling clients",
       "severity": "high",
       "files_involved": ["app/src/lib/directMessages.ts:parseDirectPayload"]
     },

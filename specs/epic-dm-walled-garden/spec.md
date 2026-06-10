@@ -9,7 +9,7 @@
 ## Problem
 
 Today, arbitrary Nostr pubkeys — pubkeys with whom the local user shares **no
-MLS group** — can deliver direct messages to a Quizzl client and have them:
+MLS group** — can deliver direct messages to a Nostling client and have them:
 
 1. **Stored** in IndexedDB under `quizzl:messages:dm:<stranger-pubkey>`.
 2. **Counted** on the notification bell as unread DMs.
@@ -17,7 +17,7 @@ MLS group** — can deliver direct messages to a Quizzl client and have them:
    becomes a tappable conversation in the Contacts view from then on,
    surviving app restart.
 
-This violates the walled-garden invariant of the product: a Quizzl user must
+This violates the walled-garden invariant of the product: a Nostling user must
 only be reachable by people they share a learning group with. Reachability
 is defined by **common MLS group membership**, established via the in-app
 group invitation flow. Anything else is unsolicited contact and must be
@@ -210,7 +210,7 @@ are planned.
    client receives. Two options:
 
    - **Option α — Second app context, no shared group (recommended).**
-     A second `browser.newContext()` is signed in as a Quizzl identity
+     A second `browser.newContext()` is signed in as a Nostling identity
      with no group in common with Alice. That context publishes via
      the app's own DM publish helpers
      (`publishDirectMessage` / gift-wrap send). Honours the

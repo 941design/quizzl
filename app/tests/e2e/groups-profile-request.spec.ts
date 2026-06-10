@@ -398,10 +398,10 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
   test('6. Forged-sig rejection: parseProfilePayload returns null for bad sig (AC-040 / AC-045)', async () => {
     test.setTimeout(30_000);
 
-    // Wait for window.__quizzlTest.parseProfilePayload to be exposed by MarmotContext
+    // Wait for window.__nostlingTest.parseProfilePayload to be exposed by MarmotContext
     await pgC.waitForFunction(
-      () => typeof (window as unknown as Record<string, unknown>).__quizzlTest !== 'undefined' &&
-        typeof ((window as unknown as Record<string, Record<string, unknown>>).__quizzlTest)?.parseProfilePayload === 'function',
+      () => typeof (window as unknown as Record<string, unknown>).__nostlingTest !== 'undefined' &&
+        typeof ((window as unknown as Record<string, Record<string, unknown>>).__nostlingTest)?.parseProfilePayload === 'function',
       { timeout: 20_000 },
     );
 
@@ -422,7 +422,7 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
 
     // parseProfilePayload must return null — sig verification via nostr-tools verifyEvent fails
     const parsed = await pgC.evaluate((content) => {
-      return ((window as unknown as Record<string, Record<string, unknown>>).__quizzlTest)
+      return ((window as unknown as Record<string, Record<string, unknown>>).__nostlingTest)
         ?.parseProfilePayload(content);
     }, forgedContent);
 

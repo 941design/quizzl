@@ -23,7 +23,7 @@
   ],
   "events_emitted": [],
   "events_consumed": [
-    "window.__quizzlTest.onChatIdbWrite (AC-AR-22 hook in chatPersistence.ts)"
+    "window.__nostlingTest.onChatIdbWrite (AC-AR-22 hook in chatPersistence.ts)"
   ],
   "test_targets": [
     "AC-AR-21: own-send produces exactly one IDB row and one rendered bubble",

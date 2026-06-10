@@ -280,7 +280,7 @@ the gates; otherwise the comment contradicts the code.
 
 ## Manual Validation
 
-- Open a fresh Quizzl client signed in as a deterministic test user.
+- Open a fresh Nostling client signed in as a deterministic test user.
   From a separate Nostr client (any) sign with a pubkey that shares
   no MLS group with the test user. Send (a) a kind-4 to the test
   user, (b) a kind-1059 → kind-14 to the test user. Confirm: bell

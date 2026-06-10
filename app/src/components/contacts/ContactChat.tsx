@@ -660,7 +660,7 @@ export default function ContactChat({
     }
   }, [copy.emoji.couldntReact, dmThread, peerPubkeyHex, privateKeyHex, pubkeyHex, toast]);
 
-  // Story-07: __quizzlDmReactions dev bridge for E2E tests (AC-46, e2e-policy.md).
+  // Story-07: __nostlingDmReactions dev bridge for E2E tests (AC-46, e2e-policy.md).
   // Guarded by NODE_ENV !== 'production' so it is tree-shaken in production builds.
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') return;
@@ -669,16 +669,16 @@ export default function ContactChat({
         if (targetPeerPubkeyHex !== peerPubkeyHex) return;
         const msg = messagesRef.current.find((m) => m.id === messageId);
         if (!msg) {
-          console.warn('[__quizzlDmReactions] message not found:', messageId);
+          console.warn('[__nostlingDmReactions] message not found:', messageId);
           return;
         }
         void handleReact(emoji, msg, isRemoval ? 'remove' : 'add');
       },
     };
-    (window as any).__quizzlDmReactions = bridge;
+    (window as any).__nostlingDmReactions = bridge;
     return () => {
-      if ((window as any).__quizzlDmReactions === bridge) {
-        delete (window as any).__quizzlDmReactions;
+      if ((window as any).__nostlingDmReactions === bridge) {
+        delete (window as any).__nostlingDmReactions;
       }
     };
   }, [handleReact, peerPubkeyHex]);

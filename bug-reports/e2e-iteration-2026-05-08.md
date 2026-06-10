@@ -105,7 +105,7 @@ Recent commit `af27581 fix(contacts): drop duplicate DM bubble caused by NDK ech
 
 **Repro**:
 ```bash
-export PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/playwright-quizzl"
+export PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/playwright-nostling"
 cd app && E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-contacts.spec.ts --retries=0
 ```
 Then revert `app/tests/e2e/groups-contacts.spec.ts:107` to `pageB.getByText('Hi Bob, from contacts')` to see the strict-mode trace.
@@ -152,11 +152,11 @@ The test is now `test.fixme()` with a comment pointing at the (incorrect, see B3
 
 The shared `/opt/playwright-browsers` cache is owned by root and contained chromium revision 1217. Playwright 1.58.2 (pinned in `app/package.json`) wants chromium 1208 — and the 1208 binary disappeared mid-session, presumably overwritten by a different project's `npx playwright install`. All e2e runs failed with `Executable doesn't exist` until worked around.
 
-**Workaround used in this session**: per-user cache via `export PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/playwright-quizzl` followed by `npx playwright install chromium`. Then all subsequent runs in this shell use that path. Used for the rest of the iteration without touching the shared cache.
+**Workaround used in this session**: per-user cache via `export PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/playwright-nostling` followed by `npx playwright install chromium`. Then all subsequent runs in this shell use that path. Used for the rest of the iteration without touching the shared cache.
 
 **Permanent fix candidates**:
 1. Set `PLAYWRIGHT_BROWSERS_PATH` in `.envrc` (per-project, picked up by direnv automatically).
-2. Add `export PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/playwright-quizzl` to the `ensure-playwright` Make target so any `make` invocation picks it up.
+2. Add `export PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/playwright-nostling` to the `ensure-playwright` Make target so any `make` invocation picks it up.
 3. Pin to project-local cache via Playwright's recently-stable `npx playwright install --browsers-path=node_modules/.cache/playwright`.
 
 The repo's `CLAUDE.md` already calls out cross-platform native-bindings issues; the Playwright cache should be normalized similarly.

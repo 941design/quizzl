@@ -2,52 +2,52 @@
   "focus": "similar-features",
   "key_files": [
     {
-      "path": "/Users/mrother/Projects/941design/quizzl/app/src/components/chat/ChatBox.tsx",
+      "path": "/Users/mrother/Projects/941design/nostling/app/src/components/chat/ChatBox.tsx",
       "lines": "1-553",
       "reason": "Shared render shell for both DM and group bubbles. Houses the compose toolbar (ImageAttachmentButton + Textarea + IconButton). The emoji trigger button and picker popover both live here. The message bubble slot (lines 396-423) is where reaction badges attach."
     },
     {
-      "path": "/Users/mrother/Projects/941design/quizzl/app/src/context/ChatStoreContext.tsx",
+      "path": "/Users/mrother/Projects/941design/nostling/app/src/context/ChatStoreContext.tsx",
       "lines": "1-257",
       "reason": "Group chat send path and inbound applicationMessage dispatch. The kind-dispatch switch (line 124) is where a case for reaction kind must be added. Optimistic send pattern with tempId (lines 177-197) is the template for reaction optimistic UI."
     },
     {
-      "path": "/Users/mrother/Projects/941design/quizzl/app/src/context/MarmotContext.tsx",
+      "path": "/Users/mrother/Projects/941design/nostling/app/src/context/MarmotContext.tsx",
       "lines": "530-643",
       "reason": "Inbound rumor kind dispatch for groups (lines 530-643). The if/else-if chain at line 534+ is where a reaction kind branch slots in. sendRumorSafe+buildRumor helpers at lines 72-110 are the canonical pattern for group outbound publishing."
     },
     {
-      "path": "/Users/mrother/Projects/941design/quizzl/app/src/lib/marmot/chatPersistence.ts",
+      "path": "/Users/mrother/Projects/941design/nostling/app/src/lib/marmot/chatPersistence.ts",
       "lines": "1-92",
       "reason": "idb-keyval persistence layer for messages. Key pattern quizzl:messages:{groupId}, serialized append queue. Reactions table must follow the same key convention and queue pattern."
     },
     {
-      "path": "/Users/mrother/Projects/941design/quizzl/app/src/lib/directMessages.ts",
+      "path": "/Users/mrother/Projects/941design/nostling/app/src/lib/directMessages.ts",
       "lines": "1-315",
       "reason": "DM outbound publish path: signDirectMessage at line 126 builds+signs kind-4, publishDirectMessage at line 149 publishes. Reaction kind-7 for DMs must follow the same sign-then-publish, NIP-04 encrypted payload pattern."
     },
     {
-      "path": "/Users/mrother/Projects/941design/quizzl/app/src/components/contacts/ContactChat.tsx",
+      "path": "/Users/mrother/Projects/941design/nostling/app/src/components/contacts/ContactChat.tsx",
       "lines": "1-228",
       "reason": "DM inbound ingestion: ingestEvent (line 60) decrypts and produces ChatMessage. Outbound sendMessage (line 144) demonstrates real-event-id optimistic pattern for DMs. Reaction send for DMs mirrors both."
     },
     {
-      "path": "/Users/mrother/Projects/941design/quizzl/app/src/lib/marmot/pollPersistence.ts",
+      "path": "/Users/mrother/Projects/941design/nostling/app/src/lib/marmot/pollPersistence.ts",
       "lines": "1-152",
       "reason": "Closest existing model for a secondary IDB table alongside messages. The per-key write-queue pattern (lines 67-78) and key prefix quizzl:polls:{groupId} are exactly the shape the reactions table should replicate."
     },
     {
-      "path": "/Users/mrother/Projects/941design/quizzl/app/src/lib/marmot/pollSync.ts",
+      "path": "/Users/mrother/Projects/941design/nostling/app/src/lib/marmot/pollSync.ts",
       "lines": "1-112",
       "reason": "Template for a new rumor-kind serialise/parse pair (POLL_OPEN_KIND=10, POLL_VOTE_KIND=11, POLL_CLOSE_KIND=12). A reaction kind (e.g. kind 7 within MLS application messages) would follow the same module shape."
     },
     {
-      "path": "/Users/mrother/Projects/941design/quizzl/app/src/components/groups/ImageAttachmentButton.tsx",
+      "path": "/Users/mrother/Projects/941design/nostling/app/src/components/groups/ImageAttachmentButton.tsx",
       "lines": "1-57",
       "reason": "Pattern for a single IconButton in the ChatBox toolbar. The emoji trigger button must mimic this: size=sm, variant=ghost, IconButton wrapper, no state in the button itself."
     },
     {
-      "path": "/Users/mrother/Projects/941design/quizzl/app/src/lib/marmot/welcomeSubscription.ts",
+      "path": "/Users/mrother/Projects/941design/nostling/app/src/lib/marmot/welcomeSubscription.ts",
       "lines": "185-299",
       "reason": "subscribeToGroupMessages — the live and historical kind-445 subscription that calls onApplicationMessage for all decrypted group rumors. The resolver callback is the only entry point for new inbound rumor kinds."
     }

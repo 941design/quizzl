@@ -160,9 +160,9 @@ async function publishIdentityToRelays(stored: StoredNostrIdentity): Promise<voi
     const metadataEvent = new NDK.NDKEvent(ndk, {
       kind: 0,
       content: JSON.stringify({
-        name: profile.nickname || 'Quizzl User',
-        about: 'Chatting with Quizzl',
-        client: 'quizzl',
+        name: profile.nickname || 'Nostling User',
+        about: 'Chatting with Nostling',
+        client: 'nostling',
       }),
       tags: [],
       created_at: Math.floor(Date.now() / 1000),

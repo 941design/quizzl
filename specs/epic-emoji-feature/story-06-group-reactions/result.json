@@ -36,7 +36,7 @@
     "subscribeReactions listener inside ChatStoreContext re-computes reactionsByMessageId on every write (optimistic, rollback, inbound echo via applicationMessage handler)",
     "ChatBox reads reactionsByMessageId via useChatStore() — safe in DM context because default value is empty Map",
     "Stub badge row rendered below each bubble (data-testid=reaction-badge-{msgId}-{emoji}); story-08 replaces with ReactionBadgeRow component",
-    "window.__quizzlReactions bridge in GroupChat.tsx guarded by process.env.NODE_ENV !== 'production'",
+    "window.__nostlingReactions bridge in GroupChat.tsx guarded by process.env.NODE_ENV !== 'production'",
     "sendReaction re-throws with { couldntReact: true } sentinel to signal toast to badge-click handler in ChatBox",
     "Kind-7 dispatch in MarmotContext uses dynamic import (same pattern as chatPersistence) for SSR safety",
     "Kind-7 dispatch also handled in ChatStoreContext applicationMessage handler to cover own-send echo via marmot-ts event bus"

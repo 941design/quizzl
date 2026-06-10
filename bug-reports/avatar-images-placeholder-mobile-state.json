@@ -15,7 +15,7 @@
   ],
   "agent_sessions": { "bug_fixer": "a4411b43e555ecd6d" },
   "baseline": {
-    "command": "cd /Users/mrother/Projects/941design/quizzl && make test",
+    "command": "cd /Users/mrother/Projects/941design/nostling && make test",
     "total_tests": 124,
     "passed": 124,
     "failed": [],

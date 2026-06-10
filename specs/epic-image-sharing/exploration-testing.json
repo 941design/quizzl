@@ -41,7 +41,7 @@
     "lint": "NOT a top-level Makefile target — use `cd app && npm run lint`"
   },
   "scripts_run_e2e": "scripts/run-e2e.mjs finds free port, starts next dev, waits, spawns playwright with BASE_URL injected. In groups mode also waits for strfry on 7777.",
-  "language_skills_guidance": "absent — /Users/mrother/Projects/941design/quizzl/skills/ does not exist",
+  "language_skills_guidance": "absent — /Users/mrother/Projects/941design/nostling/skills/ does not exist",
   "established_patterns": [
     "Inline IDB mock per file (Map closure)",
     "globalThis polyfill via Object.defineProperty for Web APIs (crypto, localStorage)",

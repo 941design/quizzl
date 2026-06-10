@@ -283,7 +283,7 @@
           "permanent": true
         }
       ],
-      "notes": "Completed 2026-05-07. app/tests/e2e/groups-profile-request.spec.ts with 6 test scenarios (AC-045). Helpers: helpers/rumor-counter.ts (installRumorCounter/getRumorCount using window.__quizzlTest hooks), helpers/idb-record.ts (deleteIdbRecord/readIdbRecord/writeIdbRecord). Forged-sig seam: MarmotContext.tsx exposes window.__quizzlTest.parseProfilePayload in dev mode. Retry-state-machine uses page.clock.install/fastForward (Playwright 1.58). Unit tests: 720/720, tsc clean."
+      "notes": "Completed 2026-05-07. app/tests/e2e/groups-profile-request.spec.ts with 6 test scenarios (AC-045). Helpers: helpers/rumor-counter.ts (installRumorCounter/getRumorCount using window.__nostlingTest hooks), helpers/idb-record.ts (deleteIdbRecord/readIdbRecord/writeIdbRecord). Forged-sig seam: MarmotContext.tsx exposes window.__nostlingTest.parseProfilePayload in dev mode. Retry-state-machine uses page.clock.install/fastForward (Playwright 1.58). Unit tests: 720/720, tsc clean."
     }
   ]
 }

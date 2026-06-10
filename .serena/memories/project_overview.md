@@ -1,7 +1,7 @@
-# Quizzl - Project Overview
+# Nostling - Project Overview
 
 ## Purpose
-Quizzl is a group-learning quiz application built as a static-export Next.js app. It features topic-based quizzes, study plans, study-time tracking, a leaderboard, a notes editor, mood theming, and user profiles with avatars/badges. Data is stored client-side (localStorage).
+Nostling is a group-learning quiz application built as a static-export Next.js app. It features topic-based quizzes, study plans, study-time tracking, a leaderboard, a notes editor, mood theming, and user profiles with avatars/badges. Data is stored client-side (localStorage).
 
 ## Tech Stack
 - **Framework**: Next.js 14 (Pages Router) with static export (`output: 'export'`)
@@ -12,7 +12,7 @@ Quizzl is a group-learning quiz application built as a static-export Next.js app
 - **Icons**: @iconify/react
 - **Testing**: Vitest (unit), Playwright (E2E)
 - **Build**: Makefile wrapping npm scripts, with platform-stamp mechanism for cross-platform dev (macOS ARM / Linux x86_64)
-- **Deployment**: Static export via FTP (lftp) to HostEurope, deployed to `/quizzl` and `/group-learn` paths
+- **Deployment**: Static export via FTP (lftp) to HostEurope, deployed to `/nostling` and `/group-learn` paths
 
 ## Codebase Structure
 ```
@@ -55,4 +55,4 @@ CLAUDE.md                 # AI assistant instructions
 - **Static export**: No server-side rendering; all data is client-side (localStorage)
 - **Context providers**: AppThemeProvider > ChakraProvider > LanguageProvider > ProfileProvider > Layout > Page
 - **Path alias**: `@/*` maps to `app/*` (e.g., `@/src/components/Layout`)
-- **Production basePath**: `/quizzl` (empty in dev)
+- **Production basePath**: `/nostling` (empty in dev)

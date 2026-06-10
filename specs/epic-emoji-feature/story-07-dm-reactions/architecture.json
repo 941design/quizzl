@@ -19,7 +19,7 @@
     }
   ],
   "private_files": [
-    "app/src/components/contacts/ContactChat.tsx (handleReact callback, kind-7 dispatch in handleGiftWrapEvent, __quizzlDmReactions bridge)",
+    "app/src/components/contacts/ContactChat.tsx (handleReact callback, kind-7 dispatch in handleGiftWrapEvent, __nostlingDmReactions bridge)",
     "app/tests/unit/directMessages/dmReactions.test.ts",
     "app/tests/unit/reactions/api.test.ts (modified: fix tests for pre-work change)",
     "app/tests/unit/marmot/groupReactions.test.ts (modified: add dispatcher gate test)",

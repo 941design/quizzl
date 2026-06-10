@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 declare global {
   interface Window {
     __rumorCounters: { in: Record<number, number>; out: Record<number, number> };
-    __quizzlTest: {
+    __nostlingTest: {
       onRumorSent?: (kind: number) => void;
       onRumorReceived?: (kind: number) => void;
       parseProfilePayload?: (content: string) => unknown;
@@ -15,7 +15,7 @@ declare global {
 /**
  * Install rumor counters on the page via addInitScript.
  *
- * Sets up window.__quizzlTest.onRumorSent and onRumorReceived callbacks that
+ * Sets up window.__nostlingTest.onRumorSent and onRumorReceived callbacks that
  * are called by MarmotContext dev-mode hooks on each PROFILE_REQUEST_KIND send
  * and each PROFILE_RUMOR_KIND receive.
  *
@@ -28,13 +28,13 @@ export async function installRumorCounter(page: Page, kinds: number[]): Promise<
       window.__rumorCounters.in[k] = 0;
       window.__rumorCounters.out[k] = 0;
     }
-    window.__quizzlTest = window.__quizzlTest ?? ({} as Window['__quizzlTest']);
-    window.__quizzlTest.onRumorSent = (kind) => {
+    window.__nostlingTest = window.__nostlingTest ?? ({} as Window['__nostlingTest']);
+    window.__nostlingTest.onRumorSent = (kind) => {
       if (window.__rumorCounters.out[kind] !== undefined) {
         window.__rumorCounters.out[kind]++;
       }
     };
-    window.__quizzlTest.onRumorReceived = (kind) => {
+    window.__nostlingTest.onRumorReceived = (kind) => {
       if (window.__rumorCounters.in[kind] !== undefined) {
         window.__rumorCounters.in[kind]++;
       }

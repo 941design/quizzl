@@ -25,7 +25,7 @@ LOCAL_DIST := $(APP_DIR)/out
 MAINTENANCE_DIST := maintenance
 
 help: ## Show this help message
-	@echo "Quizzl"
+	@echo "Nostling"
 	@echo ""
 	@echo "Usage: make [target]"
 	@echo ""
@@ -212,7 +212,7 @@ maintenance: maintenance-check ## Take site offline: wipe remote tree and publis
 # Renewal: re-run every ~60-90 days, then re-upload in KIS.
 # Requires: certbot (brew install certbot / apt install certbot)
 
-SSL_DOMAIN := quizzl.941design.de
+SSL_DOMAIN := nostling.941design.de
 SSL_ASSETS_DOMAIN := assets.941design.de
 SSL_DIR := .ssl
 

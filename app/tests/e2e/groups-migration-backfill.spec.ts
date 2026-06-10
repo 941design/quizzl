@@ -169,7 +169,7 @@ test.describe.serial('Migration backfill: knownPeers seeded from groups; strange
 
     // Wait for MarmotContext to initialize and migration to complete
     await alicePage.waitForFunction(
-      () => !!(window as any).__quizzlUnread,
+      () => !!(window as any).__nostlingUnread,
       null,
       { timeout: 30_000 },
     );

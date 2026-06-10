@@ -84,7 +84,7 @@
       "phase": "pre-impl",
       "category": "SPEC",
       "ac_id": "AC-40",
-      "question": "AC-40 requires a multi-emoji E2E test in app/tests/e2e/groups-reactions.spec.ts verifying that tab A sends a kind-7 group reaction, tab B's message bubble gains a badge row, and tab A can attach a second distinct emoji to the same message without removing the first. Does the E2E test use the window.__quizzlReactions state-injection bridge to send reactions (as specified in the story brief), or does it interact with actual UI affordances? If it uses the bridge, is the bridge guarded by process.env.NODE_ENV !== 'production' to keep production code unchanged? Does the test assert that two distinct badge elements are visible on tab B after both reactions are sent?"
+      "question": "AC-40 requires a multi-emoji E2E test in app/tests/e2e/groups-reactions.spec.ts verifying that tab A sends a kind-7 group reaction, tab B's message bubble gains a badge row, and tab A can attach a second distinct emoji to the same message without removing the first. Does the E2E test use the window.__nostlingReactions state-injection bridge to send reactions (as specified in the story brief), or does it interact with actual UI affordances? If it uses the bridge, is the bridge guarded by process.env.NODE_ENV !== 'production' to keep production code unchanged? Does the test assert that two distinct badge elements are visible on tab B after both reactions are sent?"
     },
     {
       "question_id": "VQ-06-014",

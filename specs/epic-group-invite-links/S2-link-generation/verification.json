@@ -12,7 +12,7 @@
     {
       "id": "V2",
       "category": "spec_alignment",
-      "question": "Does buildInviteUrl() construct the correct URL format: https://quizzl.941design.de/groups?join={nonce}&admin={npub}&name={encodedName}?",
+      "question": "Does buildInviteUrl() construct the correct URL format: https://nostling.941design.de/groups?join={nonce}&admin={npub}&name={encodedName}?",
       "expected": "yes",
       "evidence": "inviteLinkGeneration.ts uses URL API with searchParams.set for join, admin, name. Tests verify all params round-trip correctly including special characters."
     },

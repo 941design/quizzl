@@ -4,7 +4,7 @@
  * Separated from the modal component for testability.
  */
 
-const INVITE_BASE_URL = 'https://quizzl.941design.de/groups';
+const INVITE_BASE_URL = 'https://nostling.941design.de/groups';
 
 /**
  * Generate a 16-byte random nonce as a 32-character hex string.

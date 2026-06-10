@@ -339,7 +339,7 @@ export function purgeStrangerDmCounters(
 // --- Test bridge ---
 // Expose store functions on window so e2e tests can inject unread state.
 if (typeof window !== 'undefined') {
-  (window as any).__quizzlUnread = {
+  (window as any).__nostlingUnread = {
     incrementUnread, markAsRead, clearUnreadGroup,
     incrementJoinRequest, markJoinRequestsRead, decrementJoinRequest, clearJoinRequestGroup,
     incrementDirectMessage, markDirectMessagesRead, clearDirectMessageContact,
@@ -351,7 +351,7 @@ if (typeof window !== 'undefined') {
 // send DMs without dynamic-importing webpack-aliased modules from page.evaluate.
 // The bridge reads the private key from localStorage at call time.
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-  (window as any).__quizzlPublishDm = async (peerPubkeyHex: string, content: string): Promise<void> => {
+  (window as any).__nostlingPublishDm = async (peerPubkeyHex: string, content: string): Promise<void> => {
     try {
       const identityRaw = localStorage.getItem('lp_nostrIdentity_v1');
       if (!identityRaw) throw new Error('No identity in localStorage');
@@ -361,7 +361,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
       const ndk = await connectNdk(identity.privateKeyHex);
       await publishDirectMessage({ ndk, privateKeyHex: identity.privateKeyHex, peerPubkeyHex, content });
     } catch (err) {
-      console.error('[__quizzlPublishDm] failed:', err);
+      console.error('[__nostlingPublishDm] failed:', err);
       throw err;
     }
   };

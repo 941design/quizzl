@@ -10,7 +10,7 @@ Today, restoring from a mnemonic recovers only the Nostr keypair and kind-0 prof
 
 ## Key Decisions
 
-### 1. Single opaque event — `d` tag is just `quizzl`
+### 1. Single opaque event — `d` tag is just `nostling`
 
 One kind-30078 event per user. The `d` tag reveals only the app name. All data categories (settings, progress, groups, MLS state) are inside the NIP-44 encrypted blob. No metadata leakage about group count, topic count, or data categories.
 
@@ -36,11 +36,11 @@ All data in one event = no partial-write risk. Either the full backup lands or i
 
 ### 6. Relay size limit respected
 
-Target backup size well under 64 KB. MLS state for small groups (5-20 members) is a few KB each. Study progress and settings are small. If the blob ever exceeds limits, split into `quizzl` and `quizzl:ext` without revealing contents.
+Target backup size well under 64 KB. MLS state for small groups (5-20 members) is a few KB each. Study progress and settings are small. If the blob ever exceeds limits, split into `nostling` and `quizzl:ext` without revealing contents.
 
 ### 7. Schema versioning
 
-The backup payload includes a `version` field (integer, starting at 1). On restore, the deserializer checks the version and applies any necessary migrations. Unknown future versions are rejected with a user-facing message ("backup was created by a newer version of quizzl").
+The backup payload includes a `version` field (integer, starting at 1). On restore, the deserializer checks the version and applies any necessary migrations. Unknown future versions are rejected with a user-facing message ("backup was created by a newer version of nostling").
 
 ### 8. Relay selection
 
@@ -164,7 +164,7 @@ Triggers are prioritized by significance. Not all state changes warrant a relay 
 ```json
 {
   "kind": 30078,
-  "tags": [["d", "quizzl"]],
+  "tags": [["d", "nostling"]],
   "content": "<NIP-44 ciphertext of JSON.stringify(BackupPayload)>",
   "created_at": 1234567890
 }
@@ -183,18 +183,18 @@ Signed with the user's private key via the existing `signerAdapter.signEvent()`.
    d. Read chat messages from `loadMessages(groupId)` → take last 10
 4. Assemble `BackupPayload` with `version: 1` and `createdAt: now`
 5. `JSON.stringify(payload)` → encrypt via `signer.nip44.encrypt(ownPubkey, json)`
-6. Build kind 30078 event with `d:quizzl` tag and encrypted content
+6. Build kind 30078 event with `d:nostling` tag and encrypted content
 7. Sign via `signer.signEvent(event)`
 8. Publish to relays from kind 30051 relay list
 
 ## Restore Flow
 
 1. User enters mnemonic → derive nsec/npub, create signer
-2. Fetch kind 30078 with filter `{ kinds: [30078], authors: [pubkey], '#d': ['quizzl'] }` from relays
+2. Fetch kind 30078 with filter `{ kinds: [30078], authors: [pubkey], '#d': ['nostling'] }` from relays
 3. Take most recent event (highest `created_at`) — some backup is better than nothing
 4. Decrypt content via `signer.nip44.decrypt(ownPubkey, event.content)`
 5. `JSON.parse(decrypted)` → validate `version` field
-6. If `version > 1`: reject with "backup from newer quizzl version" message
+6. If `version > 1`: reject with "backup from newer nostling version" message
 7. Warn user that restore replaces all current data, get confirmation
 8. Clear existing local state (localStorage keys + IDB stores)
 9. Rehydrate localStorage: write each non-null field back to its `lp_*` key

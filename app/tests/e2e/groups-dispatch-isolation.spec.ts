@@ -77,15 +77,15 @@ async function getFirstMessageId(page: Page): Promise<string> {
 }
 
 /**
- * Install the window.__quizzlTest.onChatIdbWrite counter on the page.
+ * Install the window.__nostlingTest.onChatIdbWrite counter on the page.
  * Must be called via page.addInitScript BEFORE the page navigates so the
  * hook is in place when appendMessage fires.  (AC-AR-22)
  */
 async function installChatIdbWriteCounter(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    (window as any).__quizzlTest = (window as any).__quizzlTest ?? {};
+    (window as any).__nostlingTest = (window as any).__nostlingTest ?? {};
     (window as any).__chatIdbWriteCount = 0;
-    (window as any).__quizzlTest.onChatIdbWrite = (_args: { groupId: string; messageId: string }) => {
+    (window as any).__nostlingTest.onChatIdbWrite = (_args: { groupId: string; messageId: string }) => {
       (window as any).__chatIdbWriteCount++;
     };
   });
@@ -118,9 +118,9 @@ test.describe.serial('groups-dispatch-isolation', () => {
       localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
       localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null }));
       // IDB write counter for AC-AR-22
-      (window as any).__quizzlTest = (window as any).__quizzlTest ?? {};
+      (window as any).__nostlingTest = (window as any).__nostlingTest ?? {};
       (window as any).__chatIdbWriteCount = 0;
-      (window as any).__quizzlTest.onChatIdbWrite = (_args: { groupId: string; messageId: string }) => {
+      (window as any).__nostlingTest.onChatIdbWrite = (_args: { groupId: string; messageId: string }) => {
         (window as any).__chatIdbWriteCount++;
       };
     }, {

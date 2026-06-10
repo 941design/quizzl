@@ -7,7 +7,7 @@
 - MLS `SerializedClientState` (Uint8Array) is base64-encoded via `btoa(String.fromCharCode(...bytes))` for JSON serialization.
 
 ## AC-2: NIP-44 Encrypt-to-Self and Event Construction
-- `createBackupEvent(payload, signer, pubkeyHex)` produces a kind 30078 Nostr event with `tags: [["d", "quizzl"]]`, `content` set to `signer.nip44.encrypt(pubkeyHex, JSON.stringify(payload))`, and the event is signed via `signer.signEvent()`.
+- `createBackupEvent(payload, signer, pubkeyHex)` produces a kind 30078 Nostr event with `tags: [["d", "nostling"]]`, `content` set to `signer.nip44.encrypt(pubkeyHex, JSON.stringify(payload))`, and the event is signed via `signer.signEvent()`.
 
 ## AC-3: Publish to Relays
 - `publishBackup(signer, pubkeyHex)` publishes the backup event to relays from the kind 30051 relay list, falling back to `DEFAULT_RELAYS`.
@@ -15,7 +15,7 @@
 - If all relays reject, the function returns a failure indicator that callers can use to show a non-blocking toast.
 
 ## AC-4: Fetch and Decrypt Backup
-- `fetchBackup(signer, pubkeyHex, relays)` fetches kind 30078 events with filter `{ kinds: [30078], authors: [pubkeyHex], '#d': ['quizzl'] }`, takes the most recent by `created_at`, decrypts via `signer.nip44.decrypt(pubkeyHex, content)`, and returns the parsed `BackupPayload`.
+- `fetchBackup(signer, pubkeyHex, relays)` fetches kind 30078 events with filter `{ kinds: [30078], authors: [pubkeyHex], '#d': ['nostling'] }`, takes the most recent by `created_at`, decrypts via `signer.nip44.decrypt(pubkeyHex, content)`, and returns the parsed `BackupPayload`.
 - If `version > 1`, the function throws an error with message indicating a newer version.
 - If no backup event exists, the function returns `null`.
 

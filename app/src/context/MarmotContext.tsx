@@ -422,7 +422,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
       void import('@/src/lib/marmot/profileSync').then(({ parseProfilePayload }) => {
-        const hooks = ((window as unknown as Record<string, unknown>).__quizzlTest ??= {}) as Record<string, unknown>;
+        const hooks = ((window as unknown as Record<string, unknown>).__nostlingTest ??= {}) as Record<string, unknown>;
         hooks.parseProfilePayload = parseProfilePayload;
       });
     }
@@ -467,7 +467,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             const rumor = buildRumor(PROFILE_REQUEST_KIND, content, pubkeyHex);
             await sendRumorSafe(g, rumor as any, { softFail: true });
             if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-              ((window as unknown as Record<string, unknown>).__quizzlTest as { onRumorSent?: (kind: number) => void } | undefined)
+              ((window as unknown as Record<string, unknown>).__nostlingTest as { onRumorSent?: (kind: number) => void } | undefined)
                 ?.onRumorSent?.(PROFILE_REQUEST_KIND);
             }
           },
@@ -689,7 +689,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           // Default `d` slot for kind 30443 key package events. All key packages
           // from this client share a single addressable slot so relays replace
           // the previous one on rotation.
-          clientId: 'quizzl',
+          clientId: 'nostling',
         });
 
         if (cancelled) return;
@@ -1472,7 +1472,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           const rumor = buildRumor(PROFILE_REQUEST_KIND, content, pubkeyHex);
           await sendRumorSafe(g, rumor as any, { softFail: true });
           if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-            ((window as unknown as Record<string, unknown>).__quizzlTest as { onRumorSent?: (kind: number) => void } | undefined)
+            ((window as unknown as Record<string, unknown>).__nostlingTest as { onRumorSent?: (kind: number) => void } | undefined)
               ?.onRumorSent?.(PROFILE_REQUEST_KIND);
           }
         },

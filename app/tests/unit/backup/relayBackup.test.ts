@@ -451,7 +451,7 @@ function makeMockSigner() {
 const mockNdk = { fake: true } as unknown;
 
 describe('createBackupEvent', () => {
-  it('encrypts payload and returns kind 30078 event with d:quizzl tag', async () => {
+  it('encrypts payload and returns kind 30078 event with d:nostling tag', async () => {
     const signer = makeMockSigner();
     const payload: BackupPayload = {
       version: 1,
@@ -467,7 +467,7 @@ describe('createBackupEvent', () => {
     const event = await createBackupEvent(payload, signer, 'deadbeef');
 
     expect(event.kind).toBe(30078);
-    expect(event.tags).toEqual([['d', 'quizzl']]);
+    expect(event.tags).toEqual([['d', 'nostling']]);
     expect(event.content).toBe(`encrypted:${JSON.stringify(payload)}`);
     expect(signer.nip44.encrypt).toHaveBeenCalledWith('deadbeef', JSON.stringify(payload));
     expect(typeof event.created_at).toBe('number');

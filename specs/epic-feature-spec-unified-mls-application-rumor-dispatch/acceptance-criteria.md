@@ -118,7 +118,7 @@ Sending a text-only chat message from `ChatStoreContext.sendMessage` produces at
 
 Note: per the Q1 finding (marmot-ts does NOT emit `'applicationMessage'` for own-send rumors — `#sentEventIds` causes own echoes to be skipped before `emit` fires), the dispatcher never receives the own-send rumor via the bus. The optimistic write in `sendMessage` is the only write for the local user's own messages. The IDB idempotence guarantee is therefore exercised on the peer-echo path, not the local-bus path.
 
-The `window.__quizzlTest.onChatIdbWrite` hook must be added to `chatPersistence.appendMessage`, guarded by `process.env.NODE_ENV !== 'production' && typeof window !== 'undefined'`. This hook fires on every `appendMessage` invocation and receives `{ groupId, messageId }`. Alternatively the unit test counts `set()` calls on the Map-mock idb-keyval store.
+The `window.__nostlingTest.onChatIdbWrite` hook must be added to `chatPersistence.appendMessage`, guarded by `process.env.NODE_ENV !== 'production' && typeof window !== 'undefined'`. This hook fires on every `appendMessage` invocation and receives `{ groupId, messageId }`. Alternatively the unit test counts `set()` calls on the Map-mock idb-keyval store.
 
 ### Verification method
 Unit test: `app/tests/unit/marmot/chatHandler.test.ts`
@@ -441,7 +441,7 @@ Pass condition: all scenarios in the file pass. `readIdbRecord` returns exactly 
 
 ---
 
-## AC-AR-22: window.__quizzlTest.onChatIdbWrite hook added to chatPersistence.appendMessage
+## AC-AR-22: window.__nostlingTest.onChatIdbWrite hook added to chatPersistence.appendMessage
 
 **Story**: Story 2
 **Type**: structural
@@ -452,17 +452,17 @@ Pass condition: all scenarios in the file pass. `readIdbRecord` returns exactly 
 
 ```ts
 if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-  (window as any).__quizzlTest?.onChatIdbWrite?.({ groupId, messageId: message.id });
+  (window as any).__nostlingTest?.onChatIdbWrite?.({ groupId, messageId: message.id });
 }
 ```
 
-The hook fires after the IDB write resolves. The declaration file `app/tests/e2e/helpers/rumor-counter.ts` (or an adjacent helper) declares `onChatIdbWrite?: (args: { groupId: string; messageId: string }) => void` on the `__quizzlTest` surface.
+The hook fires after the IDB write resolves. The declaration file `app/tests/e2e/helpers/rumor-counter.ts` (or an adjacent helper) declares `onChatIdbWrite?: (args: { groupId: string; messageId: string }) => void` on the `__nostlingTest` surface.
 
 This hook is required by AC-AR-6 and AC-AR-21 for the e2e write-count verification approach. The unit test alternative (Map-mock idb-keyval `set` call count) does not require this hook, but the e2e variant does.
 
 ### Verification method
 Code inspection: `app/src/lib/marmot/chatPersistence.ts` contains the guarded hook call in `appendMessage`.
-Code inspection: `app/tests/e2e/helpers/rumor-counter.ts` (or equivalent) declares `onChatIdbWrite` on `window.__quizzlTest`.
+Code inspection: `app/tests/e2e/helpers/rumor-counter.ts` (or equivalent) declares `onChatIdbWrite` on `window.__nostlingTest`.
 Pass condition: grep `onChatIdbWrite` in `app/src/lib/marmot/chatPersistence.ts` returns a match.
 
 ---

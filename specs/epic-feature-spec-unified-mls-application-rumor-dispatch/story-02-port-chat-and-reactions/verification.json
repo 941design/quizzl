@@ -148,7 +148,7 @@
       "phase": "pre-impl",
       "category": "SPEC",
       "ac_id": "AC-AR-22",
-      "question": "Does `app/src/lib/marmot/chatPersistence.ts`'s `appendMessage` function contain the guarded hook `if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') { (window as any).__quizzlTest?.onChatIdbWrite?.({ groupId, messageId: message.id }); }` after the IDB write resolves — and does `app/tests/e2e/helpers/rumor-counter.ts` (or equivalent) declare `onChatIdbWrite?: (args: { groupId: string; messageId: string }) => void` on the `__quizzlTest` surface type?"
+      "question": "Does `app/src/lib/marmot/chatPersistence.ts`'s `appendMessage` function contain the guarded hook `if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') { (window as any).__nostlingTest?.onChatIdbWrite?.({ groupId, messageId: message.id }); }` after the IDB write resolves — and does `app/tests/e2e/helpers/rumor-counter.ts` (or equivalent) declare `onChatIdbWrite?: (args: { groupId: string; messageId: string }) => void` on the `__nostlingTest` surface type?"
     }
   ],
   "post_impl_questions": [

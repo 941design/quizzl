@@ -33,8 +33,8 @@ to encounter them.
 
 | ID | Gap | Where | Effect |
 |----|-----|-------|--------|
-| G1 | Strict envelope parser rejects bare-plaintext NIP-04 | `app/src/lib/directMessages.ts:98–123` (`parseDirectPayload`) | DM from a non-quizzl client over kind-4 silently dropped after decrypt; bell rings (no decrypt needed) |
-| G2 | Bell watcher does not subscribe to NIP-17 gift wraps | `app/src/lib/directMessageNotifications.ts:36–39` (`subscribeDirectMessageNotifications`) | quizzl→quizzl DM does not bump the bell; if the chat is closed and the relay does not redeliver post-EOSE, the message is unobservable |
+| G1 | Strict envelope parser rejects bare-plaintext NIP-04 | `app/src/lib/directMessages.ts:98–123` (`parseDirectPayload`) | DM from a non-nostling client over kind-4 silently dropped after decrypt; bell rings (no decrypt needed) |
+| G2 | Bell watcher does not subscribe to NIP-17 gift wraps | `app/src/lib/directMessageNotifications.ts:36–39` (`subscribeDirectMessageNotifications`) | nostling→nostling DM does not bump the bell; if the chat is closed and the relay does not redeliver post-EOSE, the message is unobservable |
 | G3 | No historical fetch for kind-1059 on chat mount | `app/src/components/contacts/ContactChat.tsx:128–146` (`init`) | A gift-wrapped DM that arrived while the chat was closed may not replay when the chat is opened, depending on relay redelivery semantics |
 
 There is also a smaller, purely-local concern: messages whose stored
@@ -58,16 +58,16 @@ The fix must support every shape the live wire and the local store can
 present:
 
 - **kind-4 / NIP-04, JSON envelope** (`{"type":"text","text":…}` /
-  `{"type":"image","version":1,…}`) — quizzl-to-quizzl legacy outbound,
+  `{"type":"image","version":1,…}`) — nostling-to-nostling legacy outbound,
   accepted today.
 - **kind-4 / NIP-04, bare plaintext** — every other Nostr client
   (Damus, Amethyst, Coracle, 0xchat, Iris, Snort, Nostrudel, Primal,
   Plebeian Market, …). Currently dropped.
-- **kind-1059 → seal 13 → rumor kind 14, JSON envelope** — quizzl-to-
-  quizzl since `3dcc481`. Accepted today **only** while the chat is
+- **kind-1059 → seal 13 → rumor kind 14, JSON envelope** — nostling-to-
+  nostling since `3dcc481`. Accepted today **only** while the chat is
   mounted and the relay redelivers.
 - **kind-1059 → seal 13 → rumor kind 14, bare plaintext** — third-party
-  NIP-17 clients that do not adopt quizzl's JSON envelope. Currently
+  NIP-17 clients that do not adopt nostling's JSON envelope. Currently
   dropped on display.
 - **kind-1059 → seal 13 → rumor kind 7** — DM reactions (story-07 of
   the emoji epic). Out of scope for this epic; already covered.
@@ -81,7 +81,7 @@ present:
 
 1. **Display every DM** the user can decrypt. The display path must not
    reject a successfully-decrypted message just because its content
-   shape differs from quizzl's JSON envelope.
+   shape differs from nostling's JSON envelope.
 2. **Ring the bell for every inbound DM** the local key can receive,
    regardless of transport (kind-4 or kind-1059).
 3. **Recover historical DMs** that landed during a window in which the
@@ -337,7 +337,7 @@ drop the way this defect was discovered.
 
 The above adds end-to-end exercise of the *real* relay → bell →
 ContactChat pipeline, which `notification-bell.spec.ts` does not do
-today (it injects via `__quizzlUnread` directly). The bell tests stay
+today (it injects via `__nostlingUnread` directly). The bell tests stay
 as smoke tests for the badge-rendering layer; the new tests cover the
 event-flow layer.
 

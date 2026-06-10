@@ -164,7 +164,7 @@ test.describe('DM walled garden: retroactive purge on boot (AC-TEST-6)', () => {
 
       // Wait for MarmotContext to initialize (bridge becomes available)
       await alicePage.waitForFunction(
-        () => !!(window as any).__quizzlUnread,
+        () => !!(window as any).__nostlingUnread,
         null,
         { timeout: 15_000 },
       );

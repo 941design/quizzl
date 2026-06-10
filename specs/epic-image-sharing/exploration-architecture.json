@@ -1,6 +1,6 @@
 {
   "focus": "architecture",
-  "summary": "quizzl uses pure React Context + idb-keyval with no Zustand, no service worker, and no Web Workers. MarmotClient is constructed in MarmotContext.tsx with signer/groupStateBackend/keyPackageStore/network params; a `media` factory is the obvious extension point. The signer path is useNostrIdentity().privateKeyHex -> createPrivateKeySigner (signerAdapter.ts:11), already used by BackupContext for signing relay events — same pattern fits kind 24242 Blossom auth events.",
+  "summary": "nostling uses pure React Context + idb-keyval with no Zustand, no service worker, and no Web Workers. MarmotClient is constructed in MarmotContext.tsx with signer/groupStateBackend/keyPackageStore/network params; a `media` factory is the obvious extension point. The signer path is useNostrIdentity().privateKeyHex -> createPrivateKeySigner (signerAdapter.ts:11), already used by BackupContext for signing relay events — same pattern fits kind 24242 Blossom auth events.",
   "key_files": [
     {"path": "app/src/context/MarmotContext.tsx", "lines": "263-268", "purpose": "MarmotClient construction, storage factory wiring point"},
     {"path": "app/src/context/MarmotContext.tsx", "lines": "881-895", "purpose": "leaveGroup() cleanup hooks - where clearMediaRefs goes"},
@@ -29,7 +29,7 @@
     "constructor_signature": "new MarmotClient({ signer, groupStateBackend: new KeyValueGroupStateBackend(new IdbGroupStateBackend()), keyPackageStore: new KeyPackageStore(new IdbKeyPackageBackend()), network: new NdkNetworkAdapter(ndk) })",
     "existing_storage_factories": ["IdbGroupStateBackend (groupStorage.ts:195-240)", "IdbKeyPackageBackend (groupStorage.ts:195-240)"],
     "where_to_wire_media_factory": "app/src/context/MarmotContext.tsx:259 (immediately after IdbKeyPackageBackend instantiation, within init() scope)",
-    "idb_store_declaration_pattern": "app/src/lib/marmot/groupStorage.ts:27-31 — module-scope createStore('quizzl-{domain}', '{domain}')"
+    "idb_store_declaration_pattern": "app/src/lib/marmot/groupStorage.ts:27-31 — module-scope createStore('nostling-{domain}', '{domain}')"
   },
   "ndk_signer_access": {
     "context": "useNostrIdentity() from app/src/context/NostrIdentityContext.tsx:40",
@@ -56,7 +56,7 @@
   "pwa_status": "NO service worker. app/public/ contains favicon.ico, robots.txt, content/ only — no sw.js, no workbox-*.js, no manifest.json. _app.tsx registers no SW. Blossom fetches will not be intercepted.",
   "bundle_conventions": "next.config.mjs has no experimental.optimizePackageImports, no bundlePages, no size budgets. Only webpack customization is a next-swc-loader passthrough for 4 packages that crash SWC. blurhash (~5KB gzipped) is fine.",
   "established_patterns": {
-    "idb_store_per_domain": "createStore('quizzl-{domain}', '{domain}') at module scope in the relevant persistence file",
+    "idb_store_per_domain": "createStore('nostling-{domain}', '{domain}') at module scope in the relevant persistence file",
     "version_counter_bump": "MarmotContext bumps chatVersion/profileVersion/pollVersion after IDB writes; downstream contexts re-read IDB reactively",
     "lazy_dynamic_import": "MarmotContext.tsx:249-253 uses await import(...) inside useEffect to avoid SSR crashes; all marmot-ts and NDK imports follow this",
     "soft_error_handling": "every marmot-ts call in try/catch with console.warn; opts.softFail pattern for fire-and-forget paths (sendRumorSafe, MarmotContext.tsx:71-95)",

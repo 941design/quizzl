@@ -40,7 +40,7 @@
     "ChatBox reactionsByMessageId prop: optional, falls back to useChatStore() for groups; ContactChat passes explicit DM reactions map to prevent cross-surface state contamination (arch §3 rule 3)",
     "ReactionBadgeRow outer Flex does NOT have role='group' (would have conflicted with outer message-row role='group' for _groupHover CSS selector)",
     "Touch long-press: vanilla onPointerDown/onPointerUp/onPointerLeave with 500ms timer, no new library",
-    "Bridge (__quizzlReactions, __quizzlDmReactions) preserved in GroupChat.tsx and ContactChat.tsx for story-06 and story-07 test backwards compat per story brief"
+    "Bridge (__nostlingReactions, __nostlingDmReactions) preserved in GroupChat.tsx and ContactChat.tsx for story-06 and story-07 test backwards compat per story brief"
   ],
   "mocks_introduced": [],
   "build": "TypeScript compilation clean. make build green (12/12 static pages).",

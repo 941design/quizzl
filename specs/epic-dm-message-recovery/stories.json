@@ -72,7 +72,7 @@
     {
       "id": "story-05",
       "name": "E2E hardening — full relay-to-bell-to-chat pipeline",
-      "description": "Add four Playwright E2E tests that exercise the complete event flow: relay → NDK subscription → bell watcher → bell badge → ContactChat ingest → IDB → chat bubble. These close the gap that `notification-bell.spec.ts` leaves open (it injects via `__quizzlUnread` directly, exercising only the badge-rendering layer). Story 05 can be integrated into stories 01–04 as the test additions land; no implementation work required beyond writing the test files. All four tests use deterministic keypairs from architecture.md (alice, bob). Cross-protocol dedup is explicitly NOT expected: same logical message arriving over both kind-4 and kind-1059 with different ids renders twice.",
+      "description": "Add four Playwright E2E tests that exercise the complete event flow: relay → NDK subscription → bell watcher → bell badge → ContactChat ingest → IDB → chat bubble. These close the gap that `notification-bell.spec.ts` leaves open (it injects via `__nostlingUnread` directly, exercising only the badge-rendering layer). Story 05 can be integrated into stories 01–04 as the test additions land; no implementation work required beyond writing the test files. All four tests use deterministic keypairs from architecture.md (alice, bob). Cross-protocol dedup is explicitly NOT expected: same logical message arriving over both kind-4 and kind-1059 with different ids renders twice.",
       "acceptance_criteria": ["AC-12", "AC-13", "AC-22", "AC-29"],
       "spec_sections": ["§4.2"],
       "story_order": 5,

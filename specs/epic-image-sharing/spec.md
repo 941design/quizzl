@@ -2,9 +2,9 @@
 
 ## Context
 
-The group chat in quizzl currently supports plain text messages and structured poll announcements only (see `app/src/components/groups/GroupChat.tsx`, `app/src/context/ChatStoreContext.tsx`). Members can describe things in words but cannot share visual content — screenshots of homework, photos from a class trip, diagrams, memes — which is the table-stakes feature people expect from any group messenger.
+The group chat in nostling currently supports plain text messages and structured poll announcements only (see `app/src/components/groups/GroupChat.tsx`, `app/src/context/ChatStoreContext.tsx`). Members can describe things in words but cannot share visual content — screenshots of homework, photos from a class trip, diagrams, memes — which is the table-stakes feature people expect from any group messenger.
 
-Marmot's MIP-04 v2 spec already defines an end-to-end encrypted image format (per-file ChaCha20-Poly1305 keys derived from the MLS exporter secret), and `marmot-ts` v0.4.0 ships ready-to-use helpers (`MarmotGroup.encryptMedia`, `decryptMedia`, `parseMediaImetaTag`). The encryption story is solved upstream — the missing pieces are entirely on the quizzl side: a file-picker UI, an upload client for Blossom, a thumbnail/blurhash pipeline, a wire format for image-bearing chat messages, a persistence layer for decrypted blobs, and a lightbox viewer.
+Marmot's MIP-04 v2 spec already defines an end-to-end encrypted image format (per-file ChaCha20-Poly1305 keys derived from the MLS exporter secret), and `marmot-ts` v0.4.0 ships ready-to-use helpers (`MarmotGroup.encryptMedia`, `decryptMedia`, `parseMediaImetaTag`). The encryption story is solved upstream — the missing pieces are entirely on the nostling side: a file-picker UI, an upload client for Blossom, a thumbnail/blurhash pipeline, a wire format for image-bearing chat messages, a persistence layer for decrypted blobs, and a lightbox viewer.
 
 The intended outcome: a group member can attach an image to a chat message (with optional caption), the image is processed locally (resized, EXIF-stripped, thumbnailed, blurhashed), encrypted with the current MLS epoch's per-file key, uploaded to a default Blossom server, and published as an MLS application rumor. Receiving members see a blurhash placeholder immediately, a low-res thumbnail as soon as it decrypts, and the full image after the larger blob downloads. Tapping the image opens a fullscreen lightbox with a download button. Everything that goes over the network is ciphertext.
 
@@ -49,7 +49,7 @@ Image messages reuse kind 9 (`CHAT_MESSAGE_KIND`) and follow the same JSON-conte
 **Rumor:**
 - `kind`: 9
 - `content`: JSON string `{ "type": "image", "version": 1, "caption": "<optional>" }`. Caption is omitted (or empty string) when the user sent no caption.
-- `tags`: two `imeta` tags built per NIP-92 + MIP-04 v2 — one for the full image, one for the thumbnail. They are distinguished by an extra `role` field that quizzl owns:
+- `tags`: two `imeta` tags built per NIP-92 + MIP-04 v2 — one for the full image, one for the thumbnail. They are distinguished by an extra `role` field that nostling owns:
   - Full image: `["imeta", "url <blossom>", "m image/webp", "x <hex>", "size <bytes>", "dim <wxh>", "blurhash <bh>", "filename <name>", "n <nonce-hex>", "v mip04-v2", "role full"]`
   - Thumbnail: same shape with `role thumb` and its own `url`/`x`/`n` fields.
 
@@ -152,7 +152,7 @@ Two new IndexedDB key namespaces (via the existing `idb-keyval` dep):
 
 Plaintext storage is consistent with how kind 9 text already lives plaintext in IDB. The privacy model is "device-local plaintext is acceptable, network ciphertext is mandatory".
 
-`MarmotGroup` is given a `media` factory that wraps this same store so that `marmot-ts`' built-in cache and quizzl's UI cache are the same physical storage. This is the single source of truth — no double-caching.
+`MarmotGroup` is given a `media` factory that wraps this same store so that `marmot-ts`' built-in cache and nostling's UI cache are the same physical storage. This is the single source of truth — no double-caching.
 
 ## Blossom
 
@@ -163,7 +163,7 @@ Hardcoded default in `app/src/config/blossom.ts`: **`https://blossom.band`** (de
 BUD-01 signed authorization events (kind 24242) signed via NDK's existing signer. Each auth event:
 - `created_at`: now
 - `tags`: `[["t","upload"], ["x", <ciphertext-sha256>], ["expiration", <now+5min>]]`
-- `content`: short human label (e.g. `"quizzl image upload"`)
+- `content`: short human label (e.g. `"nostling image upload"`)
 
 Re-signing per upload is fine; we don't bother caching auths in v1.
 
@@ -229,7 +229,7 @@ Both EN and DE entries added to `app/src/lib/i18n.ts` under `groups`:
 - Image edits (crop, rotate, draw on top) before sending.
 - Deletion / unsend. (No NIP-09 support yet in the chat layer.)
 - Forwarding an image to another group. (Would require either re-encrypting under the destination group's epoch or referencing the existing ciphertext — out of scope for v1.)
-- Garbage collection on Blossom. Quizzl uploads but never deletes; cleanup is server policy. The MIP spec leaves this to operators.
+- Garbage collection on Blossom. Nostling uploads but never deletes; cleanup is server policy. The MIP spec leaves this to operators.
 - User-configurable Blossom server. Hardcoded default per the answered scope question; revisit if needed.
 - Client-side virus / NSFW screening.
 
@@ -238,7 +238,7 @@ Both EN and DE entries added to `app/src/lib/i18n.ts` under `groups`:
 - ~~**Blossom server choice.**~~ **RESOLVED 2026-04-25: `https://blossom.band`.**
 - **NDK signer availability.** Blossom auth requires an actual signer, not a read-only pubkey. Confirm the auth bootstrap path makes a signer available before the user can open the chat composer (almost certainly yes — they'd already need a signer to send any chat message — but worth a defensive check).
 - ~~**OffscreenCanvas + Web Worker support.**~~ **RESOLVED 2026-04-25: V1 is main-thread only; Worker migration deferred.**
-- **`role` tag isn't part of MIP-04.** It's a quizzl-private convention encoded in the imeta tag's name-value pairs. NIP-92 allows arbitrary keys, and `parseMediaImetaTag` ignores unknown ones, so this is forward-compatible with other MIP-04 clients (they'd see two attachments with the same filename and could pick either).
+- **`role` tag isn't part of MIP-04.** It's a nostling-private convention encoded in the imeta tag's name-value pairs. NIP-92 allows arbitrary keys, and `parseMediaImetaTag` ignores unknown ones, so this is forward-compatible with other MIP-04 clients (they'd see two attachments with the same filename and could pick either).
 - **Blossom address: ciphertext hash vs plaintext hash.** BUD-02 uses the SHA-256 of the uploaded bytes as the address — for us that's the *ciphertext* hash. The MIP-04 attachment's `sha256` field is the *plaintext* hash. Don't confuse them; they're distinct fields with distinct purposes.
 
 ## Files To Touch (Summary)

@@ -136,7 +136,7 @@
           "Any changes to MarmotContext.tsx or ChatStoreContext.tsx",
           "Any handler modules under handlers/ (Stories 02 and 03)",
           "Wiring the dispatcher into any group subscription",
-          "window.__quizzlTest hooks (Story 02)"
+          "window.__nostlingTest hooks (Story 02)"
         ]
       },
       "complexity": "medium",
@@ -157,7 +157,7 @@
       "id": "02",
       "name": "port-chat-and-reactions",
       "title": "Port CHAT_MESSAGE_KIND and kind-7 handlers; wire dispatcher in MarmotContext; remove ChatStoreContext listener",
-      "description": "Create chatHandler.ts and reactionHandler.ts under app/src/lib/marmot/handlers/. chatHandler.ts handles CHAT_MESSAGE_KIND (9): parses imeta tags into attachments, calls appendMessage(groupId, msg), skips incrementUnread for own-send (rumor.pubkey === ctx.selfPubkeyHex), calls incrementUnread for peer inbound from background groups. reactionHandler.ts handles kind 7 and introduces REACTION_RUMOR_KIND = 7: gates on target message existing locally, calls applyInboundRumor, bumps setReactionsVersion. Wire registerHandlers.ts so buildDispatcher(deps) registers both handlers. In MarmotContext.subscribeNewGroups(), call buildDispatcher(deps).subscribe(group, ctx) and store the returned unsubscribe alongside the existing subscribeToGroupMessages unsubscribe. Remove the group.on('applicationMessage') listener from ChatStoreContext (lines 283-288 and associated handler 224-278). Remove the CHAT_MESSAGE_KIND and kind-7 branches from MarmotContext's onApplicationMessage callback \u2014 leave the profile, profileRequest, score, and poll branches intact for Story 03. Add the window.__quizzlTest.onChatIdbWrite hook to chatPersistence.appendMessage (AC-AR-22). Deliver unit tests for chatHandler.ts and reactionHandler.ts.",
+      "description": "Create chatHandler.ts and reactionHandler.ts under app/src/lib/marmot/handlers/. chatHandler.ts handles CHAT_MESSAGE_KIND (9): parses imeta tags into attachments, calls appendMessage(groupId, msg), skips incrementUnread for own-send (rumor.pubkey === ctx.selfPubkeyHex), calls incrementUnread for peer inbound from background groups. reactionHandler.ts handles kind 7 and introduces REACTION_RUMOR_KIND = 7: gates on target message existing locally, calls applyInboundRumor, bumps setReactionsVersion. Wire registerHandlers.ts so buildDispatcher(deps) registers both handlers. In MarmotContext.subscribeNewGroups(), call buildDispatcher(deps).subscribe(group, ctx) and store the returned unsubscribe alongside the existing subscribeToGroupMessages unsubscribe. Remove the group.on('applicationMessage') listener from ChatStoreContext (lines 283-288 and associated handler 224-278). Remove the CHAT_MESSAGE_KIND and kind-7 branches from MarmotContext's onApplicationMessage callback \u2014 leave the profile, profileRequest, score, and poll branches intact for Story 03. Add the window.__nostlingTest.onChatIdbWrite hook to chatPersistence.appendMessage (AC-AR-22). Deliver unit tests for chatHandler.ts and reactionHandler.ts.",
       "owning_module": "handlers/chatHandler",
       "acceptance_criteria": [
         "AC-AR-1",
@@ -182,8 +182,8 @@
           "app/src/lib/marmot/registerHandlers.ts (modify): add chatHandler and reactionHandler to the handler list in buildDispatcher(deps); define deps bag fields for appendMessage, incrementUnread, setChatVersion, applyInboundRumor, setReactionsVersion, loadMessages",
           "app/src/context/MarmotContext.tsx (modify): call buildDispatcher(deps).subscribe(group, ctx) in subscribeNewGroups(); store returned unsubscribe; remove CHAT_MESSAGE_KIND and kind-7 branches from onApplicationMessage callback; remove if (senderPubkey === pubkeyHex) return guard (now redundant); keep profile/profileRequest/score/poll branches intact",
           "app/src/context/ChatStoreContext.tsx (modify): remove group.on('applicationMessage', handler) registration and the associated handler body",
-          "app/src/lib/marmot/chatPersistence.ts (modify): add window.__quizzlTest.onChatIdbWrite hook in appendMessage guarded by NODE_ENV check",
-          "app/tests/e2e/helpers/rumor-counter.ts (modify or create): declare onChatIdbWrite on __quizzlTest surface type",
+          "app/src/lib/marmot/chatPersistence.ts (modify): add window.__nostlingTest.onChatIdbWrite hook in appendMessage guarded by NODE_ENV check",
+          "app/tests/e2e/helpers/rumor-counter.ts (modify or create): declare onChatIdbWrite on __nostlingTest surface type",
           "app/tests/unit/marmot/chatHandler.test.ts (new): happy-path text, happy-path imeta, malformed payload, duplicate-id, incrementUnread background-group, incrementUnread own-send skip",
           "app/tests/unit/marmot/reactionHandler.test.ts (new): happy-path kind-7, target-message-not-found gate, duplicate-id"
         ],
@@ -312,7 +312,7 @@
       "id": "05",
       "name": "e2e-dispatch-isolation",
       "title": "New e2e test groups-dispatch-isolation.spec.ts \u2014 own-send produces one IDB row and one bubble",
-      "description": "Create app/tests/e2e/groups-dispatch-isolation.spec.ts as the durable structural regression sentinel for the unified dispatcher. The test uses two BrowserContext instances or two separate user identities. Scenario 1: User A sends a text-only chat message; after network settle, reads the IDB quizzl-messages store and asserts exactly one row for the sent message id; asserts tab 1's rendered message list contains exactly one element matching the sent content. Scenario 2: User B's tab (tab 2) sees exactly one bubble for that message. The spec uses test.describe.serial, suppressErrorOverlay(context), readIdbRecord helper (already present after epic-member-profile-discovery story 07), and the window.__quizzlTest.onChatIdbWrite counter added in Story 02 (AC-AR-22) to measure IDB write count. The file must confirm all AC-AR-3 grep invariants hold as preconditions (inline comments or a beforeAll structural check).",
+      "description": "Create app/tests/e2e/groups-dispatch-isolation.spec.ts as the durable structural regression sentinel for the unified dispatcher. The test uses two BrowserContext instances or two separate user identities. Scenario 1: User A sends a text-only chat message; after network settle, reads the IDB quizzl-messages store and asserts exactly one row for the sent message id; asserts tab 1's rendered message list contains exactly one element matching the sent content. Scenario 2: User B's tab (tab 2) sees exactly one bubble for that message. The spec uses test.describe.serial, suppressErrorOverlay(context), readIdbRecord helper (already present after epic-member-profile-discovery story 07), and the window.__nostlingTest.onChatIdbWrite counter added in Story 02 (AC-AR-22) to measure IDB write count. The file must confirm all AC-AR-3 grep invariants hold as preconditions (inline comments or a beforeAll structural check).",
       "owning_module": "groups-dispatch-isolation",
       "acceptance_criteria": [
         "AC-AR-21"

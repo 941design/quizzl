@@ -21,7 +21,7 @@
   "files_modified": [
     "app/src/lib/reactions/api.ts (pre-work: removed hasMessage check from applyInboundRumor)",
     "app/src/lib/directMessages.ts (added publishDirectReaction, removeDirectReaction)",
-    "app/src/components/contacts/ContactChat.tsx (handleReact, kind-7 dispatch, __quizzlDmReactions bridge, onReact prop; round-2: knownMessageIdsRef synchronous Set, gate switch)",
+    "app/src/components/contacts/ContactChat.tsx (handleReact, kind-7 dispatch, __nostlingDmReactions bridge, onReact prop; round-2: knownMessageIdsRef synchronous Set, gate switch)",
     "app/src/context/ChatStoreContext.tsx (round-2: added message-existence gate to kind-7 echo path)",
     "app/src/context/MarmotContext.tsx (pre-work: dispatcher gate on loadMessages for AC-39)",
     "app/tests/unit/reactions/api.test.ts (pre-work: updated tests for new leaf-module upsert-always behaviour)",
@@ -34,7 +34,7 @@
     "handleReact": "handleReact in ContactChat.tsx builds the rumor ONCE (single buildReactionRumor call) to guarantee the optimistic row id and the published event id are always identical. Avoids the second-boundary race that would arise from building the rumor twice. Seals and publishes directly without going through publishDirectReaction/removeDirectReaction.",
     "inbound": "Replaced the TODO(story-07-dm-reactions) stub in ContactChat.tsx's handleGiftWrapEvent with real kind-7 dispatch: gates on knownMessageIdsRef.current (synchronous Set), calls applyInboundRumor, subscribeReactions listeners trigger useDirectReactions recompute automatically.",
     "read_side": "useDirectReactions(peerPubkeyHex, selfPubkey, messages) hook in app/src/hooks/useDirectReactions.ts. Mirrors ChatStoreContext's reactionsByMessageId pattern but operates on the DM namespace without sharing any group state.",
-    "bridge": "__quizzlDmReactions window bridge in ContactChat.tsx, guarded by NODE_ENV !== 'production'. Cleaned up via useEffect return when peerPubkeyHex changes.",
+    "bridge": "__nostlingDmReactions window bridge in ContactChat.tsx, guarded by NODE_ENV !== 'production'. Cleaned up via useEffect return when peerPubkeyHex changes.",
     "chatbox_wiring": "onReact={handleReact} passed to ChatBox. ContactChat now supplies the DM reaction callback matching the AC-55 prop contract.",
     "round2_bug1_chatstorecontext": "ChatStoreContext.tsx kind-7 echo path (Path B) lacked the message-existence gate added to MarmotContext.tsx in round-1. Without it, a kind-7 rumor whose targetMessageId was not in local persistence would be silently stored via the echo path, defeating the pre-work fix. Fix: extract targetMessageId from the ['e'] tag (with typeof guard), check messagesRef.current, skip applyInboundRumor if not found.",
     "round2_bug2_stale_ref": "ContactChat.tsx kind-7 gate used messagesRef.current, which is synced by useEffect (runs after render). A kind-7 gift wrap arriving between setMessages and the next render would be silently discarded because messagesRef.current was stale. Fix: introduce knownMessageIdsRef (Set<string>) updated synchronously in the same tick as every message append (upsertMessages, initial load setMessages, sendImageMessage id swap). The gate now uses knownMessageIdsRef.current.has() — provably non-stale. messagesRef.current retained for other callers (sendReaction stable callback reads it for optimistic row building)."

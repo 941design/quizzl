@@ -117,7 +117,7 @@
       "description": "Implement the full invite/join lifecycle. On the group detail page, add 'Invite Member' button. User pastes an npub. App fetches the invitee's kind 443 KeyPackage from relays. If found, calls group.inviteByKeyPackageEvent() which publishes kind 445 Commit + kind 444 Welcome. On the invitee's side, app subscribes to kind 444 Welcomes on startup and auto-joins groups. Add 'Leave Group' functionality. Show clear error messages for missing KeyPackages.",
       "acceptance_criteria": [
         "'Invite Member' input accepts npub and shows error for invalid format",
-        "If invitee has no KeyPackage on relays, show 'User has not set up their Quizzl identity yet' error",
+        "If invitee has no KeyPackage on relays, show 'User has not set up their Nostling identity yet' error",
         "If KeyPackage found, invite completes and invitee appears in member list",
         "On receiving a kind 444 Welcome, the group auto-appears in the invitee's groups list after reload",
         "'Leave Group' button removes the group from the local groups list",

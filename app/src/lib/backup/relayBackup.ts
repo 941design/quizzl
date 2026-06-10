@@ -177,7 +177,7 @@ export async function collectBackupPayload(): Promise<BackupPayload> {
 
 /** Kind 30078 is a parameterized replaceable event (NIP-78: application data). */
 const BACKUP_EVENT_KIND = 30078;
-const BACKUP_D_TAG = 'quizzl';
+const BACKUP_D_TAG = 'nostling';
 
 /** Kind 30051 is a relay list for specific use (NIP-51 sets). */
 const RELAY_LIST_KIND = 30051;

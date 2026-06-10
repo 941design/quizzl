@@ -41,7 +41,7 @@ The link uses query parameters, not path segments: `/groups?join={nonce}&admin={
 ## Invite Link Format
 
 ```
-https://quizzl.941design.de/groups?join={nonce}&admin={adminNpub}&name={urlEncodedGroupName}
+https://nostling.941design.de/groups?join={nonce}&admin={adminNpub}&name={urlEncodedGroupName}
 ```
 
 | Parameter | Type | Purpose |

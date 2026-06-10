@@ -10,7 +10,7 @@
 ## Bug Description
 
 Arbitrary Nostr users — pubkeys with whom the local user shares **no MLS
-group** — can deliver direct messages to a Quizzl client and have them:
+group** — can deliver direct messages to a Nostling client and have them:
 
 1. **Stored** in IndexedDB under `quizzl:messages:dm:<stranger-pubkey>`.
 2. **Counted** on the notification bell as unread DMs.
@@ -18,7 +18,7 @@ group** — can deliver direct messages to a Quizzl client and have them:
    becomes a tappable conversation in the Contacts view from then on, even
    if no further DM ever arrives.
 
-This violates the walled-garden invariant of the product: a Quizzl user must
+This violates the walled-garden invariant of the product: a Nostling user must
 only be reachable by people they share a learning group with. Reachability is
 defined by **common MLS group membership**, established via the in-app group
 invitation flow. Any other inbound DM — whether NIP-04 (kind 4) or NIP-17
@@ -106,7 +106,7 @@ a permitted correspondent at all.
 
 Any pubkey on the public Nostr network can:
 
-- ring the bell of any Quizzl user whose pubkey they know,
+- ring the bell of any Nostling user whose pubkey they know,
 - inject persistent IDB state into that user’s app,
 - appear in that user’s contact list as a tappable conversation that
   cannot be removed from the source (`rememberContact` writes,
@@ -120,7 +120,7 @@ Any pubkey on the public Nostr network can:
 3. From any external client (e.g. `nak event` against the same relay),
    publish a kind-4 NIP-04 DM **OR** a NIP-17 kind-1059 gift wrap from
    a freshly generated keypair *Mallory* addressed (`#p`) to Alice.
-   Alice and Mallory have never shared a Quizzl group.
+   Alice and Mallory have never shared a Nostling group.
 4. Observe in Alice’s browser:
     - Notification bell increments to 1.
     - Mallory appears as a new entry in `/contacts`.
@@ -134,12 +134,12 @@ fix lands (see “Reproduction tests” below).
 ## Impact
 
 - **Severity:** Critical. Product-defining invariant violated.
-- **Affected users:** every Quizzl user with a discoverable pubkey on
+- **Affected users:** every Nostling user with a discoverable pubkey on
   open relays (i.e. anyone who has ever published any event from this
   identity, which is all current users).
 - **Affected workflows:** notification bell, contact list, DM chat, any
   feature that derives state from “people I’ve talked to”.
-- **Privacy:** strangers can confirm that a pubkey runs the Quizzl client
+- **Privacy:** strangers can confirm that a pubkey runs the Nostling client
   by observing whether bell behaviour changes (out-of-band), and can pin
   arbitrary content into the user’s local IDB.
 - **Abuse:** spam, harassment, phishing, scaling unsolicited contact
@@ -289,7 +289,7 @@ The fix surface is therefore narrow:
 4. **Where should Mallory come from in the e2e?** Per the
    `feedback_e2e_no_direct_relay` rule, Mallory must publish through
    the app. That means Mallory needs a logged-in browser context
-   *with* a Quizzl identity but *without* any group with Alice. Is
+   *with* a Nostling identity but *without* any group with Alice. Is
    that acceptable, or do you want a narrow exception to publish a
    pure kind-1059 fixture (one of the project’s “events the app
    cannot produce” cases per `CLAUDE.md`) for the stranger path?

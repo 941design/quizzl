@@ -1,6 +1,6 @@
-# Quizzl — Quiz Engine Business Logic
+# Nostling — Quiz Engine Business Logic
 
-This document describes the complete business logic of the Quizzl quiz system: how questions are defined, how users interact with them, how answers are evaluated and scored, how progress is persisted, and how quiz data flows through the application.
+This document describes the complete business logic of the Nostling quiz system: how questions are defined, how users interact with them, how answers are evaluated and scored, how progress is persisted, and how quiz data flows through the application.
 
 ---
 
@@ -47,7 +47,7 @@ topicsByLanguage[language] → topicsByLanguage['en'] → null (404)
 
 ## 2. Question Types
 
-Quizzl supports **three question types**, defined as a discriminated union on the `type` field.
+Nostling supports **three question types**, defined as a discriminated union on the `type` field.
 
 ### 2.1 Single Choice (`type: "single"`)
 

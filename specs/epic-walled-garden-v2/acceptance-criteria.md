@@ -455,7 +455,7 @@ pubkeys.
 
 ## Manual Validation
 
-- Open a fresh Quizzl client as a deterministic test user with
+- Open a fresh Nostling client as a deterministic test user with
   no existing groups and no contacts. From a separate Nostr
   client (any), have a peer publish a kind-1059 → kind-444
   Welcome to the test user's pubkey. Confirm: the test user's

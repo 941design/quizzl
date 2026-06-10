@@ -1,7 +1,7 @@
 /**
  * E2E tests for story-07: DM reactions outbound and inbound.
  *
- * Uses the window.__quizzlDmReactions dev bridge (exposed in ContactChat.tsx
+ * Uses the window.__nostlingDmReactions dev bridge (exposed in ContactChat.tsx
  * in non-production builds) to send reactions without UI affordances.
  * Story-08 will wire the full reaction picker UI.
  *
@@ -165,10 +165,10 @@ async function openDmWithPeer(page: Page, peerPubkeyHex: string): Promise<void> 
   await expect(page.getByTestId('chat-input')).toBeVisible({ timeout: 30_000 });
 }
 
-/** Wait for the __quizzlDmReactions bridge to be available. */
+/** Wait for the __nostlingDmReactions bridge to be available. */
 async function waitForDmReactionsBridge(page: Page): Promise<void> {
   await page.waitForFunction(
-    () => !!(window as any).__quizzlDmReactions,
+    () => !!(window as any).__nostlingDmReactions,
     null,
     { timeout: 15_000 },
   );
@@ -188,7 +188,7 @@ async function sendDmReactionViaBridge(
   await waitForDmReactionsBridge(page);
   await page.evaluate(
     ({ peerPubkeyHex, messageId, emoji, isRemoval }) => {
-      return (window as any).__quizzlDmReactions.send(peerPubkeyHex, messageId, emoji, isRemoval);
+      return (window as any).__nostlingDmReactions.send(peerPubkeyHex, messageId, emoji, isRemoval);
     },
     { peerPubkeyHex, messageId, emoji, isRemoval },
   );
@@ -261,7 +261,7 @@ test.describe('DM reactions — outbound and inbound (AC-46)', () => {
 
     // Alice sees Bob's reaction badge arrive (inbound via gift wrap, AC-45).
     // Wait for Alice's live subscription to receive the reaction from the relay.
-    // The __quizzlDmReactions bridge dispatches handleReact asynchronously (fire-and-forget),
+    // The __nostlingDmReactions bridge dispatches handleReact asynchronously (fire-and-forget),
     // so the relay round-trip happens after the optimistic badge appears on Bob's side.
     // We wait on Alice's page BEFORE any navigation so her active giftWrapSub can receive
     // the reaction and write it to IDB via applyInboundRumor, avoiding a race where the

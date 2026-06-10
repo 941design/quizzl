@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-Add **learning groups** to Quizzl so users can form study groups and see each other's progress. Groups provide social encouragement for learning — not competition. The underlying protocol is **Marmot (MLS over Nostr)**, providing robust end-to-end encrypted group membership without relay trust.
+Add **learning groups** to Nostling so users can form study groups and see each other's progress. Groups provide social encouragement for learning — not competition. The underlying protocol is **Marmot (MLS over Nostr)**, providing robust end-to-end encrypted group membership without relay trust.
 
 ### 1.1 Goals
 
@@ -33,10 +33,10 @@ Add **learning groups** to Quizzl so users can form study groups and see each ot
 | Relay trust | Relay sees all data | Relay is untrusted, sees only encrypted blobs |
 | Membership | Relay-enforced | Cryptographically enforced |
 | Infrastructure | Requires special NIP-29 relay | Works with any standard Nostr relay |
-| Proven in ecosystem | Yes | Yes — used in notestr (sister project) |
-| Complexity | Medium | Higher, but patterns exist in notestr |
+| Proven in ecosystem | Yes | Yes — used in nostling (sister project) |
+| Complexity | Medium | Higher, but patterns exist in nostling |
 
-Marmot is alpha (`marmot-ts` v0.4), but the underlying cryptography (MLS RFC 9420, NIP-44, NIP-59) is well-specified. The notestr project provides battle-tested integration patterns for: `MarmotClient` setup, `NdkNetworkAdapter`, IndexedDB storage backends, device sync, and NIP-46 authentication.
+Marmot is alpha (`marmot-ts` v0.4), but the underlying cryptography (MLS RFC 9420, NIP-44, NIP-59) is well-specified. The nostling project provides battle-tested integration patterns for: `MarmotClient` setup, `NdkNetworkAdapter`, IndexedDB storage backends, device sync, and NIP-46 authentication.
 
 ### 2.2 Nostr Event Kinds Used
 
@@ -122,7 +122,7 @@ Identity is introduced progressively. Users start with zero friction and can har
 1. Admin opens the group member list
 2. Enters an invitee's npub (or scans QR code / pastes npub)
 3. App fetches the invitee's kind 443 KeyPackage from relays
-4. If no KeyPackage found: show error "This user hasn't set up their Quizzl identity yet"
+4. If no KeyPackage found: show error "This user hasn't set up their Nostling identity yet"
 5. If found: call `group.inviteByKeyPackageEvent()` → publishes Commit (kind 445) + Welcome (kind 444 gift-wrap)
 6. Invitee's app picks up the Welcome on next sync → auto-joins the group
 
@@ -157,13 +157,13 @@ Identity is introduced progressively. Users start with zero friction and can har
 
 ### 5.1 MLS Epoch Convergence
 
-When a member joins or leaves, MLS advances the epoch. All members must process the Commit before sending new messages. Since Quizzl only syncs scores in the background (not real-time), this is low-risk — updates can simply wait until the epoch settles. However, rapid membership changes (many joins in quick succession) could create a backlog of Commits that clients must process sequentially.
+When a member joins or leaves, MLS advances the epoch. All members must process the Commit before sending new messages. Since Nostling only syncs scores in the background (not real-time), this is low-risk — updates can simply wait until the epoch settles. However, rapid membership changes (many joins in quick succession) could create a backlog of Commits that clients must process sequentially.
 
 **Mitigation:** Queue score updates if the group is mid-epoch-transition. Batch invitations where possible.
 
 ### 5.2 KeyPackage Availability
 
-A user must publish kind 443 KeyPackages before they can be invited. If a user installs Quizzl but never opens the app while online, they won't have KeyPackages on relays. The inviter gets a confusing "can't invite" error.
+A user must publish kind 443 KeyPackages before they can be invited. If a user installs Nostling but never opens the app while online, they won't have KeyPackages on relays. The inviter gets a confusing "can't invite" error.
 
 **Mitigation:** Publish KeyPackages eagerly on app startup. Provide clear error messaging. Consider a "share invite link" flow that prompts the invitee to open the app first.
 
@@ -181,7 +181,7 @@ KeyPackages are consumed on use. If a user is invited to many groups simultaneou
 
 ### 5.5 Multi-Device Sync
 
-If a user has Quizzl open on two devices (same identity), both devices need to be in the MLS group independently. Marmot handles this via device sync (kind 444 Welcome forwarding, kind 443 auto-invite), but it adds complexity and is a known area of friction in notestr.
+If a user has Nostling open on two devices (same identity), both devices need to be in the MLS group independently. Marmot handles this via device sync (kind 444 Welcome forwarding, kind 443 auto-invite), but it adds complexity and is a known area of friction in nostling.
 
 **Mitigation:** For the initial implementation, treat multi-device as a stretch goal. Document the limitation. Single-device-per-identity is acceptable for a prototype.
 
@@ -193,7 +193,7 @@ If configured relays are down, group operations (join, invite, sync) fail. Unlik
 
 ### 5.7 Static Export Compatibility
 
-Quizzl currently exports as a static site. Group features require WebSocket connections to Nostr relays. Static export still works (WebSocket connections are client-side), but the app is no longer "fully offline" when groups are in use.
+Nostling currently exports as a static site. Group features require WebSocket connections to Nostr relays. Static export still works (WebSocket connections are client-side), but the app is no longer "fully offline" when groups are in use.
 
 **Mitigation:** No architectural change needed for static export. The app simply opens WebSocket connections at runtime when group features are used.
 
@@ -201,7 +201,7 @@ Quizzl currently exports as a static site. Group features require WebSocket conn
 
 `marmot-ts` is v0.4 alpha. API surface may change between minor versions. No formal security audit of the Marmot-specific layer (though MLS RFC 9420 and NIP-44 are independently audited).
 
-**Mitigation:** Pin the marmot-ts version. Wrap marmot-ts calls behind an adapter layer (as notestr does with `NdkNetworkAdapter` and `MarmotClient` provider). Track upstream releases. Accept the alpha risk for a prototype.
+**Mitigation:** Pin the marmot-ts version. Wrap marmot-ts calls behind an adapter layer (as nostling does with `NdkNetworkAdapter` and `MarmotClient` provider). Track upstream releases. Accept the alpha risk for a prototype.
 
 ### 5.9 Score Conflicts
 
@@ -253,7 +253,7 @@ E2E tests are a hard requirement. The test harness must exercise the full group 
 | **Bunker B** | Same `bunker.mjs`, different keypair via env var | Second identity for multi-user tests |
 | **App server** | Static build served via `npx serve` on port 3100 | Built with `NEXT_PUBLIC_RELAYS=ws://localhost:7777` |
 
-This matches the proven architecture from notestr's E2E infrastructure.
+This matches the proven architecture from nostling's E2E infrastructure.
 
 ### 7.2 Global Setup / Teardown
 
@@ -330,9 +330,9 @@ test-e2e-ui: e2e-up         # Run Playwright in UI mode
     cd app && npx playwright test --ui
 ```
 
-### 7.6 Known Limitations (from notestr)
+### 7.6 Known Limitations (from nostling)
 
-- **MLS epoch convergence:** Multi-user application message tests (score propagation after `selfUpdate`) may be flaky due to marmot-ts epoch divergence. Notestr currently skips these. Accept this as a known limitation and test score sync in the "happy path" (no concurrent membership changes).
+- **MLS epoch convergence:** Multi-user application message tests (score propagation after `selfUpdate`) may be flaky due to marmot-ts epoch divergence. Nostling currently skips these. Accept this as a known limitation and test score sync in the "happy path" (no concurrent membership changes).
 - **Timing sensitivity:** MLS crypto + relay roundtrips make multi-user tests inherently slow. Use generous timeouts (60-120s) and `test.describe.serial()` for ordered flows.
 - **KeyPackage publish delay:** User B must authenticate and wait ~3s for KeyPackage publication before User A can invite. Build this delay into the test flow.
 
@@ -347,13 +347,13 @@ test-e2e-ui: e2e-up         # Run Playwright in UI mode
 | `nostr-tools` | ^2.23 | NIP-19 encoding (npub/nsec), event utilities |
 | `idb-keyval` | latest | IndexedDB wrapper for group state and KeyPackage storage |
 
-These are the same dependencies used in notestr, enabling code reuse for the Nostr/Marmot layer.
+These are the same dependencies used in nostling, enabling code reuse for the Nostr/Marmot layer.
 
 ---
 
-## 8. Relationship to Notestr
+## 8. Relationship to Nostling
 
-Notestr (sister project) provides proven implementation patterns for:
+Nostling (sister project) provides proven implementation patterns for:
 
 - `NdkNetworkAdapter` — relay I/O adapter implementing `NostrNetworkInterface`
 - `MarmotClient` provider — React context for group operations

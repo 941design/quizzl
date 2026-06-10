@@ -1,4 +1,4 @@
-# Acceptance Criteria: Quizzl
+# Acceptance Criteria: Nostling
 
 Generated: 2026-02-27T16:00:00Z
 Source: spec.md

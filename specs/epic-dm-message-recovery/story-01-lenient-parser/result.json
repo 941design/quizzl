@@ -7,7 +7,7 @@
   "timestamp": "2026-05-09T00:00:00Z",
   "pre_impl_commitments_answered": {
     "pre-01": { "answer": "NO", "reason": "Return type unchanged — existing { content: string; attachments?: RoledAttachments } | null covers all new cases" },
-    "pre-02": { "answer": "NO", "reason": "quizzl always writes lowercase; third-party bare plaintext is not JSON so case-sensitivity is a non-issue" },
+    "pre-02": { "answer": "NO", "reason": "nostling always writes lowercase; third-party bare plaintext is not JSON so case-sensitivity is a non-issue" },
     "pre-03": { "answer": "YES", "reason": "Empty-string guard at function entry returns null before any JSON.parse attempt; consistent with spec §3.1" },
     "pre-04": { "answer": "YES", "reason": "Storage layer has idb-keyval set for per-row rewrite; no separate putMessage needed (self-heal story-04)" },
     "pre-05": { "answer": "YES", "reason": "Tags follow dm:{action}-{result} pattern: 'dm:parse-lenient-fallback', 'dm:decrypt-empty', 'dm:unwrap-failed', 'dm:rumor-rejected'" },

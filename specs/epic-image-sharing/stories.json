@@ -62,7 +62,7 @@
       "title": "Build imeta tag builder and image message envelope codec",
       "story_order": 3,
       "status": "done",
-      "summary": "Creates two pure-function modules: `imetaTag.ts` which builds NIP-92-compliant `imeta` tag arrays (including the quizzl-private `role full`/`role thumb` key-value pair) from a `MediaAttachment`, and `imageMessage.ts` which serialises/deserialises the `{type:'image', version:1, caption}` JSON content discriminator and extracts the two attachments + roles from `rumor.tags`. Unit-testable with zero runtime deps beyond marmot-ts.",
+      "summary": "Creates two pure-function modules: `imetaTag.ts` which builds NIP-92-compliant `imeta` tag arrays (including the nostling-private `role full`/`role thumb` key-value pair) from a `MediaAttachment`, and `imageMessage.ts` which serialises/deserialises the `{type:'image', version:1, caption}` JSON content discriminator and extracts the two attachments + roles from `rumor.tags`. Unit-testable with zero runtime deps beyond marmot-ts.",
       "in_scope": [
         "New file app/src/lib/media/imetaTag.ts with buildImetaTag(attachment: MediaAttachment, role: 'full' | 'thumb'): string[]",
         "New file app/src/lib/media/imageMessage.ts with buildImageMessageContent(caption: string): string, parseImageMessageContent(content: string): ImageMessageContent | null, and extractAttachmentsByRole(tags: string[][]): { full: MediaAttachment | null, thumb: MediaAttachment | null }",

@@ -58,7 +58,7 @@
       "id": "pre-06",
       "question": "Does the E2E test bridge support IndexedDB inspection via `page.evaluate`? AC-29 requires inspecting IDB rows to verify `content === '<decoded>'` after page reload.",
       "answer_required": "YES",
-      "notes": "The spec says 'inspect IDB via the test bridge'. Architect must confirm: does Playwright have access to IndexedDB in the app context? `page.evaluate(() => window.indexedDB)` requires a properly configured browser context. Some CI environments block IndexedDB access. Architect should confirm the test bridge can access IndexedDB directly, or whether a test helper (e.g., `window.__quizzlTest.readIdbRow`) must be added to the app for test access."
+      "notes": "The spec says 'inspect IDB via the test bridge'. Architect must confirm: does Playwright have access to IndexedDB in the app context? `page.evaluate(() => window.indexedDB)` requires a properly configured browser context. Some CI environments block IndexedDB access. Architect should confirm the test bridge can access IndexedDB directly, or whether a test helper (e.g., `window.__nostlingTest.readIdbRow`) must be added to the app for test access."
     },
     {
       "id": "pre-07",

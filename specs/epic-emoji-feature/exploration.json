@@ -198,7 +198,7 @@
     "e2e_workers": 1,
     "e2e_relay": "real strfry + blossom-mock via docker-compose.e2e.yml (E2E_GROUPS=1 only)",
     "e2e_identity_seeding": "addInitScript + localStorage in app/tests/e2e/helpers/auth-helpers.ts",
-    "e2e_state_bridge_pattern": "expose window.__quizzlSomething for live state injection (notification-bell.spec.ts:23-29)",
+    "e2e_state_bridge_pattern": "expose window.__nostlingSomething for live state injection (notification-bell.spec.ts:23-29)",
     "selectors": "data-testid first, getByRole({ name }) for accessible names, getByText only for human copy assertions",
     "ci": "NONE — no GitHub Actions workflow. Manual test gate before deploy.",
     "popover_reference": "app/src/components/NotificationBell.tsx is the only existing Chakra <Popover>; mirror its useDisclosure + PopoverTrigger/Content/Body/Arrow skeleton for pickers."

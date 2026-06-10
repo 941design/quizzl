@@ -123,7 +123,7 @@ test.describe.serial('Ever-known peer survives group leave (AC-TEST-7)', () => {
     await bobPage.goto('/contacts');
     await bobPage.waitForLoadState('networkidle');
     await bobPage.waitForFunction(
-      () => !!(window as any).__quizzlUnread,
+      () => !!(window as any).__nostlingUnread,
       null,
       { timeout: 15_000 },
     );
@@ -136,13 +136,13 @@ test.describe.serial('Ever-known peer survives group leave (AC-TEST-7)', () => {
 
     const DM_CONTENT_1 = `survive-leave-dm1-${Date.now()}`;
     await alicePage.waitForFunction(
-      () => typeof (window as any).__quizzlPublishDm === 'function',
+      () => typeof (window as any).__nostlingPublishDm === 'function',
       null,
       { timeout: 15_000 },
     );
     await alicePage.evaluate(
       async ({ bobPub, content }) => {
-        await (window as any).__quizzlPublishDm(bobPub, content);
+        await (window as any).__nostlingPublishDm(bobPub, content);
       },
       { bobPub: USER_B.pubkeyHex, content: DM_CONTENT_1 },
     );
@@ -179,7 +179,7 @@ test.describe.serial('Ever-known peer survives group leave (AC-TEST-7)', () => {
     await bobPage.goto('/contacts');
     await bobPage.waitForLoadState('networkidle');
     await bobPage.waitForFunction(
-      () => !!(window as any).__quizzlUnread,
+      () => !!(window as any).__nostlingUnread,
       null,
       { timeout: 15_000 },
     );
@@ -194,7 +194,7 @@ test.describe.serial('Ever-known peer survives group leave (AC-TEST-7)', () => {
     const DM_CONTENT_2 = `survive-leave-dm2-${Date.now()}`;
     await alicePage.evaluate(
       async ({ bobPub, content }) => {
-        await (window as any).__quizzlPublishDm(bobPub, content);
+        await (window as any).__nostlingPublishDm(bobPub, content);
       },
       { bobPub: USER_B.pubkeyHex, content: DM_CONTENT_2 },
     );

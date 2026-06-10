@@ -2,7 +2,7 @@
 
 ## Context
 
-Quizzl uses marmot-ts (MLS over Nostr) for E2E encrypted groups. Any member can commit (invite, key update). Nostr relays provide no delivery ordering, causing three failure modes:
+Nostling uses marmot-ts (MLS over Nostr) for E2E encrypted groups. Any member can commit (invite, key update). Nostr relays provide no delivery ordering, causing three failure modes:
 
 1. **Competing commits**: Two members commit on the same epoch, forking the ratchet tree
 2. **Future-epoch messages**: Messages arrive before the commit that created their epoch

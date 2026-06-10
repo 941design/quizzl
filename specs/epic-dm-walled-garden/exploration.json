@@ -57,7 +57,7 @@
       "contacts_write_paths": "StoredContact: {pubkeyHex, firstSeenAt, lastSeenAt, archivedAt}. No 'trusted' boolean. Contact existence IS the implicit trust signal. writeContactEntry via contactCache.ts:41 also writes contact on profile rumors.",
       "no_exported_member_change_callback": "MarmotContext does not export a callback for 'peer added' or 'peer removed'. The purge must be triggered by detecting group array changes via useEffect on groups/groupDataVersion.",
       "clearAllReactions_pattern": "reactions/api.ts:425 clearAllReactions() already enumerates quizzl:reactions:group:* and quizzl:reactions:dm:* via keys()+prefix filter — pattern to follow for purgeStrangerReactions.",
-      "test_bridge": "window.__quizzlTest.onChatIdbWrite fires on every appendMessage write — available for e2e assertion of zero IDB writes for stranger events."
+      "test_bridge": "window.__nostlingTest.onChatIdbWrite fires on every appendMessage write — available for e2e assertion of zero IDB writes for stranger events."
     }
   },
   "testing_and_conventions": {

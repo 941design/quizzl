@@ -133,7 +133,7 @@ describe('unreadStore join request counters', () => {
   });
 
   it('exports all join request functions for test bridge', async () => {
-    // The window.__quizzlUnread bridge is set at module load time only when
+    // The window.__nostlingUnread bridge is set at module load time only when
     // typeof window !== 'undefined'. In Vitest (no jsdom), window is undefined.
     // Instead we verify the functions are exported — the bridge just
     // re-exports these same references.
