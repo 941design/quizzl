@@ -1,7 +1,7 @@
 /**
  * pollSync.ts — Utilities for building and processing poll messages.
  *
- * Mirrors scoreSync.ts / profileSync.ts. Serialises/deserialises poll
+ * Mirrors profileSync.ts. Serialises/deserialises poll
  * payloads for MLS application messages (kinds 10, 11, 12).
  */
 

@@ -3,13 +3,12 @@
  *
  * Stores:
  * - Group metadata list (name, members, relays) in 'quizzl_groups_v1'
- * - Member scores per group in 'quizzl_member_scores_v1'
  * - MLS group state bytes (passed directly to MarmotClient as groupStateStore)
  * - KeyPackage private material (passed directly as keyPackageStore)
  */
 
 import { createStore, get, set, del, keys, clear } from 'idb-keyval';
-import type { Group, MemberScore, MemberProfile, ScoreUpdate } from '@/src/types';
+import type { Group, MemberProfile } from '@/src/types';
 import type { StoredKeyPackage, SerializedClientState } from '@internet-privacy/marmot-ts';
 import { clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage';
 // KeyValueStoreBackend is an internal utility type — import directly from subpath
@@ -28,7 +27,6 @@ type KeyValueStoreBackend<T> = {
 const groupMetaStore = createStore('quizzl-groups-meta', 'groups');
 const groupStateStore = createStore('quizzl-groups-state', 'state');
 const keyPackageStore = createStore('quizzl-keypackages', 'keypackages');
-const memberScoreStore = createStore('quizzl-member-scores', 'scores');
 const memberProfileStore = createStore('quizzl-member-profiles', 'profiles');
 
 // ---------------------------------------------------------------------------
@@ -57,65 +55,6 @@ export async function deleteGroup(id: string): Promise<void> {
 
 export async function clearAllGroupMeta(): Promise<void> {
   await clear(groupMetaStore);
-}
-
-// ---------------------------------------------------------------------------
-// Member scores
-// ---------------------------------------------------------------------------
-
-const memberScoreKey = (groupId: string) => `group:${groupId}`;
-
-export async function loadMemberScores(groupId: string): Promise<MemberScore[]> {
-  return (await get<MemberScore[]>(memberScoreKey(groupId), memberScoreStore)) ?? [];
-}
-
-export async function saveMemberScores(groupId: string, scores: MemberScore[]): Promise<void> {
-  await set(memberScoreKey(groupId), scores, memberScoreStore);
-}
-
-/**
- * Merge an incoming ScoreUpdate for a member using last-writer-wins by sequenceNumber.
- */
-export async function mergeMemberScore(
-  groupId: string,
-  pubkeyHex: string,
-  nickname: string,
-  update: ScoreUpdate
-): Promise<void> {
-  const existing = await loadMemberScores(groupId);
-  const idx = existing.findIndex((m) => m.pubkeyHex === pubkeyHex);
-
-  if (idx === -1) {
-    // New member
-    existing.push({
-      pubkeyHex,
-      nickname,
-      scores: { [update.topicSlug]: update },
-      lastSeq: update.sequenceNumber,
-    });
-  } else {
-    const member = existing[idx];
-    // Only update if the incoming sequence is newer for this topic
-    const existingTopicScore = member.scores[update.topicSlug];
-    if (
-      !existingTopicScore ||
-      update.sequenceNumber > (existingTopicScore.sequenceNumber ?? 0)
-    ) {
-      member.scores = { ...member.scores, [update.topicSlug]: update };
-    }
-    // Update global lastSeq if newer
-    if (update.sequenceNumber > member.lastSeq) {
-      member.lastSeq = update.sequenceNumber;
-    }
-    member.nickname = nickname || member.nickname;
-    existing[idx] = member;
-  }
-
-  await saveMemberScores(groupId, existing);
-}
-
-export async function clearMemberScores(groupId: string): Promise<void> {
-  await del(memberScoreKey(groupId), memberScoreStore);
 }
 
 // ---------------------------------------------------------------------------
@@ -166,24 +105,6 @@ export async function clearMemberProfiles(groupId: string): Promise<void> {
   await del(memberProfileKey(groupId), memberProfileStore);
 }
 
-/**
- * Update the nickname in a MemberScore record so the leaderboard shows real names
- * without requiring a separate profile lookup.
- */
-export async function updateMemberScoreNickname(
-  groupId: string,
-  pubkeyHex: string,
-  nickname: string
-): Promise<void> {
-  if (!nickname) return;
-  const scores = await loadMemberScores(groupId);
-  const idx = scores.findIndex((m) => m.pubkeyHex === pubkeyHex);
-  if (idx !== -1) {
-    scores[idx].nickname = nickname;
-    await saveMemberScores(groupId, scores);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Clear all group data (for resetAllData)
 // ---------------------------------------------------------------------------
@@ -192,7 +113,6 @@ export async function clearAllGroupData(): Promise<void> {
   await clear(groupMetaStore);
   await clear(groupStateStore);
   await clear(keyPackageStore);
-  await clear(memberScoreStore);
   await clear(memberProfileStore);
   await clearProfileRequestMemos('*'); // clear all — groupId filter handled internally
 }

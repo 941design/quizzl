@@ -5,7 +5,8 @@ test.describe('Story 01 - Project Scaffold and Routing', () => {
     await page.goto('/');
     await expect(page).toHaveTitle(/Quizzl/);
     await expect(page.getByRole('heading', { name: /Welcome to Quizzl/i })).toBeVisible();
-    await expect(page.getByTestId('browse-topics-btn')).toBeVisible();
+    await expect(page.getByTestId('home-contacts-btn')).toBeVisible();
+    await expect(page.getByTestId('home-groups-btn')).toBeVisible();
   });
 
   test('navigation links are present', async ({ page }) => {
@@ -13,29 +14,28 @@ test.describe('Story 01 - Project Scaffold and Routing', () => {
     const nav = page.getByRole('navigation', { name: 'Main navigation' });
     const primaryNavList = nav.locator('ul').first();
     await expect(nav).toBeVisible();
-    await expect(primaryNavList.getByRole('link', { name: 'Topics' })).toBeVisible();
-    await expect(primaryNavList.getByRole('link', { name: 'Leaderboard' })).toBeVisible();
-    await expect(primaryNavList.getByRole('link', { name: 'Study Times' })).toBeVisible();
-    await expect(primaryNavList.getByRole('link', { name: 'Settings' })).toHaveCount(0);
+    await expect(primaryNavList.getByRole('link', { name: 'Home' })).toBeVisible();
+    await expect(primaryNavList.getByRole('link', { name: 'Contacts' })).toBeVisible();
+    await expect(primaryNavList.getByRole('link', { name: 'Groups' })).toBeVisible();
+    // Learning-platform nav links (Topics/Leaderboard/Study Times) are gone.
+    await expect(primaryNavList.getByRole('link', { name: 'Topics' })).toHaveCount(0);
+    await expect(primaryNavList.getByRole('link', { name: 'Leaderboard' })).toHaveCount(0);
+    await expect(primaryNavList.getByRole('link', { name: 'Study Times' })).toHaveCount(0);
     await expect(page.getByTestId('header-settings-link')).toBeVisible();
   });
 
-  test('topics page is accessible via navigation', async ({ page }) => {
+  test('contacts page is accessible via navigation', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('navigation').getByRole('link', { name: 'Topics' }).click();
+    await page.getByRole('navigation').getByRole('link', { name: 'Contacts' }).click();
     await page.waitForLoadState('networkidle');
-    await expect(page).toHaveURL(/\/topics/);
-    await expect(page.getByRole('heading', { name: 'Topics' })).toBeVisible();
+    await expect(page).toHaveURL(/\/contacts/);
   });
 
-  test('leaderboard page loads', async ({ page }) => {
-    await page.goto('/leaderboard');
-    await expect(page.getByRole('heading', { name: 'Leaderboard' })).toBeVisible();
-  });
-
-  test('study-times page loads', async ({ page }) => {
-    await page.goto('/study-times');
-    await expect(page.getByRole('heading', { name: /study times/i })).toBeVisible();
+  test('groups page is accessible via navigation', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('navigation').getByRole('link', { name: 'Groups' }).click();
+    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(/\/groups/);
   });
 
   test('settings page loads', async ({ page }) => {

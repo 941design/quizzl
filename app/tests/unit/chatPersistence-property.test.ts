@@ -668,7 +668,7 @@ describe('selfHealMessages — peer orphan image: content suppressed (lines 137,
 // User story: leaving a group drops the group's local chat history from this
 // device, while other groups' histories are untouched. This is part of the
 // purge sequence specified by epic-out-of-band-leave:AC-SEND-4, which lists
-// `clearMessages(groupId)` alongside `removeGroupFromStorage`, `clearMemberScores`,
+// `clearMessages(groupId)` alongside `removeGroupFromStorage`,
 // `clearMemberProfiles`, etc. as the per-group state to wipe when leaveGroup() fires.
 //
 // Family C (output contract: state-after on IDB) + Family B (isolation between

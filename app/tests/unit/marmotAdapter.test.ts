@@ -4,12 +4,8 @@ import {
   saveGroup,
   loadGroup,
   deleteGroup,
-  loadMemberScores,
-  saveMemberScores,
-  mergeMemberScore,
-  clearMemberScores,
 } from '@/src/lib/marmot/groupStorage';
-import type { Group, MemberScore, ScoreUpdate } from '@/src/types';
+import type { Group } from '@/src/types';
 
 // ---------------------------------------------------------------------------
 // Mock idb-keyval
@@ -62,16 +58,6 @@ const sampleGroup: Group = {
   relays: ['wss://relay.damus.io'],
 };
 
-const sampleScore: ScoreUpdate = {
-  topicSlug: 'biology-101',
-  quizPoints: 10,
-  maxPoints: 20,
-  completedTasks: 3,
-  totalTasks: 5,
-  lastStudiedAt: '2026-03-18T09:00:00Z',
-  sequenceNumber: 1,
-};
-
 // ---------------------------------------------------------------------------
 // Group metadata tests
 // ---------------------------------------------------------------------------
@@ -109,81 +95,5 @@ describe('groupStorage — group metadata', () => {
   it('returns empty array when no groups exist', async () => {
     const all = await loadAllGroups();
     expect(all).toEqual([]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Member score tests
-// ---------------------------------------------------------------------------
-
-describe('groupStorage — member scores', () => {
-  it('returns empty array for unknown group', async () => {
-    const scores = await loadMemberScores('unknown-group');
-    expect(scores).toEqual([]);
-  });
-
-  it('saves and loads member scores', async () => {
-    const scores: MemberScore[] = [
-      {
-        pubkeyHex: 'pubkey1hex',
-        nickname: 'Alice',
-        scores: { 'bio-101': sampleScore },
-        lastSeq: 1,
-      },
-    ];
-    await saveMemberScores('group1', scores);
-    const loaded = await loadMemberScores('group1');
-    expect(loaded).toEqual(scores);
-  });
-
-  it('merges a new member score (first entry)', async () => {
-    await mergeMemberScore('group1', 'pubkey1', 'Alice', sampleScore);
-    const scores = await loadMemberScores('group1');
-    expect(scores).toHaveLength(1);
-    expect(scores[0].pubkeyHex).toBe('pubkey1');
-    expect(scores[0].scores['biology-101']).toEqual(sampleScore);
-  });
-
-  it('merges a score update (higher seq wins)', async () => {
-    await mergeMemberScore('group1', 'pubkey1', 'Alice', sampleScore);
-
-    const updatedScore: ScoreUpdate = {
-      ...sampleScore,
-      quizPoints: 15,
-      sequenceNumber: 2, // newer
-    };
-    await mergeMemberScore('group1', 'pubkey1', 'Alice', updatedScore);
-
-    const scores = await loadMemberScores('group1');
-    expect(scores[0].scores['biology-101'].quizPoints).toBe(15);
-    expect(scores[0].lastSeq).toBe(2);
-  });
-
-  it('ignores a score update with older sequence number', async () => {
-    const newerScore: ScoreUpdate = { ...sampleScore, quizPoints: 20, sequenceNumber: 5 };
-    await mergeMemberScore('group1', 'pubkey1', 'Alice', newerScore);
-
-    const olderScore: ScoreUpdate = { ...sampleScore, quizPoints: 5, sequenceNumber: 2 };
-    await mergeMemberScore('group1', 'pubkey1', 'Alice', olderScore);
-
-    const scores = await loadMemberScores('group1');
-    // Newer score should remain
-    expect(scores[0].scores['biology-101'].quizPoints).toBe(20);
-  });
-
-  it('adds a second member without affecting the first', async () => {
-    await mergeMemberScore('group1', 'pubkey1', 'Alice', sampleScore);
-    const score2: ScoreUpdate = { ...sampleScore, quizPoints: 8, sequenceNumber: 1 };
-    await mergeMemberScore('group1', 'pubkey2', 'Bob', score2);
-
-    const scores = await loadMemberScores('group1');
-    expect(scores).toHaveLength(2);
-  });
-
-  it('clears member scores for a group', async () => {
-    await mergeMemberScore('group1', 'pubkey1', 'Alice', sampleScore);
-    await clearMemberScores('group1');
-    const scores = await loadMemberScores('group1');
-    expect(scores).toEqual([]);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * MarmotContext — wraps marmot-ts MarmotClient behind a stable adapter interface.
  *
- * Provides group CRUD operations, member score management, and score sync.
+ * Provides group CRUD operations and member profile management.
  * All marmot-ts calls are wrapped in try/catch — it's alpha software.
  */
 
@@ -14,25 +14,20 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import type { Group, MemberScore, MemberProfile, ScoreUpdate, UserProfile } from '@/src/types';
+import type { Group, MemberProfile, UserProfile } from '@/src/types';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import {
   loadAllGroups,
   saveGroup as persistGroup,
   deleteGroup as removeGroupFromStorage,
-  loadMemberScores,
-  mergeMemberScore,
-  clearMemberScores,
   loadMemberProfiles,
   mergeMemberProfile,
   clearMemberProfiles,
-  updateMemberScoreNickname,
   IdbGroupStateBackend,
   IdbKeyPackageBackend,
   clearAllGroupData,
 } from '@/src/lib/marmot/groupStorage';
 import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscription';
-import { serialiseScoreUpdate, nextSequenceNumber, SCORE_RUMOR_KIND } from '@/src/lib/marmot/scoreSync';
 import { serialiseProfileUpdate, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
 import { LEAVE_INTENT_KIND, serialiseLeaveIntent } from '@/src/lib/marmot/leaveSync';
 import { PROFILE_REQUEST_KIND } from '@/src/lib/marmot/profileRequestSync';
@@ -236,18 +231,12 @@ type MarmotContextValue = {
   unsupported: boolean;
   /** All groups the user belongs to */
   groups: Group[];
-  /** Get member scores for a given group */
-  getMemberScores: (groupId: string) => Promise<MemberScore[]>;
   /** Create a new group */
   createGroup: (name: string) => Promise<Group | null>;
   /** Invite a user by npub to a group */
   inviteByNpub: (groupId: string, npub: string) => Promise<{ ok: boolean; error?: string; warning?: string }>;
   /** Leave a group */
   leaveGroup: (groupId: string) => Promise<boolean>;
-  /** Publish a ScoreUpdate to all groups */
-  publishScoreUpdate: (update: Omit<ScoreUpdate, 'sequenceNumber'>) => Promise<void>;
-  /** Handle incoming score application message */
-  onIncomingScore: (groupId: string, pubkeyHex: string, nickname: string, update: ScoreUpdate) => Promise<void>;
   /** Publish profile to all groups. Pass profileOverride to avoid stale-closure race. */
   publishProfileUpdate: (profileOverride?: UserProfile) => Promise<void>;
   /** Get member profiles for a given group */
@@ -894,7 +883,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     };
   }, [identityHydrated, privateKeyHex, pubkeyHex, reloadGroups, updateDiscoverability]);
 
-  // Subscribe to group messages for each group (for incoming score updates)
+  // Subscribe to group messages for each group (for incoming application rumors)
   useEffect(() => {
     if (!ready || groups.length === 0) return;
     const client = clientRef.current;
@@ -997,11 +986,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             loadMessages,
             applyInboundRumor,
             setReactionsVersion,
-            // Score
-            mergeMemberScore,
             // Profile
             mergeMemberProfile,
-            updateMemberScoreNickname,
             notifyProfileObserved,
             recordRequestAnswered,
             writeContactEntry: (pubkey: string, entry: { nickname: string; avatar: import('@/src/types').ProfileAvatar | null; updatedAt: string }) => {
@@ -1083,50 +1069,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     };
   }, [ready, groups, pubkeyHex]);
 
-  // Drain sync queue when coming back online
-  useEffect(() => {
-    if (!ready || typeof window === 'undefined') return;
-
-    async function drainQueue() {
-      const { dequeueAll } = await import('@/src/lib/marmot/syncQueue');
-      const queued = dequeueAll();
-      if (queued.length === 0) return;
-      console.info(`[Marmot] Draining ${queued.length} queued score updates`);
-      // Re-publish each queued item (publishScoreUpdate will re-queue on failure)
-      // We access the ref directly to avoid stale closure over publishScoreUpdate
-      const client = clientRef.current;
-      if (!client || groups.length === 0) return;
-      for (const item of queued) {
-        try {
-          const { nextSequenceNumber: nextSeq, serialiseScoreUpdate: serialise, SCORE_RUMOR_KIND: scoreKind } = await import('@/src/lib/marmot/scoreSync');
-          const fullUpdate = { ...item.update, sequenceNumber: nextSeq() };
-          const payload = serialise(fullUpdate);
-          for (const group of groups) {
-            const mlsGroup = await client.groups.get(group.id).catch(() => null);
-            if (!mlsGroup) continue;
-            const rumor = buildRumor(scoreKind, payload, pubkeyHex ?? '');
-            await sendRumorSafe(mlsGroup, rumor as any, { softFail: true });
-          }
-        } catch {
-          // Non-fatal — item was already dequeued
-        }
-      }
-    }
-
-    const handler = () => void drainQueue();
-    window.addEventListener('online', handler);
-    return () => {
-      window.removeEventListener('online', handler);
-    };
-  }, [ready, groups, pubkeyHex]);
-
   // Profile updates are published automatically via the onHistorySynced callback
   // (once per group, after historical events are ingested and the local epoch is
   // up-to-date). They can also be published explicitly via publishProfileUpdate.
-
-  const getMemberScores = useCallback(async (groupId: string): Promise<MemberScore[]> => {
-    return loadMemberScores(groupId);
-  }, []);
 
   const createGroup = useCallback(async (name: string): Promise<Group | null> => {
     const client = clientRef.current;
@@ -1318,7 +1263,6 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
     // AC-SEND-4: existing purge sequence — runs unconditionally.
     await removeGroupFromStorage(groupId);
-    await clearMemberScores(groupId);
     await clearMemberProfiles(groupId);
     // Clear chat messages
     const { clearMessages } = await import('@/src/lib/marmot/chatPersistence');
@@ -1332,56 +1276,6 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     markBackupDirty(true);
     return true;
   }, [reloadGroups, markBackupDirty, pubkeyHex]);
-
-  const publishScoreUpdate = useCallback(
-    async (update: Omit<ScoreUpdate, 'sequenceNumber'>): Promise<void> => {
-      const client = clientRef.current;
-      if (!client || groups.length === 0) {
-        // Queue for later if offline or not yet ready
-        const { enqueue } = await import('@/src/lib/marmot/syncQueue');
-        enqueue(update);
-        return;
-      }
-
-      const fullUpdate: ScoreUpdate = { ...update, sequenceNumber: nextSequenceNumber() };
-      const payload = serialiseScoreUpdate(fullUpdate);
-
-      let anyFailed = false;
-
-      // Publish to all groups (fire and forget)
-      for (const group of groups) {
-        try {
-          const mlsGroup = await client.groups.get(group.id).catch(() => null);
-          if (!mlsGroup) continue;
-
-          const rumor = buildRumor(SCORE_RUMOR_KIND, payload, pubkeyHex ?? '');
-          await sendRumorSafe(mlsGroup, rumor as any);
-        } catch (err) {
-          console.warn(`[Marmot] publishScoreUpdate to group ${group.id} failed:`, err);
-          anyFailed = true;
-        }
-      }
-
-      // Queue the update for retry if any group publish failed
-      if (anyFailed) {
-        const { enqueue } = await import('@/src/lib/marmot/syncQueue');
-        enqueue(update);
-      }
-    },
-    [groups, pubkeyHex]
-  );
-
-  const onIncomingScore = useCallback(
-    async (
-      groupId: string,
-      pubkeyHex: string,
-      nickname: string,
-      update: ScoreUpdate
-    ): Promise<void> => {
-      await mergeMemberScore(groupId, pubkeyHex, nickname, update);
-    },
-    []
-  );
 
   const getMemberProfiles = useCallback(async (groupId: string): Promise<MemberProfile[]> => {
     return loadMemberProfiles(groupId);
@@ -1593,12 +1487,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       ready,
       unsupported,
       groups,
-      getMemberScores,
       createGroup,
       inviteByNpub,
       leaveGroup,
-      publishScoreUpdate,
-      onIncomingScore,
       publishProfileUpdate,
       getMemberProfiles,
       reloadGroups,
@@ -1624,12 +1515,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       ready,
       unsupported,
       groups,
-      getMemberScores,
       createGroup,
       inviteByNpub,
       leaveGroup,
-      publishScoreUpdate,
-      onIncomingScore,
       publishProfileUpdate,
       getMemberProfiles,
       reloadGroups,
@@ -1665,12 +1553,9 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   ready: false,
   unsupported: false,
   groups: [],
-  getMemberScores: NOOP_ARRAY as () => Promise<MemberScore[]>,
   createGroup: NOOP_NULL as () => Promise<null>,
   inviteByNpub: async () => ({ ok: false, error: 'not_ready' }),
   leaveGroup: NOOP_BOOL,
-  publishScoreUpdate: NOOP_ASYNC,
-  onIncomingScore: NOOP_ASYNC,
   publishProfileUpdate: NOOP_ASYNC,
   getMemberProfiles: NOOP_ARRAY as () => Promise<MemberProfile[]>,
   reloadGroups: NOOP_ASYNC,

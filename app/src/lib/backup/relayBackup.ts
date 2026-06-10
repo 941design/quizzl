@@ -9,10 +9,8 @@
 import { STORAGE_KEYS, DEFAULT_RELAYS } from '@/src/types';
 import {
   loadAllGroups,
-  loadMemberScores,
   loadMemberProfiles,
   saveGroup,
-  saveMemberScores,
   saveMemberProfiles,
   clearAllGroupData,
   IdbGroupStateBackend,
@@ -41,10 +39,6 @@ export interface BackupPayload {
     avatar: { id: string; subject: string; accessories: string[] } | null;
     badgeIds: string[];
   } | null;
-  selectedTopics: string[] | null;
-  progress: Record<string, unknown> | null;
-  studyTimes: unknown[] | null;
-  scoreSyncSeq: number;
   groups: Array<{
     id: string;
     name: string;
@@ -53,7 +47,6 @@ export interface BackupPayload {
     relays: string[];
   }>;
   groupStates: Record<string, string>;
-  memberScores: Record<string, unknown[]>;
   memberProfiles: Record<string, unknown[]>;
   chatMessages: Record<
     string,
@@ -123,29 +116,10 @@ export async function collectBackupPayload(): Promise<BackupPayload> {
   }>(STORAGE_KEYS.userProfile);
   const userProfile = rawProfile ?? null;
 
-  const rawTopics = readJsonItem<{ slugs: string[] }>(
-    STORAGE_KEYS.selectedTopics,
-  );
-  const selectedTopics = rawTopics?.slugs ?? null;
-
-  const progress = readJsonItem<Record<string, unknown>>(
-    STORAGE_KEYS.progress,
-  );
-
-  const rawStudyTimes = readJsonItem<{ sessions: unknown[] }>(
-    STORAGE_KEYS.studyTimes,
-  );
-  const studyTimes = rawStudyTimes?.sessions ?? null;
-
-  const scoreSyncSeq = Number(
-    localStorage.getItem(STORAGE_KEYS.scoreSyncSeq) ?? '0',
-  );
-
   // IDB reads
   const groups = await loadAllGroups();
 
   const groupStates: Record<string, string> = {};
-  const memberScores: Record<string, unknown[]> = {};
   const memberProfiles: Record<string, unknown[]> = {};
   const chatMessages: Record<string, ChatMessage[]> = {};
 
@@ -169,9 +143,6 @@ export async function collectBackupPayload(): Promise<BackupPayload> {
 
   // Per-group data
   for (const group of groups) {
-    const scores = await loadMemberScores(group.id);
-    memberScores[group.id] = scores;
-
     const profiles = await loadMemberProfiles(group.id);
     memberProfiles[group.id] = profiles;
 
@@ -188,10 +159,6 @@ export async function collectBackupPayload(): Promise<BackupPayload> {
     createdAt: Math.floor(Date.now() / 1000),
     settings,
     userProfile,
-    selectedTopics,
-    progress,
-    studyTimes,
-    scoreSyncSeq,
     groups: groups.map((g) => ({
       id: g.id,
       name: g.name,
@@ -200,7 +167,6 @@ export async function collectBackupPayload(): Promise<BackupPayload> {
       relays: g.relays,
     })),
     groupStates,
-    memberScores,
     memberProfiles,
     chatMessages,
     inviteLinks,
@@ -389,24 +355,6 @@ export async function restoreFromBackup(payload: BackupPayload): Promise<void> {
   if (payload.userProfile) {
     localStorage.setItem(STORAGE_KEYS.userProfile, JSON.stringify(payload.userProfile));
   }
-  if (payload.selectedTopics) {
-    localStorage.setItem(
-      STORAGE_KEYS.selectedTopics,
-      JSON.stringify({ slugs: payload.selectedTopics }),
-    );
-  }
-  if (payload.progress) {
-    localStorage.setItem(STORAGE_KEYS.progress, JSON.stringify(payload.progress));
-  }
-  if (payload.studyTimes) {
-    localStorage.setItem(
-      STORAGE_KEYS.studyTimes,
-      JSON.stringify({ sessions: payload.studyTimes }),
-    );
-  }
-  if (payload.scoreSyncSeq !== undefined) {
-    localStorage.setItem(STORAGE_KEYS.scoreSyncSeq, String(payload.scoreSyncSeq));
-  }
 
   // 4. Rehydrate IDB: groups
   for (const group of payload.groups) {
@@ -420,12 +368,7 @@ export async function restoreFromBackup(payload: BackupPayload): Promise<void> {
     await stateBackend.setItem(key, bytes as never);
   }
 
-  // 6. Rehydrate member scores
-  for (const [groupId, scores] of Object.entries(payload.memberScores)) {
-    await saveMemberScores(groupId, scores as never[]);
-  }
-
-  // 7. Rehydrate member profiles
+  // 6. Rehydrate member profiles
   for (const [groupId, profiles] of Object.entries(payload.memberProfiles)) {
     await saveMemberProfiles(groupId, profiles as never[]);
   }

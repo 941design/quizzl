@@ -85,7 +85,7 @@ test.describe('Story 08: Theme Settings + Reset', () => {
     // Set up some data
     await page.goto('/');
     await page.evaluate(() => {
-      localStorage.setItem('lp_selectedTopics_v1', JSON.stringify({ slugs: ['javascript-basics'] }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: 'Tester', avatar: null, badgeIds: [] }));
     });
 
     await page.goto('/settings');
@@ -100,18 +100,16 @@ test.describe('Story 08: Theme Settings + Reset', () => {
     await expect(modalContent).not.toBeVisible();
 
     // Data should still exist
-    const stored = await page.evaluate(() => localStorage.getItem('lp_selectedTopics_v1'));
+    const stored = await page.evaluate(() => localStorage.getItem('lp_userProfile_v1'));
     expect(stored).toBeTruthy();
   });
 
   test('6. Confirming reset clears ALL lp_ localStorage keys and shows success (AC-016)', async ({ page }) => {
-    // Set up data in all 4 lp_* keys
+    // Set up data across multiple lp_* keys
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'playful' }));
-      localStorage.setItem('lp_selectedTopics_v1', JSON.stringify({ slugs: ['javascript-basics'] }));
-      localStorage.setItem('lp_progress_v1', JSON.stringify({ byTopicSlug: { 'javascript-basics': { quizPoints: 5 } } }));
-      localStorage.setItem('lp_studyTimes_v1', JSON.stringify({ sessions: [{ id: 's1' }] }));
+      localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: 'Tester', avatar: null, badgeIds: [] }));
     });
 
     await page.goto('/settings');
@@ -129,14 +127,10 @@ test.describe('Story 08: Theme Settings + Reset', () => {
     const remaining = await page.evaluate(() => {
       return {
         settings: localStorage.getItem('lp_settings_v1'),
-        selectedTopics: localStorage.getItem('lp_selectedTopics_v1'),
-        progress: localStorage.getItem('lp_progress_v1'),
-        studyTimes: localStorage.getItem('lp_studyTimes_v1'),
+        userProfile: localStorage.getItem('lp_userProfile_v1'),
       };
     });
     expect(remaining.settings).toBeNull();
-    expect(remaining.selectedTopics).toBeNull();
-    expect(remaining.progress).toBeNull();
-    expect(remaining.studyTimes).toBeNull();
+    expect(remaining.userProfile).toBeNull();
   });
 });

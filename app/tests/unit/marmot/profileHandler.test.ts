@@ -115,7 +115,6 @@ function makeCtx() {
 function makeDeps(mergeResult = true) {
   return {
     mergeMemberProfile: vi.fn(async () => mergeResult),
-    updateMemberScoreNickname: vi.fn(async () => {}),
     notifyProfileObserved: vi.fn(),
     recordRequestAnswered: vi.fn(async () => {}),
     writeContactEntry: vi.fn(),
@@ -154,8 +153,6 @@ describe('profileHandler', () => {
     // merged=true → recordRequestAnswered fires
     expect(deps.recordRequestAnswered).toHaveBeenCalledOnce();
     expect(deps.recordRequestAnswered.mock.calls[0][0]).toBe(GROUP_ID);
-    // updateMemberScoreNickname fires regardless of merged
-    expect(deps.updateMemberScoreNickname).toHaveBeenCalledOnce();
     // writeContactEntry fires
     expect(deps.writeContactEntry).toHaveBeenCalledOnce();
     const [pubkey, entry] = deps.writeContactEntry.mock.calls[0];
@@ -163,7 +160,7 @@ describe('profileHandler', () => {
     expect(entry.nickname).toBe('Alice');
   });
 
-  it('not-newer (merged=false): setProfileVersion and updateMemberScoreNickname still called, recordRequestAnswered NOT called', async () => {
+  it('not-newer (merged=false): setProfileVersion still called, recordRequestAnswered NOT called', async () => {
     const deps = makeDeps(false);
     const handler = createProfileHandler(deps);
     const rumor = makeProfileRumor();
@@ -176,8 +173,6 @@ describe('profileHandler', () => {
     expect(deps.setProfileVersion).toHaveBeenCalledOnce();
     // recordRequestAnswered only when merged
     expect(deps.recordRequestAnswered).not.toHaveBeenCalled();
-    // updateMemberScoreNickname still fires
-    expect(deps.updateMemberScoreNickname).toHaveBeenCalledOnce();
   });
 
   it('malformed payload: does not throw, no deps called', async () => {

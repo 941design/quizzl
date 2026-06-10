@@ -1,10 +1,6 @@
 import type {
   Settings,
   UserProfile,
-  SelectedTopics,
-  Progress,
-  StudyTimes,
-  TopicProgress,
 } from '@/src/types';
 import { STORAGE_KEYS } from '@/src/types';
 import { DEFAULT_THEME_NAME, normalizeThemeName } from '@/src/lib/theme';
@@ -120,81 +116,6 @@ export function readUserProfile(): UserProfile {
 
 export function writeUserProfile(profile: UserProfile): void {
   writeItem(STORAGE_KEYS.userProfile, normalizeUserProfile(profile));
-}
-
-// ============================
-// Selected Topics
-// ============================
-
-const DEFAULT_SELECTED_TOPICS: SelectedTopics = { slugs: [] };
-
-export function readSelectedTopics(): SelectedTopics {
-  // readItem returns the raw parsed value, including `null` when localStorage
-  // holds the literal string "null" (JSON.parse('null') === null). Normalize
-  // here so callers can dereference `.slugs` unconditionally.
-  const raw = readItem<Partial<SelectedTopics> | null>(
-    STORAGE_KEYS.selectedTopics,
-    DEFAULT_SELECTED_TOPICS,
-  );
-  const slugs = Array.isArray(raw?.slugs)
-    ? raw!.slugs.filter((s): s is string => typeof s === 'string')
-    : [];
-  return { slugs };
-}
-
-export function writeSelectedTopics(selected: SelectedTopics): void {
-  writeItem(STORAGE_KEYS.selectedTopics, selected);
-}
-
-// ============================
-// Progress
-// ============================
-
-const DEFAULT_PROGRESS: Progress = { byTopicSlug: {} };
-
-const DEFAULT_TOPIC_PROGRESS: TopicProgress = {
-  answers: {},
-  quizPoints: 0,
-  notesHtml: '',
-  completedTaskIds: [],
-};
-
-export function readProgress(): Progress {
-  return readItem<Progress>(STORAGE_KEYS.progress, DEFAULT_PROGRESS);
-}
-
-export function writeProgress(progress: Progress): void {
-  writeItem(STORAGE_KEYS.progress, progress);
-}
-
-export function readTopicProgress(slug: string): TopicProgress {
-  const progress = readProgress();
-  return progress.byTopicSlug[slug] ?? { ...DEFAULT_TOPIC_PROGRESS };
-}
-
-export function writeTopicProgress(slug: string, topicProgress: TopicProgress): void {
-  const progress = readProgress();
-  writeProgress({
-    ...progress,
-    byTopicSlug: {
-      ...progress.byTopicSlug,
-      [slug]: topicProgress,
-    },
-  });
-}
-
-// ============================
-// Study Times
-// ============================
-
-const DEFAULT_STUDY_TIMES: StudyTimes = { sessions: [] };
-
-export function readStudyTimes(): StudyTimes {
-  return readItem<StudyTimes>(STORAGE_KEYS.studyTimes, DEFAULT_STUDY_TIMES);
-}
-
-export function writeStudyTimes(studyTimes: StudyTimes): void {
-  writeItem(STORAGE_KEYS.studyTimes, studyTimes);
 }
 
 // ============================

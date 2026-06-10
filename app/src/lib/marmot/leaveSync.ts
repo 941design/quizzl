@@ -1,7 +1,7 @@
 /**
  * leaveSync.ts — Utilities for building and processing leave-intent messages.
  *
- * Mirrors pollSync.ts / scoreSync.ts. Serialises/deserialises leave-intent
+ * Mirrors pollSync.ts. Serialises/deserialises leave-intent
  * payloads for MLS application messages (kind 13).
  */
 

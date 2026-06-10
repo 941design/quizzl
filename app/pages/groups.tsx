@@ -28,7 +28,6 @@ import CreateGroupModal from '@/src/components/groups/CreateGroupModal';
 import BackupReminderBanner from '@/src/components/groups/BackupReminderBanner';
 import OfflineBanner from '@/src/components/groups/OfflineBanner';
 import MemberList from '@/src/components/groups/MemberList';
-import MemberScoreRow from '@/src/components/groups/MemberScoreRow';
 import InviteMemberModal from '@/src/components/groups/InviteMemberModal';
 import GenerateInviteLinkModal from '@/src/components/groups/GenerateInviteLinkModal';
 import ManageInviteLinksModal from '@/src/components/groups/ManageInviteLinksModal';
@@ -43,7 +42,7 @@ import { PollStoreProvider } from '@/src/context/PollStoreContext';
 import PollPanel from '@/src/components/groups/PollPanel';
 import CreatePollModal from '@/src/components/groups/CreatePollModal';
 import { markAsRead } from '@/src/lib/unreadStore';
-import type { Group, MemberScore, MemberProfile } from '@/src/types';
+import type { Group, MemberProfile } from '@/src/types';
 
 /* ---------- Detail view (shown when ?id=xxx is present) ---------- */
 
@@ -58,7 +57,7 @@ function ChatSendMessageCapture({ sendMessageRef }: { sendMessageRef: React.Muta
 
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
-  const { groups, ready, getMemberScores, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation, requestProfilesIfStale } = useMarmot();
+  const { groups, ready, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation, requestProfilesIfStale } = useMarmot();
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const signer = useMemo(
     () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
@@ -73,7 +72,6 @@ function GroupDetailView({ id }: { id: string }) {
   const [pollPanelOpen, setPollPanelOpen] = useState(true);
   const [group, setGroup] = useState<Group | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [memberScores, setMemberScores] = useState<MemberScore[]>([]);
   const [profileMap, setProfileMap] = useState<Record<string, MemberProfile>>({});
   const [confirmedPubkeys, setConfirmedPubkeys] = useState<Set<string>>(new Set());
   const [mlsGroup, setMlsGroup] = useState<MarmotGroupType | null>(null);
@@ -132,7 +130,6 @@ function GroupDetailView({ id }: { id: string }) {
       }
       markAsRead(id);
       void getMarmotGroup(id).then(setMlsGroup).catch(() => {});
-      void getMemberScores(id).then(setMemberScores).catch(() => {});
       void getMemberProfiles(id).then((profiles) => {
         const map: Record<string, MemberProfile> = {};
         // Track members who have sent a profile in this group (confirmed membership).
@@ -178,7 +175,7 @@ function GroupDetailView({ id }: { id: string }) {
     } else {
       setNotFound(true);
     }
-  }, [ready, groups, id, getMemberScores, getMemberProfiles, pubkeyHex, ownProfile, profileVersion, groupDataVersion, requestProfilesIfStale]);
+  }, [ready, groups, id, getMemberProfiles, pubkeyHex, ownProfile, profileVersion, groupDataVersion, requestProfilesIfStale]);
 
   if (!ready) {
     return (
@@ -348,34 +345,6 @@ function GroupDetailView({ id }: { id: string }) {
               </PollStoreProvider>
             </ChatStoreProvider>
           </Box>
-
-          {/* Member Scores Section */}
-          {memberScores.length > 0 && (
-            <Box>
-              <Heading as="h2" size="md" mb={3}>
-                {copy.groups.memberScoresHeading}
-              </Heading>
-              <VStack spacing={2} align="stretch">
-                {memberScores
-                  .slice()
-                  .sort((a, b) => {
-                    const aPoints = Object.values(a.scores).reduce((s, sc) => s + sc.quizPoints, 0);
-                    const bPoints = Object.values(b.scores).reduce((s, sc) => s + sc.quizPoints, 0);
-                    return bPoints - aPoints;
-                  })
-                  .map((ms, idx) => (
-                    <MemberScoreRow
-                      key={ms.pubkeyHex}
-                      memberScore={ms}
-                      isYou={ms.pubkeyHex === pubkeyHex}
-                      rank={idx + 1}
-                      avatar={profileMap[ms.pubkeyHex]?.avatar}
-                      profileNickname={profileMap[ms.pubkeyHex]?.nickname}
-                    />
-                  ))}
-              </VStack>
-            </Box>
-          )}
 
           {/* Group ID (for debugging) */}
           <Box>

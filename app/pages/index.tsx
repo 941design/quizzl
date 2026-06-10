@@ -5,7 +5,6 @@ import {
   Button,
   VStack,
   HStack,
-  SimpleGrid,
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import NextLink from 'next/link';
@@ -13,12 +12,11 @@ import { useCopy } from '@/src/context/LanguageContext';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import { useProfile } from '@/src/context/ProfileContext';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
-import ThemeIcon from '@/src/components/ThemeIcon';
 
 export default function HomePage() {
   const copy = useCopy();
   const { profile } = useProfile();
-  const { cardStyle, isFunTheme } = useThemeStyles();
+  const { cardStyle } = useThemeStyles();
 
   return (
     <>
@@ -36,13 +34,18 @@ export default function HomePage() {
             {copy.home.description}
           </Text>
           <HStack spacing={4}>
-            <NextLink href="/topics" passHref legacyBehavior>
-              <Button as="a" size="lg" data-testid="browse-topics-btn">
-                {copy.home.browseTopics}
+            <NextLink href="/contacts" passHref legacyBehavior>
+              <Button as="a" size="lg" data-testid="home-contacts-btn">
+                {copy.home.openContacts}
+              </Button>
+            </NextLink>
+            <NextLink href="/groups" passHref legacyBehavior>
+              <Button as="a" size="lg" variant="outline" data-testid="home-groups-btn">
+                {copy.home.openGroups}
               </Button>
             </NextLink>
             <NextLink href="/settings" passHref legacyBehavior>
-              <Button as="a" size="lg" variant="outline">
+              <Button as="a" size="lg" variant="ghost">
                 {copy.home.settings}
               </Button>
             </NextLink>
@@ -62,36 +65,6 @@ export default function HomePage() {
             {copy.home.profileCardBody}
           </Text>
         </Box>
-
-        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} mt={8}>
-          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle" {...cardStyle}>
-            {isFunTheme && (
-              <Box mb={2}><ThemeIcon name="quiz" size={28} color="var(--chakra-colors-brand-500)" /></Box>
-            )}
-            <Heading size="md" mb={2}>{copy.home.featureQuiz}</Heading>
-            <Text color="textMuted">
-              {copy.home.featureQuizBody}
-            </Text>
-          </Box>
-          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle" {...cardStyle}>
-            {isFunTheme && (
-              <Box mb={2}><ThemeIcon name="notes" size={28} color="var(--chakra-colors-brand-500)" /></Box>
-            )}
-            <Heading size="md" mb={2}>{copy.home.featureNotes}</Heading>
-            <Text color="textMuted">
-              {copy.home.featureNotesBody}
-            </Text>
-          </Box>
-          <Box p={6} bg="surfaceBg" borderRadius="lg" shadow="sm" borderWidth="1px" borderColor="borderSubtle" {...cardStyle}>
-            {isFunTheme && (
-              <Box mb={2}><ThemeIcon name="task" size={28} color="var(--chakra-colors-brand-500)" /></Box>
-            )}
-            <Heading size="md" mb={2}>{copy.home.featurePlan}</Heading>
-            <Text color="textMuted">
-              {copy.home.featurePlanBody}
-            </Text>
-          </Box>
-        </SimpleGrid>
       </Box>
     </>
   );

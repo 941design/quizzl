@@ -115,14 +115,12 @@ import {
 } from '@/src/lib/backup/relayBackup';
 import {
   saveGroup,
-  saveMemberScores,
   saveMemberProfiles,
   loadAllGroups,
-  loadMemberScores,
   loadMemberProfiles,
   IdbGroupStateBackend,
 } from '@/src/lib/marmot/groupStorage';
-import type { Group, MemberScore, MemberProfile } from '@/src/types';
+import type { Group, MemberProfile } from '@/src/types';
 import { loadMessages } from '@/src/lib/marmot/chatPersistence';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import { set } from 'idb-keyval';
@@ -179,13 +177,8 @@ describe('collectBackupPayload', () => {
     expect(typeof payload.createdAt).toBe('number');
     expect(payload.settings).toBeNull();
     expect(payload.userProfile).toBeNull();
-    expect(payload.selectedTopics).toBeNull();
-    expect(payload.progress).toBeNull();
-    expect(payload.studyTimes).toBeNull();
-    expect(payload.scoreSyncSeq).toBe(0);
     expect(payload.groups).toEqual([]);
     expect(payload.groupStates).toEqual({});
-    expect(payload.memberScores).toEqual({});
     expect(payload.memberProfiles).toEqual({});
     expect(payload.chatMessages).toEqual({});
     expect(payload.inviteLinks).toEqual([]);
@@ -217,40 +210,8 @@ describe('collectBackupPayload', () => {
     expect(payload.userProfile).toEqual(profile);
   });
 
-  it('reads selectedTopics from localStorage', async () => {
-    localStore[STORAGE_KEYS.selectedTopics] = JSON.stringify({
-      slugs: ['math', 'science'],
-    });
-
-    const payload = await collectBackupPayload();
-    expect(payload.selectedTopics).toEqual(['math', 'science']);
-  });
-
-  it('reads progress from localStorage', async () => {
-    const progress = { byTopicSlug: { math: { quizPoints: 10 } } };
-    localStore[STORAGE_KEYS.progress] = JSON.stringify(progress);
-
-    const payload = await collectBackupPayload();
-    expect(payload.progress).toEqual(progress);
-  });
-
-  it('reads studyTimes sessions from localStorage', async () => {
-    const sessions = [{ id: 's1', startedAt: '2024-01-01', endedAt: '2024-01-01', durationMs: 1000 }];
-    localStore[STORAGE_KEYS.studyTimes] = JSON.stringify({ sessions });
-
-    const payload = await collectBackupPayload();
-    expect(payload.studyTimes).toEqual(sessions);
-  });
-
-  it('reads scoreSyncSeq from localStorage', async () => {
-    localStore[STORAGE_KEYS.scoreSyncSeq] = '42';
-
-    const payload = await collectBackupPayload();
-    expect(payload.scoreSyncSeq).toBe(42);
-  });
-
   // -----------------------------------------------------------------------
-  // IDB: groups, scores, profiles, chat
+  // IDB: groups, profiles, chat
   // -----------------------------------------------------------------------
 
   it('includes groups from IDB', async () => {
@@ -272,40 +233,6 @@ describe('collectBackupPayload', () => {
       memberPubkeys: ['pk1', 'pk2'],
       relays: ['wss://relay.example.com'],
     });
-  });
-
-  it('includes member scores per group', async () => {
-    const group: Group = {
-      id: 'g1',
-      name: 'Test',
-      createdAt: 1700000000000,
-      memberPubkeys: ['pk1'],
-      relays: [],
-    };
-    await saveGroup(group);
-
-    const scores: MemberScore[] = [
-      {
-        pubkeyHex: 'pk1',
-        nickname: 'Alice',
-        scores: {
-          math: {
-            topicSlug: 'math',
-            quizPoints: 10,
-            maxPoints: 20,
-            completedTasks: 2,
-            totalTasks: 5,
-            lastStudiedAt: '2024-01-01',
-            sequenceNumber: 1,
-          },
-        },
-        lastSeq: 1,
-      },
-    ];
-    await saveMemberScores('g1', scores);
-
-    const payload = await collectBackupPayload();
-    expect(payload.memberScores['g1']).toEqual(scores);
   });
 
   it('includes member profiles per group', async () => {
@@ -442,16 +369,8 @@ describe('collectBackupPayload', () => {
     await saveGroup(g1);
     await saveGroup(g2);
 
-    await saveMemberScores('g1', [
-      { pubkeyHex: 'pk1', nickname: 'A', scores: {}, lastSeq: 0 },
-    ]);
-    await saveMemberScores('g2', [
-      { pubkeyHex: 'pk2', nickname: 'B', scores: {}, lastSeq: 0 },
-    ]);
-
     const payload = await collectBackupPayload();
     expect(payload.groups).toHaveLength(2);
-    expect(Object.keys(payload.memberScores)).toHaveLength(2);
   });
 
   // -----------------------------------------------------------------------
@@ -541,13 +460,8 @@ describe('createBackupEvent', () => {
       createdAt: 1700000000000,
       settings: null,
       userProfile: null,
-      selectedTopics: null,
-      progress: null,
-      studyTimes: null,
-      scoreSyncSeq: 0,
       groups: [],
       groupStates: {},
-      memberScores: {},
       memberProfiles: {},
       chatMessages: {},
     };
@@ -621,13 +535,8 @@ describe('fetchBackup', () => {
       createdAt: 1700000000000,
       settings: { theme: 'calm', language: 'en' },
       userProfile: null,
-      selectedTopics: null,
-      progress: null,
-      studyTimes: null,
-      scoreSyncSeq: 0,
       groups: [],
       groupStates: {},
-      memberScores: {},
       memberProfiles: {},
       chatMessages: {},
     };
@@ -658,13 +567,8 @@ describe('fetchBackup', () => {
       createdAt: 1700000000000,
       settings: { theme: 'playful', language: 'de' },
       userProfile: null,
-      selectedTopics: null,
-      progress: null,
-      studyTimes: null,
-      scoreSyncSeq: 0,
       groups: [],
       groupStates: {},
-      memberScores: {},
       memberProfiles: {},
       chatMessages: {},
     };
@@ -766,13 +670,8 @@ function makeEmptyPayload(overrides?: Partial<BackupPayload>): BackupPayload {
     createdAt: 1700000000000,
     settings: null,
     userProfile: null,
-    selectedTopics: null,
-    progress: null,
-    studyTimes: null,
-    scoreSyncSeq: 0,
     groups: [],
     groupStates: {},
-    memberScores: {},
     memberProfiles: {},
     chatMessages: {},
     inviteLinks: [],
@@ -815,44 +714,6 @@ describe('restoreFromBackup', () => {
     expect(JSON.parse(localStore[STORAGE_KEYS.userProfile])).toEqual(profile);
   });
 
-  it('rehydrates selectedTopics wrapped in { slugs: [...] }', async () => {
-    await restoreFromBackup(
-      makeEmptyPayload({ selectedTopics: ['math', 'science'] }),
-    );
-
-    expect(JSON.parse(localStore[STORAGE_KEYS.selectedTopics])).toEqual({
-      slugs: ['math', 'science'],
-    });
-  });
-
-  it('rehydrates progress from payload', async () => {
-    const progress = { byTopicSlug: { math: { quizPoints: 10 } } };
-    await restoreFromBackup(makeEmptyPayload({ progress }));
-
-    expect(JSON.parse(localStore[STORAGE_KEYS.progress])).toEqual(progress);
-  });
-
-  it('rehydrates studyTimes wrapped in { sessions: [...] }', async () => {
-    const sessions = [{ id: 's1', durationMs: 1000 }];
-    await restoreFromBackup(makeEmptyPayload({ studyTimes: sessions }));
-
-    expect(JSON.parse(localStore[STORAGE_KEYS.studyTimes])).toEqual({
-      sessions,
-    });
-  });
-
-  it('rehydrates scoreSyncSeq from payload', async () => {
-    await restoreFromBackup(makeEmptyPayload({ scoreSyncSeq: 42 }));
-
-    expect(localStore[STORAGE_KEYS.scoreSyncSeq]).toBe('42');
-  });
-
-  it('rehydrates scoreSyncSeq when value is 0', async () => {
-    await restoreFromBackup(makeEmptyPayload({ scoreSyncSeq: 0 }));
-
-    expect(localStore[STORAGE_KEYS.scoreSyncSeq]).toBe('0');
-  });
-
   it('rehydrates groups into IDB', async () => {
     const group = {
       id: 'g1',
@@ -867,21 +728,6 @@ describe('restoreFromBackup', () => {
     const groups = await loadAllGroups();
     expect(groups).toHaveLength(1);
     expect(groups[0]).toEqual(group);
-  });
-
-  it('rehydrates member scores into IDB', async () => {
-    const scores = [
-      { pubkeyHex: 'pk1', nickname: 'Alice', scores: {}, lastSeq: 1 },
-    ];
-    await restoreFromBackup(
-      makeEmptyPayload({
-        groups: [{ id: 'g1', name: 'T', createdAt: 0, memberPubkeys: [], relays: [] }],
-        memberScores: { g1: scores },
-      }),
-    );
-
-    const loaded = await loadMemberScores('g1');
-    expect(loaded).toEqual(scores);
   });
 
   it('rehydrates member profiles into IDB', async () => {
@@ -939,7 +785,6 @@ describe('restoreFromBackup', () => {
   it('round-trips: collect then restore produces equivalent state', async () => {
     // Set up state
     localStore[STORAGE_KEYS.settings] = JSON.stringify({ theme: 'playful', language: 'de' });
-    localStore[STORAGE_KEYS.scoreSyncSeq] = '7';
     await saveGroup({
       id: 'g1',
       name: 'Bio',
@@ -947,9 +792,6 @@ describe('restoreFromBackup', () => {
       memberPubkeys: ['pk1'],
       relays: ['wss://relay.example.com'],
     });
-    await saveMemberScores('g1', [
-      { pubkeyHex: 'pk1', nickname: 'A', scores: {}, lastSeq: 0 },
-    ]);
 
     // Collect
     const payload = await collectBackupPayload();
@@ -966,7 +808,6 @@ describe('restoreFromBackup', () => {
       theme: 'playful',
       language: 'de',
     });
-    expect(localStore[STORAGE_KEYS.scoreSyncSeq]).toBe('7');
     const groups = await loadAllGroups();
     expect(groups).toHaveLength(1);
     expect(groups[0].name).toBe('Bio');

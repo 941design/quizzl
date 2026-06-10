@@ -18,7 +18,6 @@ import type { ApplicationRumor, DispatcherContext, RumorHandler } from '@/src/li
 
 export interface ProfileHandlerDeps {
   mergeMemberProfile: (groupId: string, profile: MemberProfile) => Promise<boolean>;
-  updateMemberScoreNickname: (groupId: string, pubkeyHex: string, nickname: string) => Promise<void>;
   notifyProfileObserved: (args: { groupId: string; targetPubkey: string; observedUpdatedAt: string }) => void;
   recordRequestAnswered: (groupId: string, authorPubkey: string, timestamp: number) => Promise<void>;
   writeContactEntry: (pubkey: string, entry: { nickname: string; avatar: ProfileAvatar | null; updatedAt: string }) => void;
@@ -42,8 +41,6 @@ async function handle(rumor: ApplicationRumor, ctx: DispatcherContext, deps: Pro
   if (merged) {
     await deps.recordRequestAnswered(ctx.groupId, authorPubkey, Date.now());
   }
-
-  await deps.updateMemberScoreNickname(ctx.groupId, authorPubkey, profilePayload.nickname);
 
   // AC-036: cancel any pending relay timer for this profile's author.
   if (profilePayload.signedEvent) {

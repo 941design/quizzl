@@ -2,12 +2,11 @@ import { createDispatcher, type Dispatcher, type RumorHandler } from './applicat
 import type { ChatMessage } from './chatPersistence';
 import type { ReactionThreadKey } from '@/src/lib/reactions/types';
 import type { ApplicationRumor } from './applicationRumorDispatcher';
-import type { MemberProfile, ProfileAvatar, ScoreUpdate } from '@/src/types';
+import type { MemberProfile, ProfileAvatar } from '@/src/types';
 import type { Poll, PollVote } from '@/src/lib/marmot/pollPersistence';
 import type { ProfileRequestPayload } from '@/src/lib/marmot/profileRequestSync';
 import { createChatHandler } from './handlers/chatHandler';
 import { createReactionHandler } from './handlers/reactionHandler';
-import { createScoreHandler } from './handlers/scoreHandler';
 import { createProfileHandler } from './handlers/profileHandler';
 import { createProfileRequestHandler } from './handlers/profileRequestHandler';
 import { createPollOpenHandler, createPollVoteHandler, createPollCloseHandler } from './handlers/pollHandler';
@@ -23,11 +22,8 @@ export interface HandlerDeps {
   loadMessages: (groupId: string) => Promise<{ messages: ChatMessage[]; refetchIds: string[] }>;
   applyInboundRumor: (thread: ReactionThreadKey, rumor: ApplicationRumor) => Promise<unknown>;
   setReactionsVersion: (updater: (v: number) => number) => void;
-  // Score handler deps
-  mergeMemberScore: (groupId: string, pubkeyHex: string, nickname: string, update: ScoreUpdate) => Promise<void>;
   // Profile handler deps
   mergeMemberProfile: (groupId: string, profile: MemberProfile) => Promise<boolean>;
-  updateMemberScoreNickname: (groupId: string, pubkeyHex: string, nickname: string) => Promise<void>;
   notifyProfileObserved: (args: { groupId: string; targetPubkey: string; observedUpdatedAt: string }) => void;
   recordRequestAnswered: (groupId: string, authorPubkey: string, timestamp: number) => Promise<void>;
   writeContactEntry: (pubkey: string, entry: { nickname: string; avatar: ProfileAvatar | null; updatedAt: string }) => void;
@@ -76,12 +72,8 @@ export function buildDispatcher(deps: HandlerDeps): Dispatcher {
       applyInboundRumor: deps.applyInboundRumor,
       setReactionsVersion: deps.setReactionsVersion,
     }),
-    createScoreHandler({
-      mergeMemberScore: deps.mergeMemberScore,
-    }),
     createProfileHandler({
       mergeMemberProfile: deps.mergeMemberProfile,
-      updateMemberScoreNickname: deps.updateMemberScoreNickname,
       notifyProfileObserved: deps.notifyProfileObserved,
       recordRequestAnswered: deps.recordRequestAnswered,
       writeContactEntry: deps.writeContactEntry,

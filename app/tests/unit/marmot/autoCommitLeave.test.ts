@@ -31,13 +31,9 @@ vi.mock('@/src/lib/marmot/groupStorage', () => ({
   loadAllGroups: vi.fn().mockResolvedValue([]),
   saveGroup: vi.fn(),
   deleteGroup: vi.fn(),
-  loadMemberScores: vi.fn().mockResolvedValue([]),
-  mergeMemberScore: vi.fn(),
-  clearMemberScores: vi.fn(),
   loadMemberProfiles: vi.fn().mockResolvedValue([]),
   mergeMemberProfile: vi.fn(),
   clearMemberProfiles: vi.fn(),
-  updateMemberScoreNickname: vi.fn(),
   IdbGroupStateBackend: vi.fn(),
   IdbKeyPackageBackend: vi.fn(),
   clearAllGroupData: vi.fn(),
@@ -45,12 +41,6 @@ vi.mock('@/src/lib/marmot/groupStorage', () => ({
 
 vi.mock('@/src/lib/marmot/welcomeSubscription', () => ({
   subscribeToWelcomes: vi.fn(),
-}));
-
-vi.mock('@/src/lib/marmot/scoreSync', () => ({
-  serialiseScoreUpdate: vi.fn(),
-  nextSequenceNumber: vi.fn(),
-  SCORE_RUMOR_KIND: 8902,
 }));
 
 vi.mock('@/src/lib/marmot/profileSync', () => ({

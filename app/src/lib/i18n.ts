@@ -6,9 +6,6 @@ type Copy = {
   layout: {
     nav: {
       home: string;
-      topics: string;
-      leaderboard: string;
-      studyTimes: string;
       contacts: string;
       groups: string;
       settings: string;
@@ -25,43 +22,11 @@ type Copy = {
   home: {
     title: string;
     description: string;
-    browseTopics: string;
+    openContacts: string;
+    openGroups: string;
     settings: string;
     profileCardTitle: string;
     profileCardBody: string;
-    featureQuiz: string;
-    featureQuizBody: string;
-    featureNotes: string;
-    featureNotesBody: string;
-    featurePlan: string;
-    featurePlanBody: string;
-  };
-  topics: {
-    pageTitle: string;
-    heading: string;
-    description: string;
-    allTopics: (count: number) => string;
-    myTopics: (count?: number) => string;
-    emptyHeading: string;
-    emptyBody: string;
-    browseAll: string;
-    select: string;
-    remove: string;
-    studyNow: string;
-  };
-  topicPage: {
-    notFoundTitle: string;
-    notFoundHeading: string;
-    notFoundBody: string;
-    browseTopics: string;
-    quizLabel: string;
-    answeredStat: (answered: number, total: number) => string;
-    pointsLabel: string;
-    tabs: {
-      quiz: string;
-      notes: string;
-      studyPlan: string;
-    };
   };
   settings: {
     pageTitle: string;
@@ -120,89 +85,6 @@ type Copy = {
     resetModalBody: string;
     cancel: string;
     confirmReset: string;
-  };
-  leaderboard: {
-    pageTitle: string;
-    heading: string;
-    description: string;
-    profileHeading: string;
-    noTopics: string;
-    browseTopics: string;
-    noPoints: string;
-    youLabel: string;
-    totalPoints: string;
-    rank: string;
-    streak: string;
-    streakDay: string;
-    streakDays: string;
-    onARoll: string;
-    topicsSelected: string;
-    loading: string;
-    youBadge: string;
-    pointsUnit: string;
-  };
-  studyTimes: {
-    pageTitle: string;
-    heading: string;
-    description: string;
-    recentSessions: string;
-    loading: string;
-    today: string;
-    thisWeek: string;
-    totalSessions: string;
-    studyTime: string;
-    completed: string;
-    noSessions: string;
-    noSessionsBody: string;
-    general: string;
-  };
-  quiz: {
-    emptyHeading: string;
-    emptyBody: string;
-    completeHeading: string;
-    answeredSummary: (count: number) => string;
-    retry: string;
-    questionProgress: (current: number, total: number) => string;
-    scoreProgress: (answered: number, total: number, points: number) => string;
-    singleChoice: string;
-    multiChoice: string;
-    flashcard: string;
-    previous: string;
-    next: string;
-    correct: string;
-    incorrect: string;
-    selectAll: string;
-    submitAnswer: string;
-    scoreLabel: (score: number) => string;
-    flashcardQuestion: string;
-    flashcardAnswer: string;
-    revealAnswer: string;
-    didntKnow: string;
-    knewIt: string;
-    knewItFeedback: string;
-    didntKnowFeedback: string;
-  };
-  notes: {
-    saving: string;
-    saved: string;
-    unsaved: string;
-    autoSave: string;
-  };
-  studyPlan: {
-    done: string;
-    completeTask: (title: string) => string;
-    emptyHeading: string;
-    emptyBody: string;
-    overallProgress: string;
-    tasksCompleted: (completed: number, total: number) => string;
-  };
-  studyTimer: {
-    activeSessionTitle: string;
-    activeSessionBody: string;
-    continue: string;
-    stop: string;
-    startSession: string;
-    stopSession: string;
   };
   storage: {
     title: string;
@@ -270,8 +152,6 @@ type Copy = {
     offlineBanner: string;
     offlineLastSync: (time: string) => string;
     syncNow: string;
-    memberScoresHeading: string;
-    noScoresYet: string;
     fromGroup: (name: string) => string;
     softLimitWarning: string;
     navLabel: string;
@@ -453,9 +333,6 @@ const copy: Record<LanguageCode, Copy> = {
     layout: {
       nav: {
         home: 'Home',
-        topics: 'Topics',
-        leaderboard: 'Leaderboard',
-        studyTimes: 'Study Times',
         contacts: 'Contacts',
         groups: 'Groups',
         settings: 'Settings',
@@ -472,45 +349,12 @@ const copy: Record<LanguageCode, Copy> = {
     home: {
       title: 'Welcome to Quizzl',
       description:
-        'Learn with freely selectable topics. Combine quiz, notes, and study plans to master any subject at your own pace.',
-      browseTopics: 'Browse Topics',
+        'Private, end-to-end encrypted chats. Message your contacts directly or talk together in groups.',
+      openContacts: 'Open Contacts',
+      openGroups: 'Open Groups',
       settings: 'Settings',
-      profileCardTitle: 'Your learning profile',
-      profileCardBody: 'Your nickname and avatar show up in progress spaces like the leaderboard.',
-      featureQuiz: 'Quiz & Flashcards',
-      featureQuizBody:
-        'Test your knowledge with single-choice, multi-choice, and flashcard questions.',
-      featureNotes: 'Notes',
-      featureNotesBody: 'Write rich formatted notes per topic. Auto-saved to your browser.',
-      featurePlan: 'Study Plans',
-      featurePlanBody: 'Follow structured study steps and track your daily progress.',
-    },
-    topics: {
-      pageTitle: 'Topics',
-      heading: 'Topics',
-      description: 'Select topics you want to learn. Your selections are saved automatically.',
-      allTopics: (count) => `All Topics (${count})`,
-      myTopics: (count) => (typeof count === 'number' ? `My Topics (${count})` : 'My Topics'),
-      emptyHeading: "You haven't selected any topics yet.",
-      emptyBody: 'Go to "All Topics" and click "Select" on any topic to get started.',
-      browseAll: 'Browse All Topics',
-      select: 'Select',
-      remove: 'Remove',
-      studyNow: 'Study Now',
-    },
-    topicPage: {
-      notFoundTitle: 'Topic Not Found',
-      notFoundHeading: 'Topic not found',
-      notFoundBody: "This topic doesn't exist or failed to load.",
-      browseTopics: 'Browse Topics',
-      quizLabel: 'Quiz',
-      answeredStat: (answered, total) => `${answered}/${total} answered`,
-      pointsLabel: 'Points',
-      tabs: {
-        quiz: 'Quiz',
-        notes: 'Notes',
-        studyPlan: 'Study Plan',
-      },
+      profileCardTitle: 'Your profile',
+      profileCardBody: 'Your nickname and avatar show up to the people you chat with.',
     },
     settings: {
       pageTitle: 'Settings',
@@ -571,90 +415,6 @@ const copy: Record<LanguageCode, Copy> = {
         'This will permanently delete all your quiz answers, notes, study sessions, and settings. This action cannot be undone.',
       cancel: 'Cancel',
       confirmReset: 'Yes, Reset Everything',
-    },
-    leaderboard: {
-      pageTitle: 'Leaderboard',
-      heading: 'Leaderboard',
-      description: 'Your learning progress. Keep studying to climb the ranks!',
-      profileHeading: 'Your profile',
-      noTopics: 'Select some topics to track your quiz points.',
-      browseTopics: 'Browse Topics',
-      noPoints: 'Complete some quiz questions to earn points and appear on the leaderboard.',
-      youLabel: 'You (1/1)',
-      totalPoints: 'Total Points',
-      rank: 'Rank',
-      streak: 'Study Streak',
-      streakDay: 'day',
-      streakDays: 'days',
-      onARoll: 'On a roll!',
-      topicsSelected: 'Topics Selected',
-      loading: 'Loading...',
-      youBadge: 'You',
-      pointsUnit: 'pts',
-    },
-    studyTimes: {
-      pageTitle: 'Study Times',
-      heading: 'Study Times',
-      description: 'Track your study sessions and see your progress over time.',
-      recentSessions: 'Recent Sessions',
-      loading: 'Loading...',
-      today: 'Today',
-      thisWeek: 'This Week',
-      totalSessions: 'Total Sessions',
-      studyTime: 'study time',
-      completed: 'completed',
-      noSessions: 'No study sessions yet.',
-      noSessionsBody: 'Start a session on a topic page to track your study time.',
-      general: 'General',
-    },
-    quiz: {
-      emptyHeading: 'This topic has no quiz questions yet.',
-      emptyBody: 'Try the Notes or Study Plan tabs to continue learning.',
-      completeHeading: 'Quiz Complete!',
-      answeredSummary: (count) => `${count} question${count !== 1 ? 's' : ''} answered`,
-      retry: 'Retry Quiz',
-      questionProgress: (current, total) => `Question ${current} of ${total}`,
-      scoreProgress: (answered, total, points) => `${answered}/${total} answered · ${points} pts`,
-      singleChoice: 'Single Choice',
-      multiChoice: 'Multiple Choice',
-      flashcard: 'Flashcard',
-      previous: 'Previous',
-      next: 'Next',
-      correct: 'Correct!',
-      incorrect: 'Incorrect',
-      selectAll: 'Select all that apply',
-      submitAnswer: 'Submit Answer',
-      scoreLabel: (score) => `Score: ${score} point${score !== 1 ? 's' : ''}`,
-      flashcardQuestion: 'Question',
-      flashcardAnswer: 'Answer',
-      revealAnswer: 'Reveal Answer',
-      didntKnow: "I didn't know it",
-      knewIt: 'I knew it!',
-      knewItFeedback: 'You knew it! +1 point',
-      didntKnowFeedback: "You didn't know it. Keep studying!",
-    },
-    notes: {
-      saving: 'Saving...',
-      saved: 'Saved',
-      unsaved: 'Unsaved',
-      autoSave: 'Notes are saved automatically to your browser.',
-    },
-    studyPlan: {
-      done: 'Done',
-      completeTask: (title) => `Complete: ${title}`,
-      emptyHeading: 'This topic has no study plan yet.',
-      emptyBody: 'Try the Quiz or Notes tabs to continue learning.',
-      overallProgress: 'Overall progress',
-      tasksCompleted: (completed, total) => `${completed}/${total} tasks completed`,
-    },
-    studyTimer: {
-      activeSessionTitle: 'Active study session detected',
-      activeSessionBody:
-        'You may have refreshed during a session. Would you like to continue or stop it?',
-      continue: 'Continue',
-      stop: 'Stop',
-      startSession: 'Start Session',
-      stopSession: 'Stop Session',
     },
     storage: {
       title: 'Storage Unavailable',
@@ -727,8 +487,6 @@ const copy: Record<LanguageCode, Copy> = {
       offlineBanner: 'Offline — group sync unavailable',
       offlineLastSync: (time) => `Last synced: ${time}`,
       syncNow: 'Sync now',
-      memberScoresHeading: 'Group Progress',
-      noScoresYet: 'No quiz scores shared yet.',
       fromGroup: (name) => `From group: ${name}`,
       softLimitWarning: 'This group is near the recommended limit of 50 members.',
       navLabel: 'Groups',
@@ -898,9 +656,6 @@ const copy: Record<LanguageCode, Copy> = {
     layout: {
       nav: {
         home: 'Start',
-        topics: 'Themen',
-        leaderboard: 'Rangliste',
-        studyTimes: 'Lernzeiten',
         contacts: 'Kontakte',
         groups: 'Gruppen',
         settings: 'Einstellungen',
@@ -917,50 +672,17 @@ const copy: Record<LanguageCode, Copy> = {
     home: {
       title: 'Willkommen bei Quizzl',
       description:
-        'Lerne mit frei wählbaren Themen. Kombiniere Quiz, Notizen und Lernpläne, um jedes Fach in deinem eigenen Tempo zu meistern.',
-      browseTopics: 'Themen ansehen',
+        'Private, Ende-zu-Ende-verschlüsselte Chats. Schreibe deinen Kontakten direkt oder unterhalte dich gemeinsam in Gruppen.',
+      openContacts: 'Kontakte öffnen',
+      openGroups: 'Gruppen öffnen',
       settings: 'Einstellungen',
-      profileCardTitle: 'Dein Lernprofil',
-      profileCardBody: 'Dein Spitzname und Avatar erscheinen in Fortschrittsbereichen wie der Rangliste.',
-      featureQuiz: 'Quiz & Karteikarten',
-      featureQuizBody:
-        'Teste dein Wissen mit Single-Choice-, Multiple-Choice- und Karteikarten-Fragen.',
-      featureNotes: 'Notizen',
-      featureNotesBody: 'Schreibe formatierte Notizen pro Thema. Automatisch im Browser gespeichert.',
-      featurePlan: 'Lernpläne',
-      featurePlanBody: 'Folge strukturierten Lernschritten und verfolge deinen Fortschritt.',
-    },
-    topics: {
-      pageTitle: 'Themen',
-      heading: 'Themen',
-      description: 'Wähle Themen aus, die du lernen möchtest. Deine Auswahl wird automatisch gespeichert.',
-      allTopics: (count) => `Alle Themen (${count})`,
-      myTopics: (count) => (typeof count === 'number' ? `Meine Themen (${count})` : 'Meine Themen'),
-      emptyHeading: 'Du hast noch keine Themen ausgewählt.',
-      emptyBody: 'Wechsle zu "Alle Themen" und klicke bei einem Thema auf "Auswählen".',
-      browseAll: 'Alle Themen ansehen',
-      select: 'Auswählen',
-      remove: 'Entfernen',
-      studyNow: 'Jetzt lernen',
-    },
-    topicPage: {
-      notFoundTitle: 'Thema nicht gefunden',
-      notFoundHeading: 'Thema nicht gefunden',
-      notFoundBody: 'Dieses Thema existiert nicht oder konnte nicht geladen werden.',
-      browseTopics: 'Themen ansehen',
-      quizLabel: 'Quiz',
-      answeredStat: (answered, total) => `${answered}/${total} beantwortet`,
-      pointsLabel: 'Punkte',
-      tabs: {
-        quiz: 'Quiz',
-        notes: 'Notizen',
-        studyPlan: 'Lernplan',
-      },
+      profileCardTitle: 'Dein Profil',
+      profileCardBody: 'Dein Spitzname und Avatar erscheinen bei den Personen, mit denen du chattest.',
     },
     settings: {
       pageTitle: 'Einstellungen',
       heading: 'Einstellungen',
-      description: 'Passe dein Lernerlebnis an.',
+      description: 'Passe dein Erlebnis an.',
       resetSuccess: 'Alle Daten wurden zurückgesetzt. Du kannst neu starten.',
       profileSaved: 'Dein Profil wurde gespeichert.',
       profileHeading: 'Mein Profil',
@@ -1016,90 +738,6 @@ const copy: Record<LanguageCode, Copy> = {
         'Dadurch werden alle Quiz-Antworten, Notizen, Lernsitzungen und Einstellungen dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.',
       cancel: 'Abbrechen',
       confirmReset: 'Ja, alles zurücksetzen',
-    },
-    leaderboard: {
-      pageTitle: 'Rangliste',
-      heading: 'Rangliste',
-      description: 'Dein Lernfortschritt. Lerne weiter, um aufzusteigen.',
-      profileHeading: 'Dein Profil',
-      noTopics: 'Wähle Themen aus, damit deine Quizpunkte verfolgt werden.',
-      browseTopics: 'Themen ansehen',
-      noPoints: 'Beantworte Quizfragen, um Punkte zu sammeln und in der Rangliste zu erscheinen.',
-      youLabel: 'Du (1/1)',
-      totalPoints: 'Gesamtpunkte',
-      rank: 'Rang',
-      streak: 'Lernserie',
-      streakDay: 'Tag',
-      streakDays: 'Tage',
-      onARoll: 'Läuft bei dir!',
-      topicsSelected: 'Ausgewählte Themen',
-      loading: 'Wird geladen...',
-      youBadge: 'Du',
-      pointsUnit: 'Pkt',
-    },
-    studyTimes: {
-      pageTitle: 'Lernzeiten',
-      heading: 'Lernzeiten',
-      description: 'Verfolge deine Lernsitzungen und sieh deinen Fortschritt im Zeitverlauf.',
-      recentSessions: 'Letzte Sitzungen',
-      loading: 'Wird geladen...',
-      today: 'Heute',
-      thisWeek: 'Diese Woche',
-      totalSessions: 'Sitzungen gesamt',
-      studyTime: 'Lernzeit',
-      completed: 'abgeschlossen',
-      noSessions: 'Noch keine Lernsitzungen.',
-      noSessionsBody: 'Starte auf einer Themenseite eine Sitzung, um deine Lernzeit zu erfassen.',
-      general: 'Allgemein',
-    },
-    quiz: {
-      emptyHeading: 'Für dieses Thema gibt es noch keine Quizfragen.',
-      emptyBody: 'Nutze stattdessen die Tabs Notizen oder Lernplan.',
-      completeHeading: 'Quiz abgeschlossen!',
-      answeredSummary: (count) => `${count} Frage${count !== 1 ? 'n' : ''} beantwortet`,
-      retry: 'Quiz wiederholen',
-      questionProgress: (current, total) => `Frage ${current} von ${total}`,
-      scoreProgress: (answered, total, points) => `${answered}/${total} beantwortet · ${points} Pkt`,
-      singleChoice: 'Single Choice',
-      multiChoice: 'Multiple Choice',
-      flashcard: 'Karteikarte',
-      previous: 'Zurück',
-      next: 'Weiter',
-      correct: 'Richtig!',
-      incorrect: 'Falsch',
-      selectAll: 'Wähle alle passenden Antworten aus',
-      submitAnswer: 'Antwort prüfen',
-      scoreLabel: (score) => `Punkte: ${score}`,
-      flashcardQuestion: 'Frage',
-      flashcardAnswer: 'Antwort',
-      revealAnswer: 'Antwort anzeigen',
-      didntKnow: 'Wusste ich nicht',
-      knewIt: 'Wusste ich',
-      knewItFeedback: 'Du wusstest es! +1 Punkt',
-      didntKnowFeedback: 'Du wusstest es nicht. Weiterlernen lohnt sich.',
-    },
-    notes: {
-      saving: 'Speichert...',
-      saved: 'Gespeichert',
-      unsaved: 'Ungespeichert',
-      autoSave: 'Notizen werden automatisch in deinem Browser gespeichert.',
-    },
-    studyPlan: {
-      done: 'Fertig',
-      completeTask: (title) => `Abschließen: ${title}`,
-      emptyHeading: 'Für dieses Thema gibt es noch keinen Lernplan.',
-      emptyBody: 'Nutze stattdessen die Tabs Quiz oder Notizen.',
-      overallProgress: 'Gesamtfortschritt',
-      tasksCompleted: (completed, total) => `${completed}/${total} Aufgaben erledigt`,
-    },
-    studyTimer: {
-      activeSessionTitle: 'Aktive Lernsitzung erkannt',
-      activeSessionBody:
-        'Du hast die Seite wahrscheinlich während einer Sitzung neu geladen. Möchtest du fortfahren oder sie beenden?',
-      continue: 'Fortfahren',
-      stop: 'Beenden',
-      startSession: 'Sitzung starten',
-      stopSession: 'Sitzung beenden',
     },
     storage: {
       title: 'Speicher nicht verfügbar',
@@ -1172,8 +810,6 @@ const copy: Record<LanguageCode, Copy> = {
       offlineBanner: 'Offline — Gruppensynchronisation nicht verfügbar',
       offlineLastSync: (time) => `Zuletzt synchronisiert: ${time}`,
       syncNow: 'Jetzt synchronisieren',
-      memberScoresHeading: 'Gruppenfortschritt',
-      noScoresYet: 'Noch keine Quizpunkte geteilt.',
       fromGroup: (name) => `Aus Gruppe: ${name}`,
       softLimitWarning: 'Diese Gruppe nähert sich dem empfohlenen Limit von 50 Mitgliedern.',
       navLabel: 'Gruppen',
