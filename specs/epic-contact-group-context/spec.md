@@ -44,6 +44,8 @@ Add two enhancements:
 
 3. **Eligible groups for "Add to Group"** — A group is eligible if the contact's pubkeyHex does NOT appear (case-insensitive) in `group.memberPubkeys`. The user's own groups where they are already a member are the only candidates.
 
+3a. **Admin requirement (amendment 2026-06-10)** — `inviteByNpub` only succeeds when the current user is an admin of the target group (MLS `commit()` has an admin check). A group is therefore **addable** only if it is eligible AND the current user's pubkey appears in the group's `adminPubkeys`. Admin status lives in the MLS group state (`getGroup(id).groupData.adminPubkeys`), not in the `Group` overlay, so it is loaded asynchronously per candidate group. Non-admin groups are excluded from the dropdown entirely — the user never sees a group they cannot invite into. Refs: `app/pages/groups.tsx:207` (canonical `isAdmin` derivation), `app/src/context/MarmotContext.tsx:1169`.
+
 4. **No new component** — Common groups text is rendered inline in `ContactListView`'s card, below the `ProfileSummary`. The "Add to Group" section is rendered inline in `ProfilePage`. Neither change warrants a separate extracted component given their small scope.
 
 5. **Invite call** — Uses `pubkeyToNpub(pubkeyHex)` to produce the npub before calling `inviteByNpub(groupId, npub)`, consistent with how `InviteMemberModal.tsx` works. Refs: `app/src/lib/nostrKeys.ts`.
@@ -102,4 +104,4 @@ See [`acceptance-criteria.md`](./acceptance-criteria.md).
 
 ## Amendments
 
-None.
+- **2026-06-10** — Added Design Decision 3a and tightened `AC-UX-3`, `AC-UX-4`, `AC-UX-5`; added `AC-STRUCT-3`. Source: user request after S2 shipped ("require admin"). Rationale: `inviteByNpub` only succeeds for group admins, so the "Add to Group" dropdown must list only groups where the current user is an admin — otherwise a non-admin user sees a button that always errors. The dropdown now shows **addable** groups (eligible ∧ current-user-is-admin).

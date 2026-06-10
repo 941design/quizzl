@@ -219,6 +219,33 @@ export function eligibleGroupsForContact(groups: Group[], contactPubkeyHex: stri
 }
 
 /**
+ * Returns the groups a contact can actually be added to: the {@link
+ * eligibleGroupsForContact} subset further restricted to groups the current
+ * user administers. `inviteByNpub` only succeeds for group admins (the MLS
+ * `commit()` carries an admin check), so a non-admin group is never offered.
+ *
+ * Admin status is not part of the `Group` overlay — it lives in MLS state — so
+ * the caller resolves it asynchronously and passes the resulting set of group
+ * ids the current user is an admin of. Keeping that resolution outside this
+ * function preserves its purity and testability.
+ *
+ * @param groups        - Groups the current user belongs to.
+ * @param contactPubkeyHex - Hex pubkey of the contact to test membership for.
+ * @param adminGroupIds - Ids of the groups the current user is an admin of.
+ * @returns The eligible groups whose id is in `adminGroupIds`, preserving input
+ *          order. Empty array when none qualify or inputs are empty.
+ */
+export function addableGroupsForContact(
+  groups: Group[],
+  contactPubkeyHex: string,
+  adminGroupIds: ReadonlySet<string>,
+): Group[] {
+  return eligibleGroupsForContact(groups, contactPubkeyHex).filter((group) =>
+    adminGroupIds.has(group.id),
+  );
+}
+
+/**
  * Purges stranger entries from both contact storage keys (AC-PURGE-5).
  *
  * Reads `STORAGE_KEYS.contacts` (lp_contacts_v1) and

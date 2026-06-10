@@ -17,9 +17,9 @@
       "name": "add-to-group-on-profile",
       "status": "done",
       "owning_module": "profile-page",
-      "acceptance_criteria": ["AC-UX-3", "AC-UX-4", "AC-UX-5", "AC-I18N-2", "AC-ERR-1"],
+      "acceptance_criteria": ["AC-UX-3", "AC-UX-4", "AC-UX-5", "AC-I18N-2", "AC-ERR-1", "AC-STRUCT-3"],
       "scope": {
-        "includes": ["app/pages/profile.tsx", "app/src/lib/contacts.ts", "app/src/lib/i18n.ts"]
+        "includes": ["app/pages/profile.tsx", "app/src/lib/contacts.ts", "app/src/lib/i18n.ts", "app/tests/unit/contacts-groups.test.ts"]
       }
     }
   ]

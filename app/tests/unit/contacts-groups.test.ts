@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commonGroups, eligibleGroupsForContact } from '@/src/lib/contacts';
+import { addableGroupsForContact, commonGroups, eligibleGroupsForContact } from '@/src/lib/contacts';
 import type { Group } from '@/src/types';
 
 function makeGroup(id: string, members: string[]): Group {
@@ -94,5 +94,55 @@ describe('eligibleGroupsForContact', () => {
     const eligible = eligibleGroupsForContact(groups, CONTACT).map((g) => g.id);
     expect([...common, ...eligible].sort()).toEqual(['1', '2', '3', '4']);
     expect(common.filter((id) => eligible.includes(id))).toEqual([]);
+  });
+});
+
+describe('addableGroupsForContact', () => {
+  it('returns an empty array when there are no groups', () => {
+    expect(addableGroupsForContact([], CONTACT, new Set(['1']))).toEqual([]);
+  });
+
+  it('returns an empty array when the admin set is empty', () => {
+    const groups = [makeGroup('1', [OWN]), makeGroup('2', [OWN, OTHER])];
+    expect(addableGroupsForContact(groups, CONTACT, new Set())).toEqual([]);
+  });
+
+  it('includes an eligible group only when its id is in the admin set', () => {
+    const groups = [makeGroup('1', [OWN]), makeGroup('2', [OWN, OTHER])];
+    const result = addableGroupsForContact(groups, CONTACT, new Set(['2']));
+    expect(result.map((g) => g.id)).toEqual(['2']);
+  });
+
+  it('excludes a group where the user is NOT an admin even when the contact is not a member (AC-STRUCT-3)', () => {
+    // Contact is not in either group, so both are eligible — but the user only
+    // administers group '1', so group '2' must be excluded.
+    const groups = [makeGroup('1', [OWN]), makeGroup('2', [OWN])];
+    const result = addableGroupsForContact(groups, CONTACT, new Set(['1']));
+    expect(result.map((g) => g.id)).toEqual(['1']);
+  });
+
+  it('excludes a group the contact is already a member of even when the user is an admin', () => {
+    // User administers both groups, but the contact is already in group '1',
+    // so only group '2' is addable.
+    const groups = [makeGroup('1', [OWN, CONTACT]), makeGroup('2', [OWN])];
+    const result = addableGroupsForContact(groups, CONTACT, new Set(['1', '2']));
+    expect(result.map((g) => g.id)).toEqual(['2']);
+  });
+
+  it('requires BOTH eligibility and admin: contact-member or non-admin groups are dropped', () => {
+    const groups = [
+      makeGroup('1', [OWN, CONTACT]), // contact member → not eligible
+      makeGroup('2', [OWN]), // eligible + admin → addable
+      makeGroup('3', [OWN]), // eligible but not admin → dropped
+      makeGroup('4', [OWN, OTHER]), // eligible + admin → addable
+    ];
+    const result = addableGroupsForContact(groups, CONTACT, new Set(['1', '2', '4']));
+    expect(result.map((g) => g.id)).toEqual(['2', '4']);
+  });
+
+  it('preserves input order', () => {
+    const groups = [makeGroup('3', [OWN]), makeGroup('1', [OWN]), makeGroup('2', [OWN])];
+    const result = addableGroupsForContact(groups, CONTACT, new Set(['1', '2', '3']));
+    expect(result.map((g) => g.id)).toEqual(['3', '1', '2']);
   });
 });

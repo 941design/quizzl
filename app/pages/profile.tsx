@@ -18,7 +18,7 @@ import {
 import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
-import { archiveContact, eligibleGroupsForContact, getContact, unarchiveContact } from '@/src/lib/contacts';
+import { addableGroupsForContact, archiveContact, eligibleGroupsForContact, getContact, unarchiveContact } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import type { ContactListItem } from '@/src/lib/contacts';
 import type { ProfileAvatar } from '@/src/types';
@@ -53,11 +53,12 @@ export default function ProfilePage() {
   const router = useRouter();
   const copy = useCopy();
   const { pubkeyHex: ownPubkeyHex } = useNostrIdentity();
-  const { groups, inviteByNpub } = useMarmot();
+  const { groups, inviteByNpub, getGroup, groupDataVersion } = useMarmot();
   const [version, setVersion] = useState(0);
   const [npubCopied, setNpubCopied] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [addToGroupStatus, setAddToGroupStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [adminGroupIds, setAdminGroupIds] = useState<Set<string>>(new Set());
 
   const pubkeyHex = typeof router.query.pubkey === 'string' ? router.query.pubkey : null;
 
@@ -66,6 +67,34 @@ export default function ProfilePage() {
       router.replace('/settings');
     }
   }, [pubkeyHex, ownPubkeyHex, router]);
+
+  // Resolve which of the contact's eligible groups the current user administers.
+  // Admin status lives in MLS state (getGroup → groupData.adminPubkeys), not in
+  // the Group overlay, so it is loaded asynchronously per candidate group. Only
+  // admin groups can be invited into, so non-admin groups are filtered out of
+  // the "Add to Group" dropdown entirely.
+  useEffect(() => {
+    if (!pubkeyHex || !ownPubkeyHex) {
+      setAdminGroupIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    const candidates = eligibleGroupsForContact(groups, pubkeyHex);
+    void Promise.all(
+      candidates.map(async (group) => {
+        const mlsGroup = await getGroup(group.id).catch(() => null);
+        const admins = mlsGroup?.groupData?.adminPubkeys ?? [];
+        const isAdmin = admins.some((pk) => pk.toLowerCase() === ownPubkeyHex.toLowerCase());
+        return isAdmin ? group.id : null;
+      }),
+    ).then((ids) => {
+      if (cancelled) return;
+      setAdminGroupIds(new Set(ids.filter((id): id is string => id !== null)));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [groups, pubkeyHex, ownPubkeyHex, getGroup, groupDataVersion]);
 
   const contact: ContactListItem | null = useMemo(() => {
     if (!pubkeyHex || !ownPubkeyHex) return null;
@@ -91,10 +120,10 @@ export default function ProfilePage() {
   const displayName = contact?.nickname || truncateNpub(npub);
   const avatar = contact?.avatar ?? null;
 
-  const eligibleGroups = eligibleGroupsForContact(groups, pubkeyHex);
-  // The Select defaults to the first eligible group when the user hasn't picked
+  const addableGroups = addableGroupsForContact(groups, pubkeyHex, adminGroupIds);
+  // The Select defaults to the first addable group when the user hasn't picked
   // one yet, so the submit handler always has a valid target.
-  const effectiveGroupId = selectedGroupId || eligibleGroups[0]?.id || '';
+  const effectiveGroupId = selectedGroupId || addableGroups[0]?.id || '';
 
   function handleCopyNpub() {
     navigator.clipboard.writeText(npub).catch(() => {});
@@ -165,7 +194,7 @@ export default function ProfilePage() {
             {copy.profile.sendDm}
           </Button>
 
-          {contact && eligibleGroups.length > 0 && (
+          {contact && addableGroups.length > 0 && (
             <Box w="100%" maxW="sm" data-testid="profile-add-to-group">
               <Text fontWeight="medium" mb={2}>
                 {copy.profile.addToGroupLabel}
@@ -193,7 +222,7 @@ export default function ProfilePage() {
                   data-testid="profile-add-to-group-select"
                   bg="surfaceBg"
                 >
-                  {eligibleGroups.map((group) => (
+                  {addableGroups.map((group) => (
                     <option key={group.id} value={group.id}>
                       {group.name}
                     </option>

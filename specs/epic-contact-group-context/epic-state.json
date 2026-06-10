@@ -33,6 +33,7 @@
     {"ac_id": "AC-I18N-2", "status": "met", "evidence": "i18n.ts profile.addToGroup* en+de"},
     {"ac_id": "AC-ERR-1", "status": "met", "evidence": "profile.tsx profile-add-to-group-error alert"},
     {"ac_id": "AC-STRUCT-1", "status": "met", "evidence": "contacts-groups.test.ts 12 tests pass"},
-    {"ac_id": "AC-STRUCT-2", "status": "met", "evidence": "no new deps; chakra+existing utils only"}
+    {"ac_id": "AC-STRUCT-2", "status": "met", "evidence": "no new deps; chakra+existing utils only"},
+    {"ac_id": "AC-STRUCT-3", "status": "met", "evidence": "addableGroupsForContact 7 tests incl AC-STRUCT-3 non-admin exclusion"}
   ]
 }
