@@ -234,7 +234,7 @@ type MarmotContextValue = {
   /** Create a new group */
   createGroup: (name: string) => Promise<Group | null>;
   /** Invite a user by npub to a group */
-  inviteByNpub: (groupId: string, npub: string) => Promise<{ ok: boolean; error?: string; warning?: string }>;
+  inviteByNpub: (groupId: string, npub: string) => Promise<{ ok: boolean; error?: string }>;
   /** Leave a group */
   leaveGroup: (groupId: string) => Promise<boolean>;
   /** Publish profile to all groups. Pass profileOverride to avoid stale-closure race. */
@@ -277,6 +277,10 @@ type MarmotContextValue = {
   acceptPendingInvitation: (id: string) => Promise<void>;
   /** Decline a pending invitation: removes from queue, no network call. */
   declinePendingInvitation: (id: string) => Promise<void>;
+  /** Grant admin status to a member. Idempotent; superset guard prevents demotion; retries once on epoch conflict. */
+  grantAdmin: (groupId: string, pubkey: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Synchronously returns hex pubkeys of members with a pending out-of-band leave event queued in pendingRemovalsRef. */
+  getPendingRemovals: (groupId: string) => string[];
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -1111,7 +1115,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   }, [pubkeyHex, reloadGroups, localProfile, markBackupDirty]);
 
   const inviteByNpub = useCallback(
-    async (groupId: string, npub: string): Promise<{ ok: boolean; error?: string; warning?: string }> => {
+    async (groupId: string, npub: string): Promise<{ ok: boolean; error?: string }> => {
       const client = clientRef.current;
       if (!client) return { ok: false, error: 'Not initialized' };
 
@@ -1166,26 +1170,6 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
 
         const inviteResult = await mlsGroup.inviteByKeyPackageEvent(nostrEvent);
 
-        // Promote the new member to admin so they can also invite others.
-        // This commits a GroupContextExtensions proposal updating adminPubkeys.
-        let adminPromotionFailed = false;
-        try {
-          const currentAdmins = mlsGroup.groupData?.adminPubkeys ?? [];
-          if (!currentAdmins.some(pk => pk.toLowerCase() === inviteePubkey.toLowerCase())) {
-            const { Proposals } = await import('@internet-privacy/marmot-ts');
-            await mlsGroup.commit({
-              extraProposals: [
-                Proposals.proposeUpdateMetadata({
-                  adminPubkeys: [...currentAdmins, inviteePubkey],
-                }),
-              ],
-            });
-          }
-        } catch (adminErr) {
-          console.warn('[Marmot] promote-to-admin commit failed:', adminErr);
-          adminPromotionFailed = true;
-        }
-
         // Refresh member list from MLS group state (authoritative source)
         const stored = groups.find((g) => g.id === groupId);
         if (stored) {
@@ -1213,9 +1197,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         }
 
         markBackupDirty(true);
-        return adminPromotionFailed
-          ? { ok: true, warning: 'admin_promotion_failed' }
-          : { ok: true };
+        return { ok: true };
       } catch (err) {
         console.error('[Marmot] inviteByNpub failed:', err);
         return { ok: false, error: 'generic' };
@@ -1441,6 +1423,43 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     await doDecline(id);
   }, []);
 
+  // S3: Grant admin status to a member. Pure impl in grantAdminImpl.ts (AC-BOUND-1).
+  // Mirrors the cancelPendingInvitation pattern: dynamic import at the boundary,
+  // Proposals injected via Deps so the impl has zero marmot-ts top-level imports.
+  const grantAdmin = useCallback(
+    async (groupId: string, pubkey: string): Promise<{ ok: boolean; error?: string }> => {
+      const client = clientRef.current;
+      if (!client) return { ok: false, error: 'Not initialized' };
+      try {
+        const { grantAdminImpl } = await import('@/src/lib/marmot/grantAdminImpl');
+        const { Proposals } = await import('@internet-privacy/marmot-ts');
+        return await grantAdminImpl(
+          {
+            getGroup: (id) => client.groups.get(id).catch(() => null),
+            Proposals,
+            reloadGroups,
+            markBackupDirty,
+          },
+          groupId,
+          pubkey,
+        );
+      } catch (err) {
+        console.error('[Marmot] grantAdmin failed:', err);
+        return { ok: false, error: err instanceof Error ? err.message : 'generic' };
+      }
+    },
+    [reloadGroups, markBackupDirty],
+  );
+
+  // S3: Synchronous accessor for pending-removal pubkeys. Reads pendingRemovalsRef
+  // without triggering a re-render or side-effect (AC-REMOVE-1, architecture.md §pendingRemovalsRef).
+  const getPendingRemovals = useCallback(
+    (groupId: string): string[] => {
+      return (pendingRemovalsRef.current.get(groupId) ?? []).map((e) => e.pubkey);
+    },
+    [],
+  );
+
   // AC-025: Single-group variant of the app-start sweep. Emits PROFILE_REQUEST_KIND
   // for every stale member in the given group, scoped to that group only.
   const requestProfilesIfStale = useCallback(async (groupId: string): Promise<void> => {
@@ -1510,6 +1529,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       requestProfilesIfStale,
       acceptPendingInvitation,
       declinePendingInvitation,
+      grantAdmin,
+      getPendingRemovals,
     }),
     [
       ready,
@@ -1538,6 +1559,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       requestProfilesIfStale,
       acceptPendingInvitation,
       declinePendingInvitation,
+      grantAdmin,
+      getPendingRemovals,
     ]
   );
 
@@ -1576,6 +1599,8 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   requestProfilesIfStale: NOOP_ASYNC,
   acceptPendingInvitation: NOOP_ASYNC,
   declinePendingInvitation: NOOP_ASYNC,
+  grantAdmin: async () => ({ ok: false, error: 'not_ready' }),
+  getPendingRemovals: () => [],
 };
 
 export function useMarmot(): MarmotContextValue {

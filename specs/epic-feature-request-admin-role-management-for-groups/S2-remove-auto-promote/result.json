@@ -1,0 +1,19 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "final_outcome": "accepted",
+  "architect_skipped": false,
+  "modules_touched": ["MarmotContext"],
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/i18n.ts",
+    "app/src/components/groups/InviteMemberModal.tsx"
+  ],
+  "remediation_rounds": 0,
+  "completed_at": "2026-06-11T01:00:00Z",
+  "retrospective": {
+    "skipped": false,
+    "reason": "Architect spawn crashed mid-run (API ConnectionRefused) but core edits had already landed; lead verified completeness and finished.",
+    "friction": "The integration-architect subagent died on a terminal API connection error after ~33 tool uses, returning 0 tokens. The edits it had made were already on disk (i18n key removed, auto-promote block removed, InviteMemberModal warning removed), so the lead recovered by verifying the on-disk state rather than re-spawning. Recovery worked because this was a deletion-only story with easily greppable completion signals."
+  }
+}

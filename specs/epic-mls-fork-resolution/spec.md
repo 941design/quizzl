@@ -134,3 +134,7 @@ The `onMembersChanged` callback moves inside the resolver — it fires after eac
 3. **Regression**:
    - Run existing Playwright E2E tests (`make e2e` or equivalent)
    - Verify group creation, invitation, chat, and score sync still work
+
+## Constrained by ADRs
+
+- **ADR-003** — Accept last-writer-wins for MLS metadata mutations (no protocol-level no-clobber in marmot-ts).

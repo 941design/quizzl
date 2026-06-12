@@ -1,0 +1,31 @@
+{
+  "module_name": "E2ETests",
+  "purpose": "End-to-end test suite for admin role management in groups; exercises the full user-facing admin grant, non-admin join, last-admin leave protection, and pending-removal badge via two independent browser contexts.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/e2e/groups-admin.spec.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/tests/e2e/helpers/auth-helpers.ts",
+    "app/tests/e2e/helpers/clear-state.ts",
+    "app/tests/e2e/helpers/dismiss-error-overlay.ts",
+    "app/tests/e2e/helpers/relay-query.ts"
+  ],
+  "dependencies_forbidden": [
+    "raw WebSocket to strfry relay for publishing group events"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "AC-JOIN-1",
+    "AC-GRANT-1",
+    "AC-GRANT-2",
+    "AC-LAST-1",
+    "AC-LAST-2",
+    "AC-PENDING-1",
+    "AC-PENDING-4",
+    "AC-PENDING-5"
+  ]
+}

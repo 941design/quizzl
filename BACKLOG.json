@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-10T12:55:06Z",
+  "updated_at": "2026-06-12T05:02:35Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -91,6 +91,11 @@
       "path": "specs/epic-contact-group-context/",
       "status": "DONE",
       "next_action": "completed 2026-06-10"
+    },
+    {
+      "path": "specs/epic-feature-request-admin-role-management-for-groups/",
+      "status": "DONE",
+      "next_action": "completed 2026-06-12"
     }
   ],
   "findings": [

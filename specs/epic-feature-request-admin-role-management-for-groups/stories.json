@@ -1,0 +1,435 @@
+{
+  "epic_name": "feature-request-admin-role-management-for-groups",
+  "created_at": "2026-06-11T18:28:11Z",
+  "total_stories": 7,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "i18n-strings",
+      "title": "i18n strings for admin role management",
+      "owning_module": "i18n",
+      "description": "Extend the Copy type and both en/de language objects in app/src/lib/i18n.ts with all new keys required by this epic: makeAdminButton, makeAdminTitle, makeAdminBody, makeAdminConfirm, adminBadge, lastAdminLeaveBlocked, leavePendingBadge, removalPendingBadge. No UI or logic changes. Provides the i18n foundation all downstream stories depend on.",
+      "acceptance_criteria": [
+        "AC-I18N-1",
+        "AC-I18N-2"
+      ],
+      "complexity": "low",
+      "status": "done",
+      "story_order": 1,
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/src/lib/i18n.ts \u2014 add makeAdminButton, makeAdminTitle, makeAdminBody, makeAdminConfirm, adminBadge, lastAdminLeaveBlocked, leavePendingBadge, removalPendingBadge to Copy type and both en/de objects"
+        ],
+        "excludes": [
+          "Any UI component changes",
+          "MarmotContext changes",
+          "grantAdminImpl.ts"
+        ]
+      },
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "S2",
+      "name": "remove-auto-promote",
+      "title": "Remove auto-promote block and dead code from MarmotContext",
+      "owning_module": "MarmotContext",
+      "description": "Delete the promote-to-admin-on-invite block at MarmotContext.tsx:1169-1187, the adminPromotionFailed warning return path, the inviteWarningAdminPromotion i18n key (en + de), and the warning display in InviteMemberModal.tsx. After this story, inviteByNpub commits the MLS Add only \u2014 no adminPubkeys side-effect. This is a pure deletion; the invariant that invited members join as regular members is now enforceable. Protects AC-INIT-1/2 by confirming the create path was already correct and remains untouched.",
+      "acceptance_criteria": [
+        "AC-INIT-1",
+        "AC-INIT-2",
+        "AC-JOIN-1",
+        "AC-JOIN-2",
+        "AC-JOIN-3",
+        "AC-DEAD-1"
+      ],
+      "complexity": "medium",
+      "status": "done",
+      "story_order": 2,
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/src/context/MarmotContext.tsx \u2014 delete lines 1169-1187 (auto-promote block), adminPromotionFailed return path, and any associated comment scaffolding",
+          "app/src/lib/i18n.ts \u2014 remove inviteWarningAdminPromotion key from Copy type and both en/de objects",
+          "app/src/components/groups/InviteMemberModal.tsx \u2014 remove warning display block that consumed inviteWarningAdminPromotion (lines 73-80)"
+        ],
+        "excludes": [
+          "grantAdmin method (S3)",
+          "MemberList UI changes (S4)",
+          "New i18n keys (S1)"
+        ]
+      },
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "S3",
+      "name": "grant-admin-impl",
+      "title": "grantAdminImpl and MarmotContext grantAdmin / getPendingRemovals",
+      "owning_module": "grantAdminImpl",
+      "description": "Create app/src/lib/marmot/grantAdminImpl.ts as a pure Deps-injected implementation mirroring cancelInvitationImpl.ts. It re-reads live adminPubkeys at commit time, enforces the superset guard (rejects any update that would demote an existing admin), builds a Proposals.proposeUpdateMetadata, and issues a single mlsGroup.commit(). Wire it into MarmotContext as grantAdmin(groupId, pubkey) and add getPendingRemovals(groupId) accessor that reads pendingRemovalsRef synchronously. Handle the retry loop for concurrent grants (AC-GRANT-7). Also enforce admin guard in fireAutoCommit so a non-admin's pass is a guarded no-op that retains entries.",
+      "acceptance_criteria": [
+        "AC-GRANT-2",
+        "AC-GRANT-5",
+        "AC-GRANT-7",
+        "AC-BOUND-1",
+        "AC-REMOVE-1",
+        "AC-REMOVE-2"
+      ],
+      "complexity": "high",
+      "status": "done",
+      "story_order": 3,
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/grantAdminImpl.ts \u2014 new file; zero imports from app/src/context/; Deps interface injected; superset guard; single commit discipline; dynamic import of marmot-ts inside callback",
+          "app/src/context/MarmotContext.tsx \u2014 add grantAdmin(groupId, pubkey): Promise<{ok:boolean; error?:string}> calling grantAdminImpl; add getPendingRemovals(groupId): string[] reading pendingRemovalsRef; guard fireAutoCommit so non-admin pass retains queue entries without committing; update remainingAdmins computation to filter departing pubkey",
+          "app/tests/unit/marmot/grantAdminImpl.test.ts \u2014 unit tests: happy path, superset guard rejects demotion, concurrent-retry merges both pubkeys, non-admin fireAutoCommit is a no-op that retains entries"
+        ],
+        "excludes": [
+          "MemberList UI (S4)",
+          "LeaveGroupButton guard (S5)",
+          "groups.tsx wiring (S6)",
+          "E2E tests (S7)"
+        ]
+      },
+      "mock_dependencies": [],
+      "introduces_mocks": [
+        {
+          "mock_id": "MOCK-S3-001",
+          "description": "marmot-ts mlsGroup.commit, Proposals.proposeUpdateMetadata mocked in unit tests for grantAdminImpl",
+          "interface_mocked": "@internet-privacy/marmot-ts \u2014 mlsGroup.commit, Proposals.proposeUpdateMetadata, mlsGroup.groupData",
+          "resolution_story": null
+        }
+      ],
+      "test_fixtures": []
+    },
+    {
+      "id": "S4",
+      "name": "member-list-admin-ui",
+      "title": "MemberList: Admin badge, Make admin button+dialog, pending-removal badge",
+      "owning_module": "MemberList",
+      "description": "Extend MemberList.tsx with four new prop-driven UI elements: (1) Admin badge on each row whose pubkey is in adminPubkeys, (2) Make admin button visible only to admins on confirmed non-admin non-self rows, (3) Confirmation dialog stating the action is irreversible \u2014 dismissing without confirming produces no commit, (4) leave/removal pending badge for members in pendingRemovalPubkeys. All new props arrive from parent; zero useMarmot() or useContext calls are added. i18n keys from S1 used exclusively via useCopy().",
+      "acceptance_criteria": [
+        "AC-GRANT-1",
+        "AC-GRANT-3",
+        "AC-GRANT-4",
+        "AC-GRANT-6",
+        "AC-VIS-1",
+        "AC-PENDING-2",
+        "AC-PENDING-3",
+        "AC-PENDING-6",
+        "AC-BOUND-2"
+      ],
+      "complexity": "medium",
+      "status": "done",
+      "story_order": 4,
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/src/components/groups/MemberList.tsx \u2014 add adminPubkeys?: string[], isCurrentUserAdmin?: boolean, onMakeAdmin?: (pubkey: string) => Promise<void>, pendingRemovalPubkeys?: string[] props; render Admin badge, Make admin button (gated: isCurrentUserAdmin && !isAdmin(row) && !isYou(row) && isConfirmed(row)), Chakra confirmation modal (makeAdminTitle/Body/Confirm copy), leave/removal pending badge (leavePendingBadge / removalPendingBadge); zero new useMarmot() or useContext calls"
+        ],
+        "excludes": [
+          "groups.tsx wiring (S6)",
+          "LeaveGroupButton (S5)",
+          "MarmotContext changes (S3)",
+          "i18n key definitions (S1 \u2014 keys must exist before this story)"
+        ]
+      },
+      "mock_dependencies": [
+        "S1 \u2014 i18n keys must be present in i18n.ts",
+        "S3 \u2014 onMakeAdmin prop signature derived from grantAdmin return shape"
+      ],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "S5",
+      "name": "leave-group-last-admin-guard",
+      "title": "LeaveGroupButton last-admin guard",
+      "owning_module": "LeaveGroupButton",
+      "description": "Extend LeaveGroupButton.tsx with two new props (adminPubkeys, ownPubkeyHex) and a last-admin guard: if adminPubkeys.length === 1 and the sole entry matches ownPubkeyHex, the leave flow is blocked and the lastAdminLeaveBlocked copy is shown instead of the confirmation. No leave commit or kind-13 event is emitted. Once a second admin exists the normal leave flow resumes unchanged.",
+      "acceptance_criteria": [
+        "AC-LAST-1",
+        "AC-LAST-2"
+      ],
+      "complexity": "low",
+      "status": "done",
+      "story_order": 5,
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/src/components/groups/LeaveGroupButton.tsx \u2014 add adminPubkeys?: string[] and ownPubkeyHex?: string | null props; implement last-admin check (adminPubkeys.length === 1 && adminPubkeys[0].toLowerCase() === ownPubkeyHex?.toLowerCase()); show lastAdminLeaveBlocked copy and suppress normal confirmation when blocked"
+        ],
+        "excludes": [
+          "groups.tsx wiring (S6)",
+          "MemberList changes (S4)",
+          "MarmotContext changes (S3)"
+        ]
+      },
+      "mock_dependencies": [
+        "S1 \u2014 lastAdminLeaveBlocked i18n key must exist"
+      ],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "S6",
+      "name": "groups-page-wiring",
+      "title": "groups.tsx: wire adminPubkeys, onMakeAdmin, pendingRemovalPubkeys, last-admin props",
+      "owning_module": "GroupsPage",
+      "description": "Wire the new context methods and derived state into groups.tsx GroupDetailView. Derive adminPubkeys from mlsGroup?.groupData?.adminPubkeys ?? [], isCurrentUserAdmin from adminPubkeys.includes(ownPubkeyHex), and pendingRemovalPubkeys via getPendingRemovals(groupId) on each groupDataVersion tick. Implement onMakeAdmin handler that calls grantAdmin and shows toast feedback. Pass adminPubkeys, isCurrentUserAdmin, onMakeAdmin (only if isCurrentUserAdmin), and pendingRemovalPubkeys to MemberList; pass adminPubkeys and ownPubkeyHex to LeaveGroupButton. The pendingRemovalsRef read on groupDataVersion ticks is what enables AC-PENDING-5 (reload reconstruction).",
+      "acceptance_criteria": [
+        "AC-GATE-1",
+        "AC-GATE-2",
+        "AC-GATE-3",
+        "AC-PENDING-5"
+      ],
+      "complexity": "medium",
+      "status": "done",
+      "story_order": 6,
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/pages/groups.tsx \u2014 derive adminPubkeys, isCurrentUserAdmin, pendingRemovalPubkeys; implement onMakeAdmin handler (calls grantAdmin, shows success/error toast); pass new props to MemberList and LeaveGroupButton; call getPendingRemovals on groupDataVersion tick"
+        ],
+        "excludes": [
+          "MemberList implementation (S4)",
+          "LeaveGroupButton implementation (S5)",
+          "grantAdmin implementation (S3)",
+          "E2E tests (S7)"
+        ]
+      },
+      "mock_dependencies": [
+        "S3 \u2014 grantAdmin and getPendingRemovals must be on MarmotContextValue",
+        "S4 \u2014 MemberList must accept new props",
+        "S5 \u2014 LeaveGroupButton must accept new props"
+      ],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "S7",
+      "name": "e2e-admin-role-management",
+      "title": "E2E tests for admin role management",
+      "owning_module": "E2ETests",
+      "description": "Rewrite app/tests/e2e/groups-admin.spec.ts (currently tests auto-promotion behavior that is removed). New serial test suite covers: (1) invited member joins as non-admin (no Admin badge, no action buttons visible), (2) non-admin sees no Make admin buttons on any row, (3) admin grants admin to a confirmed member \u2014 target gains Admin badge and can subsequently invite, (4) last-admin leave is blocked with explanation copy, (5) once a second admin exists the original admin can leave normally, (6) pending-removal badge appears on self-left member and persists across page reload (AC-PENDING-5). Two browser contexts per scenario; all publishes go through the app, never raw WebSocket. AC-GRANT-7 concurrent no-clobber is covered by the unit test in S3; a best-effort manual validation note is preserved from Manual Validation section MV-1.",
+      "acceptance_criteria": [
+        "AC-PENDING-1",
+        "AC-PENDING-4",
+        "AC-PENDING-5"
+      ],
+      "complexity": "high",
+      "status": "done",
+      "story_order": 7,
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/tests/e2e/groups-admin.spec.ts \u2014 full rewrite; test.describe.serial(); two-context pattern; covers: invited-member-is-non-admin, non-admin-sees-no-action-buttons, grant-makes-target-admin, last-admin-leave-blocked, second-admin-allows-leave, pending-removal-badge-survives-reload"
+        ],
+        "excludes": [
+          "Production code (all production work done in S1\u2013S6)",
+          "AC-GRANT-7 concurrent e2e load scenario (manual validation MV-1)"
+        ]
+      },
+      "mock_dependencies": [
+        "S1 through S6 \u2014 all production features must be complete before e2e is meaningful"
+      ],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7"
+  ],
+  "dependency_notes": "Linear order. S1 (i18n) provides copy keys for all component stories. S2 (remove auto-promote) establishes the invariant that S3's grantAdmin method maintains. S3 (grantAdminImpl + context integration) provides grantAdmin and getPendingRemovals methods that S6 wires. S4 (MemberList UI) and S5 (LeaveGroupButton guard) are independently implementable after S1 and can be done in parallel with S3, but S6 depends on all of S3/S4/S5. S7 (E2E) requires all prior stories complete.",
+  "seams": [
+    {
+      "data": "Copy type extensions (makeAdminButton, makeAdminTitle, makeAdminBody, makeAdminConfirm, adminBadge, lastAdminLeaveBlocked, leavePendingBadge, removalPendingBadge)",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/i18n.ts"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/components/groups/MemberList.tsx"
+      },
+      "contract": {
+        "type_name": "CopyKeyExtension",
+        "fields": [
+          {
+            "name": "makeAdminButton",
+            "type": "string"
+          },
+          {
+            "name": "makeAdminTitle",
+            "type": "string"
+          },
+          {
+            "name": "makeAdminBody",
+            "type": "string"
+          },
+          {
+            "name": "makeAdminConfirm",
+            "type": "string"
+          },
+          {
+            "name": "adminBadge",
+            "type": "string"
+          },
+          {
+            "name": "lastAdminLeaveBlocked",
+            "type": "string"
+          },
+          {
+            "name": "leavePendingBadge",
+            "type": "string"
+          },
+          {
+            "name": "removalPendingBadge",
+            "type": "string"
+          }
+        ],
+        "invariants": [
+          "Each key has a non-empty string value in both en and de language objects",
+          "Each key is declared in the Copy type before being referenced in any component",
+          "leavePendingBadge and removalPendingBadge MUST NOT assert message delivery has stopped"
+        ]
+      }
+    },
+    {
+      "data": "lastAdminLeaveBlocked copy key",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/i18n.ts"
+      },
+      "destination": {
+        "story": "S5",
+        "artifact": "app/src/components/groups/LeaveGroupButton.tsx"
+      },
+      "contract": {
+        "type_name": "LastAdminLeaveBlockedKey",
+        "fields": [
+          {
+            "name": "lastAdminLeaveBlocked",
+            "type": "string"
+          }
+        ],
+        "invariants": [
+          "Key exists in Copy type and both en/de objects before S5 is implemented"
+        ]
+      }
+    },
+    {
+      "data": "grantAdmin and getPendingRemovals on MarmotContextValue",
+      "source": {
+        "story": "S3",
+        "artifact": "app/src/context/MarmotContext.tsx"
+      },
+      "destination": {
+        "story": "S6",
+        "artifact": "app/pages/groups.tsx"
+      },
+      "contract": {
+        "type_name": "MarmotContextValueAdditions",
+        "fields": [
+          {
+            "name": "grantAdmin",
+            "type": "(groupId: string, pubkey: string) => Promise<{ ok: boolean; error?: string }>"
+          },
+          {
+            "name": "getPendingRemovals",
+            "type": "(groupId: string) => string[]"
+          }
+        ],
+        "invariants": [
+          "grantAdmin resolves { ok: true } on success, { ok: false, error: string } on guard rejection or commit failure",
+          "grantAdmin re-reads live adminPubkeys at fire time, never a stale snapshot",
+          "grantAdmin rejects any update where new set is not a superset of live current set",
+          "getPendingRemovals is synchronous and reads pendingRemovalsRef directly",
+          "getPendingRemovals returns hex pubkeys only (no other identifier format)",
+          "A non-admin call to fireAutoCommit MUST NOT commit and MUST retain queue entries"
+        ]
+      }
+    },
+    {
+      "data": "MemberList new props (adminPubkeys, isCurrentUserAdmin, onMakeAdmin, pendingRemovalPubkeys)",
+      "source": {
+        "story": "S4",
+        "artifact": "app/src/components/groups/MemberList.tsx"
+      },
+      "destination": {
+        "story": "S6",
+        "artifact": "app/pages/groups.tsx"
+      },
+      "contract": {
+        "type_name": "MemberListPropsAdditions",
+        "fields": [
+          {
+            "name": "adminPubkeys",
+            "type": "string[] | undefined"
+          },
+          {
+            "name": "isCurrentUserAdmin",
+            "type": "boolean | undefined"
+          },
+          {
+            "name": "onMakeAdmin",
+            "type": "((pubkey: string) => Promise<void>) | undefined"
+          },
+          {
+            "name": "pendingRemovalPubkeys",
+            "type": "string[] | undefined"
+          }
+        ],
+        "invariants": [
+          "MemberList renders no Make admin button when isCurrentUserAdmin is false or undefined",
+          "MemberList renders no Make admin button for the current user's own row",
+          "MemberList renders no Make admin button for rows already in adminPubkeys",
+          "MemberList renders no Make admin button for pending (unconfirmed) rows",
+          "MemberList renders Admin badge for every pubkey in adminPubkeys",
+          "MemberList renders leave/removal pending badge for every pubkey in pendingRemovalPubkeys",
+          "MemberList contains zero useMarmot() or useContext calls"
+        ]
+      }
+    },
+    {
+      "data": "LeaveGroupButton new props (adminPubkeys, ownPubkeyHex)",
+      "source": {
+        "story": "S5",
+        "artifact": "app/src/components/groups/LeaveGroupButton.tsx"
+      },
+      "destination": {
+        "story": "S6",
+        "artifact": "app/pages/groups.tsx"
+      },
+      "contract": {
+        "type_name": "LeaveGroupButtonPropsAdditions",
+        "fields": [
+          {
+            "name": "adminPubkeys",
+            "type": "string[] | undefined"
+          },
+          {
+            "name": "ownPubkeyHex",
+            "type": "string | null | undefined"
+          }
+        ],
+        "invariants": [
+          "When adminPubkeys.length === 1 and adminPubkeys[0].toLowerCase() === ownPubkeyHex?.toLowerCase(), leave is blocked \u2014 no kind-13 emitted, no confirmation shown",
+          "When adminPubkeys has two or more entries, normal leave flow is unchanged",
+          "Case-insensitive pubkey comparison is used"
+        ]
+      }
+    }
+  ]
+}

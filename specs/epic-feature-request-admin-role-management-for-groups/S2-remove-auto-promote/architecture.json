@@ -1,0 +1,14 @@
+{
+  "story_id": "S2",
+  "module": "MarmotContext",
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/i18n.ts",
+    "app/src/components/groups/InviteMemberModal.tsx"
+  ],
+  "decision": "full_path",
+  "architect_skipped": false,
+  "seams": [],
+  "rationale": "Pure deletion story. Removed the auto-promote-on-invite block from inviteByNpub (MarmotContext.tsx ~1169-1187), the adminPromotionFailed flag and warning return path, the warning?: field from the inviteByNpub return type (line 237), the inviteWarningAdminPromotion i18n key from Copy type + both locales, and the warning display block from InviteMemberModal.tsx. inviteByNpub now commits the MLS Add only (via inviteByKeyPackageEvent at line 1167) with no adminPubkeys mutation. Create path (client.groups.create seeds creator into adminPubkeys) untouched.",
+  "note": "Implemented partly by a crashed architect spawn (API ConnectionRefused) then verified and completed by the lead. All three core deletions confirmed present; TypeScript compiles clean; 25 invite-path unit tests pass."
+}

@@ -1,0 +1,14 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "architect_skipped": false,
+  "modules_touched": ["i18n"],
+  "files_modified": ["app/src/lib/i18n.ts"],
+  "remediation_rounds": 0,
+  "completed_at": "2026-06-11T00:45:00Z",
+  "retrospective": {
+    "skipped": true,
+    "reason": "Additive i18n change; no architect complexity to note"
+  }
+}

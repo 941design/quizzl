@@ -1,0 +1,83 @@
+{
+  "story_id": "S6",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-11T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S6-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GATE-1",
+      "question": "In groups.tsx, are the Invite, Invite-link, and Manage-links controls still passed isDisabled={!isAdmin} (using the existing isAdmin boolean, now sourced from adminPubkeys.includes(ownPubkeyHex))? And is the pending-join-requests section still gated on isAdmin? Run grep -n 'isDisabled\\|PendingRequestsSection\\|isAdmin' app/pages/groups.tsx and confirm these gates are present and unchanged in structure (only the source of isAdmin has changed, not the gating logic). Show the relevant diff lines."
+    },
+    {
+      "question_id": "VQ-S6-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GATE-2",
+      "question": "Is the accept/deny join-request action path unavailable to non-admins — not merely hidden behind a disabled button? Confirm that in groups.tsx, the handler for accept/deny is only wired up (or passed down) when isAdmin=true, so a non-admin page render produces no callable handler for these actions."
+    },
+    {
+      "question_id": "VQ-S6-003",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GATE-3",
+      "question": "Is the cancel-pending-invitation action unavailable to non-admins in the wired-up groups.tsx? Confirm that the cancel handler is only passed/wired when isAdmin=true. Show the prop or callback that enables cancel and confirm it is conditional on isAdmin."
+    },
+    {
+      "question_id": "VQ-S6-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PENDING-5",
+      "question": "Does getPendingRemovals(groupId) get called on each groupDataVersion tick in groups.tsx, and is its result passed to MemberList as pendingRemovalPubkeys? Show the implementation: (a) the useEffect or useMemo dependency array includes groupDataVersion; (b) getPendingRemovals is called inside that effect/memo; (c) the result is stored in state or derived and passed to MemberList. On page reload and historical-sync replay, does re-observing kind-13 events rebuild pendingRemovalsRef so that getPendingRemovals returns the correct set and the pending badge re-renders?"
+    },
+    {
+      "question_id": "VQ-S6-005",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is adminPubkeys derived from mlsGroup?.groupData?.adminPubkeys ?? [] (never from a stale local variable) and is isCurrentUserAdmin derived from adminPubkeys.includes(ownPubkeyHex) (or equivalent hex-safe comparison)? Show the derivation lines in groups.tsx. Confirm these values update whenever mlsGroup updates (i.e., they are computed from the current mlsGroup in scope, not captured in a ref that is never updated)."
+    },
+    {
+      "question_id": "VQ-S6-006",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the onMakeAdmin handler in groups.tsx show toast feedback for both success and failure? Show the handler implementation: (a) calls grantAdmin(groupId, pubkey); (b) on { ok: true }, shows a success toast; (c) on { ok: false, error }, shows an error toast with the error message. Confirm the handler is only passed to MemberList when isCurrentUserAdmin=true (not passed when the current user is not an admin)."
+    },
+    {
+      "question_id": "VQ-S6-007",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does groups.tsx remain a coordinator only — deriving state and wiring props — with no MLS commit logic or adminPubkeys mutation logic of its own? Confirm: (a) all MLS operations go through grantAdmin from MarmotContextValue; (b) adminPubkeys is read from mlsGroup.groupData, never written; (c) getPendingRemovals is a read-only call. Could groups.tsx be deleted and rewritten without modifying MemberList.tsx, LeaveGroupButton.tsx, or MarmotContext.tsx? If not, name the dependency."
+    },
+    {
+      "question_id": "VQ-S6-008",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Are the seam contracts from S3 (grantAdmin, getPendingRemovals), S4 (MemberList new props), and S5 (LeaveGroupButton new props) all satisfied at the call sites in groups.tsx? Verify: (a) MemberList receives adminPubkeys (string[]), isCurrentUserAdmin (boolean), onMakeAdmin (fn | undefined, conditional on isCurrentUserAdmin), and pendingRemovalPubkeys (string[]); (b) LeaveGroupButton receives adminPubkeys (string[]) and ownPubkeyHex (string | null). Show the JSX props for both component call sites."
+    },
+    {
+      "question_id": "VQ-S6-009",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does groups.tsx compile with no TypeScript errors after adding the new props and handlers? Specifically: (a) does MemberList's updated prop type accept the new props without error; (b) does LeaveGroupButton's updated prop type accept the new props without error; (c) do grantAdmin and getPendingRemovals have the correct types as declared in MarmotContextValue? Run npx tsc --noEmit from app/ and show zero errors."
+    },
+    {
+      "question_id": "VQ-S6-010",
+      "phase": "post-impl",
+      "category": "CORRECTNESS",
+      "question": "Is adminPubkeys derived inline in the render body (after the `if (!group) return null` guard), so it is always fresh from the current mlsGroup state? Confirm it is NOT captured in a useRef or stale closure. Check that `const adminPubkeys = mlsGroup?.groupData?.adminPubkeys ?? []` appears after the early-return guards and before the JSX return."
+    },
+    {
+      "question_id": "VQ-S6-011",
+      "phase": "post-impl",
+      "category": "CORRECTNESS",
+      "question": "Does `getPendingRemovals(group.id)` in the render body re-evaluate on every render triggered by groupDataVersion changes? The MarmotContext effect increments groupDataVersion on every MLS tick, which causes GroupDetailView to re-render. Confirm that the synchronous `getPendingRemovals` call inside the render body gets fresh data on each such re-render without any additional memo or effect needed."
+    },
+    {
+      "question_id": "VQ-S6-012",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "Is the removalPendingBadge copy key left defined (not deleted) in i18n.ts for both English and German, and does it carry a code comment explaining it is reserved for a future cause-distinction increment? Confirm the comment appears adjacent to the key in both language objects."
+    }
+  ]
+}

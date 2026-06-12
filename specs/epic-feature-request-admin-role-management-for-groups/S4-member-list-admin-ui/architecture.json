@@ -1,0 +1,34 @@
+{
+  "module_name": "MemberList",
+  "purpose": "Fully prop-driven presentational component that renders the list of group members with admin badges, pending-removal badges, and a 'Make admin' confirmation flow.",
+  "public_api": [
+    {
+      "name": "MemberList",
+      "signature": "function MemberList(props: MemberListProps): JSX.Element",
+      "description": "Default export. Renders member rows with optional admin/pending-removal badges and Make-admin button+modal. All data arrives as props; zero context calls."
+    }
+  ],
+  "private_files": [
+    "app/src/components/groups/MemberList.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/context/LanguageContext",
+    "app/src/lib/nostrKeys",
+    "app/src/components/ThemeIcon",
+    "app/src/types",
+    "@chakra-ui/react",
+    "next/router",
+    "react"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/MarmotContext",
+    "app/src/lib/marmot"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/memberListAdminUi.test.ts"
+  ]
+}

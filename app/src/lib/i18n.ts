@@ -130,7 +130,6 @@ type Copy = {
     inviteHelp: string;
     inviteSubmit: string;
     inviteSuccess: string;
-    inviteWarningAdminPromotion: string;
     inviteErrorNoKeyPackage: string;
     inviteErrorInvalidNpub: string;
     inviteErrorOffline: string;
@@ -198,6 +197,16 @@ type Copy = {
     cancelInviteAnnouncementWarning: string;
     cancelledByAnnouncement: (member: string, canceller: string) => string;
     leftGroup: (member: string) => string;
+    makeAdminButton: string;
+    makeAdminTitle: string;
+    makeAdminBody: string;
+    makeAdminConfirm: string;
+    makeAdminSuccess: string;
+    makeAdminError: string;
+    adminBadge: string;
+    lastAdminLeaveBlocked: string;
+    leavePendingBadge: string;
+    removalPendingBadge: string;
     chatLoading: string;
     chatEmpty: string;
     chatPlaceholder: string;
@@ -462,7 +471,6 @@ const copy: Record<LanguageCode, Copy> = {
       inviteHelp: 'Enter or scan the npub of the person you want to invite. They must have used Nostling at least once to appear.',
       inviteSubmit: 'Send Invite',
       inviteSuccess: 'Invitation sent successfully.',
-      inviteWarningAdminPromotion: 'Invited, but admin promotion failed. The new member may not be able to invite others.',
       inviteErrorNoKeyPackage: 'This user has not set up their Nostling identity yet.',
       inviteErrorInvalidNpub: 'Invalid npub format.',
       inviteErrorOffline: 'You are offline. Please connect to invite members.',
@@ -530,6 +538,18 @@ const copy: Record<LanguageCode, Copy> = {
       cancelInviteAnnouncementWarning: 'Invitation cancelled, but the group chat could not be notified',
       cancelledByAnnouncement: (member: string, canceller: string) => `${member} was uninvited by ${canceller}`,
       leftGroup: (member: string) => `${member} left the group`,
+      makeAdminButton: 'Make Admin',
+      makeAdminTitle: 'Make Admin?',
+      makeAdminBody: 'This cannot be undone. Admins can invite members, accept join requests, cancel invitations, and grant admin to others.',
+      makeAdminConfirm: 'Make Admin',
+      makeAdminSuccess: 'Admin granted',
+      makeAdminError: 'Failed to grant admin. Please try again.',
+      adminBadge: 'Admin',
+      lastAdminLeaveBlocked: 'You are the only admin. Grant admin to another member before leaving.',
+      leavePendingBadge: 'Departed, cleanup pending',
+      // removalPendingBadge is reserved for a future cause-distinction increment (S6 decision:
+      // PendingRemoval carries no cause field, so all pending removals use leavePendingBadge today).
+      removalPendingBadge: 'Removal pending',
       chatLoading: 'Loading messages...',
       chatEmpty: 'No messages yet. Say hello!',
       chatPlaceholder: 'Type a message...',
@@ -782,7 +802,6 @@ const copy: Record<LanguageCode, Copy> = {
       inviteHelp: 'Gib die npub der Person ein oder scanne sie. Die Person muss Nostling bereits einmal verwendet haben.',
       inviteSubmit: 'Einladung senden',
       inviteSuccess: 'Einladung erfolgreich gesendet.',
-      inviteWarningAdminPromotion: 'Eingeladen, aber Admin-Beförderung fehlgeschlagen. Das neue Mitglied kann möglicherweise keine anderen einladen.',
       inviteErrorNoKeyPackage: 'Dieser Nutzer hat seine Nostling-Identität noch nicht eingerichtet.',
       inviteErrorInvalidNpub: 'Ungültiges npub-Format.',
       inviteErrorOffline: 'Du bist offline. Bitte verbinde dich, um Mitglieder einzuladen.',
@@ -850,6 +869,17 @@ const copy: Record<LanguageCode, Copy> = {
       cancelInviteAnnouncementWarning: 'Einladung zurückgezogen, aber der Gruppenchat konnte nicht benachrichtigt werden',
       cancelledByAnnouncement: (member: string, canceller: string) => `${member} wurde von ${canceller} ausgeladen`,
       leftGroup: (member: string) => `${member} hat die Gruppe verlassen`,
+      makeAdminButton: 'Als Admin festlegen',
+      makeAdminTitle: 'Als Admin festlegen?',
+      makeAdminBody: 'Das kann nicht rückgängig gemacht werden. Admins können Mitglieder einladen, Beitrittsanfragen bestätigen, Einladungen zurückziehen und anderen Admin-Rechte erteilen.',
+      makeAdminConfirm: 'Als Admin festlegen',
+      makeAdminSuccess: 'Admin-Rechte erteilt',
+      makeAdminError: 'Admin-Rechte konnten nicht erteilt werden. Bitte erneut versuchen.',
+      adminBadge: 'Admin',
+      lastAdminLeaveBlocked: 'Du bist der einzige Admin. Erteile einem anderen Mitglied Admin-Rechte, bevor du die Gruppe verlässt.',
+      leavePendingBadge: 'Verlassen, Bereinigung ausstehend',
+      // removalPendingBadge: reserved for future cause-distinction (see English comment above).
+      removalPendingBadge: 'Entfernung ausstehend',
       chatLoading: 'Nachrichten werden geladen...',
       chatEmpty: 'Noch keine Nachrichten. Sag Hallo!',
       chatPlaceholder: 'Nachricht eingeben...',

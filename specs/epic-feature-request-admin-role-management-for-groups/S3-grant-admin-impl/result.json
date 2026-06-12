@@ -1,0 +1,57 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "final_outcome": "accepted",
+  "architect_skipped": false,
+  "remediation_rounds": 1,
+  "files_created": [
+    "app/src/lib/marmot/grantAdminImpl.ts",
+    "app/tests/unit/marmot/grantAdminImpl.test.ts"
+  ],
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx",
+    "specs/epic-feature-request-admin-role-management-for-groups/S3-grant-admin-impl/verification.json",
+    "specs/epic-feature-request-admin-role-management-for-groups/acceptance-criteria.md",
+    "specs/epic-feature-request-admin-role-management-for-groups/spec.md"
+  ],
+  "modules_touched": [
+    "grantAdminImpl",
+    "MarmotContext"
+  ],
+  "implementation_summary": "Created grantAdminImpl.ts (pure Deps-injected, zero context imports, AC-BOUND-1). Superset guard via isSuperset() (AC-GRANT-5). Retry loop (max 2 attempts, re-reads live adminPubkeys on retry). Idempotent already-admin short-circuit. Wired grantAdmin + getPendingRemovals useCallbacks into MarmotContext (type, useMemo value+deps, DEFAULT_MARMOT). AC-REMOVE-1/AC-REMOVE-2 satisfied by existing fireAutoCommit (no redundant guard added).",
+  "review": {
+    "stage1_opus": {
+      "findings": 3,
+      "max_severity": 4,
+      "actioned": [
+        "sev-4: test named 'superset guard' asserted the group_not_found path instead of the demotion_rejected branch (name-vs-assertion blind spot) \u2014 FIXED: exported isSuperset and added 5 direct predicate tests covering the drop case; split out a real group_not_found test",
+        "sev-3: isSuperset docstring overstated the guard as catching 'any caller-supplied set' \u2014 FIXED: tightened to refactor-safety-net framing"
+      ],
+      "watch": [
+        "sev-2: grant-admin-error-shape \u2014 exhausted-retry returns raw err.message while other paths use closed codes. Recorded in ownership-ledger as 'watch'; S4/S6 must map unrecognized error codes to generic makeAdminError copy."
+      ]
+    },
+    "stage2_codex": {
+      "findings": 1,
+      "severity": "P2",
+      "finding": "Catch-based retry does not cover the realistic concurrent-grant case: marmot-ts commit() has no relay awareness and does not throw on a same-epoch conflict; both committers succeed locally and the fork resolves asynchronously on the receiving side, so one grant is silently clobbered while both callers see ok:true.",
+      "verification": "Confirmed authoritative via nostr-skills:marmot-researcher against ts-mls source (createCommit has no relay-awareness; ingest() drops the foreign epoch-N commit as unreadable; processCommit throws ValidationError on epoch mismatch). Spec 4.2 premise was falsified.",
+      "resolution": "Escalated to product owner (changes product behavior). Decision: accept last-writer-wins as a known limitation rather than build a stateChanged-driven re-grant subsystem (consistent with 2.4 / 4.6 honesty posture). AC-GRANT-7 amended; spec ## Amendments entry added; grantAdminImpl docstring corrected; concurrent-retry test reframed as the synchronous-throw path; MV-1 reframed to a degraded-path UX check."
+    }
+  },
+  "tests": {
+    "baseline_count": 1148,
+    "final_count": 1161,
+    "new_tests": 13,
+    "all_passing": true
+  },
+  "lint": "NO_LINT",
+  "typecheck": "clean",
+  "completed_at": "2026-06-11T02:00:00Z",
+  "retrospective": {
+    "skipped": false,
+    "scope": "project_specific",
+    "outcome": "merged",
+    "harder_than_needed": "The spec's 4.2 concurrency model rested on a falsified assumption about marmot-ts (that commit() throws synchronously on a same-epoch conflict). The catch-based retry implementing AC-GRANT-7 was correct against the spec but the spec was wrong about the protocol. It took a cross-vendor Codex review plus an authoritative marmot-researcher source dive to surface this \u2014 neither planner nor architect caught it because both reasoned from the spec's stated behavior. Lesson: protocol-behavior assumptions in a spec (especially for alpha libs like marmot-ts) should be validated against source BEFORE the AC is written, ideally at spec-validation time via a marmot-researcher consult, not discovered at review time after the implementation is built around the false premise."
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "story_id": "S5",
+  "status": "done",
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "LeaveGroupButton"
+  ],
+  "files_created": [
+    "app/tests/unit/leaveGroupLastAdmin.test.ts",
+    "specs/epic-feature-request-admin-role-management-for-groups/S5-leave-group-last-admin-guard/architecture.json",
+    "specs/epic-feature-request-admin-role-management-for-groups/S5-leave-group-last-admin-guard/baseline.json",
+    "specs/epic-feature-request-admin-role-management-for-groups/S5-leave-group-last-admin-guard/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/groups/LeaveGroupButton.tsx",
+    "specs/epic-feature-request-admin-role-management-for-groups/S5-leave-group-last-admin-guard/verification.json"
+  ],
+  "implementation_summary": "Added two optional props (adminPubkeys, ownPubkeyHex) to LeaveGroupButtonProps. Extracted isSoleAdmin as a pure exported helper. When isSoleAdmin is true, the Leave button opens a blocked-explanation modal showing copy.groups.lastAdminLeaveBlocked with a close-only action; the confirm-leave button is absent in this state. When isSoleAdmin is false, the normal confirmation modal with the leaveGroup action is shown unchanged. UX choice: keep the Leave button enabled in both states so the feature is discoverable and the explanation is presented inline in the modal rather than silently disabling the trigger.",
+  "test_counts": {
+    "baseline_files": 77,
+    "baseline_tests": 1185,
+    "final_files": 78,
+    "final_tests": 1194,
+    "added_unit_tests": 9
+  },
+  "mocks_introduced": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  },
+  "final_outcome": "accepted"
+}

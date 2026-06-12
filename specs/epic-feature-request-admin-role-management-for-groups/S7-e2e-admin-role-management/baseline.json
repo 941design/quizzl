@@ -1,0 +1,9 @@
+{
+  "captured_at": "2026-06-11T00:00:00Z",
+  "tests": {
+    "status": "NO_TESTS",
+    "note": "E2E suite requires docker relay + dev server via make test-e2e-groups; not runnable in this environment. Unit tests not applicable to this story (pure E2E spec rewrite)."
+  },
+  "lint": "clean",
+  "typecheck": "clean"
+}

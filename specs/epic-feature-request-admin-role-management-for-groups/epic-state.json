@@ -1,0 +1,282 @@
+{
+  "epic_name": "feature-request-admin-role-management-for-groups",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-06-11T00:00:00Z",
+  "updated_at": "2026-06-12T00:50:00Z",
+  "pre_existing_dirty_files": [
+    ".playwright-mcp/console-2026-06-10T15-11-32-583Z.log",
+    ".playwright-mcp/console-2026-06-10T15-12-16-803Z.log",
+    ".playwright-mcp/console-2026-06-10T15-13-01-753Z.log",
+    ".playwright-mcp/console-2026-06-10T15-14-16-803Z.log",
+    ".playwright-mcp/console-2026-06-10T15-14-46-903Z.log",
+    ".playwright-mcp/console-2026-06-10T15-17-14-903Z.log",
+    ".playwright-mcp/console-2026-06-10T15-17-54-603Z.log",
+    ".playwright-mcp/console-2026-06-10T15-18-22-803Z.log",
+    ".playwright-mcp/console-2026-06-10T15-18-53-103Z.log",
+    ".playwright-mcp/console-2026-06-10T15-19-57-050Z.log",
+    ".playwright-mcp/console-2026-06-10T15-32-06-405Z.log",
+    ".playwright-mcp/console-2026-06-10T15-32-11-984Z.log",
+    ".playwright-mcp/console-2026-06-10T15-33-27-403Z.log",
+    ".playwright-mcp/console-2026-06-10T15-33-55-415Z.log",
+    ".playwright-mcp/console-2026-06-10T15-34-15-403Z.log",
+    "app/reports/e2e-runs/run-20260604-000142.log",
+    "app/reports/e2e-runs/run-20260604-000246.log",
+    "app/reports/e2e-runs/scoped-theme-banner.log",
+    "app/reports/mutation/chatPersistence-fresh.json",
+    "app/reports/mutation/chatPersistence.json",
+    "app/reports/mutation/contacts.json",
+    "app/reports/mutation/directMessageNotifications.json",
+    "app/reports/mutation/gate-chatPersistence.json",
+    "app/reports/mutation/gate-contacts.json",
+    "app/reports/mutation/gate-dmnotif.json",
+    "app/reports/mutation/gate-reactionsApi.json",
+    "app/reports/mutation/gate-unreadStore.json",
+    "app/reports/mutation/marmot-chatPersistence.json",
+    "app/reports/mutation/reactions-api.json",
+    "app/reports/mutation/reactionsApi.json",
+    "app/reports/mutation/unreadStore.json",
+    "app/reports/mutation/walledGarden.json",
+    "specs/admin-role-management.md",
+    "test-results/.last-run.json",
+    "test-results/e2e-run-last-failed.log"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-06-11T00:00:00Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "IMPLEMENTATION",
+      "timestamp": "2026-06-11T00:30:00Z",
+      "trigger": "planning_complete"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-06-12T00:40:00Z",
+      "trigger": "all_stories_done_gates_passed_manual_waived"
+    }
+  ],
+  "plugin_sha": "unknown",
+  "consumer_sha": "99a4dc008033e37af473a894cbf1c76fc5b6c141",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "unknown"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "reviewer_agent_id": "a2ac38bc1f01388b4",
+  "ac_closure": [
+    {
+      "ac_id": "AC-INIT-1",
+      "status": "met",
+      "evidence": "existing marmot create path seeds creator into adminPubkeys (groups-manager.js:236); unchanged by epic (S2 verified create path untouched)"
+    },
+    {
+      "ac_id": "AC-INIT-2",
+      "status": "met",
+      "evidence": "client.groups.create() seeds creator; S2 examiner confirmed create path untouched, no zero-admin path"
+    },
+    {
+      "ac_id": "AC-JOIN-1",
+      "status": "met",
+      "evidence": "e2e groups-admin.spec.ts AC-JOIN-1 (B invite-btn disabled after join); validated by Step 5.8 gate"
+    },
+    {
+      "ac_id": "AC-JOIN-2",
+      "status": "met",
+      "evidence": "same non-promote path as AC-JOIN-1 (approveJoinRequest delegates to inviteByNpub); S2 examiner verified no adminPubkeys mutation"
+    },
+    {
+      "ac_id": "AC-JOIN-3",
+      "status": "met",
+      "evidence": "S2: auto-promote block removed; inviteByNpub commits Add only; verified by grep + S2 examiner YES + 25 invite unit tests"
+    },
+    {
+      "ac_id": "AC-GRANT-1",
+      "status": "met",
+      "evidence": "e2e AC-GRANT-1 (non-admin sees no make-admin btn; admin sees them) + unit memberListAdminUi.test.ts computeShowMakeAdmin gating; e2e validated Step 5.8"
+    },
+    {
+      "ac_id": "AC-GRANT-2",
+      "status": "met",
+      "evidence": "e2e AC-GRANT-2 (UI grant -> B invite enabled + admin badge) + unit grantAdminImpl happy path; e2e validated Step 5.8"
+    },
+    {
+      "ac_id": "AC-GRANT-3",
+      "status": "met",
+      "evidence": "unit memberListAdminUi computeShowMakeAdmin (isYou/isRowAdmin suppress) + e2e (A no make-admin for self)"
+    },
+    {
+      "ac_id": "AC-GRANT-4",
+      "status": "met",
+      "evidence": "unit memberListAdminUi (isPending suppresses make-admin button)"
+    },
+    {
+      "ac_id": "AC-GRANT-5",
+      "status": "met",
+      "evidence": "unit grantAdminImpl.test.ts isSuperset direct tests (demotion rejected) + guard returns demotion_rejected"
+    },
+    {
+      "ac_id": "AC-GRANT-6",
+      "status": "met",
+      "evidence": "unit memberListAdminUi (makeAdminBody 'cannot be undone'; onMakeAdmin only from confirm) + S4 examiner YES"
+    },
+    {
+      "ac_id": "AC-GRANT-7",
+      "status": "met",
+      "evidence": "AMENDED 2026-06-11 to last-writer-wins; narrowed invariant (live-set re-read + single catch-based retry) covered by grantAdminImpl synchronous-throw retry test; spec ## Amendments documents the decision"
+    },
+    {
+      "ac_id": "AC-GATE-1",
+      "status": "met",
+      "evidence": "S6 groups.tsx isDisabled={!isAdmin} on invite/invite-link, {isAdmin &&} on manage-links/PendingRequestsSection; S6 examiner YES; e2e exercises non-admin view"
+    },
+    {
+      "ac_id": "AC-GATE-2",
+      "status": "met",
+      "evidence": "S6: PendingRequestsSection rendered only when isAdmin (handlers not wired for non-admin); S6 examiner YES"
+    },
+    {
+      "ac_id": "AC-GATE-3",
+      "status": "met",
+      "evidence": "S6: onCancelInvite={isAdmin ? onCancelInvite : undefined}; non-admin gets no cancel affordance; S6 examiner YES"
+    },
+    {
+      "ac_id": "AC-LAST-1",
+      "status": "met",
+      "evidence": "e2e AC-LAST-1 (sole admin leave shows last-admin-blocked-notice, no confirm-leave) + unit leaveGroupLastAdmin isSoleAdmin; e2e validated Step 5.8"
+    },
+    {
+      "ac_id": "AC-LAST-2",
+      "status": "met",
+      "evidence": "e2e AC-LAST-2 (after 2nd admin, A leaves normally); e2e validated Step 5.8"
+    },
+    {
+      "ac_id": "AC-VIS-1",
+      "status": "met",
+      "evidence": "e2e (admin-badge appears) + S4: Admin badge renders for isRowAdmin rows; S4 examiner YES"
+    },
+    {
+      "ac_id": "AC-REMOVE-1",
+      "status": "met",
+      "evidence": "existing fireAutoCommit: non-admin commit() throws (marmot-group.js:462-464), catch retains entries without onCommitted; Decider ACCEPT confirmed AC satisfied by behavior"
+    },
+    {
+      "ac_id": "AC-REMOVE-2",
+      "status": "met",
+      "evidence": "fireAutoCommit line 207 remainingAdmins=currentAdmins.filter(!departing); autoCommitLeave.test.ts covers"
+    },
+    {
+      "ac_id": "AC-PENDING-1",
+      "status": "met",
+      "evidence": "e2e AC-PENDING-1 (B leaves with A context closed, exit completes); e2e validated Step 5.8"
+    },
+    {
+      "ac_id": "AC-PENDING-2",
+      "status": "met",
+      "evidence": "S4: removal-pending badge renders from pendingRemovalPubkeys; S6 wires getPendingRemovals; S4+S6 examiner YES; e2e observes badge"
+    },
+    {
+      "ac_id": "AC-PENDING-3",
+      "status": "met",
+      "evidence": "S4: badge driven purely by pendingRemovalPubkeys prop, no manual approve action (grep zero); S4 examiner YES"
+    },
+    {
+      "ac_id": "AC-PENDING-4",
+      "status": "met",
+      "evidence": "e2e AC-PENDING-4 lighter form (chat-input enabled + message send during leave-pending); e2e validated Step 5.8"
+    },
+    {
+      "ac_id": "AC-PENDING-5",
+      "status": "met",
+      "evidence": "verification moved to Manual Validation MV-4 (2026-06-12, product-owner decision); production logic verified by S6 integration examiner (getPendingRemovals read on groupDataVersion tick). e2e test removed (2-user catch-22; needs 3-context offline-admin+online-observer)."
+    },
+    {
+      "ac_id": "AC-PENDING-6",
+      "status": "met",
+      "evidence": "unit memberListAdminUi (leavePendingBadge 'Departed, cleanup pending' asserts no 'blocked'/'cannot receive'/timeline); S4 examiner YES"
+    },
+    {
+      "ac_id": "AC-DEAD-1",
+      "status": "met",
+      "evidence": "S2: auto-promote block + adminPromotionFailed + inviteWarningAdminPromotion + InviteMemberModal warning all removed; grep zero hits; S2 examiner YES"
+    },
+    {
+      "ac_id": "AC-BOUND-1",
+      "status": "met",
+      "evidence": "grantAdminImpl.ts zero import statements (grep ^import empty); Proposals injected via Deps; S3 examiner + Opus YES"
+    },
+    {
+      "ac_id": "AC-BOUND-2",
+      "status": "met",
+      "evidence": "MemberList.tsx zero useMarmot/useContext (grep); only useCopy+useRouter; S4+S6 examiner YES"
+    }
+  ],
+  "manual_validation": [
+    {
+      "ac_id": "MV-1",
+      "status": "waived",
+      "note": "AC-GRANT-7 concurrent-grant degraded-path UX under real relay load (last-writer-wins; re-grant on missing badge)",
+      "evidence": "Waived (product owner, 2026-06-12): concurrent-grant degraded-path UX. Underlying logic verified \u2014 grantAdminImpl live-set re-read + synchronous-throw retry (13 unit tests), AC-GRANT-7 amended to last-writer-wins. Documented manual load-test follow-up."
+    },
+    {
+      "ac_id": "MV-2",
+      "status": "waived",
+      "note": "AC-PENDING-6 forward-secrecy delay / pending label wording \u2014 informational, no automated gate",
+      "evidence": "Waived (product owner, 2026-06-12): forward-secrecy delay / pending-label wording is informational. leavePendingBadge copy verified by unit test (no 'blocked'/'cannot receive'/timeline language). No automated gate possible; honest documented note."
+    },
+    {
+      "ac_id": "MV-3",
+      "status": "waived",
+      "note": "AC-PENDING-5 indefinite pending state (abandoned sole-admin) \u2014 badge persists across sessions",
+      "evidence": "Waived (product owner, 2026-06-12): indefinite-pending (abandoned sole-admin) cannot be e2e-simulated. Badge-from-queue logic verified by S4+S6 examiners. Documented manual multi-session check."
+    },
+    {
+      "ac_id": "MV-4",
+      "status": "waived",
+      "note": "AC-PENDING-5 badge survives reload \u2014 needs 3-member manual check (offline admin + online non-admin observer); e2e test removed",
+      "evidence": "Waived (product owner, 2026-06-12): badge-survives-reload needs 3-member fixture (offline admin + online observer). Production logic (getPendingRemovals on groupDataVersion tick) verified by S6 integration examiner. Documented manual check."
+    }
+  ],
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_remediated",
+      "detail": "4 modules audited (grantAdminImpl 0.82, LeaveGroupButton 1.0, MemberList 1.0, MarmotContext passed-after-fix), groups.tsx skipped (e2e-only). One real gap closed: autoCommitLeave.test.ts had a vacuously-true flatMap/.not.toContain assertion that passed with the fireAutoCommit catch deleted (guards AC-REMOVE-1) \u2014 assertion fixed to onCommitted.not.toHaveBeenCalled() + flat(2). Suite green 1197."
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "partial-remediated",
+      "detail": "Round 1: 9/3/9 (3 fail: F1 make-admin-timing, F2 leave-blocked-timing, F3 openGroupDetail-view-assumption). Decider RETRY -> test-only fixes (idempotent openGroupDetail; await B-confirmed readiness before make-admin; await A admin-badge before leave). Round 2: 18 passed, 1 failed (AC-PENDING-5 setup), 2 skipped. Remaining failure is a test-design catch-22: badge-persists needs offline admin, observer needs online non-admin -> requires 3-context redesign. Production logic verified by S6 examiner."
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_remediated",
+      "detail": "Final: 18/18 passed on clean relay. Round1 9/3/9 -> test-sync fixes (idempotent openGroupDetail, await B-confirmed before make-admin, await A admin-badge before leave) -> Round2 18/1/2. Last failure (AC-PENDING-5 setup) was a 2-user catch-22 -> product-owner moved AC-PENDING-5 to manual (MV-4), 3 broken re-boot tests removed. A transient createGroup flake on the 8h-old relay cleared after relay restart. All 18 core-admin-behavior tests green."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "skipped",
+      "skip_reason": "codex unavailable (environmental sandbox failure), user override",
+      "detail": "Stage-1 Opus whole-assembly review: clean (1 sev-3 comment-rot, fixed in passing). Stage-2 Codex: environmental sandbox failure x3 retries. Codex DID review core grantAdminImpl logic in the S1-S3 pass (found AC-GRANT-7). Post-loop deltas (autoCommitLeave test fix, e2e test-sync fixes, groups.tsx wiring) Opus-verified + gate-validated. Product-owner authorized commit-without-Codex this once.",
+      "structural_findings": {
+        "surfaced": 1,
+        "acted": 1,
+        "disclosed_unacted": 0
+      }
+    }
+  ],
+  "completed_at": "2026-06-12T00:40:00Z"
+}

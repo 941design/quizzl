@@ -1,0 +1,57 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-11T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S5-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LAST-1",
+      "question": "When the current user is the sole admin (adminPubkeys=['alice'] and ownPubkeyHex='alice'), does LeaveGroupButton block the leave flow, show the lastAdminLeaveBlocked copy text, and emit no kind-13 event or leave confirmation? Show the render test: (a) render LeaveGroupButton with adminPubkeys=['alice'], ownPubkeyHex='alice'; (b) click the 'Leave group' trigger; (c) assert the lastAdminLeaveBlocked text appears; (d) assert the normal leave confirmation dialog does NOT appear; (e) assert the leaveGroup function (from useMarmot) is never called."
+    },
+    {
+      "question_id": "VQ-S5-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LAST-2",
+      "question": "When two admins exist (adminPubkeys=['alice','bob'] and ownPubkeyHex='alice'), does the normal leave confirmation flow proceed unblocked? Show the render test: (a) render LeaveGroupButton with adminPubkeys=['alice','bob'], ownPubkeyHex='alice'; (b) click 'Leave group'; (c) assert the normal confirmation dialog appears (not the blocked explanation); (d) confirm lastAdminLeaveBlocked text is absent."
+    },
+    {
+      "question_id": "VQ-S5-003",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the last-admin check case-insensitive? Show the test: adminPubkeys=['ALICE'] and ownPubkeyHex='alice' — leave MUST be blocked. And adminPubkeys=['alice'] with ownPubkeyHex='ALICE' — also blocked. Confirm the implementation uses toLowerCase() on both sides before comparison."
+    },
+    {
+      "question_id": "VQ-S5-004",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "What happens when adminPubkeys is undefined or empty? (a) adminPubkeys=undefined and ownPubkeyHex='alice': normal leave flow must proceed (no block). (b) adminPubkeys=[] and ownPubkeyHex='alice': normal leave flow must proceed (no block — empty admin list is not the sole-admin scenario). Show the render tests for both edge cases confirming no TypeError is thrown and the normal flow runs."
+    },
+    {
+      "question_id": "VQ-S5-005",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does LeaveGroupButton.tsx receive adminPubkeys and ownPubkeyHex as props only — not via a new useMarmot() call or useContext? Confirm: (a) no new context hook call is added to LeaveGroupButton.tsx; (b) adminPubkeys and ownPubkeyHex arrive as component props; (c) the existing useMarmot() call for leaveGroup is retained unchanged. Could LeaveGroupButton be deleted and rewritten without modifying any file outside app/src/components/groups/? If not, name the dependency."
+    },
+    {
+      "question_id": "VQ-S5-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Is the blocked explanation text sourced from the lastAdminLeaveBlocked copy key via useCopy(), with no hardcoded string? Run grep -n '\"must make another\\|\"cannot leave\\|\"sole admin' app/src/components/groups/LeaveGroupButton.tsx and confirm zero hardcoded strings. Show the useCopy() call site used to render the blocked explanation."
+    },
+    {
+      "question_id": "VQ-S5-007",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The component renders two different Modal branches depending on the isSoleAdmin value, both sharing the same useDisclosure state. Verify that onClose in the blocked modal correctly resets isOpen without triggering any leave action — specifically that closing the blocked modal never transitions to the normal confirmation modal."
+    },
+    {
+      "question_id": "VQ-S5-008",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The isSoleAdmin helper is exported from the component file (LeaveGroupButton.tsx). If S6 wires adminPubkeys and ownPubkeyHex from the groups.tsx call site, does the groups.tsx caller derive these values from the same data source that backs the admin badge display, ensuring no stale/divergent admin set is used for the guard?"
+    }
+  ]
+}

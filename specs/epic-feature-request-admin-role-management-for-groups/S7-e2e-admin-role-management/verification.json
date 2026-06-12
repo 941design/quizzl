@@ -1,0 +1,78 @@
+{
+  "story_id": "S7",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-11T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S7-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PENDING-1",
+      "question": "Does the e2e test confirm that a member can leave a group with no admin online, completing the leave immediately (kind-13 intent emitted, local purge) without being blocked by admin-only finalization? Show the test case: (a) member (non-admin) clicks Leave; (b) leave confirmation is shown and confirmed; (c) member's own session shows the group removed from their list; (d) no 'waiting for admin' error or block appears. Confirm the test does not use raw WebSocket — the leave action is driven through the app's UI."
+    },
+    {
+      "question_id": "VQ-S7-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PENDING-4",
+      "question": "Does the e2e test confirm that remaining members can send and receive messages normally while another member is in a leave/removal-pending state? Show the test scenario: (a) member A leaves (enters pending state); (b) admin and member B exchange a message; (c) both send and receive succeed with no freeze, error, or timeout. Confirm the message exchange is driven through the app, not raw WebSocket."
+    },
+    {
+      "question_id": "VQ-S7-003",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PENDING-5",
+      "question": "Does the e2e test confirm that the pending-removal badge survives a page reload? Show the test: (a) member A leaves; (b) admin's browser shows the pending badge on member A's row; (c) admin reloads the page; (d) after reload and historical sync, member A's row still shows the pending badge. The reload must trigger re-observation of the kind-13 event via historical sync, not just an in-memory state persistence."
+    },
+    {
+      "question_id": "VQ-S7-004",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does groups-admin.spec.ts use test.describe.serial() for all its tests, and does it use a two-context (two browser sessions) pattern for every scenario that requires a peer action? Confirm: (a) test.describe.serial() wraps the suite; (b) every scenario that needs a second user (invited member, second admin) opens a separate browserContext rather than injecting a raw event. Show the top-level describe block and the context setup for at least one multi-user scenario."
+    },
+    {
+      "question_id": "VQ-S7-005",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the rewritten groups-admin.spec.ts contain zero assertions that invited members are auto-promoted to admin? Specifically: (a) run grep -n 'auto-promot\\|adminPubkeys.*invite\\|isAdmin.*invite' app/tests/e2e/groups-admin.spec.ts and confirm zero matches; (b) confirm the old test file's auto-promotion scenario is fully replaced, not merely commented out. Show the grep output."
+    },
+    {
+      "question_id": "VQ-S7-006",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does groups-admin.spec.ts make zero raw WebSocket calls to the strfry relay? Confirm: (a) grep -n 'WebSocket\\|ws://' app/tests/e2e/groups-admin.spec.ts returns zero matches; (b) all group events (invites, admin grants, leaves) are triggered through the app's UI in the browser context, not constructed and sent by the test process. Could the E2E test file be deleted and rewritten without modifying any production source file? Confirm the tests are purely consumers of the app under test."
+    },
+    {
+      "question_id": "VQ-S7-007",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do the e2e tests cover all six named scenarios in the story scope: (1) invited-member-is-non-admin, (2) non-admin-sees-no-action-buttons, (3) grant-makes-target-admin (target gains Admin badge and can invite), (4) last-admin-leave-blocked, (5) second-admin-allows-leave, (6) pending-removal-badge-survives-reload? List the test titles (it() / test() descriptions) from the spec file and confirm one-to-one coverage."
+    },
+    {
+      "question_id": "VQ-S7-008",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "After an admin grants admin to a target member, does the e2e test confirm the target member's session now shows the Invite button enabled (not disabled)? This verifies that adminPubkeys propagated to the second context and isCurrentUserAdmin evaluated to true there. Show the assertion in the grant-makes-target-admin test case confirming the Invite button state in the target's browser context."
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "question_id": "VQ-S7-PI-001",
+      "phase": "post-impl",
+      "category": "RELIABILITY",
+      "question": "In Scenario 3, AC-PENDING-1 simulates 'no admin online' by closing ctxA before B leaves. Does closing a BrowserContext actually prevent A's MarmotContext from receiving the kind-13 event (relay connection torn down), or does the Next.js dev server keep a stale websocket open that could still auto-commit the removal before B's local purge? If the latter, the test may pass regardless of whether B's leave is truly unilateral."
+    },
+    {
+      "question_id": "VQ-S7-PI-002",
+      "phase": "post-impl",
+      "category": "RELIABILITY",
+      "question": "In Scenario 3, the AC-PENDING-5 setup re-boots ctxA after ctxA was closed. The new context uses clearAppState which wipes lp_* localStorage. Does clearAppState also clear any IndexedDB MLS group state, or does the re-booted context inherit stale MLS epoch data from the first A session? If MLS state survives clearAppState, the pending-removal badge reconstruction may rely on stale local state rather than the relay-delivered kind-13."
+    },
+    {
+      "question_id": "VQ-S7-PI-003",
+      "phase": "post-impl",
+      "category": "CORRECTNESS",
+      "question": "The grantAdminViaUI helper waits for the make-admin-confirm button to disappear as the signal that the UpdateMetadata commit was sent. Does modal close happen synchronously on button click (before the async commit resolves), or only after the commit round-trip? If the modal closes before the commit lands, the 5s waitForTimeout may be insufficient for slow relay propagation, causing the grant-makes-target-admin test to be flaky."
+    }
+  ]
+}

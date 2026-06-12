@@ -1,0 +1,125 @@
+{
+  "created_at": "2026-06-11T00:00:00Z",
+  "prior_learnings": [
+    {
+      "id": "marmot-ts-self-leave-propose-single",
+      "title": "marmot-ts self-leave: propose single-leaf Remove for per-device forget, not group.leave()",
+      "tags": ["marmot-ts", "mls", "forget-device", "multi-device", "leaf-identity", "rfc9420", "kind-445"],
+      "relevance": "The spec explicitly warns against using mlsGroup.leave() because it emits a bare self-Remove proposal that freezes chat while unappliedProposals is non-empty. The out-of-band leave (kind-13) path must stay intact."
+    }
+  ],
+  "similar_features": {
+    "auto_promote_block_to_delete": {
+      "file": "app/src/context/MarmotContext.tsx",
+      "lines": "1169-1187",
+      "description": "Block that promotes every invited member to admin. To be deleted along with adminPromotionFailed flag and warning return path.",
+      "dead_code_cascade": [
+        "InviteMemberModal.tsx:73-80 (warning display)",
+        "i18n.ts inviteWarningAdminPromotion key (en + de)",
+        "MarmotContextValue.warning field on inviteByNpub return type"
+      ]
+    },
+    "grant_admin_template": {
+      "file": "app/src/lib/marmot/cancelInvitationImpl.ts",
+      "description": "Pure Deps-injected impl file. grantAdmin should follow the same extraction pattern: re-read live adminPubkeys, evaluate superset guard, Proposals.proposeUpdateMetadata, single commit, reloadGroups + markBackupDirty."
+    },
+    "confirmation_modal_template": {
+      "file": "app/src/components/groups/MemberList.tsx",
+      "lines": "97-238",
+      "description": "useDisclosure + isCancelling state + handleConfirm async function pattern. 'Cancel invite' button+modal is the exact template for 'Make admin' button+modal."
+    },
+    "is_admin_gate_groups_page": {
+      "file": "app/pages/groups.tsx",
+      "lines": "207-212",
+      "description": "isAdmin computed inline from mlsGroup?.groupData?.adminPubkeys. Already gates invite-member-btn, invite-link-btn (isDisabled), manage-links and PendingRequestsSection (conditional render)."
+    },
+    "leave_group_button": {
+      "file": "app/src/components/groups/LeaveGroupButton.tsx",
+      "lines": "33-95",
+      "description": "Receives groupId prop; calls useMarmot() directly. Last-admin guard needs adminPubkeys + ownPubkeyHex props from groups.tsx (where both are already available)."
+    }
+  },
+  "architecture": {
+    "paradigm": "Modular Next.js app; MarmotContext owns all MLS logic; page coordinator (groups.tsx) derives UI state; presentational components receive props only.",
+    "module_map": [
+      {
+        "name": "MarmotContext",
+        "file": "app/src/context/MarmotContext.tsx",
+        "description": "Owns all MLS interactions. New: grantAdmin method, pendingRemovals getter exposed via context. Remove: auto-promote block."
+      },
+      {
+        "name": "grantAdminImpl",
+        "file": "app/src/lib/marmot/grantAdminImpl.ts (new)",
+        "description": "Pure Deps-injected impl for grantAdmin. Mirrors cancelInvitationImpl.ts."
+      },
+      {
+        "name": "MemberList",
+        "file": "app/src/components/groups/MemberList.tsx",
+        "description": "Fully prop-driven presentational. New props: adminPubkeys, isCurrentUserAdmin, onMakeAdmin, pendingRemovalPubkeys."
+      },
+      {
+        "name": "LeaveGroupButton",
+        "file": "app/src/components/groups/LeaveGroupButton.tsx",
+        "description": "New props: adminPubkeys, ownPubkeyHex for last-admin guard."
+      },
+      {
+        "name": "GroupsPage",
+        "file": "app/pages/groups.tsx",
+        "description": "Coordinator. Derives isAdmin, adminPubkeys, pendingRemovalPubkeys; passes new props to MemberList and LeaveGroupButton; wires onMakeAdmin handler."
+      },
+      {
+        "name": "i18n",
+        "file": "app/src/lib/i18n.ts",
+        "description": "New Copy keys: makeAdminButton, makeAdminTitle, makeAdminBody, makeAdminConfirm, adminBadge, lastAdminLeaveBlocked, leavePendingBadge, removalPendingBadge."
+      }
+    ],
+    "key_data_flows": {
+      "groupDataVersion_signal": "MLS commit lands → onMembersChanged callback → setGroupDataVersion(v+1) → useEffect in groups.tsx fires → getMarmotGroup re-fetches mlsGroup → isAdmin recomputes",
+      "pendingRemovals": "kind-13 intent received → enqueueLeave appends to pendingRemovalsRef → (new) getPendingRemovals(groupId) accessor on context → groups.tsx reads on groupDataVersion tick → passed to MemberList as pendingRemovalPubkeys",
+      "grantAdmin_commit": "onMakeAdmin(pubkey) → grantAdmin(groupId, pubkey) → re-read live adminPubkeys → superset guard → proposeUpdateMetadata → single commit → reloadGroups + markBackupDirty → groupDataVersion bumped by onMembersChanged"
+    },
+    "seam_contracts": {
+      "MarmotContext_to_GroupsPage": "MarmotContextValue gains: grantAdmin(groupId, pubkey): Promise<{ok, error?}>, getPendingRemovals(groupId): string[]",
+      "GroupsPage_to_MemberList": "MemberList gains props: adminPubkeys: string[], isCurrentUserAdmin: boolean, onMakeAdmin?: (pubkey: string) => Promise<void>, pendingRemovalPubkeys: string[]",
+      "GroupsPage_to_LeaveGroupButton": "LeaveGroupButton gains props: adminPubkeys: string[], ownPubkeyHex: string | null"
+    },
+    "architectural_constraint": "pendingRemovalsRef is a useRef (not useState) internal to MarmotProvider — not exposed via context. Must add getPendingRemovals(groupId): string[] accessor on MarmotContextValue; groups.tsx reads it on groupDataVersion tick."
+  },
+  "testing_and_conventions": {
+    "e2e_infrastructure": {
+      "framework": "Playwright",
+      "spec_dir": "app/tests/e2e/",
+      "groups_command": "make test-e2e-groups (starts docker strfry on :7777, E2E_GROUPS=1 node scripts/run-e2e.mjs)",
+      "unit_command": "make test-unit (npx vitest run)",
+      "config": "app/playwright.config.ts — workers: 1, E2E_GROUPS=1 env gates groups-*.spec.ts"
+    },
+    "two_context_pattern": {
+      "description": "Each spec defines local bootUser() function: browser.newContext + suppressErrorOverlay + addInitScript(lp_nostrIdentity_v1) + clearAppState + page.goto('/groups/')",
+      "serial": "test.describe.serial for all multi-user scenarios; contexts held across steps in beforeAll/afterAll",
+      "user_keypairs": "auth-helpers.ts defines USER_A/B/C; computeTestKeypairs() required before use"
+    },
+    "existing_admin_spec": {
+      "file": "app/tests/e2e/groups-admin.spec.ts",
+      "conflict": "Currently tests that invited members are auto-promoted to admin (lines 141-147, 164-168). MUST be rewritten to test the new non-promotion default and the explicit grant flow."
+    },
+    "testid_conventions": {
+      "static": "kebab-case: create-group-btn, invite-member-btn, leave-group-btn",
+      "dynamic_per_member": "${noun}-${pubkey.slice(0,8)}: member-item-${}, cancel-invite-${}, make-admin-${}, admin-badge-${}",
+      "prefix_locator": "page.locator('[data-testid^=\"group-card-\"]') for dynamic IDs in e2e"
+    },
+    "i18n_structure": {
+      "type_file": "app/src/lib/i18n.ts",
+      "copy_type_lines": "3-311",
+      "en_object_start": "~line 323 (after Copy type)",
+      "de_object_start": "~line 700",
+      "namespace": "copy.groups.* for all new group-related strings",
+      "dynamic_strings": "typed functions e.g. (count: number) => string"
+    },
+    "unit_test_conventions": {
+      "framework": "Vitest",
+      "dir": "app/tests/unit/",
+      "pattern": "vi.mock() at top, dynamic import after, describe/it blocks, beforeEach clears",
+      "idb_mock": "Map-backed in-memory store via vi.mock('idb-keyval', ...)"
+    }
+  }
+}

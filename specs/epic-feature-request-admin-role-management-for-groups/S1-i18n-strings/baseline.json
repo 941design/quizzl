@@ -1,0 +1,4 @@
+{
+  "test_snapshot": "skipped",
+  "reason": "i18n.ts has no unit test suite; TypeScript compilation is the executable gate"
+}

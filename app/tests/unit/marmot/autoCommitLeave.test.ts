@@ -277,13 +277,17 @@ describe('fireAutoCommit', () => {
     await fireAutoCommit(deps);
 
     expect(deps.commitFn).toHaveBeenCalledTimes(1);
-    // onCommitted must NOT be called — entries stay in the live queue (AC-COMMIT-7).
-    // (onCommitted IS called for stale-leaf drops, but the commitFn here doesn't throw
-    //  due to a stale leaf — it throws during the commit itself.)
-    // The stale-leaf path already called onCommitted in the drop phase; to verify the
-    // failure semantics, check that onCommitted was NOT called with the committing pubkey.
-    const committedCalls: string[][] = deps.onCommitted.mock.calls.flatMap((c) => c);
-    expect(committedCalls).not.toContain(PUBKEY);
+    // onCommitted must NOT be called at all — entries stay in the live queue (AC-COMMIT-7).
+    // There are no stale-leaf drops in this scenario (getPubkeyLeafNodeIndexes returns a
+    // non-empty index), so the drop-phase onCommitted at the top of fireAutoCommit never
+    // fires either. The only way onCommitted could be invoked here is the success path
+    // falling through after a commit failure — which is exactly the bug AC-COMMIT-7 forbids.
+    expect(deps.onCommitted).not.toHaveBeenCalled();
+    // Defence in depth: even across nested call shapes, the committing pubkey must never
+    // reach onCommitted. flatMap(2) drains both the call-args level and the string[] arg
+    // level so the membership check sees bare pubkeys, not nested arrays.
+    const committedPubkeys: string[] = deps.onCommitted.mock.calls.flat(2);
+    expect(committedPubkeys).not.toContain(PUBKEY);
   });
 
   // AC-EDGE-3: burst of N pubkeys within debounce window → single commit with N Remove proposals

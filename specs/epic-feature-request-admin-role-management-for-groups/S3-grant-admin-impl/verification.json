@@ -1,0 +1,97 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-11T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GRANT-2",
+      "question": "After grantAdmin(groupId, pubkey) resolves { ok: true }, does the target member's pubkey appear in mlsGroup.groupData?.adminPubkeys on the next groupDataVersion tick? Show the unit test that: (a) stubs mlsGroup.commit to succeed, (b) calls grantAdmin, (c) asserts the committed UpdateMetadata proposal contains adminPubkeys as the union of the prior set and the target pubkey, and (d) asserts grantAdmin returns { ok: true }."
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GRANT-5",
+      "question": "Does the superset guard in grantAdminImpl.ts reject an update whose new adminPubkeys set is not a superset of the live current set? Specifically: if live adminPubkeys = ['alice', 'bob'] and the caller passes pubkey = 'carol' but the computed new set would be ['alice', 'carol'] (missing 'bob'), does grantAdmin return { ok: false, error: '...' } without calling mlsGroup.commit? Show the unit test that exercises this scenario and confirm mlsGroup.commit is never called."
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GRANT-7",
+      "question": "When two concurrent grantAdmin calls target different pubkeys on the same epoch, does the losing commit retry against the live set so both targets end up in adminPubkeys? Show the unit test for the retry scenario: (a) first call to mlsGroup.commit throws an epoch-conflict error, (b) grantAdminImpl re-reads live adminPubkeys (which now includes the winning grant's target), (c) rebuilds the proposal as union of new live set and own target, (d) commits successfully, (e) resulting adminPubkeys contains both targets. Confirm mlsGroup.commit is called exactly twice in this scenario."
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BOUND-1",
+      "question": "Does app/src/lib/marmot/grantAdminImpl.ts contain zero imports from app/src/context/? Run grep -n 'from.*app/src/context\\|from.*@/src/context\\|from.*context/Marmot' app/src/lib/marmot/grantAdminImpl.ts and confirm zero matches. Also confirm that all marmot-ts imports inside callbacks use await import('@internet-privacy/marmot-ts') (dynamic) rather than top-level imports. Show the full import block of grantAdminImpl.ts."
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REMOVE-1",
+      "question": "When fireAutoCommit is called and the current user is not an admin (isAdmin = false), does the function return without calling mlsGroup.commit and retain all pending-removal entries in pendingRemovalsRef? Show the unit test: (a) pendingRemovalsRef contains ['alice'], (b) fireAutoCommit is called with isAdmin=false, (c) assert mlsGroup.commit is never called, (d) assert pendingRemovalsRef still contains ['alice'] after the call."
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REMOVE-2",
+      "question": "Does the remainingAdmins computation in fireAutoCommit filter the departing member's pubkey from the live adminPubkeys before building the post-commit admin set? Show the unit test for: (a) a departing admin — confirm their pubkey is absent from the UpdateMetadata adminPubkeys in the commit proposal; (b) a departing non-admin — confirm adminPubkeys in the proposal is unchanged (no admin removed from the set)."
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does grantAdminImpl.ts re-read live adminPubkeys from mlsGroup.groupData?.adminPubkeys at the moment the commit fires, not from a snapshot captured at the time grantAdmin was called? Show the implementation evidence: (a) no adminPubkeys variable is captured in a closure outside the commit callback, or (b) if captured, it is re-fetched inside the commit path. Confirm that stale-snapshot reads are structurally impossible in the implementation."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does grantAdmin issue exactly one mlsGroup.commit() call per successful grant (never two separate commits)? Show the implementation path from grantAdmin through grantAdminImpl and confirm there is a single commit call. For the retry case (AC-GRANT-7), confirm the retry still resolves to a single commit on the second attempt (the original failed call plus one retry = two total calls, but each attempt is a single commit, never double-commit on success)."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does getPendingRemovals(groupId) on MarmotContextValue read from pendingRemovalsRef synchronously without triggering a re-render or side-effect? Confirm: (a) getPendingRemovals is a plain synchronous function (no await, no setState), (b) it returns a string[] of hex pubkeys, and (c) it is callable from groups.tsx inside a groupDataVersion-triggered effect or memo without creating an infinite render loop. Could grantAdminImpl be deleted and rewritten without modifying any file outside app/src/lib/marmot/? If not, name the cross-boundary dependency."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do the unit tests in app/tests/unit/marmot/grantAdminImpl.test.ts cover all four named scenarios: (1) happy path, (2) superset guard rejects demotion, (3) concurrent-retry merges both pubkeys, (4) non-admin fireAutoCommit is a no-op that retains entries? Are the marmot-ts mocks (mlsGroup.commit, Proposals.proposeUpdateMetadata, mlsGroup.groupData) injected via the Deps interface rather than module-level vi.mock / jest.mock? Show the Deps interface shape used in the tests."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does grantAdminImpl reject a call where the target pubkey is already in the live adminPubkeys (a no-op grant to an existing admin)? This prevents a subtle attack where a caller tricks the system into re-emitting an UpdateMetadata that could overwrite a concurrently added admin. Confirm the implementation either short-circuits with { ok: true } (idempotent no-op) or applies the superset guard in a way that naturally handles this case. Show the evidence."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The superset guard isSuperset(currentAdmins, newSet) in grantAdminImpl.ts is structurally a tautology on the grant path (newSet = currentAdmins ∪ {target}). Is the guard nonetheless a real function call rather than a dead-code shortcut? Confirm it would fire if a future refactor passed a stale or manually constructed set to proposeUpdateMetadata. Show the isSuperset function definition."
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The concurrent-retry test asserts proposeUpdateMetadata is called twice and that the second call's adminPubkeys contains BOTH the concurrent grantee (OTHER_CONCURRENT) and the original target (TARGET). Does the test assert the exact length of the second proposal's adminPubkeys (3 elements: EXISTING_ADMIN + OTHER_CONCURRENT + TARGET) so that spurious duplicates would be caught? Show the assertion."
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "getPendingRemovals uses useCallback with an empty dependency array []. Is this correct given that pendingRemovalsRef is a React ref (not state) whose .current is mutated in place? Confirm that reading ref.current inside a stable callback (never-recreated) is safe and does not produce stale reads. Cross-reference MarmotContext.tsx line 305 (useRef<Map<string, PendingRemoval[]>>)."
+    }
+  ]
+}

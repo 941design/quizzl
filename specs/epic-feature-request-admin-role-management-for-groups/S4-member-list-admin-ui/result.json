@@ -1,0 +1,55 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "final_outcome": "accepted",
+  "architect_skipped": false,
+  "remediation_rounds": 1,
+  "modules_touched": ["MemberList"],
+  "review": {
+    "stage1_opus": {
+      "findings": 2,
+      "max_severity": 3,
+      "actioned": [
+        "sev-3: shadow-init test helpers (computeShowMakeAdmin/computeIsRowAdmin re-implemented in the test) duplicated the production gating logic — FIXED: exported computeShowMakeAdmin() + isRowAdmin() from MemberList.tsx and bound the test to those real predicates so gating-logic drift now fails the test"
+      ],
+      "watch": [
+        "sev-2: removalPendingBadge copy is defined+tested but rendered by no component (S4 uses leavePendingBadge for all pending-removal rows). Carried to S6 as the leave-vs-removal cause-distinction decision."
+      ]
+    },
+    "stage2_codex": "deferred-to-precommit-gate: S4 is pure-presentational, introduces no new cross-module seams (only optional props consumed in S6), and the resumable Opus reviewer (whole-assembly model) was clean. Cross-vendor Codex runs full-tree over the whole epic at the Step 6 pre-commit review gate."
+  },
+  "files_created": [
+    "specs/epic-feature-request-admin-role-management-for-groups/S4-member-list-admin-ui/architecture.json",
+    "specs/epic-feature-request-admin-role-management-for-groups/S4-member-list-admin-ui/baseline.json",
+    "specs/epic-feature-request-admin-role-management-for-groups/S4-member-list-admin-ui/result.json",
+    "app/tests/unit/memberListAdminUi.test.ts"
+  ],
+  "files_modified": [
+    "app/src/components/groups/MemberList.tsx",
+    "specs/epic-feature-request-admin-role-management-for-groups/S4-member-list-admin-ui/verification.json"
+  ],
+  "implementation_summary": "Added four optional props to MemberListProps and MemberListItemProps: adminPubkeys, isCurrentUserAdmin, onMakeAdmin, pendingRemovalPubkeys. Per-row derivations compute isRowAdmin (case-insensitive), showMakeAdmin (gated on AC-GRANT-1/3/4 conditions), and isPendingRemoval. MemberListItem gains three new visual elements: an Admin badge (purple, data-testid admin-badge-*), a pending-removal badge (orange, data-testid removal-pending-*), and a Make-admin trigger button + confirmation modal (mirror of the cancel-invite modal; useDisclosure + isMakingAdmin state; finally-block close; data-testid make-admin-* and make-admin-confirm-*). All copy is resolved in MemberList.map() and passed as flat string props to MemberListItem. Zero useMarmot() or useContext() calls introduced.",
+  "test_counts": {
+    "baseline_files": 76,
+    "final_files": 77,
+    "baseline_tests": 1161,
+    "final_tests": 1185,
+    "new_tests": 24,
+    "note": "After review remediation the test binds to exported predicates; still 24 tests, all passing."
+  },
+  "mocks_introduced": [],
+  "verification_questions": {
+    "pre_impl": 12,
+    "post_impl": 3
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The vitest config only includes *.test.ts (not *.tsx) and @testing-library/react is not installed, so DOM-level component tests are impossible in the unit suite. The spec asked for a .tsx test with rendered assertions; it was written as a .test.ts with logic-level helpers instead, and DOM assertions defer to the e2e suite once S6 wires the component. The Opus review then (correctly) flagged those helpers as a shadow-init duplicate of the production gating logic — remediated by exporting computeShowMakeAdmin/isRowAdmin and binding the test to them. The combined lesson: when a DOM renderer is unavailable, the right move is to extract the logic as an exported pure helper from the start (so the test binds to production code), rather than re-implement the predicate in the test.",
+    "surprised_by": "VQ-S4-PI-003: the spec mentions both 'leavePendingBadge' and 'removalPendingBadge' for the pending-removal row, but only one pendingRemovalPubkeys prop is defined with no signal to distinguish the two badge variants by cause. The implementation uses leavePendingBadge consistently; the cause-distinction is carried to S6 as a watch item.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

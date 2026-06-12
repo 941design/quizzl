@@ -1,0 +1,31 @@
+{
+  "module_name": "LeaveGroupButton",
+  "purpose": "Renders the Leave Group trigger and handles the leave confirmation flow, including blocking the sole admin from leaving until they promote another member.",
+  "public_api": [
+    {
+      "name": "isSoleAdmin",
+      "signature": "function isSoleAdmin(adminPubkeys: string[] | undefined, ownPubkeyHex: string | null | undefined): boolean",
+      "description": "Pure predicate. Returns true when ownPubkeyHex is the sole entry in adminPubkeys (case-insensitive). Exported for unit testing."
+    },
+    {
+      "name": "LeaveGroupButton",
+      "signature": "function LeaveGroupButton({ groupId, adminPubkeys?, ownPubkeyHex? }: LeaveGroupButtonProps): JSX.Element",
+      "description": "Default export. Renders the Leave Group button and modal. When isSoleAdmin is true, shows the blocked-explanation modal instead of the confirmation modal."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "@chakra-ui/react",
+    "next/router",
+    "@/src/context/LanguageContext",
+    "@/src/context/MarmotContext"
+  ],
+  "dependencies_forbidden": [],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/leaveGroupLastAdmin.test.ts"
+  ]
+}

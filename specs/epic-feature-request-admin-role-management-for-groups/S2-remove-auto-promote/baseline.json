@@ -1,0 +1,4 @@
+{
+  "test_snapshot": "pre-existing unit tests for invite path pass (cancelPendingInvitation.i18n: 2, pendingInvitations: 23 = 25 total) before and after auto-promote removal",
+  "tests_passing": 25
+}

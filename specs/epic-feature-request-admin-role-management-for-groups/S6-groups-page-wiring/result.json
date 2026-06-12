@@ -1,0 +1,48 @@
+{
+  "story_id": "S6",
+  "status": "done",
+  "final_outcome": "accepted",
+  "architect_skipped": false,
+  "remediation_rounds": 0,
+  "modules_touched": ["GroupsPage"],
+  "review": {
+    "stage1_opus": {
+      "findings": 0,
+      "verdict": "clean",
+      "note": "Resumable Opus reviewer (whole-assembly model, continued from S3/S4) verified all 5 wiring-gate items, resolved the S3 grant-admin-error-shape and S4 pending-removal-badge watches, verified groups-page-coordinator. No emergent seam defects: admin-membership invariant has a single owner (adminPubkeys line 238), no concept double-owned, no contract mismatch between grantAdmin return and handleMakeAdmin."
+    },
+    "stage2_codex": "unavailable-transient: Codex review environment failed command execution twice (sandbox filesystem failure, not a config/preflight failure). Deferred to the mandatory Step 6 pre-commit Codex gate, which retries Codex over the whole epic before commit. Rationale: Opus whole-assembly review was clean; Codex already vetted the core grantAdmin protocol logic in the S1-S3 pass; S6 is lower-risk wiring."
+  },
+  "files_created": [
+    "app/tests/unit/makeAdmin.i18n.test.ts",
+    "specs/epic-feature-request-admin-role-management-for-groups/S6-groups-page-wiring/architecture.json",
+    "specs/epic-feature-request-admin-role-management-for-groups/S6-groups-page-wiring/baseline.json",
+    "specs/epic-feature-request-admin-role-management-for-groups/S6-groups-page-wiring/result.json"
+  ],
+  "files_modified": [
+    "app/pages/groups.tsx",
+    "app/src/lib/i18n.ts",
+    "specs/epic-feature-request-admin-role-management-for-groups/S6-groups-page-wiring/verification.json"
+  ],
+  "implementation_summary": "Wired all five blocking-gate items from the ownership-ledger into groups.tsx. Added grantAdmin and getPendingRemovals to the useMarmot() destructure. Added handleMakeAdmin callback (success/error toast; all non-ok results including unrecognized codes map to makeAdminError). Derived adminPubkeys from mlsGroup?.groupData?.adminPubkeys ?? [] as the single source for isAdmin, LeaveGroupButton, and MemberList. Derived pendingRemovalPubkeys synchronously in render body. Wired adminPubkeys + ownPubkeyHex to LeaveGroupButton activating the sole-admin guard. Wired adminPubkeys, isCurrentUserAdmin, onMakeAdmin, pendingRemovalPubkeys to MemberList. Gated onCancelInvite on isAdmin (AC-GATE-3). Existing isAdmin gates for invite/invite-link/manage-links/PendingRequestsSection confirmed intact. Added code comments to i18n.ts removalPendingBadge in both locales explaining the S6 cause-distinction decision.",
+  "tests": {
+    "baseline_files": 78,
+    "baseline_count": 1194,
+    "final_files": 79,
+    "final_count": 1197,
+    "added": {
+      "unit_i18n": 3,
+      "e2e": 0
+    },
+    "note": "DOM-level wiring verification (handleMakeAdmin success/error → correct toast) is delegated to S7 e2e tests. The error-mapping decision (all non-ok → makeAdminError) has no per-code branching to unit-test beyond the i18n key existence check added here."
+  },
+  "mocks_introduced": [],
+  "decisions_documented": {
+    "leave_vs_removal_badge": "PendingRemoval carries no cause field (spec §2.8 confirmed). All pending removals use leavePendingBadge. removalPendingBadge is kept defined in i18n with a reservation comment — not deleted — for a future cause-distinction increment.",
+    "error_mapping": "handleMakeAdmin maps ALL non-ok results from grantAdmin to the generic makeAdminError toast. No switch on specific error codes. This handles the exhausted-retry path that may return a raw marmot-ts message (per grant-admin-error-shape watch in ownership-ledger)."
+  },
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  }
+}

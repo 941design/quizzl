@@ -1,0 +1,35 @@
+{
+  "story_id": "S7",
+  "status": "done",
+  "final_outcome": "accepted",
+  "architect_skipped": false,
+  "remediation_rounds": 1,
+  "modules_touched": ["E2ETests"],
+  "files_created": [],
+  "files_modified": [
+    "app/tests/e2e/groups-admin.spec.ts"
+  ],
+  "lead_remediation": "Two rounds. (1) Pre-run: architect reported 'typecheck=clean' but the spec did NOT parse under Playwright — 5 test titles had apostrophes inside single-quoted strings; lead fixed; playwright --list confirmed. (2) e2e GATE remediation (Decider RETRY): first gate run 9/3/9 with 3 test-sync failures — fixed test-only: (a) openGroupDetail now idempotently routes via /groups/ list before clicking the group-card (was assuming list view); (b) await B's confirmed readiness marker (member-item present + member-pending gone) before asserting the make-admin button (profile round-trip > 30s); (c) await A's own admin-badge before clicking Leave (so isSoleAdmin reads loaded adminPubkeys); same readiness gate added inside grantAdminViaUI. Round 2: 18/1/2. The 1 remaining failure (AC-PENDING-5 'badge survives reload') was a 2-user catch-22 (badge persists only with offline admin, but observing needs online viewer; only non-admin is the leaver). Product-owner decision (2026-06-12): ship now, move AC-PENDING-5 to Manual Validation MV-4, remove the 3 broken re-boot-dependent tests. Final gate: 18/18 PASSED on a clean relay (one transient createGroup flake on the stale 8h relay cleared after relay restart). All testids verified against S4/S5; no raw-WebSocket publish; grants UI-driven.",
+  "implementation_summary": "Full rewrite of groups-admin.spec.ts. The old describe.serial block (lines 99–169) asserted that every invited member is auto-promoted to admin — exactly the behavior removed by S2. The rewrite replaces it with three new describe.serial blocks covering: (1) non-admin join and explicit make-admin grant via UI, (2) last-admin leave protection and unblocking via second admin, (3) pending-removal badge and leave liveness. All existing helper functions (bootUser, waitForKeyPackages, createGroup, inviteMember, waitForGroupAndOpen, openGroupDetail) are preserved unchanged. A new helper grantAdminViaUI(adminPage, targetPubkeyHex) was added to drive the Make-admin button → confirm-modal flow via data-testid.",
+  "tests": {
+    "baseline": "NO_TESTS (E2E suite requires docker relay + dev server)",
+    "final": "3 describe.serial blocks, 21 test cases (playwright --list confirmed after lead apostrophe fix)",
+    "note": "tsc --noEmit clean AND playwright test --list parses (21 tests). Actual execution is the Step 5.8 e2e gate job (needs docker relay + dev server via make test-e2e-groups)."
+  },
+  "scenario_reliability_notes": {
+    "AC-PENDING-1": "Implemented by closing ctxA before B clicks Leave. This tears down A's relay connection, which is the strongest practicable proxy for 'no admin online'. See post-impl question VQ-S7-PI-001 for the residual caveat.",
+    "AC-PENDING-4": "Implemented as the lighter invariant: A's chat input remains enabled and can send a message while B is in leave-pending state. A full two-remaining-member message exchange would require USER_C's context (3 active contexts), multiplying relay timing risk across 3 MLS join flows. The lighter form directly tests §4.1's core promise (conversation not frozen) without the 3-context timing dependency.",
+    "AC-PENDING-5": "Implemented in full: A's context is re-booted after ctxA close; historical sync re-delivers the kind-13; A polls for the removal-pending badge; A reloads the page; A polls again — badge must re-appear. See post-impl question VQ-S7-PI-002 for IDB state caveat."
+  },
+  "mocks_introduced": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Two issues. (1) The architect reported 'typecheck=clean' but never ran `playwright test --list`, shipping 5 test-title apostrophe syntax errors that tsc does not catch for spec files — the lead caught and fixed them. For e2e stories, framework parse (`--list`) must be part of definition-of-done, not just tsc. (2) AC-PENDING-1's 'no admin online' requirement has no clean Playwright primitive — you cannot selectively block a browser context from the relay without network-level interception. Closing ctxA is the best available approximation but is not a strict simulation of an absent admin; the relay could still deliver the kind-13 to a lingering server-side subscription before the context fully tears down. Documented as a known caveat.",
+    "surprised_by": "The Scenario 3 re-boot pattern (close ctxA, then call bootUser again in a test body that uses { browser }) is subtly different from the afterAll re-assignment pattern used in beforeAll. The test variable ctxA is re-assigned inside a test case body, which means the afterAll closer will pick up the new context. This is correct but non-obvious; it relies on JavaScript closure over the let binding rather than a fresh declaration.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "story_id": "S1",
+  "module": "i18n",
+  "files_modified": ["app/src/lib/i18n.ts"],
+  "seams": [],
+  "new_types": [
+    "makeAdminButton: string",
+    "makeAdminTitle: string",
+    "makeAdminBody: string",
+    "makeAdminConfirm: string",
+    "makeAdminSuccess: string",
+    "makeAdminError: string",
+    "adminBadge: string",
+    "lastAdminLeaveBlocked: string",
+    "leavePendingBadge: string",
+    "removalPendingBadge: string"
+  ],
+  "rationale": "Additive-only change to Copy type and both en/de locale objects. No logic, no UI, no context changes."
+}

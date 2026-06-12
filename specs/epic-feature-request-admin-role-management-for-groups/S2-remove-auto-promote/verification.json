@@ -1,0 +1,67 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-11T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEAD-1",
+      "question": "Are all four deletion targets fully removed from the codebase? Verify by running: (a) grep -n 'adminPromotionFailed' app/src/context/MarmotContext.tsx — must return no matches; (b) grep -rn 'inviteWarningAdminPromotion' app/src/ — must return no matches; (c) grep -n 'admin_promotion_failed' app/src/context/MarmotContext.tsx — must return no matches; (d) diff of InviteMemberModal.tsx showing lines 73-80 removed. Show all four command outputs."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-JOIN-3",
+      "question": "After this story, does inviteByNpub in MarmotContext.tsx contain any call to proposeUpdateMetadata or any mutation of adminPubkeys? Run grep -n 'proposeUpdateMetadata\\|adminPubkeys' app/src/context/MarmotContext.tsx and confirm that within the inviteByNpub function body, zero such references exist. Show the function body post-deletion."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-JOIN-1",
+      "question": "After removing the auto-promote block, does inviteByNpub commit the MLS Add only with no adminPubkeys side-effect? Show the full revised inviteByNpub function body and confirm it contains exactly one mlsGroup.commit() call that issues no UpdateMetadata proposal alongside the Add."
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-JOIN-2",
+      "question": "For invite-link join-request approval (the second non-admin join path), does the approval handler in MarmotContext.tsx also contain no adminPubkeys mutation? Run grep -n 'adminPubkeys' in the approval handler's code range and confirm zero hits. Show the evidence."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INIT-1",
+      "question": "Is the group-create path in MarmotContext.tsx untouched by this story? The create path must still seed exactly one admin (the creator) in adminPubkeys. Run grep -n 'adminPubkeys' app/src/context/MarmotContext.tsx and confirm the only remaining reference in the create path is the initial seeding. Show the line numbers and context."
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INIT-2",
+      "question": "After the deletions, does the group-create path still guarantee a non-zero adminPubkeys (the creator is always included)? Show the create-group code block and confirm that the initial adminPubkeys array contains the creator pubkey and no deletion in this story touched the create path."
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does TypeScript compile cleanly after the deletions? Specifically: (a) does removing inviteWarningAdminPromotion from the Copy type cause any remaining useCopy() call to reference the deleted key (which would be a type error)? Run npx tsc --noEmit from the app/ directory and confirm zero errors. Show the compiler output."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Are the three file changes in this story (MarmotContext.tsx, i18n.ts, InviteMemberModal.tsx) purely deletions with no new logic introduced? Confirm the diff contains no new function definitions, no new imports, and no new state variables. Could MarmotContext be deleted and rewritten without modifying files outside its dependencies_allowed list? If the auto-promote block deletion creates any dangling import, name the import and how it is resolved."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "After removing InviteMemberModal.tsx lines 73-80, does the modal still render correctly for all remaining non-warning states (normal invite flow, error states unrelated to admin promotion)? Confirm no JSX structural break (unclosed tags, orphaned conditional branches) remains in InviteMemberModal.tsx after the deletion. Show the revised component JSX return block."
+    }
+  ]
+}

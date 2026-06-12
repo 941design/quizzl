@@ -1,0 +1,108 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-11T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GRANT-1",
+      "question": "When isCurrentUserAdmin=true, does MemberList render a 'Make admin' button on each confirmed non-admin row that is not the current user's own row? And when isCurrentUserAdmin=false (or undefined), does MemberList render zero 'Make admin' buttons across all rows? Show the render test for both cases: (a) isCurrentUserAdmin=true with one admin row and two non-admin rows — expect exactly two buttons; (b) isCurrentUserAdmin=false — expect zero buttons. Confirm the test is not a pure mock-spy proxy (the DOM assertion checks rendered HTML, not a call count)."
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GRANT-3",
+      "question": "Does MemberList suppress the 'Make admin' button for (a) the current user's own row (pubkey matches self) and (b) rows whose pubkey is already in adminPubkeys? Show render tests for both suppression cases: (a) row.pubkey === ownPubkey — no button; (b) row.pubkey in adminPubkeys — no button even when isCurrentUserAdmin=true. Confirm the tests use data-testid selectors on the rendered output, not spy assertions."
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GRANT-4",
+      "question": "Does MemberList suppress the 'Make admin' button for pending (unconfirmed) members? Show the render test: a member row with confirmed=false (or equivalent pending state) is passed alongside isCurrentUserAdmin=true — confirm no 'Make admin' button appears for that row. Confirm what the 'confirmed' signal is in MemberList's row data (e.g., a boolean prop, membership in a confirmedPubkeys array, or a status field)."
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GRANT-6",
+      "question": "Does the 'Make admin' confirmation dialog: (a) display text that includes language matching the makeAdminBody copy key ('cannot be undone' or equivalent), and (b) produce zero calls to onMakeAdmin when the dialog is dismissed without confirming? Show the test: render MemberList, click 'Make admin', confirm the dialog appears, click 'Cancel' or close, assert onMakeAdmin mock was never called."
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIS-1",
+      "question": "Does the Admin badge render on every row whose pubkey is in adminPubkeys, and is the badge visually distinct from the pending-removal and pending-invite badges? Show: (a) a render test with two admins in adminPubkeys — confirm two admin badges appear, one per row; (b) confirm the admin badge uses a different label or CSS class than leavePendingBadge and removalPendingBadge (show the class names or copy key references used for each badge type)."
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PENDING-2",
+      "question": "Does MemberList render a visually distinct pending badge for each pubkey in pendingRemovalPubkeys, using leavePendingBadge or removalPendingBadge copy? Show the render test: pass pendingRemovalPubkeys=['alice'] — confirm a badge appears on alice's row. Confirm the badge label is sourced from i18n (useCopy()) and not hardcoded."
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PENDING-3",
+      "question": "When pendingRemovalPubkeys updates (a pubkey is removed after fireAutoCommit lands), does MemberList re-render and remove the pending badge for that pubkey automatically? Show the test: render MemberList with pendingRemovalPubkeys=['alice'], then re-render with pendingRemovalPubkeys=[], and confirm alice's row no longer shows the pending badge. This demonstrates the badge clears without a manual action."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PENDING-6",
+      "question": "Does the pending-removal badge label text satisfy the copy contract: it conveys 'departed, cleanup pending' without asserting message delivery has stopped and without using 'will be removed soon' or equivalent? Show the actual leavePendingBadge and removalPendingBadge string values used in the render and confirm neither contains delivery-stopped language or a fixed-timeline promise."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BOUND-2",
+      "question": "Does MemberList.tsx contain zero calls to useMarmot() or useContext after this story's changes? Run grep -n 'useMarmot\\|useContext' app/src/components/groups/MemberList.tsx and confirm zero matches. Also confirm onMakeAdmin is invoked via the passed prop (not a locally resolved context method) by showing the call site in MemberList.tsx."
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Do all new interactive elements in MemberList.tsx have data-testid attributes? Specifically, confirm: (a) the 'Make admin' button has a deterministic data-testid (e.g., 'make-admin-button-{pubkey}'); (b) the Admin badge has a data-testid; (c) the pending-removal badge has a data-testid; (d) the confirmation dialog's confirm and cancel buttons have data-testids. List all new data-testid values introduced in this story."
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could MemberList.tsx be deleted and rewritten without modifying any file outside app/src/components/groups/? All its data arrives as props from groups.tsx. If any data-fetching or context call is present, name it. Confirm the component signature only adds to the existing props interface without removing any existing prop."
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Are all new user-visible strings in MemberList.tsx referenced via useCopy() with the keys defined in S1 (i18n.ts)? Run grep -n '\"Make admin\"\\|\"Admin\"\\|\"Leave pending\"\\|\"Removal pending\"\\|\"cannot be undone\"' app/src/components/groups/MemberList.tsx and confirm zero hardcoded string literals for any of these labels."
+    }
+  ],
+  "post_impl_questions": [
+    {
+      "question_id": "VQ-S4-PI-001",
+      "phase": "post-impl",
+      "category": "INTEGRATION",
+      "question": "When groups.tsx wires onMakeAdmin (S6), does it pass the handler ONLY when isCurrentUserAdmin is true? If it passes onMakeAdmin unconditionally, showMakeAdmin in MemberList.map() will still gate on isCurrentUserAdmin — but the handler itself would be called on a non-admin user via direct URL manipulation. Confirm groups.tsx only passes onMakeAdmin when the calling user is an admin."
+    },
+    {
+      "question_id": "VQ-S4-PI-002",
+      "phase": "post-impl",
+      "category": "REGRESSION",
+      "question": "The Make admin modal and cancel-invite modal share the same cancelLabel string (copy.groups.cancel). If the user opens both modals simultaneously (e.g., by DOM manipulation), the isCancelling and isMakingAdmin states are independent local state in two separate MemberListItem instances — confirm they do not interfere. Also confirm the two useDisclosure instances within a single MemberListItem (cancelDisclosure, makeAdminDisclosure) are independent and cannot cross-trigger."
+    },
+    {
+      "question_id": "VQ-S4-PI-003",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The pending-removal badge uses leavePendingBadge copy (not removalPendingBadge). The spec's per-row derivation says 'renders leavePendingBadge or removalPendingBadge' — but the implementation uses only leavePendingBadge. Was removalPendingBadge intended for a different signal (e.g., a forced removal initiated by an admin vs. a voluntary leave)? If so, which prop drives removalPendingBadge and when should it be shown instead of leavePendingBadge?"
+    }
+  ]
+}

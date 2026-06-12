@@ -1,0 +1,59 @@
+{
+  "module_name": "grantAdminImpl",
+  "purpose": "Pure Deps-injected implementation of the grantAdmin operation. Mirrors cancelInvitationImpl.ts. Reads live adminPubkeys at commit time, applies a superset guard, performs a concurrent-retry loop (max 2 attempts), and issues a single UpdateMetadata commit.",
+  "public_api": [
+    {
+      "name": "grantAdminImpl",
+      "signature": "(deps: Deps, groupId: string, targetPubkey: string) => Promise<{ ok: boolean; error?: string }>",
+      "description": "Grants admin status to targetPubkey in groupId. Idempotent if already admin. Rejects any set that would demote an existing admin. Retries once on commit failure to merge concurrent grants."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/marmot/grantAdminImpl.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/types"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/*",
+    "@internet-privacy/marmot-ts"
+  ],
+  "external_ports": [
+    {
+      "name": "Deps.getGroup",
+      "description": "Fetches live MLS group state including groupData.adminPubkeys"
+    },
+    {
+      "name": "Deps.Proposals.proposeUpdateMetadata",
+      "description": "Builds an UpdateMetadata proposal action; injected from marmot-ts at the MarmotContext boundary"
+    },
+    {
+      "name": "Deps.reloadGroups",
+      "description": "Triggers group reload after successful commit"
+    },
+    {
+      "name": "Deps.markBackupDirty",
+      "description": "Marks backup state as dirty after successful commit"
+    }
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S4", "S5"]
+  },
+  "test_targets": [
+    "app/tests/unit/marmot/grantAdminImpl.test.ts"
+  ],
+  "wired_into": [
+    {
+      "file": "app/src/context/MarmotContext.tsx",
+      "additions": [
+        "grantAdmin useCallback (mirrors cancelPendingInvitation pattern)",
+        "getPendingRemovals useCallback (synchronous read of pendingRemovalsRef)",
+        "Both added to MarmotContextValue type, useMemo value object, and DEFAULT_MARMOT fallback"
+      ]
+    }
+  ]
+}

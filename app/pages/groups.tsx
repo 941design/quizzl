@@ -57,7 +57,7 @@ function ChatSendMessageCapture({ sendMessageRef }: { sendMessageRef: React.Muta
 
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
-  const { groups, ready, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation, requestProfilesIfStale } = useMarmot();
+  const { groups, ready, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation, requestProfilesIfStale, grantAdmin, getPendingRemovals } = useMarmot();
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const signer = useMemo(
     () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
@@ -118,6 +118,36 @@ function GroupDetailView({ id }: { id: string }) {
       });
     }
   }, [group, cancelPendingInvitation, toast, copy.groups]);
+
+  const handleMakeAdmin = useCallback(async (pubkey: string) => {
+    if (!group) return;
+    try {
+      const result = await grantAdmin(group.id, pubkey);
+      if (result.ok) {
+        toast({
+          title: copy.groups.makeAdminSuccess,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        // All non-ok results (closed codes + exhausted-retry raw messages) map to makeAdminError.
+        toast({
+          title: copy.groups.makeAdminError,
+          status: 'error',
+          duration: 4000,
+          isClosable: true,
+        });
+      }
+    } catch {
+      toast({
+        title: copy.groups.makeAdminError,
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+  }, [group, grantAdmin, toast, copy.groups]);
 
   useEffect(() => {
     if (!ready) return;
@@ -204,12 +234,16 @@ function GroupDetailView({ id }: { id: string }) {
   if (!group) return null;
 
   const memberCount = group.memberPubkeys.length;
+  // adminPubkeys is the single source of truth for both isAdmin and all child components.
+  const adminPubkeys = mlsGroup?.groupData?.adminPubkeys ?? [];
   const isAdmin = !!(
     pubkeyHex &&
-    mlsGroup?.groupData?.adminPubkeys?.some(
+    adminPubkeys.some(
       (pk: string) => pk.toLowerCase() === pubkeyHex.toLowerCase(),
     )
   );
+  // Pending removals: synchronous read; refreshes on each render (groupDataVersion drives re-renders via the effect above).
+  const pendingRemovalPubkeys = getPendingRemovals(group.id);
 
   return (
     <>
@@ -265,7 +299,7 @@ function GroupDetailView({ id }: { id: string }) {
                 {copy.groups.manageLinksButton}
               </Button>
             )}
-            <LeaveGroupButton groupId={group.id} />
+            <LeaveGroupButton groupId={group.id} adminPubkeys={adminPubkeys} ownPubkeyHex={pubkeyHex} />
           </HStack>
         </HStack>
 
@@ -280,12 +314,17 @@ function GroupDetailView({ id }: { id: string }) {
             <Heading as="h2" size="md" mb={3}>
               {copy.groups.membersHeading}
             </Heading>
+            {/* AC-GATE-3: onCancelInvite is an admin-only action */}
             <MemberList
               memberPubkeys={group.memberPubkeys}
               ownPubkeyHex={pubkeyHex}
               memberProfiles={profileMap}
               confirmedPubkeys={confirmedPubkeys}
-              onCancelInvite={onCancelInvite}
+              onCancelInvite={isAdmin ? onCancelInvite : undefined}
+              adminPubkeys={adminPubkeys}
+              isCurrentUserAdmin={isAdmin}
+              onMakeAdmin={isAdmin ? handleMakeAdmin : undefined}
+              pendingRemovalPubkeys={pendingRemovalPubkeys}
             />
           </Box>
 

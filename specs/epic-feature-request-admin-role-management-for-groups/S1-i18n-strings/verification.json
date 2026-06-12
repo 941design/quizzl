@@ -1,0 +1,39 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-11T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-I18N-1",
+      "question": "Do all 8 new Copy keys (makeAdminButton, makeAdminTitle, makeAdminBody, makeAdminConfirm, adminBadge, lastAdminLeaveBlocked, leavePendingBadge, removalPendingBadge) appear in: (a) the Copy type declaration in app/src/lib/i18n.ts, (b) the en language object, and (c) the de language object? Show the diff excerpt for each insertion and confirm no key is missing from any of the three locations."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-I18N-2",
+      "question": "Are there any hardcoded user-visible English or German strings in the component files changed by this story? Run grep -rn 'Make admin\\|Admin\\|leave pending\\|removal pending\\|cannot be undone' app/src/components/groups/ and confirm every match is either inside i18n.ts or is a key reference (useCopy()), not an inline string literal."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Are all 8 new Copy key values non-empty strings in both en and de? Specifically, do leavePendingBadge and removalPendingBadge convey 'departed, cleanup pending' without asserting that message delivery has stopped or promising resolution on a fixed timeline (e.g., no 'will be removed soon' or equivalent)? Show the full string values for both locales."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does app/src/lib/i18n.ts remain the sole location for all 8 new keys — no key defined in a component file, no parallel translation object, no inline fallback? Confirm the Copy type is extended (not re-declared), preserving all pre-existing keys. Could the i18n module be deleted and rewritten without modifying any component file outside its own directory? If not, name the cross-module dependency."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "If any new Copy key has a dynamic value (a function taking a parameter), does the function signature match exactly between the Copy type declaration, the en object, and the de object? For the keys in this story (which are all static strings as designed), confirm that none were accidentally typed as functions. Show TypeScript compiler output confirming the file compiles with no type errors after the additions."
+    }
+  ]
+}

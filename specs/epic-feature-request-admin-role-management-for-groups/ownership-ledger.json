@@ -1,0 +1,167 @@
+{
+  "epic": "feature-request-admin-role-management-for-groups",
+  "concepts": [
+    {
+      "id": "marmot-context-mls-authority",
+      "name": "MarmotContext as sole MLS operations authority",
+      "owning_module": "MarmotContext",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "grant-admin-impl-boundary",
+      "name": "grantAdminImpl has zero imports from app/src/context/",
+      "owning_module": "grantAdminImpl",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "member-list-prop-driven",
+      "name": "MemberList is fully prop-driven \u2014 zero useMarmot() or useContext calls",
+      "owning_module": "MemberList",
+      "type": "invariant",
+      "added_by_story": "S4",
+      "status": "verified",
+      "note": "S4 added 4 optional admin-UI props; grep confirms zero useMarmot/useContext/MarmotContext \u2014 only useCopy (i18n) and useRouter. Invariant holds through S4."
+    },
+    {
+      "id": "make-admin-button-gating",
+      "name": "Make-admin button renders iff isCurrentUserAdmin && !isRowAdmin && !isYou && !isPending && hasHandler (AC-GRANT-1/3/4)",
+      "owning_module": "MemberList",
+      "type": "validation_rule",
+      "added_by_story": "S4",
+      "status": "verified",
+      "note": "Extracted to exported computeShowMakeAdmin() + isRowAdmin() helpers (S4 review remediation) so the component AND its tests bind to the same predicate (no shadow copy). Defense-in-depth: onMakeAdmin nulled at prop boundary + render-guarded."
+    },
+    {
+      "id": "make-admin-confirm-sole-caller",
+      "name": "onMakeAdmin is invoked ONLY by handleConfirmMakeAdmin (the dialog Confirm button); cancel/close/overlay paths never call it (AC-GRANT-6)",
+      "owning_module": "MemberList",
+      "type": "invariant",
+      "added_by_story": "S4",
+      "status": "verified"
+    },
+    {
+      "id": "pending-removal-badge",
+      "name": "Pending-removal badge renders from pendingRemovalPubkeys using leavePendingBadge copy for ALL causes",
+      "owning_module": "MemberList",
+      "type": "contract",
+      "added_by_story": "S4",
+      "status": "verified",
+      "note": "removalPendingBadge copy exists + is tested but rendered by no component. WATCH for S6: spec 2.8 wants distinct leave-vs-removal labels by cause; only one pendingRemovalPubkeys prop exists today, so the single-label choice is interim. S6 must either thread a removal-cause signal to select the badge copy by cause, or explicitly retire removalPendingBadge. | S6 RESOLVED: leavePendingBadge for ALL pending removals; removalPendingBadge retained-as-reserved with i18n comments. Single-label chosen (PendingRemoval has no cause field)."
+    },
+    {
+      "id": "leave-group-button-last-admin-guard",
+      "name": "LeaveGroupButton blocks sole admin from leaving",
+      "owning_module": "LeaveGroupButton",
+      "type": "invariant",
+      "added_by_story": "S5",
+      "status": "verified",
+      "note": "Sole-admin check extracted to exported isSoleAdmin(adminPubkeys, ownPubkeyHex) (case-insensitive, false on empty/undefined/null). Blocked state renders a separate modal branch with ONLY a close button \u2014 NO confirm-leave path, so leaveGroup is unreachable when isSoleAdmin. Two new optional props (adminPubkeys, ownPubkeyHex) keep the groups.tsx call site compiling until S6 wires them. Test binds to the real exported helper (no shadow-init). Lead-reviewed inline (trivial diff, no new seam); cross-vendor deferred to pre-commit gate."
+    },
+    {
+      "id": "groups-page-coordinator",
+      "name": "GroupsPage derives and distributes all UI state from MarmotContext to presentational components",
+      "owning_module": "GroupsPage",
+      "type": "invariant",
+      "added_by_story": null,
+      "status": "verified",
+      "note": "S6 BLOCKING WIRING GATE (carried from S5 examiner VQ-S5-008 PARTIAL + S4 watch items). S6 MUST: (1) pass adminPubkeys + ownPubkeyHex to LeaveGroupButton so the last-admin guard is ACTIVE (without this, AC-LAST-1/2 are inert \u2014 the guard always allows leave). (2) pass adminPubkeys, isCurrentUserAdmin, onMakeAdmin, pendingRemovalPubkeys to MemberList. (3) map grantAdmin's closed error codes to makeAdminError toast, treating any UNRECOGNIZED code (e.g. exhausted-retry raw message) as the generic makeAdminError (per grant-admin-error-shape watch). (4) decide the leave-vs-removal badge cause distinction (per pending-removal-badge watch): either thread a removal-cause signal so removalPendingBadge is used for admin-side removals, or explicitly retire removalPendingBadge. (5) derive adminPubkeys for the guard from the SAME source backing the admin badge (mlsGroup.groupData.adminPubkeys) so the guard and badges never diverge. S6 verification MUST assert the guard is active (props wired), not just present. | S6 SATISFIED all 5 wiring items + AC-GATE-3 (onCancelInvite admin-gated) + AC-PENDING-5. No new boundary violations."
+    },
+    {
+      "id": "i18n-no-hardcoded-strings",
+      "name": "All user-visible strings defined in i18n.ts \u2014 no hardcoded strings in components",
+      "owning_module": "i18n",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "admin-pubkeys-superset-rule",
+      "name": "adminPubkeys update MUST be a superset of the live current set (app-enforced, not protocol-enforced)",
+      "owning_module": "grantAdminImpl",
+      "type": "validation_rule",
+      "added_by_story": "S3",
+      "status": "verified_but_inert_on_grant_path",
+      "note": "isSuperset guard is unconditionally true when newSet = currentAdmins \u222a {target}; functions as a refactor safety net. The demotion_rejected branch is unreachable on the grant path but is now directly covered via the exported isSuperset unit tests. If a future demotion/revoke-admin story reuses this concept, the guard becomes load-bearing \u2014 re-review then."
+    },
+    {
+      "id": "grant-admin-live-reread",
+      "name": "grantAdmin re-reads live adminPubkeys from mlsGroup.groupData at commit time",
+      "owning_module": "grantAdminImpl",
+      "type": "invariant",
+      "added_by_story": "S3",
+      "status": "verified",
+      "note": "getGroup re-read is inside the retry loop; on a synchronous commit() throw, attempt 2 merges target into the freshly-read set. NOTE (amended 2026-06-11): this does NOT cover the common concurrent-grant case \u2014 marmot-ts commit() does not throw on same-epoch conflict; concurrent grants are last-writer-wins (see spec ## Amendments)."
+    },
+    {
+      "id": "grant-admin-error-shape",
+      "name": "grantAdmin returns a closed set of error codes EXCEPT exhausted-retry, which returns a raw err.message",
+      "owning_module": "grantAdminImpl",
+      "type": "contract",
+      "added_by_story": "S3",
+      "status": "verified",
+      "note": "Downstream S4/S6 UI wiring must treat any unrecognized error code as the generic makeAdminError copy. Closed codes: group_not_found, demotion_rejected, commit_failed, not_ready, generic. The exhausted-retry path may return a raw marmot-ts message. | S6 RESOLVED: handleMakeAdmin maps every non-ok result AND any thrown error to generic makeAdminError; reads only result.ok so raw messages can't reach UI."
+    },
+    {
+      "id": "invite-bypub-no-admin-side-effect",
+      "name": "inviteByNpub commits MLS Add only \u2014 no adminPubkeys mutation as side-effect",
+      "owning_module": "MarmotContext",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "pending-removals-ref-not-state",
+      "name": "pendingRemovalsRef is a ref (not reactive state); getPendingRemovals is a synchronous read",
+      "owning_module": "MarmotContext",
+      "type": "invariant",
+      "added_by_story": null
+    }
+  ],
+  "stories": [
+    {
+      "id": "S3-grant-admin-impl",
+      "surfaces_touched": [
+        "app/src/lib/marmot/grantAdminImpl.ts",
+        "app/src/context/MarmotContext.tsx (grantAdmin ~1429, getPendingRemovals ~1456, type ~281-283)",
+        "app/tests/unit/marmot/grantAdminImpl.test.ts"
+      ],
+      "concepts_introduced": [
+        "grant-admin-impl-boundary",
+        "admin-pubkeys-superset-rule",
+        "grant-admin-live-reread",
+        "pending-removals-ref-not-state",
+        "grant-admin-error-shape"
+      ],
+      "findings_count": 4,
+      "max_severity": 4,
+      "note": "Opus: 3 findings (sev 4 test-name-vs-assertion FIXED via isSuperset export+tests; sev 3 docstring overclaim FIXED; sev 2 error-shape WATCH for S4/S6). Codex: 1 P2 \u2014 catch-based retry does not cover realistic concurrent grant (marmot commit() does not throw on same-epoch conflict). Verified by marmot-researcher. Product-owner decision: accept last-writer-wins as known limitation; AC-GRANT-7 amended."
+    },
+    {
+      "id": "S6-groups-page-wiring",
+      "surfaces_touched": [
+        "app/pages/groups.tsx",
+        "app/src/lib/i18n.ts (removalPendingBadge reservation)",
+        "app/tests/unit/makeAdmin.i18n.test.ts"
+      ],
+      "concepts_introduced": [],
+      "findings_count": 0,
+      "max_severity": 0,
+      "note": "Integration story. Resolved grant-admin-error-shape + pending-removal-badge watches; verified groups-page-coordinator. Opus clean, 0 findings."
+    },
+    {
+      "id": "pre-commit-gate",
+      "surfaces_touched": [
+        "app/tests/unit/marmot/autoCommitLeave.test.ts",
+        "app/tests/e2e/groups-admin.spec.ts"
+      ],
+      "concepts_introduced": [],
+      "findings_count": 1,
+      "max_severity": 3,
+      "note": "Whole-assembly RESUME pass. Mutation-gate fix on autoCommitLeave verified genuine (not.toHaveBeenCalled is load-bearing). E2e readiness gates sound, no raw-WebSocket, AC-PENDING-5 cleanly removed to MV-4. One sev-3 comment-rot (e2e header listed AC-PENDING-5 as covered) \u2014 FIXED by lead in passing. All concepts hold; dead code removed; i18n en+de complete."
+    }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "pre-commit-gate",
+    "model_at": "2026-06-11T18:28:11Z"
+  }
+}

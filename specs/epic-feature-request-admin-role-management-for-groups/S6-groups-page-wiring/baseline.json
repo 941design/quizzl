@@ -1,0 +1,11 @@
+{
+  "story_id": "S6",
+  "captured_at": "2026-06-11T20:43:00Z",
+  "commit": "99a4dc008033e37af473a894cbf1c76fc5b6c141",
+  "tests": {
+    "unit": { "files": 78, "count": 1194, "status": "all_passing" },
+    "e2e": { "status": "not_run_at_baseline" }
+  },
+  "lint": "NO_LINT",
+  "typecheck": "clean"
+}

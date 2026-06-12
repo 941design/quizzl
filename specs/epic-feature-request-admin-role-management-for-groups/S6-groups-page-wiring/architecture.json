@@ -1,0 +1,36 @@
+{
+  "module_name": "GroupsPage",
+  "purpose": "Coordinator: derives admin-related UI state from MarmotContext and distributes it as props to presentational components (LeaveGroupButton, MemberList). Contains no MLS commit logic. Owns the handleMakeAdmin toast handler.",
+  "public_api": [],
+  "private_files": [
+    "app/pages/groups.tsx"
+  ],
+  "owned_data": [
+    "adminPubkeys (derived from mlsGroup.groupData.adminPubkeys — read-only)",
+    "isAdmin (boolean derived from adminPubkeys + pubkeyHex)",
+    "pendingRemovalPubkeys (synchronous read from getPendingRemovals)"
+  ],
+  "dependencies_allowed": [
+    "MarmotContext (grantAdmin, getPendingRemovals)",
+    "LeaveGroupButton (S5 seam: adminPubkeys, ownPubkeyHex)",
+    "MemberList (S4 seam: adminPubkeys, isCurrentUserAdmin, onMakeAdmin, pendingRemovalPubkeys, onCancelInvite gated on isAdmin)"
+  ],
+  "dependencies_forbidden": [
+    "grantAdminImpl (direct import — must go through MarmotContext.grantAdmin)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/makeAdmin.i18n.test.ts",
+    "S7 e2e: DOM-level wiring verification"
+  ],
+  "seam": {
+    "cross_story": false,
+    "consumed_by": []
+  },
+  "decisions": {
+    "leave_vs_removal_badge": "PendingRemoval has no cause field. All pending removals use leavePendingBadge. removalPendingBadge is reserved (not deleted) for a future cause-distinction increment.",
+    "error_mapping": "All non-ok results from grantAdmin (closed codes + exhausted-retry raw messages) map to the single makeAdminError toast. No per-code branching in the UI."
+  }
+}
