@@ -1,0 +1,6 @@
+{
+  "story_id": "S1",
+  "modules": ["next.config.mjs", "Makefile"],
+  "seams_established": ["BuildVersionEnv", "VersionJson"],
+  "notes": "next.config.mjs computes BUILD_VERSION via execSync('git rev-parse --short HEAD').toString().trim() in a try/catch, falling back to Date.now().toString(), then exposes it as NEXT_PUBLIC_BUILD_VERSION in the env block. The Makefile defines BUILD_VERSION at the top using the identical git/date fallback pattern and writes version.json to $(LOCAL_DIST)/ via printf after npm run build completes. The deploy target is split into two sequential lftp sessions: mirror with --exclude version.json first, then a separate put of version.json last, ensuring clients never see the new version marker before hashed assets are in place."
+}

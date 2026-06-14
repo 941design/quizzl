@@ -1,6 +1,7 @@
 APP_DIR := app
 PLATFORM_STAMP := $(APP_DIR)/node_modules/.platform_$(shell uname -s)-$(shell uname -m)
 PLAYWRIGHT_STAMP := $(APP_DIR)/node_modules/.playwright_$(shell uname -s)-$(shell uname -m)
+BUILD_VERSION := $(shell git rev-parse --short HEAD 2>/dev/null || date +%s)
 
 # Load environment variables from .env if it exists (for FTP credentials)
 -include .env
@@ -67,7 +68,8 @@ clean: ## Remove node_modules and build artifacts
 
 ## Build the Next.js app (installs deps first)
 build: ensure-deps ## Build for production (static export)
-	cd $(APP_DIR) && npm run build
+	cd $(APP_DIR) && NEXT_PUBLIC_BUILD_VERSION=$(BUILD_VERSION) npm run build
+	@printf '{"version":"%s","builtAt":"%s"}\n' "$(BUILD_VERSION)" "$(shell date -u +%Y-%m-%dT%H:%M:%SZ)" > $(LOCAL_DIST)/version.json
 	@echo "Static files available in $(LOCAL_DIST)/"
 
 ## Run all tests
@@ -134,9 +136,15 @@ deploy: build deploy-check ## Deploy to production (FTP)
 	@echo "Deploying to $(FTP_HOST)$(FTP_PATH)..."
 	@lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
 		set ssl:verify-certificate no; \
+		set cmd:fail-exit yes; \
 		mkdir -p $(FTP_PATH); \
 		mirror -R --verbose --only-newer --parallel=4 \
+			--exclude version.json \
 			$(LOCAL_DIST)/ $(FTP_PATH)/; \
+		bye"
+	@lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
+		set ssl:verify-certificate no; \
+		put $(LOCAL_DIST)/version.json -o $(FTP_PATH)/version.json; \
 		bye"
 	@echo ""
 	@echo "Deployment complete!"

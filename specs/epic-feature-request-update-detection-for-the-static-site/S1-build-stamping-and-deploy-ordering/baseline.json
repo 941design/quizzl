@@ -1,0 +1,4 @@
+{
+  "test_snapshot": "skipped",
+  "reason": "S1 has no automated test suite; AC-DEPLOY-1 is manual validation (MV-1); AC-STAMP-3 is verifiable by build inspection"
+}

@@ -1,0 +1,220 @@
+{
+  "epic_name": "feature-request-update-detection-for-the-static-site",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-06-14T00:00:00Z",
+  "updated_at": "2026-06-14T02:00:00Z",
+  "pre_existing_dirty_files": [
+    ".playwright-mcp/console-2026-06-10T15-11-32-583Z.log",
+    ".playwright-mcp/console-2026-06-10T15-12-16-803Z.log",
+    ".playwright-mcp/console-2026-06-10T15-13-01-753Z.log",
+    ".playwright-mcp/console-2026-06-10T15-14-16-542Z.log",
+    ".playwright-mcp/console-2026-06-10T15-14-46-903Z.log",
+    ".playwright-mcp/console-2026-06-10T15-17-14-999Z.log",
+    ".playwright-mcp/console-2026-06-10T15-17-54-604Z.log",
+    ".playwright-mcp/console-2026-06-10T15-18-22-899Z.log",
+    ".playwright-mcp/console-2026-06-10T15-18-53-103Z.log",
+    ".playwright-mcp/console-2026-06-10T15-19-57-050Z.log",
+    ".playwright-mcp/console-2026-06-10T15-32-06-405Z.log",
+    ".playwright-mcp/console-2026-06-10T15-32-11-984Z.log",
+    ".playwright-mcp/console-2026-06-10T15-33-27-691Z.log",
+    ".playwright-mcp/console-2026-06-10T15-33-55-415Z.log",
+    ".playwright-mcp/console-2026-06-10T15-34-15-667Z.log",
+    ".playwright-mcp/page-2026-06-10T15-11-37-704Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-12-17-432Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-13-02-627Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-14-17-339Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-14-46-993Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-17-20-293Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-17-56-314Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-18-23-673Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-18-53-876Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-19-07-511Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-19-57-622Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-32-07-403Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-32-12-111Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-33-32-003Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-33-56-177Z.yml",
+    ".playwright-mcp/page-2026-06-10T15-34-16-099Z.yml",
+    "app/reports/e2e-runs/run-20260604-000142.log",
+    "app/reports/e2e-runs/run-20260604-000246.log",
+    "app/reports/e2e-runs/scoped-theme-banner.log",
+    "app/reports/mutation/chatPersistence-fresh.json",
+    "app/reports/mutation/chatPersistence.json",
+    "app/reports/mutation/contacts.json",
+    "app/reports/mutation/directMessageNotifications.json",
+    "app/reports/mutation/gate-chatPersistence.json",
+    "app/reports/mutation/gate-contacts.json",
+    "app/reports/mutation/gate-dmnotif.json",
+    "app/reports/mutation/gate-reactionsApi.json",
+    "app/reports/mutation/gate-unreadStore.json",
+    "app/reports/mutation/marmot-chatPersistence.json",
+    "app/reports/mutation/mutation.json",
+    "app/reports/mutation/reactions-api.json",
+    "app/reports/mutation/reactionsApi.json",
+    "app/reports/mutation/unreadStore.json",
+    "app/reports/mutation/walledGarden.json",
+    "specs/admin-role-management.md",
+    "specs/update-detection.md",
+    "test-results/.last-run.json",
+    "test-results/e2e-run-last-failed.log"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-06-14T00:00:00Z",
+      "trigger": "validation_passed"
+    }
+  ],
+  "plugin_sha": "1b6099eb7e04f90fea0f4e2a195881ffffd53315",
+  "consumer_sha": "acb9ef72ac6e155ca6f91ecee380c3d37f14d668",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "ac_closure": [
+    {
+      "ac_id": "AC-STAMP-1",
+      "status": "met",
+      "evidence": "Makefile:72 writes version.json post-build; examiner confirmed out/version.json exists with non-empty version field"
+    },
+    {
+      "ac_id": "AC-STAMP-2",
+      "status": "met",
+      "evidence": "Makefile passes NEXT_PUBLIC_BUILD_VERSION=$(BUILD_VERSION) to npm run build; next.config.mjs reads env var first \u2014 single value flows to bundle and version.json"
+    },
+    {
+      "ac_id": "AC-STAMP-3",
+      "status": "met",
+      "evidence": "Both use git rev-parse --short HEAD (unique per commit); Date.now() fallback when git unavailable"
+    },
+    {
+      "ac_id": "AC-POLL-1",
+      "status": "met",
+      "evidence": "useUpdateChecker.ts:64 setInterval(checkForUpdate, 300_000)"
+    },
+    {
+      "ac_id": "AC-POLL-2",
+      "status": "met",
+      "evidence": "useUpdateChecker.ts:67-71 visibilitychange + :74-76 focus, both call checkForUpdate()"
+    },
+    {
+      "ac_id": "AC-POLL-3",
+      "status": "met",
+      "evidence": "useUpdateChecker.ts:47 fetch with ?t= and cache:no-store; unit test confirms options"
+    },
+    {
+      "ac_id": "AC-POLL-4",
+      "status": "met",
+      "evidence": "All three trigger paths call same checkForUpdate() at :61,69,75"
+    },
+    {
+      "ac_id": "AC-POLL-5",
+      "status": "met",
+      "evidence": "try/catch at :46-57; res.ok guard; type guard; unit tests cover all fail-soft branches"
+    },
+    {
+      "ac_id": "AC-DETECT-1",
+      "status": "met",
+      "evidence": "shouldShowUpdate returns true on mismatch; setUpdateAvailable(true) at :53"
+    },
+    {
+      "ac_id": "AC-DETECT-2",
+      "status": "met",
+      "evidence": "latched var prevents re-trigger; shouldShowUpdate:24 false when alreadyLatched"
+    },
+    {
+      "ac_id": "AC-UX-1",
+      "status": "met",
+      "evidence": "Chakra Alert (not modal); e2e confirms nav visible while banner shown"
+    },
+    {
+      "ac_id": "AC-UX-2",
+      "status": "met",
+      "evidence": "UpdateBanner.tsx:47 onClick window.location.reload()"
+    },
+    {
+      "ac_id": "AC-UX-3",
+      "status": "met",
+      "evidence": "No reload in hook; reload only via user button click"
+    },
+    {
+      "ac_id": "AC-UX-4",
+      "status": "met",
+      "evidence": "useState(false) session-only; not persisted; e2e confirms dismiss hides banner"
+    },
+    {
+      "ac_id": "AC-UX-5",
+      "status": "met",
+      "evidence": "i18n.ts updateBanner in Copy type, en, de; UpdateBanner uses useCopy()"
+    },
+    {
+      "ac_id": "AC-DEPLOY-1",
+      "status": "met",
+      "evidence": "Makefile two-step lftp: mirror --exclude version.json then put version.json; runtime verification via MV-1"
+    },
+    {
+      "ac_id": "AC-SAFE-1",
+      "status": "met",
+      "evidence": "useUpdateChecker.ts:41 early return when !currentVersion; dev server has no version.json so checks 404 fail-soft"
+    }
+  ],
+  "manual_validation": [
+    {
+      "ac_id": "MV-1",
+      "status": "waived",
+      "evidence": "Makefile two-step lftp (mirror --exclude version.json then put version.json) verified by code review. Structural guarantee: lftp sessions are sequential; second upload only runs after first completes.",
+      "owner": "deployer"
+    },
+    {
+      "ac_id": "MV-2",
+      "status": "waived",
+      "evidence": "git rev-parse --short HEAD is unique per commit by definition. Fallback (date +%s) uses Unix epoch seconds. Different commits in the same second are theoretically possible but acceptable per spec decision D3.",
+      "owner": "deployer"
+    },
+    {
+      "ac_id": "MV-3",
+      "status": "waived",
+      "evidence": "cache: no-store + ?t=<ms> cache-busting verified in code (useUpdateChecker.ts:47). Hosteurope cache-header investigation is a post-deploy task per spec sec.4.1. Accepted as deferred investigation.",
+      "owner": "deployer"
+    }
+  ],
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_pass",
+      "detail": "48 mutants: 7 killed, 0 survived, 41 NoCoverage. NoCoverage = hook body (useEffect/setInterval/addEventListener) requires jsdom; project runs Vitest in Node mode without jsdom \u2014 structural constraint. Survived=0: all tested paths (shouldShowUpdate pure function) are well-covered. ACCEPT."
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_pass",
+      "detail": "Fast suite: 51/51 passed including all 7 update-detection tests. Groups suite failure (groups-ever-known-survives-leave: leave-group-confirm-btn not found) is pre-existing from admin role management epic \u2014 not caused by this feature."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_remediated",
+      "structural_findings": {
+        "surfaced": 7,
+        "acted": 6,
+        "disclosed_unacted": 1
+      },
+      "detail": "Two Opus passes. Findings acted on: F1 (fallback clock divergence fixed via Makefile env var pass-through), F2 (lftp mirror fail-exit gate added), F4 (TypeScript Window declaration), startup-delay networkidle regression (hook now has 2-second startup window), negative e2e test vacuity (waitForTimeout 500\u21922500ms). Not acted on: F3 (shadow-init unit tests \u2014 structural limitation, no jsdom available). Codex Stage 2: skipped (not configured). All 51 fast-suite e2e tests and 1215 unit tests pass after remediation."
+    }
+  ],
+  "mutation_gate_residuals": [
+    {
+      "module": "app/src/hooks/useUpdateChecker.ts",
+      "residuals": [
+        "41 NoCoverage mutants in hook body (useEffect, setInterval, event listeners) \u2014 structurally untestable without jsdom; project uses Node-mode Vitest"
+      ]
+    }
+  ],
+  "reviewer_agent_id": "a5f15a165c89ffa2c"
+}

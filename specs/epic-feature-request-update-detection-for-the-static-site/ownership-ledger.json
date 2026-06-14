@@ -1,0 +1,66 @@
+{
+  "epic": "feature-request-update-detection-for-the-static-site",
+  "concepts": [
+    {
+      "id": "use-update-checker-poll-loop",
+      "name": "useUpdateChecker: interval + focus/visibility trigger + fail-soft fetch",
+      "owning_module": "useUpdateChecker",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "use-update-checker-latch",
+      "name": "updateAvailable latch — once set, not cleared by subsequent fetches",
+      "owning_module": "useUpdateChecker",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "update-banner-no-block",
+      "name": "UpdateBanner is non-blocking and non-modal; dismiss is session-only",
+      "owning_module": "UpdateBanner",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "update-banner-testids",
+      "name": "data-testid conventions: update-banner, update-banner-reload, update-banner-dismiss",
+      "owning_module": "UpdateBanner",
+      "type": "naming_scheme",
+      "added_by_story": null
+    },
+    {
+      "id": "i18n-update-banner-keys",
+      "name": "updateBanner Copy section: message, reload, dismissAriaLabel in en + de",
+      "owning_module": "i18n",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "build-version-identity",
+      "name": "NEXT_PUBLIC_BUILD_VERSION == version.json#version — identical values from same build run",
+      "owning_module": "next.config.mjs",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "version-json-deploy-ordering",
+      "name": "version.json uploaded last in deploy — after all hashed assets and HTML are in place",
+      "owning_module": "Makefile",
+      "type": "validation_rule",
+      "added_by_story": null
+    },
+    {
+      "id": "app-shell-orchestration",
+      "name": "_app.tsx is the sole wiring point connecting useUpdateChecker to UpdateBanner",
+      "owning_module": "_app.tsx",
+      "type": "path_convention",
+      "added_by_story": null
+    }
+  ],
+  "stories": [],
+  "reviewer_state": {
+    "last_story_reviewed": null,
+    "model_at": "2026-06-14T00:00:00Z"
+  }
+}

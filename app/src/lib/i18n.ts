@@ -317,6 +317,11 @@ type Copy = {
     reactors: string;
     reactionCount: string;
   };
+  updateBanner: {
+    message: string;
+    reload: string;
+    dismissAriaLabel: string;
+  };
 };
 
 export function normalizeLanguage(input?: string | null): LanguageCode {
@@ -660,6 +665,11 @@ const copy: Record<LanguageCode, Copy> = {
       reactors: 'Reactors',
       reactionCount: 'reactions',
     },
+    updateBanner: {
+      message: 'A new version is available.',
+      reload: 'Reload',
+      dismissAriaLabel: 'Dismiss update notification',
+    },
   },
   de: {
     appName: 'Nostling',
@@ -989,6 +999,11 @@ const copy: Record<LanguageCode, Copy> = {
       couldntReact: 'Reaktion fehlgeschlagen',
       reactors: 'Reagiert von',
       reactionCount: 'Reaktionen',
+    },
+    updateBanner: {
+      message: 'Eine neue Version ist verfügbar.',
+      reload: 'Neu laden',
+      dismissAriaLabel: 'Update-Benachrichtigung schließen',
     },
   },
 };

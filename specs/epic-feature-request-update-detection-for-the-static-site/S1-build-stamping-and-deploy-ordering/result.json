@@ -1,0 +1,17 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "modules_touched": ["next.config.mjs", "Makefile"],
+  "files_modified": [
+    "app/next.config.mjs",
+    "Makefile"
+  ],
+  "remediation_rounds": 0,
+  "completed_at": "2026-06-14T00:00:00Z",
+  "retrospective": {
+    "skipped": false,
+    "friction": "Shell quoting in Makefile for the version.json emit required careful thought: single-quote string delimiters and positional printf arguments were the safest path to avoid both Make variable expansion eating the JSON braces and shell metacharacter issues. Using `echo '{...}'` with embedded `$(BUILD_VERSION)` would have required escaping `{` in some Make versions; `printf` with `%s` placeholders sidesteps this entirely.",
+    "choices": "Used `printf` with `%s` format specifiers instead of `echo` for the version.json write step — more portable and avoids JSON brace/escape pitfalls. BUILD_VERSION is defined once at Makefile top so it is evaluated once per make invocation, making it stable across targets. The two lftp sessions in deploy are sequential shell commands, not Make dependencies, ensuring version.json is uploaded only after the first lftp returns successfully."
+  }
+}

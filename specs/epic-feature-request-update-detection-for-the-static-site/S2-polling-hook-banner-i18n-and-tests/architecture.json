@@ -1,0 +1,41 @@
+{
+  "story_id": "S2",
+  "modules": ["useUpdateChecker", "UpdateBanner", "i18n", "_app.tsx", "unit-tests", "e2e-tests"],
+  "public_api": [
+    {
+      "name": "useUpdateChecker",
+      "signature": "() => { updateAvailable: boolean }",
+      "description": "Client-only hook. Polls /version.json on 5-min interval and on visibilitychange/focus. Latches updateAvailable=true on version mismatch. Fail-soft on all error paths."
+    },
+    {
+      "name": "shouldShowUpdate",
+      "signature": "(fetchedVersion: string, currentVersion: string, alreadyLatched: boolean) => boolean",
+      "description": "Exported pure helper for unit testing the comparison-and-latch logic."
+    },
+    {
+      "name": "UpdateBanner",
+      "signature": "({ updateAvailable: boolean }) => JSX.Element | null",
+      "description": "Dismissible Chakra Alert banner. Returns null when !updateAvailable or dismissed. Uses useCopy() for i18n. Reload triggers window.location.reload()."
+    }
+  ],
+  "private_files": [
+    "app/src/hooks/useUpdateChecker.ts",
+    "app/src/components/UpdateBanner.tsx"
+  ],
+  "owned_data": [
+    "useUpdateChecker: interval ref, latched updateAvailable boolean",
+    "UpdateBanner: session-only dismissed boolean (React state, not persisted)"
+  ],
+  "dependencies_allowed": ["react", "@chakra-ui/react", "@/src/context/LanguageContext"],
+  "dependencies_forbidden": ["localStorage", "sessionStorage", "indexedDB", "idb-keyval"],
+  "external_ports": [
+    "/version.json — fetched with cache:no-store and ?t=<ms> cache-bust"
+  ],
+  "events_emitted": [],
+  "events_consumed": ["visibilitychange (document)", "focus (window)"],
+  "test_targets": [
+    "app/tests/unit/useUpdateChecker.test.ts",
+    "app/tests/e2e/update-detection.spec.ts"
+  ],
+  "notes": "shouldShowUpdate returns true only when fetchedVersion !== currentVersion AND alreadyLatched is false. Once latched, never re-triggers. window.location.reload() only in UpdateBanner onClick handler, never in the hook."
+}

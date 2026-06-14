@@ -5,6 +5,8 @@ import Layout from '@/src/components/Layout';
 import { LanguageProvider } from '@/src/context/LanguageContext';
 import { ProfileProvider } from '@/src/context/ProfileContext';
 import { AppThemeProvider, useAppTheme } from '@/src/hooks/useMoodTheme';
+import { useUpdateChecker } from '@/src/hooks/useUpdateChecker';
+import UpdateBanner from '@/src/components/UpdateBanner';
 import dynamic from 'next/dynamic';
 
 // NostrIdentityContext and MarmotContext use heavy crypto packages (NDK, marmot-ts, ts-mls)
@@ -19,8 +21,20 @@ const MarmotProvider = dynamic(
   { ssr: false }
 );
 
+declare global {
+  interface Window {
+    __BUILD_VERSION?: string;
+  }
+}
+
+// Expose baked-in build version on window for e2e test introspection.
+if (typeof window !== 'undefined') {
+  window.__BUILD_VERSION = process.env.NEXT_PUBLIC_BUILD_VERSION;
+}
+
 function AppShell({ Component, pageProps }: AppProps) {
   const { activeTheme } = useAppTheme();
+  const { updateAvailable } = useUpdateChecker();
 
   return (
     <ChakraProvider theme={activeTheme}>
@@ -31,6 +45,7 @@ function AppShell({ Component, pageProps }: AppProps) {
         <ProfileProvider>
           <NostrIdentityProvider>
             <MarmotProvider>
+              <UpdateBanner updateAvailable={updateAvailable} />
               <Layout>
                 <Component {...pageProps} />
               </Layout>

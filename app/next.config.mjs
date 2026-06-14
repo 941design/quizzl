@@ -1,5 +1,22 @@
+import { execSync } from 'child_process';
+
+// When invoked via `make build`, BUILD_VERSION is passed as an env var so both
+// the bundle and version.json derive from the same computed value. Fall back to
+// execSync for direct `next build` / `next dev` invocations outside Make.
+let BUILD_VERSION;
+try {
+  BUILD_VERSION =
+    process.env.NEXT_PUBLIC_BUILD_VERSION ||
+    execSync('git rev-parse --short HEAD').toString().trim();
+} catch {
+  BUILD_VERSION = Date.now().toString();
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_BUILD_VERSION: BUILD_VERSION,
+  },
   output: 'export',
   basePath: '',
   trailingSlash: true,

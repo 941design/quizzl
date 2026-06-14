@@ -1,0 +1,64 @@
+{
+  "created_at": "2026-06-14T00:00:00Z",
+  "explorers": [
+    {
+      "focus": "similar-features",
+      "findings": [
+        {"file": "app/src/hooks/useOnlineStatus.ts", "lines": "15-44", "description": "Canonical hook pattern: useEffect + event listener + cleanup. Structural template for useUpdateChecker.ts."},
+        {"file": "app/src/components/groups/OfflineBanner.tsx", "lines": "1-58", "description": "Exact template for UpdateBanner: Chakra Alert + CloseButton, local dismissed state via useState, data-testid on banner root and dismiss button."},
+        {"file": "app/src/components/groups/BackupReminderBanner.tsx", "lines": "1-50", "description": "Simpler dismissible banner (no re-show logic). Action button + dismiss pattern."},
+        {"file": "app/src/context/BackupContext.tsx", "lines": "29-60", "description": "Only existing visibilitychange listener. useEffect + document.addEventListener('visibilitychange') + cleanup."},
+        {"file": "app/src/components/contacts/ContactChat.tsx", "lines": "250-261", "description": "Only setInterval in codebase — transient wait-for-readiness poll, NOT a recurring background check. No recurring setInterval precedent exists."},
+        {"file": "app/pages/settings.tsx", "lines": "218", "description": "Only window.location.reload() call — user-action triggered (post-restore), not polling-related."}
+      ],
+      "key_patterns": [
+        "Dismissible banner: Chakra UI Alert + CloseButton, local useState('dismissed'), early return null when dismissed. data-testid on banner root and dismiss button.",
+        "Hook with event-listener cleanup: useEffect registers listener, returns removeEventListener.",
+        "visibilitychange: document.addEventListener in useEffect + removeEventListener in cleanup (BackupContext.tsx:53-56).",
+        "setInterval: no recurring background-poll precedent — useUpdateChecker will be the first."
+      ]
+    },
+    {
+      "focus": "architecture",
+      "findings": [
+        {"file": "app/next.config.mjs", "lines": "1-40", "description": "No build-time env vars set. No env block. NEXT_PUBLIC_BUILD_VERSION must be added via env: { NEXT_PUBLIC_BUILD_VERSION: execSync('git rev-parse --short HEAD') } with timestamp fallback."},
+        {"file": "Makefile", "lines": "69-71", "description": "build target runs npm run build only. No post-build version.json step. Must add: echo '{\"version\":\"$(BUILD_VERSION)\"}' > out/version.json after npm run build."},
+        {"file": "Makefile", "lines": "133-141", "description": "deploy: single lftp mirror -R --parallel=4 with no ordering guarantees. version.json races with chunk uploads."},
+        {"file": "app/public/", "lines": "—", "description": "Only favicon.ico and robots.txt. No version.json. Post-build Makefile step writing to out/ is cleaner than public/ (avoids committing generated file)."},
+        {"file": "app/pages/_app.tsx", "lines": "1-51", "description": "Provider hierarchy: AppThemeProvider → ChakraProvider → LanguageProvider → ProfileProvider → NostrIdentityProvider → MarmotProvider → Layout → Component. useUpdateChecker() mounts cleanly inside AppShell."},
+        {"file": "app/src/hooks/", "lines": "—", "description": "6 hooks: useDecryptedImage, useDirectReactions, useImageSend, useMoodTheme, useOnlineStatus, useThemeStyles. New useUpdateChecker.ts fits here."},
+        {"file": "app/src/context/", "lines": "—", "description": "6 contexts. None are relevant to update-checking. Checker is a self-contained hook."}
+      ],
+      "build_system": "Make orchestrates build and deploy. npm run build inside app/ → out/ static export. NEXT_PUBLIC_* vars baked into JS at build time. Deploy: lftp mirror -R --parallel=4 from out/ to FTP host. No CI — manual make deploy.",
+      "deploy_ordering_risk": "Single lftp mirror passes version.json and chunk files in parallel. A polling client may see the new version hash before the new JS chunks are present — fix: two sequential lftp sessions, mirror --exclude version.json first, then upload version.json last.",
+      "implementation_decisions": {
+        "NEXT_PUBLIC_BUILD_VERSION_injection": "In next.config.mjs, add execSync('git rev-parse --short HEAD').trim() with Date.now() fallback in try/catch. Set as env.NEXT_PUBLIC_BUILD_VERSION.",
+        "version_json_emission": "Makefile post-build step writes directly to app/out/version.json. Not in public/ (avoids committing generated file).",
+        "BUILD_VERSION_variable": "Makefile: BUILD_VERSION := $(shell git rev-parse --short HEAD 2>/dev/null || date +%s). Passed as env var to npm run build AND used for version.json write.",
+        "deploy_sequencing": "Split deploy into: (1) lftp mirror --parallel=4 --exclude version.json, (2) lftp put version.json last.",
+        "useUpdateChecker_placement": "Hook at app/src/hooks/useUpdateChecker.ts, called inside AppShell in _app.tsx."
+      }
+    },
+    {
+      "focus": "testing-and-conventions",
+      "unit_test_framework": "vitest",
+      "unit_test_conventions": [
+        "Test files in app/tests/unit/**/*.test.ts",
+        "No jsdom, no @testing-library/react — no DOM environment",
+        "React hooks mocked with vi.mock('react', ...) or logic extracted to pure functions",
+        "Global APIs mocked with Object.defineProperty(globalThis, ...) or vi.fn()",
+        "describe/it blocks, beforeEach resets state"
+      ],
+      "e2e_runner": "playwright",
+      "e2e_route_interception_pattern": "page.route('**/version.json**', handler) — Playwright matches against full URL so '**/version.json**' covers http://localhost:3000/version.json?t=... No existing page.route() in codebase; this is the first use.",
+      "e2e_fast_suite": "No E2E_GROUPS flag needed. Filename must not start with groups- or dm-.",
+      "findings": [
+        {"file": "app/playwright.config.ts", "lines": "1-42", "description": "baseURL defaults to http://localhost:3000. fullyParallel:false, workers:1. No existing route interception config."},
+        {"file": "app/vitest.config.ts", "lines": "1-13", "description": "Vitest, no environment key (Node default). '@' alias to app root. include: tests/unit/**/*.test.ts."},
+        {"file": "app/tests/unit/unreadStore.test.ts", "lines": "1-28", "description": "Pattern: vi.mock('react', ...) to test hook logic without DOM. Or extract pure comparison/latch logic for direct testing."},
+        {"file": "app/tests/e2e/notification-bell.spec.ts", "lines": "1-139", "description": "Reference: page.evaluate() with window bridge. Alternative for update-checker: page.route() interception is cleaner."},
+        {"file": "app/tests/e2e/story-08-settings-theming.spec.ts", "lines": "1-108", "description": "page.getByTestId() selector pattern used throughout."}
+      ]
+    }
+  ]
+}

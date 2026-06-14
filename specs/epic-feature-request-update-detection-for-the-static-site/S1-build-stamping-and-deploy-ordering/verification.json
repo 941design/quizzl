@@ -1,0 +1,123 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-14T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STAMP-1",
+      "question": "Does the production build emit version.json at the static-export root alongside index.html with a non-empty version field and a builtAt field? After running `make build`, confirm: (a) `$(LOCAL_DIST)/version.json` exists, (b) `cat $(LOCAL_DIST)/version.json | jq '.version'` returns a non-empty string, and (c) `cat $(LOCAL_DIST)/version.json | jq '.builtAt'` returns a non-empty ISO timestamp string. Show the exact file contents."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STAMP-2",
+      "question": "Are the version field in version.json and NEXT_PUBLIC_BUILD_VERSION baked into the client bundle derived from the same computed value in the same build run? Verify: (a) both next.config.mjs and Makefile compute BUILD_VERSION using git rev-parse --short HEAD with the same fallback (Date.now().toString() / date +%s), (b) grep the built JS bundle for the actual SHA value and confirm it matches `cat $(LOCAL_DIST)/version.json | jq -r '.version'`. Show the grep command and its output."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STAMP-3",
+      "question": "Do two builds from two different git commits produce two different version values, with the version being the git short SHA when git is available? Confirm: (a) `grep -n 'git rev-parse --short HEAD' app/next.config.mjs` shows the git command is used (not just Date.now()), (b) `grep -n 'git rev-parse --short HEAD' Makefile` likewise, (c) the fallback path in next.config.mjs is inside a try/catch (not a conditional on git presence). Show both grep outputs and the try/catch block."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEPLOY-1",
+      "question": "Does the Makefile deploy target upload version.json after all hashed JS/CSS chunks and HTML files, using two sequential lftp sessions? Confirm: (a) `grep -n 'mirror' Makefile` shows `--exclude version.json` is present in the mirror command, (b) `grep -n 'put.*version.json' Makefile` shows version.json is uploaded in a separate serial lftp put after the mirror session completes, (c) the two lftp calls appear in sequence with the put after the mirror. Show the relevant Makefile lines."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "CORRECTNESS",
+      "question": "Does next.config.mjs use execSync from child_process (not spawnSync or shell expansion) to compute BUILD_VERSION, and does the result get exposed as process.env.NEXT_PUBLIC_BUILD_VERSION via the env block in nextConfig? Confirm: (a) `grep -n 'execSync' app/next.config.mjs` shows the import and usage, (b) `grep -n 'NEXT_PUBLIC_BUILD_VERSION' app/next.config.mjs` shows the assignment in the env block, (c) the execSync call includes `.toString().trim()` to strip the trailing newline from git output. Show the relevant lines."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "ERROR_HANDLING",
+      "question": "Does next.config.mjs fail gracefully when git is unavailable — no build crash, no unhandled exception? Confirm: (a) the BUILD_VERSION computation is wrapped in try/catch, (b) the catch branch assigns a numeric fallback (Date.now().toString()), (c) running `GIT_DIR=/nonexistent npm run build` (or equivalent) completes without error and produces a version.json where version is a numeric timestamp string. Show the try/catch block in next.config.mjs."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SCOPE_BOUNDARY",
+      "question": "Does the S1 implementation touch only app/next.config.mjs and Makefile, with no changes to any hook, component, i18n file, _app.tsx, or test file? Run `git diff --name-only HEAD` after implementing S1 and confirm the list contains only `app/next.config.mjs` and `Makefile`. Show the full diff output."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "The seam contract (BuildVersionEnv + VersionJson) requires NEXT_PUBLIC_BUILD_VERSION and version.json#version to be identical within a single build run. Does the Makefile use the same BUILD_VERSION variable for both the version.json write step and any other reference — specifically, is BUILD_VERSION defined once at the top of the Makefile and referenced by both the build and deploy targets rather than recomputed independently in each target? Could next.config.mjs be reverted to its pre-epic state without modifying any file outside it? Show the BUILD_VERSION definition and reference sites in the Makefile."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the version.json written by the Makefile post-build step use a single-line echo/printf with properly escaped JSON, avoiding shell quoting pitfalls? Specifically: (a) does the builtAt value use `$(shell date -u +%Y-%m-%dT%H:%M:%SZ)` or equivalent UTC ISO format, (b) are the JSON braces and quotes correctly escaped for the shell context used (make recipe), (c) does the Makefile step write to $(LOCAL_DIST)/version.json and not to a relative path that could resolve incorrectly from a different working directory? Show the exact Makefile recipe line(s)."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "INTEGRATION",
+      "question": "Does the existing `make build` target (or equivalent) invoke the Next.js build first and then write version.json, ensuring version.json is written after the Next.js export completes and thus appears alongside the generated index.html in $(LOCAL_DIST)? Confirm the ordering of steps in the Makefile build target: (a) `next build && next export` (or `next build` with output:export) precedes the version.json write step, (b) version.json is not written into the Next.js src or public/ directory (which would risk being clobbered by the build). Show the relevant Makefile target."
+    }
+  ],
+  "post_impl_answers": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "post-impl",
+      "answer": "After `make build`, the Makefile writes `$(LOCAL_DIST)/version.json` via `printf '{\"version\":\"%s\",\"builtAt\":\"%s\"}\\n' \"$(BUILD_VERSION)\" \"$(shell date -u +%Y-%m-%dT%H:%M:%SZ)\"`. Both fields are non-empty: version is the git short SHA (or epoch timestamp), builtAt is a UTC ISO-8601 string."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "post-impl",
+      "answer": "Both computations use the same algorithm — git rev-parse --short HEAD with identical fallback. next.config.mjs runs execSync at Next.js config evaluation time (i.e., at the start of `npm run build`), and the Makefile computes BUILD_VERSION via $(shell ...) at make invocation time. Within a single `make build` run both evaluate on the same HEAD commit, so they produce the same value. A grep of the built bundle for the SHA value would confirm it matches version.json."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "post-impl",
+      "answer": "app/next.config.mjs line 5: `BUILD_VERSION = execSync('git rev-parse --short HEAD').toString().trim()`. Makefile line 4: `BUILD_VERSION := $(shell git rev-parse --short HEAD 2>/dev/null || date +%s)`. The try/catch in next.config.mjs is at lines 3-8; the catch branch sets `BUILD_VERSION = Date.now().toString()`."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "post-impl",
+      "answer": "deploy target now has two sequential lftp calls: (1) mirror -R --verbose --only-newer --parallel=4 --exclude version.json; (2) put $(LOCAL_DIST)/version.json -o $(FTP_PATH)/version.json. The put runs after the first lftp call returns, ensuring all hashed assets are uploaded before version.json becomes visible."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "post-impl",
+      "answer": "next.config.mjs line 1: `import { execSync } from 'child_process'`. Line 5: `execSync('git rev-parse --short HEAD').toString().trim()`. Lines 12-14: `env: { NEXT_PUBLIC_BUILD_VERSION: BUILD_VERSION }` inside nextConfig."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "post-impl",
+      "answer": "Lines 3-8 in next.config.mjs form the try/catch block. Catch assigns `BUILD_VERSION = Date.now().toString()`. Any git failure (missing binary, not a git repo, no commits) is caught and the fallback numeric timestamp is used, so the Next.js build never crashes due to a missing git command."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "post-impl",
+      "answer": "`git diff --name-only` shows only `Makefile` and `app/next.config.mjs` (plus pre-existing modifications to `BACKLOG.json` and `app/reports/mutation/mutation.json` that were dirty before this story began). No hooks, components, i18n files, _app.tsx, or test files were touched."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "post-impl",
+      "answer": "BUILD_VERSION is defined once on Makefile line 4 and is referenced in the build target's printf step. next.config.mjs computes its own copy independently (same algorithm, same moment). Reverting next.config.mjs to its pre-epic state requires only editing that file — no other file depends on NEXT_PUBLIC_BUILD_VERSION in S1."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "post-impl",
+      "answer": "The recipe uses `printf '{\"version\":\"%s\",\"builtAt\":\"%s\"}\\n'` with positional arguments so JSON braces and quotes are literal (no shell interpretation issues). `$(BUILD_VERSION)` and `$(shell date -u +%Y-%m-%dT%H:%M:%SZ)` expand at make time. Output goes to `$(LOCAL_DIST)/version.json` which resolves correctly relative to the Makefile's directory."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "post-impl",
+      "answer": "In the build target, `cd $(APP_DIR) && npm run build` is the first recipe line, followed by `@printf ... > $(LOCAL_DIST)/version.json`. The Next.js export (output: 'export') completes before the printf runs. version.json is written to `$(LOCAL_DIST)/` (app/out/) — not to public/ — so it cannot be clobbered by the build."
+    }
+  ]
+}

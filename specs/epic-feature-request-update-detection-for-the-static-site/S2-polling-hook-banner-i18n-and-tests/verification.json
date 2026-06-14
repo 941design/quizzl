@@ -1,0 +1,152 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-06-14T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-POLL-1",
+      "question": "Does useUpdateChecker set up a recurring fetch of /version.json on a 5-minute (300,000 ms) interval, and does no fetch occur more frequently than this interval under normal conditions? Confirm: (a) `grep -n 'setInterval\\|300000\\|300_000' app/src/hooks/useUpdateChecker.ts` shows the interval value, (b) the unit test asserts that after advancing fake timers by 299,999 ms no fetch fires, and after advancing to 300,000 ms exactly one fetch fires. Show the interval setup and the timer-based unit test."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-POLL-2",
+      "question": "When a tab returns to the foreground (visibilitychange → visible) or receives a window focus event, does useUpdateChecker perform an immediate fetch without waiting for the next interval tick? Confirm: (a) `grep -n 'visibilitychange\\|focus' app/src/hooks/useUpdateChecker.ts` shows both event listeners, (b) the e2e test or unit test shows that restoring visibility triggers a fetch even when no interval tick has elapsed. Show the event listener registration and cleanup in useUpdateChecker.ts."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-POLL-3",
+      "question": "Does every fetch of /version.json include both `cache: 'no-store'` and a cache-busting query string `?t=<ms timestamp>`? Confirm: (a) `grep -n \"cache: 'no-store'\" app/src/hooks/useUpdateChecker.ts` returns a match, (b) `grep -n '?t=' app/src/hooks/useUpdateChecker.ts` or equivalent shows the query parameter construction using Date.now(), (c) the unit test asserts that fetch is called with a URL matching `/version.json?t=\\d+` and options `{ cache: 'no-store' }`. Show the fetch call site."
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-POLL-4",
+      "question": "Do both the focus/visibility-regain path and the scheduled interval path use the same detection function — both capable of raising updateAvailable and displaying the banner? Confirm: (a) there is a single `checkForUpdate` (or equivalently named) function that is called by both the interval callback and the event listener callbacks, (b) the unit test or e2e test demonstrates that a version mismatch surfaced via the visibility path triggers the banner just as the interval path does. Show the shared function reference."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-POLL-5",
+      "question": "Are network failure, non-200 HTTP response, offline state, and unparseable JSON body all handled as no-ops — no banner, no thrown error, no console.error, and the hook retries on the next tick? Confirm: (a) `grep -n 'console.error\\|console.warn\\|throw' app/src/hooks/useUpdateChecker.ts` returns zero matches (or only comments), (b) the unit tests cover: fetch rejects with a network error, fetch resolves with status 404, fetch resolves with status 500, response.json() throws a SyntaxError — and in every case updateAvailable remains false. Show the error-handling code path."
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DETECT-1",
+      "question": "When a successful /version.json fetch returns a version value that differs from NEXT_PUBLIC_BUILD_VERSION, does UpdateBanner become visible? Confirm: (a) the e2e test intercepts /version.json with page.route() returning `{ version: 'new-sha', builtAt: '...' }` while the baked-in version is different, (b) `await page.locator('[data-testid=\"update-banner\"]').waitFor({ state: 'visible' })` passes, (c) the unit test asserts updateAvailable becomes true when fetched.version !== process.env.NEXT_PUBLIC_BUILD_VERSION. Show the comparison logic in useUpdateChecker.ts."
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DETECT-2",
+      "question": "When a successful fetch returns the same version as the baked-in value, does UpdateBanner NOT appear? And once the banner is visible (update available latched), do subsequent fetches — same or different version — NOT hide or re-trigger the banner? Confirm: (a) e2e test with matching version shows no banner, (b) unit test asserts the latch: once updateAvailable = true, calling the check function again with the same or different version leaves updateAvailable = true and never sets it back to false, (c) `grep -n 'updateAvailable.*false\\|setUpdateAvailable.*false' app/src/hooks/useUpdateChecker.ts` returns zero matches after initial mount. Show the latch implementation."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-1",
+      "question": "While UpdateBanner is visible, can the user type, send messages, and navigate normally — does the banner not modal-cover content, steal focus, or block any interaction? Confirm: (a) the e2e test with banner visible uses `page.locator('[data-testid=\"message-input\"]').fill('hello')` (or equivalent) and asserts it succeeds, (b) `grep -n 'position.*fixed\\|z-index\\|pointer-events.*none\\|modal\\|overlay' app/src/components/UpdateBanner.tsx` shows the banner uses a non-blocking layout (no full-screen overlay), (c) UpdateBanner does not call focus() or use autoFocus. Show the relevant component structure."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-2",
+      "question": "Does pressing the Reload control in UpdateBanner call window.location.reload()? Confirm: (a) `grep -n 'window.location.reload' app/src/components/UpdateBanner.tsx` returns exactly one match, (b) the e2e test clicks `[data-testid=\"update-banner-reload\"]` and observes a page reload (e.g. via `page.waitForNavigation()` or equivalent), (c) the unit test mocks window.location.reload and asserts it is called exactly once after the button click. Show the onClick handler."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-3",
+      "question": "Does the app never reload itself automatically — is window.location.reload() called only as a direct result of a user click on the Reload control, never from the hook or any timer? Confirm: (a) `grep -rn 'window.location.reload' app/src/hooks/useUpdateChecker.ts app/pages/_app.tsx` returns zero matches, (b) `grep -n 'window.location.reload' app/src/components/UpdateBanner.tsx` shows it is only inside an onClick handler, not in a useEffect or other lifecycle. Show the grep outputs."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-4",
+      "question": "Does pressing the dismiss (x) control hide the banner for the current tab session only, using local component state rather than localStorage or IndexedDB? And does a subsequent check that detects a new version mismatch re-show the banner (session suppression only, not permanent)? Confirm: (a) `grep -n 'localStorage\\|sessionStorage\\|indexedDB\\|idb' app/src/components/UpdateBanner.tsx` returns zero matches, (b) dismissed state is a plain React useState boolean inside UpdateBanner, (c) the e2e test dismisses the banner, then intercepts /version.json with a newer version, triggers a visibility check, and asserts the banner re-appears. Show the dismissed state implementation."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-5",
+      "question": "Are all user-visible strings in UpdateBanner (message, Reload label, dismiss aria-label) defined as en and de entries in app/src/lib/i18n.ts, declared in the Copy type, and referenced via useCopy() in the component — with no hardcoded user-visible string in the component file? Confirm: (a) `grep -n 'updateBanner' app/src/lib/i18n.ts` shows the updateBanner key in the Copy type and both language objects, (b) `grep -n '\"en\"\\|message:\\|Reload\\|Dismiss' app/src/components/UpdateBanner.tsx` returns zero hardcoded strings, (c) the component uses useCopy() and references copy.updateBanner.message, .reload, and .dismissAriaLabel. Show the i18n entries and the component's copy usage."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SAFE-1",
+      "question": "When version.json is absent (404) — as in local dev or before the first deploy — does useUpdateChecker run without error, display no banner, and produce no console error? Confirm: (a) the e2e test uses `page.route('**/version.json**', route => route.fulfill({ status: 404 }))` and asserts `page.locator('[data-testid=\"update-banner\"]').count()` is 0 after a polling tick, (b) `page.on('console', ...)` captures no error-level messages during the test, (c) the unit test asserts that a 404 response leaves updateAvailable = false. Show the fail-soft branch for non-200 responses."
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "pre-impl",
+      "category": "TEST_COVERAGE",
+      "question": "Do the unit tests in app/tests/unit/useUpdateChecker.test.ts cover all four behavioral scenarios without relying on the full hook mount (i.e. using an extracted pure comparison-and-latch function)? Confirm: (a) version mismatch sets updateAvailable to true, (b) version match leaves updateAvailable false, (c) latch: once true, a subsequent same-version check leaves it true, (d) all four fail-soft branches (network error, non-200, 404, bad JSON) leave updateAvailable false with no thrown error. Show how fetch is mocked (Object.defineProperty on globalThis.fetch)."
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "pre-impl",
+      "category": "SCOPE_BOUNDARY",
+      "question": "Does the S2 implementation touch only the six declared scope files — app/src/hooks/useUpdateChecker.ts, app/src/components/UpdateBanner.tsx, app/src/lib/i18n.ts, app/pages/_app.tsx, app/tests/unit/useUpdateChecker.test.ts, app/tests/e2e/update-detection.spec.ts — and no others? Run `git diff --name-only HEAD` after implementing S2 and confirm the list contains exactly these six files (plus any new files explicitly named). Show the full diff --name-only output."
+    },
+    {
+      "question_id": "VQ-S2-016",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does useUpdateChecker have no UI imports and return only `{ updateAvailable: boolean }`, keeping the connection to UpdateBanner exclusively in _app.tsx? Confirm: (a) `grep -n 'import.*UpdateBanner\\|import.*chakra\\|import.*@chakra' app/src/hooks/useUpdateChecker.ts` returns zero matches, (b) the hook's return type is `{ updateAvailable: boolean }` or equivalent, (c) `grep -n 'useUpdateChecker' app/pages/_app.tsx` shows the hook is called in _app.tsx and its result is passed as a prop to UpdateBanner. Could useUpdateChecker be deleted and rewritten without modifying any file outside app/src/hooks/? If not, name any cross-boundary dependency. Show the hook's return statement and _app.tsx wiring."
+    },
+    {
+      "question_id": "VQ-S2-017",
+      "phase": "pre-impl",
+      "category": "INTEGRATION",
+      "question": "Are the _app.tsx changes client-only with no SSR concern — is useUpdateChecker called inside a component that is already client-rendered in the static export, and does useUpdateChecker use useEffect (which never runs server-side) so the interval and event listeners are never set up during SSR? Confirm: (a) `grep -n 'useEffect' app/src/hooks/useUpdateChecker.ts` shows all side effects (interval, event listeners) are inside useEffect, (b) the static export (`output: 'export'` in next.config.mjs) ensures _app.tsx is client-rendered, (c) no `typeof window === 'undefined'` guard is needed but its absence does not cause SSR errors. Show the useEffect structure."
+    },
+    {
+      "question_id": "VQ-S2-018",
+      "phase": "pre-impl",
+      "category": "ERROR_HANDLING",
+      "question": "Does UpdateBanner render null (not an empty container) when updateAvailable is false or dismissed, avoiding any layout impact when the banner is not needed? Confirm: (a) `grep -n 'return null' app/src/components/UpdateBanner.tsx` shows an early return null when conditions are not met, (b) the component does not render an empty Alert or a zero-height container when dismissed or when updateAvailable is false. Show the early-return guard logic."
+    },
+    {
+      "question_id": "VQ-S2-019",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does useUpdateChecker clean up both the interval and the visibilitychange / focus event listeners on unmount, preventing memory leaks and stale closures after the component unmounts (e.g. during hot reload in dev)? Confirm: (a) the useEffect return function calls clearInterval, (b) the useEffect return function calls removeEventListener for both 'visibilitychange' and 'focus', (c) a unit test or static inspection confirms no dangling references after cleanup. Show the cleanup function."
+    },
+    {
+      "question_id": "VQ-S2-POST-001",
+      "phase": "post-impl",
+      "category": "EDGE_CASE",
+      "question": "When NEXT_PUBLIC_BUILD_VERSION is undefined (local dev without build stamp), does the hook exit the useEffect early — no interval set, no event listeners registered, no fetch ever attempted? Confirm: the early-return guard `if (!currentVersion) return;` on line ~40 of useUpdateChecker.ts executes before setInterval/addEventListener calls. This prevents spurious banners and pointless polling on local dev servers."
+    },
+    {
+      "question_id": "VQ-S2-POST-002",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The `latched` variable inside useEffect is a closure-scoped boolean, not a React ref. On every re-mount (e.g. HMR in dev), it resets to false. Is this acceptable? The latch in `updateAvailable` React state persists across renders but resets on unmount/remount. Confirm: in production, AppShell is never unmounted during a session, so HMR-reset of the closure latch is dev-only and acceptable. Would a useRef be more resilient for the closure-captured latch in hot-reload-heavy dev workflows?"
+    },
+    {
+      "question_id": "VQ-S2-POST-003",
+      "phase": "post-impl",
+      "category": "INTEGRATION",
+      "question": "UpdateBanner is rendered inside MarmotProvider and NostrIdentityProvider but outside Layout. Does this placement mean the banner appears above the main layout chrome (nav, sidebar) potentially causing layout shift? Confirm: Banner renders null when updateAvailable is false, so no space is reserved. When it appears, it pushes Layout content down — this is intentional and matches OfflineBanner's behavior inside Layout."
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "epic_name": "feature-request-update-detection-for-the-static-site",
+  "created_at": "2026-06-14T00:00:00Z",
+  "total_stories": 2,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "build-stamping-and-deploy-ordering",
+      "title": "Build version stamping and deploy ordering",
+      "owning_module": "next.config.mjs",
+      "description": "Inject a build-time version constant into the bundle and emit version.json into the static export root. In next.config.mjs, compute BUILD_VERSION via git rev-parse --short HEAD (falling back to Date.now()) using execSync from child_process, and expose it as process.env.NEXT_PUBLIC_BUILD_VERSION so it bakes into the client bundle. In the Makefile, define BUILD_VERSION with the same git-SHA/timestamp fallback, emit version.json into the LOCAL_DIST after the Next.js build completes, and split the deploy target into two sequential lftp sessions: first mirror everything except version.json (--exclude version.json), then upload version.json last with a serial put. No UI, no hook, no tests \u2014 the stamp is verified by the build output and the deploy ordering by manual inspection (MV-1, MV-2).",
+      "acceptance_criteria": [
+        "AC-STAMP-1",
+        "AC-STAMP-2",
+        "AC-STAMP-3",
+        "AC-DEPLOY-1"
+      ],
+      "complexity": "low",
+      "status": "done",
+      "story_order": 1,
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/next.config.mjs \u2014 import execSync from 'child_process'; compute BUILD_VERSION (git short SHA, fallback Date.now().toString()); expose via env: { NEXT_PUBLIC_BUILD_VERSION: BUILD_VERSION } in nextConfig",
+          "Makefile \u2014 define BUILD_VERSION := $(shell git rev-parse --short HEAD 2>/dev/null || date +%s); add post-build step writing {\"version\":\"$(BUILD_VERSION)\",\"builtAt\":\"<ISO>\"} to $(LOCAL_DIST)/version.json; split deploy target: lftp mirror --exclude version.json first, then lftp put version.json last"
+        ],
+        "excludes": [
+          "useUpdateChecker hook (S2)",
+          "UpdateBanner component (S2)",
+          "i18n extension (S2)",
+          "_app.tsx wiring (S2)",
+          "Unit and e2e tests (S2)"
+        ]
+      },
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": []
+    },
+    {
+      "id": "S2",
+      "name": "polling-hook-banner-i18n-and-tests",
+      "title": "Polling hook, update banner, i18n, app wiring, and tests",
+      "owning_module": "useUpdateChecker",
+      "description": "Implement the full update-detection runtime: (1) Create app/src/hooks/useUpdateChecker.ts \u2014 a client-only hook that sets up a 5-minute interval to fetch /version.json?t=<ms> with { cache: 'no-store' }, triggers an immediate check on visibilitychange\u2192visible and window focus events, compares fetched.version against the baked-in NEXT_PUBLIC_BUILD_VERSION, latches an updateAvailable boolean on first mismatch, and fails soft on all error paths (network error, non-200, parse failure) with no thrown errors and no console spam. (2) Create app/src/components/UpdateBanner.tsx \u2014 a non-blocking dismissible banner modelled on OfflineBanner.tsx (Chakra Alert + CloseButton), receiving updateAvailable as a prop, with data-testid attributes on root, reload button, and dismiss button; Reload calls window.location.reload(); dismiss sets a local dismissed flag (session-only, not persisted). (3) Extend app/src/lib/i18n.ts \u2014 add updateBanner: { message, reload, dismissAriaLabel } section to the Copy type and both en and de language objects; wire into the component via useCopy(). (4) Extend app/pages/_app.tsx \u2014 call useUpdateChecker() and render <UpdateBanner updateAvailable={...} /> in the app shell (client-only, no SSR concern). (5) Create app/tests/unit/useUpdateChecker.test.ts \u2014 unit tests covering version-comparison + latch logic and all fail-soft branches (mocking fetch via Object.defineProperty). (6) Create app/tests/e2e/update-detection.spec.ts \u2014 e2e tests using page.route('**/version.json**', ...) to intercept responses; covers: banner appears on version mismatch, no banner on same version, fail-soft on 404, dismiss is session-only (new version after dismiss re-shows banner), user can type and send with banner visible.",
+      "acceptance_criteria": [
+        "AC-POLL-1",
+        "AC-POLL-2",
+        "AC-POLL-3",
+        "AC-POLL-4",
+        "AC-POLL-5",
+        "AC-DETECT-1",
+        "AC-DETECT-2",
+        "AC-UX-1",
+        "AC-UX-2",
+        "AC-UX-3",
+        "AC-UX-4",
+        "AC-UX-5",
+        "AC-SAFE-1"
+      ],
+      "complexity": "medium",
+      "status": "done",
+      "story_order": 2,
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/src/hooks/useUpdateChecker.ts \u2014 NEW FILE; 5-minute interval fetch; visibilitychange + window focus triggers; cache: 'no-store' + ?t=<ms> cache-busting; latched updateAvailable boolean; fail-soft on all error paths",
+          "app/src/components/UpdateBanner.tsx \u2014 NEW FILE; non-blocking Chakra Alert; dismissible (session-only local state); data-testid='update-banner', 'update-banner-reload', 'update-banner-dismiss'; Reload \u2192 window.location.reload(); i18n via useCopy()",
+          "app/src/lib/i18n.ts \u2014 extend Copy type with updateBanner: { message: string; reload: string; dismissAriaLabel: string }; add en + de values",
+          "app/pages/_app.tsx \u2014 mount useUpdateChecker(); render <UpdateBanner updateAvailable={...} /> in app shell",
+          "app/tests/unit/useUpdateChecker.test.ts \u2014 NEW FILE; unit tests for comparison+latch logic and fail-soft branches",
+          "app/tests/e2e/update-detection.spec.ts \u2014 NEW FILE; e2e tests using page.route() interception; covers mismatch\u2192banner, same-version\u2192no-banner, 404\u2192fail-soft, dismiss session-only, non-blocking typing"
+        ],
+        "excludes": [
+          "next.config.mjs version injection (S1 \u2014 NEXT_PUBLIC_BUILD_VERSION must be present before this story is meaningful in prod, but S2 can mock the env var in tests)",
+          "Makefile version.json emission and deploy ordering (S1)",
+          "Service worker / PWA layer (out of scope per spec \u00a77)",
+          "Cross-tab BroadcastChannel coordination (out of scope per spec \u00a77)",
+          "Auto-reload without user consent (out of scope per spec \u00a77)"
+        ]
+      },
+      "mock_dependencies": [
+        "S1 \u2014 NEXT_PUBLIC_BUILD_VERSION env var must be set in the production bundle; unit and e2e tests mock it via process.env overrides or page.route() interception"
+      ],
+      "introduces_mocks": [],
+      "test_fixtures": [
+        {
+          "fixture_id": "FIXTURE-S2-001",
+          "description": "Playwright page.route() interceptor for /version.json \u2014 used to serve controlled version responses (mismatch, same, 404) in e2e tests without a real deploy. This is permanent test infrastructure for any future e2e test that needs to stage an update scenario.",
+          "artifact": "app/tests/e2e/update-detection.spec.ts"
+        }
+      ]
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2"
+  ],
+  "dependency_notes": "S1 must land before S2 reaches production \u2014 NEXT_PUBLIC_BUILD_VERSION and version.json must exist for the hook to have meaningful values to compare. S2 is independently implementable in isolation (unit tests mock the env var; e2e tests intercept /version.json via page.route()), but end-to-end functionality requires S1 to be deployed first.",
+  "seams": [
+    {
+      "data": "NEXT_PUBLIC_BUILD_VERSION baked into the client bundle at build time",
+      "source": {
+        "story": "S1",
+        "artifact": "app/next.config.mjs"
+      },
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/hooks/useUpdateChecker.ts"
+      },
+      "contract": {
+        "type_name": "BuildVersionEnv",
+        "fields": [
+          {
+            "name": "NEXT_PUBLIC_BUILD_VERSION",
+            "type": "string"
+          }
+        ],
+        "invariants": [
+          "NEXT_PUBLIC_BUILD_VERSION is a non-empty string at runtime",
+          "Its value equals the git short SHA when git is available, otherwise a numeric timestamp string",
+          "Its value is identical to the version field in the version.json emitted by the same build run"
+        ]
+      }
+    },
+    {
+      "data": "version.json at the static site root, fetchable at /version.json",
+      "source": {
+        "story": "S1",
+        "artifact": "Makefile"
+      },
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/hooks/useUpdateChecker.ts"
+      },
+      "contract": {
+        "type_name": "VersionJson",
+        "fields": [
+          {
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "name": "builtAt",
+            "type": "string"
+          }
+        ],
+        "invariants": [
+          "version is the comparison key \u2014 non-empty string, equals NEXT_PUBLIC_BUILD_VERSION from the same build run",
+          "builtAt is an ISO 8601 UTC timestamp string used only for diagnostics \u2014 equality decisions use version alone",
+          "version.json is uploaded to the server only after all hashed JS/CSS chunks and HTML files are fully in place (AC-DEPLOY-1)"
+        ]
+      }
+    }
+  ]
+}
