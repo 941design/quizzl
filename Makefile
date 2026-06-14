@@ -136,8 +136,8 @@ deploy: build deploy-check ## Deploy to production (FTP)
 	@echo "Deploying to $(FTP_HOST)$(FTP_PATH)..."
 	@lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
 		set ssl:verify-certificate no; \
-		set cmd:fail-exit yes; \
 		mkdir -p $(FTP_PATH); \
+		set cmd:fail-exit yes; \
 		mirror -R --verbose --only-newer --parallel=4 \
 			--exclude version.json \
 			$(LOCAL_DIST)/ $(FTP_PATH)/; \
