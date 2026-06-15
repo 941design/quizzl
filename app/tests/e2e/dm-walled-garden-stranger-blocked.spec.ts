@@ -89,8 +89,11 @@ test.describe('DM walled garden: stranger blocked (AC-TEST-4)', () => {
       await alicePage.waitForLoadState('networkidle');
       await waitForBridge(alicePage);
 
-      // Confirm badge is absent at start
-      await expect(alicePage.getByTestId('notification-badge')).toHaveCount(0);
+      // Get baseline badge count (may be non-zero if messages exist from other tests)
+      const startBadgeCount = await alicePage.evaluate(() => {
+        const b = document.querySelector('[data-testid="notification-badge"]');
+        return b ? parseInt((b.textContent ?? '0').trim(), 10) : 0;
+      });
 
       // ── 3. Mallory boots and sends a DM to Alice ─────────────────────────────
       const malloryCtx = await browser.newContext({ baseURL: BASE_URL });
@@ -156,8 +159,12 @@ test.describe('DM walled garden: stranger blocked (AC-TEST-4)', () => {
       // ── 4. Wait 5 seconds — Alice's bell must stay at 0 ──────────────────────
       await alicePage.waitForTimeout(5_000);
 
-      // Assertion (a): badge must be absent
-      await expect(alicePage.getByTestId('notification-badge')).toHaveCount(0);
+      // Assertion (a): badge count must not increase (stranger DM must be blocked/dropped)
+      const afterBadgeCount = await alicePage.evaluate(() => {
+        const b = document.querySelector('[data-testid="notification-badge"]');
+        return b ? parseInt((b.textContent ?? '0').trim(), 10) : 0;
+      });
+      expect(afterBadgeCount).toBe(startBadgeCount);
 
       // ── 5. Assertion (b): no notification-dm-<malloryPub> row in dropdown ───
       // Open the bell to see what notifications (if any) are listed

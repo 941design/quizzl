@@ -35,13 +35,14 @@ test.describe.serial('Seed phrase recovery — profile and groups', () => {
   });
 
   test('User A generates backup and publishes identity to relay', async () => {
-    // Navigate to settings — identity is auto-generated, profile is injected
+    // Navigate to profile — verify profile is shown
+    await pageA.goto('/profile/');
+    await expect(pageA.getByTestId('profile-nickname-input')).toHaveValue(NICKNAME, { timeout: 10_000 });
+
+    // Navigate to settings to verify identity and generate backup
     await pageA.goto('/settings/');
     await expect(pageA.getByTestId('identity-npub-display')).toBeVisible({ timeout: 30_000 });
     originalNpub = (await pageA.getByTestId('identity-npub-display').textContent()) ?? '';
-
-    // Verify profile is shown
-    await expect(pageA.getByTestId('profile-nickname-input')).toHaveValue(NICKNAME, { timeout: 10_000 });
 
     // Generate and capture mnemonic
     await pageA.getByTestId('generate-backup-phrase-btn').click();

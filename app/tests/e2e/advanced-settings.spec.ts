@@ -95,8 +95,8 @@ test.describe.serial('Advanced Settings', () => {
     await page.getByTestId('add-relay-btn').click();
 
     // An inline error should appear
-    // The error text is in a <Text> element below the input — look for known copy
-    await expect(page.locator('text=wss://')).toBeVisible();
+    // The error text is in a <Text> element below the input with data-testid
+    await expect(page.getByTestId('add-relay-error')).toBeVisible();
 
     // The invalid URL must NOT appear as a relay row
     await expect(page.getByTestId('relay-row-not-a-relay-url')).toHaveCount(0);

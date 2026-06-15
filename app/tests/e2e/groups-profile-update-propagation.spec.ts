@@ -85,9 +85,9 @@ async function openGroupDetail(page: Page, groupName: string): Promise<void> {
   await expect(page.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 }
 
-/** Update profile nickname on the settings page and save. */
+/** Update profile nickname on the profile page and save. */
 async function updateProfileNickname(page: Page, newNickname: string): Promise<void> {
-  await page.goto('/settings');
+  await page.goto('/profile');
   await page.waitForLoadState('networkidle');
   await page.getByTestId('profile-nickname-input').clear();
   await page.getByTestId('profile-nickname-input').fill(newNickname);

@@ -751,7 +751,7 @@ export default function SettingsPage() {
                   </Button>
                 </HStack>
                 {addRelayError && (
-                  <Text fontSize="sm" color="red.500" mb={2}>
+                  <Text fontSize="sm" color="red.500" mb={2} data-testid="add-relay-error">
                     {addRelayError}
                   </Text>
                 )}

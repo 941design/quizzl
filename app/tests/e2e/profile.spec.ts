@@ -11,7 +11,7 @@ test.describe('Profile updates', () => {
   });
 
   test('saving nickname and avatar updates the header immediately without reload', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
     await page.getByTestId('profile-nickname-input').fill('Berry Hero');
@@ -30,7 +30,7 @@ test.describe('Profile updates', () => {
 
   test('mobile header keeps the profile visible inside the navigation drawer', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/settings');
+    await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
     await page.getByTestId('profile-nickname-input').fill('Pocket Pear');

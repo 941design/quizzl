@@ -11,7 +11,7 @@ test.describe('Avatar selection', () => {
   });
 
   test('clicking an avatar card selects the avatar', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
     await page.getByTestId('choose-avatar-btn').click();
@@ -27,7 +27,7 @@ test.describe('Avatar selection', () => {
   });
 
   test('clicking an avatar image selects the avatar', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
     await page.getByTestId('choose-avatar-btn').click();

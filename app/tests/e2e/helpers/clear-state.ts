@@ -10,6 +10,7 @@ const INDEXEDDB_DATABASES = [
   'quizzl-join-requests',
   'quizzl-media-blobs',
   'quizzl-media-meta',
+  'keyval-store', // DM message storage
 ];
 
 /**

@@ -12,10 +12,10 @@ test.describe('Story 08: Theme Settings', () => {
   });
 
   test('1. Settings page renders with theme buttons', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
-    const settingsPage = page.getByTestId('settings-page');
+    const settingsPage = page.getByTestId('profile-page');
     await expect(settingsPage).toBeVisible();
 
     // Available theme buttons should be visible
@@ -32,7 +32,7 @@ test.describe('Story 08: Theme Settings', () => {
   });
 
   test('2. Switching to playful theme persists in localStorage', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
     // Click playful
@@ -50,7 +50,7 @@ test.describe('Story 08: Theme Settings', () => {
   });
 
   test('3. Theme setting persists after page reload', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
     // Switch to playful
