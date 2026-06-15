@@ -61,6 +61,7 @@ async function startWelcomeSubscription(
   return subscribeToWelcomes(pubkeyHex, marmotClient, ndk, signer, onGroupJoined, onJoinRequestReceived, groupMemberPubkeys);
 }
 import { DEFAULT_RELAYS } from '@/src/types';
+import { getEffectiveRelays } from '@/src/lib/relay';
 import { getEventHash } from 'applesauce-core/helpers/event';
 
 /**
@@ -282,6 +283,11 @@ type MarmotContextValue = {
   grantAdmin: (groupId: string, pubkey: string) => Promise<{ ok: boolean; error?: string }>;
   /** Synchronously returns hex pubkeys of members with a pending out-of-band leave event queued in pendingRemovalsRef. */
   getPendingRemovals: (groupId: string) => string[];
+  /**
+   * Re-publish key-package discoverability and kind 30051 relay list to the given relay URLs.
+   * Call after saving a new relay list so discovery uses the updated set immediately.
+   */
+  republishDiscoverability: (relayUrls: string[]) => Promise<void>;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -294,7 +300,7 @@ interface PendingRemoval {
 }
 
 export function MarmotProvider({ children }: { children: React.ReactNode }) {
-  const { privateKeyHex, pubkeyHex, hydrated: identityHydrated } = useNostrIdentity();
+  const { privateKeyHex, pubkeyHex, hydrated: identityHydrated, signerMode } = useNostrIdentity();
   const { profile: localProfile } = useProfile();
   const { markDirty: markBackupDirty } = useBackup();
   const [ready, setReady] = useState(false);
@@ -652,9 +658,13 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Initialize MarmotClient once identity is ready
+  // Initialize MarmotClient once identity is ready.
+  // Also re-runs when signerMode changes so that switching to/from NIP-46
+  // reconstructs the MarmotClient with the correct EventSigner (AC-SIGNER-10).
   useEffect(() => {
-    if (!identityHydrated || !privateKeyHex || !pubkeyHex) return;
+    // In nip46 mode, privateKeyHex is still present (we keep the local key
+    // in memory), so we gate on pubkeyHex rather than privateKeyHex here.
+    if (!identityHydrated || !pubkeyHex) return;
     if (typeof window === 'undefined') return;
 
     let cancelled = false;
@@ -678,13 +688,16 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           await import('@internet-privacy/marmot-ts');
         const { connectNdk } = await import('@/src/lib/ndkClient');
         const { NdkNetworkAdapter } = await import('@/src/lib/marmot/NdkNetworkAdapter');
-        const { createPrivateKeySigner } = await import('@/src/lib/marmot/signerAdapter');
+        const { createPrivateKeySigner, activeEventSignerOverride } = await import('@/src/lib/marmot/signerAdapter');
         const { publishKeyPackages } = await import('@/src/lib/keyPackages');
         const { createStore: idbCreateStore } = await import('idb-keyval');
         const { IdbKeyValueStoreBackend } = await import('@/src/lib/marmot/idbKeyValueStoreBackend');
 
-        const ndk = await connectNdk(privateKeyHex!);
-        const signer = createPrivateKeySigner(privateKeyHex!);
+        // In NIP-46 mode we may not have a private key to sign with locally.
+        // Use the global EventSigner override if set, otherwise fall back to
+        // the local private key signer (AC-SIGNER-10).
+        const ndk = await connectNdk(privateKeyHex ?? '');
+        const signer = activeEventSignerOverride.current ?? createPrivateKeySigner(privateKeyHex!);
         signerRef.current = signer;
 
         const groupStateStore = new IdbGroupStateBackend();
@@ -722,7 +735,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         try {
           const count = await client.keyPackages.count();
           if (count === 0) {
-            await publishKeyPackages(client.keyPackages, 5, [...DEFAULT_RELAYS]);
+            await publishKeyPackages(client.keyPackages, 5, getEffectiveRelays());
           }
         } catch (err) {
           console.warn('[Marmot] KeyPackage publish failed:', err);
@@ -778,7 +791,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             try {
               const packages = await client.keyPackages.list();
               for (const pkg of packages.filter((p) => p.used)) {
-                await client.keyPackages.rotate(pkg.keyPackageRef, { relays: [...DEFAULT_RELAYS] });
+                await client.keyPackages.rotate(pkg.keyPackageRef, { relays: getEffectiveRelays() });
               }
               // Re-evaluate discoverability after rotation
               await updateDiscoverability(client);
@@ -796,17 +809,18 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               (p) => !p.used && p.published && p.published.length > 0,
             );
 
-            if (!hasUsable && DEFAULT_RELAYS.length > 0) {
-              await client.keyPackages.create({ relays: [...DEFAULT_RELAYS] });
+            const effectiveRelays = getEffectiveRelays();
+            if (!hasUsable && effectiveRelays.length > 0) {
+              await client.keyPackages.create({ relays: effectiveRelays });
             }
 
             // Delete stale key-package events from relays whose private keys
             // are no longer in local IndexedDB (e.g. after clearing browser
             // data). Covers both legacy kind 443 events and kind 30443
             // addressable events from previous sessions.
-            if (DEFAULT_RELAYS.length > 0 && ndk) {
+            if (effectiveRelays.length > 0 && ndk) {
               try {
-                const remoteKPs = await network.request([...DEFAULT_RELAYS], [
+                const remoteKPs = await network.request(effectiveRelays, [
                   { kinds: [443 as any, 30443 as any], authors: [pubkeyHex!] } as any,
                 ]);
                 const localList = await client.keyPackages.list();
@@ -833,7 +847,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                   const signed = await signer.signEvent(deleteEvent as any);
                   const { NDKEvent, NDKRelaySet } = await import('@nostr-dev-kit/ndk');
                   const ndkEvent = new NDKEvent(ndk, signed as any);
-                  const relaySet = NDKRelaySet.fromRelayUrls(DEFAULT_RELAYS, ndk);
+                  const relaySet = NDKRelaySet.fromRelayUrls(effectiveRelays, ndk);
                   await ndkEvent.publish(relaySet).catch(() => {});
                 }
               } catch {
@@ -842,10 +856,10 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Publish kind 30051 relay list for key package discovery (addressable with d tag)
-            if (DEFAULT_RELAYS.length > 0 && ndk) {
+            if (effectiveRelays.length > 0 && ndk) {
               try {
                 const { NDKEvent, NDKRelaySet } = await import('@nostr-dev-kit/ndk');
-                const existing30051 = await network.request([...DEFAULT_RELAYS], [
+                const existing30051 = await network.request(effectiveRelays, [
                   { kinds: [30051 as any], authors: [pubkeyHex!], limit: 1 } as any,
                 ]);
 
@@ -856,14 +870,14 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
                     created_at: Math.floor(Date.now() / 1000),
                     tags: [
                       ['d', 'marmot'],
-                      ...DEFAULT_RELAYS.map((url) => ['relay', url]),
+                      ...effectiveRelays.map((url) => ['relay', url]),
                     ],
                     content: '',
                     pubkey: pubkeyHex!,
                   };
                   const signed = await signer.signEvent(unsigned as any);
                   const ndkEvent = new NDKEvent(ndk, signed);
-                  const relaySet = NDKRelaySet.fromRelayUrls(DEFAULT_RELAYS, ndk);
+                  const relaySet = NDKRelaySet.fromRelayUrls(effectiveRelays, ndk);
                   await ndkEvent.publish(relaySet).catch(() => {
                     // Non-fatal: invite flow degrades gracefully
                   });
@@ -897,7 +911,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       welcomeSubRef.current = null;
       signerRef.current = null;
     };
-  }, [identityHydrated, privateKeyHex, pubkeyHex, reloadGroups, updateDiscoverability]);
+  // signerMode triggers re-init so MarmotClient picks up the new EventSigner
+  // (local → nip46 switch) after the identity context has set the override ref.
+  }, [identityHydrated, privateKeyHex, pubkeyHex, signerMode, reloadGroups, updateDiscoverability]);
 
   // Subscribe to group messages for each group (for incoming application rumors)
   useEffect(() => {
@@ -1094,7 +1110,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     if (!client || !pubkeyHex) return null;
 
     try {
-      const mlsGroup = await client.groups.create(name, { relays: [...DEFAULT_RELAYS] });
+      const createRelays = getEffectiveRelays();
+      const mlsGroup = await client.groups.create(name, { relays: createRelays });
       const groupId = mlsGroup.idStr;
 
       const group: Group = {
@@ -1102,7 +1119,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         name,
         createdAt: Date.now(),
         memberPubkeys: [pubkeyHex],
-        relays: [...DEFAULT_RELAYS],
+        relays: createRelays,
       };
 
       await persistGroup(group);
@@ -1513,6 +1530,53 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     }
   }, [pubkeyHex]);
 
+  /**
+   * Re-publish key-package discoverability and kind 30051 relay list to the given
+   * relay URLs. Called from the relay settings save handler so discoverability
+   * immediately reflects the new relay set.
+   */
+  const republishDiscoverability = useCallback(async (relayUrls: string[]): Promise<void> => {
+    if (!pubkeyHex || !signerRef.current) return;
+    const signer = signerRef.current;
+    const client = clientRef.current;
+    try {
+      // Re-publish key packages to the new relay set
+      if (client) {
+        const packages = await client.keyPackages.list();
+        const usable = packages.filter((p) => !p.used && p.published && p.published.length > 0);
+        if (usable.length === 0) {
+          const { publishKeyPackages } = await import('@/src/lib/keyPackages');
+          await publishKeyPackages(client.keyPackages, 5, relayUrls);
+        }
+      }
+
+      // Force re-publish kind 30051 relay list (unconditionally, so new relay set is announced)
+      const { getNdk } = await import('@/src/lib/ndkClient');
+      const ndk = getNdk();
+      if (ndk && relayUrls.length > 0) {
+        const { NDKEvent, NDKRelaySet } = await import('@nostr-dev-kit/ndk');
+        const unsigned = {
+          kind: 30051,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['d', 'marmot'],
+            ...relayUrls.map((url) => ['relay', url]),
+          ],
+          content: '',
+          pubkey: pubkeyHex,
+        };
+        const signed = await signer.signEvent(unsigned as any);
+        const ndkEvent = new NDKEvent(ndk, signed);
+        const relaySet = NDKRelaySet.fromRelayUrls(relayUrls, ndk);
+        await ndkEvent.publish(relaySet).catch(() => {
+          // Non-fatal: invite flow degrades gracefully
+        });
+      }
+    } catch (err) {
+      console.warn('[Marmot] republishDiscoverability failed:', err);
+    }
+  }, [pubkeyHex]);
+
   const value = useMemo<MarmotContextValue>(
     () => ({
       ready,
@@ -1543,6 +1607,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       declinePendingInvitation,
       grantAdmin,
       getPendingRemovals,
+      republishDiscoverability,
     }),
     [
       ready,
@@ -1573,6 +1638,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       declinePendingInvitation,
       grantAdmin,
       getPendingRemovals,
+      republishDiscoverability,
     ]
   );
 
@@ -1613,6 +1679,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   declinePendingInvitation: NOOP_ASYNC,
   grantAdmin: async () => ({ ok: false, error: 'not_ready' }),
   getPendingRemovals: () => [],
+  republishDiscoverability: NOOP_ASYNC,
 };
 
 export function useMarmot(): MarmotContextValue {

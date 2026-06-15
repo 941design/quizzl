@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import NextLink from 'next/link';
 import {
   Box,
+  Collapse,
   Heading,
   Text,
   VStack,
@@ -19,6 +20,10 @@ import {
   ModalCloseButton,
   Checkbox,
   Textarea,
+  Input,
+  Badge,
+  Spinner,
+  Image,
   useDisclosure,
   useToast,
   Code,
@@ -30,16 +35,135 @@ import NpubQrButton from '@/src/components/groups/NpubQrButton';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { truncateNpub, derivePublicKeyHex } from '@/src/lib/nostrKeys';
 import { useProfile } from '@/src/context/ProfileContext';
-import { STORAGE_KEYS } from '@/src/types';
+import { STORAGE_KEYS, DEFAULT_RELAYS } from '@/src/types';
 import { MAINTAINER_ACTIVE_PUBKEY_HEX } from '@/src/config/maintainer';
+import { getEffectiveRelays, saveRelays, isValidRelayUrl } from '@/src/lib/relay';
+import { applyRelayChangesToPool, getNdk } from '@/src/lib/ndkClient';
+import { useMarmot } from '@/src/context/MarmotContext';
+import { NDKRelayStatus } from '@nostr-dev-kit/ndk';
+import { resetAllData } from '@/src/lib/storage';
+
+/** Sanitize a relay URL into a safe testid fragment */
+function relayTestId(url: string): string {
+  return url.replace(/[^a-zA-Z0-9]/g, '-');
+}
+
+/** Map NDK relay status enum values to a display label category */
+function relayStatusLabel(
+  status: NDKRelayStatus | undefined,
+  copy: { statusConnected: string; statusConnecting: string; statusDisconnected: string },
+): { label: string; colorScheme: string } {
+  if (status === NDKRelayStatus.CONNECTED) {
+    return { label: copy.statusConnected, colorScheme: 'green' };
+  }
+  if (status === NDKRelayStatus.CONNECTING || status === NDKRelayStatus.RECONNECTING) {
+    return { label: copy.statusConnecting, colorScheme: 'yellow' };
+  }
+  return { label: copy.statusDisconnected, colorScheme: 'gray' };
+}
 
 export default function SettingsPage() {
   const copy = useCopy();
-  const { npub, privateKeyHex, seedHex, backedUp, hydrated: identityHydrated, replaceIdentity } = useNostrIdentity();
+  const {
+    npub,
+    privateKeyHex,
+    seedHex,
+    backedUp,
+    hydrated: identityHydrated,
+    replaceIdentity,
+    isLocalMode,
+    signerMode,
+    signerAvailable,
+    signerError,
+    signerReconnecting,
+    initNostrConnect,
+    confirmNostrConnect,
+    connectBunkerUri,
+    disconnectBunker,
+    connectNip07,
+    disconnectNip07,
+  } = useNostrIdentity();
   const { profile: savedProfile, saveProfile } = useProfile();
+  const { republishDiscoverability } = useMarmot();
   const ownQrDisclosure = useDisclosure();
+  const advancedDisclosure = useDisclosure();
+  const wipeDisclosure = useDisclosure();
   const toast = useToast();
   const [npubCopied, setNpubCopied] = useState(false);
+  const [wipeConfirmInput, setWipeConfirmInput] = useState('');
+
+  // --- Relay management state ---
+  const [relayList, setRelayList] = useState<string[]>(() => getEffectiveRelays());
+  const [relayStatuses, setRelayStatuses] = useState<Record<string, NDKRelayStatus | undefined>>({});
+  const [addRelayInput, setAddRelayInput] = useState('');
+  const [addRelayError, setAddRelayError] = useState<string | null>(null);
+  const [removeRelayError, setRemoveRelayError] = useState<string | null>(null);
+  const prevRelayListRef = useRef<string[]>(relayList);
+
+  // Poll relay statuses every 2 seconds when advanced section is open
+  useEffect(() => {
+    if (!advancedDisclosure.isOpen) return;
+    function pollStatuses() {
+      const ndk = getNdk();
+      if (!ndk) return;
+      const statuses: Record<string, NDKRelayStatus | undefined> = {};
+      for (const url of relayList) {
+        const relay = ndk.pool.relays.get(url);
+        statuses[url] = relay?.status;
+      }
+      setRelayStatuses(statuses);
+    }
+    pollStatuses();
+    const id = setInterval(pollStatuses, 2000);
+    return () => clearInterval(id);
+  }, [advancedDisclosure.isOpen, relayList]);
+
+  const handleAddRelay = useCallback(() => {
+    setAddRelayError(null);
+    const url = addRelayInput.trim();
+    if (!isValidRelayUrl(url)) {
+      setAddRelayError(copy.advanced.relays.invalidUrlError);
+      return;
+    }
+    if (relayList.includes(url)) {
+      setAddRelayError(copy.advanced.relays.duplicateUrlError);
+      return;
+    }
+    setRelayList((prev) => [...prev, url]);
+    setAddRelayInput('');
+  }, [addRelayInput, relayList, copy.advanced.relays]);
+
+  const handleRemoveRelay = useCallback((url: string) => {
+    setRemoveRelayError(null);
+    if (relayList.length <= 1) {
+      setRemoveRelayError(copy.advanced.relays.lastRelayError);
+      return;
+    }
+    setRelayList((prev) => prev.filter((r) => r !== url));
+  }, [relayList, copy.advanced.relays]);
+
+  const handleResetRelays = useCallback(() => {
+    setAddRelayError(null);
+    setRemoveRelayError(null);
+    setRelayList([...DEFAULT_RELAYS]);
+  }, []);
+
+  const handleSaveRelays = useCallback(async () => {
+    const previous = prevRelayListRef.current;
+    const next = relayList;
+    saveRelays(next);
+    applyRelayChangesToPool(previous, next);
+    prevRelayListRef.current = next;
+    await republishDiscoverability(next).catch((err) =>
+      console.warn('[Settings] republishDiscoverability failed:', err),
+    );
+    toast({
+      title: copy.advanced.relays.savedSuccess,
+      status: 'success',
+      duration: 3000,
+      isClosable: true,
+    });
+  }, [relayList, republishDiscoverability, toast, copy.advanced.relays.savedSuccess]);
 
   // Backup flow state
   const [mnemonic, setMnemonic] = useState<string | null>(null);
@@ -56,6 +180,118 @@ export default function SettingsPage() {
   // Relay backup restore state
   const [pendingBackupPayload, setPendingBackupPayload] = useState<import('@/src/lib/backup/relayBackup').BackupPayload | null>(null);
   const backupRestoreDisclosure = useDisclosure();
+
+  // NIP-07 browser extension UI state
+  const [nip07Connecting, setNip07Connecting] = useState(false);
+  const [nip07ConnectError, setNip07ConnectError] = useState<string | null>(null);
+
+  // NIP-46 remote signer UI state
+  const [nip46ConnectMethod, setNip46ConnectMethod] = useState<'qr' | 'paste' | null>(null);
+  const [nip46Relay, setNip46Relay] = useState('wss://relay.nsec.app');
+  const [nip46QrDataUrl, setNip46QrDataUrl] = useState<string | null>(null);
+  const [nip46QrUri, setNip46QrUri] = useState<string | null>(null);
+  const [nip46QrLoading, setNip46QrLoading] = useState(false);
+  const [nip46PasteUri, setNip46PasteUri] = useState('');
+  const [nip46Connecting, setNip46Connecting] = useState(false);
+  const [nip46ConnectError, setNip46ConnectError] = useState<string | null>(null);
+
+  const handleGenerateNip46QR = useCallback(async () => {
+    setNip46QrLoading(true);
+    setNip46ConnectError(null);
+    try {
+      const { connectUri } = await initNostrConnect(nip46Relay);
+      if (!connectUri) throw new Error('no_uri');
+      setNip46QrUri(connectUri);
+      // Render QR code as data URL
+      const qrcode = await import('qrcode');
+      const dataUrl = await qrcode.default.toDataURL(connectUri, { width: 256, margin: 1 });
+      setNip46QrDataUrl(dataUrl);
+    } catch {
+      setNip46ConnectError(copy.advanced.nip46.errorUnreachable);
+    } finally {
+      setNip46QrLoading(false);
+    }
+  }, [initNostrConnect, nip46Relay, copy.advanced.nip46.errorUnreachable]);
+
+  const handleNip46CopyUri = useCallback(async () => {
+    if (!nip46QrUri) return;
+    try {
+      await navigator.clipboard.writeText(nip46QrUri);
+    } catch {
+      // Silently fail
+    }
+  }, [nip46QrUri]);
+
+  const handleConfirmNostrConnect = useCallback(async () => {
+    setNip46Connecting(true);
+    setNip46ConnectError(null);
+    try {
+      await confirmNostrConnect();
+      setNip46ConnectMethod(null);
+      setNip46QrDataUrl(null);
+      setNip46QrUri(null);
+    } catch {
+      setNip46ConnectError(copy.advanced.nip46.errorUnreachable);
+    } finally {
+      setNip46Connecting(false);
+    }
+  }, [confirmNostrConnect, copy.advanced.nip46.errorUnreachable]);
+
+  const handleConnectBunkerUri = useCallback(async () => {
+    if (!nip46PasteUri.trim()) return;
+    setNip46Connecting(true);
+    setNip46ConnectError(null);
+    try {
+      await connectBunkerUri(nip46PasteUri.trim());
+      setNip46ConnectMethod(null);
+      setNip46PasteUri('');
+    } catch {
+      setNip46ConnectError(copy.advanced.nip46.errorUnreachable);
+    } finally {
+      setNip46Connecting(false);
+    }
+  }, [connectBunkerUri, nip46PasteUri, copy.advanced.nip46.errorUnreachable]);
+
+  const handleDisconnectBunker = useCallback(() => {
+    disconnectBunker();
+    setNip46ConnectMethod(null);
+    setNip46ConnectError(null);
+    setNip46QrDataUrl(null);
+    setNip46QrUri(null);
+  }, [disconnectBunker]);
+
+  const handleRetryNip46 = useCallback(() => {
+    setNip46ConnectMethod(null);
+    setNip46ConnectError(null);
+    setNip46QrDataUrl(null);
+    setNip46QrUri(null);
+    setNip46PasteUri('');
+  }, []);
+
+  const handleConnectNip07 = useCallback(async () => {
+    setNip07Connecting(true);
+    setNip07ConnectError(null);
+    try {
+      await connectNip07();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'unknown_error';
+      // Surface the NIP-44 missing error with the dedicated copy key
+      if (msg.includes('NIP-44')) {
+        setNip07ConnectError(copy.advanced.nip07.nip44MissingError);
+      } else if (msg.includes('No browser extension')) {
+        setNip07ConnectError(copy.advanced.nip07.noExtensionError);
+      } else {
+        setNip07ConnectError(copy.advanced.nip07.reconnectError);
+      }
+    } finally {
+      setNip07Connecting(false);
+    }
+  }, [connectNip07, copy.advanced.nip07]);
+
+  const handleDisconnectNip07 = useCallback(() => {
+    disconnectNip07();
+    setNip07ConnectError(null);
+  }, [disconnectNip07]);
 
   const handleCopyNpub = useCallback(async () => {
     if (!npub) return;
@@ -289,122 +525,595 @@ export default function SettingsPage() {
                   qrErrorMessage={copy.identity.qrGenerationError}
                 />
 
-                {/* Backup Section */}
-                <Box>
-                  <Heading as="h3" size="sm" mb={1}>
-                    {copy.identity.backupHeading}
-                  </Heading>
-                  <Text fontSize="sm" color="textMuted" mb={3}>
-                    {copy.identity.backupDescription}
-                  </Text>
+                {/* Backup Section — only shown in local signer mode */}
+                {isLocalMode && (
+                  <Box>
+                    <Heading as="h3" size="sm" mb={1}>
+                      {copy.identity.backupHeading}
+                    </Heading>
+                    <Text fontSize="sm" color="textMuted" mb={3}>
+                      {copy.identity.backupDescription}
+                    </Text>
 
-                  {backupDone && !mnemonic && (
-                    <Alert status="success" borderRadius="md" mb={3} size="sm">
-                      <AlertIcon />
-                      <AlertDescription fontSize="sm">{copy.identity.backupDone}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  {!mnemonic && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void handleGeneratePhrase()}
-                      isLoading={backupLoading}
-                      data-testid="generate-backup-phrase-btn"
-                    >
-                      {copy.identity.generatePhrase}
-                    </Button>
-                  )}
-
-                  {mnemonic && (
-                    <VStack align="stretch" spacing={3}>
-                      <Alert status="warning" borderRadius="md">
+                    {backupDone && !mnemonic && (
+                      <Alert status="success" borderRadius="md" mb={3} size="sm">
                         <AlertIcon />
-                        <AlertDescription fontSize="sm">{copy.identity.backupWarning}</AlertDescription>
+                        <AlertDescription fontSize="sm">{copy.identity.backupDone}</AlertDescription>
                       </Alert>
-                      <Code
-                        p={4}
-                        borderRadius="md"
-                        fontSize="md"
-                        whiteSpace="pre-wrap"
-                        wordBreak="break-word"
-                        bg="surfaceMutedBg"
-                        data-testid="mnemonic-display"
-                      >
-                        {mnemonic}
-                      </Code>
-                      <Checkbox
-                        isChecked={backupConfirmed}
-                        onChange={(e) => setBackupConfirmed(e.target.checked)}
-                        data-testid="backup-confirm-checkbox"
-                      >
-                        <Text fontSize="sm">{copy.identity.backupConfirmCheck}</Text>
-                      </Checkbox>
+                    )}
+
+                    {!mnemonic && (
                       <Button
                         size="sm"
-                        isDisabled={!backupConfirmed}
-                        onClick={handleConfirmBackup}
-                        data-testid="backup-done-btn"
+                        variant="outline"
+                        onClick={() => void handleGeneratePhrase()}
+                        isLoading={backupLoading}
+                        data-testid="generate-backup-phrase-btn"
                       >
-                        Done
+                        {copy.identity.generatePhrase}
+                      </Button>
+                    )}
+
+                    {mnemonic && (
+                      <VStack align="stretch" spacing={3}>
+                        <Alert status="warning" borderRadius="md">
+                          <AlertIcon />
+                          <AlertDescription fontSize="sm">{copy.identity.backupWarning}</AlertDescription>
+                        </Alert>
+                        <Code
+                          p={4}
+                          borderRadius="md"
+                          fontSize="md"
+                          whiteSpace="pre-wrap"
+                          wordBreak="break-word"
+                          bg="surfaceMutedBg"
+                          data-testid="mnemonic-display"
+                        >
+                          {mnemonic}
+                        </Code>
+                        <Checkbox
+                          isChecked={backupConfirmed}
+                          onChange={(e) => setBackupConfirmed(e.target.checked)}
+                          data-testid="backup-confirm-checkbox"
+                        >
+                          <Text fontSize="sm">{copy.identity.backupConfirmCheck}</Text>
+                        </Checkbox>
+                        <Button
+                          size="sm"
+                          isDisabled={!backupConfirmed}
+                          onClick={handleConfirmBackup}
+                          data-testid="backup-done-btn"
+                        >
+                          Done
+                        </Button>
+                      </VStack>
+                    )}
+                  </Box>
+                )}
+
+                {/* Restore Section — only shown in local signer mode */}
+                {isLocalMode && (
+                  <Box>
+                    <Heading as="h3" size="sm" mb={1}>
+                      {copy.identity.restoreHeading}
+                    </Heading>
+                    <Text fontSize="sm" color="textMuted" mb={3}>
+                      {copy.identity.restoreDescription}
+                    </Text>
+
+                    {restoreSuccess && (
+                      <Alert status="success" borderRadius="md" mb={3}>
+                        <AlertIcon />
+                        <AlertDescription fontSize="sm">{copy.identity.restoreSuccess}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    {restoreError && (
+                      <Alert status="error" borderRadius="md" mb={3}>
+                        <AlertIcon />
+                        <AlertDescription fontSize="sm">{restoreError}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    <VStack align="stretch" spacing={2}>
+                      <Textarea
+                        value={restoreInput}
+                        onChange={(e) => setRestoreInput(e.target.value)}
+                        placeholder={copy.identity.restoreInput}
+                        rows={3}
+                        bg="surfaceBg"
+                        fontSize="sm"
+                        data-testid="restore-phrase-input"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        colorScheme="danger"
+                        onClick={() => void handleRestore()}
+                        isLoading={restoreLoading}
+                        isDisabled={restoreInput.trim().split(/\s+/).length < 12}
+                        data-testid="restore-identity-btn"
+                      >
+                        {copy.identity.restoreButton}
                       </Button>
                     </VStack>
-                  )}
-                </Box>
-
-                {/* Restore Section */}
-                <Box>
-                  <Heading as="h3" size="sm" mb={1}>
-                    {copy.identity.restoreHeading}
-                  </Heading>
-                  <Text fontSize="sm" color="textMuted" mb={3}>
-                    {copy.identity.restoreDescription}
-                  </Text>
-
-                  {restoreSuccess && (
-                    <Alert status="success" borderRadius="md" mb={3}>
-                      <AlertIcon />
-                      <AlertDescription fontSize="sm">{copy.identity.restoreSuccess}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  {restoreError && (
-                    <Alert status="error" borderRadius="md" mb={3}>
-                      <AlertIcon />
-                      <AlertDescription fontSize="sm">{restoreError}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  <VStack align="stretch" spacing={2}>
-                    <Textarea
-                      value={restoreInput}
-                      onChange={(e) => setRestoreInput(e.target.value)}
-                      placeholder={copy.identity.restoreInput}
-                      rows={3}
-                      bg="surfaceBg"
-                      fontSize="sm"
-                      data-testid="restore-phrase-input"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      colorScheme="danger"
-                      onClick={() => void handleRestore()}
-                      isLoading={restoreLoading}
-                      isDisabled={restoreInput.trim().split(/\s+/).length < 12}
-                      data-testid="restore-identity-btn"
-                    >
-                      {copy.identity.restoreButton}
-                    </Button>
-                  </VStack>
-                </Box>
+                  </Box>
+                )}
               </VStack>
             ) : (
               <Text fontSize="sm" color="textMuted">
                 {copy.identity.notReady}
               </Text>
             )}
+          </Box>
+
+          {/* Advanced Settings Section */}
+          <Box>
+            <HStack justify="space-between" align="center">
+              <Heading as="h2" size="md">
+                {copy.advanced.sectionTitle}
+              </Heading>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={advancedDisclosure.onToggle}
+                data-testid="advanced-settings-toggle"
+              >
+                {advancedDisclosure.isOpen
+                  ? copy.advanced.toggleCollapse
+                  : copy.advanced.toggleExpand}
+              </Button>
+            </HStack>
+            <Collapse in={advancedDisclosure.isOpen} animateOpacity>
+              <Box pt={4}>
+                {/* Relay management */}
+                <Heading as="h3" size="sm" mb={3}>
+                  {copy.advanced.relays.sectionTitle}
+                </Heading>
+                <Text fontSize="sm" color="textMuted" mb={3}>
+                  {copy.advanced.relays.discoverabilityNote}
+                </Text>
+
+                {removeRelayError && (
+                  <Alert status="error" borderRadius="md" mb={3} size="sm">
+                    <AlertIcon />
+                    <AlertDescription fontSize="sm">{removeRelayError}</AlertDescription>
+                  </Alert>
+                )}
+
+                <VStack
+                  align="stretch"
+                  spacing={2}
+                  mb={3}
+                  data-testid="relay-list"
+                >
+                  {relayList.map((url) => {
+                    const { label, colorScheme } = relayStatusLabel(
+                      relayStatuses[url],
+                      copy.advanced.relays,
+                    );
+                    return (
+                      <HStack
+                        key={url}
+                        justify="space-between"
+                        data-testid={`relay-row-${relayTestId(url)}`}
+                        bg="surfaceMutedBg"
+                        px={3}
+                        py={2}
+                        borderRadius="md"
+                        flexWrap="wrap"
+                        gap={2}
+                      >
+                        <Text fontSize="sm" wordBreak="break-all" flex="1">
+                          {url}
+                        </Text>
+                        <Badge colorScheme={colorScheme} fontSize="xs">
+                          {label}
+                        </Badge>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          colorScheme="danger"
+                          onClick={() => handleRemoveRelay(url)}
+                          data-testid={`remove-relay-btn-${relayTestId(url)}`}
+                        >
+                          {copy.advanced.relays.removeBtn}
+                        </Button>
+                      </HStack>
+                    );
+                  })}
+                </VStack>
+
+                {/* Add relay input */}
+                <HStack mb={1}>
+                  <Input
+                    value={addRelayInput}
+                    onChange={(e) => {
+                      setAddRelayInput(e.target.value);
+                      setAddRelayError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddRelay();
+                    }}
+                    placeholder={copy.advanced.relays.addPlaceholder}
+                    size="sm"
+                    bg="surfaceBg"
+                    data-testid="add-relay-input"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAddRelay}
+                    data-testid="add-relay-btn"
+                    flexShrink={0}
+                  >
+                    {copy.advanced.relays.addBtn}
+                  </Button>
+                </HStack>
+                {addRelayError && (
+                  <Text fontSize="sm" color="red.500" mb={2}>
+                    {addRelayError}
+                  </Text>
+                )}
+
+                <HStack mt={3} spacing={2}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleResetRelays}
+                    data-testid="reset-relays-btn"
+                  >
+                    {copy.advanced.relays.resetBtn}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => void handleSaveRelays()}
+                    data-testid="save-relays-btn"
+                  >
+                    {copy.advanced.relays.saveBtn}
+                  </Button>
+                </HStack>
+
+                {/* NIP-46 Remote Signer */}
+                <Box mt={6} pt={4} borderTop="1px solid" borderColor="borderSubtle">
+                  <Heading as="h3" size="sm" mb={2}>
+                    {copy.advanced.nip46.sectionTitle}
+                  </Heading>
+
+                  {signerMode !== 'nip46' ? (
+                    /* Local mode: show connect options */
+                    <VStack align="stretch" spacing={3}>
+                      <Text fontSize="sm" color="textMuted">
+                        {copy.advanced.nip46.description}
+                      </Text>
+                      <VStack align="stretch" spacing={1} fontSize="sm" color="textMuted">
+                        <Text>• {copy.advanced.nip46.disclosureGroupFast}</Text>
+                        <Text>• {copy.advanced.nip46.disclosureIdentityLeaves}</Text>
+                        <Text>• {copy.advanced.nip46.disclosureDmSlow}</Text>
+                      </VStack>
+
+                      {nip46ConnectError && (
+                        <Alert status="error" borderRadius="md" size="sm">
+                          <AlertIcon />
+                          <AlertDescription fontSize="sm">{nip46ConnectError}</AlertDescription>
+                        </Alert>
+                      )}
+
+                      {nip46ConnectMethod === null && (
+                        <HStack spacing={2} flexWrap="wrap">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setNip46ConnectMethod('qr')}
+                            data-testid="nip46-connect-qr-btn"
+                          >
+                            {copy.advanced.nip46.connectQrBtn}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setNip46ConnectMethod('paste')}
+                            data-testid="nip46-connect-paste-btn"
+                          >
+                            {copy.advanced.nip46.connectPasteBtn}
+                          </Button>
+                        </HStack>
+                      )}
+
+                      {nip46ConnectMethod === 'qr' && (
+                        <VStack align="stretch" spacing={3}>
+                          <Box>
+                            <Text fontSize="sm" mb={1}>{copy.advanced.nip46.relayInputLabel}</Text>
+                            <Input
+                              value={nip46Relay}
+                              onChange={(e) => setNip46Relay(e.target.value)}
+                              placeholder={copy.advanced.nip46.relayInputPlaceholder}
+                              size="sm"
+                              bg="surfaceBg"
+                              data-testid="nip46-relay-input"
+                            />
+                          </Box>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void handleGenerateNip46QR()}
+                            isLoading={nip46QrLoading}
+                            data-testid="nip46-generate-qr-btn"
+                          >
+                            {copy.advanced.nip46.generateQrBtn}
+                          </Button>
+                          {nip46QrDataUrl && (
+                            <VStack align="stretch" spacing={2}>
+                              <Image
+                                src={nip46QrDataUrl}
+                                alt="nostrconnect QR code"
+                                maxW="256px"
+                                data-testid="nip46-qr-image"
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => void handleNip46CopyUri()}
+                                data-testid="nip46-copy-uri-btn"
+                              >
+                                Copy URI
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => void handleConfirmNostrConnect()}
+                                isLoading={nip46Connecting}
+                                data-testid="nip46-confirm-connect-btn"
+                              >
+                                {copy.advanced.nip46.confirmConnectBtn}
+                              </Button>
+                            </VStack>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => { setNip46ConnectMethod(null); setNip46QrDataUrl(null); setNip46QrUri(null); setNip46ConnectError(null); }}
+                            data-testid="nip46-cancel-btn"
+                          >
+                            {copy.advanced.dangerZone.wipeCancel}
+                          </Button>
+                        </VStack>
+                      )}
+
+                      {nip46ConnectMethod === 'paste' && (
+                        <VStack align="stretch" spacing={3}>
+                          <Box>
+                            <Text fontSize="sm" mb={1}>{copy.advanced.nip46.pasteUriLabel}</Text>
+                            <Textarea
+                              value={nip46PasteUri}
+                              onChange={(e) => setNip46PasteUri(e.target.value)}
+                              placeholder={copy.advanced.nip46.pasteUriPlaceholder}
+                              rows={3}
+                              size="sm"
+                              bg="surfaceBg"
+                              data-testid="nip46-paste-uri-input"
+                            />
+                          </Box>
+                          <HStack spacing={2}>
+                            <Button
+                              size="sm"
+                              onClick={() => void handleConnectBunkerUri()}
+                              isLoading={nip46Connecting}
+                              isDisabled={!nip46PasteUri.trim()}
+                              data-testid="nip46-connect-bunker-btn"
+                            >
+                              {copy.advanced.nip46.connectBtn}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => { setNip46ConnectMethod(null); setNip46PasteUri(''); setNip46ConnectError(null); }}
+                            >
+                              {copy.advanced.dangerZone.wipeCancel}
+                            </Button>
+                          </HStack>
+                        </VStack>
+                      )}
+                    </VStack>
+                  ) : (
+                    /* NIP-46 mode: show connected state */
+                    <VStack align="stretch" spacing={3}>
+                      {signerReconnecting ? (
+                        <HStack>
+                          <Spinner size="sm" />
+                          <Text fontSize="sm">{copy.advanced.nip46.reconnecting}</Text>
+                        </HStack>
+                      ) : signerError ? (
+                        <VStack align="stretch" spacing={2}>
+                          <Alert status="warning" borderRadius="md" size="sm">
+                            <AlertIcon />
+                            <AlertDescription fontSize="sm">
+                              {copy.advanced.nip46.errorUnreachable}
+                            </AlertDescription>
+                          </Alert>
+                          <HStack spacing={2}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleRetryNip46}
+                              data-testid="nip46-retry-btn"
+                            >
+                              {copy.advanced.nip46.retryBtn}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleDisconnectBunker}
+                              data-testid="nip46-disconnect-btn"
+                            >
+                              {copy.advanced.nip46.disconnect}
+                            </Button>
+                          </HStack>
+                        </VStack>
+                      ) : (
+                        <VStack align="stretch" spacing={2}>
+                          <Text fontSize="sm" color="green.500">
+                            {copy.advanced.nip46.connected}
+                          </Text>
+                          {npub && (
+                            <Text fontSize="sm" color="textMuted">
+                              {copy.advanced.nip46.connectedAs}{' '}
+                              <Code fontSize="xs">{truncateNpub(npub)}</Code>
+                            </Text>
+                          )}
+                          {!signerAvailable && (
+                            <Alert status="warning" borderRadius="md" size="sm">
+                              <AlertIcon />
+                              <AlertDescription fontSize="sm">
+                                {copy.advanced.nip46.signerUnavailable}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            colorScheme="danger"
+                            onClick={handleDisconnectBunker}
+                            data-testid="nip46-disconnect-btn"
+                          >
+                            {copy.advanced.nip46.disconnect}
+                          </Button>
+                        </VStack>
+                      )}
+                    </VStack>
+                  )}
+                </Box>
+
+                {/* NIP-07 Browser Extension */}
+                <Box mt={6} pt={4} borderTop="1px solid" borderColor="borderSubtle">
+                  <Heading as="h3" size="sm" mb={2}>
+                    {copy.advanced.nip07.sectionTitle}
+                  </Heading>
+
+                  {signerMode !== 'nip07' ? (
+                    /* Not in nip07 mode: show connect option */
+                    <VStack align="stretch" spacing={3}>
+                      <Text fontSize="sm" color="textMuted">
+                        {copy.advanced.nip07.description}
+                      </Text>
+
+                      {nip07ConnectError && (
+                        <Alert
+                          status="error"
+                          borderRadius="md"
+                          size="sm"
+                          data-testid={
+                            nip07ConnectError === copy.advanced.nip07.nip44MissingError
+                              ? 'nip07-nip44-error'
+                              : undefined
+                          }
+                        >
+                          <AlertIcon />
+                          <AlertDescription fontSize="sm">{nip07ConnectError}</AlertDescription>
+                        </Alert>
+                      )}
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleConnectNip07()}
+                        isLoading={nip07Connecting}
+                        loadingText={copy.advanced.nip07.connecting}
+                        data-testid="nip07-connect-btn"
+                      >
+                        {copy.advanced.nip07.connectBtn}
+                      </Button>
+                    </VStack>
+                  ) : (
+                    /* nip07 mode: show connected state */
+                    <VStack align="stretch" spacing={2}>
+                      <Text fontSize="sm" color="green.500">
+                        {copy.advanced.nip07.connected}
+                      </Text>
+                      {npub && (
+                        <Text fontSize="sm" color="textMuted">
+                          {copy.advanced.nip07.connectedAs}{' '}
+                          <Code fontSize="xs">{truncateNpub(npub)}</Code>
+                        </Text>
+                      )}
+                      {signerError === 'nip07_unavailable' && (
+                        <Alert status="warning" borderRadius="md" size="sm">
+                          <AlertIcon />
+                          <AlertDescription fontSize="sm">
+                            {copy.advanced.nip07.reconnectError}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        colorScheme="danger"
+                        onClick={handleDisconnectNip07}
+                        data-testid="nip07-disconnect-btn"
+                      >
+                        {copy.advanced.nip07.disconnect}
+                      </Button>
+                    </VStack>
+                  )}
+                </Box>
+
+                {/* Danger Zone */}
+                <Box mt={6} pt={4} borderTop="1px solid" borderColor="red.200">
+                  <Heading as="h3" size="sm" mb={2} color="red.500">
+                    {copy.advanced.dangerZone.title}
+                  </Heading>
+                  <Text fontSize="sm" color="textMuted" mb={3}>
+                    {copy.advanced.dangerZone.wipeWarning}
+                  </Text>
+
+                  {!wipeDisclosure.isOpen ? (
+                    <Button
+                      size="sm"
+                      colorScheme="red"
+                      variant="outline"
+                      onClick={wipeDisclosure.onOpen}
+                      data-testid="danger-zone-wipe-btn"
+                    >
+                      {copy.advanced.dangerZone.wipeBtn}
+                    </Button>
+                  ) : (
+                    <VStack align="stretch" spacing={2}>
+                      <Input
+                        value={wipeConfirmInput}
+                        onChange={(e) => setWipeConfirmInput(e.target.value)}
+                        placeholder={copy.advanced.dangerZone.wipeConfirmPrompt}
+                        size="sm"
+                        bg="surfaceBg"
+                        data-testid="danger-zone-confirm-input"
+                      />
+                      <HStack spacing={2}>
+                        <Button
+                          size="sm"
+                          colorScheme="red"
+                          isDisabled={wipeConfirmInput !== copy.advanced.dangerZone.wipeConfirmWord}
+                          onClick={() => {
+                            resetAllData();
+                            window.location.reload();
+                          }}
+                          data-testid="danger-zone-confirm-btn"
+                        >
+                          {copy.advanced.dangerZone.wipeConfirmBtn}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            wipeDisclosure.onClose();
+                            setWipeConfirmInput('');
+                          }}
+                        >
+                          {copy.advanced.dangerZone.wipeCancel}
+                        </Button>
+                      </HStack>
+                    </VStack>
+                  )}
+                </Box>
+              </Box>
+            </Collapse>
           </Box>
         </VStack>
       </Box>

@@ -1,0 +1,79 @@
+{
+  "epic": "advanced-settings",
+  "synthesized_from": ["base:spec-validator", "base:code-explorer x2"],
+  "architecture": {
+    "paradigm": "layered: Context tier (React) → Lib tier (pure TS) → Data tier (localStorage + IDB)",
+    "key_constraint": "MarmotClient signer is constructor-only — signer mode switch requires full MarmotContext re-init via the existing privateKeyHex effect dependency",
+    "seams": {
+      "identity": "NostrIdentityContext owns pubkeyHex, npub, signerMode, backedUp. Must be extended to hold mode ('local'|'nip46'|'nip07') in state + lp_signerMode_v1. In non-local mode holds no privateKeyHex.",
+      "ndk_signer": "ndkClient.ts:applySigner() currently private, hex-only. Must be extended to accept NDKNip46Signer | NDKNip07Signer | hex string. Or new applyNdkSigner(signer: NDKSigner) overload.",
+      "marmot_signer": "signerAdapter.ts:createPrivateKeySigner(hex) returns EventSigner for marmot. New factories needed: createNip46EventSigner(ndkNip46) and createNip07EventSigner(ndkNip07). Both must expose .nip44 = { encrypt, decrypt } using pubkey-hex args.",
+      "relay_list": "New getEffectiveRelays() helper reads lp_relays_v1 from localStorage, falls back to DEFAULT_RELAYS. All 7+ MarmotContext + 3 NdkNetworkAdapter + 4 relayBackup DEFAULT_RELAYS usages route through this helper."
+    }
+  },
+  "files_to_create": [
+    "app/src/lib/marmot/signerAdapter.ts → extend with createNip46EventSigner, createNip07EventSigner",
+    "app/src/lib/relay.ts → getEffectiveRelays(), saveRelays(), applyRelayChangesToNdkPool()"
+  ],
+  "files_to_modify": [
+    "app/src/types/index.ts — add lp_relays_v1, lp_signerMode_v1, lp_nip46Session_v1 to STORAGE_KEYS",
+    "app/src/context/NostrIdentityContext.tsx — add signerMode state + persistence",
+    "app/src/lib/ndkClient.ts — add applyNdkSigner(signer) alongside existing applySigner(hex)",
+    "app/src/context/MarmotContext.tsx — route DEFAULT_RELAYS → getEffectiveRelays(); extend init effect to watch signerMode",
+    "app/src/lib/marmot/NdkNetworkAdapter.ts — route DEFAULT_RELAYS → getEffectiveRelays()",
+    "app/src/lib/backup/relayBackup.ts — route DEFAULT_RELAYS → getEffectiveRelays()",
+    "app/pages/settings.tsx — add Advanced collapsible section",
+    "app/src/lib/i18n.ts — add advanced sub-key with en+de strings"
+  ],
+  "story_sequence": [
+    {
+      "id": "01",
+      "title": "Foundation: storage keys, relay helper, Advanced section shell",
+      "module_ownership": ["app/src/types/index.ts", "app/src/lib/relay.ts", "app/pages/settings.tsx (Advanced toggle only)", "app/src/lib/i18n.ts (advanced section header)"],
+      "acs": ["AC-GATE-1", "AC-I18N-1 (partial)"]
+    },
+    {
+      "id": "02",
+      "title": "Relay management UI + live pool apply",
+      "module_ownership": ["app/pages/settings.tsx (relay section)", "app/src/lib/relay.ts", "app/src/lib/ndkClient.ts (pool update)", "app/src/context/MarmotContext.tsx (DEFAULT_RELAYS→getEffectiveRelays)", "app/src/lib/marmot/NdkNetworkAdapter.ts", "app/src/lib/backup/relayBackup.ts"],
+      "acs": ["AC-RELAY-1", "AC-RELAY-2", "AC-RELAY-3", "AC-RELAY-4", "AC-RELAY-5", "AC-RELAY-6", "AC-RELAY-7", "AC-RELAY-8", "AC-RELAY-9"]
+    },
+    {
+      "id": "03",
+      "title": "Identity/signing split: signer mode state + local-key gating",
+      "module_ownership": ["app/src/context/NostrIdentityContext.tsx", "app/src/lib/marmot/signerAdapter.ts (factories)", "app/src/lib/ndkClient.ts (applyNdkSigner)"],
+      "acs": ["AC-SIGNER-1", "AC-SIGNER-10", "AC-OTHER-1 (danger-zone wipe)"]
+    },
+    {
+      "id": "04",
+      "title": "NIP-46 bunker connect",
+      "module_ownership": ["app/pages/settings.tsx (bunker section)", "app/src/context/NostrIdentityContext.tsx (nip46 flow)", "app/src/context/MarmotContext.tsx (re-init on mode change)"],
+      "acs": ["AC-SIGNER-2", "AC-SIGNER-3", "AC-SIGNER-4", "AC-SIGNER-4b", "AC-SIGNER-5", "AC-SIGNER-6", "AC-SIGNER-7", "AC-SIGNER-8", "AC-SIGNER-9"]
+    },
+    {
+      "id": "05",
+      "title": "NIP-07 extension signer",
+      "module_ownership": ["app/pages/settings.tsx (nip07 section)", "app/src/lib/marmot/signerAdapter.ts (createNip07EventSigner)"],
+      "acs": ["AC-OTHER-2", "AC-NIP07-1", "AC-NIP07-2"]
+    },
+    {
+      "id": "06",
+      "title": "E2E tests + i18n completeness + npub-only verification",
+      "module_ownership": ["app/tests/e2e/advanced-settings.spec.ts", "app/tests/unit/advanced-settings.i18n.test.ts"],
+      "acs": ["AC-NPUB-1", "AC-I18N-1 (complete)"]
+    }
+  ],
+  "ndk_adapter_pattern": {
+    "nip46": "createNip46EventSigner(signer: NDKNip46Signer): EventSigner → getPublicKey() delegates to signer.user.hexpubkey(); signEvent(draft) calls signer.sign(event); nip44.encrypt(pubkey, text) calls signer.encrypt(ndk.getUser({pubkey}), text, 'nip44'); nip44.decrypt mirrors encrypt",
+    "nip07": "createNip07EventSigner(signer: NDKNip07Signer): EventSigner → same shape; nip44.encrypt/decrypt delegates to window.nostr.nip44.encrypt/decrypt with hex pubkey args (window.nostr checked null-safe)",
+    "why": "applesauce-core EventSigner.nip44 expects (pubkeyHex: string, plaintext: string) => Promise<string>. NDK signers use NDKUser objects — translation required in both adapters."
+  },
+  "relay_update_strategy": {
+    "ndk_pool": "ndk.pool.addRelay(url, true) for new relays; ndk.pool.removeRelay(url) for removed. Also update ndk.explicitRelayUrls. Do NOT recreate NDK singleton.",
+    "marmot": "No marmot relay change needed — existing groups' relays are frozen. Only getEffectiveRelays() is swapped so future group creation uses the new list."
+  },
+  "dual_seam_atomicity": {
+    "mechanism": "MarmotContext init() effect already rebuilds MarmotClient when privateKeyHex changes. Adding signerMode to the effect's dependency array causes it to re-run on mode change. The effect sets ndk.signer AND constructs the marmot EventSigner in the same synchronous pass before any UI unblocks. This guarantees AC-SIGNER-10 without extra locking.",
+    "risk": "The effect runs asynchronously (async init()). During re-init, the UI must show a 'switching signer…' loading state that blocks all publish paths."
+  }
+}

@@ -333,6 +333,73 @@ type Copy = {
     composerPlaceholder: string;
     unavailableState: string;
   };
+  advanced: {
+    sectionTitle: string;
+    toggleExpand: string;
+    toggleCollapse: string;
+    relays: {
+      sectionTitle: string;
+      addPlaceholder: string;
+      addBtn: string;
+      removeBtn: string;
+      resetBtn: string;
+      saveBtn: string;
+      savedSuccess: string;
+      statusConnected: string;
+      statusConnecting: string;
+      statusDisconnected: string;
+      lastRelayError: string;
+      invalidUrlError: string;
+      duplicateUrlError: string;
+      discoverabilityNote: string;
+    };
+    dangerZone: {
+      title: string;
+      wipeBtn: string;
+      wipeConfirmPrompt: string;
+      wipeConfirmBtn: string;
+      wipeConfirmWord: string;
+      wipeCancel: string;
+      wipeWarning: string;
+    };
+    nip46: {
+      sectionTitle: string;
+      description: string;
+      disclosureGroupFast: string;
+      disclosureIdentityLeaves: string;
+      disclosureDmSlow: string;
+      connectQrBtn: string;
+      connectPasteBtn: string;
+      relayInputLabel: string;
+      relayInputPlaceholder: string;
+      generateQrBtn: string;
+      confirmConnectBtn: string;
+      pasteUriLabel: string;
+      pasteUriPlaceholder: string;
+      connectBtn: string;
+      connecting: string;
+      connected: string;
+      connectedAs: string;
+      reconnecting: string;
+      disconnect: string;
+      signerUnavailable: string;
+      retryBtn: string;
+      errorUnreachable: string;
+      authChallengeOpened: string;
+    };
+    nip07: {
+      sectionTitle: string;
+      description: string;
+      connectBtn: string;
+      connecting: string;
+      connected: string;
+      connectedAs: string;
+      disconnect: string;
+      noExtensionError: string;
+      nip44MissingError: string;
+      reconnectError: string;
+    };
+  };
 };
 
 export function normalizeLanguage(input?: string | null): LanguageCode {
@@ -692,6 +759,73 @@ const copy: Record<LanguageCode, Copy> = {
       composerPlaceholder: 'Describe a bug, suggest a feature, or say hello…',
       unavailableState: 'Feedback is currently unavailable.',
     },
+    advanced: {
+      sectionTitle: 'Advanced',
+      toggleExpand: 'Show advanced settings',
+      toggleCollapse: 'Hide advanced settings',
+      relays: {
+        sectionTitle: 'Relay servers',
+        addPlaceholder: 'wss://relay.example.com',
+        addBtn: 'Add',
+        removeBtn: 'Remove',
+        resetBtn: 'Reset to defaults',
+        saveBtn: 'Save',
+        savedSuccess: 'Relay list saved.',
+        statusConnected: 'Connected',
+        statusConnecting: 'Connecting',
+        statusDisconnected: 'Disconnected',
+        lastRelayError: 'At least one relay is required.',
+        invalidUrlError: 'Enter a valid wss:// or ws:// URL.',
+        duplicateUrlError: 'This relay is already in the list.',
+        discoverabilityNote: 'Existing groups\' relay lists are not changed.',
+      },
+      dangerZone: {
+        title: 'Danger Zone',
+        wipeBtn: 'Wipe this device',
+        wipeConfirmPrompt: 'Type WIPE to confirm',
+        wipeConfirmBtn: 'Confirm wipe',
+        wipeConfirmWord: 'WIPE',
+        wipeCancel: 'Cancel',
+        wipeWarning: 'This permanently clears your identity, all groups, and all message history from this device. This cannot be undone.',
+      },
+      nip46: {
+        sectionTitle: 'Remote Signer',
+        description: 'Connect a hardware signer, browser extension backend, or nsecBunker to keep your identity key off this device.',
+        disclosureGroupFast: 'Group messages stay fast — group keys are always local.',
+        disclosureIdentityLeaves: 'Your identity key will be held by the remote signer, not the browser.',
+        disclosureDmSlow: 'Direct message history and large group invites will be slower due to remote signing.',
+        connectQrBtn: 'Connect via QR / Deep link',
+        connectPasteBtn: 'Paste a bunker:// URI',
+        relayInputLabel: 'Rendezvous relay',
+        relayInputPlaceholder: 'wss://relay.nsec.app',
+        generateQrBtn: 'Generate QR',
+        confirmConnectBtn: "I've approved — Connect",
+        pasteUriLabel: 'Bunker URI',
+        pasteUriPlaceholder: 'bunker://...',
+        connectBtn: 'Connect',
+        connecting: 'Connecting…',
+        connected: 'Connected to remote signer',
+        connectedAs: 'Connected as',
+        reconnecting: 'Reconnecting to signer…',
+        disconnect: 'Disconnect',
+        signerUnavailable: 'Remote signer is unavailable. Publishing is paused.',
+        retryBtn: 'Retry',
+        errorUnreachable: 'Bunker unreachable. Check that your signer app is open and try again.',
+        authChallengeOpened: 'An authorisation page was opened in a new tab.',
+      },
+      nip07: {
+        sectionTitle: 'Browser Extension',
+        description: 'Sign with a browser extension (Alby, nos2x-fox). No network latency — the extension signs locally.',
+        connectBtn: 'Connect Extension',
+        connecting: 'Connecting to extension…',
+        connected: 'Connected to extension',
+        connectedAs: 'Signed in as',
+        disconnect: 'Disconnect',
+        noExtensionError: 'No Nostr extension found. Install Alby or nos2x-fox.',
+        nip44MissingError: 'This extension does not support NIP-44 encryption. Group features require NIP-44 (try Alby or nos2x-fox).',
+        reconnectError: 'Extension is unavailable. Please reconnect.',
+      },
+    },
   },
   de: {
     appName: 'Nostling',
@@ -1037,6 +1171,73 @@ const copy: Record<LanguageCode, Copy> = {
       encryptedSubtitle: 'Ende-zu-Ende verschlüsselt · nur das Team kann dies lesen',
       composerPlaceholder: 'Fehler beschreiben, Feature vorschlagen oder einfach hallo sagen…',
       unavailableState: 'Feedback ist momentan nicht verfügbar.',
+    },
+    advanced: {
+      sectionTitle: 'Erweitert',
+      toggleExpand: 'Erweiterte Einstellungen anzeigen',
+      toggleCollapse: 'Erweiterte Einstellungen ausblenden',
+      relays: {
+        sectionTitle: 'Relay-Server',
+        addPlaceholder: 'wss://relay.beispiel.de',
+        addBtn: 'Hinzufügen',
+        removeBtn: 'Entfernen',
+        resetBtn: 'Auf Standard zurücksetzen',
+        saveBtn: 'Speichern',
+        savedSuccess: 'Relay-Liste gespeichert.',
+        statusConnected: 'Verbunden',
+        statusConnecting: 'Verbinde …',
+        statusDisconnected: 'Getrennt',
+        lastRelayError: 'Mindestens ein Relay ist erforderlich.',
+        invalidUrlError: 'Bitte eine gültige wss:// oder ws://-URL eingeben.',
+        duplicateUrlError: 'Dieses Relay ist bereits in der Liste.',
+        discoverabilityNote: 'Relay-Listen bestehender Gruppen werden nicht geändert.',
+      },
+      dangerZone: {
+        title: 'Gefahrenzone',
+        wipeBtn: 'Dieses Gerät löschen',
+        wipeConfirmPrompt: 'Geben Sie WIPE ein, um zu bestätigen',
+        wipeConfirmBtn: 'Löschen bestätigen',
+        wipeConfirmWord: 'WIPE',
+        wipeCancel: 'Abbrechen',
+        wipeWarning: 'Hierdurch werden Ihre Identität, alle Gruppen und der gesamte Nachrichtenverlauf auf diesem Gerät dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.',
+      },
+      nip46: {
+        sectionTitle: 'Externer Signierer',
+        description: 'Verbinde einen Hardware-Signierer, eine Browser-Erweiterung oder nsecBunker, um deinen Identitätsschlüssel aus dem Browser zu halten.',
+        disclosureGroupFast: 'Gruppennachrichten bleiben schnell — Gruppenschlüssel sind immer lokal.',
+        disclosureIdentityLeaves: 'Dein Identitätsschlüssel wird vom externen Signierer gehalten, nicht im Browser.',
+        disclosureDmSlow: 'Direktnachrichten-Verlauf und große Gruppeneinladungen werden durch das externe Signieren langsamer.',
+        connectQrBtn: 'Per QR / Deep Link verbinden',
+        connectPasteBtn: 'bunker://-URI einfügen',
+        relayInputLabel: 'Rendezvous-Relay',
+        relayInputPlaceholder: 'wss://relay.nsec.app',
+        generateQrBtn: 'QR erstellen',
+        confirmConnectBtn: 'Genehmigt — Verbinden',
+        pasteUriLabel: 'Bunker-URI',
+        pasteUriPlaceholder: 'bunker://...',
+        connectBtn: 'Verbinden',
+        connecting: 'Verbinde …',
+        connected: 'Mit externem Signierer verbunden',
+        connectedAs: 'Verbunden als',
+        reconnecting: 'Verbindung zum Signierer wird wiederhergestellt …',
+        disconnect: 'Verbindung trennen',
+        signerUnavailable: 'Externer Signierer nicht verfügbar. Veröffentlichung pausiert.',
+        retryBtn: 'Erneut versuchen',
+        errorUnreachable: 'Bunker nicht erreichbar. Prüfe, ob deine Signierer-App geöffnet ist, und versuche es erneut.',
+        authChallengeOpened: 'Eine Autorisierungsseite wurde in einem neuen Tab geöffnet.',
+      },
+      nip07: {
+        sectionTitle: 'Browser-Erweiterung',
+        description: 'Signiere mit einer Browser-Erweiterung (Alby, nos2x-fox). Keine Netzwerklatenz — die Erweiterung signiert lokal.',
+        connectBtn: 'Erweiterung verbinden',
+        connecting: 'Verbinde mit Erweiterung …',
+        connected: 'Mit Erweiterung verbunden',
+        connectedAs: 'Angemeldet als',
+        disconnect: 'Verbindung trennen',
+        noExtensionError: 'Keine Nostr-Erweiterung gefunden. Installiere Alby oder nos2x-fox.',
+        nip44MissingError: 'Diese Erweiterung unterstützt keine NIP-44-Verschlüsselung. Gruppenfunktionen erfordern NIP-44 (versuche Alby oder nos2x-fox).',
+        reconnectError: 'Erweiterung nicht verfügbar. Bitte erneut verbinden.',
+      },
     },
   },
 };

@@ -16,7 +16,7 @@ import type {
 } from '@internet-privacy/marmot-ts';
 import type { NostrEvent } from 'applesauce-core/helpers/event';
 import type { Filter } from 'applesauce-core/helpers/filter';
-import { DEFAULT_RELAYS } from '@/src/types';
+import { getEffectiveRelays } from '@/src/lib/relay';
 
 // applesauce Filter -> NDK Filter shape is compatible, cast directly
 function toNdkFilter(filter: Filter | Filter[]): NDKFilter {
@@ -171,20 +171,20 @@ export class NdkNetworkAdapter implements NostrNetworkInterface {
       );
       // On timeout, fall back to DEFAULT_RELAYS rather than trusting an
       // incomplete relay list that may be missing entries.
-      if (timedOut) return [...DEFAULT_RELAYS];
+      if (timedOut) return getEffectiveRelays();
       const event = Array.from(events)[0];
-      // Fallback to DEFAULT_RELAYS: most users never publish kind 10051.
+      // Fallback to effective relays: most users never publish kind 10051.
       // Returning [] would cause marmot-ts to throw "No relays available
       // to send Welcome" — the invite succeeds but the new member never
       // receives the Welcome gift wrap and can't join.
-      if (!event) return [...DEFAULT_RELAYS];
+      if (!event) return getEffectiveRelays();
 
       const relays = event.tags
         .filter((t) => t[0] === 'relay' && typeof t[1] === 'string')
         .map((t) => t[1]);
-      return relays.length > 0 ? relays : [...DEFAULT_RELAYS];
+      return relays.length > 0 ? relays : getEffectiveRelays();
     } catch {
-      return [...DEFAULT_RELAYS];
+      return getEffectiveRelays();
     }
   }
 }

@@ -1,0 +1,83 @@
+{
+  "epic": "advanced-settings",
+  "story_order": ["01", "02", "03", "04", "05", "06"],
+  "stories": [
+    {
+      "id": "01",
+      "title": "Foundation: storage keys, relay helper, Advanced section shell",
+      "status": "pending",
+      "description": "Add new STORAGE_KEYS entries (lp_relays_v1, lp_signerMode_v1, lp_nip46Session_v1). Create getEffectiveRelays() helper. Add the collapsible Advanced section shell to settings.tsx with toggle only (no inner content yet). Add i18n keys for advanced section heading and toggle text.",
+      "acceptance_criteria": ["AC-GATE-1"],
+      "module_ownership": [
+        "app/src/types/index.ts",
+        "app/src/lib/relay.ts",
+        "app/pages/settings.tsx (Advanced toggle shell only)",
+        "app/src/lib/i18n.ts (advanced heading key only)"
+      ]
+    },
+    {
+      "id": "02",
+      "title": "Relay management UI + live pool apply + relay propagation",
+      "status": "pending",
+      "description": "Implement relay list UI inside Advanced (show, add, remove, reset, connection status). Save applies live to NDK pool. Route all DEFAULT_RELAYS usages in MarmotContext, NdkNetworkAdapter, relayBackup through getEffectiveRelays(). Re-publish kind 30051 and key packages on relay list save.",
+      "acceptance_criteria": ["AC-RELAY-1", "AC-RELAY-2", "AC-RELAY-3", "AC-RELAY-4", "AC-RELAY-5", "AC-RELAY-6", "AC-RELAY-7", "AC-RELAY-8", "AC-RELAY-9"],
+      "module_ownership": [
+        "app/pages/settings.tsx (relay section)",
+        "app/src/lib/relay.ts",
+        "app/src/lib/ndkClient.ts (pool add/remove)",
+        "app/src/context/MarmotContext.tsx (DEFAULT_RELAYS→getEffectiveRelays, re-publish)",
+        "app/src/lib/marmot/NdkNetworkAdapter.ts (DEFAULT_RELAYS→getEffectiveRelays)",
+        "app/src/lib/backup/relayBackup.ts (DEFAULT_RELAYS→getEffectiveRelays)"
+      ]
+    },
+    {
+      "id": "03",
+      "title": "Identity/signing split: signer mode state, local-key gating, danger zone",
+      "status": "pending",
+      "description": "Extend NostrIdentityContext to track signerMode ('local'|'nip46'|'nip07') from lp_signerMode_v1. Add EventSigner factory stubs for nip46 and nip07 in signerAdapter.ts. Add applyNdkSigner(signer) to ndkClient.ts. Hide backup/restore in non-local mode. Wire danger-zone device wipe (resetAllData) behind explicit confirmation in Advanced.",
+      "acceptance_criteria": ["AC-SIGNER-1", "AC-SIGNER-10", "AC-OTHER-1"],
+      "module_ownership": [
+        "app/src/context/NostrIdentityContext.tsx",
+        "app/src/lib/marmot/signerAdapter.ts (factory stubs)",
+        "app/src/lib/ndkClient.ts (applyNdkSigner)",
+        "app/pages/settings.tsx (backup/restore gating + danger zone)"
+      ]
+    },
+    {
+      "id": "04",
+      "title": "NIP-46 bunker connect: QR, paste, session, offline, disconnect, identity switch",
+      "status": "pending",
+      "description": "Implement full NIP-46 bunker connect flow. nostrconnect:// QR + bunker:// paste. Permission enumeration. Session persist/restore (lp_nip46Session_v1). 15s timeout + read-only fallback. Disconnect returns to local. Differing-pubkey identity switch warning (backup gate). Honesty disclosure. Re-init MarmotContext on mode switch (AC-SIGNER-10).",
+      "acceptance_criteria": ["AC-SIGNER-2", "AC-SIGNER-3", "AC-SIGNER-4", "AC-SIGNER-4b", "AC-SIGNER-5", "AC-SIGNER-6", "AC-SIGNER-7", "AC-SIGNER-8", "AC-SIGNER-9"],
+      "module_ownership": [
+        "app/pages/settings.tsx (bunker connect section)",
+        "app/src/context/NostrIdentityContext.tsx (nip46 connect/disconnect flow)",
+        "app/src/context/MarmotContext.tsx (re-init on signerMode change)",
+        "app/src/lib/marmot/signerAdapter.ts (createNip46EventSigner)"
+      ]
+    },
+    {
+      "id": "05",
+      "title": "NIP-07 browser extension signer",
+      "status": "pending",
+      "description": "Implement nip07 signer mode. Detect window.nostr.nip44 at connect time and refuse with clear error if absent. Wrap NDKNip07Signer in EventSigner adapter exposing .nip44 sub-object. Show clear error if no extension installed.",
+      "acceptance_criteria": ["AC-OTHER-2", "AC-NIP07-1", "AC-NIP07-2"],
+      "module_ownership": [
+        "app/pages/settings.tsx (nip07 section)",
+        "app/src/lib/marmot/signerAdapter.ts (createNip07EventSigner)",
+        "app/src/context/NostrIdentityContext.tsx (nip07 connect flow)"
+      ]
+    },
+    {
+      "id": "06",
+      "title": "E2E tests, i18n completeness, npub-only verification",
+      "status": "pending",
+      "description": "Write Playwright e2e tests covering: Advanced collapse/expand, relay add/remove/reset/last-relay-block, relay save applies to pool, danger-zone wipe, npub-only invariant. Write i18n unit test for advanced section. Verify AC-NPUB-1 (no hex pubkey anywhere in Advanced).",
+      "acceptance_criteria": ["AC-NPUB-1", "AC-I18N-1"],
+      "module_ownership": [
+        "app/tests/e2e/advanced-settings.spec.ts",
+        "app/tests/unit/advanced-settings.i18n.test.ts"
+      ]
+    }
+  ]
+}

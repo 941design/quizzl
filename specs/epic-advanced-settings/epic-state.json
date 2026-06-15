@@ -1,0 +1,10 @@
+{
+  "epic": "advanced-settings",
+  "spec_path": "specs/epic-advanced-settings/spec.md",
+  "phase": "done",
+  "stories_path": "specs/epic-advanced-settings/stories.json",
+  "stories_done": ["01", "02", "03", "04", "05", "06"],
+  "stories_pending": [],
+  "retro_stub_path": "/tmp/retro-stub-1070581.md",
+  "learnings_source_run_id": "feature-advanced-settings-20260615-124625"
+}

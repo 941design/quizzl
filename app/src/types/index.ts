@@ -41,6 +41,9 @@ export const STORAGE_KEYS = {
   knownPeers: 'lp_knownPeers_v1',
   knownPeersMigrated: 'lp_knownPeersMigrated_v2',
   pendingInvitations: 'lp_pendingInvitations_v1',
+  relays: 'lp_relays_v1',
+  signerMode: 'lp_signerMode_v1',
+  nip46Session: 'lp_nip46Session_v1',
 } as const;
 
 // ============================

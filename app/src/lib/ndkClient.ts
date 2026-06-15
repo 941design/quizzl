@@ -3,7 +3,7 @@
  * Initialized lazily — safe to import in SSR but only connects on client.
  */
 
-import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk';
+import NDK, { NDKPrivateKeySigner, type NDKSigner } from '@nostr-dev-kit/ndk';
 import { DEFAULT_RELAYS } from '@/src/types';
 
 let ndkInstance: NDK | null = null;
@@ -99,6 +99,63 @@ export function fetchEventsWithTimeout(
 
     sub.on('eose', () => settle(false));
   });
+}
+
+/**
+ * Apply relay list changes to the live NDK pool.
+ * Adds relays in nextUrls not in previousUrls, removes relays in previousUrls
+ * not in nextUrls, and updates ndk.explicitRelayUrls.
+ * Safe to call before sign-in — if NDK is not initialized, the relay list
+ * is read from localStorage at init time anyway.
+ */
+export function applyRelayChangesToPool(
+  previousUrls: string[],
+  nextUrls: string[],
+): void {
+  const ndk = ndkInstance;
+  if (!ndk) return;
+
+  const prevSet = new Set(previousUrls);
+  const nextSet = new Set(nextUrls);
+
+  for (const url of nextUrls) {
+    if (!prevSet.has(url)) {
+      const relay = ndk.pool.getRelay(url, true);
+      ndk.pool.addRelay(relay, true);
+    }
+  }
+
+  for (const url of previousUrls) {
+    if (!nextSet.has(url)) {
+      ndk.pool.removeRelay(url);
+    }
+  }
+
+  ndk.explicitRelayUrls = nextUrls;
+}
+
+/**
+ * Bind an external NDK signer (NIP-46 or NIP-07) to the live NDK singleton.
+ * Used by Stories 04/05 after the bunker/extension connection is established.
+ * No-ops silently if NDK has not been initialised yet (safe-to-call-early contract).
+ */
+export function applyNdkSigner(signer: NDKSigner): void {
+  if (!ndkInstance) return;
+  ndkInstance.signer = signer;
+  // Clear the tracked private key so a subsequent getNdk(privateKeyHex) call
+  // is not short-circuited and does not accidentally overwrite the external signer.
+  signerPrivateKeyHex = null;
+}
+
+/**
+ * Return the current NDK singleton without creating or configuring one.
+ * Returns null on server (SSR safety) or before first init.
+ * Used by NIP-46 / NIP-07 adapters that need the NDK instance but must not
+ * trigger a key rebind (unlike getNdk(privateKeyHex)).
+ */
+export function getNdkInstance(): NDK | null {
+  if (typeof window === 'undefined') return null;
+  return ndkInstance;
 }
 
 /** Reset the NDK singleton (for testing). */

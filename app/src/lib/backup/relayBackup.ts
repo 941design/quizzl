@@ -6,7 +6,8 @@
  * and publishes/fetches it as a kind 30078 replaceable event.
  */
 
-import { STORAGE_KEYS, DEFAULT_RELAYS } from '@/src/types';
+import { STORAGE_KEYS } from '@/src/types';
+import { getEffectiveRelays } from '@/src/lib/relay';
 import {
   loadAllGroups,
   loadMemberProfiles,
@@ -247,7 +248,7 @@ export async function fetchBackup(
   ndk: NDK,
   relays?: string[],
 ): Promise<BackupPayload | null> {
-  const relayUrls = relays ?? [...DEFAULT_RELAYS];
+  const relayUrls = relays ?? getEffectiveRelays();
 
   const { NDKRelaySet } = await import('@nostr-dev-kit/ndk');
   const relaySet = NDKRelaySet.fromRelayUrls(relayUrls, ndk);
@@ -294,7 +295,7 @@ export async function getBackupRelays(
     authors: [pubkeyHex],
   });
 
-  if (events.size === 0) return [...DEFAULT_RELAYS];
+  if (events.size === 0) return getEffectiveRelays();
 
   // Pick newest event
   let newest: { tags: string[][] } | null = null;
@@ -306,7 +307,7 @@ export async function getBackupRelays(
     }
   }
 
-  if (!newest) return [...DEFAULT_RELAYS];
+  if (!newest) return getEffectiveRelays();
 
   // Extract relay URLs from 'relay' or 'r' tags
   const relayUrls = newest.tags
@@ -314,7 +315,7 @@ export async function getBackupRelays(
     .map((t) => t[1])
     .filter(Boolean);
 
-  return relayUrls.length > 0 ? relayUrls : [...DEFAULT_RELAYS];
+  return relayUrls.length > 0 ? relayUrls : getEffectiveRelays();
 }
 
 // ---------------------------------------------------------------------------
