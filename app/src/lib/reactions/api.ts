@@ -127,14 +127,24 @@ function enqueue(
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Loads all reaction rows for a thread in a single idb get() call (O(1) per
- * thread). Populates the in-memory cache. Returns an empty array for a fresh
- * thread.
+ * Loads all reaction rows for a thread.
+ *
+ * Returns the in-memory cache when it has been populated — this is the
+ * authoritative source after the first load because all writes go through
+ * `enqueue`, which updates both cache and IDB atomically before notifying
+ * listeners. Reading from IDB on every call (the prior behaviour) raced with
+ * concurrent enqueue operations: a `recompute` triggered by a messages-change
+ * effect could read the stale IDB value while an `applyOptimisticRemoval` was
+ * mid-write, overwriting the cache and temporarily reviving a removed badge.
+ *
+ * Falls back to an IDB read only on the first call (cache cold) or after
+ * clearAllReactions wipes the cache.
  *
  * AC-07, AC-57.
  */
 export async function loadReactions(thread: ReactionThreadKey): Promise<Reaction[]> {
   const key = idbKeyFor(thread);
+  if (cache.has(key)) return cache.get(key)!;
   const { get } = await import('idb-keyval');
   const stored = (await get<Reaction[]>(key)) ?? [];
   cache.set(key, stored);

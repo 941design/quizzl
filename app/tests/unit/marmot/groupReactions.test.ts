@@ -37,6 +37,7 @@ const {
   subscribeReactions,
   loadReactions,
   aggregateForMessage,
+  clearAllReactions,
 } = await import('@/src/lib/reactions/api');
 
 const { buildReactionRumor } = await import('@/src/lib/reactions/rumor');
@@ -84,8 +85,10 @@ function makeInboundRumor(overrides: Partial<{
 // Reset idbStore and any in-memory module state between tests
 beforeEach(async () => {
   idbStore.clear();
-  // Reset the listener registry by unsubscribing all listeners is handled per test.
-  // Reset the write queue by letting any pending writes settle.
+  // Clear the module-singleton in-memory cache. Without this, tests that seed
+  // idbStore directly (bypassing enqueue) see stale cache from the previous test.
+  await clearAllReactions();
+  // Reset listener registry and write queue state.
   await new Promise((r) => setTimeout(r, 0));
 });
 

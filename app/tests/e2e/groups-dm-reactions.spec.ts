@@ -13,10 +13,17 @@
  */
 
 import { test, expect, BrowserContext, Page, WebSocket as PWWebSocket } from '@playwright/test';
-import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
+import { USER_A, USER_C, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 import { createGroupAndInvite } from './helpers/group-setup';
+
+// USER_B is configured as the maintainer in the e2e environment
+// (NEXT_PUBLIC_MAINTAINER_NPUBS in run-e2e.mjs). Navigating to
+// /contacts?id=<maintainer> redirects to /feedback (spec §2.7), which breaks
+// reaction-badge assertions and the DM wire observation for regular contacts.
+// Use USER_C as the DM peer for all non-feedback tests in this file.
+const USER_B = USER_C;
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 

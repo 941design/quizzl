@@ -83,8 +83,12 @@ function makeRumor(overrides: Partial<{
 const GROUP_THREAD = { kind: 'group' as const, groupId: 'group-prop' };
 const GROUP_KEY = 'quizzl:reactions:group:group-prop';
 
-beforeEach(() => {
+beforeEach(async () => {
   idbStore.clear();
+  vi.clearAllMocks();
+  // Clear the module-singleton in-memory cache. Without this, tests that seed
+  // idbStore directly (bypassing enqueue) see stale cache from the previous test.
+  await clearAllReactions();
   vi.clearAllMocks();
 });
 

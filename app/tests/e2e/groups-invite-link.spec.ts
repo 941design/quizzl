@@ -84,7 +84,7 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
     const urlElement = pageA.getByTestId('invite-link-url');
     await expect(urlElement).toBeVisible();
     inviteUrl = (await urlElement.textContent()) ?? '';
-    expect(inviteUrl).toContain('/groups?join=');
+    expect(inviteUrl).toContain('/groups/?join=');
     expect(inviteUrl).toContain('&admin=');
     expect(inviteUrl).toContain('&name=');
 

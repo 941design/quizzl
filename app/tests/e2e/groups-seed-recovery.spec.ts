@@ -95,17 +95,20 @@ test.describe.serial('Seed phrase recovery — profile and groups', () => {
       await freshPage.getByTestId('restore-phrase-input').fill(mnemonic);
       await freshPage.getByTestId('restore-identity-btn').click();
 
-      // Verify npub matches the original
+      // Verify npub matches the original (on the settings page)
       await expect(freshPage.getByTestId('identity-npub-display')).toHaveText(originalNpub, { timeout: 30_000 });
 
-      // Verify the profile nickname was recovered from relay kind 0
-      await expect(freshPage.getByTestId('profile-nickname-input')).toHaveValue(NICKNAME, { timeout: 30_000 });
-
       // Verify the recovered profile is persisted in localStorage
+      // (profile-nickname-input is on /profile/, not /settings/ — check localStorage directly)
       const storedProfile = await freshPage.evaluate(() => {
         return JSON.parse(localStorage.getItem('lp_userProfile_v1') || '{}');
       });
       expect(storedProfile.nickname).toBe(NICKNAME);
+
+      // Navigate to profile page to verify the nickname from relay kind 0
+      // (profile/settings were separated: nickname is on /profile/, identity on /settings/)
+      await freshPage.goto('/profile/');
+      await expect(freshPage.getByTestId('profile-nickname-input')).toHaveValue(NICKNAME, { timeout: 30_000 });
 
       // Navigate to groups page — should load without errors
       await freshPage.goto('/groups/');

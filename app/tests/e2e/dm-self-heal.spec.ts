@@ -20,7 +20,13 @@
  */
 
 import { test, expect, BrowserContext, Page } from '@playwright/test';
-import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
+import { USER_A, USER_C, computeTestKeypairs } from './helpers/auth-helpers';
+
+// USER_B is configured as the maintainer in the e2e test environment
+// (NEXT_PUBLIC_MAINTAINER_NPUBS in run-e2e.mjs). Navigating to
+// /contacts?id=<maintainer> redirects to /feedback (spec §2.7), which breaks
+// this test's DM chat assertions. Use USER_C as the DM peer instead.
+const USER_B = USER_C;
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 import { createGroupAndInvite } from './helpers/group-setup';

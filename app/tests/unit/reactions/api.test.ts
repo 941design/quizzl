@@ -80,8 +80,18 @@ import * as idbKeyval from 'idb-keyval';
 
 // ─── Reset state between tests ────────────────────────────────────────────────
 
-beforeEach(() => {
+beforeEach(async () => {
   idbStore.clear();
+  vi.clearAllMocks();
+  // Clear the module-singleton in-memory cache between tests. clearAllReactions()
+  // calls cache.clear() in addition to draining the write queue and wiping IDB.
+  // Without this, tests that seed idbStore directly (bypassing enqueue) see stale
+  // cache entries from the previous test when they call loadReactions().
+  await clearAllReactions();
+  // clearAllReactions() also deletes IDB keys via delMany — re-clear the mock IDB
+  // store after it runs (delMany is no-op here since idbStore.clear() already ran,
+  // but vi.clearAllMocks() above reset the mock call counts; re-clear keeps the
+  // mock counts fresh for test assertions).
   vi.clearAllMocks();
 });
 
@@ -136,7 +146,10 @@ describe('applyOptimistic', () => {
     const rows = await loadReactions(GROUP_THREAD);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toEqual(row);
-    expect(vi.mocked(idbKeyval.get)).toHaveBeenCalledTimes(1);
+    // applyOptimistic populates the in-memory cache via enqueue → cache.set.
+    // loadReactions finds the cache warm and returns without an IDB read (0 calls).
+    // The cache-first design eliminates the IDB round-trip on subsequent reads.
+    expect(vi.mocked(idbKeyval.get)).toHaveBeenCalledTimes(0);
   });
 
   it('is idempotent — applying the same row.id twice yields a single row', async () => {
