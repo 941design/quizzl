@@ -27,7 +27,7 @@ import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useProfile } from '@/src/context/ProfileContext';
-import { archiveContact, commonGroups, getContact, listContacts, unarchiveContact } from '@/src/lib/contacts';
+import { archiveContact, commonGroups, getContact, listContacts, rememberContactsFromGroups, unarchiveContact } from '@/src/lib/contacts';
 import { isMaintainerPubkey } from '@/src/config/maintainer';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
@@ -37,19 +37,36 @@ function ContactListView() {
   const copy = useCopy();
   const router = useRouter();
   const { pubkeyHex } = useNostrIdentity();
-  const { groups } = useMarmot();
+  const { groups, ready } = useMarmot();
   const [showHidden, setShowHidden] = useState(false);
+  // Revision counter forces a re-read of localStorage after rememberContactsFromGroups runs.
+  const [contactsRevision, setContactsRevision] = useState(0);
+
+  // Keep the contacts list in sync with current group membership.
+  // Layout.tsx also calls rememberContactsFromGroups, but its useEffect may not
+  // have fired yet when this component first renders (e.g. immediately after a
+  // group join). Calling it here ensures the contacts store is up-to-date before
+  // we derive the list, and the revision bump causes the memos to re-read.
+  useEffect(() => {
+    if (!ready) return;
+    rememberContactsFromGroups(groups, pubkeyHex);
+    setContactsRevision((r) => r + 1);
+  }, [groups, pubkeyHex, ready]);
+
   const contacts = useMemo(
     () => listContacts(pubkeyHex, { includeArchived: showHidden }).filter(
       (contact) => !isMaintainerPubkey(contact.pubkeyHex),
     ),
-    [pubkeyHex, showHidden],
+    // contactsRevision ensures a re-read after rememberContactsFromGroups writes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pubkeyHex, showHidden, contactsRevision],
   );
   const hiddenCount = useMemo(
     () => listContacts(pubkeyHex, { includeArchived: true })
       .filter((contact) => !isMaintainerPubkey(contact.pubkeyHex))
       .filter((contact) => contact.isArchived).length,
-    [pubkeyHex],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pubkeyHex, contactsRevision],
   );
   const hasAnyContacts = contacts.length > 0 || hiddenCount > 0;
 

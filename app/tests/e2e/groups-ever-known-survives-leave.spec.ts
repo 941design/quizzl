@@ -167,6 +167,15 @@ test.describe.serial('Ever-known peer survives group leave (AC-TEST-7)', () => {
     await alicePage.goto('/groups/');
     await alicePage.locator('[data-testid^="group-card-"]', { hasText: GROUP_NAME }).click();
     await expect(alicePage.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+
+    // Alice is the sole admin — promote Bob to admin first so the leave guard
+    // allows the departure (isSoleAdmin returns false once Bob has admin role).
+    const bobPrefix = USER_B.pubkeyHex.slice(0, 8);
+    await alicePage.getByTestId(`make-admin-${bobPrefix}`).click();
+    await alicePage.getByTestId(`make-admin-confirm-${bobPrefix}`).click();
+    // Wait for the admin badge to appear on Bob's row before proceeding
+    await expect(alicePage.getByTestId(`admin-badge-${bobPrefix}`)).toBeVisible({ timeout: 30_000 });
+
     await alicePage.getByTestId('leave-group-btn').click();
     await alicePage.getByTestId('leave-group-confirm-btn').click();
     await expect(alicePage.getByTestId('groups-empty-state')).toBeVisible({ timeout: 30_000 });
@@ -175,6 +184,9 @@ test.describe.serial('Ever-known peer survives group leave (AC-TEST-7)', () => {
   });
 
   test('AC-TEST-7(a-d): Alice DMs Bob after leaving; bell increments; message renders; contact retained', async () => {
+    // This test sends a DM and waits for relay propagation + bell update (up to 60s),
+    // so it needs more than the default 2-minute timeout.
+    test.setTimeout(180_000);
     // Bob back on /contacts so the bell watcher is active
     await bobPage.goto('/contacts');
     await bobPage.waitForLoadState('networkidle');

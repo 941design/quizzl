@@ -56,6 +56,10 @@ const serverEnv = { ...process.env };
 if (isGroups) {
   serverEnv.NEXT_PUBLIC_RELAYS = `ws://localhost:${RELAY_PORT}`;
   serverEnv.NEXT_PUBLIC_BLOSSOM_BASE_URL = `http://localhost:${BLOSSOM_MOCK_PORT}`;
+  // USER_B (deterministic test keypair) is the maintainer in the e2e test suite
+  // so dm-feedback-channel.spec.ts can control the maintainer's private key.
+  // Derived from USER_B.privateKeyHex = 'cbecda1c7d37d4c0aa5466243bb4a0018c31bf06d74fa7338290dd3068db4fed'
+  serverEnv.NEXT_PUBLIC_MAINTAINER_NPUBS = 'npub14cjwfhp3fpfafzj0prkz6jjlwvkmrlq8a6xjccgugyfj3wlq2scq9267f9';
 }
 
 const devServer = spawn(npxCommand, ["next", "dev", "--port", String(port)], {

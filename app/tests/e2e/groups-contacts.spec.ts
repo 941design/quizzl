@@ -1,7 +1,13 @@
 import { test, expect, BrowserContext, Page } from '@playwright/test';
-import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
+import { USER_A, USER_C, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
+
+// USER_B is configured as the maintainer in the e2e test environment
+// (NEXT_PUBLIC_MAINTAINER_NPUBS in run-e2e.mjs). The contacts page filters out
+// maintainer pubkeys, so using USER_B as a contact peer would hide them from the
+// contacts list. This test uses USER_C as the peer ("Bob") instead.
+const USER_B = USER_C;
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
@@ -73,7 +79,16 @@ test.describe.serial('Contacts and direct chat', () => {
     await pageB.locator('[data-testid^="group-card-"]', { hasText: 'Contacts Test Group' }).click();
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
-    await pageA.waitForTimeout(10_000);
+    // Wait for Alice's group to show 2 members (confirms Bob's join propagated
+    // back to Alice's MarmotContext, which is required before contacts populate).
+    await pageA.goto('/groups/');
+    await pageA.locator('[data-testid^="group-card-"]', { hasText: 'Contacts Test Group' }).click();
+    await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+    await expect(pageA.getByText('2 MEMBERS')).toBeVisible({ timeout: 30_000 });
+    // Give Layout.tsx's useEffect time to flush rememberContactsFromGroups into
+    // localStorage before we navigate away. The effect fires asynchronously after
+    // the DOM paint that made "2 MEMBERS" visible.
+    await pageA.waitForTimeout(1_000);
     await dismissErrorOverlay(pageA);
     await dismissErrorOverlay(pageB);
 
@@ -81,9 +96,16 @@ test.describe.serial('Contacts and direct chat', () => {
     await expect(pageA.getByTestId('contacts-list')).toBeVisible({ timeout: 30_000 });
     await expect(pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`)).toContainText('Bob');
 
+    // Alice is the sole admin — promote Bob to admin before leaving so the
+    // sole-admin guard allows the departure.
     await pageA.goto('/groups/');
     await pageA.locator('[data-testid^="group-card-"]', { hasText: 'Contacts Test Group' }).click();
     await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+    const bobPrefix = USER_B.pubkeyHex.slice(0, 8);
+    await pageA.getByTestId(`make-admin-${bobPrefix}`).click();
+    await pageA.getByTestId(`make-admin-confirm-${bobPrefix}`).click();
+    await expect(pageA.getByTestId(`admin-badge-${bobPrefix}`)).toBeVisible({ timeout: 30_000 });
+
     await pageA.getByTestId('leave-group-btn').click();
     await pageA.getByTestId('leave-group-confirm-btn').click();
     await expect(pageA.getByTestId('groups-empty-state')).toBeVisible({ timeout: 30_000 });
