@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-15T06:15:14Z",
+  "updated_at": "2026-06-15T10:35:46Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -104,6 +104,11 @@
     },
     {
       "path": "specs/epic-profile-settings-separation/",
+      "status": "DONE",
+      "next_action": "completed 2026-06-15"
+    },
+    {
+      "path": "specs/epic-feedback-channel/",
       "status": "DONE",
       "next_action": "completed 2026-06-15"
     }
@@ -319,6 +324,20 @@
       },
       "text": "ContactChat uses setInterval with 50ms polling for up to 5s to wait for MarmotContext readiness before applying the walled-garden gate on historical events. A cleaner approach would be a whenReady(): Promise<void> method on MarmotContext that resolves when groups are hydrated. Deferred from DM walled-garden epic per reviewer recommendation (out of scope).",
       "created_at": "2026-06-03"
+    },
+    {
+      "slug": "dm-gift-wrap-mallory-pubkey-binding",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/lib/directMessages.ts",
+        "line": 262
+      },
+      "text": "DM gift-wrap Mallory pubkey-binding security check has no dedicated test (mutation survivor)",
+      "created_at": "2026-06-15",
+      "motivation": "unwrapAndOpen's rumor.pubkey === seal.pubkey binding (step 4) closes the Mallory forgery vector, but the existing forgery test passes via the outer generic catch regardless of which earlier step throws — so a mutation that removes the binding check survives. If the binding were accidentally broken in a refactor, the test suite would not catch it.",
+      "behavior": "Mutation testing (Stryker) shows L262 BlockStatement and ConditionalExpression mutants survive: removing the sender-binding throw does not fail any test.",
+      "approach": "Add a binding-only test: craft a gift wrap that passes all earlier unwrap steps (valid kinds, valid seal signature) but where rumor.pubkey !== seal.pubkey, and assert unwrapAndOpen throws. Pin the binding independently of the generic outer catch.",
+      "kind": "spec-gap"
     }
   ],
   "archive": [

@@ -1,0 +1,119 @@
+{
+  "epic_name": "feedback-channel",
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5"
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "config-module",
+      "title": "Maintainer config module and env accessor",
+      "status": "done",
+      "owning_module": "maintainer-config",
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/src/config/maintainer.ts",
+          "app/src/lib/publicEnv.ts"
+        ]
+      },
+      "acceptance_criteria": [
+        "AC-CONFIG-1",
+        "AC-CONFIG-2",
+        "AC-CONFIG-3",
+        "AC-CONFIG-4"
+      ],
+      "description": "Create app/src/config/maintainer.ts exporting MAINTAINER_PUBKEYS_HEX (decoded from NEXT_PUBLIC_MAINTAINER_NPUBS via publicEnv accessor, splitting on commas, falling back to the D1 default npub; undecodable entries dropped), MAINTAINER_ACTIVE_PUBKEY_HEX (MAINTAINER_PUBKEYS_HEX[0] ?? null), MAINTAINER_DISPLAY_NAME (string constant), and isMaintainerPubkey(hex). Add getNextPublicMaintainerNpubs() to publicEnv.ts."
+    },
+    {
+      "id": "S2",
+      "name": "source-marker",
+      "title": "DM source marker for feedback messages",
+      "status": "done",
+      "owning_module": "directMessages",
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/src/lib/directMessages.ts"
+        ]
+      },
+      "acceptance_criteria": [
+        "AC-SEND-1",
+        "AC-SEND-2",
+        "AC-MARKER-1",
+        "AC-MARKER-2",
+        "AC-MARKER-3"
+      ],
+      "description": "Extend buildChatRumor to accept an optional extraTags parameter. Create publishFeedbackMessage wrapper that calls publishDirectMessage-equivalent logic but with ['client','nostling',<version>] and ['l','feedback'] tags on the inner kind-14 rumor. The default publishDirectMessage path must remain unchanged."
+    },
+    {
+      "id": "S3",
+      "name": "walled-garden-seeding",
+      "title": "Seed maintainer keys into walled-garden allow-list at startup",
+      "status": "done",
+      "owning_module": "MarmotContext",
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/src/context/MarmotContext.tsx"
+        ]
+      },
+      "acceptance_criteria": [
+        "AC-REPLY-2",
+        "AC-REPLY-3"
+      ],
+      "description": "In MarmotContext.tsx, add a useEffect on mount (no deps) that calls rememberKnownPeers(MAINTAINER_PUBKEYS_HEX) from the new config module. This ensures maintainer keys are always in the ever-known set regardless of group membership, so replies are never dropped by isAllowedDmSender."
+    },
+    {
+      "id": "S4",
+      "name": "i18n",
+      "title": "i18n translations for feedback channel UI",
+      "status": "done",
+      "owning_module": "i18n",
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/src/lib/i18n.ts"
+        ]
+      },
+      "acceptance_criteria": [
+        "AC-I18N-1"
+      ],
+      "description": "Add feedback section to Copy type and both language objects (en, de) in i18n.ts. Keys: settingsRowLabel, pageTitle, encryptedSubtitle, composerPlaceholder, unavailableState."
+    },
+    {
+      "id": "S5",
+      "name": "ui-surface",
+      "title": "Feedback page, settings row, contacts filtering, notification routing",
+      "status": "done",
+      "owning_module": "feedback-page",
+      "lighter_path": false,
+      "scope": {
+        "includes": [
+          "app/pages/feedback.tsx",
+          "app/pages/settings.tsx",
+          "app/pages/contacts.tsx",
+          "app/src/components/NotificationBell.tsx"
+        ]
+      },
+      "acceptance_criteria": [
+        "AC-SEND-3",
+        "AC-REPLY-1",
+        "AC-NOTIFY-1",
+        "AC-NOTIFY-2",
+        "AC-UI-1",
+        "AC-UI-2",
+        "AC-UI-3",
+        "AC-UI-4",
+        "AC-CONTACT-1",
+        "AC-CONTACT-2",
+        "AC-EDGE-1"
+      ],
+      "description": "Create app/pages/feedback.tsx that renders ContactChat against MAINTAINER_ACTIVE_PUBKEY_HEX with distinct chrome (title from i18n, encrypted subtitle, name from MAINTAINER_DISPLAY_NAME). Add Settings row linking to /feedback (only when feature enabled). Filter isMaintainerPubkey keys from contacts list in contacts.tsx. Route maintainer DM bell entries to /feedback in NotificationBell.tsx."
+    }
+  ]
+}

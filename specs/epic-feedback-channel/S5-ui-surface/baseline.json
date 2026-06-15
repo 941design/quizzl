@@ -1,0 +1,4 @@
+{
+  "test_snapshot": "1229 passing before S5",
+  "reason": "ui-surface-no-new-unit-tests-rely-on-typecheck-and-e2e"
+}

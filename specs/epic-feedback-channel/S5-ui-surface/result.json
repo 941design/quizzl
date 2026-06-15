@@ -1,0 +1,23 @@
+{
+  "story_id": "S5",
+  "status": "done",
+  "final_outcome": "accepted",
+  "architect_skipped": false,
+  "modules_touched": ["feedback-page", "settings-page", "contacts-page", "NotificationBell"],
+  "files_modified": [
+    "app/pages/feedback.tsx",
+    "app/pages/settings.tsx",
+    "app/pages/contacts.tsx",
+    "app/src/components/NotificationBell.tsx",
+    "app/src/components/contacts/ContactChat.tsx",
+    "app/src/components/chat/ChatBox.tsx",
+    "app/src/lib/directMessages.ts"
+  ],
+  "remediation_rounds": 1,
+  "completed_at": "2026-06-15T10:20:00Z",
+  "retrospective": {
+    "skipped": false,
+    "reason": "marker-wiring gap found and fixed",
+    "notes": "Initial S5 reused ContactChat without a feedback-source signal, so AC-MARKER-1/2/3 silently failed — publishFeedbackMessage existed but was never on the send path. Fixed by adding a source='feedback' prop to ContactChat that injects feedbackMarkerTags() into the rumor. Lesson: reusing a chat component for a labelled channel must also route the channel's send semantics, not just its rendering."
+  }
+}

@@ -24,6 +24,7 @@ import { useCopy } from '@/src/context/LanguageContext';
 import ThemeIcon from '@/src/components/ThemeIcon';
 import { listContacts } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
+import { isMaintainerPubkey, MAINTAINER_DISPLAY_NAME } from '@/src/config/maintainer';
 
 export default function NotificationBell() {
   const { counts, joinRequests, directMessages, totalUnread } = useUnreadCounts();
@@ -54,10 +55,12 @@ export default function NotificationBell() {
     return peerKeys.map((peer) => {
       const contact = byPubkey.get(peer);
       const fallbackName = truncateNpub(pubkeyToNpub(peer));
+      const isMaintainer = isMaintainerPubkey(peer);
       return {
         peerPubkeyHex: peer,
-        displayName: contact?.nickname || fallbackName,
+        displayName: isMaintainer ? MAINTAINER_DISPLAY_NAME : (contact?.nickname || fallbackName),
         unread: directMessages[peer],
+        href: isMaintainer ? '/feedback' : `/contacts?id=${peer}`,
       };
     });
   }, [directMessages, pubkeyHex]);
@@ -188,7 +191,7 @@ export default function NotificationBell() {
               {directMessageContacts.map((c) => (
                 <NextLink
                   key={`dm-${c.peerPubkeyHex}`}
-                  href={`/contacts?id=${c.peerPubkeyHex}`}
+                  href={c.href}
                   passHref
                   legacyBehavior
                 >

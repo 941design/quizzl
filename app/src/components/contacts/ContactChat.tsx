@@ -14,6 +14,7 @@ import {
   decryptDirectMedia,
   decryptDirectPayload,
   directConversationId,
+  feedbackMarkerTags,
   DIRECT_MESSAGE_KIND,
   GIFT_WRAP_KIND,
   parseDirectPayload,
@@ -39,6 +40,14 @@ type ContactChatProps = {
   privateKeyHex: string;
   signer: EventSigner;
   profileMap: Record<string, MemberProfile>;
+  /**
+   * When 'feedback', outgoing text messages carry the sealed Nostling feedback
+   * marker tags (client + l=feedback) on the inner rumor (AC-MARKER-1/2/3).
+   * Omitted (ordinary DM) leaves the rumor with only the ["p", peer] tag.
+   */
+  source?: 'feedback';
+  /** Optional composer placeholder override (feedback surface supplies its own). */
+  composerPlaceholder?: string;
 };
 
 function toMessage(
@@ -64,6 +73,8 @@ export default function ContactChat({
   privateKeyHex,
   signer,
   profileMap,
+  source,
+  composerPlaceholder,
 }: ContactChatProps) {
   const copy = useCopy();
   const toast = useToast();
@@ -505,7 +516,10 @@ export default function ContactChat({
     // Build the NIP-17 kind-14 rumor first so we know its id before any network
     // round-trip. The rumor id is the stable message id used by appendMessage and
     // dedup — the outer kind-1059 wrap id is irrelevant to the UI layer.
-    const rumor = buildChatRumor({ privateKeyHex, peerPubkeyHex, content });
+    // AC-MARKER-1/3: feedback sends carry the sealed marker tags; ordinary DMs
+    // pass no extraTags, so their rumor keeps only the ["p", peer] tag.
+    const extraTags = source === 'feedback' ? feedbackMarkerTags() : undefined;
+    const rumor = buildChatRumor({ privateKeyHex, peerPubkeyHex, content, extraTags });
     const optimistic = toMessage(threadId, {
       id: rumor.id,
       pubkey: pubkeyHex,
@@ -524,7 +538,7 @@ export default function ContactChat({
       setMessages((prev) => prev.filter((msg) => msg.id !== rumor.id));
       throw err;
     }
-  }, [peerPubkeyHex, privateKeyHex, pubkeyHex, threadId, upsertMessages]);
+  }, [peerPubkeyHex, privateKeyHex, pubkeyHex, threadId, upsertMessages, source]);
 
   const sendImageMessage = useCallback(async (file: File, caption: string) => {
     const now = Math.floor(Date.now() / 1000);
@@ -694,10 +708,15 @@ export default function ContactChat({
       sendImageMessage={sendImageMessage}
       decryptMedia={decryptMedia}
       allowPollMessages={false}
-      onReact={handleReact}
+      // v1 feedback is a text-only marked channel (spec §7): omit the reaction
+      // callback so kind-7 reaction DMs (which carry no feedback marker tags)
+      // cannot be sent from the feedback thread.
+      onReact={source === 'feedback' ? undefined : handleReact}
       // Story-08: pass DM reactions map so ChatBox doesn't read from ChatStoreContext
       // (which is group-only — arch §3 rule 3). AC-55.
       reactionsByMessageId={reactionsByMessageId}
+      composerPlaceholder={composerPlaceholder}
+      allowImageAttachments={source !== 'feedback'}
     />
   );
 }

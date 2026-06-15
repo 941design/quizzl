@@ -1,0 +1,16 @@
+{
+  "criteria": [
+    {
+      "id": "AC-REPLY-2",
+      "description": "Maintainer pubkeys are seeded into knownPeers on mount so the walled-garden purge never removes them as strangers",
+      "verdict": "YES",
+      "notes": "useEffect with [] dep array calls rememberKnownPeers(MAINTAINER_PUBKEYS_HEX); placed before migration effect so seeding runs first"
+    },
+    {
+      "id": "AC-REPLY-3",
+      "description": "Effect runs exactly once on mount (empty dependency array) and is additive only",
+      "verdict": "YES",
+      "notes": "Empty dep array guarantees single run; rememberKnownPeers never removes entries per its existing contract"
+    }
+  ]
+}

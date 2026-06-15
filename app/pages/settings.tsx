@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import NextLink from 'next/link';
 import {
   Box,
   Heading,
@@ -30,6 +31,7 @@ import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { truncateNpub, derivePublicKeyHex } from '@/src/lib/nostrKeys';
 import { useProfile } from '@/src/context/ProfileContext';
 import { STORAGE_KEYS } from '@/src/types';
+import { MAINTAINER_ACTIVE_PUBKEY_HEX } from '@/src/config/maintainer';
 
 export default function SettingsPage() {
   const copy = useCopy();
@@ -218,6 +220,22 @@ export default function SettingsPage() {
         </Text>
 
         <VStack spacing={6} align="stretch">
+          {/* Feedback Section — only rendered when the feature is enabled */}
+          {MAINTAINER_ACTIVE_PUBKEY_HEX ? (
+            <Box>
+              <NextLink href="/feedback" passHref legacyBehavior>
+                <Button
+                  as="a"
+                  variant="outline"
+                  size="sm"
+                  data-testid="settings-feedback-row"
+                >
+                  {copy.feedback.settingsRowLabel}
+                </Button>
+              </NextLink>
+            </Box>
+          ) : null}
+
           {/* Nostr Identity Section */}
           <Box>
             <Heading as="h2" size="md" mb={1}>

@@ -1,0 +1,19 @@
+{
+  "story_id": "S5",
+  "pre_impl": [
+    {"type": "SPEC", "ac_id": "AC-UI-1", "question": "Is the Settings feedback row rendered only when the feature is enabled?", "verdict": "YES", "evidence": "settings.tsx — {MAINTAINER_ACTIVE_PUBKEY_HEX ? <row> : null}"},
+    {"type": "SPEC", "ac_id": "AC-UI-2", "question": "Does feedback surface reuse ContactChat with distinct chrome + config name?", "verdict": "YES", "evidence": "feedback.tsx renders heading from copy.feedback.pageTitle, name from MAINTAINER_DISPLAY_NAME"},
+    {"type": "SPEC", "ac_id": "AC-UI-3", "question": "Is the surface a dedicated page (no dynamic segment)?", "verdict": "YES", "evidence": "app/pages/feedback.tsx static route"},
+    {"type": "SPEC", "ac_id": "AC-UI-4", "question": "Config-disabled shows unavailable state?", "verdict": "YES", "evidence": "feedback.tsx early return when MAINTAINER_ACTIVE_PUBKEY_HEX null"},
+    {"type": "SPEC", "ac_id": "AC-CONTACT-1", "question": "Maintainer keys filtered from contacts list?", "verdict": "YES", "evidence": "contacts.tsx filter !isMaintainerPubkey on both lists"},
+    {"type": "SPEC", "ac_id": "AC-CONTACT-2", "question": "Filtering at view, not storage; record still resolvable?", "verdict": "YES", "evidence": "contacts.ts unchanged; filter applied in contacts.tsx page"},
+    {"type": "SPEC", "ac_id": "AC-NOTIFY-2", "question": "Maintainer DM notifications route to /feedback?", "verdict": "YES", "evidence": "NotificationBell.tsx href = isMaintainer ? '/feedback' : '/contacts?id='"},
+    {"type": "SPEC", "ac_id": "AC-EDGE-1", "question": "Self-DM edge renders without error?", "verdict": "YES", "evidence": "feedback.tsx builds profileMap for both keys; ContactChat handles self peer"},
+    {"type": "SPEC", "ac_id": "AC-SEND-3", "question": "Feedback persisted/rendered from dm:<recipient> thread?", "verdict": "YES", "evidence": "ContactChat uses directConversationId(peer) + appendMessage"},
+    {"type": "SPEC", "ac_id": "AC-REPLY-1", "question": "Maintainer reply appears via existing inbound listener?", "verdict": "YES", "evidence": "ContactChat inbound subscription unchanged"},
+    {"type": "SPEC", "ac_id": "AC-NOTIFY-1", "question": "Reply increments unread + bell via existing machinery?", "verdict": "YES", "evidence": "markDirectMessagesRead + unreadStore unchanged"},
+    {"type": "POST", "question": "Does feedback send carry marker tags (cross-cutting with S2)?", "verdict": "YES", "evidence": "source='feedback' prop wires feedbackMarkerTags into sendMessage; re-verified by examiner confidence 1.0"},
+    {"type": "POST", "question": "TypeScript clean?", "verdict": "YES", "evidence": "npx tsc --noEmit passes"},
+    {"type": "POST", "question": "Full unit suite green?", "verdict": "YES", "evidence": "1229 tests pass"}
+  ]
+}

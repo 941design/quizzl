@@ -326,6 +326,13 @@ type Copy = {
     reload: string;
     dismissAriaLabel: string;
   };
+  feedback: {
+    settingsRowLabel: string;
+    pageTitle: string;
+    encryptedSubtitle: string;
+    composerPlaceholder: string;
+    unavailableState: string;
+  };
 };
 
 export function normalizeLanguage(input?: string | null): LanguageCode {
@@ -678,6 +685,13 @@ const copy: Record<LanguageCode, Copy> = {
       reload: 'Reload',
       dismissAriaLabel: 'Dismiss update notification',
     },
+    feedback: {
+      settingsRowLabel: 'Send feedback to the maintainers',
+      pageTitle: 'Feedback to the Nostling team',
+      encryptedSubtitle: 'End-to-end encrypted · only the team can read this',
+      composerPlaceholder: 'Describe a bug, suggest a feature, or say hello…',
+      unavailableState: 'Feedback is currently unavailable.',
+    },
   },
   de: {
     appName: 'Nostling',
@@ -1016,6 +1030,13 @@ const copy: Record<LanguageCode, Copy> = {
       message: 'Eine neue Version ist verfügbar.',
       reload: 'Neu laden',
       dismissAriaLabel: 'Update-Benachrichtigung schließen',
+    },
+    feedback: {
+      settingsRowLabel: 'Feedback an die Entwickler senden',
+      pageTitle: 'Feedback an das Nostling-Team',
+      encryptedSubtitle: 'Ende-zu-Ende verschlüsselt · nur das Team kann dies lesen',
+      composerPlaceholder: 'Fehler beschreiben, Feature vorschlagen oder einfach hallo sagen…',
+      unavailableState: 'Feedback ist momentan nicht verfügbar.',
     },
   },
 };

@@ -1,0 +1,4 @@
+{
+  "decision": "implement",
+  "modules_touched": ["MarmotContext"]
+}

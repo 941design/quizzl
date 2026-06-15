@@ -1,0 +1,28 @@
+{
+  "criteria": [
+    {
+      "id": "AC-CONFIG-1",
+      "description": "MAINTAINER_PUBKEYS_HEX is a non-empty string[] of valid hex pubkeys",
+      "verdict": "YES",
+      "notes": "Default npub decodes to d18c6444503864278da4417153d39b7d4fad7f3d157a5b9150a8b7eda206344d; verified by test"
+    },
+    {
+      "id": "AC-CONFIG-2",
+      "description": "MAINTAINER_ACTIVE_PUBKEY_HEX equals MAINTAINER_PUBKEYS_HEX[0] or null when empty",
+      "verdict": "YES",
+      "notes": "Implemented as MAINTAINER_PUBKEYS_HEX[0] ?? null; verified by test"
+    },
+    {
+      "id": "AC-CONFIG-3",
+      "description": "MAINTAINER_DISPLAY_NAME is the constant string 'Nostling Team'",
+      "verdict": "YES",
+      "notes": "Hardcoded constant; verified by test"
+    },
+    {
+      "id": "AC-CONFIG-4",
+      "description": "isMaintainerPubkey performs case-insensitive membership check",
+      "verdict": "YES",
+      "notes": "Lowercases both input and stored values before comparison; verified by tests for known/unknown/uppercase inputs"
+    }
+  ]
+}

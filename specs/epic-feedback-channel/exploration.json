@@ -1,0 +1,41 @@
+{
+  "created_at": "2026-06-15T06:55:55Z",
+  "updated_at": "2026-06-15T06:55:55Z",
+  "findings": {
+    "similar_features": {
+      "summary": "NIP-17 DM pipeline is complete: buildChatRumor, sealAndWrap, publishDirectMessage in directMessages.ts. ContactChat component in contacts/ContactChat.tsx renders any DM thread given peerPubkeyHex. Settings page (pages/settings.tsx) uses VStack/Box rows. Contacts page (pages/contacts.tsx) calls listContacts() and renders a filtered list. NotificationBell.tsx links DM notifications to /contacts?id=<hex>.",
+      "key_files": [
+        "app/src/lib/directMessages.ts",
+        "app/src/components/contacts/ContactChat.tsx",
+        "app/pages/contacts.tsx",
+        "app/pages/settings.tsx",
+        "app/src/components/NotificationBell.tsx"
+      ]
+    },
+    "architecture": {
+      "summary": "Modular monolith with package-by-feature layout. Config modules in app/src/config/ (blossom.ts, profile.ts). Env var accessors in app/src/lib/publicEnv.ts (bare process.env.NEXT_PUBLIC_X, no guard, required by Next.js static replacement). knownPeers.ts is localStorage-only, synchronous, pure. walledGarden.ts is pure — isAllowedDmSender takes groups + knownPeers as params. MarmotContext.tsx seeds knownPeers via rememberKnownPeers on boot and on every group change. contacts.ts listContacts() reads localStorage; filtering is applied at view level in contacts.tsx. npubToPubkeyHex() exists in nostrKeys.ts for decoding.",
+      "key_files": [
+        "app/src/config/blossom.ts",
+        "app/src/lib/publicEnv.ts",
+        "app/src/lib/knownPeers.ts",
+        "app/src/lib/walledGarden.ts",
+        "app/src/context/MarmotContext.tsx",
+        "app/src/lib/contacts.ts",
+        "app/src/lib/nostrKeys.ts",
+        "app/src/types/index.ts"
+      ]
+    },
+    "testing_and_conventions": {
+      "summary": "Playwright e2e in app/tests/e2e/. Two-context (Alice/Bob) patterns via bootUserOnGroups helpers. Tests use window.__nostlingPublishDm bridge for DM sends (publish-through-app rule). Vitest unit tests in app/tests/unit/. Make e2e-up starts relay. Node scripts/run-e2e.mjs <spec> runs single test. i18n in app/src/lib/i18n.ts exports a Copy type with en and de language objects.",
+      "key_files": [
+        "app/tests/e2e/dm-giftwrap-bell.spec.ts",
+        "app/tests/e2e/dm-walled-garden-stranger-blocked.spec.ts",
+        "app/src/lib/i18n.ts",
+        "app/playwright.config.ts"
+      ]
+    }
+  },
+  "adr_constraints": {
+    "ADR-002": "Proposed (implemented). whitelist = MLS group members ∪ ever-known peers. Maintainer seeding: call rememberKnownPeers(MAINTAINER_PUBKEYS_HEX) at startup to ensure maintainer keys are always in the ever-known set regardless of group membership."
+  }
+}

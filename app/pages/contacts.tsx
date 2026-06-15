@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Head from 'next/head';
 import NextLink from 'next/link';
 import { useRouter } from 'next/router';
@@ -28,6 +28,7 @@ import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useProfile } from '@/src/context/ProfileContext';
 import { archiveContact, commonGroups, getContact, listContacts, unarchiveContact } from '@/src/lib/contacts';
+import { isMaintainerPubkey } from '@/src/config/maintainer';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import type { MemberProfile, UserProfile } from '@/src/types';
@@ -39,11 +40,15 @@ function ContactListView() {
   const { groups } = useMarmot();
   const [showHidden, setShowHidden] = useState(false);
   const contacts = useMemo(
-    () => listContacts(pubkeyHex, { includeArchived: showHidden }),
+    () => listContacts(pubkeyHex, { includeArchived: showHidden }).filter(
+      (contact) => !isMaintainerPubkey(contact.pubkeyHex),
+    ),
     [pubkeyHex, showHidden],
   );
   const hiddenCount = useMemo(
-    () => listContacts(pubkeyHex, { includeArchived: true }).filter((contact) => contact.isArchived).length,
+    () => listContacts(pubkeyHex, { includeArchived: true })
+      .filter((contact) => !isMaintainerPubkey(contact.pubkeyHex))
+      .filter((contact) => contact.isArchived).length,
     [pubkeyHex],
   );
   const hasAnyContacts = contacts.length > 0 || hiddenCount > 0;
@@ -288,9 +293,28 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
 
 export default function ContactsPage() {
   const router = useRouter();
-  const id = router.query.id as string | undefined;
+  // router.query.id is string | string[] | undefined — for a repeated query
+  // param (?id=a&id=b) it is an array. Normalize to the first value so the
+  // maintainer check below never calls hex.toLowerCase() on an array.
+  const rawId = router.query.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
+
+  // Maintainer keys are reserved for the feedback channel and must not be
+  // reachable as an ordinary contact chat (spec §2.7). A contact record can
+  // exist (a reply called rememberContact), so a direct /contacts?id=<maintainer>
+  // URL would otherwise render ContactDetailView and send DMs WITHOUT the sealed
+  // feedback marker tags. Redirect such IDs to the feedback surface.
+  useEffect(() => {
+    if (id && isMaintainerPubkey(id)) {
+      router.replace('/feedback');
+    }
+  }, [id, router]);
 
   if (id) {
+    if (isMaintainerPubkey(id)) {
+      // Render nothing while the redirect effect runs — never the ordinary chat.
+      return null;
+    }
     return <ContactDetailView contactPubkeyHex={id} />;
   }
 

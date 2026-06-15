@@ -1,0 +1,10 @@
+{
+  "criteria": [
+    {
+      "id": "AC-I18N-1",
+      "description": "All five feedback keys exist in both 'en' and 'de' language objects and match the specified strings",
+      "verdict": "YES",
+      "notes": "feedback section added to Copy type and both language objects; TypeScript type system enforces completeness at compile time"
+    }
+  ]
+}

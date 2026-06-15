@@ -1,0 +1,205 @@
+{
+  "epic_name": "feedback-channel",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-06-15T06:55:55Z",
+  "updated_at": "2026-06-15T10:18:00Z",
+  "pre_existing_dirty_files": [
+    "app/reports/mutation/mutation.json"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-06-15T06:55:55Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-06-15T10:18:00Z",
+      "trigger": "all_stories_done"
+    }
+  ],
+  "plugin_sha": "unknown",
+  "consumer_sha": "42e0478cf765e700dc27e4327859bbfb822cd3c1",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "unknown",
+    "implementer": "unknown"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "ac_closure": [
+    {
+      "ac_id": "AC-CONFIG-1",
+      "status": "met",
+      "evidence": "maintainer.ts decodeNpubs + tests/unit/maintainer.test.ts"
+    },
+    {
+      "ac_id": "AC-CONFIG-2",
+      "status": "met",
+      "evidence": "maintainer.ts default npub fallback + unit test"
+    },
+    {
+      "ac_id": "AC-CONFIG-3",
+      "status": "met",
+      "evidence": "maintainer.ts per-entry try/catch, null active sentinel + unit test"
+    },
+    {
+      "ac_id": "AC-CONFIG-4",
+      "status": "met",
+      "evidence": "MAINTAINER_ACTIVE_PUBKEY_HEX = list[0]; examiner Q1 YES"
+    },
+    {
+      "ac_id": "AC-SEND-1",
+      "status": "met",
+      "evidence": "ContactChat sendMessage reuses buildChatRumor+sealAndWrap (DM path)"
+    },
+    {
+      "ac_id": "AC-SEND-2",
+      "status": "met",
+      "evidence": "sealAndWrap NIP-59 gift-wrap; no plaintext path"
+    },
+    {
+      "ac_id": "AC-SEND-3",
+      "status": "met",
+      "evidence": "directConversationId + appendMessage in ContactChat"
+    },
+    {
+      "ac_id": "AC-MARKER-1",
+      "status": "met",
+      "evidence": "feedbackMarkerTags + buildChatRumor.test.ts; examiner re-verify Q1 YES conf 1.0"
+    },
+    {
+      "ac_id": "AC-MARKER-2",
+      "status": "met",
+      "evidence": "tags on rumor pre-sealAndWrap; examiner Q2 YES"
+    },
+    {
+      "ac_id": "AC-MARKER-3",
+      "status": "met",
+      "evidence": "default path tags===[['p',peer]]; buildChatRumor.test.ts; examiner Q3 YES"
+    },
+    {
+      "ac_id": "AC-REPLY-1",
+      "status": "met",
+      "evidence": "existing inbound listener unchanged"
+    },
+    {
+      "ac_id": "AC-REPLY-2",
+      "status": "met",
+      "evidence": "MarmotContext mount-effect seeds MAINTAINER_PUBKEYS_HEX; examiner Q3 YES"
+    },
+    {
+      "ac_id": "AC-REPLY-3",
+      "status": "met",
+      "evidence": "isAllowedDmSender unmodified; seeding additive"
+    },
+    {
+      "ac_id": "AC-NOTIFY-1",
+      "status": "met",
+      "evidence": "unreadStore + bell machinery unchanged"
+    },
+    {
+      "ac_id": "AC-NOTIFY-2",
+      "status": "met",
+      "evidence": "NotificationBell href maintainer\u2192/feedback; examiner Q5 YES"
+    },
+    {
+      "ac_id": "AC-UI-1",
+      "status": "met",
+      "evidence": "settings.tsx conditional row; examiner Q8 YES"
+    },
+    {
+      "ac_id": "AC-UI-2",
+      "status": "met",
+      "evidence": "feedback.tsx chrome + MAINTAINER_DISPLAY_NAME + ContactChat reuse"
+    },
+    {
+      "ac_id": "AC-UI-3",
+      "status": "met",
+      "evidence": "app/pages/feedback.tsx static route"
+    },
+    {
+      "ac_id": "AC-UI-4",
+      "status": "met",
+      "evidence": "feedback.tsx unavailable early-return; examiner Q6 YES"
+    },
+    {
+      "ac_id": "AC-CONTACT-1",
+      "status": "met",
+      "evidence": "contacts.tsx filter !isMaintainerPubkey; examiner Q4 YES"
+    },
+    {
+      "ac_id": "AC-CONTACT-2",
+      "status": "met",
+      "evidence": "filter at view; contacts.ts lib unchanged; examiner Q4 YES"
+    },
+    {
+      "ac_id": "AC-EDGE-1",
+      "status": "met",
+      "evidence": "feedback.tsx builds profileMap incl self; ContactChat tolerates self peer"
+    },
+    {
+      "ac_id": "AC-I18N-1",
+      "status": "met",
+      "evidence": "i18n en+de feedback section; tests/unit/feedback.i18n.test.ts"
+    }
+  ],
+  "manual_validation": [
+    {
+      "ac_id": "AC-SEND-2",
+      "status": "waived",
+      "evidence": "Structurally proven: feedback send reuses the audited sealAndWrap NIP-59 gift-wrap path (the only send path in ContactChat). The existing DM e2e suite (dm-giftwrap-bell.spec.ts) already proves relay opacity for this exact pipeline. No separate unencrypted feedback path exists. User-authorized waive 2026-06-15."
+    },
+    {
+      "ac_id": "AC-MARKER-2",
+      "status": "waived",
+      "evidence": "Examiner re-verification Q2 confirmed (confidence 1.0) the marker tags land on the inner rumor before sealAndWrap, never on the outer kind-1059 wrap. wrapEvent encrypts rumor.tags into the kind-13 seal. User-authorized waive 2026-06-15."
+    }
+  ],
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_pass",
+      "detail": "Epic new code clean: maintainer.ts 0.837 (residuals equivalent/attribution-artifact), directMessages.ts new code (feedbackMarkerTags+extraTags L303) covered. 40 gap-closing tests written. directMessages real-gaps are pre-existing out-of-scope code; L262 Mallory-binding security gap filed as backlog finding dm-gift-wrap-mallory-pubkey-binding (ACCEPT)."
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_remediated",
+      "detail": "dm-feedback-channel.spec.ts: 3/3 pass (settings\u2192/feedback nav, walled-garden seeding admits maintainer reply AC-REPLY-2, bell routes to /feedback AC-NOTIFY-2, maintainer hidden from contacts AC-CONTACT-1). Maintainer reply published through-app. 3 test-assertion fixes during gate (trailing-slash URLs, dual-bell locator)."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_remediated",
+      "detail": "5 substantive Codex rounds, converged. Fixed: config fallback-to-default (AC-CONFIG-3), feedback image/paste/drop gating + reactions gating (text-only \u00a77), contacts detail-route maintainer bypass\u2192/feedback redirect, query-param array crash, env-dependent test isolation. Standing item disclosed: multi/secondary-maintainer thread routing is spec-deferred (\u00a74.5/\u00a77, cannot occur with single active maintainer). Final confirmation runs blocked by transient Codex infra error.",
+      "structural_findings": {
+        "surfaced": 1,
+        "acted": 0,
+        "disclosed_unacted": 1
+      }
+    }
+  ],
+  "mutation_gate_residuals": [
+    {
+      "module": "app/src/config/maintainer.ts",
+      "residuals": [
+        "L16/L19/L39 equivalent mutants (fail-soft decode)",
+        "L33 perTest-attribution artifacts (gap tests exist via vi.resetModules)"
+      ]
+    },
+    {
+      "module": "app/src/lib/directMessages.ts",
+      "residuals": [
+        "9 real-gaps in PRE-EXISTING code outside epic scope (crypto helpers, image payload, reaction removal, Mallory binding); only epic-new L303 extraTags covered",
+        "L262 Mallory pubkey-binding security gap \u2192 backlog finding dm-gift-wrap-mallory-pubkey-binding"
+      ]
+    }
+  ]
+}

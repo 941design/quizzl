@@ -1,0 +1,28 @@
+{
+  "criteria": [
+    {
+      "id": "AC-SEND-1",
+      "description": "publishFeedbackMessage publishes via NIP-59 gift wrap (same wire format as publishDirectMessage)",
+      "verdict": "YES",
+      "notes": "Uses the same sealAndWrap + NDKEvent.publish path; implemented and readable in directMessages.ts"
+    },
+    {
+      "id": "AC-MARKER-1",
+      "description": "Inner rumor carries ['client', 'nostling', <version>] tag when NEXT_PUBLIC_BUILD_VERSION is set",
+      "verdict": "YES",
+      "notes": "Reads process.env.NEXT_PUBLIC_BUILD_VERSION; appends 3-element tag when truthy"
+    },
+    {
+      "id": "AC-MARKER-2",
+      "description": "Inner rumor carries ['client', 'nostling'] (2-element) when build version is unavailable",
+      "verdict": "YES",
+      "notes": "Fallback when NEXT_PUBLIC_BUILD_VERSION is undefined/empty"
+    },
+    {
+      "id": "AC-MARKER-3",
+      "description": "Ordinary publishDirectMessage calls carry NO extra marker tags",
+      "verdict": "YES",
+      "notes": "publishDirectMessage calls buildChatRumor without extraTags; verified by test asserting tags == [['p', peerPubkeyHex]]"
+    }
+  ]
+}

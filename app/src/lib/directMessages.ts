@@ -285,27 +285,70 @@ export async function unwrapAndOpen(
  * Build a kind-14 (NIP-17 chat message) rumor without a sig.
  * The returned rumor has a valid id computed via NIP-01 hash.
  * Used by callers who need the rumor id before publishing (optimistic UI).
+ *
+ * @param extraTags Optional additional tags appended after the mandatory ["p", peerPubkeyHex] tag.
+ *   Used by publishFeedbackMessage to add client/label markers without touching ordinary DMs.
  */
 export function buildChatRumor(params: {
   privateKeyHex: string;
   peerPubkeyHex: string;
   content: string;
   attachments?: RoledAttachments;
+  extraTags?: string[][];
 }): UnsignedRumor {
   const privKeyBytes = hexToBytes(params.privateKeyHex);
   const senderPubkey = getPublicKey(privKeyBytes);
   const payload = buildPayload(params.content, params.attachments);
+  const baseTags: string[][] = [['p', params.peerPubkeyHex]];
+  const tags = params.extraTags && params.extraTags.length > 0
+    ? [...baseTags, ...params.extraTags]
+    : baseTags;
   const rumor = createRumor(
     {
       kind: CHAT_MESSAGE_KIND,
       content: JSON.stringify(payload),
-      tags: [['p', params.peerPubkeyHex]],
+      tags,
       created_at: Math.floor(Date.now() / 1000),
       pubkey: senderPubkey,
     },
     privKeyBytes,
   );
   return rumor as UnsignedRumor;
+}
+
+/**
+ * Publish a feedback DM from the user to the maintainer.
+ *
+ * Identical to publishDirectMessage in wire format (NIP-17 gift-wrap) but
+ * adds two marker tags to the inner rumor so the maintainer can identify
+ * feedback messages on receipt:
+ *   ["client", "nostling", <build-version>]  — which app version sent this
+ *   ["l", "feedback"]                          — label tag per NIP-32
+ *
+ * The build-version element is included only when NEXT_PUBLIC_BUILD_VERSION
+ * is available; otherwise the tag is ["client", "nostling"] (two elements).
+ *
+ * Ordinary DMs sent via publishDirectMessage carry NO marker tags — this
+ * function must not be confused with it.
+ */
+/**
+ * The sealed marker tags that identify a kind-14 rumor as Nostling feedback.
+ *
+ * Two tags ride inside the sealed rumor (never on the relay-visible outer wrap):
+ *   ["client", "nostling", <build-version>]  — NIP-89-style client identification
+ *   ["l", "feedback"]                          — NIP-32 label discriminator
+ *
+ * The build-version slot is omitted when NEXT_PUBLIC_BUILD_VERSION is unavailable.
+ * Consumed by the feedback send surface (ContactChat in feedback mode), which
+ * passes these as buildChatRumor's extraTags so the markers ride on the inner
+ * kind-14 rumor (AC-MARKER-1).
+ */
+export function feedbackMarkerTags(): string[][] {
+  const buildVersion = process.env.NEXT_PUBLIC_BUILD_VERSION;
+  const clientTag: string[] = buildVersion
+    ? ['client', 'nostling', buildVersion]
+    : ['client', 'nostling'];
+  return [clientTag, ['l', 'feedback']];
 }
 
 /**

@@ -38,6 +38,7 @@ import { appendMessage, loadMessages, purgeStrangerDmThreads } from '@/src/lib/m
 import { purgeStrangerContacts } from '@/src/lib/contacts';
 import { purgeStrangerDmReactions } from '@/src/lib/reactions/api';
 import { loadKnownPeers, rememberKnownPeers, knownPeersMigrationComplete, markKnownPeersMigrationComplete } from '@/src/lib/knownPeers';
+import { MAINTAINER_PUBKEYS_HEX } from '@/src/config/maintainer';
 import { buildDispatcher } from '@/src/lib/marmot/registerHandlers';
 import { applyInboundRumor } from '@/src/lib/reactions/api';
 import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
@@ -495,6 +496,17 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   // effect). On every membership change, knownPeers is seeded from current groups
   // before the purge consults it, so ever-known ex-members are never misclassified
   // as strangers even when knownPeers is cold (e.g. first boot of the S3 migration).
+
+  // Feedback-channel S3: Seed maintainer pubkeys into knownPeers on mount so
+  // the walled-garden purge never removes the maintainer as a stranger, even
+  // before the user has exchanged any messages with them.
+  // Runs once on mount (empty dep array) — maintainer list is a static module constant.
+  useEffect(() => {
+    if (MAINTAINER_PUBKEYS_HEX.length > 0) {
+      rememberKnownPeers(MAINTAINER_PUBKEYS_HEX);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // AC-MIGRATE-1: One-time migration backfill effect (S3).
   // Runs after boot hydration. If the migration flag is absent, seeds knownPeers

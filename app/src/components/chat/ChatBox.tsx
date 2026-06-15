@@ -99,6 +99,18 @@ type ChatBoxProps = {
    * (group surface). AC-55, arch §3 rule 3.
    */
   reactionsByMessageId?: Map<string, import('@/src/lib/reactions/api').ReactionAggregate[]>;
+  /**
+   * Optional override for the composer placeholder. Defaults to the generic
+   * group chat placeholder. The feedback surface supplies a feedback-specific
+   * string (AC-I18N-1).
+   */
+  composerPlaceholder?: string;
+  /**
+   * Whether the image-attachment button is shown. Defaults to true. The
+   * feedback surface sets this false: v1 feedback is text-only (spec §7), and
+   * an image send would bypass the sealed feedback marker tags.
+   */
+  allowImageAttachments?: boolean;
 };
 
 export default function ChatBox({
@@ -113,6 +125,8 @@ export default function ChatBox({
   allowPollMessages = true,
   onReact,
   reactionsByMessageId: reactionsByMessageIdProp,
+  composerPlaceholder,
+  allowImageAttachments = true,
 }: ChatBoxProps) {
   const copy = useCopy();
   const { language } = useLanguage();
@@ -288,11 +302,16 @@ export default function ChatBox({
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    // Text-only surfaces (feedback) must not accept attachments via any entry
+    // point — button, drag/drop, or paste — so image sends cannot bypass the
+    // sealed feedback marker tags (spec §7).
+    if (!allowImageAttachments) return;
     const file = e.dataTransfer.files?.[0];
     if (file?.type.startsWith('image/')) attachFile(file);
-  }, [attachFile]);
+  }, [attachFile, allowImageAttachments]);
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    if (!allowImageAttachments) return;
     const item = Array.from(e.clipboardData.items).find(
       (i) => i.kind === 'file' && i.type.startsWith('image/'),
     );
@@ -300,7 +319,7 @@ export default function ChatBox({
       const file = item.getAsFile();
       if (file) attachFile(file);
     }
-  }, [attachFile]);
+  }, [attachFile, allowImageAttachments]);
 
   function getDisplayName(senderPubkey: string): string {
     const profile = profileMap[senderPubkey];
@@ -641,12 +660,12 @@ export default function ChatBox({
         )}
 
         <Flex p={2} gap={2} align="flex-end">
-          <ImageAttachmentButton onFileSelected={attachFile} />
+          {allowImageAttachments ? <ImageAttachmentButton onFileSelected={attachFile} /> : null}
           <EmojiComposerPicker onSelect={handleEmojiSelect} handleRef={emojiPickerRef} textareaRef={textareaRef} />
           <Textarea
             ref={textareaRef}
             data-testid="chat-input"
-            placeholder={copy.groups.chatPlaceholder}
+            placeholder={composerPlaceholder ?? copy.groups.chatPlaceholder}
             value={inputValue}
             onChange={handleChange}
             onKeyDown={handleKeyDown}

@@ -14,3 +14,7 @@ export function getNextPublicBlossomTrustedHosts(): string | undefined {
 export function getNextPublicLogLevel(): string | undefined {
   return process.env.NEXT_PUBLIC_LOG_LEVEL;
 }
+
+export function getNextPublicMaintainerNpubs(): string | undefined {
+  return process.env.NEXT_PUBLIC_MAINTAINER_NPUBS;
+}
