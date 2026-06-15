@@ -6,11 +6,6 @@ import {
   VStack,
   HStack,
   Button,
-  Divider,
-  Badge,
-  Input,
-  Textarea,
-  Image,
   Alert,
   AlertIcon,
   AlertDescription,
@@ -22,36 +17,26 @@ import {
   ModalFooter,
   ModalCloseButton,
   Checkbox,
+  Textarea,
   useDisclosure,
   useToast,
   Code,
 } from '@chakra-ui/react';
 import Head from 'next/head';
-import { useCopy, useLanguage } from '@/src/context/LanguageContext';
-import { useProfile } from '@/src/context/ProfileContext';
-import { useAppTheme } from '@/src/hooks/useMoodTheme';
+import { useCopy } from '@/src/context/LanguageContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
-import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
 import NpubQrButton from '@/src/components/groups/NpubQrButton';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
-import { PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
-import { useMarmot } from '@/src/context/MarmotContext';
-import { APP_THEMES } from '@/src/lib/theme';
 import { truncateNpub, derivePublicKeyHex } from '@/src/lib/nostrKeys';
-import type { ProfileAvatar, UserProfile } from '@/src/types';
+import { useProfile } from '@/src/context/ProfileContext';
 import { STORAGE_KEYS } from '@/src/types';
 
 export default function SettingsPage() {
-  const { language, setLanguage } = useLanguage();
-  const { profile: savedProfile, saveProfile } = useProfile();
   const copy = useCopy();
-  const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
   const { npub, privateKeyHex, seedHex, backedUp, hydrated: identityHydrated, replaceIdentity } = useNostrIdentity();
-  const { publishProfileUpdate } = useMarmot();
-  const avatarDisclosure = useDisclosure();
+  const { profile: savedProfile, saveProfile } = useProfile();
   const ownQrDisclosure = useDisclosure();
   const toast = useToast();
-  const [profile, setProfile] = useState<UserProfile>({ nickname: '', avatar: null });
   const [npubCopied, setNpubCopied] = useState(false);
 
   // Backup flow state
@@ -86,12 +71,10 @@ export default function SettingsPage() {
     setBackupLoading(true);
     try {
       if (seedHex) {
-        // New identity: 12-word mnemonic from 128-bit seed
         const { mnemonicFromSeed } = await import('@/src/lib/bip39');
         const phrase = await mnemonicFromSeed(seedHex);
         setMnemonic(phrase);
       } else {
-        // Legacy identity (no seed): 24-word mnemonic from raw private key
         const { mnemonicFromHex } = await import('@/src/lib/bip39');
         const phrase = await mnemonicFromHex(privateKeyHex);
         setMnemonic(phrase);
@@ -124,11 +107,9 @@ export default function SettingsPage() {
       let restoredIdentity: { privateKeyHex: string; seedHex?: string } | null = null;
 
       if (wordCount === 12) {
-        // New format: 12-word → seed → derive private key
         const result = await identityFromMnemonic(restoreInput);
         if (result) restoredIdentity = result;
       } else if (wordCount === 24) {
-        // Legacy format: 24-word → raw private key (no seed)
         const hex = await hexFromMnemonic(restoreInput);
         if (hex) restoredIdentity = { privateKeyHex: hex };
       }
@@ -157,12 +138,7 @@ export default function SettingsPage() {
           const meta = JSON.parse(sorted[0].content ?? '{}');
           const nickname = meta.name || meta.display_name || '';
           if (nickname) {
-            const recovered = {
-              nickname,
-              avatar: savedProfile.avatar,
-            };
-            saveProfile(recovered);
-            setProfile(recovered);
+            saveProfile({ nickname, avatar: savedProfile.avatar });
           }
         }
       } catch (err) {
@@ -190,14 +166,12 @@ export default function SettingsPage() {
         if (backup) {
           setPendingBackupPayload(backup);
           backupRestoreDisclosure.onOpen();
-          // Don't set restoreSuccess yet — user needs to confirm or dismiss
           setRestoreInput('');
           setBackupDone(true);
-          return; // Exit early; success is set after dialog resolution
+          return;
         }
       } catch (err) {
         console.warn('[Settings] Relay backup check failed:', err);
-        // Non-fatal — continue with identity-only restore
       }
 
       setRestoreSuccess(true);
@@ -230,26 +204,6 @@ export default function SettingsPage() {
     setRestoreSuccess(true);
   }, [backupRestoreDisclosure]);
 
-  useEffect(() => {
-    setProfile(savedProfile);
-  }, [savedProfile]);
-
-  function handleAvatarSelect(avatar: ProfileAvatar) {
-    setProfile((current) => ({ ...current, avatar }));
-    avatarDisclosure.onClose();
-  }
-
-  function handleProfileSave() {
-    saveProfile(profile);
-    void publishProfileUpdate(profile);
-    toast({
-      title: copy.settings.profileSaved,
-      status: 'success',
-      duration: 2500,
-      isClosable: true,
-    });
-  }
-
   return (
     <>
       <Head>
@@ -264,207 +218,6 @@ export default function SettingsPage() {
         </Text>
 
         <VStack spacing={6} align="stretch">
-          <Box>
-            <Heading as="h2" size="md" mb={1}>
-              {copy.settings.profileHeading}
-            </Heading>
-            <Text fontSize="sm" color="textMuted" mb={4}>
-              {copy.settings.profileDescription}
-            </Text>
-
-            <VStack spacing={5} align="stretch">
-              <Box>
-                <Heading as="h3" size="sm" mb={1}>
-                  {copy.settings.nicknameHeading}
-                </Heading>
-                <Text fontSize="sm" color="textMuted" mb={3}>
-                  {copy.settings.nicknameDescription}
-                </Text>
-                <Input
-                  value={profile.nickname}
-                  onChange={(event) =>
-                    setProfile((current) => ({
-                      ...current,
-                      nickname: event.target.value.slice(0, PROFILE_NICKNAME_MAX_LENGTH),
-                    }))
-                  }
-                  placeholder={copy.settings.nicknamePlaceholder}
-                  maxLength={PROFILE_NICKNAME_MAX_LENGTH}
-                  bg="surfaceBg"
-                  data-testid="profile-nickname-input"
-                />
-                <HStack justify="space-between" mt={2}>
-                  <Text fontSize="xs" color="textMuted">
-                    {copy.settings.nicknameHelper}
-                  </Text>
-                  <Text fontSize="xs" color="textMuted">
-                    {profile.nickname.length}/{PROFILE_NICKNAME_MAX_LENGTH}
-                  </Text>
-                </HStack>
-              </Box>
-
-              <Box>
-                <Heading as="h3" size="sm" mb={1}>
-                  {copy.settings.avatarHeading}
-                </Heading>
-                <Text fontSize="sm" color="textMuted" mb={3}>
-                  {copy.settings.avatarDescription}
-                </Text>
-                <HStack
-                  align={{ base: 'stretch', md: 'center' }}
-                  spacing={4}
-                  flexDirection={{ base: 'column', md: 'row' }}
-                >
-                  <Box
-                    w={{ base: '100%', md: '140px' }}
-                    minW={{ md: '140px' }}
-                    p={3}
-                    borderWidth="1px"
-                    borderRadius="xl"
-                    borderColor="borderSubtle"
-                    bg="surfaceMutedBg"
-                  >
-                    {profile.avatar ? (
-                      <Image
-                        src={profile.avatar.imageUrl}
-                        alt={copy.settings.selectedAvatarAlt}
-                        w="100%"
-                        aspectRatio={1}
-                        objectFit="contain"
-                        bg="white"
-                        borderRadius="lg"
-                      />
-                    ) : (
-                      <Box
-                        aspectRatio={1}
-                        display="flex"
-                        alignItems="center"
-                        justifyContent="center"
-                        borderRadius="lg"
-                        bg="surfaceBg"
-                        color="textMuted"
-                        textAlign="center"
-                        px={4}
-                      >
-                        <Text fontSize="sm">{copy.settings.noAvatarSelected}</Text>
-                      </Box>
-                    )}
-                  </Box>
-
-                  <VStack align="stretch" spacing={3} flex={1}>
-                    <HStack spacing={3} flexWrap="wrap">
-                      <Button onClick={avatarDisclosure.onOpen} data-testid="choose-avatar-btn">
-                        {profile.avatar ? copy.settings.changeAvatar : copy.settings.chooseAvatar}
-                      </Button>
-                      {profile.avatar && (
-                        <Button
-                          variant="outline"
-                          onClick={() => setProfile((current) => ({ ...current, avatar: null }))}
-                        >
-                          {copy.settings.removeAvatar}
-                        </Button>
-                      )}
-                    </HStack>
-                  </VStack>
-                </HStack>
-              </Box>
-
-              <Button alignSelf="flex-start" onClick={handleProfileSave} data-testid="save-profile-btn">
-                {copy.settings.saveProfile}
-              </Button>
-            </VStack>
-          </Box>
-
-          <Divider />
-
-          <Box>
-            <Heading as="h2" size="md" mb={1}>
-              {copy.settings.languageHeading}
-            </Heading>
-            <Text fontSize="sm" color="textMuted" mb={4}>
-              {copy.settings.languageDescription}
-            </Text>
-
-            <HStack spacing={4} flexWrap="wrap">
-              {(['en', 'de'] as const).map((option) => (
-                <Button
-                  key={option}
-                  variant={language === option ? 'solid' : 'outline'}
-                  onClick={() => setLanguage(option)}
-                  size="lg"
-                >
-                  {copy.languageNames[option]}
-                  {language === option && (
-                    <Badge ml={2} fontSize="xs">
-                      {copy.settings.active}
-                    </Badge>
-                  )}
-                </Button>
-              ))}
-            </HStack>
-          </Box>
-
-          <Divider />
-
-          {/* Mood Theme Section */}
-          <Box>
-            <Heading as="h2" size="md" mb={1}>
-              {copy.settings.themeHeading}
-            </Heading>
-            <Text fontSize="sm" color="textMuted" mb={4}>
-              {copy.settings.themeDescription}
-            </Text>
-
-            <HStack spacing={4} flexWrap="wrap">
-              {Object.values(APP_THEMES).map((themeOption) => {
-                const isActive = themeName === themeOption.id;
-
-                return (
-                  <Button
-                    key={themeOption.id}
-                    variant={isActive ? 'solid' : 'outline'}
-                    colorScheme={themeOption.previewColorScheme}
-                    onClick={() => setTheme(themeOption.id)}
-                    data-testid={`theme-${themeOption.id}-btn`}
-                    size="lg"
-                    leftIcon={isActive ? <span>✓</span> : undefined}
-                  >
-                    {copy.settings[themeOption.labelKey]}
-                    {isActive && (
-                      <Badge colorScheme={themeOption.previewColorScheme} ml={2} fontSize="xs">
-                        {copy.settings.active}
-                      </Badge>
-                    )}
-                  </Button>
-                );
-              })}
-            </HStack>
-
-            <Box
-              mt={4}
-              p={3}
-              borderRadius="md"
-              bg="surfaceMutedBg"
-              borderWidth="1px"
-              borderColor="borderSubtle"
-              backgroundImage={activeThemeDefinition.backgroundImage}
-              backgroundSize={activeThemeDefinition.backgroundImage ? '120px 120px' : undefined}
-              data-testid="theme-preview"
-            >
-              <Text fontSize="sm" color="textMuted">
-                {copy.settings.currentTheme}:{' '}
-                <Text as="span" fontWeight="semibold" textTransform="capitalize">
-                  {copy.settings[activeThemeDefinition.labelKey]}
-                </Text>
-              </Text>
-              <Text fontSize="xs" color="textMuted" mt={1}>
-                {copy.settings[activeThemeDefinition.descriptionKey]}
-              </Text>
-            </Box>
-          </Box>
-
-          <Divider />
-
           {/* Nostr Identity Section */}
           <Box>
             <Heading as="h2" size="md" mb={1}>
@@ -637,13 +390,6 @@ export default function SettingsPage() {
           </Box>
         </VStack>
       </Box>
-
-      <AvatarBrowserModal
-        isOpen={avatarDisclosure.isOpen}
-        onClose={avatarDisclosure.onClose}
-        onSelect={handleAvatarSelect}
-        initialAvatar={profile.avatar}
-      />
 
       {/* Relay backup restore confirmation dialog */}
       <Modal

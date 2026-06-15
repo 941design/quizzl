@@ -17,6 +17,7 @@ type Copy = {
     unreadMessages: (count: number) => string;
     joinRequestNotification: (count: number) => string;
     directMessageNotification: (count: number) => string;
+    backupNeededLabel: string;
   };
   home: {
     title: string;
@@ -271,6 +272,9 @@ type Copy = {
     addToGroupBtn: string;
     addToGroupSuccess: string;
     addToGroupError: string;
+    ownHeading: string;
+    ownDescription: string;
+    backupNeededHint: string;
   };
   polls: {
     heading: (count: number) => string;
@@ -352,6 +356,7 @@ const copy: Record<LanguageCode, Copy> = {
       unreadMessages: (count: number) => count === 1 ? '1 new message' : `${count} new messages`,
       joinRequestNotification: (count: number) => count === 1 ? '1 join request' : `${count} join requests`,
       directMessageNotification: (count: number) => count === 1 ? '1 new direct message' : `${count} new direct messages`,
+      backupNeededLabel: 'Backup needed',
     },
     home: {
       title: 'Welcome to Nostling',
@@ -374,7 +379,7 @@ const copy: Record<LanguageCode, Copy> = {
     settings: {
       pageTitle: 'Settings',
       heading: 'Settings',
-      description: 'Customize your experience.',
+      description: 'Manage your Nostr identity and key backup.',
       profileSaved: 'Your profile look has been saved.',
       profileHeading: 'My Profile',
       profileDescription: 'Pick a nickname, an avatar, and a few fun badges.',
@@ -619,6 +624,9 @@ const copy: Record<LanguageCode, Copy> = {
       addToGroupBtn: 'Add to group',
       addToGroupSuccess: 'Contact added to the group.',
       addToGroupError: 'Could not add the contact to the group. Please try again.',
+      ownHeading: 'My Profile',
+      ownDescription: 'Customize how you appear in Nostling.',
+      backupNeededHint: 'Your identity is not backed up yet. Go to Settings to back it up.',
     },
     polls: {
       heading: (count: number) => count > 0 ? `Polls (${count})` : 'Polls',
@@ -688,6 +696,7 @@ const copy: Record<LanguageCode, Copy> = {
       unreadMessages: (count: number) => count === 1 ? '1 neue Nachricht' : `${count} neue Nachrichten`,
       joinRequestNotification: (count: number) => count === 1 ? '1 Beitrittsanfrage' : `${count} Beitrittsanfragen`,
       directMessageNotification: (count: number) => count === 1 ? '1 neue Direktnachricht' : `${count} neue Direktnachrichten`,
+      backupNeededLabel: 'Sicherung erforderlich',
     },
     home: {
       title: 'Willkommen bei Nostling',
@@ -710,7 +719,7 @@ const copy: Record<LanguageCode, Copy> = {
     settings: {
       pageTitle: 'Einstellungen',
       heading: 'Einstellungen',
-      description: 'Passe dein Erlebnis an.',
+      description: 'Verwalte deine Nostr-Identität und Schlüsselsicherung.',
       profileSaved: 'Dein Profil wurde gespeichert.',
       profileHeading: 'Mein Profil',
       profileDescription: 'Wähle einen Spitznamen, einen Avatar und ein paar lustige Badges.',
@@ -954,6 +963,9 @@ const copy: Record<LanguageCode, Copy> = {
       addToGroupBtn: 'Zur Gruppe hinzufügen',
       addToGroupSuccess: 'Kontakt zur Gruppe hinzugefügt.',
       addToGroupError: 'Kontakt konnte nicht zur Gruppe hinzugefügt werden. Bitte versuche es erneut.',
+      ownHeading: 'Mein Profil',
+      ownDescription: 'Passe an, wie du in Nostling erscheinst.',
+      backupNeededHint: 'Deine Identität ist noch nicht gesichert. Gehe zu Einstellungen, um sie zu sichern.',
     },
     polls: {
       heading: (count: number) => count > 0 ? `Umfragen (${count})` : 'Umfragen',

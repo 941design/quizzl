@@ -1,0 +1,21 @@
+{
+  "epic_name": "profile-settings-separation",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-06-15T06:07:49Z",
+  "updated_at": "2026-06-15T06:30:00Z",
+  "pre_existing_dirty_files": [],
+  "completed_stories": [],
+  "escalated_stories": [],
+  "phase_history": [
+    {"phase": "SPEC_VALIDATED", "timestamp": "2026-06-15T06:07:49Z", "trigger": "validation_passed"},
+    {"phase": "IMPLEMENTING", "timestamp": "2026-06-15T06:07:49Z", "trigger": "stories_planned"}
+  ],
+  "plugin_sha": "unknown",
+  "consumer_sha": "9bd0776b02d8796c2b62650cc3c1ba175bd9c41c",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "unknown",
+    "implementer": "sonnet"
+  }
+}

@@ -1,27 +1,38 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import NextLink from 'next/link';
 import {
   Alert,
   AlertDescription,
   AlertIcon,
+  Badge,
   Box,
   Button,
+  Code,
+  Divider,
   HStack,
   Heading,
   Image,
+  Input,
   Select,
   Text,
   VStack,
-  Code,
+  useDisclosure,
+  useToast,
 } from '@chakra-ui/react';
-import { useCopy } from '@/src/context/LanguageContext';
+import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
+import { useProfile } from '@/src/context/ProfileContext';
+import { useAppTheme } from '@/src/hooks/useMoodTheme';
+import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
 import { addableGroupsForContact, archiveContact, eligibleGroupsForContact, getContact, unarchiveContact } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
+import { APP_THEMES } from '@/src/lib/theme';
+import { PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
 import type { ContactListItem } from '@/src/lib/contacts';
-import type { ProfileAvatar } from '@/src/types';
+import type { ProfileAvatar, UserProfile } from '@/src/types';
 
 function AvatarDisplay({ avatar, displayName, size }: { avatar: ProfileAvatar | null; displayName: string; size: string }) {
   return (
@@ -49,6 +60,269 @@ function AvatarDisplay({ avatar, displayName, size }: { avatar: ProfileAvatar | 
   );
 }
 
+function OwnProfileSection() {
+  const copy = useCopy();
+  const { backedUp } = useNostrIdentity();
+  const { profile: savedProfile, saveProfile } = useProfile();
+  const { language, setLanguage } = useLanguage();
+  const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
+  const { publishProfileUpdate } = useMarmot();
+  const avatarDisclosure = useDisclosure();
+  const toast = useToast();
+  const [profile, setProfile] = useState<UserProfile>({ nickname: '', avatar: null });
+
+  useEffect(() => {
+    setProfile(savedProfile);
+  }, [savedProfile]);
+
+  function handleAvatarSelect(avatar: ProfileAvatar) {
+    setProfile((current) => ({ ...current, avatar }));
+    avatarDisclosure.onClose();
+  }
+
+  const handleProfileSave = useCallback(() => {
+    saveProfile(profile);
+    void publishProfileUpdate(profile);
+    toast({
+      title: copy.settings.profileSaved,
+      status: 'success',
+      duration: 2500,
+      isClosable: true,
+    });
+  }, [profile, saveProfile, publishProfileUpdate, toast, copy.settings.profileSaved]);
+
+  return (
+    <>
+      <VStack spacing={6} align="stretch">
+        {/* Nickname + Avatar */}
+        <Box>
+          <Heading as="h2" size="md" mb={1}>
+            {copy.settings.profileHeading}
+          </Heading>
+          <Text fontSize="sm" color="textMuted" mb={4}>
+            {copy.settings.profileDescription}
+          </Text>
+
+          <VStack spacing={5} align="stretch">
+            <Box>
+              <Heading as="h3" size="sm" mb={1}>
+                {copy.settings.nicknameHeading}
+              </Heading>
+              <Text fontSize="sm" color="textMuted" mb={3}>
+                {copy.settings.nicknameDescription}
+              </Text>
+              <Input
+                value={profile.nickname}
+                onChange={(event) =>
+                  setProfile((current) => ({
+                    ...current,
+                    nickname: event.target.value.slice(0, PROFILE_NICKNAME_MAX_LENGTH),
+                  }))
+                }
+                placeholder={copy.settings.nicknamePlaceholder}
+                maxLength={PROFILE_NICKNAME_MAX_LENGTH}
+                bg="surfaceBg"
+                data-testid="profile-nickname-input"
+              />
+              <HStack justify="space-between" mt={2}>
+                <Text fontSize="xs" color="textMuted">
+                  {copy.settings.nicknameHelper}
+                </Text>
+                <Text fontSize="xs" color="textMuted">
+                  {profile.nickname.length}/{PROFILE_NICKNAME_MAX_LENGTH}
+                </Text>
+              </HStack>
+            </Box>
+
+            <Box>
+              <Heading as="h3" size="sm" mb={1}>
+                {copy.settings.avatarHeading}
+              </Heading>
+              <Text fontSize="sm" color="textMuted" mb={3}>
+                {copy.settings.avatarDescription}
+              </Text>
+              <HStack
+                align={{ base: 'stretch', md: 'center' }}
+                spacing={4}
+                flexDirection={{ base: 'column', md: 'row' }}
+              >
+                <Box
+                  w={{ base: '100%', md: '140px' }}
+                  minW={{ md: '140px' }}
+                  p={3}
+                  borderWidth="1px"
+                  borderRadius="xl"
+                  borderColor="borderSubtle"
+                  bg="surfaceMutedBg"
+                >
+                  {profile.avatar ? (
+                    <Image
+                      src={profile.avatar.imageUrl}
+                      alt={copy.settings.selectedAvatarAlt}
+                      w="100%"
+                      aspectRatio={1}
+                      objectFit="contain"
+                      bg="white"
+                      borderRadius="lg"
+                    />
+                  ) : (
+                    <Box
+                      aspectRatio={1}
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="center"
+                      borderRadius="lg"
+                      bg="surfaceBg"
+                      color="textMuted"
+                      textAlign="center"
+                      px={4}
+                    >
+                      <Text fontSize="sm">{copy.settings.noAvatarSelected}</Text>
+                    </Box>
+                  )}
+                </Box>
+
+                <VStack align="stretch" spacing={3} flex={1}>
+                  <HStack spacing={3} flexWrap="wrap">
+                    <Button onClick={avatarDisclosure.onOpen} data-testid="choose-avatar-btn">
+                      {profile.avatar ? copy.settings.changeAvatar : copy.settings.chooseAvatar}
+                    </Button>
+                    {profile.avatar && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setProfile((current) => ({ ...current, avatar: null }))}
+                      >
+                        {copy.settings.removeAvatar}
+                      </Button>
+                    )}
+                  </HStack>
+                </VStack>
+              </HStack>
+            </Box>
+
+            <Button alignSelf="flex-start" onClick={handleProfileSave} data-testid="save-profile-btn">
+              {copy.settings.saveProfile}
+            </Button>
+          </VStack>
+        </Box>
+
+        <Divider />
+
+        {/* Theme */}
+        <Box>
+          <Heading as="h2" size="md" mb={1}>
+            {copy.settings.themeHeading}
+          </Heading>
+          <Text fontSize="sm" color="textMuted" mb={4}>
+            {copy.settings.themeDescription}
+          </Text>
+
+          <HStack spacing={4} flexWrap="wrap">
+            {Object.values(APP_THEMES).map((themeOption) => {
+              const isActive = themeName === themeOption.id;
+              return (
+                <Button
+                  key={themeOption.id}
+                  variant={isActive ? 'solid' : 'outline'}
+                  colorScheme={themeOption.previewColorScheme}
+                  onClick={() => setTheme(themeOption.id)}
+                  data-testid={`theme-${themeOption.id}-btn`}
+                  size="lg"
+                  leftIcon={isActive ? <span>✓</span> : undefined}
+                >
+                  {copy.settings[themeOption.labelKey]}
+                  {isActive && (
+                    <Badge colorScheme={themeOption.previewColorScheme} ml={2} fontSize="xs">
+                      {copy.settings.active}
+                    </Badge>
+                  )}
+                </Button>
+              );
+            })}
+          </HStack>
+
+          <Box
+            mt={4}
+            p={3}
+            borderRadius="md"
+            bg="surfaceMutedBg"
+            borderWidth="1px"
+            borderColor="borderSubtle"
+            backgroundImage={activeThemeDefinition.backgroundImage}
+            backgroundSize={activeThemeDefinition.backgroundImage ? '120px 120px' : undefined}
+            data-testid="theme-preview"
+          >
+            <Text fontSize="sm" color="textMuted">
+              {copy.settings.currentTheme}:{' '}
+              <Text as="span" fontWeight="semibold" textTransform="capitalize">
+                {copy.settings[activeThemeDefinition.labelKey]}
+              </Text>
+            </Text>
+            <Text fontSize="xs" color="textMuted" mt={1}>
+              {copy.settings[activeThemeDefinition.descriptionKey]}
+            </Text>
+          </Box>
+        </Box>
+
+        <Divider />
+
+        {/* Language */}
+        <Box>
+          <Heading as="h2" size="md" mb={1}>
+            {copy.settings.languageHeading}
+          </Heading>
+          <Text fontSize="sm" color="textMuted" mb={4}>
+            {copy.settings.languageDescription}
+          </Text>
+
+          <HStack spacing={4} flexWrap="wrap">
+            {(['en', 'de'] as const).map((option) => (
+              <Button
+                key={option}
+                variant={language === option ? 'solid' : 'outline'}
+                onClick={() => setLanguage(option)}
+                size="lg"
+              >
+                {copy.languageNames[option]}
+                {language === option && (
+                  <Badge ml={2} fontSize="xs">
+                    {copy.settings.active}
+                  </Badge>
+                )}
+              </Button>
+            ))}
+          </HStack>
+        </Box>
+
+        {/* Backup hint — shown when the identity seed phrase hasn't been backed up */}
+        {!backedUp && (
+          <>
+            <Divider />
+            <Alert status="warning" borderRadius="md" data-testid="profile-backup-hint">
+              <AlertIcon />
+              <AlertDescription fontSize="sm">
+                {copy.profile.backupNeededHint}{' '}
+                <NextLink href="/settings" passHref legacyBehavior>
+                  <Text as="a" fontWeight="semibold" textDecoration="underline" display="inline">
+                    {copy.layout.nav.settings}
+                  </Text>
+                </NextLink>
+              </AlertDescription>
+            </Alert>
+          </>
+        )}
+      </VStack>
+
+      <AvatarBrowserModal
+        isOpen={avatarDisclosure.isOpen}
+        onClose={avatarDisclosure.onClose}
+        onSelect={handleAvatarSelect}
+        initialAvatar={profile.avatar}
+      />
+    </>
+  );
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const copy = useCopy();
@@ -61,20 +335,11 @@ export default function ProfilePage() {
   const [adminGroupIds, setAdminGroupIds] = useState<Set<string>>(new Set());
 
   const pubkeyHex = typeof router.query.pubkey === 'string' ? router.query.pubkey : null;
+  const isOwnProfile = !pubkeyHex || pubkeyHex === ownPubkeyHex;
 
+  // Resolve admin groups only when viewing another user's profile
   useEffect(() => {
-    if (pubkeyHex && ownPubkeyHex && pubkeyHex === ownPubkeyHex) {
-      router.replace('/settings');
-    }
-  }, [pubkeyHex, ownPubkeyHex, router]);
-
-  // Resolve which of the contact's eligible groups the current user administers.
-  // Admin status lives in MLS state (getGroup → groupData.adminPubkeys), not in
-  // the Group overlay, so it is loaded asynchronously per candidate group. Only
-  // admin groups can be invited into, so non-admin groups are filtered out of
-  // the "Add to Group" dropdown entirely.
-  useEffect(() => {
-    if (!pubkeyHex || !ownPubkeyHex) {
+    if (isOwnProfile || !pubkeyHex || !ownPubkeyHex) {
       setAdminGroupIds(new Set());
       return;
     }
@@ -94,35 +359,37 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [groups, pubkeyHex, ownPubkeyHex, getGroup, groupDataVersion]);
+  }, [groups, pubkeyHex, ownPubkeyHex, getGroup, groupDataVersion, isOwnProfile]);
 
   const contact: ContactListItem | null = useMemo(() => {
-    if (!pubkeyHex || !ownPubkeyHex) return null;
+    if (isOwnProfile || !pubkeyHex || !ownPubkeyHex) return null;
     return getContact(pubkeyHex, ownPubkeyHex, { includeArchived: true });
-  }, [pubkeyHex, ownPubkeyHex, version]);
+  }, [pubkeyHex, ownPubkeyHex, version, isOwnProfile]);
 
-  if (!pubkeyHex) {
+  if (isOwnProfile) {
     return (
-      <Box data-testid="profile-page">
-        <Alert status="warning" borderRadius="md">
-          <AlertIcon />
-          <AlertDescription>{copy.profile.notFound}</AlertDescription>
-        </Alert>
-      </Box>
+      <>
+        <Head>
+          <title>{`${copy.profile.pageTitle} - ${copy.appName}`}</title>
+        </Head>
+        <Box data-testid="profile-page">
+          <Heading as="h1" size="xl" mb={2}>
+            {copy.profile.ownHeading}
+          </Heading>
+          <Text color="textMuted" mb={6}>
+            {copy.profile.ownDescription}
+          </Text>
+          <OwnProfileSection />
+        </Box>
+      </>
     );
   }
 
-  if (pubkeyHex === ownPubkeyHex) {
-    return null;
-  }
-
-  const npub = pubkeyToNpub(pubkeyHex);
+  const npub = pubkeyToNpub(pubkeyHex!);
   const displayName = contact?.nickname || truncateNpub(npub);
   const avatar = contact?.avatar ?? null;
 
-  const addableGroups = addableGroupsForContact(groups, pubkeyHex, adminGroupIds);
-  // The Select defaults to the first addable group when the user hasn't picked
-  // one yet, so the submit handler always has a valid target.
+  const addableGroups = addableGroupsForContact(groups, pubkeyHex!, adminGroupIds);
   const effectiveGroupId = selectedGroupId || addableGroups[0]?.id || '';
 
   function handleCopyNpub() {

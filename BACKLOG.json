@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-14T18:37:26Z",
+  "updated_at": "2026-06-15T06:15:14Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -99,8 +99,13 @@
     },
     {
       "path": "specs/epic-feature-request-update-detection-for-the-static-site/",
-      "status": "IN_PROGRESS",
-      "next_action": "created 2026-06-14"
+      "status": "DONE",
+      "next_action": "completed 2026-06-14"
+    },
+    {
+      "path": "specs/epic-profile-settings-separation/",
+      "status": "DONE",
+      "next_action": "completed 2026-06-15"
     }
   ],
   "findings": [

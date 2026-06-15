@@ -38,7 +38,7 @@ type LayoutProps = {
 export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
   const { profile } = useProfile();
-  const { npub, pubkeyHex } = useNostrIdentity();
+  const { npub, pubkeyHex, backedUp } = useNostrIdentity();
   const { groups, ready } = useMarmot();
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
@@ -141,7 +141,7 @@ export default function Layout({ children }: LayoutProps) {
                   );
                 })}
               </HStack>
-              <NextLink href="/settings" passHref legacyBehavior>
+              <NextLink href="/profile" passHref legacyBehavior>
                 <Link _hover={{ textDecoration: 'none' }}>
                   <Box
                     px={2}
@@ -170,12 +170,27 @@ export default function Layout({ children }: LayoutProps) {
                   w={10}
                   h={10}
                   borderRadius="md"
+                  position="relative"
                   color={router.pathname === '/settings' ? 'brand.500' : 'textMuted'}
                   _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
                   _focusVisible={{ boxShadow: 'outline' }}
                   data-testid="header-settings-link"
                 >
                   <ThemeIcon name="settings" size={20} aria-hidden />
+                  {!backedUp && (
+                    <Box
+                      as="span"
+                      position="absolute"
+                      top="6px"
+                      right="6px"
+                      w="8px"
+                      h="8px"
+                      borderRadius="full"
+                      bg="orange.400"
+                      aria-label={copy.layout.backupNeededLabel}
+                      data-testid="gear-backup-dot"
+                    />
+                  )}
                 </Link>
               </NextLink>
             </HStack>
@@ -192,12 +207,26 @@ export default function Layout({ children }: LayoutProps) {
                   w={10}
                   h={10}
                   borderRadius="md"
+                  position="relative"
                   color={router.pathname === '/settings' ? 'brand.500' : 'textMuted'}
                   _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
                   _focusVisible={{ boxShadow: 'outline' }}
                   data-testid="mobile-header-settings-link"
                 >
                   <ThemeIcon name="settings" size={20} aria-hidden />
+                  {!backedUp && (
+                    <Box
+                      as="span"
+                      position="absolute"
+                      top="6px"
+                      right="6px"
+                      w="8px"
+                      h="8px"
+                      borderRadius="full"
+                      bg="orange.400"
+                      data-testid="gear-backup-dot-mobile"
+                    />
+                  )}
                 </Link>
               </NextLink>
               <IconButton
@@ -225,7 +254,7 @@ export default function Layout({ children }: LayoutProps) {
               data-testid="mobile-nav"
             >
               <Box w="100%" px={3} pb={3}>
-                <NextLink href="/settings" passHref legacyBehavior>
+                <NextLink href="/profile" passHref legacyBehavior>
                   <Link
                     display="block"
                     mb={3}
