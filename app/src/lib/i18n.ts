@@ -11,7 +11,7 @@ type Copy = {
     };
     languageLabel: string;
     mobileMenuLabel: string;
-    profileFallbackName: string;
+    profileNamePlaceholder: string;
     notificationsLabel: string;
     noNotifications: string;
     unreadMessages: (count: number) => string;
@@ -350,7 +350,7 @@ const copy: Record<LanguageCode, Copy> = {
       },
       languageLabel: 'Language',
       mobileMenuLabel: 'Toggle navigation menu',
-      profileFallbackName: 'Player One',
+      profileNamePlaceholder: 'Set your name',
       notificationsLabel: 'Notifications',
       noNotifications: 'No new messages',
       unreadMessages: (count: number) => count === 1 ? '1 new message' : `${count} new messages`,
@@ -690,7 +690,7 @@ const copy: Record<LanguageCode, Copy> = {
       },
       languageLabel: 'Sprache',
       mobileMenuLabel: 'Navigationsmenü umschalten',
-      profileFallbackName: 'Spieler Eins',
+      profileNamePlaceholder: 'Name festlegen',
       notificationsLabel: 'Benachrichtigungen',
       noNotifications: 'Keine neuen Nachrichten',
       unreadMessages: (count: number) => count === 1 ? '1 neue Nachricht' : `${count} neue Nachrichten`,

@@ -5,7 +5,7 @@ import { clearAppState } from './helpers/clear-state';
 /** Truncated npub format: "npub1abcdef0...12345678" */
 const TRUNCATED_NPUB_PATTERN = /^npub1[a-z0-9]+\.\.\.[a-z0-9]+$/;
 
-test.describe('Profile display name — prefer nickname, fall back to npub', () => {
+test.describe('Profile display name — prefer nickname, prompt to set name', () => {
   test.beforeAll(async () => {
     await computeTestKeypairs();
   });
@@ -15,7 +15,7 @@ test.describe('Profile display name — prefer nickname, fall back to npub', () 
     await clearAppState(page);
   });
 
-  test('header shows truncated npub when no nickname is set', async ({ page }) => {
+  test('header prompts to set a name (no npub) when no nickname is set', async ({ page }) => {
     await injectIdentity(page, USER_A);
     await page.reload();
     await page.waitForLoadState('networkidle');
@@ -24,7 +24,9 @@ test.describe('Profile display name — prefer nickname, fall back to npub', () 
       .getByTestId('header-profile-chip')
       .getByTestId('profile-display-name');
     await expect(displayName).toBeVisible();
-    await expect(displayName).toHaveText(TRUNCATED_NPUB_PATTERN);
+    // Fresh user: a pulsing call-to-action, never the meaningless npub.
+    await expect(displayName).toHaveAttribute('data-placeholder', 'true');
+    await expect(displayName).not.toHaveText(TRUNCATED_NPUB_PATTERN);
   });
 
   test('header shows short nickname when set', async ({ page }) => {

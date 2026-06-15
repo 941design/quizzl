@@ -18,7 +18,6 @@ import ProfileSummary from '@/src/components/ProfileSummary';
 import { useProfile } from '@/src/context/ProfileContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useMarmot } from '@/src/context/MarmotContext';
-import { truncateNpub } from '@/src/lib/nostrKeys';
 import StorageWarning from '@/src/components/StorageWarning';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 import ThemeIcon from '@/src/components/ThemeIcon';
@@ -37,8 +36,12 @@ type LayoutProps = {
 
 export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
-  const { profile } = useProfile();
-  const { npub, pubkeyHex, backedUp } = useNostrIdentity();
+  const { profile, hydrated: profileHydrated } = useProfile();
+  const { pubkeyHex, backedUp } = useNostrIdentity();
+  // Fresh user (no display name yet): nudge toward setting a name instead of
+  // surfacing the meaningless npub. Gated on hydration so a returning user
+  // never flashes the prompt before their saved profile loads.
+  const promptForName = profileHydrated && !profile.nickname;
   const { groups, ready } = useMarmot();
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
@@ -154,7 +157,8 @@ export default function Layout({ children }: LayoutProps) {
                   >
                     <ProfileSummary
                       profile={profile}
-                      fallbackName={npub ? truncateNpub(npub) : copy.layout.profileFallbackName}
+                      fallbackName={copy.layout.profileNamePlaceholder}
+                      promptForName={promptForName}
                       size="sm"
                     />
                   </Box>
@@ -267,7 +271,8 @@ export default function Layout({ children }: LayoutProps) {
                   >
                     <ProfileSummary
                       profile={profile}
-                      fallbackName={npub ? truncateNpub(npub) : copy.layout.profileFallbackName}
+                      fallbackName={copy.layout.profileNamePlaceholder}
+                      promptForName={promptForName}
                       size="sm"
                     />
                   </Link>
