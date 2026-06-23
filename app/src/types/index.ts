@@ -109,3 +109,60 @@ export type MemberProfile = {
   /** Verified signed envelope when the profile arrived via a sig-bearing rumor. Absent for legacy peers. */
   signedEvent?: SignedProfileEvent;
 };
+
+// ============================
+// Voice / Video Call Types (AC-WebRTC, kinds 25050–25055)
+// ============================
+
+/**
+ * Nostr event kinds used for call signaling (Amethyst AC-WebRTC wire format).
+ * Events are ephemeral (kind range 20000–29999); they travel inside kind-21059
+ * gift wraps and are never published in cleartext.
+ */
+export type CallKind = 25050 | 25051 | 25052 | 25053 | 25054 | 25055;
+
+/**
+ * Parsed representation of a received (decrypted, verified) call signaling event.
+ * Callers receive this from `subscribeCallSignaling` and never see the raw wire bytes.
+ */
+export interface IncomingCallEvent {
+  /** Which type of signaling message this is. */
+  kind: CallKind;
+  /** Stable call-session UUID shared by all events of one call. */
+  callId: string;
+  /** Hex pubkey of the real (inner-event-signed) sender. */
+  senderPubkey: string;
+  /** Present on kind 25050 (Offer) only. */
+  callType?: 'voice' | 'video';
+  /** Raw SDP string; present on kinds 25050, 25051, 25055. */
+  sdp?: string;
+  /** Parsed ICE candidate; present on kind 25052. Defaults: sdpMid→"0", sdpMLineIndex→0. */
+  iceCandidate?: RTCIceCandidateInit;
+  /** Plaintext reason; present on kinds 25053 and 25054. May be "busy" or "". */
+  reason?: string;
+  /** All `p`-tagged pubkeys from the inner event (full roster for offers/answers). */
+  recipientPubkeys: string[];
+  /** The inner event's `id` — used for deduplication. */
+  innerEventId: string;
+}
+
+/**
+ * Parameters for `subscribeCallSignaling`.
+ * `groupsRef` is intentionally absent from this pure-lib type — the roster gate is
+ * implemented via the injected `isAuthorized` callback, which the caller (e.g.
+ * IncomingCallWatcher) closes over its own group state.
+ */
+export interface CallSignalingParams {
+  /** Local user's hex pubkey — used as the `#p` subscription filter value. */
+  pubkeyHex: string;
+  /** Local user's hex private key — used to NIP-44 decrypt incoming gift wraps. */
+  privateKeyHex: string;
+  /**
+   * Authorization gate called after signature verification.
+   * Returns true when the sender is authorised to signal this call (e.g. is a
+   * current MLS group member or the expected 1:1 peer).
+   */
+  isAuthorized: (senderPubkey: string, callId: string) => Promise<boolean>;
+  /** Called for each valid, authorized, non-duplicate, fresh signaling event. */
+  onEvent: (evt: IncomingCallEvent) => void;
+}

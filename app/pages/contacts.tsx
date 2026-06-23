@@ -12,6 +12,7 @@ import {
   Divider,
   Flex,
   Heading,
+  HStack,
   IconButton,
   LinkBox,
   LinkOverlay,
@@ -23,6 +24,7 @@ import {
 import ThemeIcon from '@/src/components/ThemeIcon';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import ContactChat from '@/src/components/contacts/ContactChat';
+import { ContactCallToolbar } from '@/src/components/calls/CallToolbar';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
@@ -269,21 +271,24 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
               {truncateNpub(pubkeyToNpub(contact.pubkeyHex))}
             </Text>
           </Box>
-          <Button
-            size="sm"
-            variant="outline"
-            data-testid={contact.isArchived ? 'contact-detail-unarchive' : 'contact-detail-archive'}
-            onClick={() => {
-              if (contact.isArchived) {
-                unarchiveContact(contact.pubkeyHex);
-              } else {
-                archiveContact(contact.pubkeyHex);
-              }
-              setVersion((current) => current + 1);
-            }}
-          >
-            {contact.isArchived ? copy.contacts.unarchiveAction : copy.contacts.archiveAction}
-          </Button>
+          <HStack spacing={2}>
+            <ContactCallToolbar peerPubkeyHex={contact.pubkeyHex} />
+            <Button
+              size="sm"
+              variant="outline"
+              data-testid={contact.isArchived ? 'contact-detail-unarchive' : 'contact-detail-archive'}
+              onClick={() => {
+                if (contact.isArchived) {
+                  unarchiveContact(contact.pubkeyHex);
+                } else {
+                  archiveContact(contact.pubkeyHex);
+                }
+                setVersion((current) => current + 1);
+              }}
+            >
+              {contact.isArchived ? copy.contacts.unarchiveAction : copy.contacts.archiveAction}
+            </Button>
+          </HStack>
         </Flex>
         {contact.isArchived ? (
           <Alert status="info" borderRadius="md" mt={4} data-testid="contact-archived-alert">

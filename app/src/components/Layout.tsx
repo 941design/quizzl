@@ -23,6 +23,9 @@ import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 import ThemeIcon from '@/src/components/ThemeIcon';
 import NotificationBell from '@/src/components/NotificationBell';
 import DirectMessageNotificationsWatcher from '@/src/components/DirectMessageNotificationsWatcher';
+import { IncomingCallWatcher } from '@/src/components/calls/IncomingCallWatcher';
+import { IncomingCallModal } from '@/src/components/calls/IncomingCallModal';
+import { CallScreen } from '@/src/components/calls/CallScreen';
 import { rememberContactsFromGroups } from '@/src/lib/contacts';
 import { subscribe as subscribePendingInvitations, getSnapshot as getPendingInvitationsSnapshot } from '@/src/lib/pendingInvitations';
 
@@ -68,6 +71,9 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <Box minH="100vh" bg="appBg">
       <DirectMessageNotificationsWatcher />
+      <IncomingCallWatcher />
+      <IncomingCallModal />
+      <CallScreen />
       {/* Navigation Bar */}
       <Box
         as="nav"

@@ -372,6 +372,27 @@ export default function ChatBox({
         ?? truncateNpub(pubkeyToNpub(structured.pubkey));
       return <LeaveChatAnnouncement memberDisplay={memberDisplay} />;
     }
+    if (structured?.type === 'call_notice') {
+      const initiatorDisplay = profileMap[structured.initiator]?.nickname
+        ?? truncateNpub(pubkeyToNpub(structured.initiator));
+      const text = structured.event === 'started'
+        ? copy.calls.callStartedNotice(initiatorDisplay)
+        : copy.calls.callEndedNotice;
+      return (
+        <Box
+          px={3}
+          py={1.5}
+          borderRadius="lg"
+          bg="surfaceMutedBg"
+          color="textMuted"
+          fontSize="sm"
+          fontStyle="italic"
+          textAlign="center"
+        >
+          <Text>📞 {text}</Text>
+        </Box>
+      );
+    }
     if (structured?.type === 'image') {
       return (
         <ImageMessageBubble

@@ -1,0 +1,143 @@
+{
+  "created_at": "2026-06-23T00:00:00Z",
+  "updated_at": "2026-06-23T00:00:00Z",
+  "explorers": [
+    {
+      "focus": "similar-features",
+      "agentId": "a6496aed4dd1a7463",
+      "key_files": [
+        "app/src/lib/directMessages.ts",
+        "app/src/lib/marmot/joinRequestSender.ts",
+        "app/src/lib/directMessageNotifications.ts",
+        "app/src/components/DirectMessageNotificationsWatcher.tsx",
+        "app/src/lib/marmot/signerAdapter.ts",
+        "app/src/context/MarmotContext.tsx",
+        "app/src/lib/pendingInvitations.ts",
+        "app/src/lib/ndkClient.ts",
+        "app/src/components/groups/CreateGroupModal.tsx",
+        "app/src/lib/marmot/registerHandlers.ts"
+      ],
+      "critical_notes": [
+        "kind-21059 WRAP COLLISION: The codebase uses 21059 as an INNER rumor kind (join requests, outer wrap is 1059). The call spec uses 21059 as the OUTER wrap kind. These do not conflict at the subscription level, but naming overlap is a source of confusion.",
+        "2-LAYER vs 3-LAYER NIP-59: DMs use 3 layers (wrap→seal→unsigned-rumor). Call signaling uses 2 layers (wrap→signed-inner-event, no seal). A new unwrap helper is needed.",
+        "INNER EVENT IS SIGNED: DM inner events are unsigned rumors. Call inner events (25050–25055) are fully signed events. Use signer.signEvent() not createRumor().",
+        "RTCPeerConnection COMPLETELY ABSENT: No WebRTC code anywhere. Entirely greenfield.",
+        "ROSTER ACCESS IS ASYNC: getGroupMembers(mlsGroup.state) via client.groups.get(groupId) is async; the incoming-call watcher must handle async gating."
+      ],
+      "directly_reusable": {
+        "kind21059_outer_wrap_send": "joinRequestSender.ts:buildGiftWrap() — hand-rolled 2-layer NIP-59; change kind:1059 to kind:21059 for call signaling",
+        "kind21059_outer_wrap_receive": "directMessageNotifications.ts — NDK subscribe pattern (kinds:[21059], '#p':[ownPubkey]); reuse with new kind",
+        "authenticated_unwrap": "directMessages.ts:unwrapAndOpen() — adapt for 2-layer (no seal); verify inner event schnorr sig instead of seal pubkey check",
+        "roster_access": "MarmotContext.tsx line 464 — getGroupMembers(mlsGroup.state) from @internet-privacy/marmot-ts",
+        "nip44_encrypt": "signerAdapter.ts — signer.nip44.encrypt(pubkeyHex, plaintext) works for all signer modes",
+        "headless_watcher": "DirectMessageNotificationsWatcher.tsx — exact template for IncomingCallWatcher",
+        "module_store": "pendingInvitations.ts — module-level subscribe/getSnapshot for useSyncExternalStore; model for callStore.ts",
+        "modal_ui": "components/groups/CreateGroupModal.tsx — Chakra UI Modal pattern (isOpen/onClose props)"
+      },
+      "gaps": [
+        "No kind-21059 outer wrap function (joinRequestSender produces kind-1059 outer)",
+        "No 2-layer unwrap helper (no seal, verify inner event sig)",
+        "RTCPeerConnection, MediaStream, getUserMedia for audio/video: completely absent",
+        "No CallManager, PeerSession, SignalingTransport modules",
+        "No 20-second freshness window or event-id dedupe",
+        "No TURN/STUN config UI",
+        "No Picture-in-Picture API usage",
+        "No multi-device answered-elsewhere signal"
+      ]
+    },
+    {
+      "focus": "architecture",
+      "agentId": "ae58e89f73c648c07",
+      "paradigm": "layered/n-tier with functional-core + imperative-shell for the subscription/event layer; external-store pattern (useSyncExternalStore) for cross-cutting notification state",
+      "provider_stack": [
+        "AppThemeProvider",
+        "ChakraProvider",
+        "LanguageProvider",
+        "ProfileProvider",
+        "NostrIdentityProvider  ← identity, keypair, signer",
+        "MarmotProvider         ← MLS groups, roster",
+        "Layout",
+        "  DirectMessageNotificationsWatcher (Layout.tsx:70)"
+      ],
+      "subscription_tiers": {
+        "ndk": "ndk.subscribe({ kinds: [...], '#p': [pubkeyHex] }) — for Nostr relay events; used in watcher components and lib functions",
+        "marmot_mls": "group.on('applicationMessage', listener) — for MLS application messages after decryption; dispatched via applicationRumorDispatcher"
+      },
+      "call_watcher_placement": "New IncomingCallWatcher must mount alongside DirectMessageNotificationsWatcher in Layout.tsx:70",
+      "call_store_model": "Follow unreadStore.ts / pendingInvitations.ts: module-level let state + listeners Set + useSyncExternalStore hook; no React imports in store module",
+      "global_listener_wiring_steps": [
+        "1. Null-rendering component (return null)",
+        "2. Mount unconditionally in Layout.tsx",
+        "3. useEffect gated on { hydrated, pubkeyHex, privateKeyHex }",
+        "4. groupsRef = useRef(groups) — live membership without subscription rebuild",
+        "5. Dynamic import of ndkClient inside effect (SSR safety)",
+        "6. Return cleanup calling unsubscribe?.() and cancelled = true"
+      ],
+      "call_manager_context_placement": "If CallManager needs React context, slot it inside MarmotProvider (needs groups/roster) in _app.tsx",
+      "key_files": [
+        "app/src/components/DirectMessageNotificationsWatcher.tsx:66",
+        "app/src/lib/directMessageNotifications.ts:160",
+        "app/src/lib/unreadStore.ts:388",
+        "app/src/context/MarmotContext.tsx:1690",
+        "app/src/context/NostrIdentityContext.tsx:735",
+        "app/src/lib/ndkClient.ts:166",
+        "app/pages/_app.tsx:66",
+        "app/src/components/Layout.tsx:351",
+        "app/src/lib/marmot/applicationRumorDispatcher.ts:113"
+      ]
+    },
+    {
+      "focus": "testing-and-conventions",
+      "agentId": "ae6dc056321391db6",
+      "unit_framework": {
+        "runner": "Vitest 4.x",
+        "config": "app/vitest.config.ts",
+        "test_glob": "tests/unit/**/*.test.ts",
+        "path_alias": "@/ → app/",
+        "notes": "vi.mock() must be hoisted before dynamic imports; top-level vi.mock() then const { ... } = await import('@/...')"
+      },
+      "e2e_framework": {
+        "runner": "Playwright 1.58+",
+        "config": "app/playwright.config.ts",
+        "test_dir": "app/tests/e2e/",
+        "parallelism": "fullyParallel: false, workers: 1 — serial",
+        "browser": "Chromium only"
+      },
+      "e2e_infrastructure": {
+        "relay": "dockurr/strfry on port 7777 (docker-compose.e2e.yml)",
+        "no_turn_stun": "No TURN/STUN server exists — voice/video calling infra entirely absent",
+        "multi_user": "browser.newContext() per user; test.describe.serial()"
+      },
+      "conventions": {
+        "publish_rule": "Tests must publish through app window bridges, NEVER via raw WebSocket",
+        "selectors": "page.getByTestId() exclusively; components use data-testid attributes",
+        "identity_injection": "context.addInitScript() sets lp_nostrIdentity_v1 + lp_userProfile_v1 in localStorage",
+        "storage_key_prefix": "lp_ prefix for all localStorage and IDB keys",
+        "test_bridge_pattern": "window.__nostling* bridges on non-production builds (e.g. __nostlingPublishDm)"
+      },
+      "i18n_pattern": {
+        "file": "app/src/lib/i18n.ts",
+        "hook": "useCopy() from app/src/context/LanguageContext.tsx",
+        "required": "Both 'en' and 'de' must be populated; Copy type is strict TypeScript (missing locale = compile error)",
+        "dynamic_strings": "Function values in Copy type: e.g. (count: number) => string",
+        "adding_keys": "1) Add field to Copy type, 2) Add en value, 3) Add de value, 4) Add i18n test"
+      },
+      "mocking_patterns": {
+        "handler_tests": "Call createXxxHandler(makeDeps()) with vi.fn() spies — never mock the handler itself",
+        "idb_keyval": "vi.mock('idb-keyval') with Map-backed in-memory store",
+        "fake_indexeddb": "import 'fake-indexeddb/auto' for integration tests needing real IDB semantics"
+      },
+      "key_files": [
+        "app/tests/e2e/helpers/auth-helpers.ts",
+        "app/tests/e2e/helpers/group-setup.ts",
+        "app/tests/e2e/helpers/relay-query.ts",
+        "app/tests/e2e/helpers/idb-record.ts",
+        "app/tests/e2e/helpers/clear-state.ts",
+        "app/tests/unit/marmot/chatHandler.test.ts",
+        "app/src/lib/i18n.ts",
+        "app/src/types/index.ts",
+        "docker-compose.e2e.yml"
+      ]
+    }
+  ]
+}

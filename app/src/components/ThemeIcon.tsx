@@ -60,6 +60,16 @@ const ICON_MAP: Record<string, Record<string, string>> = {
     toy: 'ph:user-circle-fill',
     default: 'ph:user-circle-bold',
   },
+  phone: {
+    pixel: 'pixelarticons:phone',
+    toy: 'ph:phone-fill',
+    default: 'ph:phone-bold',
+  },
+  video: {
+    pixel: 'pixelarticons:camera',
+    toy: 'ph:video-camera-fill',
+    default: 'ph:video-camera-bold',
+  },
 };
 
 type ThemeIconProps = {

@@ -27,6 +27,9 @@ import {
   useDisclosure,
   useToast,
   Code,
+  FormControl,
+  FormLabel,
+  Switch,
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import { useCopy } from '@/src/context/LanguageContext';
@@ -42,6 +45,12 @@ import { applyRelayChangesToPool, getNdk } from '@/src/lib/ndkClient';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { NDKRelayStatus } from '@nostr-dev-kit/ndk';
 import { resetAllData } from '@/src/lib/storage';
+import {
+  getIceConfig,
+  setTurnServer,
+  setIpPrivacyMode,
+  getIpPrivacyMode,
+} from '@/src/lib/calls/turnConfig';
 
 /** Sanitize a relay URL into a safe testid fragment */
 function relayTestId(url: string): string {
@@ -184,6 +193,59 @@ export default function SettingsPage() {
   // NIP-07 browser extension UI state
   const [nip07Connecting, setNip07Connecting] = useState(false);
   const [nip07ConnectError, setNip07ConnectError] = useState<string | null>(null);
+
+  // --- Call Settings state ---
+  const [turnUrl, setTurnUrl] = useState<string>(() => {
+    const config = getIceConfig();
+    const turnEntry = config.iceServers.find((s) => {
+      const url = Array.isArray(s.urls) ? s.urls[0] : s.urls;
+      return url.startsWith('turn:');
+    });
+    if (!turnEntry) return '';
+    return Array.isArray(turnEntry.urls) ? turnEntry.urls[0] : turnEntry.urls;
+  });
+  const [turnUsername, setTurnUsername] = useState<string>(() => {
+    const config = getIceConfig();
+    const turnEntry = config.iceServers.find((s) => {
+      const url = Array.isArray(s.urls) ? s.urls[0] : s.urls;
+      return url.startsWith('turn:');
+    });
+    return turnEntry?.username ?? '';
+  });
+  const [turnCredential, setTurnCredential] = useState<string>(() => {
+    const config = getIceConfig();
+    const turnEntry = config.iceServers.find((s) => {
+      const url = Array.isArray(s.urls) ? s.urls[0] : s.urls;
+      return url.startsWith('turn:');
+    });
+    return turnEntry?.credential ?? '';
+  });
+  const [ipPrivacy, setIpPrivacy] = useState<boolean>(() => getIpPrivacyMode());
+
+  const handleSaveTurnConfig = useCallback(() => {
+    const url = turnUrl.trim();
+    if (url) {
+      setTurnServer({
+        url,
+        username: turnUsername.trim() || undefined,
+        credential: turnCredential.trim() || undefined,
+      });
+    } else {
+      setTurnServer(null);
+    }
+    toast({
+      title: copy.calls.saveTurnConfig,
+      status: 'success',
+      duration: 2000,
+      isClosable: true,
+    });
+  }, [turnUrl, turnUsername, turnCredential, toast, copy.calls.saveTurnConfig]);
+
+  const handleIpPrivacyToggle = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const enabled = e.target.checked;
+    setIpPrivacy(enabled);
+    setIpPrivacyMode(enabled);
+  }, []);
 
   // NIP-46 remote signer UI state
   const [nip46ConnectMethod, setNip46ConnectMethod] = useState<'qr' | 'paste' | null>(null);
@@ -471,6 +533,82 @@ export default function SettingsPage() {
               </NextLink>
             </Box>
           ) : null}
+
+          {/* Call Settings Section */}
+          <Box data-testid="call-settings-section">
+            <Heading as="h2" size="md" mb={1}>
+              {copy.calls.callSettings}
+            </Heading>
+
+            {/* TURN Server */}
+            <VStack align="stretch" spacing={3} mt={3}>
+              <Text fontSize="sm" color="textMuted">
+                {copy.calls.turnHelp}
+              </Text>
+              <FormControl>
+                <FormLabel fontSize="sm">{copy.calls.turnServerUrl}</FormLabel>
+                <Input
+                  value={turnUrl}
+                  onChange={(e) => setTurnUrl(e.target.value)}
+                  placeholder="turn:your-server.example.com:3478"
+                  size="sm"
+                  bg="surfaceBg"
+                  data-testid="turn-server-url-input"
+                />
+              </FormControl>
+              <FormControl>
+                <FormLabel fontSize="sm">{copy.calls.turnUsername}</FormLabel>
+                <Input
+                  value={turnUsername}
+                  onChange={(e) => setTurnUsername(e.target.value)}
+                  placeholder=""
+                  size="sm"
+                  bg="surfaceBg"
+                  data-testid="turn-username-input"
+                />
+              </FormControl>
+              <FormControl>
+                <FormLabel fontSize="sm">{copy.calls.turnCredential}</FormLabel>
+                <Input
+                  type="password"
+                  value={turnCredential}
+                  onChange={(e) => setTurnCredential(e.target.value)}
+                  placeholder=""
+                  size="sm"
+                  bg="surfaceBg"
+                  data-testid="turn-credential-input"
+                />
+              </FormControl>
+              <Box>
+                <Button
+                  size="sm"
+                  onClick={handleSaveTurnConfig}
+                  data-testid="save-turn-config-btn"
+                >
+                  {copy.calls.saveTurnConfig}
+                </Button>
+              </Box>
+
+              {/* IP Privacy Toggle */}
+              <Box pt={2} borderTop="1px solid" borderColor="borderSubtle">
+                <Text fontSize="sm" color="textMuted" mb={2}>
+                  {copy.calls.ipPrivacyHelp}
+                </Text>
+                <FormControl display="flex" alignItems="center">
+                  <Switch
+                    id="ip-privacy-toggle"
+                    isChecked={ipPrivacy}
+                    onChange={handleIpPrivacyToggle}
+                    data-testid="ip-privacy-toggle"
+                    mr={3}
+                  />
+                  <FormLabel htmlFor="ip-privacy-toggle" mb={0} fontSize="sm">
+                    {copy.calls.ipPrivacyMode}
+                  </FormLabel>
+                </FormControl>
+              </Box>
+            </VStack>
+          </Box>
 
           {/* Nostr Identity Section */}
           <Box>

@@ -31,6 +31,11 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        // Provide fake audio/video streams so getUserMedia succeeds in headless mode.
+        // Required for call e2e tests; harmless for all others.
+        launchOptions: {
+          args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+        },
       },
       // DM tests need the strfry relay just like groups tests, so they run in
       // the same "groups" mode and are excluded from the fast suite.

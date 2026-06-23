@@ -1,0 +1,167 @@
+/**
+ * IncomingCallWatcher.tsx — Null-rendering global call-signaling subscriber (Story S2, updated S5).
+ *
+ * Mounts in Layout.tsx alongside DirectMessageNotificationsWatcher.
+ * Subscribes to kind-21059 gift wraps via callSignaling.ts and routes ALL
+ * signaling kinds (25050–25055) through a singleton CallManager instance.
+ *
+ * Pattern follows DirectMessageNotificationsWatcher.tsx exactly:
+ *   - Gated on `hydrated + pubkeyHex + privateKeyHex`.
+ *   - Dynamic imports for SSR safety.
+ *   - Cleanup: `cancelled = true` + `unsubscribe?.()` + `manager.destroy()`.
+ *   - `groupsRef` kept live without rebuilding the subscription on group changes.
+ *
+ * Module-level singleton: `getCallManager()` lets S8's start-call UI initiate
+ * outgoing calls without creating a duplicate subscription.
+ */
+
+import { useEffect, useRef } from 'react';
+import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
+import { useMarmot } from '@/src/context/MarmotContext';
+import type { Group } from '@/src/types';
+import type { CallManager } from '@/src/lib/calls/callManager';
+
+// ── Module-level singleton ────────────────────────────────────────────────────
+
+/**
+ * The active CallManager instance. Set when the watcher mounts (identity hydrated)
+ * and cleared when it unmounts.
+ *
+ * S8 (start-call UI) calls getCallManager() to initiate outgoing calls.
+ */
+let activeCallManager: CallManager | null = null;
+
+/**
+ * Returns the current active CallManager, or null if the watcher has not yet
+ * hydrated (identity not available) or has unmounted.
+ */
+export function getCallManager(): CallManager | null {
+  return activeCallManager;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export function IncomingCallWatcher() {
+  const { hydrated, pubkeyHex, privateKeyHex } = useNostrIdentity();
+  const { groups, getClient } = useMarmot();
+
+  // Live ref keeps the group roster current without tearing down the subscription
+  // on every membership change. Mirrors the pattern in ContactChat.tsx / DMNotificationsWatcher.
+  const groupsRef = useRef<Group[]>(groups);
+  useEffect(() => { groupsRef.current = groups; }, [groups]);
+
+  // getClient is stable (useCallback) — safe to read directly in the effect.
+  const getClientRef = useRef(getClient);
+  useEffect(() => { getClientRef.current = getClient; }, [getClient]);
+
+  useEffect(() => {
+    if (!hydrated || !pubkeyHex || !privateKeyHex) return;
+    if (typeof window === 'undefined') return;
+
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    let manager: CallManager | null = null;
+
+    void (async () => {
+      try {
+        const ndkModule = await import('@/src/lib/ndkClient');
+        const signalingModule = await import('@/src/lib/calls/callSignaling');
+        const managerModule = await import('@/src/lib/calls/callManager');
+        const signerModule = await import('@/src/lib/marmot/signerAdapter');
+
+        const ndk = ndkModule.getNdk();
+        if (cancelled || !ndk) return;
+
+        // Build an EventSigner from the local private key (or use the NIP-46/07 override)
+        const signer =
+          signerModule.activeEventSignerOverride.current ??
+          signerModule.createPrivateKeySigner(privateKeyHex);
+
+        manager = new managerModule.CallManager({
+          pubkeyHex,
+          privateKeyHex,
+          signer,
+          ndk,
+          getGroupRoster: async (groupId: string) => {
+            try {
+              const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
+              const client = getClientRef.current();
+              if (!client) return [];
+              const mlsGroup = await client.groups.get(groupId);
+              if (!mlsGroup) return [];
+              return getGroupMembers(mlsGroup.state);
+            } catch {
+              return [];
+            }
+          },
+          publishGroupNotice: async (groupId: string, content: string) => {
+            try {
+              const client = getClientRef.current();
+              if (!client) return;
+              const mlsGroup = await client.groups.get(groupId);
+              if (!mlsGroup) return;
+              const { getEventHash } = await import('applesauce-core/helpers/event');
+              // Build a properly-hashed kind-9 rumor (same pattern as MarmotContext.buildRumor)
+              const rumor = { id: '', kind: 9, pubkey: pubkeyHex, created_at: Math.floor(Date.now() / 1000), content, tags: [] as string[][] };
+              rumor.id = getEventHash(rumor);
+              await (mlsGroup.sendApplicationRumor as unknown as (r: typeof rumor) => Promise<void>)(rumor);
+            } catch (err) {
+              console.warn('[IncomingCallWatcher] publishGroupNotice failed', err);
+            }
+          },
+        });
+
+        activeCallManager = manager;
+
+        unsubscribe = signalingModule.subscribeCallSignaling({
+          ndk,
+          pubkeyHex,
+          privateKeyHex,
+          isAuthorized: async (senderPubkey: string, _callId: string) => {
+            // Outer authorization gate: sender must be a member of at least one
+            // group the local user belongs to. Fine-grained per-call roster gating
+            // lives inside CallManager.handleEvent().
+            try {
+              const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
+              const client = getClientRef.current();
+              if (!client) return false;
+
+              for (const group of groupsRef.current) {
+                try {
+                  const mlsGroup = await client.groups.get(group.id);
+                  if (!mlsGroup) continue;
+                  const members = getGroupMembers(mlsGroup.state);
+                  if (members.includes(senderPubkey)) return true;
+                } catch {
+                  // Skip groups where state is unavailable
+                }
+              }
+            } catch {
+              // marmot-ts unavailable — fail closed
+            }
+            return false;
+          },
+          onEvent: (evt) => {
+            if (cancelled || !manager) return;
+            void manager.handleEvent(evt);
+          },
+        });
+      } catch (err) {
+        console.warn('[IncomingCallWatcher] subscribe failed:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+      if (manager) {
+        manager.destroy();
+        if (activeCallManager === manager) {
+          activeCallManager = null;
+        }
+      }
+    };
+  }, [hydrated, pubkeyHex, privateKeyHex]); // groups intentionally omitted — live ref handles updates
+
+  return null;
+}

@@ -1,0 +1,101 @@
+{
+  "epic": "voice-video-calls",
+  "concepts": [
+    {
+      "id": "2-layer-gift-wrap",
+      "name": "2-layer kind-21059 gift-wrap (signed inner, no seal)",
+      "owning_module": "callSignaling",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "freshness-dedupe-gate",
+      "name": "20-second freshness window + 500-entry event-id dedupe",
+      "owning_module": "callSignaling",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "roster-authorization-gate",
+      "name": "MLS roster authorization gate for all incoming signaling",
+      "owning_module": "callSignaling",
+      "type": "validation_rule",
+      "added_by_story": null
+    },
+    {
+      "id": "call-state-external-store",
+      "name": "Module-level external store for call state (useSyncExternalStore, no React imports in store)",
+      "owning_module": "callStore",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "lp-turn-config-storage-key",
+      "name": "localStorage key lp_turnConfig_v1 for TURN/ICE config",
+      "owning_module": "turnConfig",
+      "type": "naming_scheme",
+      "added_by_story": null
+    },
+    {
+      "id": "ice-transport-policy-privacy",
+      "name": "IP-privacy mode via iceTransportPolicy: 'relay' (off by default)",
+      "owning_module": "turnConfig",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "lower-pubkey-initiates-rule",
+      "name": "Lower-pubkey-initiates tiebreaker for callee-to-callee initial offers",
+      "owning_module": "callManager",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "higher-pubkey-wins-renegotiation",
+      "name": "Higher-pubkey-wins rule for renegotiation glare with rollback",
+      "owning_module": "callManager",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "ring-timeout-45s",
+      "name": "Ring timeout: 45 seconds, auto-cancel and send Hangup",
+      "owning_module": "callManager",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "participant-cap-5",
+      "name": "Hard cap of 5 connected participants enforced at initiate and join",
+      "owning_module": "callManager",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "ice-candidate-queue",
+      "name": "ICE candidate buffering queue: drain after remote description is set",
+      "owning_module": "peerSession",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "call-notice-rumor-kind",
+      "name": "call_notice rumor type for kind-445 group timeline lifecycle events",
+      "owning_module": "callNoticeHandler",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "call-i18n-keys-en-de",
+      "name": "All call UI strings defined in i18n.ts with both en and de values",
+      "owning_module": "callSignaling",
+      "type": "naming_scheme",
+      "added_by_story": null
+    }
+  ],
+  "stories": [],
+  "reviewer_state": {
+    "last_story_reviewed": null,
+    "model_at": "2026-06-23T00:00:00Z"
+  }
+}

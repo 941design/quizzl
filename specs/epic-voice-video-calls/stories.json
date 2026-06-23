@@ -1,0 +1,507 @@
+{
+  "epic_name": "voice-video-calls",
+  "created_at": "2026-06-23T00:00:00Z",
+  "updated_at": "2026-06-23T00:00:00Z",
+  "total_stories": 12,
+  "story_order": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12"],
+  "dependency_notes": "Stories S1–S5 are pure library code (no React, no context imports) and are independently unit-testable. S6–S8 depend on S2 (callStore) and S5 (callManager) for state management. S9 depends on S5 (callManager sends the notice). S10 depends on S1 (turnConfig module). S11 (i18n) depends on S6–S8 for its string keys to be known. S12 (e2e) depends on all other stories completing. The story_order above is a valid topological sort.",
+  "mock_resolution_plan": "S1 introduces a mock for the NDK/NIP-44 encrypt and finalizeEvent surface (MOCK-01-001). S2 introduces a mock for callSignaling.subscribeCallSignaling (MOCK-02-001). S3 introduces a mock for getUserMedia (MOCK-03-001). S4 introduces a mock for RTCPeerConnection (MOCK-04-001). All four mocks are resolved by S5 (callManager integration), which wires the real modules together. UI stories S6–S8 use the real callStore and callManager from S2 and S5 respectively.",
+  "seams": [
+    {
+      "data": "Decoded inner call event routed from callSignaling to callManager",
+      "contract": {
+        "type_name": "IncomingCallEvent",
+        "fields": [
+          { "name": "kind", "type": "25050 | 25051 | 25052 | 25053 | 25054 | 25055" },
+          { "name": "callId", "type": "string" },
+          { "name": "senderPubkey", "type": "string" },
+          { "name": "callType", "type": "\"voice\" | \"video\" | undefined", "optional": true },
+          { "name": "sdp", "type": "string | undefined", "optional": true },
+          { "name": "iceCandidate", "type": "RTCIceCandidateInit | undefined", "optional": true },
+          { "name": "reason", "type": "string | undefined", "optional": true },
+          { "name": "recipientPubkeys", "type": "string[]" }
+        ],
+        "invariants": [
+          "callId is a non-empty UUID string",
+          "senderPubkey is a 64-character hex string",
+          "kind is one of exactly six values: 25050, 25051, 25052, 25053, 25054, 25055",
+          "kind-25050 always has callType set to 'voice' or 'video'",
+          "kind-25052 always has iceCandidate set; sdpMid defaults to '0' and sdpMLineIndex to 0 if absent in wire format",
+          "recipientPubkeys is non-empty"
+        ]
+      },
+      "source": { "story": "S1", "artifact": "app/src/lib/calls/callSignaling.ts" },
+      "destination": { "story": "S5", "artifact": "app/src/lib/calls/callManager.ts" }
+    },
+    {
+      "data": "Active call state surfaced to UI components",
+      "contract": {
+        "type_name": "CallState",
+        "fields": [
+          { "name": "incoming", "type": "IncomingCall | null" },
+          { "name": "active", "type": "ActiveCall | null" }
+        ],
+        "invariants": [
+          "incoming and active are never both non-null simultaneously",
+          "IncomingCall has fields: callId (string), callerPubkey (string), callType ('voice'|'video'), groupId (string|null)",
+          "ActiveCall has fields: callId (string), participants (RemoteParticipant[]), localStream (MediaStream|null), callType ('voice'|'video')",
+          "RemoteParticipant has fields: pubkey (string), stream (MediaStream|null), muted (boolean), videoOff (boolean)"
+        ]
+      },
+      "source": { "story": "S2", "artifact": "app/src/lib/calls/callStore.ts" },
+      "destination": { "story": "S6", "artifact": "app/src/components/calls/IncomingCallModal.tsx" },
+      "intermediaries": [
+        { "story": "S7", "artifact": "app/src/components/calls/CallScreen.tsx" },
+        { "story": "S8", "artifact": "app/pages/groups.tsx" }
+      ]
+    },
+    {
+      "data": "Local media stream passed from mediaManager to peerSession and CallScreen",
+      "contract": {
+        "type_name": "MediaAcquisitionResult",
+        "fields": [
+          { "name": "stream", "type": "MediaStream" },
+          { "name": "audioTrack", "type": "MediaStreamTrack" },
+          { "name": "videoTrack", "type": "MediaStreamTrack | null", "optional": true }
+        ],
+        "invariants": [
+          "audioTrack.kind === 'audio'",
+          "videoTrack.kind === 'video' when present",
+          "stream contains exactly the tracks returned",
+          "releaseMedia(stream) calls stop() on every track in stream"
+        ]
+      },
+      "source": { "story": "S3", "artifact": "app/src/lib/calls/mediaManager.ts" },
+      "destination": { "story": "S4", "artifact": "app/src/lib/calls/peerSession.ts" },
+      "intermediaries": [
+        { "story": "S5", "artifact": "app/src/lib/calls/callManager.ts" }
+      ]
+    },
+    {
+      "data": "TURN/STUN RTCConfiguration from turnConfig to peerSession",
+      "contract": {
+        "type_name": "IceConfigResult",
+        "fields": [
+          { "name": "iceServers", "type": "RTCIceServer[]" },
+          { "name": "iceTransportPolicy", "type": "\"all\" | \"relay\" | undefined", "optional": true }
+        ],
+        "invariants": [
+          "iceServers always contains at least three STUN entries when no user config is set",
+          "iceTransportPolicy is 'relay' when IP-privacy mode is enabled, absent or 'all' otherwise",
+          "User-supplied TURN replaces the default TURN entry but STUN entries are preserved"
+        ]
+      },
+      "source": { "story": "S10", "artifact": "app/src/lib/calls/turnConfig.ts" },
+      "destination": { "story": "S4", "artifact": "app/src/lib/calls/peerSession.ts" }
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "signaling-codec-transport",
+      "title": "Signaling codec and gift-wrap transport (callSignaling.ts)",
+      "description": "Implement callSignaling.ts: encode/decode all six AC-WebRTC inner event kinds (25050–25055), wrap/unwrap via kind-21059 gift-wrap (2-layer, no seal), freshness check (20 s), event-id dedupe (bounded set), and roster gate hook. No React imports. Reuses buildGiftWrap pattern from joinRequestSender.ts (kind 1059 → 21059) and the NDK subscribe pattern from directMessageNotifications.ts.",
+      "acceptance_criteria": ["AC-WIRE-1", "AC-WIRE-2", "AC-WIRE-3", "AC-WIRE-4", "AC-WRAP-1", "AC-WRAP-2", "AC-WRAP-3", "AC-FRESH-1", "AC-FRESH-2", "AC-ROSTER-1", "AC-ROSTER-2"],
+      "scope": {
+        "includes": [
+          "create new file app/src/lib/calls/callSignaling.ts",
+          "create new file app/src/types/index.ts call-related types (CallEvent, IncomingCallEvent)",
+          "Encode/decode functions for all six call event kinds",
+          "kind-21059 outer wrap send path (ephemeral key per message, NIP-44 encrypt)",
+          "kind-21059 receive path: NDK subscribe, decrypt, verify, freshness, dedupe, roster gate",
+          "subscribeCallSignaling() function returning an unsubscribe handle",
+          "sendOffer/sendAnswer/sendIceCandidate/sendHangup/sendReject/sendRenegotiate helpers"
+        ],
+        "excludes": [
+          "RTCPeerConnection — no WebRTC in this story",
+          "callStore or callManager — no state machine",
+          "React components or hooks"
+        ]
+      },
+      "complexity": "high",
+      "status": "pending",
+      "owning_module": "callSignaling",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "introduces_mocks": [
+        {
+          "mock_id": "MOCK-01-001",
+          "description": "Mock for NDK NIP-44 encrypt and finalizeEvent to allow unit testing without real NDK instance",
+          "interface_mocked": "ndk.signer.nip44.encrypt and nostr-tools finalizeEvent",
+          "resolution_story": "S5"
+        }
+      ],
+      "test_fixtures": [
+        {
+          "fixture_id": "FIXTURE-01-001",
+          "description": "Pre-generated test keypairs (caller, callee1, callee2) for signing and verifying inner events in unit tests",
+          "interface": "{ privkey: Uint8Array, pubkey: string }[]",
+          "reason": "Deterministic test vectors needed across all signaling tests; not an external service",
+          "permanent": true
+        }
+      ],
+      "notes": "The 2-layer wrap (signed inner event → kind-21059 outer, no seal) differs from DMs (3-layer). Adapt buildGiftWrap() from joinRequestSender.ts changing kind 1059 → 21059 and using signer.signEvent() not createRumor(). The roster gate calls getGroupMembers() which is async — the receive path must await it."
+    },
+    {
+      "id": "S2",
+      "name": "call-store-incoming-watcher",
+      "title": "Call store + incoming call watcher (callStore.ts + IncomingCallWatcher.tsx)",
+      "description": "Implement the module-level external store (callStore.ts) for ringing/active state using useSyncExternalStore pattern, and the null-rendering IncomingCallWatcher component that mounts in Layout.tsx and drives the store from incoming signaling events. The watcher follows DirectMessageNotificationsWatcher.tsx exactly.",
+      "acceptance_criteria": ["AC-UI-1", "AC-FRESH-1", "AC-FRESH-2"],
+      "scope": {
+        "includes": [
+          "create new file app/src/lib/calls/callStore.ts",
+          "create new file app/src/components/calls/IncomingCallWatcher.tsx",
+          "Module-level state + listeners Set + subscribe/getSnapshot following pendingInvitations.ts pattern",
+          "useCallStore() hook wrapping useSyncExternalStore",
+          "IncomingCallWatcher: null-rendering component, groupsRef pattern, dynamic import of callSignaling, cleanup",
+          "Mount IncomingCallWatcher in app/src/components/Layout.tsx alongside DirectMessageNotificationsWatcher"
+        ],
+        "excludes": [
+          "callManager — watcher sets store directly for S2; real callManager integration lands in S5",
+          "IncomingCallModal rendering — that is S6",
+          "Any WebRTC code"
+        ]
+      },
+      "complexity": "medium",
+      "status": "pending",
+      "owning_module": "callStore",
+      "creates_seam": true,
+      "consumes_seams": ["IncomingCallEvent"],
+      "lighter_path": false,
+      "introduces_mocks": [
+        {
+          "mock_id": "MOCK-02-001",
+          "description": "Stub for callSignaling.subscribeCallSignaling that fires synthetic IncomingCallEvent payloads in unit tests",
+          "interface_mocked": "callSignaling.subscribeCallSignaling",
+          "resolution_story": "S5"
+        }
+      ],
+      "notes": "S2 depends on S1 for the subscribeCallSignaling API shape (the seam contract). The Layout.tsx edit must add <IncomingCallWatcher /> on one line adjacent to <DirectMessageNotificationsWatcher />."
+    },
+    {
+      "id": "S3",
+      "name": "media-manager",
+      "title": "Media manager (mediaManager.ts)",
+      "description": "Implement mediaManager.ts: acquireMedia (getUserMedia), muteAudio, disableVideo, switchCamera (replaceTrack), releaseMedia. No React, no WebRTC peer connections. Pure browser MediaStream API wrapper.",
+      "acceptance_criteria": ["AC-MEDIA-1", "AC-MEDIA-2", "AC-MEDIA-3"],
+      "scope": {
+        "includes": [
+          "create new file app/src/lib/calls/mediaManager.ts",
+          "acquireMedia(video: boolean): Promise<MediaStream>",
+          "muteAudio(stream, muted), disableVideo(stream, disabled)",
+          "switchCamera(stream, deviceId): Promise<void> using replaceTrack",
+          "releaseMedia(stream): void stopping all tracks",
+          "enumerateDevices() helper for camera/mic/output listing",
+          "Resolution/framerate constraints per participant count (§10.1)"
+        ],
+        "excludes": [
+          "RTCPeerConnection — no WebRTC peer connection",
+          "React components or hooks",
+          "IP-privacy mode — that is turnConfig.ts (S10)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "pending",
+      "owning_module": "mediaManager",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "introduces_mocks": [
+        {
+          "mock_id": "MOCK-03-001",
+          "description": "Mock navigator.mediaDevices.getUserMedia returning a fake MediaStream with audio and video tracks for unit tests",
+          "interface_mocked": "navigator.mediaDevices.getUserMedia",
+          "resolution_story": "S5"
+        }
+      ],
+      "notes": "Browser autoplay constraint: acquireMedia should only be called in response to a user gesture; the module itself has no enforcement mechanism — the callers (S5 callManager and S6 UI) must call it at the right moment."
+    },
+    {
+      "id": "S4",
+      "name": "peer-session",
+      "title": "PeerSession: single RTCPeerConnection lifecycle (peerSession.ts)",
+      "description": "Implement PeerSession class encapsulating one RTCPeerConnection per remote participant. Handles createOffer, applyAnswer, addIceCandidate (with queuing), addTrack, ICE candidate emission, and ICE restart trigger. No React, no signaling transport.",
+      "acceptance_criteria": ["AC-MEDIA-4", "AC-MEDIA-5", "AC-ICE-3"],
+      "scope": {
+        "includes": [
+          "create new file app/src/lib/calls/peerSession.ts",
+          "PeerSession class with constructor(config: RTCConfiguration, onIceCandidate, onTrack, onConnectionStateChange)",
+          "createOffer(stream): Promise<RTCSessionDescriptionInit>",
+          "createAnswer(offerSdp): Promise<RTCSessionDescriptionInit>",
+          "applyAnswer(sdp): Promise<void>",
+          "addIceCandidate(candidate): Promise<void> with pre-answer queue",
+          "addTrack(stream): void",
+          "close(): void",
+          "ICE restart: trigger on iceConnectionState 'failed', emit a new offer via callback, max one restart per failure event"
+        ],
+        "excludes": [
+          "Signaling transport — no callSignaling imports",
+          "Call state machine — no callManager imports",
+          "React or UI code",
+          "adapter.js integration deferred to S5 integration (just import it in peerSession.ts)"
+        ]
+      },
+      "complexity": "high",
+      "status": "pending",
+      "owning_module": "peerSession",
+      "creates_seam": false,
+      "consumes_seams": ["MediaAcquisitionResult", "IceConfigResult"],
+      "lighter_path": false,
+      "introduces_mocks": [
+        {
+          "mock_id": "MOCK-04-001",
+          "description": "Mock RTCPeerConnection (vi.fn() or manual stub) that tracks calls to createOffer, setLocalDescription, setRemoteDescription, addIceCandidate, addTrack",
+          "interface_mocked": "RTCPeerConnection",
+          "resolution_story": "S5"
+        }
+      ],
+      "notes": "Unified Plan SDP semantics (browser default). Trickle ICE: emit each candidate via the onIceCandidate callback immediately as icecandidate event fires. ICE candidate queue must be flushed after applyAnswer or createAnswer+setRemoteDescription."
+    },
+    {
+      "id": "S5",
+      "name": "call-manager-state-machine",
+      "title": "CallManager state machine (callManager.ts)",
+      "description": "Implement callManager.ts: the orchestrating state machine for a single call session. Coordinates callSignaling.ts (transport), PeerSession per peer (mesh), mediaManager (local stream), callStore (state publication), and enforces all call rules: mesh tiebreakers, glare resolution, ring timeout, busy-reject, group call cap, multi-device echo, and mid-call join/leave.",
+      "acceptance_criteria": ["AC-LIFE-1", "AC-LIFE-2", "AC-LIFE-3", "AC-LIFE-4", "AC-LIFE-5", "AC-LIFE-6", "AC-LIFE-7", "AC-MESH-1", "AC-MESH-2", "AC-MESH-3", "AC-MULTI-1", "AC-NOTICE-1", "AC-NOTICE-2", "AC-RES-3"],
+      "scope": {
+        "includes": [
+          "create new file app/src/lib/calls/callManager.ts",
+          "CallManager class: startCall(groupId, targetPubkeys, callType), acceptCall(incomingCall), rejectCall(incomingCall), hangup()",
+          "State machine: idle → ringing → active → ended",
+          "Full mesh: one PeerSession per remote participant, capped at 4 (5 total including self)",
+          "Lower-pubkey-initiates rule for callee-to-callee offers",
+          "Higher-pubkey-wins rule for renegotiation glare with rollback",
+          "Ring timeout: 45 seconds, implemented with setTimeout",
+          "Busy-reject: auto-reject new offers when already active",
+          "Multi-device echo: Answer and Reject also wrapped to self pubkey",
+          "Mid-call join: existing peers unconditionally initiate offers to newcomer",
+          "Group call notice publish at call-start and call-end via applicationRumorDispatcher",
+          "Cleanup: releaseMedia and close all PeerSessions on end"
+        ],
+        "excludes": [
+          "React or UI components",
+          "ICE config reads — callManager calls turnConfig.getConfig() but does not own turnConfig.ts (S10)",
+          "i18n strings — no user-visible strings in callManager.ts"
+        ]
+      },
+      "complexity": "high",
+      "status": "pending",
+      "owning_module": "callManager",
+      "creates_seam": false,
+      "consumes_seams": ["IncomingCallEvent", "CallState", "MediaAcquisitionResult", "IceConfigResult"],
+      "lighter_path": false,
+      "mock_dependencies": ["MOCK-01-001", "MOCK-02-001", "MOCK-03-001", "MOCK-04-001"],
+      "notes": "This story resolves all four temporary mocks by wiring the real modules together. Use vi.fn() spies on callSignaling send functions to assert correct events are dispatched. The applicationRumorDispatcher integration for call notices (AC-NOTICE-1, AC-NOTICE-2) requires importing the dispatcher from app/src/lib/marmot/applicationRumorDispatcher.ts."
+    },
+    {
+      "id": "S6",
+      "name": "incoming-call-modal",
+      "title": "Incoming call modal UI (IncomingCallModal.tsx)",
+      "description": "Implement IncomingCallModal.tsx: a Chakra UI Modal that renders when callStore has a non-null incoming call. Shows caller identity (display name resolved from Nostr profile), call type (Voice/Video), Accept and Decline buttons. Accept triggers callManager.acceptCall; Decline triggers callManager.rejectCall.",
+      "acceptance_criteria": ["AC-UI-2"],
+      "scope": {
+        "includes": [
+          "create new file app/src/components/calls/IncomingCallModal.tsx",
+          "useCallStore() to read incoming call state",
+          "Nostr profile resolution for caller display name",
+          "Chakra UI Modal (isOpen tied to incoming !== null)",
+          "Accept: call callManager.acceptCall(incoming), request media permissions",
+          "Decline: call callManager.rejectCall(incoming)",
+          "Ring timeout visual indicator (countdown from 45 s)",
+          "i18n strings for all displayed text (en + de, delegated to S11 for string definitions)"
+        ],
+        "excludes": [
+          "Active call UI — that is S7 (CallScreen)",
+          "Permission-denial error handling — surface is in CallScreen/callManager, not the modal"
+        ]
+      },
+      "complexity": "medium",
+      "status": "pending",
+      "owning_module": "IncomingCallModal",
+      "creates_seam": false,
+      "consumes_seams": ["CallState"],
+      "lighter_path": false,
+      "notes": "Depends on S2 (callStore) and S5 (callManager.acceptCall/rejectCall). The modal should not call getUserMedia directly; that is callManager.acceptCall's responsibility."
+    },
+    {
+      "id": "S7",
+      "name": "active-call-screen",
+      "title": "Active call screen UI (CallScreen.tsx)",
+      "description": "Implement CallScreen.tsx: the in-call view showing per-participant tiles (video stream or avatar), mute/camera/hang-up controls, and per-peer connection quality indicators. Renders when callStore.active is non-null.",
+      "acceptance_criteria": ["AC-UI-3", "AC-UI-4"],
+      "scope": {
+        "includes": [
+          "create new file app/src/components/calls/CallScreen.tsx",
+          "useCallStore() for active call state",
+          "Per-participant tile: <video> element for video calls, avatar for voice",
+          "Speaking indicator per tile (audio level detection via AudioContext, best-effort)",
+          "Controls: mute toggle, camera on/off (video calls only), hang-up button",
+          "Per-peer connection quality indicator (RTCPeerConnection.getStats, simplified: good/degraded/failed)",
+          "Participant-count overlay (N/5)",
+          "Picture-in-Picture hook (requestPictureInPicture on main video element, best-effort)"
+        ],
+        "excludes": [
+          "Incoming call modal — that is S6",
+          "Start call entry point — that is S8",
+          "i18n string definitions — delegated to S11"
+        ]
+      },
+      "complexity": "high",
+      "status": "pending",
+      "owning_module": "CallScreen",
+      "creates_seam": false,
+      "consumes_seams": ["CallState"],
+      "lighter_path": false,
+      "notes": "Depends on S2 (callStore), S3 (mediaManager mute/camera helpers), and S5 (callManager.hangup). Remote streams arrive via callStore.active.participants[n].stream — callManager sets these when PeerSession fires onTrack."
+    },
+    {
+      "id": "S8",
+      "name": "start-call-entry-point",
+      "title": "Start call entry points in group and contact views",
+      "description": "Add Voice and Video call initiation buttons to the existing group view (app/pages/groups.tsx) and the 1:1 contact/DM view. Each button calls callManager.startCall() with the appropriate target pubkeys and call type.",
+      "acceptance_criteria": ["AC-FLOW-1", "AC-FLOW-2"],
+      "scope": {
+        "includes": [
+          "Add Voice and Video call buttons to app/pages/groups.tsx group detail view",
+          "Add Voice and Video call buttons to the 1:1 contact/DM view",
+          "Optional participant picker for group calls (subset of roster, ≤4 others)",
+          "'Call full' indicator when participant count is 5",
+          "Disable call buttons when already in an active call",
+          "Wire buttons to callManager.startCall(groupId, targetPubkeys, callType)"
+        ],
+        "excludes": [
+          "CallScreen rendering — already in S7; groups.tsx just needs to show CallScreen when active",
+          "Permission handling — that is callManager and mediaManager"
+        ]
+      },
+      "complexity": "medium",
+      "status": "pending",
+      "owning_module": "CallScreen",
+      "creates_seam": false,
+      "consumes_seams": ["CallState"],
+      "lighter_path": false,
+      "notes": "S8 also serves as the integration point that unifies S5–S7: the full outgoing call flow (start → ringing → active → ended) is first exercised end-to-end here. The e2e tests in S12 depend on S8 being complete. owning_module is CallScreen because the start-call entry is part of the call UI surface; groups.tsx owns its own group-management concerns but the call initiation concern is owned here."
+    },
+    {
+      "id": "S9",
+      "name": "group-call-notice",
+      "title": "Group call notice handler (kind-445 rumor)",
+      "description": "Implement the call_notice rumor type in the applicationRumorDispatcher pipeline: encode/decode kind-445 application rumors with type 'call_notice', and wire callManager to publish start/end notices.",
+      "acceptance_criteria": ["AC-NOTICE-1", "AC-NOTICE-2"],
+      "scope": {
+        "includes": [
+          "create new file app/src/lib/calls/callNoticeHandler.ts",
+          "callNoticeHandler: handles incoming call_notice rumors from other members (display in group timeline)",
+          "Encode call_notice rumor payload (started/ended) and publish via applicationRumorDispatcher",
+          "Register callNoticeHandler in app/src/lib/marmot/registerHandlers.ts",
+          "CALL_NOTICE_RUMOR_KIND constant"
+        ],
+        "excludes": [
+          "UI rendering of call notices in the group timeline — out of scope for this story; just publish the rumor",
+          "Ringing or signaling — this is group-timeline state only"
+        ]
+      },
+      "complexity": "low",
+      "status": "pending",
+      "owning_module": "callNoticeHandler",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "notes": "Depends on S5 (callManager publishes via this module). Follows the existing handler registration pattern in registerHandlers.ts. The handler needs to be registered once at app startup."
+    },
+    {
+      "id": "S10",
+      "name": "call-settings-panel",
+      "title": "TURN config and IP-privacy settings panel (settings.tsx + turnConfig.ts)",
+      "description": "Implement turnConfig.ts (read/write lp_turnConfig_v1) and add the 'Call Settings' section to app/pages/settings.tsx with TURN URL, username, credential inputs, and IP-privacy toggle.",
+      "acceptance_criteria": ["AC-ICE-1", "AC-ICE-2", "AC-UI-6"],
+      "scope": {
+        "includes": [
+          "create new file app/src/lib/calls/turnConfig.ts",
+          "getConfig(): RTCConfiguration — reads lp_turnConfig_v1, returns defaults + user overrides",
+          "saveConfig(config): void — writes to lp_turnConfig_v1",
+          "Default shipped STUN/TURN config constants",
+          "IP-privacy mode flag (stored in lp_turnConfig_v1)",
+          "Add 'Call Settings' section to app/pages/settings.tsx",
+          "i18n strings for settings labels (en + de, delegated to S11)"
+        ],
+        "excludes": [
+          "peerSession.ts ICE restart — that is S4",
+          "Any call UI other than settings"
+        ]
+      },
+      "complexity": "low",
+      "status": "pending",
+      "owning_module": "turnConfig",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "notes": "The default TURN server URL and credential must be defined as constants in turnConfig.ts — the actual TURN server to ship is a deployment decision. Use a placeholder constant (e.g. TURN_DEFAULT_URL = '') that the operator fills in before release. S4 (peerSession) consumes the IceConfigResult seam defined here."
+    },
+    {
+      "id": "S11",
+      "name": "i18n-call-strings",
+      "title": "i18n completeness: all call-related strings in en + de",
+      "description": "Add all call-related i18n keys to app/src/lib/i18n.ts (both en and de locales). Keys cover: incoming call modal, active call controls, call settings panel, permission-denied errors, call ended/missed state labels, and group call notice text.",
+      "acceptance_criteria": ["AC-UI-5"],
+      "scope": {
+        "includes": [
+          "Add call i18n keys to the Copy type in app/src/lib/i18n.ts",
+          "Populate en and de values for every new key",
+          "Unit test asserting all call keys are present in both locales and values differ between en and de"
+        ],
+        "excludes": [
+          "Translations for non-call features",
+          "Any component or logic changes"
+        ]
+      },
+      "complexity": "low",
+      "status": "pending",
+      "owning_module": "callSignaling",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "notes": "owning_module is set to callSignaling (the signaling lib module) because there is no separate i18n module in the architecture; the call strings logically belong to the calls/ sub-system. S11 should be done after S6–S10 so all string keys needed by the UI are known. The Copy type is strict TypeScript — missing either locale causes a compile error, so the unit test is the compile itself plus a runtime check that en !== de per key."
+    },
+    {
+      "id": "S12",
+      "name": "e2e-ring-decline",
+      "title": "E2E: outgoing call rings and decline flow",
+      "description": "Playwright e2e test covering: (1) a 1:1 voice call that connects (both peers reach active state) and tears down on hangup; (2) a decline flow where callee declines and caller sees the ended state. Uses two browser contexts on the same machine with loopback ICE (no TURN required in CI).",
+      "acceptance_criteria": ["AC-FLOW-1", "AC-FLOW-2", "AC-RES-1", "AC-RES-2", "AC-FLOW-3"],
+      "scope": {
+        "includes": [
+          "create new file app/tests/e2e/calls/ring-and-decline.test.ts",
+          "Two-context Playwright test: caller context and callee context",
+          "Loopback ICE configuration (no TURN required)",
+          "Test bridge window.__nostlingAnswerCall and window.__nostlingRejectCall for callee interaction",
+          "Assert CallScreen appears for caller after answer; assert call ends after hangup",
+          "Assert incoming call modal appears for callee; Decline triggers state change on caller"
+        ],
+        "excludes": [
+          "Group call e2e (≥3 parties) — manual only for now",
+          "TURN/NAT resilience tests — manual only (AC-RES-1, AC-RES-2)",
+          "Amethyst interop test — manual only (AC-INTEROP-1)"
+        ]
+      },
+      "complexity": "high",
+      "status": "pending",
+      "owning_module": "CallScreen",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "test_fixtures": [
+        {
+          "fixture_id": "FIXTURE-12-001",
+          "description": "Loopback ICE-only RTCConfiguration (no STUN, no TURN) for CI: forces all ICE candidates to loopback addresses, ensuring the test works without external servers",
+          "interface": "RTCConfiguration with iceServers: [] and iceTransportPolicy omitted",
+          "reason": "External STUN/TURN servers are unavailable in CI; loopback candidates work on the same machine",
+          "permanent": true
+        }
+      ],
+      "notes": "Depends on all S1–S11 stories completing. The e2e test must publish through the app (via callManager.startCall invoked through a test bridge), not via raw WebSocket to strfry. The loopback ICE fixture overrides the TURN config for the test contexts only. AC-RES-1, AC-RES-2, and AC-INTEROP-1 are manual-only and are not blocked on this story."
+    }
+  ]
+}

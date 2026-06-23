@@ -1,0 +1,24 @@
+{
+  "epic_name": "voice-video-calls",
+  "status": "in_progress",
+  "phase": "IMPLEMENTING",
+  "current_story": "S1",
+  "created_at": "2026-06-23T00:00:00Z",
+  "updated_at": "2026-06-23T00:00:00Z",
+  "pre_existing_dirty_files": [],
+  "completed_stories": [],
+  "escalated_stories": [],
+  "phase_history": [
+    {"phase": "SPEC_VALIDATED", "timestamp": "2026-06-23T00:00:00Z", "trigger": "validation_passed"},
+    {"phase": "STORIES_PLANNED", "timestamp": "2026-06-23T00:00:00Z", "trigger": "stories_json_written"},
+    {"phase": "IMPLEMENTING", "timestamp": "2026-06-23T00:00:00Z", "trigger": "S1_started"}
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "c64fe0f39c1fb833a5910b0f5ddf4449d9b47e54",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json"
+}

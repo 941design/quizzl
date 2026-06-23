@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-15T10:44:43Z",
+  "updated_at": "2026-06-23T18:44:27Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -111,6 +111,11 @@
       "path": "specs/epic-feedback-channel/",
       "status": "DONE",
       "next_action": "completed 2026-06-15"
+    },
+    {
+      "path": "specs/epic-voice-video-calls/",
+      "status": "IN_PROGRESS",
+      "next_action": "created 2026-06-23"
     }
   ],
   "findings": [

@@ -400,6 +400,34 @@ type Copy = {
       reconnectError: string;
     };
   };
+  calls: {
+    incomingCallTitle: string;
+    incomingVoiceCall: string;
+    incomingVideoCall: string;
+    acceptCall: string;
+    declineCall: string;
+    muteAudio: string;
+    unmuteAudio: string;
+    cameraOff: string;
+    cameraOn: string;
+    hangUp: string;
+    participants: (count: number) => string;
+    callConnected: string;
+    startVoiceCall: string;
+    startVideoCall: string;
+    callDisabledGroupFull: string;
+    callInProgress: string;
+    callSettings: string;
+    turnServerUrl: string;
+    turnUsername: string;
+    turnCredential: string;
+    saveTurnConfig: string;
+    ipPrivacyMode: string;
+    turnHelp: string;
+    ipPrivacyHelp: string;
+    callStartedNotice: (callerName: string) => string;
+    callEndedNotice: string;
+  };
 };
 
 export function normalizeLanguage(input?: string | null): LanguageCode {
@@ -826,6 +854,34 @@ const copy: Record<LanguageCode, Copy> = {
         reconnectError: 'Extension is unavailable. Please reconnect.',
       },
     },
+    calls: {
+      incomingCallTitle: 'Incoming Call',
+      incomingVoiceCall: 'Voice Call',
+      incomingVideoCall: 'Video Call',
+      acceptCall: 'Accept',
+      declineCall: 'Decline',
+      muteAudio: 'Mute',
+      unmuteAudio: 'Unmute',
+      cameraOff: 'Camera Off',
+      cameraOn: 'Camera On',
+      hangUp: 'Hang Up',
+      participants: (count: number) => `${count} participant${count === 1 ? '' : 's'}`,
+      callConnected: 'Call connected',
+      startVoiceCall: 'Voice Call',
+      startVideoCall: 'Video Call',
+      callDisabledGroupFull: 'Group too large for calls (max 5)',
+      callInProgress: 'Call in progress',
+      callSettings: 'Call Settings',
+      turnServerUrl: 'TURN Server URL',
+      turnUsername: 'TURN Username',
+      turnCredential: 'TURN Credential',
+      saveTurnConfig: 'Save',
+      ipPrivacyMode: 'IP Privacy Mode',
+      turnHelp: 'Configure a custom TURN relay for better connectivity. Leave blank to use the default.',
+      ipPrivacyHelp: 'Route media through TURN to hide your IP from call participants (increases latency).',
+      callStartedNotice: (callerName: string) => `${callerName} started a call`,
+      callEndedNotice: 'Call ended',
+    },
   },
   de: {
     appName: 'Nostling',
@@ -1238,6 +1294,34 @@ const copy: Record<LanguageCode, Copy> = {
         nip44MissingError: 'Diese Erweiterung unterstützt keine NIP-44-Verschlüsselung. Gruppenfunktionen erfordern NIP-44 (versuche Alby oder nos2x-fox).',
         reconnectError: 'Erweiterung nicht verfügbar. Bitte erneut verbinden.',
       },
+    },
+    calls: {
+      incomingCallTitle: 'Eingehender Anruf',
+      incomingVoiceCall: 'Sprachanruf',
+      incomingVideoCall: 'Videoanruf',
+      acceptCall: 'Annehmen',
+      declineCall: 'Ablehnen',
+      muteAudio: 'Stumm',
+      unmuteAudio: 'Ton an',
+      cameraOff: 'Kamera aus',
+      cameraOn: 'Kamera an',
+      hangUp: 'Auflegen',
+      participants: (count: number) => `${count} Teilnehmer${count === 1 ? '' : ''}`,
+      callConnected: 'Anruf verbunden',
+      startVoiceCall: 'Sprachanruf starten',
+      startVideoCall: 'Videoanruf starten',
+      callDisabledGroupFull: 'Gruppe zu groß für Anrufe (max. 5)',
+      callInProgress: 'Anruf läuft',
+      callSettings: 'Anruf-Einstellungen',
+      turnServerUrl: 'TURN-Server-URL',
+      turnUsername: 'TURN-Benutzername',
+      turnCredential: 'TURN-Zugangsdaten',
+      saveTurnConfig: 'Speichern',
+      ipPrivacyMode: 'IP-Datenschutz-Modus',
+      turnHelp: 'Eigenen TURN-Relay für bessere Verbindung konfigurieren. Leer lassen für Standard.',
+      ipPrivacyHelp: 'Medien über TURN leiten, um IP vor Teilnehmern zu verbergen (erhöht Latenz).',
+      callStartedNotice: (callerName: string) => `${callerName} hat einen Anruf gestartet`,
+      callEndedNotice: 'Anruf beendet',
     },
   },
 };

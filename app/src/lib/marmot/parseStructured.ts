@@ -19,6 +19,7 @@ export type StructuredContent =
   | { type: 'image'; version: 1; caption: string }
   | { type: 'invite_cancelled'; pubkey: string; by: string }
   | { type: 'leave_intent'; pubkey: string }
+  | { type: 'call_notice'; event: 'started' | 'ended'; callId: string; initiator: string }
   | null;
 
 export function parseStructured(content: string): StructuredContent {
@@ -34,6 +35,14 @@ export function parseStructured(content: string): StructuredContent {
     }
     if (parsed?.type === 'leave_intent' && typeof parsed.pubkey === 'string') {
       return { type: 'leave_intent', pubkey: parsed.pubkey };
+    }
+    if (
+      parsed?.type === 'call_notice' &&
+      (parsed.event === 'started' || parsed.event === 'ended') &&
+      typeof parsed.callId === 'string' &&
+      typeof parsed.initiator === 'string'
+    ) {
+      return { type: 'call_notice', event: parsed.event, callId: parsed.callId, initiator: parsed.initiator };
     }
   } catch {
     // Not JSON — plain text message
