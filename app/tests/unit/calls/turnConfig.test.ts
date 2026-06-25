@@ -2,9 +2,9 @@
  * Unit tests for turnConfig.ts — Story S4.
  *
  * Tests:
- *   T1. getIceConfig() returns DEFAULT_STUN + iceTransportPolicy:'all' when no user config.
- *   T2. After setTurnServer(config), getIceConfig() includes the TURN server.
- *   T3. After setTurnServer(null), the TURN entry is removed.
+ *   T1. getIceConfig() returns DEFAULT_STUN + OpenRelay TURN default + iceTransportPolicy:'all' when no user config.
+ *   T2. After setTurnServer(config), getIceConfig() includes the user TURN server (replacing the OpenRelay default).
+ *   T3. After setTurnServer(null), the user TURN entry is removed and the OpenRelay default is restored.
  *   T4. After setIpPrivacyMode(true), getIceConfig().iceTransportPolicy === 'relay'.
  *   T5. getIpPrivacyMode() defaults to false.
  *   T6. Works when localStorage is undefined (SSR guard).
@@ -43,6 +43,13 @@ const STUN_URLS = [
   'stun:stun.cloudflare.com:3478',
 ];
 
+// Expected default OpenRelay TURN URLs (shipped when the user has no override)
+const OPENRELAY_TURN_URLS = [
+  'turn:openrelay.metered.ca:80',
+  'turn:openrelay.metered.ca:443',
+  'turn:openrelay.metered.ca:443?transport=tcp',
+];
+
 function getIceServerUrls(config: ReturnType<typeof getIceConfig>): string[] {
   return config.iceServers.flatMap((s) => (Array.isArray(s.urls) ? s.urls : [s.urls]));
 }
@@ -60,7 +67,7 @@ describe('turnConfig', () => {
 
   // ── T1: Defaults ──────────────────────────────────────────────────────────
 
-  it('T1: getIceConfig() returns three DEFAULT_STUN servers and iceTransportPolicy "all" when unconfigured', () => {
+  it('T1: getIceConfig() returns DEFAULT_STUN + OpenRelay TURN default and iceTransportPolicy "all" when unconfigured', () => {
     const config = getIceConfig();
 
     expect(config.iceTransportPolicy).toBe('all');
@@ -68,13 +75,22 @@ describe('turnConfig', () => {
     for (const expected of STUN_URLS) {
       expect(urls).toContain(expected);
     }
-    // Exactly three servers when no TURN is configured
-    expect(config.iceServers).toHaveLength(3);
+    // OpenRelay TURN default must be present so calls connect out-of-the-box.
+    for (const expected of OPENRELAY_TURN_URLS) {
+      expect(urls).toContain(expected);
+    }
+    // Three STUN entries + one OpenRelay TURN entry.
+    expect(config.iceServers).toHaveLength(4);
+    const turnEntry = config.iceServers.find((s) =>
+      (Array.isArray(s.urls) ? s.urls : [s.urls]).some((u) => u.startsWith('turn:openrelay')),
+    );
+    expect(turnEntry?.username).toBe('openrelayproject');
+    expect(turnEntry?.credential).toBe('openrelayproject');
   });
 
   // ── T2: TURN server saved ─────────────────────────────────────────────────
 
-  it('T2: after setTurnServer(), getIceConfig() appends the TURN server to the list', () => {
+  it('T2: after setTurnServer(), getIceConfig() uses the user TURN server in place of the OpenRelay default', () => {
     setTurnServer({
       url: 'turn:turn.example.com:3478',
       username: 'alice',
@@ -89,8 +105,9 @@ describe('turnConfig', () => {
       expect(urls).toContain(expected);
     }
 
-    // TURN server appended
+    // User TURN server present; OpenRelay default replaced (not appended).
     expect(config.iceServers).toHaveLength(4);
+    expect(urls.some((u) => u.startsWith('turn:openrelay'))).toBe(false);
     const turnEntry = config.iceServers.find((s) =>
       (Array.isArray(s.urls) ? s.urls[0] : s.urls) === 'turn:turn.example.com:3478',
     );
@@ -114,14 +131,18 @@ describe('turnConfig', () => {
 
   // ── T3: TURN server cleared ───────────────────────────────────────────────
 
-  it('T3: after setTurnServer(null), TURN entry is removed and only DEFAULT_STUN remain', () => {
+  it('T3: after setTurnServer(null), the user TURN entry is removed and the OpenRelay default is restored', () => {
     setTurnServer({ url: 'turn:turn.example.com:3478' });
     setTurnServer(null);
 
     const config = getIceConfig();
-    expect(config.iceServers).toHaveLength(3);
+    expect(config.iceServers).toHaveLength(4);
     const urls = getIceServerUrls(config);
-    expect(urls.some((u) => u.startsWith('turn:'))).toBe(false);
+    // User TURN gone, OpenRelay default back.
+    expect(urls.some((u) => u === 'turn:turn.example.com:3478')).toBe(false);
+    for (const expected of OPENRELAY_TURN_URLS) {
+      expect(urls).toContain(expected);
+    }
   });
 
   // ── T4: IP privacy mode ───────────────────────────────────────────────────
@@ -150,16 +171,19 @@ describe('turnConfig', () => {
 
   // ── T6: SSR guard ─────────────────────────────────────────────────────────
 
-  it('T6: getIceConfig() returns DEFAULT_STUN with policy "all" when localStorage is undefined', () => {
+  it('T6: getIceConfig() returns DEFAULT_STUN + OpenRelay TURN default with policy "all" when localStorage is undefined', () => {
     vi.unstubAllGlobals();
     // Simulate SSR: remove localStorage from the global scope
     vi.stubGlobal('localStorage', undefined);
 
     const config = getIceConfig();
     expect(config.iceTransportPolicy).toBe('all');
-    expect(config.iceServers).toHaveLength(3);
+    expect(config.iceServers).toHaveLength(4);
     const urls = getIceServerUrls(config);
     for (const expected of STUN_URLS) {
+      expect(urls).toContain(expected);
+    }
+    for (const expected of OPENRELAY_TURN_URLS) {
       expect(urls).toContain(expected);
     }
   });

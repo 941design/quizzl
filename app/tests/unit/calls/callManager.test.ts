@@ -110,11 +110,13 @@ vi.mock('@/src/lib/calls/peerSession', () => {
 import { CallManager } from '@/src/lib/calls/callManager';
 import {
   wrapAndPublish,
+  encodeAnswer,
   encodeReject,
   encodeHangup,
   encodeRenegotiate,
   encodeOffer,
 } from '@/src/lib/calls/callSignaling';
+import { releaseMedia } from '@/src/lib/calls/mediaManager';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -134,7 +136,8 @@ function makeDeps(overrides: Partial<Parameters<typeof CallManager['prototype'][
       nip44: { encrypt: vi.fn(), decrypt: vi.fn() },
     } as unknown as import('applesauce-core').EventSigner,
     ndk: {} as import('@nostr-dev-kit/ndk').default,
-    getGroupRoster: vi.fn().mockResolvedValue([OWN_PUBKEY, PEER_A, PEER_B]),
+    getGroupRoster: vi.fn().mockResolvedValue([OWN_PUBKEY, PEER_A, PEER_B, PEER_C]),
+    getGroupIds: vi.fn().mockReturnValue(['test-group']),
     ...(overrides as object),
   };
 }
@@ -306,10 +309,14 @@ describe('CallManager', () => {
 
   // ── T7 ────────────────────────────────────────────────────────────────────
 
-  describe('T7: Join mid-call — existing participants initiate offers to new peer', () => {
-    it('initiates offer to PEER_C when 25051 broadcast reveals PEER_C as new', async () => {
+  describe('T7: Mesh — a new callee\'s own broadcast answer triggers a lower-pubkey offer', () => {
+    it('initiates an offer to the joining callee when we out-rank them', async () => {
+      // Realistic wire shape: the new callee (PEER_B) broadcasts ITS OWN 25051
+      // answer; the answer lists the other participants, NOT the answerer. The
+      // earlier code skipped evt.senderPubkey and so never connected to the new
+      // callee — this guards the corrected lower-pubkey-initiates path.
       const manager = new CallManager(makeDeps());
-      // Accept a call from PEER_A
+      // Accept a 1:1-shaped offer from PEER_A (only OWN is p-tagged so far).
       await manager.handleEvent(makeOfferEvent({ senderPubkey: PEER_A, recipientPubkeys: [OWN_PUBKEY] }));
       await manager.acceptCall(CALL_ID);
       getMockStream(); // ensure mock stream was initialized
@@ -317,22 +324,22 @@ describe('CallManager', () => {
       vi.clearAllMocks();
       (wrapAndPublish as Mock).mockResolvedValue(undefined);
 
-      // PEER_A broadcasts a 25051 answer listing PEER_C as a new participant
+      // PEER_B (in the group roster, pubkey > OWN) announces it has joined.
       await manager.handleEvent({
         kind: 25051,
         callId: CALL_ID,
-        senderPubkey: PEER_A,
-        sdp: 'peer-a-answer',
-        recipientPubkeys: [OWN_PUBKEY, PEER_C],
-        innerEventId: 'answer-broadcast',
+        senderPubkey: PEER_B,
+        sdp: 'peer-b-join-answer',
+        recipientPubkeys: [OWN_PUBKEY, PEER_A],
+        innerEventId: 'peer-b-join',
       });
 
-      // We should have initiated an offer to PEER_C
+      // OWN ('a'…) < PEER_B ('c'…) → OWN initiates the pairwise offer to PEER_B.
       expect(encodeOffer).toHaveBeenCalledWith(
         expect.objectContaining({ callId: CALL_ID }),
       );
       const destinations = (wrapAndPublish as Mock).mock.calls.map((c) => c[1] as string);
-      expect(destinations).toContain(PEER_C);
+      expect(destinations).toContain(PEER_B);
 
       manager.destroy();
     });
@@ -437,6 +444,191 @@ describe('CallManager', () => {
       });
 
       expect(callStore.getSnapshot().incoming).toBeNull();
+
+      manager.destroy();
+    });
+  });
+
+  // ── T12 ───────────────────────────────────────────────────────────────────
+
+  describe('T12: Strict group-roster binding — off-roster p-tags are not authorized', () => {
+    it('ignores a hangup from a participant the offer named but who is not in the group', async () => {
+      // The group only contains OWN and PEER_A. The offer p-tags PEER_C (not a
+      // member). The old code trusted the p-tags as the roster, which would have
+      // authorized PEER_C. With strict binding, PEER_C cannot drive signaling.
+      const manager = new CallManager({
+        ...makeDeps(),
+        getGroupRoster: vi.fn().mockResolvedValue([OWN_PUBKEY, PEER_A]),
+      });
+      await manager.handleEvent(
+        makeOfferEvent({ senderPubkey: PEER_A, recipientPubkeys: [OWN_PUBKEY, PEER_C] }),
+      );
+      await manager.acceptCall(CALL_ID);
+      expect(callStore.getSnapshot().active).not.toBeNull();
+
+      // A hangup from the off-roster PEER_C must be ignored — the call survives.
+      await manager.handleEvent({
+        kind: 25053,
+        callId: CALL_ID,
+        senderPubkey: PEER_C,
+        recipientPubkeys: [OWN_PUBKEY],
+        reason: '',
+        innerEventId: 'offroster-hangup',
+      });
+      expect(callStore.getSnapshot().active).not.toBeNull();
+
+      manager.destroy();
+    });
+  });
+
+  // ── T13 ───────────────────────────────────────────────────────────────────
+
+  describe('T13: Strict group-roster binding — caller in no shared group is dropped', () => {
+    it('does not ring when the caller is not a member of any of the user\'s groups', async () => {
+      const manager = new CallManager({
+        ...makeDeps(),
+        getGroupRoster: vi.fn().mockResolvedValue([OWN_PUBKEY, PEER_B]), // PEER_A absent
+      });
+      await manager.handleEvent(makeOfferEvent({ senderPubkey: PEER_A }));
+
+      expect(callStore.getSnapshot().incoming).toBeNull();
+
+      manager.destroy();
+    });
+  });
+
+  // ── T14 ───────────────────────────────────────────────────────────────────
+
+  describe('T14: 5-party cap — exactly 4 remote peers + self is accepted', () => {
+    it('accepts a call with 4 remote peers (5 total)', async () => {
+      const PEER_D = 'e'.repeat(64);
+      const manager = new CallManager({
+        ...makeDeps(),
+        getGroupRoster: vi.fn().mockResolvedValue([OWN_PUBKEY, PEER_A, PEER_B, PEER_C, PEER_D]),
+      });
+      await manager.handleEvent(
+        makeOfferEvent({ senderPubkey: PEER_A, recipientPubkeys: [OWN_PUBKEY, PEER_B, PEER_C, PEER_D] }),
+      );
+      await manager.acceptCall(CALL_ID);
+
+      expect(callStore.getSnapshot().active).not.toBeNull();
+      expect(callStore.getSnapshot().incoming).toBeNull();
+
+      manager.destroy();
+    });
+  });
+
+  // ── T15 ───────────────────────────────────────────────────────────────────
+
+  describe('T15: Renegotiation is answered with a 25051 Answer (not another 25055)', () => {
+    it('applies the renegotiate offer and replies with encodeAnswer', async () => {
+      const manager = new CallManager(makeDeps());
+      await manager.handleEvent(makeOfferEvent({ senderPubkey: PEER_A, recipientPubkeys: [OWN_PUBKEY] }));
+      await manager.acceptCall(CALL_ID);
+
+      vi.clearAllMocks();
+      (wrapAndPublish as Mock).mockResolvedValue(undefined);
+
+      await manager.handleEvent({
+        kind: 25055,
+        callId: CALL_ID,
+        senderPubkey: PEER_A,
+        sdp: 'renegotiate-offer-sdp',
+        recipientPubkeys: [OWN_PUBKEY],
+        innerEventId: 'reneg-1',
+      });
+
+      expect(encodeAnswer).toHaveBeenCalledWith(expect.objectContaining({ callId: CALL_ID }));
+      expect(encodeRenegotiate).not.toHaveBeenCalled();
+      const destinations = (wrapAndPublish as Mock).mock.calls.map((c) => c[1] as string);
+      expect(destinations).toContain(PEER_A);
+
+      manager.destroy();
+    });
+
+    it('answers a renegotiation from a LOWER-pubkey peer (no longer silently ignored)', async () => {
+      // Own pubkey is high ('f'…), peer is low ('b'…). The old glare rule dropped
+      // any renegotiate whose sender was not greater than us — breaking ICE restart
+      // from the lower side. It must now be answered.
+      const HIGH_OWN = 'f'.repeat(64);
+      const LOW_PEER = 'b'.repeat(64);
+      const deps = {
+        ...makeDeps(),
+        pubkeyHex: HIGH_OWN,
+        getGroupRoster: vi.fn().mockResolvedValue([HIGH_OWN, LOW_PEER]),
+      };
+      const manager = new CallManager(deps);
+      await manager.handleEvent(
+        makeOfferEvent({ senderPubkey: LOW_PEER, recipientPubkeys: [HIGH_OWN] }),
+      );
+      await manager.acceptCall(CALL_ID);
+
+      vi.clearAllMocks();
+      (wrapAndPublish as Mock).mockResolvedValue(undefined);
+
+      await manager.handleEvent({
+        kind: 25055,
+        callId: CALL_ID,
+        senderPubkey: LOW_PEER,
+        sdp: 'low-peer-renegotiate',
+        recipientPubkeys: [HIGH_OWN],
+        innerEventId: 'reneg-low',
+      });
+
+      expect(encodeAnswer).toHaveBeenCalledWith(expect.objectContaining({ callId: CALL_ID }));
+
+      manager.destroy();
+    });
+  });
+
+  // ── T16 ───────────────────────────────────────────────────────────────────
+
+  describe('T16: startCall tears down on publish failure (no leaked media/state)', () => {
+    it('clears the active call and releases media when wrapAndPublish rejects', async () => {
+      (wrapAndPublish as Mock).mockRejectedValue(new Error('relay unavailable'));
+      const manager = new CallManager(makeDeps());
+
+      await expect(
+        manager.startCall({ callType: 'voice', groupId: null, targetPubkeys: [PEER_A] }),
+      ).rejects.toThrow(/relay unavailable/);
+
+      expect(callStore.getSnapshot().active).toBeNull();
+      expect(releaseMedia).toHaveBeenCalled();
+
+      manager.destroy();
+    });
+  });
+
+  // ── T17 ───────────────────────────────────────────────────────────────────
+
+  describe('T17: Caller-side ring timeout ends an unanswered call', () => {
+    it('tears down after the ring timeout when no peer connected', async () => {
+      const manager = new CallManager(makeDeps());
+      await manager.startCall({ callType: 'voice', groupId: null, targetPubkeys: [PEER_A] });
+      expect(callStore.getSnapshot().active).not.toBeNull();
+
+      vi.advanceTimersByTime(45_001);
+      await vi.runAllTimersAsync();
+
+      expect(callStore.getSnapshot().active).toBeNull();
+
+      manager.destroy();
+    });
+
+    it('does NOT tear down if a peer has connected before the timeout', async () => {
+      const manager = new CallManager(makeDeps());
+      await manager.startCall({ callType: 'voice', groupId: null, targetPubkeys: [PEER_A] });
+
+      // Simulate the peer leg reaching 'connected'.
+      const session = peerSessionRegistry[0] as MockPeerSession;
+      session.connectionState = 'connected';
+      (session.callbacks as { onConnectionStateChange: (s: RTCPeerConnectionState) => void })
+        .onConnectionStateChange('connected');
+
+      vi.advanceTimersByTime(45_001);
+      await vi.runAllTimersAsync();
+
+      expect(callStore.getSnapshot().active).not.toBeNull();
 
       manager.destroy();
     });

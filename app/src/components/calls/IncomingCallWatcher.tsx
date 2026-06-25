@@ -94,6 +94,9 @@ export function IncomingCallWatcher() {
               return [];
             }
           },
+          // Live list of the user's group ids so CallManager can bind an incoming
+          // call to the actual MLS group it belongs to (strict roster authorization).
+          getGroupIds: () => groupsRef.current.map((g) => g.id),
           publishGroupNotice: async (groupId: string, content: string) => {
             try {
               const client = getClientRef.current();

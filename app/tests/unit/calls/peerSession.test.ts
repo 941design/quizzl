@@ -11,7 +11,7 @@
  *   T6b. onTrack callback fires when pc.ontrack is triggered.
  *   T6c. onConnectionStateChange fires when pc.onconnectionstatechange is triggered.
  *   T6d. onIceConnectionStateChange fires when pc.oniceconnectionstatechange is triggered.
- *   T7.  close() calls pc.close() and stops all local tracks.
+ *   T7.  close() calls pc.close() and does NOT stop the shared local tracks.
  *   T8.  connectionState getter returns pc.connectionState.
  *   T9.  applyRenegotiateOffer() applies remote SDP and returns a local answer.
  *   T10. createIceRestartOffer() calls pc.createOffer with iceRestart:true.
@@ -390,7 +390,11 @@ describe('PeerSession', () => {
       expect(pc.close).toHaveBeenCalledOnce();
     });
 
-    it('T7: stops all local tracks that were added via addLocalStream', () => {
+    it('T7: does NOT stop local tracks (the shared stream is owned by mediaManager)', () => {
+      // Regression guard: the same MediaStream is added to every PeerSession in a
+      // call. If close() stopped its tracks, one peer leaving a 3+ party call would
+      // kill local mic/camera for the remaining legs. CallManager releases the
+      // shared stream exactly once at teardown instead.
       const session = new PeerSession(TEST_ICE_CONFIG, makeCallbacks());
 
       const track1 = makeFakeTrack();
@@ -399,8 +403,8 @@ describe('PeerSession', () => {
 
       session.close();
 
-      expect(track1.stop).toHaveBeenCalledOnce();
-      expect(track2.stop).toHaveBeenCalledOnce();
+      expect(track1.stop).not.toHaveBeenCalled();
+      expect(track2.stop).not.toHaveBeenCalled();
     });
 
     it('T7: works with no local tracks (no tracks added)', () => {

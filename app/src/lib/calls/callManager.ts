@@ -65,6 +65,12 @@ export interface CallManagerDeps {
   ndk: NDK;
   /** Async roster lookup for a group — returns hex pubkeys of all members. */
   getGroupRoster: (groupId: string) => Promise<string[]>;
+  /**
+   * Synchronous list of the local user's group ids. Used to resolve which MLS
+   * group an incoming offer belongs to (§5.2): the call roster is bound to that
+   * group's membership, not to the offer's self-asserted `p` tags.
+   */
+  getGroupIds?: () => string[];
   /** Optional debug hook, called for every routed IncomingCallEvent. */
   onEvent?: (evt: IncomingCallEvent) => void;
   /**
@@ -98,6 +104,8 @@ interface CallContext {
   sessions: Map<string, PeerSession>;
   /** ICE restart attempt count per peer. */
   iceRestartAttempts: Map<string, number>;
+  /** Peers we have an in-flight renegotiation offer to (for glare resolution, §9.3). */
+  renegotiating: Set<string>;
   /** Local media stream (acquired on accept/startCall). */
   localStream: MediaStream | null;
   /** Ring timeout handle — cleared once accepted/declined. */
@@ -165,6 +173,7 @@ export class CallManager {
       peerPubkeys: new Set(targetPubkeys),
       sessions: new Map(),
       iceRestartAttempts: new Map(),
+      renegotiating: new Set(),
       localStream: media.stream,
       ringTimeoutHandle: null,
     };
@@ -182,26 +191,44 @@ export class CallManager {
       callType,
     });
 
+    // Caller-side ring timeout: if no peer answers/connects within the window, end
+    // the call and release the mic/camera. Cleared on the first peer 'connected'
+    // (see _createPeerSession). Without this the caller holds media open forever
+    // when the callee is offline or never picks up.
+    this.ctx.ringTimeoutHandle = setTimeout(() => {
+      void this._onRingTimeout(callId);
+    }, RING_TIMEOUT_MS);
+
     // Create a PeerSession for each target and send an offer
     const allParticipants = [this.deps.pubkeyHex, ...targetPubkeys];
 
-    await Promise.all(
-      targetPubkeys.map(async (remotePk) => {
-        const session = this._createPeerSession(callId, remotePk);
-        session.addLocalStream(media.stream);
-        const offerSdp = await session.createOffer();
+    try {
+      await Promise.all(
+        targetPubkeys.map(async (remotePk) => {
+          const session = this._createPeerSession(callId, remotePk);
+          session.addLocalStream(media.stream);
+          const offerSdp = await session.createOffer();
 
-        const draft = encodeOffer({
-          senderPubkeyHex: this.deps.pubkeyHex,
-          recipientPubkeys: allParticipants.filter((p) => p !== this.deps.pubkeyHex),
-          callId,
-          callType,
-          sdp: offerSdp.sdp ?? '',
-        });
+          const draft = encodeOffer({
+            senderPubkeyHex: this.deps.pubkeyHex,
+            recipientPubkeys: allParticipants.filter((p) => p !== this.deps.pubkeyHex),
+            callId,
+            callType,
+            sdp: offerSdp.sdp ?? '',
+          });
 
-        await wrapAndPublish(draft, remotePk, this.deps.signer, this.deps.ndk);
-      }),
-    );
+          await wrapAndPublish(draft, remotePk, this.deps.signer, this.deps.ndk);
+        }),
+      );
+    } catch (err) {
+      // A signing/relay failure must not leave the call store active with the
+      // mic/camera still capturing. Tear down and surface the failure to the UI.
+      console.warn('[callManager] startCall: offer publish failed, tearing down', err);
+      if (this.ctx && this.ctx.callId === callId) {
+        this._teardownCall(this.ctx);
+      }
+      throw err;
+    }
 
     // Group call notice: started (fire-and-forget)
     if (groupId && this.deps.publishGroupNotice) {
@@ -231,8 +258,9 @@ export class CallManager {
     const ctx = this.ctx;
     this._clearRingTimeout(ctx);
 
-    // 5-cap check
-    if (ctx.peerPubkeys.size + 1 >= MAX_PARTICIPANTS) {
+    // 5-cap check: self + remote peers must not exceed MAX_PARTICIPANTS.
+    // 4 remote peers + self == 5 is the allowed maximum (use > not >=).
+    if (ctx.peerPubkeys.size + 1 > MAX_PARTICIPANTS) {
       console.warn('[callManager] acceptCall: participant cap exceeded, declining');
       await this.declineCall(callId, 'busy');
       return;
@@ -285,12 +313,22 @@ export class CallManager {
       sdp: answerSdp.sdp ?? '',
     });
 
-    // Send answer to each peer in the call
-    await Promise.all(
-      [...peerPubkeys, this.deps.pubkeyHex].map((pk) =>
-        wrapAndPublish(draft, pk, this.deps.signer, this.deps.ndk),
-      ),
-    );
+    try {
+      // Broadcast the answer to every peer (and our own other devices). For the
+      // caller it carries the real SDP answer; for the other callees it is the
+      // "I've joined" presence signal (§9.2).
+      await Promise.all(
+        [...peerPubkeys, this.deps.pubkeyHex].map((pk) =>
+          wrapAndPublish(draft, pk, this.deps.signer, this.deps.ndk),
+        ),
+      );
+    } catch (err) {
+      // Publishing the answer failed — the remote will never connect. End the
+      // call locally rather than leaving the store active and media capturing.
+      console.warn('[callManager] acceptCall: answer publish failed, tearing down', err);
+      this._teardownCall(ctx);
+      throw err;
+    }
 
     // Update store to active
     callStore.setActive({
@@ -304,6 +342,30 @@ export class CallManager {
       localStream: media.stream,
       callType: ctx.callType,
     });
+
+    // Mesh (§9.2/§9.3): connect to the other callees. By the lower-pubkey-
+    // initiates rule we open the pairwise offer to every callee we out-rank;
+    // higher-pubkey callees will offer to us instead. The caller leg is already
+    // established by the caller's own offer, so it is skipped here.
+    for (const peer of peerPubkeys) {
+      if (peer === callerPubkey || peer === this.deps.pubkeyHex) continue;
+      if (ctx.sessions.has(peer)) continue;
+      if (this.deps.pubkeyHex < peer) {
+        await this._initiateOfferTo(ctx, peer);
+      }
+    }
+
+    // Drain any mesh offers that arrived from lower-pubkey callees while we were
+    // still ringing (stashed in _pendingMeshOffers). Answering them now forms the
+    // remaining legs regardless of the order in which callees accepted.
+    const stashed = this._pendingMeshOffers.get(callId);
+    if (stashed) {
+      this._pendingMeshOffers.delete(callId);
+      for (const [peer, sdp] of stashed) {
+        if (peer === this.deps.pubkeyHex || ctx.sessions.has(peer)) continue;
+        await this._handleMeshOffer(ctx, peer, sdp);
+      }
+    }
   }
 
   // ── Public: decline an incoming call ───────────────────────────────────────
@@ -343,6 +405,7 @@ export class CallManager {
     }
 
     this._pendingOfferSdps.delete(callId);
+    this._pendingMeshOffers.delete(callId);
     this.ctx = null;
     callStore.clearAll();
   }
@@ -453,6 +516,7 @@ export class CallManager {
       this._teardownCall(this.ctx);
     }
     this._pendingOfferSdps.clear();
+    this._pendingMeshOffers.clear();
   }
 
   // ── Private: pending offer SDP storage ─────────────────────────────────────
@@ -463,6 +527,57 @@ export class CallManager {
    */
   private readonly _pendingOfferSdps = new Map<string, string>();
 
+  /**
+   * Mesh offers (kind 25050 carrying the current call-id) that arrived from
+   * other callees while we were still ringing on the primary offer. Keyed
+   * callId → (senderPubkey → offer SDP). Drained in acceptCall() so the mesh
+   * forms regardless of the order callees pick up. Cleared on decline/teardown.
+   */
+  private readonly _pendingMeshOffers = new Map<string, Map<string, string>>();
+
+  /**
+   * Auto-accept a mesh offer for the current active call: create the peer leg,
+   * answer with a 25051 to the offerer only (the broadcast "I've joined" answer
+   * already happened on accept). Authorization is the caller's responsibility —
+   * call sites verify roster membership before invoking this.
+   */
+  private async _handleMeshOffer(ctx: CallContext, senderPubkey: string, sdp: string): Promise<void> {
+    if (!ctx.localStream) return;
+    if (ctx.sessions.has(senderPubkey)) return; // leg already forming/established
+
+    ctx.peerPubkeys.add(senderPubkey);
+    const session = this._createPeerSession(ctx.callId, senderPubkey);
+    session.addLocalStream(ctx.localStream);
+    const answerSdp = await session.createAnswer({ type: 'offer', sdp });
+
+    const draft = encodeAnswer({
+      senderPubkeyHex: this.deps.pubkeyHex,
+      recipientPubkeys: [senderPubkey],
+      callId: ctx.callId,
+      sdp: answerSdp.sdp ?? '',
+    });
+    await wrapAndPublish(draft, senderPubkey, this.deps.signer, this.deps.ndk).catch((err) =>
+      console.warn('[callManager] mesh answer send failed to', senderPubkey, err),
+    );
+
+    this._syncStoreParticipants(ctx);
+  }
+
+  /**
+   * Caller-side ring-timeout handler: if no peer has connected by the deadline,
+   * the callee never picked up — end the call and release media.
+   */
+  private async _onRingTimeout(callId: string): Promise<void> {
+    const ctx = this.ctx;
+    if (!ctx || ctx.callId !== callId) return;
+    const anyConnected = [...ctx.sessions.values()].some(
+      (s) => s.connectionState === 'connected',
+    );
+    if (anyConnected) return;
+    console.warn('[callManager] caller ring timeout — no answer, ending call', callId);
+    await this.hangup();
+  }
+
   // ── Private: event handlers ─────────────────────────────────────────────────
 
   private async _handleOffer(evt: IncomingCallEvent): Promise<void> {
@@ -471,7 +586,31 @@ export class CallManager {
       return;
     }
 
-    // Busy auto-reject: already in an active call
+    // An offer carrying the call-id we are already in is a mesh leg (§9.2), not a
+    // new incoming call — never busy-reject it.
+    if (this.ctx && this.ctx.callId === evt.callId) {
+      if (!this.ctx.rosterSnapshot.has(evt.senderPubkey)) {
+        console.warn('[callManager] _handleOffer: mesh offer sender not in roster, dropping', evt.senderPubkey);
+        return;
+      }
+      if (this.ctx.phase === 'active') {
+        // Auto-accept the new pairwise leg.
+        await this._handleMeshOffer(this.ctx, evt.senderPubkey, evt.sdp);
+      } else {
+        // Still ringing on the primary offer: stash this extra leg and answer it
+        // once the user accepts (drained in acceptCall). Keeps mesh formation
+        // independent of the order in which callees pick up.
+        let stash = this._pendingMeshOffers.get(evt.callId);
+        if (!stash) {
+          stash = new Map();
+          this._pendingMeshOffers.set(evt.callId, stash);
+        }
+        stash.set(evt.senderPubkey, evt.sdp);
+      }
+      return;
+    }
+
+    // Busy auto-reject: already in a different active call
     const existing = callStore.getSnapshot();
     if (existing.active !== null) {
       const busyDraft = encodeReject({
@@ -489,17 +628,20 @@ export class CallManager {
     // Resolve group and roster for this offer
     const { groupId, rosterSnapshot } = await this._resolveGroupAndRoster(evt);
 
-    // Authorization: sender must be in the roster
+    // Authorization: sender must be in the resolved group's roster
     if (!rosterSnapshot.has(evt.senderPubkey)) {
       console.warn('[callManager] _handleOffer: sender not in roster, dropping', evt.senderPubkey);
       return;
     }
 
-    // All p-tagged participants (excluding self) are peers
+    // Peers are the offer's p-tagged participants that are also members of the
+    // resolved group (strict roster binding — never trust off-roster p-tags),
+    // plus the caller.
     const peerPubkeys = new Set(
-      evt.recipientPubkeys.filter((pk) => pk !== this.deps.pubkeyHex),
+      evt.recipientPubkeys.filter(
+        (pk) => pk !== this.deps.pubkeyHex && rosterSnapshot.has(pk),
+      ),
     );
-    // Also include the sender (caller) if not already present
     peerPubkeys.add(evt.senderPubkey);
 
     // Store the SDP for use by acceptCall()
@@ -519,6 +661,7 @@ export class CallManager {
       peerPubkeys,
       sessions: new Map(),
       iceRestartAttempts: new Map(),
+      renegotiating: new Set(),
       localStream: null,
       ringTimeoutHandle: ringHandle,
     };
@@ -546,36 +689,30 @@ export class CallManager {
 
     if (!this.ctx || this.ctx.callId !== evt.callId) return;
     if (!this._isAuthorized(evt.senderPubkey)) return;
+    if (this.ctx.phase !== 'active') return;
     if (!evt.sdp) return;
 
     const ctx = this.ctx;
+    const session = ctx.sessions.get(evt.senderPubkey);
 
-    if (ctx.phase === 'active') {
-      // We sent an offer to this peer — apply their answer
-      const session = ctx.sessions.get(evt.senderPubkey);
-      if (session) {
-        await session.applyAnswer({ type: 'answer', sdp: evt.sdp });
-      }
-
-      // Lower-pubkey-initiates: if a NEW peer joined (not yet in sessions),
-      // and our pubkey < their pubkey, we initiate an offer to them.
-      // The new joiner's answer broadcast also tells all existing peers about them.
-      for (const newPeerPk of evt.recipientPubkeys) {
-        if (
-          newPeerPk === this.deps.pubkeyHex ||
-          newPeerPk === evt.senderPubkey ||
-          ctx.sessions.has(newPeerPk)
-        ) {
-          continue;
-        }
-        // This is a new peer joining mid-call (§9.5): existing connected
-        // participants UNCONDITIONALLY initiate offers to the new peer.
-        ctx.peerPubkeys.add(newPeerPk);
-        await this._initiateOfferTo(ctx, newPeerPk);
-      }
-
-      this._syncStoreParticipants(ctx);
+    if (session) {
+      // We sent this peer an offer (initial leg or a renegotiation/ICE restart)
+      // — apply their answer and clear any in-flight renegotiation marker.
+      await session.applyAnswer({ type: 'answer', sdp: evt.sdp });
+      ctx.renegotiating.delete(evt.senderPubkey);
+      return;
     }
+
+    // No session with the sender: this is a callee-to-callee "I've joined"
+    // broadcast answer (§9.2). The answerer IS evt.senderPubkey; their answer
+    // lists the other participants, not themselves. By lower-pubkey-initiates
+    // (§9.3) we open the pairwise offer to them when we out-rank them; otherwise
+    // we stay passive and they will offer to us.
+    ctx.peerPubkeys.add(evt.senderPubkey);
+    if (this.deps.pubkeyHex < evt.senderPubkey) {
+      await this._initiateOfferTo(ctx, evt.senderPubkey);
+    }
+    this._syncStoreParticipants(ctx);
   }
 
   private async _handleIceCandidate(evt: IncomingCallEvent): Promise<void> {
@@ -638,32 +775,29 @@ export class CallManager {
     const session = ctx.sessions.get(evt.senderPubkey);
     if (!session) return;
 
-    // Glare detection (§9.6): if we are also in the process of sending a renegotiate,
-    // higher pubkey wins. Loser rolls back and accepts winner's offer.
-    // Implementation: track if we've already set a local desc for renegotiation.
-    // For simplicity, we use pubkey comparison: if sender > us, they win (we roll back).
-    // If we > sender, we win (ignore their offer).
-    // Since we don't track in-flight renegotiations here, we apply the simple rule:
-    // if sender pubkey > our pubkey → sender wins → we accept their offer.
-    // if our pubkey > sender pubkey → we win → ignore (they will roll back and re-accept).
-    // NOTE: A proper glare-safe impl would require tracking "pending renegotiate" state.
-    // For S5 this is an approximation. The spec says "higher pubkey wins" and loser rollbacks.
-
-    if (evt.senderPubkey > this.deps.pubkeyHex) {
-      // Sender wins: apply their renegotiate offer and answer
-      const answerSdp = await session.applyRenegotiateOffer({ type: 'offer', sdp: evt.sdp });
-
-      const draft = encodeRenegotiate({
-        senderPubkeyHex: this.deps.pubkeyHex,
-        recipientPubkeys: [evt.senderPubkey],
-        callId: ctx.callId,
-        sdp: answerSdp.sdp ?? '',
-      });
-      await wrapAndPublish(draft, evt.senderPubkey, this.deps.signer, this.deps.ndk).catch(
-        (err) => console.warn('[callManager] renegotiate answer send failed:', err),
-      );
+    // Glare (§9.3): a renegotiation collision only exists when WE also have an
+    // in-flight renegotiation offer to this same peer. In that case the higher
+    // pubkey wins: if we out-rank the sender we ignore their offer (ours stands);
+    // otherwise we yield and answer theirs.
+    if (ctx.renegotiating.has(evt.senderPubkey) && this.deps.pubkeyHex > evt.senderPubkey) {
+      return; // we win the glare — ignore their offer
     }
-    // else: we win, ignore their offer (they will rollback once they receive ours)
+    // Yielding to (or simply receiving) their offer: drop our own in-flight marker.
+    ctx.renegotiating.delete(evt.senderPubkey);
+
+    // A 25055 renegotiation offer is answered with a 25051 Answer (§9.4), NOT
+    // another 25055. The answer routes back through the peer's _handleAnswer.
+    const answerSdp = await session.applyRenegotiateOffer({ type: 'offer', sdp: evt.sdp });
+
+    const draft = encodeAnswer({
+      senderPubkeyHex: this.deps.pubkeyHex,
+      recipientPubkeys: [evt.senderPubkey],
+      callId: ctx.callId,
+      sdp: answerSdp.sdp ?? '',
+    });
+    await wrapAndPublish(draft, evt.senderPubkey, this.deps.signer, this.deps.ndk).catch(
+      (err) => console.warn('[callManager] renegotiate answer send failed:', err),
+    );
   }
 
   // ── Private: roster / group resolution ─────────────────────────────────────
@@ -676,25 +810,42 @@ export class CallManager {
   private async _resolveGroupAndRoster(
     evt: IncomingCallEvent,
   ): Promise<{ groupId: string | null; rosterSnapshot: Set<string> }> {
-    // The p tags in the offer contain all intended participants. Find which group
-    // the caller belongs to by testing roster overlap.
-    // We can't enumerate groups here without a group store — the caller passes
-    // getGroupRoster(groupId). Without knowing groupIds we need a different strategy.
-    //
-    // Decision: use the p-tags as the roster snapshot directly. Any member listed
-    // in p-tags (plus the sender) is authorized for this call. This is §5.2's
-    // "find group with most overlap" simplified to: trust the offer's p-list.
-    // The outer subscribeCallSignaling already does a sender-is-in-some-group check;
-    // callManager trusts that gate and uses the p-tags as the call roster.
+    // Bind the call to a concrete MLS group (§5.2). Among the local user's groups,
+    // pick the one that (a) contains the caller and (b) has the most overlap with
+    // the offer's p-tagged participants. The snapshot is that group's membership —
+    // NOT the offer's self-asserted p-tags — so a caller cannot authorize
+    // participants who are not actually in the shared group.
+    const offerParticipants = new Set([...evt.recipientPubkeys, evt.senderPubkey]);
+    const groupIds = this.deps.getGroupIds?.() ?? [];
 
-    const rosterSnapshot = new Set([
-      ...evt.recipientPubkeys,
-      evt.senderPubkey,
-    ]);
+    let bestGroupId: string | null = null;
+    let bestRoster: Set<string> = new Set();
+    let bestOverlap = -1;
 
-    // groupId: null for now (S5 does not have a groups listing API to match against)
-    // A future story can pass a groups array to deps and resolve this.
-    return { groupId: null, rosterSnapshot };
+    for (const groupId of groupIds) {
+      let members: string[];
+      try {
+        members = await this.deps.getGroupRoster(groupId);
+      } catch {
+        continue;
+      }
+      const memberSet = new Set(members);
+      // The caller must be a member of the group for it to be a candidate.
+      if (!memberSet.has(evt.senderPubkey)) continue;
+
+      let overlap = 0;
+      for (const p of offerParticipants) {
+        if (memberSet.has(p)) overlap++;
+      }
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        bestGroupId = groupId;
+        bestRoster = memberSet;
+      }
+    }
+
+    // No group contains the caller → fail closed (empty roster → offer dropped).
+    return { groupId: bestGroupId, rosterSnapshot: bestRoster };
   }
 
   private _isAuthorized(senderPubkey: string): boolean {
@@ -724,7 +875,10 @@ export class CallManager {
         this._updateParticipantStream(remotePubkey, stream);
       },
       onConnectionStateChange: (state) => {
-        if (state === 'failed') {
+        if (state === 'connected') {
+          // First successful peer connection cancels the caller-side ring timeout.
+          if (this.ctx?.callId === callId) this._clearRingTimeout(this.ctx);
+        } else if (state === 'failed') {
           void this._onConnectionFailed(ctx, remotePubkey);
         }
       },
@@ -739,6 +893,7 @@ export class CallManager {
 
   private async _initiateOfferTo(ctx: CallContext, remotePubkey: string): Promise<void> {
     if (!ctx.localStream) return;
+    if (ctx.sessions.has(remotePubkey)) return; // leg already forming/established
     const session = this._createPeerSession(ctx.callId, remotePubkey);
     session.addLocalStream(ctx.localStream);
     const offerSdp = await session.createOffer();
@@ -793,6 +948,10 @@ export class CallManager {
       return null;
     });
     if (!offerSdp) return;
+
+    // Mark an in-flight renegotiation so a colliding incoming 25055 from this
+    // peer is resolved by the glare rule rather than blindly answered.
+    ctx.renegotiating.add(remotePubkey);
 
     const draft = encodeRenegotiate({
       senderPubkeyHex: this.deps.pubkeyHex,
@@ -850,6 +1009,7 @@ export class CallManager {
       ctx.localStream = null;
     }
     this._pendingOfferSdps.delete(ctx.callId);
+    this._pendingMeshOffers.delete(ctx.callId);
     if (this.ctx?.callId === ctx.callId) {
       this.ctx = null;
     }

@@ -6,8 +6,17 @@
  * imports.
  *
  * getIceConfig() is the primary export consumed by PeerSession. It always
- * includes the DEFAULT_STUN servers, appends a user-supplied TURN server when
- * present, and sets iceTransportPolicy to 'relay' when IP privacy mode is on.
+ * includes the DEFAULT_STUN servers, adds a TURN relay (the user-supplied one
+ * when present, otherwise the shipped OpenRelay default), and sets
+ * iceTransportPolicy to 'relay' when IP privacy mode is on.
+ *
+ * Interop note: a TURN relay is a de-facto requirement for connectivity — any
+ * call where one peer is behind a symmetric NAT/firewall can never form a
+ * candidate pair without one. Amethyst (the AC-WebRTC reference client) ships
+ * the same public OpenRelay defaults, so shipping them here is what makes calls
+ * connect out-of-the-box and interoperate with Amethyst. A user-configured TURN
+ * server *replaces* the OpenRelay default (matching Amethyst), letting operators
+ * point at their own relay without an app update.
  */
 
 // ── Storage key ───────────────────────────────────────────────────────────────
@@ -42,6 +51,22 @@ const DEFAULT_STUN: RTCIceServer[] = [
   { urls: 'stun:stun.cloudflare.com:3478' },
 ];
 
+// ── Default TURN relay (always present unless the user overrides it) ───────────
+// Public OpenRelay community service operated by Metered (not by this project),
+// matching the AC-WebRTC reference client (Amethyst). Shared credentials are
+// intentional and public — they only grant relay access, not account identity.
+const DEFAULT_TURN: RTCIceServer[] = [
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+];
+
 // ── localStorage helpers (SSR-safe) ──────────────────────────────────────────
 
 function readStored(): StoredConfig {
@@ -67,9 +92,10 @@ function writeStored(config: StoredConfig): void {
 /**
  * Build the RTCConfiguration ice parameters for a new peer connection.
  *
- * Always includes DEFAULT_STUN. Appends the user's TURN server when configured.
- * Returns iceTransportPolicy 'relay' when IP privacy mode is enabled, 'all'
- * otherwise.
+ * Always includes DEFAULT_STUN. Adds a TURN relay: the user's configured server
+ * when present (which replaces the default), otherwise the shipped OpenRelay
+ * default. Returns iceTransportPolicy 'relay' when IP privacy mode is enabled,
+ * 'all' otherwise.
  */
 export function getIceConfig(): IceConfig {
   const stored = readStored();
@@ -77,10 +103,14 @@ export function getIceConfig(): IceConfig {
   const iceServers: RTCIceServer[] = [...DEFAULT_STUN];
 
   if (stored.turn) {
+    // User-configured TURN replaces the OpenRelay default.
     const turnServer: RTCIceServer = { urls: stored.turn.url };
     if (stored.turn.username !== undefined) turnServer.username = stored.turn.username;
     if (stored.turn.credential !== undefined) turnServer.credential = stored.turn.credential;
     iceServers.push(turnServer);
+  } else {
+    // No user override — ship the OpenRelay default so calls connect out-of-the-box.
+    iceServers.push(...DEFAULT_TURN);
   }
 
   return {

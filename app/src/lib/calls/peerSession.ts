@@ -30,8 +30,6 @@ export interface PeerSessionCallbacks {
 
 export class PeerSession {
   private readonly pc: RTCPeerConnection;
-  /** Tracks added via addLocalStream — kept so close() can stop them. */
-  private readonly localTracks: MediaStreamTrack[] = [];
   /** ICE candidates buffered while remoteDescription is not yet set. */
   private readonly iceCandidateQueue: RTCIceCandidateInit[] = [];
 
@@ -69,11 +67,14 @@ export class PeerSession {
   /**
    * Add all tracks from a local MediaStream to the peer connection.
    * Must be called before createOffer() so the SDP includes the media lines.
+   *
+   * The tracks belong to a MediaStream shared across every PeerSession in the
+   * call; their lifecycle is owned by CallManager via mediaManager.releaseMedia().
+   * This session never stops them — see close().
    */
   addLocalStream(stream: MediaStream): void {
     for (const track of stream.getTracks()) {
       this.pc.addTrack(track, stream);
-      this.localTracks.push(track);
     }
   }
 
@@ -158,13 +159,17 @@ export class PeerSession {
   // ── Close ────────────────────────────────────────────────────────────────────
 
   /**
-   * Close the peer connection and stop all attached local tracks.
+   * Close the peer connection only.
+   *
+   * Does NOT stop the local media tracks: the same MediaStream is shared across
+   * every PeerSession in the call, so stopping its tracks here would kill the
+   * local mic/camera for all other legs when one peer leaves a 3+ party call.
+   * The shared stream is released exactly once by CallManager at call teardown
+   * (mediaManager.releaseMedia). Closing the RTCPeerConnection releases this
+   * leg's RTP senders without touching the underlying tracks.
    */
   close(): void {
     this.pc.close();
-    for (const track of this.localTracks) {
-      track.stop();
-    }
   }
 
   // ── State accessors ──────────────────────────────────────────────────────────
