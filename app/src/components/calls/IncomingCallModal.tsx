@@ -87,10 +87,12 @@ export function IncomingCallModal() {
       isCentered
       closeOnOverlayClick={false}
       closeOnEsc={false}
-      data-testid="incoming-call-modal"
     >
       <ModalOverlay />
-      <ModalContent data-testid="incoming-call-modal-content">
+      {/* Chakra's <Modal> root renders no DOM node (it is a context provider),
+          so the modal's test id must live on ModalContent — the actual portalled
+          element — or it would never appear in the DOM for e2e queries. */}
+      <ModalContent data-testid="incoming-call-modal">
         <ModalHeader data-testid="incoming-call-caller-name">
           {callerDisplayName}
         </ModalHeader>

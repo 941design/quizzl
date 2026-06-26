@@ -169,6 +169,45 @@ describe('turnConfig', () => {
     expect(getIpPrivacyMode()).toBe(true);
   });
 
+  // ── T7: Test ICE override ─────────────────────────────────────────────────
+
+  it('T7: a valid lp_callIceOverride_v1 short-circuits the STUN/TURN defaults', () => {
+    localStorage.setItem(
+      'lp_callIceOverride_v1',
+      JSON.stringify({ iceServers: [], iceTransportPolicy: 'all' }),
+    );
+
+    const config = getIceConfig();
+    // Override returned verbatim — no STUN, no OpenRelay TURN.
+    expect(config.iceServers).toHaveLength(0);
+    expect(config.iceTransportPolicy).toBe('all');
+  });
+
+  it('T7: the override wins even when a user TURN server and IP-privacy are set', () => {
+    setTurnServer({ url: 'turn:turn.example.com:3478' });
+    setIpPrivacyMode(true);
+    localStorage.setItem(
+      'lp_callIceOverride_v1',
+      JSON.stringify({ iceServers: [{ urls: 'stun:override.example:3478' }], iceTransportPolicy: 'relay' }),
+    );
+
+    const config = getIceConfig();
+    expect(getIceServerUrls(config)).toEqual(['stun:override.example:3478']);
+    expect(config.iceTransportPolicy).toBe('relay');
+  });
+
+  it('T7: a malformed override is ignored and the defaults apply', () => {
+    localStorage.setItem('lp_callIceOverride_v1', '{ not valid json');
+
+    const config = getIceConfig();
+    // Falls through to the normal default (3 STUN + 1 OpenRelay TURN).
+    expect(config.iceServers).toHaveLength(4);
+    const urls = getIceServerUrls(config);
+    for (const expected of OPENRELAY_TURN_URLS) {
+      expect(urls).toContain(expected);
+    }
+  });
+
   // ── T6: SSR guard ─────────────────────────────────────────────────────────
 
   it('T6: getIceConfig() returns DEFAULT_STUN + OpenRelay TURN default with policy "all" when localStorage is undefined', () => {

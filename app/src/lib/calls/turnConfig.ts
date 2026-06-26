@@ -23,6 +23,19 @@
 
 const STORAGE_KEY = 'lp_turnConfig_v1';
 
+/**
+ * Test-only ICE override. When `lp_callIceOverride_v1` holds a JSON IceConfig,
+ * getIceConfig() returns it verbatim, bypassing all STUN/TURN defaults.
+ *
+ * E2e tests inject `{ "iceServers": [], "iceTransportPolicy": "all" }` so two
+ * browser contexts on the same machine form a connection from loopback host
+ * candidates alone — deterministic, with no dependency on public STUN/TURN
+ * (which is non-deterministic in CI and unreachable offline). This matches
+ * AC-FLOW-1's "loopback ICE, no external TURN required" mandate. The key is
+ * never set in production.
+ */
+const ICE_OVERRIDE_KEY = 'lp_callIceOverride_v1';
+
 // ── Public types ──────────────────────────────────────────────────────────────
 
 export interface TurnServerConfig {
@@ -87,6 +100,27 @@ function writeStored(config: StoredConfig): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
 }
 
+/**
+ * Read the test-only ICE override (see ICE_OVERRIDE_KEY). Returns null when the
+ * key is absent or malformed, so production always falls through to the normal
+ * STUN/TURN config.
+ */
+function readIceOverride(): IceConfig | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(ICE_OVERRIDE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<IceConfig>;
+    if (!parsed || !Array.isArray(parsed.iceServers)) return null;
+    return {
+      iceServers: parsed.iceServers,
+      iceTransportPolicy: parsed.iceTransportPolicy === 'relay' ? 'relay' : 'all',
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -98,6 +132,11 @@ function writeStored(config: StoredConfig): void {
  * 'all' otherwise.
  */
 export function getIceConfig(): IceConfig {
+  // Test override short-circuits the STUN/TURN defaults for deterministic
+  // loopback connections in e2e/CI (see ICE_OVERRIDE_KEY).
+  const override = readIceOverride();
+  if (override) return override;
+
   const stored = readStored();
 
   const iceServers: RTCIceServer[] = [...DEFAULT_STUN];

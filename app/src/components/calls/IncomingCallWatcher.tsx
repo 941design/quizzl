@@ -18,6 +18,8 @@
 import { useEffect, useRef } from 'react';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useMarmot } from '@/src/context/MarmotContext';
+import { isAllowedDmSender } from '@/src/lib/walledGarden';
+import { loadKnownPeers } from '@/src/lib/knownPeers';
 import type { Group } from '@/src/types';
 import type { CallManager } from '@/src/lib/calls/callManager';
 
@@ -50,6 +52,14 @@ export function IncomingCallWatcher() {
   const groupsRef = useRef<Group[]>(groups);
   useEffect(() => { groupsRef.current = groups; }, [groups]);
 
+  // Ever-known peers ref — refreshed whenever groups change (MarmotContext's
+  // maintenance effect may have updated lp_knownPeers_v1). Mirrors
+  // DirectMessageNotificationsWatcher so call authorization uses the same
+  // walled-garden whitelist as DMs, which is what makes the spec §5.3 1:1
+  // fallback (calls from a known contact with no shared MLS group) reachable.
+  const knownPeersRef = useRef(loadKnownPeers());
+  useEffect(() => { knownPeersRef.current = loadKnownPeers(); }, [groups]);
+
   // getClient is stable (useCallback) — safe to read directly in the effect.
   const getClientRef = useRef(getClient);
   useEffect(() => { getClientRef.current = getClient; }, [getClient]);
@@ -69,7 +79,12 @@ export function IncomingCallWatcher() {
         const managerModule = await import('@/src/lib/calls/callManager');
         const signerModule = await import('@/src/lib/marmot/signerAdapter');
 
-        const ndk = ndkModule.getNdk();
+        // Await the relay connection here rather than assuming another watcher
+        // (e.g. the DM notifications watcher) has already connected NDK. Without
+        // this, the call-signaling subscription is race-dependent: if it mounts
+        // first, the gift-wrap filter is registered before any relay socket is
+        // open and early offers can be missed.
+        const ndk = await ndkModule.connectNdk(privateKeyHex);
         if (cancelled || !ndk) return;
 
         // Build an EventSigner from the local private key (or use the NIP-46/07 override)
@@ -121,28 +136,20 @@ export function IncomingCallWatcher() {
           pubkeyHex,
           privateKeyHex,
           isAuthorized: async (senderPubkey: string, _callId: string) => {
-            // Outer authorization gate: sender must be a member of at least one
-            // group the local user belongs to. Fine-grained per-call roster gating
-            // lives inside CallManager.handleEvent().
-            try {
-              const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
-              const client = getClientRef.current();
-              if (!client) return false;
-
-              for (const group of groupsRef.current) {
-                try {
-                  const mlsGroup = await client.groups.get(group.id);
-                  if (!mlsGroup) continue;
-                  const members = getGroupMembers(mlsGroup.state);
-                  if (members.includes(senderPubkey)) return true;
-                } catch {
-                  // Skip groups where state is unavailable
-                }
-              }
-            } catch {
-              // marmot-ts unavailable — fail closed
-            }
-            return false;
+            // Outer authorization gate (same walled-garden whitelist as DMs):
+            // the sender must be a known contact — a member of one of the user's
+            // MLS groups OR an ever-known peer. This admits the spec §5.3 1:1
+            // fallback (a call from a known contact with no shared group), which
+            // the previous group-only gate silently rejected. Fine-grained
+            // per-call roster binding still happens inside CallManager.handleEvent
+            // (group calls bind to the live MLS roster; direct calls authorize on
+            // the caller pubkey alone).
+            return isAllowedDmSender(
+              senderPubkey,
+              groupsRef.current,
+              knownPeersRef.current,
+              pubkeyHex,
+            );
           },
           onEvent: (evt) => {
             if (cancelled || !manager) return;

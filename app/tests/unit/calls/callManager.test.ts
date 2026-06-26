@@ -483,15 +483,22 @@ describe('CallManager', () => {
 
   // ── T13 ───────────────────────────────────────────────────────────────────
 
-  describe('T13: Strict group-roster binding — caller in no shared group is dropped', () => {
-    it('does not ring when the caller is not a member of any of the user\'s groups', async () => {
+  describe('T13: 1:1 fallback — caller in no shared group rings as a direct call', () => {
+    it('rings with groupId null when the caller shares no MLS group (spec §5.3)', async () => {
+      // PEER_A is in none of the user's groups. Per spec §5.3 the call is not
+      // dropped: it falls back to a direct 1:1 authorized on the caller pubkey
+      // alone (the outer IncomingCallWatcher gate has already confirmed PEER_A is
+      // a known contact before this event reaches the manager).
       const manager = new CallManager({
         ...makeDeps(),
         getGroupRoster: vi.fn().mockResolvedValue([OWN_PUBKEY, PEER_B]), // PEER_A absent
       });
-      await manager.handleEvent(makeOfferEvent({ senderPubkey: PEER_A }));
+      await manager.handleEvent(makeOfferEvent({ senderPubkey: PEER_A, recipientPubkeys: [OWN_PUBKEY] }));
 
-      expect(callStore.getSnapshot().incoming).toBeNull();
+      const incoming = callStore.getSnapshot().incoming;
+      expect(incoming).not.toBeNull();
+      expect(incoming!.callerPubkey).toBe(PEER_A);
+      expect(incoming!.groupId).toBeNull();
 
       manager.destroy();
     });

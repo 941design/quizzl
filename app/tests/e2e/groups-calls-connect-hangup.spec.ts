@@ -1,19 +1,23 @@
-// E2E: Voice call ring + decline flow
+// E2E: Voice call connect + hangup flow (AC-FLOW-1)
 //
-// Tests the end-to-end signaling path for a call being placed and declined:
+// Tests the full media path for a 1:1 call that actually connects:
 //
-//   1. Alice and Bob are in a shared MLS group.
+//   1. Alice and Bob are in a shared 2-member MLS group.
 //   2. Alice starts a voice call from the group chat.
-//   3. Bob's IncomingCallModal appears.
-//   4. Bob clicks Decline.
-//   5. Bob's modal closes; Alice's call screen closes.
+//   3. Bob's IncomingCallModal appears; Bob accepts.
+//   4. Both peers reach the active call screen AND a remote media tile appears
+//      on each side — proof that ICE negotiated and the remote track arrived
+//      (this is what the manager-level pending-ICE queue makes reliable: the
+//      caller trickles ICE before the callee has a PeerSession, and those
+//      candidates must not be dropped).
+//   5. Alice hangs up; both call screens close.
 //
 // WebRTC note: Playwright is launched with --use-fake-device-for-media-stream so
-// getUserMedia() returns fake audio/video streams. ICE negotiation is NOT tested
-// here (it requires TURN for most CI environments). Only the signaling path
-// (kind-21059 wraps via the strfry relay) and the UI state are verified.
+// getUserMedia() returns fake audio/video. The test injects an empty-iceServers
+// override (lp_callIceOverride_v1) so the connection forms from loopback host
+// candidates alone — deterministic, no external TURN, per AC-FLOW-1.
 //
-// Covered ACs: AC-FLOW-1 (partial: ring + decline), AC-LIFE-2 (decline path)
+// Covered ACs: AC-FLOW-1 (1:1 voice call connects + hangup tears down)
 
 import { test, expect, BrowserContext, Page } from '@playwright/test';
 import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
@@ -38,9 +42,8 @@ async function bootUser(
       localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
       localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: nick, avatar: null }));
       // Deterministic loopback ICE: empty iceServers means peer connections form
-      // from host candidates alone, with no dependency on public STUN/TURN (which
-      // is non-deterministic in CI and unreachable offline). Re-applied on every
-      // navigation, so it survives clearAppState's lp_* wipe + reload.
+      // from host candidates alone, with no dependency on public STUN/TURN.
+      // Re-applied on every navigation, so it survives clearAppState + reload.
       localStorage.setItem('lp_callIceOverride_v1', JSON.stringify({ iceServers: [], iceTransportPolicy: 'all' }));
     },
     { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nick: nickname },
@@ -52,20 +55,18 @@ async function bootUser(
   return { context, page };
 }
 
-test.describe.serial('Call: ring and decline', () => {
+test.describe.serial('Call: connect and hangup', () => {
   test.beforeAll(async () => {
     await computeTestKeypairs();
   });
 
-  test('USER_A calls USER_B; USER_B declines; both sides clear', async ({ browser }) => {
+  test('USER_A calls USER_B; USER_B accepts; both connect; hangup clears both', async ({ browser }) => {
     const { context: aliceCtx, page: alicePage } = await bootUser(browser, USER_A, 'Alice');
     const { context: bobCtx, page: bobPage } = await bootUser(browser, USER_B, 'Bob');
 
     try {
-      // ── Shared group setup ────────────────────────────────────────────────────
-      // Uses the existing createGroupAndInvite helper which drives group creation
-      // and invite acceptance entirely through the app UI (no raw relay writes).
-      await createGroupAndInvite(alicePage, USER_B.npub, bobPage, 'Call Test Group');
+      // ── Shared group setup (drives all relay writes through the app) ──────────
+      await createGroupAndInvite(alicePage, USER_B.npub, bobPage, 'Connect Test Group');
 
       // ── Bob loads /groups/ so his IncomingCallWatcher is subscribed ───────────
       await bobPage.goto('/groups/');
@@ -73,42 +74,43 @@ test.describe.serial('Call: ring and decline', () => {
         bobPage.getByTestId('groups-list').or(bobPage.getByTestId('groups-empty-state')),
       ).toBeVisible({ timeout: 30_000 });
 
-      // Give the subscription 3 s to establish before Alice sends the offer.
+      // Give the subscription time to establish before Alice sends the offer.
       await bobPage.waitForTimeout(3_000);
 
       // ── Alice opens the group and starts a voice call ─────────────────────────
       await alicePage.goto('/groups/');
-      // GroupCard renders data-testid="group-card-<id>" inside the groups-list
-      // container; match by prefix so we don't depend on the generated id.
       const groupItem = alicePage.locator('[data-testid^="group-card-"]').first();
       await expect(groupItem).toBeVisible({ timeout: 30_000 });
       await groupItem.click();
 
-      // Wait for the GroupCallToolbar voice button to appear in the chat section.
       const voiceBtn = alicePage.getByTestId('group-voice-call-btn');
       await expect(voiceBtn).toBeVisible({ timeout: 15_000 });
       await expect(voiceBtn).toBeEnabled();
-
       await voiceBtn.click();
 
-      // ── Verify Alice's call screen opens ──────────────────────────────────────
+      // ── Alice's call screen opens ─────────────────────────────────────────────
       await expect(alicePage.getByTestId('call-screen')).toBeVisible({ timeout: 15_000 });
 
-      // ── Bob's IncomingCallModal must appear ───────────────────────────────────
-      // The modal appears when the kind-21059 wrap with the 25050 Offer is received,
-      // decrypted, roster-verified, and written to callStore. Allow 30 s for relay
-      // propagation + IncomingCallWatcher subscription processing.
+      // ── Bob's IncomingCallModal appears; Bob accepts ──────────────────────────
       await expect(bobPage.getByTestId('incoming-call-modal')).toBeVisible({ timeout: 30_000 });
+      await bobPage.getByTestId('incoming-call-accept-btn').click();
 
-      // ── Bob declines ──────────────────────────────────────────────────────────
-      await bobPage.getByTestId('incoming-call-decline-btn').click();
-
-      // Bob's modal should close immediately.
+      // Bob's modal closes and his call screen opens (active state).
       await expect(bobPage.getByTestId('incoming-call-modal')).not.toBeVisible({ timeout: 10_000 });
+      await expect(bobPage.getByTestId('call-screen')).toBeVisible({ timeout: 15_000 });
 
-      // ── Alice's call screen closes after receiving the 25054 Reject ──────────
-      // The CallManager tears down the call when the only callee declines.
+      // ── Both peers connect: a remote media tile appears on each side ──────────
+      // The remote tile renders only once the participant's stream is non-null,
+      // which happens when onTrack fires — i.e. the RTCPeerConnection connected
+      // and media flowed. This is the assertion that would fail if early ICE
+      // candidates were dropped (the bug the pending-ICE queue fixes).
+      await expect(alicePage.locator('[data-testid^="remote-video-"]').first()).toBeVisible({ timeout: 30_000 });
+      await expect(bobPage.locator('[data-testid^="remote-video-"]').first()).toBeVisible({ timeout: 30_000 });
+
+      // ── Alice hangs up; both call screens close ───────────────────────────────
+      await alicePage.getByTestId('hangup-btn').click();
       await expect(alicePage.getByTestId('call-screen')).not.toBeVisible({ timeout: 20_000 });
+      await expect(bobPage.getByTestId('call-screen')).not.toBeVisible({ timeout: 20_000 });
 
     } finally {
       await aliceCtx.close();

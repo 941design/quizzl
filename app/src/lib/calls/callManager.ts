@@ -297,14 +297,35 @@ export class CallManager {
     // Create PeerSession for caller
     const session = this._createPeerSession(callId, callerPubkey);
     session.addLocalStream(media.stream);
-    const answerSdp = await session.createAnswer({
-      type: 'offer',
-      sdp: pendingSdp,
-    });
 
     // Build full participant list from the roster: all peers except self
     const peerPubkeys = [...ctx.peerPubkeys];
     const answerRecipients = peerPubkeys; // p tags list all other participants
+
+    // Publish the active call to the store BEFORE creating the answer.
+    // createAnswer() sets the remote description, which fires the caller's
+    // onTrack synchronously; if no active call exists at that instant,
+    // _updateParticipantStream has nowhere to attach the remote stream and the
+    // callee never renders the caller's tile (the caller side is unaffected
+    // because its active call is already set from startCall). Initialising
+    // participants with stream:null here guarantees onTrack lands on a real
+    // participant.
+    callStore.setActive({
+      callId,
+      participants: peerPubkeys.map((pk) => ({
+        pubkey: pk,
+        stream: null,
+        muted: false,
+        videoOff: false,
+      })),
+      localStream: media.stream,
+      callType: ctx.callType,
+    });
+
+    const answerSdp = await session.createAnswer({
+      type: 'offer',
+      sdp: pendingSdp,
+    });
 
     const draft = encodeAnswer({
       senderPubkeyHex: this.deps.pubkeyHex,
@@ -329,19 +350,6 @@ export class CallManager {
       this._teardownCall(ctx);
       throw err;
     }
-
-    // Update store to active
-    callStore.setActive({
-      callId,
-      participants: peerPubkeys.map((pk) => ({
-        pubkey: pk,
-        stream: null,
-        muted: false,
-        videoOff: false,
-      })),
-      localStream: media.stream,
-      callType: ctx.callType,
-    });
 
     // Mesh (§9.2/§9.3): connect to the other callees. By the lower-pubkey-
     // initiates rule we open the pairwise offer to every callee we out-rank;
@@ -406,6 +414,7 @@ export class CallManager {
 
     this._pendingOfferSdps.delete(callId);
     this._pendingMeshOffers.delete(callId);
+    this._pendingIceCandidates.delete(callId);
     this.ctx = null;
     callStore.clearAll();
   }
@@ -517,6 +526,7 @@ export class CallManager {
     }
     this._pendingOfferSdps.clear();
     this._pendingMeshOffers.clear();
+    this._pendingIceCandidates.clear();
   }
 
   // ── Private: pending offer SDP storage ─────────────────────────────────────
@@ -536,6 +546,19 @@ export class CallManager {
   private readonly _pendingMeshOffers = new Map<string, Map<string, string>>();
 
   /**
+   * ICE candidates that arrived for an authorized call before a PeerSession for
+   * their sender existed. The caller starts trickling ICE the instant it sends
+   * its offer, but the callee has no session until acceptCall() (and mesh legs
+   * have none until the pairwise offer/answer forms). Without this queue those
+   * early candidates are dropped — the strongest root cause of "rings/answers
+   * but never connects". Keyed callId → (senderPubkey → candidates[]). Drained
+   * into the session the moment it is created (_createPeerSession); PeerSession
+   * itself then buffers them until its remote description is set. Cleared on
+   * decline/teardown/destroy.
+   */
+  private readonly _pendingIceCandidates = new Map<string, Map<string, RTCIceCandidateInit[]>>();
+
+  /**
    * Auto-accept a mesh offer for the current active call: create the peer leg,
    * answer with a 25051 to the offerer only (the broadcast "I've joined" answer
    * already happened on accept). Authorization is the caller's responsibility —
@@ -548,6 +571,12 @@ export class CallManager {
     ctx.peerPubkeys.add(senderPubkey);
     const session = this._createPeerSession(ctx.callId, senderPubkey);
     session.addLocalStream(ctx.localStream);
+
+    // Add the new participant to the store BEFORE createAnswer so the onTrack it
+    // fires (on setRemoteDescription) lands on a real participant rather than
+    // being dropped — same ordering requirement as acceptCall().
+    this._syncStoreParticipants(ctx);
+
     const answerSdp = await session.createAnswer({ type: 'offer', sdp });
 
     const draft = encodeAnswer({
@@ -559,8 +588,6 @@ export class CallManager {
     await wrapAndPublish(draft, senderPubkey, this.deps.signer, this.deps.ndk).catch((err) =>
       console.warn('[callManager] mesh answer send failed to', senderPubkey, err),
     );
-
-    this._syncStoreParticipants(ctx);
   }
 
   /**
@@ -725,6 +752,46 @@ export class CallManager {
       await session.addIceCandidate(evt.iceCandidate).catch((err) =>
         console.warn('[callManager] addIceCandidate failed:', err),
       );
+      return;
+    }
+
+    // No session yet: the sender is authorized for this call but their leg has
+    // not formed (callee still ringing, or a mesh leg not yet offered/answered).
+    // Stash the candidate so it survives until _createPeerSession drains it.
+    this._stashPendingIce(evt.callId, evt.senderPubkey, evt.iceCandidate);
+  }
+
+  /** Queue an ICE candidate that arrived before its PeerSession existed (§ICE-queue). */
+  private _stashPendingIce(
+    callId: string,
+    senderPubkey: string,
+    candidate: RTCIceCandidateInit,
+  ): void {
+    let byCall = this._pendingIceCandidates.get(callId);
+    if (!byCall) {
+      byCall = new Map();
+      this._pendingIceCandidates.set(callId, byCall);
+    }
+    const list = byCall.get(senderPubkey);
+    if (list) list.push(candidate);
+    else byCall.set(senderPubkey, [candidate]);
+  }
+
+  /**
+   * Drain any ICE candidates stashed for (callId, remotePubkey) into a freshly
+   * created session. PeerSession.addIceCandidate buffers them internally until
+   * the remote description is set, so it is safe to call before offer/answer.
+   */
+  private _drainPendingIce(callId: string, remotePubkey: string, session: PeerSession): void {
+    const byCall = this._pendingIceCandidates.get(callId);
+    const list = byCall?.get(remotePubkey);
+    if (!byCall || !list || list.length === 0) return;
+    byCall.delete(remotePubkey);
+    if (byCall.size === 0) this._pendingIceCandidates.delete(callId);
+    for (const candidate of list) {
+      void session.addIceCandidate(candidate).catch((err) =>
+        console.warn('[callManager] drain pending ICE failed:', err),
+      );
     }
   }
 
@@ -844,7 +911,18 @@ export class CallManager {
       }
     }
 
-    // No group contains the caller → fail closed (empty roster → offer dropped).
+    // No group contains the caller: fall back to a direct 1:1 call (spec §5.3).
+    // Authorization rests solely on the caller's pubkey — the subscription's
+    // outer gate (isAuthorized in IncomingCallWatcher) has already confirmed the
+    // caller is a known contact, so this is not an open door. The roster is just
+    // the two of us; the offer's other p-tags are never trusted off-roster.
+    if (bestGroupId === null) {
+      return {
+        groupId: null,
+        rosterSnapshot: new Set([evt.senderPubkey, this.deps.pubkeyHex]),
+      };
+    }
+
     return { groupId: bestGroupId, rosterSnapshot: bestRoster };
   }
 
@@ -888,6 +966,8 @@ export class CallManager {
     });
 
     ctx.sessions.set(remotePubkey, session);
+    // Apply any ICE candidates that arrived before this session existed.
+    this._drainPendingIce(callId, remotePubkey, session);
     return session;
   }
 
@@ -1010,6 +1090,7 @@ export class CallManager {
     }
     this._pendingOfferSdps.delete(ctx.callId);
     this._pendingMeshOffers.delete(ctx.callId);
+    this._pendingIceCandidates.delete(ctx.callId);
     if (this.ctx?.callId === ctx.callId) {
       this.ctx = null;
     }
