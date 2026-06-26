@@ -159,6 +159,19 @@ export function getIceConfig(): IceConfig {
 }
 
 /**
+ * Read the user's saved TURN override, or null when none is configured (i.e. the
+ * shipped OpenRelay default is in effect).
+ *
+ * Distinct from getIceConfig(), which merges the default in: this returns ONLY
+ * what the user explicitly set, so the settings UI can show the field empty when
+ * the default is active rather than presenting OpenRelay as if it were a
+ * user-entered value.
+ */
+export function getStoredTurnServer(): TurnServerConfig | null {
+  return readStored().turn;
+}
+
+/**
  * Save (or clear) the user's TURN server configuration.
  * Passing null removes the TURN entry while preserving the IP privacy setting.
  */

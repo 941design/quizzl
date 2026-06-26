@@ -46,7 +46,7 @@ import { useMarmot } from '@/src/context/MarmotContext';
 import { NDKRelayStatus } from '@nostr-dev-kit/ndk';
 import { resetAllData } from '@/src/lib/storage';
 import {
-  getIceConfig,
+  getStoredTurnServer,
   setTurnServer,
   setIpPrivacyMode,
   getIpPrivacyMode,
@@ -195,31 +195,14 @@ export default function SettingsPage() {
   const [nip07ConnectError, setNip07ConnectError] = useState<string | null>(null);
 
   // --- Call Settings state ---
-  const [turnUrl, setTurnUrl] = useState<string>(() => {
-    const config = getIceConfig();
-    const turnEntry = config.iceServers.find((s) => {
-      const url = Array.isArray(s.urls) ? s.urls[0] : s.urls;
-      return url.startsWith('turn:');
-    });
-    if (!turnEntry) return '';
-    return Array.isArray(turnEntry.urls) ? turnEntry.urls[0] : turnEntry.urls;
-  });
-  const [turnUsername, setTurnUsername] = useState<string>(() => {
-    const config = getIceConfig();
-    const turnEntry = config.iceServers.find((s) => {
-      const url = Array.isArray(s.urls) ? s.urls[0] : s.urls;
-      return url.startsWith('turn:');
-    });
-    return turnEntry?.username ?? '';
-  });
-  const [turnCredential, setTurnCredential] = useState<string>(() => {
-    const config = getIceConfig();
-    const turnEntry = config.iceServers.find((s) => {
-      const url = Array.isArray(s.urls) ? s.urls[0] : s.urls;
-      return url.startsWith('turn:');
-    });
-    return turnEntry?.credential ?? '';
-  });
+  // Seed the inputs from the user's saved TURN override only (getStoredTurnServer),
+  // NOT the merged getIceConfig: when no override is set the fields stay empty and
+  // the help text names the shipped openrelayproject default, so the default is
+  // presented as a default rather than masquerading as a user-entered value.
+  const storedTurn = getStoredTurnServer();
+  const [turnUrl, setTurnUrl] = useState<string>(() => storedTurn?.url ?? '');
+  const [turnUsername, setTurnUsername] = useState<string>(() => storedTurn?.username ?? '');
+  const [turnCredential, setTurnCredential] = useState<string>(() => storedTurn?.credential ?? '');
   const [ipPrivacy, setIpPrivacy] = useState<boolean>(() => getIpPrivacyMode());
 
   const handleSaveTurnConfig = useCallback(() => {
@@ -533,82 +516,6 @@ export default function SettingsPage() {
               </NextLink>
             </Box>
           ) : null}
-
-          {/* Call Settings Section */}
-          <Box data-testid="call-settings-section">
-            <Heading as="h2" size="md" mb={1}>
-              {copy.calls.callSettings}
-            </Heading>
-
-            {/* TURN Server */}
-            <VStack align="stretch" spacing={3} mt={3}>
-              <Text fontSize="sm" color="textMuted">
-                {copy.calls.turnHelp}
-              </Text>
-              <FormControl>
-                <FormLabel fontSize="sm">{copy.calls.turnServerUrl}</FormLabel>
-                <Input
-                  value={turnUrl}
-                  onChange={(e) => setTurnUrl(e.target.value)}
-                  placeholder="turn:your-server.example.com:3478"
-                  size="sm"
-                  bg="surfaceBg"
-                  data-testid="turn-server-url-input"
-                />
-              </FormControl>
-              <FormControl>
-                <FormLabel fontSize="sm">{copy.calls.turnUsername}</FormLabel>
-                <Input
-                  value={turnUsername}
-                  onChange={(e) => setTurnUsername(e.target.value)}
-                  placeholder=""
-                  size="sm"
-                  bg="surfaceBg"
-                  data-testid="turn-username-input"
-                />
-              </FormControl>
-              <FormControl>
-                <FormLabel fontSize="sm">{copy.calls.turnCredential}</FormLabel>
-                <Input
-                  type="password"
-                  value={turnCredential}
-                  onChange={(e) => setTurnCredential(e.target.value)}
-                  placeholder=""
-                  size="sm"
-                  bg="surfaceBg"
-                  data-testid="turn-credential-input"
-                />
-              </FormControl>
-              <Box>
-                <Button
-                  size="sm"
-                  onClick={handleSaveTurnConfig}
-                  data-testid="save-turn-config-btn"
-                >
-                  {copy.calls.saveTurnConfig}
-                </Button>
-              </Box>
-
-              {/* IP Privacy Toggle */}
-              <Box pt={2} borderTop="1px solid" borderColor="borderSubtle">
-                <Text fontSize="sm" color="textMuted" mb={2}>
-                  {copy.calls.ipPrivacyHelp}
-                </Text>
-                <FormControl display="flex" alignItems="center">
-                  <Switch
-                    id="ip-privacy-toggle"
-                    isChecked={ipPrivacy}
-                    onChange={handleIpPrivacyToggle}
-                    data-testid="ip-privacy-toggle"
-                    mr={3}
-                  />
-                  <FormLabel htmlFor="ip-privacy-toggle" mb={0} fontSize="sm">
-                    {copy.calls.ipPrivacyMode}
-                  </FormLabel>
-                </FormControl>
-              </Box>
-            </VStack>
-          </Box>
 
           {/* Nostr Identity Section */}
           <Box>
@@ -1192,6 +1099,88 @@ export default function SettingsPage() {
                       </Button>
                     </VStack>
                   )}
+                </Box>
+
+                {/* Call connectivity (TURN relay + IP privacy) — advanced
+                    networking knobs; calls work out of the box on the
+                    openrelayproject default, so this lives under Advanced. */}
+                <Box
+                  mt={6}
+                  pt={4}
+                  borderTop="1px solid"
+                  borderColor="borderSubtle"
+                  data-testid="call-settings-section"
+                >
+                  <Heading as="h3" size="sm" mb={2}>
+                    {copy.calls.callSettings}
+                  </Heading>
+                  <VStack align="stretch" spacing={3} mt={2}>
+                    <Text fontSize="sm" color="textMuted">
+                      {copy.calls.turnHelp}
+                    </Text>
+                    <FormControl>
+                      <FormLabel fontSize="sm">{copy.calls.turnServerUrl}</FormLabel>
+                      <Input
+                        value={turnUrl}
+                        onChange={(e) => setTurnUrl(e.target.value)}
+                        placeholder="turn:your-server.example.com:3478"
+                        size="sm"
+                        bg="surfaceBg"
+                        data-testid="turn-server-url-input"
+                      />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">{copy.calls.turnUsername}</FormLabel>
+                      <Input
+                        value={turnUsername}
+                        onChange={(e) => setTurnUsername(e.target.value)}
+                        placeholder=""
+                        size="sm"
+                        bg="surfaceBg"
+                        data-testid="turn-username-input"
+                      />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">{copy.calls.turnCredential}</FormLabel>
+                      <Input
+                        type="password"
+                        value={turnCredential}
+                        onChange={(e) => setTurnCredential(e.target.value)}
+                        placeholder=""
+                        size="sm"
+                        bg="surfaceBg"
+                        data-testid="turn-credential-input"
+                      />
+                    </FormControl>
+                    <Box>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveTurnConfig}
+                        data-testid="save-turn-config-btn"
+                      >
+                        {copy.calls.saveTurnConfig}
+                      </Button>
+                    </Box>
+
+                    {/* IP Privacy Toggle */}
+                    <Box pt={2} borderTop="1px solid" borderColor="borderSubtle">
+                      <Text fontSize="sm" color="textMuted" mb={2}>
+                        {copy.calls.ipPrivacyHelp}
+                      </Text>
+                      <FormControl display="flex" alignItems="center">
+                        <Switch
+                          id="ip-privacy-toggle"
+                          isChecked={ipPrivacy}
+                          onChange={handleIpPrivacyToggle}
+                          data-testid="ip-privacy-toggle"
+                          mr={3}
+                        />
+                        <FormLabel htmlFor="ip-privacy-toggle" mb={0} fontSize="sm">
+                          {copy.calls.ipPrivacyMode}
+                        </FormLabel>
+                      </FormControl>
+                    </Box>
+                  </VStack>
                 </Box>
 
                 {/* Danger Zone */}
