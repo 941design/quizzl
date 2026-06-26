@@ -235,6 +235,38 @@ describe('PeerSession', () => {
     });
   });
 
+  // ── T3b: split answerer flow (applyRemoteOffer / createLocalAnswer) ─────────
+
+  describe('applyRemoteOffer + createLocalAnswer', () => {
+    it('T3b: applyRemoteOffer sets the remote description; createLocalAnswer creates+sets the local answer', async () => {
+      const session = new PeerSession(TEST_ICE_CONFIG, makeCallbacks());
+      const pc = lastFakePc;
+
+      await session.applyRemoteOffer(FAKE_OFFER);
+      expect(pc.setRemoteDescription).toHaveBeenCalledWith(FAKE_OFFER);
+      // No answer is produced yet — this phase only ingests the offer.
+      expect(pc.createAnswer).not.toHaveBeenCalled();
+
+      const answer = await session.createLocalAnswer();
+      expect(pc.createAnswer).toHaveBeenCalledTimes(1);
+      expect(pc.setLocalDescription).toHaveBeenCalledTimes(1);
+      expect(answer).toEqual(FAKE_ANSWER);
+    });
+
+    it('T3b: applyRemoteOffer lets a track buffered before the offer be added on drain', async () => {
+      const session = new PeerSession(TEST_ICE_CONFIG, makeCallbacks());
+      const pc = lastFakePc;
+
+      // ICE arrives before any remote description → buffered.
+      await session.addIceCandidate({ candidate: 'cand', sdpMid: '0', sdpMLineIndex: 0 });
+      expect(pc.addIceCandidate).not.toHaveBeenCalled();
+
+      // Applying the offer drains the buffer.
+      await session.applyRemoteOffer(FAKE_OFFER);
+      expect(pc.addIceCandidate).toHaveBeenCalledTimes(1);
+    });
+  });
+
   // ── T4: applyAnswer ───────────────────────────────────────────────────────
 
   describe('applyAnswer', () => {

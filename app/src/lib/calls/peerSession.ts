@@ -91,15 +91,44 @@ export class PeerSession {
   }
 
   /**
-   * Apply a remote SDP offer and produce a local answer (callee side).
-   * Drains the ICE candidate queue after setting the remote description.
+   * Apply a remote SDP offer (answerer side). Setting the remote description
+   * creates the transceivers for the caller's m-lines (firing onTrack) and then
+   * the buffered ICE candidates are drained.
+   *
+   * IMPORTANT ordering contract: on the answer side this MUST be called BEFORE
+   * addLocalStream(). Adding local tracks first creates standalone sendrecv
+   * transceivers that may not associate with the offer's m-lines; the answerer
+   * can then fail to negotiate RECEIVE for one of the caller's tracks — the
+   * browser-dependent "callee can't see the caller's video" bug. Applying the
+   * offer first means a subsequent addTrack attaches to the offer's transceiver
+   * (recvonly → sendrecv) instead. Pair with createLocalAnswer().
    */
-  async createAnswer(remoteSdp: RTCSessionDescriptionInit): Promise<RTCSessionDescriptionInit> {
+  async applyRemoteOffer(remoteSdp: RTCSessionDescriptionInit): Promise<void> {
     await this.pc.setRemoteDescription(remoteSdp);
     await this.drainIceCandidateQueue();
+  }
+
+  /**
+   * Produce and set the local SDP answer. Call after applyRemoteOffer() and,
+   * on the answer side, after addLocalStream() so the answer advertises our
+   * send tracks.
+   */
+  async createLocalAnswer(): Promise<RTCSessionDescriptionInit> {
     const answer = await this.pc.createAnswer();
     await this.pc.setLocalDescription(answer);
     return answer;
+  }
+
+  /**
+   * Apply a remote SDP offer and produce a local answer in one call (callee side).
+   * Convenience for paths that do not add local media between the two phases;
+   * the answerer flow in CallManager uses applyRemoteOffer()/createLocalAnswer()
+   * directly so it can insert addLocalStream() between them (see the ordering
+   * contract on applyRemoteOffer).
+   */
+  async createAnswer(remoteSdp: RTCSessionDescriptionInit): Promise<RTCSessionDescriptionInit> {
+    await this.applyRemoteOffer(remoteSdp);
+    return this.createLocalAnswer();
   }
 
   /**

@@ -296,14 +296,13 @@ export class CallManager {
 
     // Create PeerSession for caller
     const session = this._createPeerSession(callId, callerPubkey);
-    session.addLocalStream(media.stream);
 
     // Build full participant list from the roster: all peers except self
     const peerPubkeys = [...ctx.peerPubkeys];
     const answerRecipients = peerPubkeys; // p tags list all other participants
 
-    // Publish the active call to the store BEFORE creating the answer.
-    // createAnswer() sets the remote description, which fires the caller's
+    // Publish the active call to the store BEFORE applying the remote offer.
+    // applyRemoteOffer() sets the remote description, which fires the caller's
     // onTrack synchronously; if no active call exists at that instant,
     // _updateParticipantStream has nowhere to attach the remote stream and the
     // callee never renders the caller's tile (the caller side is unaffected
@@ -322,10 +321,15 @@ export class CallManager {
       callType: ctx.callType,
     });
 
-    const answerSdp = await session.createAnswer({
-      type: 'offer',
-      sdp: pendingSdp,
-    });
+    // Answerer order (§9.2): apply the caller's offer FIRST so its transceivers
+    // exist, THEN attach our local media (it binds to those transceivers as
+    // sendrecv), THEN produce the answer. Adding local tracks before the offer
+    // is applied can leave us not negotiating to RECEIVE one of the caller's
+    // tracks in stricter / cross-browser setups — "callee can't see the caller's
+    // video". See the ordering contract on PeerSession.applyRemoteOffer.
+    await session.applyRemoteOffer({ type: 'offer', sdp: pendingSdp });
+    session.addLocalStream(media.stream);
+    const answerSdp = await session.createLocalAnswer();
 
     const draft = encodeAnswer({
       senderPubkeyHex: this.deps.pubkeyHex,
@@ -570,14 +574,17 @@ export class CallManager {
 
     ctx.peerPubkeys.add(senderPubkey);
     const session = this._createPeerSession(ctx.callId, senderPubkey);
-    session.addLocalStream(ctx.localStream);
 
-    // Add the new participant to the store BEFORE createAnswer so the onTrack it
-    // fires (on setRemoteDescription) lands on a real participant rather than
-    // being dropped — same ordering requirement as acceptCall().
+    // Add the new participant to the store BEFORE applying the offer so the
+    // onTrack it fires (on setRemoteDescription) lands on a real participant
+    // rather than being dropped — same requirement as acceptCall().
     this._syncStoreParticipants(ctx);
 
-    const answerSdp = await session.createAnswer({ type: 'offer', sdp });
+    // Answerer order: apply the remote offer first, then attach local media, then
+    // answer (see the ordering contract on PeerSession.applyRemoteOffer).
+    await session.applyRemoteOffer({ type: 'offer', sdp });
+    session.addLocalStream(ctx.localStream);
+    const answerSdp = await session.createLocalAnswer();
 
     const draft = encodeAnswer({
       senderPubkeyHex: this.deps.pubkeyHex,

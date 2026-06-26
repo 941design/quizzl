@@ -39,6 +39,8 @@ interface MockPeerSession {
   addLocalStream: Mock;
   createOffer: Mock;
   createAnswer: Mock;
+  applyRemoteOffer: Mock;
+  createLocalAnswer: Mock;
   applyAnswer: Mock;
   applyRenegotiateOffer: Mock;
   createIceRestartOffer: Mock;
@@ -89,6 +91,8 @@ vi.mock('@/src/lib/calls/peerSession', () => {
     addLocalStream = vi.fn();
     createOffer = vi.fn().mockResolvedValue({ type: 'offer', sdp: 'fake-offer-sdp' });
     createAnswer = vi.fn().mockResolvedValue({ type: 'answer', sdp: 'fake-answer-sdp' });
+    applyRemoteOffer = vi.fn().mockResolvedValue(undefined);
+    createLocalAnswer = vi.fn().mockResolvedValue({ type: 'answer', sdp: 'fake-answer-sdp' });
     applyAnswer = vi.fn().mockResolvedValue(undefined);
     applyRenegotiateOffer = vi.fn().mockResolvedValue({ type: 'answer', sdp: 'fake-reneg-answer' });
     createIceRestartOffer = vi.fn().mockResolvedValue({ type: 'offer', sdp: 'fake-restart-offer' });
@@ -499,6 +503,32 @@ describe('CallManager', () => {
       expect(incoming).not.toBeNull();
       expect(incoming!.callerPubkey).toBe(PEER_A);
       expect(incoming!.groupId).toBeNull();
+
+      manager.destroy();
+    });
+  });
+
+  // ── T13b ──────────────────────────────────────────────────────────────────
+
+  describe('T13b: answerer applies the remote offer BEFORE adding local media', () => {
+    it('orders applyRemoteOffer → addLocalStream → createLocalAnswer on accept', async () => {
+      const manager = new CallManager(makeDeps());
+      await manager.handleEvent(makeOfferEvent({ senderPubkey: PEER_A, recipientPubkeys: [OWN_PUBKEY] }));
+      await manager.acceptCall(CALL_ID);
+
+      const session = peerSessionRegistry[0] as MockPeerSession;
+      expect(session.applyRemoteOffer).toHaveBeenCalledTimes(1);
+      expect(session.addLocalStream).toHaveBeenCalledTimes(1);
+      expect(session.createLocalAnswer).toHaveBeenCalledTimes(1);
+
+      // Adding local tracks before the remote offer is applied can leave the
+      // answerer not negotiating to RECEIVE one of the caller's tracks (the
+      // "callee can't see the caller's video" bug). Enforce the correct order.
+      const offerOrder = session.applyRemoteOffer.mock.invocationCallOrder[0];
+      const addStreamOrder = session.addLocalStream.mock.invocationCallOrder[0];
+      const answerOrder = session.createLocalAnswer.mock.invocationCallOrder[0];
+      expect(offerOrder).toBeLessThan(addStreamOrder);
+      expect(addStreamOrder).toBeLessThan(answerOrder);
 
       manager.destroy();
     });
