@@ -23,6 +23,7 @@ implementation-state.json
 app/test-results/
 /test-results/
 app/reports/
+app/.stryker-tmp/
 .playwright-mcp/
 *~
 .mcp.json

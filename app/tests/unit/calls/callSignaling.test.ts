@@ -24,13 +24,23 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type NDK from '@nostr-dev-kit/ndk';
 import {
   CALL_OFFER_KIND,
+  CALL_ANSWER_KIND,
   CALL_ICE_KIND,
+  CALL_HANGUP_KIND,
+  CALL_REJECT_KIND,
+  CALL_RENEGOTIATE_KIND,
   CALL_GIFT_WRAP_KIND,
   SIGNALING_FRESHNESS_WINDOW_S,
   encodeOffer,
+  encodeAnswer,
   encodeIceCandidate,
+  encodeHangup,
+  encodeReject,
+  encodeRenegotiate,
+  wrapAndPublish,
   subscribeCallSignaling,
 } from '@/src/lib/calls/callSignaling';
 
@@ -140,6 +150,29 @@ vi.mock('nostr-tools/pure', () => ({
 
 vi.mock('nostr-tools/utils', () => ({
   hexToBytes: vi.fn(() => new Uint8Array(32)),
+}));
+
+// wrapAndPublish constructs `new NDKEvent(ndk, giftWrapEvent).publish()`. Mock
+// NDKEvent so the outer gift-wrap event and its publish call are observable.
+// (subscribeCallSignaling does not use NDKEvent — it uses the injected fake
+// ndk.subscribe — so this mock only affects the wrapAndPublish path.)
+const ndkMock = vi.hoisted(() => {
+  const publishedOuterEvents: Array<{ kind?: number; tags?: string[][]; content?: string }> = [];
+  const publishSpy = vi.fn().mockResolvedValue(undefined);
+  return { publishedOuterEvents, publishSpy };
+});
+
+vi.mock('@nostr-dev-kit/ndk', () => ({
+  NDKEvent: class {
+    kind?: number;
+    tags?: string[][];
+    content?: string;
+    constructor(_ndk: unknown, event: { kind?: number; tags?: string[][]; content?: string }) {
+      Object.assign(this, event);
+      ndkMock.publishedOuterEvents.push(event);
+    }
+    publish = ndkMock.publishSpy;
+  },
 }));
 
 // ── Helpers for accessing the mocked modules ──────────────────────────────────
@@ -458,5 +491,400 @@ describe('subscribeCallSignaling', () => {
   it('calls sub.stop() when the returned unsubscribe function is invoked', () => {
     unsubscribe();
     expect(sub.stop).toHaveBeenCalledOnce();
+  });
+
+  // ===========================================================================
+  // Deliver an arbitrary signed inner event end-to-end through the handler.
+  // The nip44.decrypt mock returns the inner JSON; verifyEvent is mocked true.
+  // ===========================================================================
+
+  type Inner = ReturnType<typeof makeInnerEvent>;
+
+  async function deliverInner(inner: Inner) {
+    nip44.decrypt = vi.fn(() => JSON.stringify(inner)) as typeof nip44.decrypt;
+    await emitEvent(sub, {
+      pubkey: EPHEMERAL_PUB,
+      content: 'encrypted-outer',
+      created_at: inner.created_at,
+    });
+  }
+
+  /** Turn an encode* draft into a signed inner event ready for the decode path. */
+  function draftToInner(
+    draft: { kind: number; pubkey: string; created_at: number; tags: string[][]; content: string },
+    id = 'rt-inner-id',
+  ): Inner {
+    return { ...draft, id, sig: 'valid-sig' } as Inner;
+  }
+
+  const PEER2 = 'dddd'.repeat(16);
+
+  // ── Bucket A: encode → decode round-trip preserves the semantic payload ──────
+  // Cites AC-WIRE-1 (tag set: call-id on every event, call-type on offer only,
+  // ≥1 p tag) and the per-kind content contracts.
+
+  it('round-trips a kind-25051 Answer: sdp + full roster preserved, no callType (AC-WIRE-1)', async () => {
+    const sdp = 'v=0\r\no=- 7 2 IN IP4 127.0.0.1\r\ns=answer\r\n';
+    const draft = encodeAnswer({
+      senderPubkeyHex: CALLER_PUB,
+      recipientPubkeys: [LOCAL_PUB, PEER2],
+      callId: CALL_ID,
+      sdp,
+    });
+    await deliverInner(draftToInner(draft));
+
+    expect(onEvent).toHaveBeenCalledOnce();
+    const evt = onEvent.mock.calls[0][0] as import('@/src/types').IncomingCallEvent;
+    expect(evt.kind).toBe(CALL_ANSWER_KIND);
+    expect(evt.callId).toBe(CALL_ID);
+    expect(evt.senderPubkey).toBe(CALLER_PUB);
+    expect(evt.recipientPubkeys).toEqual([LOCAL_PUB, PEER2]);
+    expect(evt.sdp).toBe(sdp);
+    expect(evt.callType).toBeUndefined();
+    // Payload exclusivity: a non-Hangup/Reject event carries no reason.
+    expect(evt.reason).toBeUndefined();
+  });
+
+  it('round-trips a kind-25055 Renegotiate: sdp preserved, no callType (AC-WIRE-1)', async () => {
+    const sdp = 'v=0\r\ns=renegotiate\r\n';
+    const draft = encodeRenegotiate({
+      senderPubkeyHex: CALLER_PUB,
+      recipientPubkeys: [LOCAL_PUB],
+      callId: CALL_ID,
+      sdp,
+    });
+    await deliverInner(draftToInner(draft));
+
+    const evt = onEvent.mock.calls[0][0] as import('@/src/types').IncomingCallEvent;
+    expect(evt.kind).toBe(CALL_RENEGOTIATE_KIND);
+    expect(evt.sdp).toBe(sdp);
+    expect(evt.callType).toBeUndefined();
+  });
+
+  it('round-trips a kind-25053 Hangup with an empty reason (AC-WIRE-4)', async () => {
+    const draft = encodeHangup({
+      senderPubkeyHex: CALLER_PUB,
+      recipientPubkeys: [LOCAL_PUB, PEER2],
+      callId: CALL_ID,
+      // reason omitted → ''
+    });
+    await deliverInner(draftToInner(draft));
+
+    const evt = onEvent.mock.calls[0][0] as import('@/src/types').IncomingCallEvent;
+    expect(evt.kind).toBe(CALL_HANGUP_KIND);
+    expect(evt.reason).toBe('');
+    expect(evt.recipientPubkeys).toEqual([LOCAL_PUB, PEER2]);
+    expect(evt.sdp).toBeUndefined();
+  });
+
+  it('round-trips a kind-25054 Reject carrying the "busy" reason (AC-WIRE-4)', async () => {
+    const draft = encodeReject({
+      senderPubkeyHex: CALLER_PUB,
+      recipientPubkeys: [LOCAL_PUB],
+      callId: CALL_ID,
+      reason: 'busy',
+    });
+    await deliverInner(draftToInner(draft));
+
+    const evt = onEvent.mock.calls[0][0] as import('@/src/types').IncomingCallEvent;
+    expect(evt.kind).toBe(CALL_REJECT_KIND);
+    expect(evt.reason).toBe('busy');
+    expect(evt.sdp).toBeUndefined();
+  });
+
+  it('round-trips a kind-25052 ICE candidate: single-target roster + parsed candidate (AC-WIRE-3)', async () => {
+    const draft = encodeIceCandidate({
+      senderPubkeyHex: CALLER_PUB,
+      recipientPubkeyHex: LOCAL_PUB,
+      callId: CALL_ID,
+      candidate: {
+        candidate: 'candidate:1 udp 1 192.168.0.1 5000 typ host',
+        sdpMid: '1',
+        sdpMLineIndex: 2,
+      },
+    });
+    await deliverInner(draftToInner(draft));
+
+    const evt = onEvent.mock.calls[0][0] as import('@/src/types').IncomingCallEvent;
+    expect(evt.kind).toBe(CALL_ICE_KIND);
+    expect(evt.callId).toBe(CALL_ID);
+    // ICE carries exactly the single target peer, not a full roster.
+    expect(evt.recipientPubkeys).toEqual([LOCAL_PUB]);
+    expect(evt.iceCandidate).toEqual({
+      candidate: 'candidate:1 udp 1 192.168.0.1 5000 typ host',
+      sdpMid: '1',
+      sdpMLineIndex: 2,
+    });
+    expect(evt.sdp).toBeUndefined();
+  });
+
+  // ── Bucket A4: parse-side ICE defaults + malformed rejection (AC-WIRE-3) ─────
+
+  it('applies parse-side ICE defaults when sdpMid/sdpMLineIndex/candidate are absent (AC-WIRE-3)', async () => {
+    const inner = makeInnerEvent({
+      kind: CALL_ICE_KIND,
+      tags: [['p', LOCAL_PUB], ['call-id', CALL_ID]],
+      content: JSON.stringify({}), // no candidate / sdpMid / sdpMLineIndex
+    });
+    await deliverInner(inner);
+
+    const evt = onEvent.mock.calls[0][0] as import('@/src/types').IncomingCallEvent;
+    expect(evt.iceCandidate).toEqual({ candidate: '', sdpMid: '0', sdpMLineIndex: 0 });
+  });
+
+  it('drops a kind-25052 ICE event whose content is not valid JSON', async () => {
+    const inner = makeInnerEvent({
+      kind: CALL_ICE_KIND,
+      tags: [['p', LOCAL_PUB], ['call-id', CALL_ID]],
+      content: 'not-json{',
+    });
+    await deliverInner(inner);
+
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  // ── Bucket B8: recipientPubkeys is exactly the p-tag set (AC-WIRE-1) ─────────
+
+  it('parses recipientPubkeys as exactly the p tags, excluding call-id and call-type', async () => {
+    const inner = makeInnerEvent({
+      tags: [
+        ['p', LOCAL_PUB],
+        ['p', PEER2],
+        ['call-id', CALL_ID],
+        ['call-type', 'video'],
+      ],
+    });
+    await deliverInner(inner);
+
+    const evt = onEvent.mock.calls[0][0] as import('@/src/types').IncomingCallEvent;
+    expect(evt.recipientPubkeys).toEqual([LOCAL_PUB, PEER2]);
+  });
+
+  // ── Bucket B9: call-type validation on offers (AC-WIRE-1) ────────────────────
+
+  it.each([
+    ['voice', 'voice'],
+    ['video', 'video'],
+  ] as const)('keeps a valid offer call-type %s', async (input, expected) => {
+    const inner = makeInnerEvent({
+      tags: [['p', LOCAL_PUB], ['call-id', CALL_ID], ['call-type', input]],
+    });
+    await deliverInner(inner);
+    const evt = onEvent.mock.calls[0][0] as import('@/src/types').IncomingCallEvent;
+    expect(evt.callType).toBe(expected);
+  });
+
+  it('ignores an invalid offer call-type, leaving callType undefined (AC-WIRE-1)', async () => {
+    const inner = makeInnerEvent({
+      tags: [['p', LOCAL_PUB], ['call-id', CALL_ID], ['call-type', 'bogus']],
+    });
+    await deliverInner(inner);
+    const evt = onEvent.mock.calls[0][0] as import('@/src/types').IncomingCallEvent;
+    expect(evt.callType).toBeUndefined();
+  });
+
+  it('leaves callType undefined when an offer carries no call-type tag (AC-WIRE-1)', async () => {
+    const inner = makeInnerEvent({
+      tags: [['p', LOCAL_PUB], ['call-id', CALL_ID]],
+    });
+    await deliverInner(inner);
+    const evt = onEvent.mock.calls[0][0] as import('@/src/types').IncomingCallEvent;
+    expect(evt.callType).toBeUndefined();
+  });
+
+  it('ignores a call-type tag on a non-offer kind — callType is offer-only (AC-WIRE-1)', async () => {
+    // Even if a call-type tag leaks onto a 25051 Answer, callType must stay
+    // unset: callType is part of the Offer contract only.
+    const inner = makeInnerEvent({
+      kind: CALL_ANSWER_KIND,
+      tags: [['p', LOCAL_PUB], ['call-id', CALL_ID], ['call-type', 'video']],
+      content: 'v=0\r\ns=answer\r\n',
+    });
+    await deliverInner(inner);
+    const evt = onEvent.mock.calls[0][0] as import('@/src/types').IncomingCallEvent;
+    expect(evt.kind).toBe(CALL_ANSWER_KIND);
+    expect(evt.callType).toBeUndefined();
+  });
+
+  // ── Bucket B10/B11: receive-side structural validation ───────────────────────
+  // No matching AC covers rejection of structurally-malformed inner events
+  // (unknown kind, missing call-id); see BACKLOG spec-gap finding.
+
+  it('drops an inner event whose kind is not a recognised call kind (no AC; see BACKLOG)', async () => {
+    const inner = makeInnerEvent({
+      kind: 25099,
+      tags: [['p', LOCAL_PUB], ['call-id', CALL_ID]],
+    });
+    await deliverInner(inner);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('drops an inner event with no call-id tag (no AC; see BACKLOG)', async () => {
+    const inner = makeInnerEvent({
+      tags: [['p', LOCAL_PUB], ['call-type', 'video']], // call-id missing
+    });
+    await deliverInner(inner);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('drops an inner event whose call-id tag has an empty value (no AC; see BACKLOG)', async () => {
+    const inner = makeInnerEvent({
+      tags: [['p', LOCAL_PUB], ['call-id', '']],
+    });
+    await deliverInner(inner);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  // ── Bucket B12: freshness boundary is exactly 20s inclusive (AC-FRESH-1) ──────
+  // Pin the boundary with a frozen clock so `>` cannot drift to `>=` undetected.
+
+  it('accepts an event exactly SIGNALING_FRESHNESS_WINDOW_S seconds old (AC-FRESH-1)', async () => {
+    const fixedNowMs = 1_700_000_000_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(fixedNowMs);
+    try {
+      const inner = makeInnerEvent({
+        created_at: Math.floor(fixedNowMs / 1000) - SIGNALING_FRESHNESS_WINDOW_S,
+      });
+      await deliverInner(inner);
+      expect(onEvent).toHaveBeenCalledOnce();
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('drops an event one second beyond the freshness window (AC-FRESH-1)', async () => {
+    const fixedNowMs = 1_700_000_000_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(fixedNowMs);
+    try {
+      const inner = makeInnerEvent({
+        created_at: Math.floor(fixedNowMs / 1000) - (SIGNALING_FRESHNESS_WINDOW_S + 1),
+      });
+      await deliverInner(inner);
+      expect(onEvent).not.toHaveBeenCalled();
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('drops a future-dated event beyond the freshness window (AC-FRESH-1)', async () => {
+    const fixedNowMs = 1_700_000_000_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(fixedNowMs);
+    try {
+      const inner = makeInnerEvent({
+        created_at: Math.floor(fixedNowMs / 1000) + (SIGNALING_FRESHNESS_WINDOW_S + 1),
+      });
+      await deliverInner(inner);
+      expect(onEvent).not.toHaveBeenCalled();
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+});
+
+// =============================================================================
+// Encode output contracts: created_at is UNIX SECONDS, and the ICE tag set.
+// (AC-WIRE-1 / AC-WIRE-3.)  These guard against a created_at unit drift
+// (seconds vs milliseconds), which would silently break the freshness gate.
+// =============================================================================
+
+describe('encode* created_at is UNIX seconds', () => {
+  const recipients = ['aaaa'.repeat(16)];
+  const callId = 'fixed-call-id';
+  const senderPubkeyHex = 'bbbb'.repeat(16);
+
+  const cases: Array<[string, () => { created_at: number }]> = [
+    ['encodeOffer', () => encodeOffer({ senderPubkeyHex, recipientPubkeys: recipients, callId, callType: 'video', sdp: 'v=0' })],
+    ['encodeAnswer', () => encodeAnswer({ senderPubkeyHex, recipientPubkeys: recipients, callId, sdp: 'v=0' })],
+    ['encodeIceCandidate', () => encodeIceCandidate({ senderPubkeyHex, recipientPubkeyHex: recipients[0], callId, candidate: { candidate: 'c' } })],
+    ['encodeHangup', () => encodeHangup({ senderPubkeyHex, recipientPubkeys: recipients, callId })],
+    ['encodeReject', () => encodeReject({ senderPubkeyHex, recipientPubkeys: recipients, callId, reason: 'busy' })],
+    ['encodeRenegotiate', () => encodeRenegotiate({ senderPubkeyHex, recipientPubkeys: recipients, callId, sdp: 'v=0' })],
+  ];
+
+  it.each(cases)('%s stamps created_at within a few seconds of the current epoch second', (_name, build) => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const draft = build();
+    // Seconds, not milliseconds: a Date.now()*1000 (or /1000 dropped) drift
+    // would land ~3 orders of magnitude away and fail this window.
+    expect(draft.created_at).toBeGreaterThanOrEqual(nowSeconds - 5);
+    expect(draft.created_at).toBeLessThanOrEqual(nowSeconds + 5);
+  });
+});
+
+describe('encodeIceCandidate tag set', () => {
+  const senderPubkeyHex = 'bbbb'.repeat(16);
+  const target = 'aaaa'.repeat(16);
+  const callId = 'ice-call-id';
+
+  it('carries exactly one p tag (the target) and a call-id tag (AC-WIRE-1)', () => {
+    const draft = encodeIceCandidate({
+      senderPubkeyHex,
+      recipientPubkeyHex: target,
+      callId,
+      candidate: { candidate: 'c', sdpMid: '0', sdpMLineIndex: 0 },
+    });
+    const pTags = draft.tags.filter((t) => t[0] === 'p');
+    expect(pTags).toEqual([['p', target]]);
+    const callIdTag = draft.tags.find((t) => t[0] === 'call-id');
+    expect(callIdTag).toEqual(['call-id', callId]);
+  });
+
+  it('fills content defaults (candidate→"", sdpMid→"0", sdpMLineIndex→0) when absent (AC-WIRE-3)', () => {
+    const draft = encodeIceCandidate({
+      senderPubkeyHex,
+      recipientPubkeyHex: target,
+      callId,
+      candidate: {}, // all fields absent
+    });
+    expect(JSON.parse(draft.content)).toEqual({ candidate: '', sdpMid: '0', sdpMLineIndex: 0 });
+  });
+});
+
+// =============================================================================
+// wrapAndPublish: the gift-wrap transport (kind-21059 outer wrap).  AC-WRAP-1.
+// =============================================================================
+
+describe('wrapAndPublish', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    ndkMock.publishedOuterEvents.length = 0;
+  });
+
+  it('signs the inner event, wraps it in a kind-21059 p-tagged to the recipient, and publishes once (AC-WRAP-1)', async () => {
+    const recipientHex = 'aaaa'.repeat(16);
+    const signedInner = { kind: CALL_OFFER_KIND, id: 'signed-inner-id', sig: 'inner-sig' };
+    const signer = {
+      signEvent: vi.fn().mockResolvedValue(signedInner),
+      nip44: { encrypt: vi.fn().mockResolvedValue('signer-encrypted-blob') },
+    };
+
+    const draft = encodeOffer({
+      senderPubkeyHex: 'bbbb'.repeat(16),
+      recipientPubkeys: [recipientHex],
+      callId: 'wrap-call-id',
+      callType: 'video',
+      sdp: 'v=0',
+    });
+
+    const fakeNdk = makeFakeNdk();
+    await wrapAndPublish(
+      draft,
+      recipientHex,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      signer as any,
+      fakeNdk as unknown as NDK,
+    );
+
+    // The sender's real key signs the inner event.
+    expect(signer.signEvent).toHaveBeenCalledWith(draft);
+
+    // Exactly one outer wrap is constructed and published.
+    expect(ndkMock.publishedOuterEvents).toHaveLength(1);
+    expect(ndkMock.publishSpy).toHaveBeenCalledOnce();
+
+    const outer = ndkMock.publishedOuterEvents[0];
+    expect(outer.kind).toBe(CALL_GIFT_WRAP_KIND);
+    // Exactly one p tag, addressed to the recipient, and no other tags.
+    expect(outer.tags).toEqual([['p', recipientHex]]);
   });
 });
