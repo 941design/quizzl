@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T16:25:47Z",
+  "updated_at": "2026-06-29T16:26:59Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -119,15 +119,6 @@
     }
   ],
   "findings": [
-    {
-      "slug": "test-gap-key-packages-no-unit-coverage",
-      "scope": "any",
-      "anchor": {
-        "path": "app/src/lib/keyPackages.ts"
-      },
-      "text": "app/src/lib/keyPackages.ts handles MLS key-package generation/parse (protocol-critical) — no unit test exercises malformed inputs, encoding boundaries, or roundtrip identity.",
-      "created_at": "2026-05-18"
-    },
     {
       "slug": "tooling-no-vitest-coverage-instrumentation",
       "scope": "any",
