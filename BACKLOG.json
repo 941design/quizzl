@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T15:58:36Z",
+  "updated_at": "2026-06-29T16:00:03Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -119,16 +119,6 @@
     }
   ],
   "findings": [
-    {
-      "slug": "profile-request-memo-attempts-stays-at",
-      "scope": "any",
-      "anchor": {
-        "path": "app/tests/e2e/groups-profile-request.spec.ts",
-        "line": 308
-      },
-      "text": "Profile-request memo.attempts stays at 0 under Playwright fake-clock cycling — AC-045 scenario 5 deferred (test.fixme). Real cause undiagnosed; candidates: fake-clock + setInterval interaction, recordEmitted Date.now() racing real-time write, or requestedOnEntryForRef cycling under cross-navigation re-mount. Boundary contract already vitest-covered.",
-      "created_at": "2026-05-18"
-    },
     {
       "slug": "test-gap-chat-persistence-no-unit-coverage",
       "scope": "any",
@@ -347,6 +337,12 @@
       "text": "onMembersChanged fires only when currentMembers.length differs from stored.memberPubkeys.length; a future ghost-cleanup pass that removes a ghost but adds a real member in the same commit would leave the departed member visible in the UI even after AC-MEMBERS-1 passes.",
       "reason": "promoted to specs/epic-members-changed-length-only-misses-ghost-cleanup/spec.md",
       "source_slug": "members-changed-length-only-misses-ghost-cleanup"
+    },
+    {
+      "date": "2026-06-29",
+      "text": "Profile-request memo.attempts stays at 0 under Playwright fake-clock cycling — AC-045 scenario 5 deferred (test.fixme). Real cause undiagnosed; candidates: fake-clock + setInterval interaction, recordEmitted Date.now() racing real-time write, or requestedOnEntryForRef cycling under cross-navigation re-mount. Boundary contract already vitest-covered.",
+      "reason": "Retry-cap behavior (1h/7d/UNANSWERED_MAX_ATTEMPTS=3) is deterministically covered by profileRequestStorage.integration.test.ts (8 tests). The e2e scenario-5 variant is redundant and blocked by an undiagnosed Playwright page.clock+timer interaction (two prior diagnoses already proved wrong); chasing it adds no behavioral coverage. Leave test.fixme in place.",
+      "source_slug": "profile-request-memo-attempts-stays-at"
     }
   ]
 }
