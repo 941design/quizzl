@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T16:58:36Z",
+  "updated_at": "2026-06-29T16:59:42Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -185,16 +185,6 @@
       }
     },
     {
-      "slug": "e2e-suite-scale-bleed-groups-profile-request",
-      "scope": "any",
-      "anchor": {
-        "path": "app/tests/e2e/groups-profile-request.spec.ts",
-        "line": 149
-      },
-      "text": "groups+dm e2e suite scale-bleed: 177-test single-run cumulative had a 1-test failure at #130 (groups-profile-request.spec.ts:149 scenario 1 'aged-history backfill AC-045'), but the same scenario passes in 2.6s when run in isolation. After ~10min the dev server's HMR cache, strfry's tmpfs event log, and per-context IDB state accumulate enough drift to make subscription-driven assertions miss their deadline. Generalises the scenario-5 finding (profile-request-memo-attempts-stays-at) — same root pattern, different AC-045 scenario surfacing it.",
-      "created_at": "2026-05-18"
-    },
-    {
       "slug": "make-test-skips-fast-e2e-suite",
       "scope": "any",
       "anchor": {
@@ -302,6 +292,12 @@
       "text": "Profile-request memo.attempts stays at 0 under Playwright fake-clock cycling — AC-045 scenario 5 deferred (test.fixme). Real cause undiagnosed; candidates: fake-clock + setInterval interaction, recordEmitted Date.now() racing real-time write, or requestedOnEntryForRef cycling under cross-navigation re-mount. Boundary contract already vitest-covered.",
       "reason": "Retry-cap behavior (1h/7d/UNANSWERED_MAX_ATTEMPTS=3) is deterministically covered by profileRequestStorage.integration.test.ts (8 tests). The e2e scenario-5 variant is redundant and blocked by an undiagnosed Playwright page.clock+timer interaction (two prior diagnoses already proved wrong); chasing it adds no behavioral coverage. Leave test.fixme in place.",
       "source_slug": "profile-request-memo-attempts-stays-at"
+    },
+    {
+      "date": "2026-06-29",
+      "text": "groups+dm e2e suite scale-bleed: 177-test single-run cumulative had a 1-test failure at #130 (groups-profile-request.spec.ts:149 scenario 1 'aged-history backfill AC-045'), but the same scenario passes in 2.6s when run in isolation. After ~10min the dev server's HMR cache, strfry's tmpfs event log, and per-context IDB state accumulate enough drift to make subscription-driven assertions miss their deadline. Generalises the scenario-5 finding (profile-request-memo-attempts-stays-at) — same root pattern, different AC-045 scenario surfacing it.",
+      "reason": "Did not reproduce: the named test (groups-profile-request scenario 1, aged-history AC-045) passed in 9.3s at position #168 of a clean 216-test/26-min full groups run this session (0 failures). Generalises the already-rejected scenario-5 finding; the AC-045 behaviors are deterministically unit-covered (profileRequestStorage.integration.test.ts). Intermittent e2e-infra drift, not a product bug; test-isolation hardening is uncertain-payoff for a non-reproducing flake.",
+      "source_slug": "e2e-suite-scale-bleed-groups-profile-request"
     }
   ]
 }
