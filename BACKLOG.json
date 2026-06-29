@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T16:49:01Z",
+  "updated_at": "2026-06-29T16:51:04Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -162,7 +162,12 @@
         "line": 113
       },
       "text": "High: backup/restore is materially lossy while presenting itself as a full-state restore. relayBackup.ts only backs up a small subset of localStorage plus per-group data, and truncates each group chat to MAX_CHAT_MESSAGES = 10 (relayBackup.ts:110, :178). On restore, the code wipes all storage keys including contacts/contact cache (types/index.ts:127) and deletes every quizzl:messages:* thread (relayBackup.ts:364, chatPersistence.ts:306). Result: a restore silently drops DM history, stored contacts/contact metadata, and all but the last 10 group messages.",
-      "created_at": "2026-05-18"
+      "created_at": "2026-05-18",
+      "deferred": {
+        "reason": "spec-gap",
+        "detail": "needs product decision: backup scope (DM history? full chat vs 10-msg cap given relay payload limits) + restore semantics (wipe-all replace vs merge for un-backed-up categories)",
+        "stamped_at": "2026-06-29"
+      }
     },
     {
       "slug": "unread-store-startup-clobbers-live-increments",
