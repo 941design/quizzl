@@ -13,16 +13,12 @@ import {
   loadMemberProfiles,
   saveGroup,
   saveMemberProfiles,
-  clearAllGroupData,
   IdbGroupStateBackend,
 } from '@/src/lib/marmot/groupStorage';
-import { loadMessages, clearAllMessages } from '@/src/lib/marmot/chatPersistence';
+import { loadMessages } from '@/src/lib/marmot/chatPersistence';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
-import { loadAllInviteLinks, saveInviteLink, clearAllInviteLinks } from '@/src/lib/marmot/inviteLinkStorage';
+import { loadAllInviteLinks, saveInviteLink } from '@/src/lib/marmot/inviteLinkStorage';
 import type { InviteLink } from '@/src/lib/marmot/inviteLinkStorage';
-import { clearAllPendingJoinRequests } from '@/src/lib/marmot/joinRequestStorage';
-import { clearAllPollData } from '@/src/lib/marmot/pollPersistence';
-import { clearAllMedia } from '@/src/lib/marmot/mediaPersistence';
 import type { EventSigner } from 'applesauce-core';
 import type NDK from '@nostr-dev-kit/ndk';
 import { fetchEventsWithTimeout } from '@/src/lib/ndkClient';
@@ -323,31 +319,26 @@ export async function getBackupRelays(
 // ---------------------------------------------------------------------------
 
 /**
- * Restore all local state from a backup payload.
- * Clears existing localStorage and IDB data before rehydrating.
+ * Restore local state from a backup payload — NON-DESTRUCTIVELY.
+ *
+ * A backup carries only a subset of device state: settings + userProfile
+ * (localStorage), and groups, MLS group state, member profiles, recent group
+ * chat (capped at MAX_CHAT_MESSAGES per group), and invite links (IDB). It does
+ * NOT carry DM thread history, contacts / contact cache, known peers, relay or
+ * signer config, polls, pending join requests, or media blobs.
+ *
+ * Restore therefore overwrites ONLY the categories the backup carries and leaves
+ * everything else untouched. An earlier implementation blanket-cleared every
+ * `STORAGE_KEYS` entry and every `quizzl:messages:*` IDB key (including DM
+ * threads) before rehydrating the subset, silently destroying DM history,
+ * contacts, relay/signer config, polls, and media. Group chat is MERGED rather
+ * than overwritten so the per-group MAX_CHAT_MESSAGES cap cannot erase local
+ * history beyond the cap. Net effect: restore never deletes data the backup
+ * does not contain.
  */
 export async function restoreFromBackup(payload: BackupPayload): Promise<void> {
-  // 1. Clear all localStorage keys
-  for (const key of Object.values(STORAGE_KEYS)) {
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // Silent fail
-    }
-  }
-
-  // 2. Clear all IDB stores. clearAllMessages, clearAllPollData,
-  // clearAllPendingJoinRequests, clearAllInviteLinks, and clearAllMedia
-  // wipe account-scoped state by key prefix / store-level clear, so they
-  // catch orphaned rows that no longer have a matching group meta entry.
-  await clearAllGroupData();
-  await clearAllMessages();
-  await clearAllPollData();
-  await clearAllPendingJoinRequests();
-  await clearAllInviteLinks();
-  await clearAllMedia();
-
-  // 3. Rehydrate localStorage
+  // 1. Rehydrate localStorage — overwrite in place; all other keys (contacts,
+  //    knownPeers, relays, signerMode, identity, …) are preserved.
   if (payload.settings) {
     localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(payload.settings));
   }
@@ -355,37 +346,50 @@ export async function restoreFromBackup(payload: BackupPayload): Promise<void> {
     localStorage.setItem(STORAGE_KEYS.userProfile, JSON.stringify(payload.userProfile));
   }
 
-  // 4. Rehydrate IDB: groups
+  // 2. Rehydrate IDB groups (overwrite per group; groups absent from the backup
+  //    are left in place — restore adds/updates, never deletes).
   for (const group of payload.groups) {
     await saveGroup(group);
   }
 
-  // 5. Rehydrate MLS state (base64-decoded)
+  // 3. Rehydrate MLS state (base64-decoded; overwrite per key).
   const stateBackend = new IdbGroupStateBackend();
   for (const [key, b64] of Object.entries(payload.groupStates)) {
     const bytes = base64ToUint8Array(b64);
     await stateBackend.setItem(key, bytes as never);
   }
 
-  // 6. Rehydrate member profiles
+  // 4. Rehydrate member profiles (overwrite per group).
   for (const [groupId, profiles] of Object.entries(payload.memberProfiles)) {
     await saveMemberProfiles(groupId, profiles as never[]);
   }
 
-  // 8. Rehydrate chat messages
-  const { set: idbSet } = await import('idb-keyval');
-  for (const [groupId, messages] of Object.entries(payload.chatMessages)) {
-    await idbSet(`quizzl:messages:${groupId}`, messages);
+  // 5. MERGE group chat messages by id. The backup truncates each group's chat
+  //    to the most recent MAX_CHAT_MESSAGES, so overwriting would erase local
+  //    history beyond the cap. Union the backup messages with whatever is
+  //    already stored (local wins on id collision), sorted chronologically. DM
+  //    threads (`quizzl:messages:dm:*`) are not in the payload and are untouched.
+  const { get: idbGet, set: idbSet } = await import('idb-keyval');
+  for (const [groupId, backupMessages] of Object.entries(payload.chatMessages)) {
+    const key = `quizzl:messages:${groupId}`;
+    const existing = (await idbGet<ChatMessage[]>(key)) ?? [];
+    const byId = new Map<string, ChatMessage>();
+    for (const m of existing) byId.set(m.id, m);
+    for (const m of backupMessages as ChatMessage[]) {
+      if (!byId.has(m.id)) byId.set(m.id, m);
+    }
+    const merged = Array.from(byId.values()).sort((a, b) => a.createdAt - b.createdAt);
+    await idbSet(key, merged);
   }
 
-  // 9. Rehydrate invite links (already cleared in step 2 above).
+  // 6. Rehydrate invite links (overwrite per link).
   if (payload.inviteLinks) {
     for (const link of payload.inviteLinks) {
       await saveInviteLink(link);
     }
   }
 
-  // 10. Mark identity as backed up
+  // 7. Mark identity as backed up.
   localStorage.setItem(STORAGE_KEYS.nostrBackedUp, 'true');
 }
 

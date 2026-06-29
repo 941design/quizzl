@@ -123,7 +123,7 @@ import {
 import type { Group, MemberProfile } from '@/src/types';
 import { loadMessages } from '@/src/lib/marmot/chatPersistence';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
-import { set } from 'idb-keyval';
+import { get, set } from 'idb-keyval';
 import {
   saveInviteLink,
   loadAllInviteLinks,
@@ -678,15 +678,57 @@ function makeEmptyPayload(overrides?: Partial<BackupPayload>): BackupPayload {
 }
 
 describe('restoreFromBackup', () => {
-  it('clears existing localStorage keys', async () => {
-    localStore[STORAGE_KEYS.settings] = JSON.stringify({ theme: 'playful', language: 'de' });
-    localStore[STORAGE_KEYS.userProfile] = JSON.stringify({ nickname: 'Old' });
+  it('preserves un-backed-up localStorage keys (contacts, relays, signer, identity)', async () => {
+    // A backup carries only settings + userProfile from localStorage. Restore
+    // must NOT wipe the keys it does not rehydrate — doing so was the data-loss bug.
+    localStore[STORAGE_KEYS.contacts] = JSON.stringify({ pk1: { nickname: 'Bob' } });
+    localStore[STORAGE_KEYS.relays] = JSON.stringify(['wss://my.relay']);
+    localStore[STORAGE_KEYS.signerMode] = 'nip07';
+    localStore[STORAGE_KEYS.nostrIdentity] = JSON.stringify({ pubkeyHex: 'abc' });
 
+    await restoreFromBackup(makeEmptyPayload({ settings: { theme: 'calm' } }));
+
+    expect(localStore[STORAGE_KEYS.contacts]).toBe(JSON.stringify({ pk1: { nickname: 'Bob' } }));
+    expect(localStore[STORAGE_KEYS.relays]).toBe(JSON.stringify(['wss://my.relay']));
+    expect(localStore[STORAGE_KEYS.signerMode]).toBe('nip07');
+    expect(localStore[STORAGE_KEYS.nostrIdentity]).toBe(JSON.stringify({ pubkeyHex: 'abc' }));
+  });
+
+  it('preserves DM thread messages (does not wipe quizzl:messages:dm:*)', async () => {
+    const dmMessages = [
+      { id: 'd1', content: 'hi', senderPubkey: 'peer', groupId: 'dm:peer', createdAt: 1 },
+    ];
+    await set('quizzl:messages:dm:peer', dmMessages);
+
+    // The payload carries no DM threads; restore must leave them intact.
     await restoreFromBackup(makeEmptyPayload());
 
-    // Old data should be gone (settings was null in payload)
-    expect(localStore[STORAGE_KEYS.settings]).toBeUndefined();
-    expect(localStore[STORAGE_KEYS.userProfile]).toBeUndefined();
+    expect(await get('quizzl:messages:dm:peer')).toEqual(dmMessages);
+  });
+
+  it('merges group chat by id, preserving local history beyond the backup cap', async () => {
+    // Local has 3 messages; the (truncated) backup carries the most recent 1 plus
+    // a message not present locally. The merge must keep every distinct id.
+    const local = [
+      { id: 'm1', content: 'one', senderPubkey: 'pk', groupId: 'g1', createdAt: 1 },
+      { id: 'm2', content: 'two', senderPubkey: 'pk', groupId: 'g1', createdAt: 2 },
+      { id: 'm3', content: 'three', senderPubkey: 'pk', groupId: 'g1', createdAt: 3 },
+    ];
+    await set('quizzl:messages:g1', local);
+
+    const backup = [
+      { id: 'm3', content: 'three', senderPubkey: 'pk', groupId: 'g1', createdAt: 3 },
+      { id: 'm4', content: 'four', senderPubkey: 'pk', groupId: 'g1', createdAt: 4 },
+    ];
+    await restoreFromBackup(
+      makeEmptyPayload({
+        groups: [{ id: 'g1', name: 'T', createdAt: 0, memberPubkeys: [], relays: [] }],
+        chatMessages: { g1: backup },
+      }),
+    );
+
+    const { messages: loaded } = await loadMessages('g1');
+    expect(loaded.map((m) => m.id)).toEqual(['m1', 'm2', 'm3', 'm4']);
   });
 
   it('rehydrates settings from payload', async () => {
