@@ -4,6 +4,7 @@
 # Secrets
 .env
 .envrc
+.cloudflare
 
 # SSL certificates (private keys!)
 .ssl/
@@ -20,5 +21,8 @@ implementation-state.json
 
 # Test artifacts
 app/test-results/
+/test-results/
+app/reports/
+.playwright-mcp/
 *~
 .mcp.json

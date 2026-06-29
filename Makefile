@@ -5,9 +5,11 @@ BUILD_VERSION := $(shell git rev-parse --short HEAD 2>/dev/null || date +%s)
 
 # Load environment variables from .env if it exists (for FTP credentials)
 -include .env
+# Load Cloudflare credentials (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID) if present
+-include .cloudflare
 export
 
-.PHONY: help test build test-unit test-e2e test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check deploy-dryrun maintenance maintenance-check ssl-cert ssl-cert-assets ensure-deps ensure-playwright
+.PHONY: help test build test-unit test-e2e test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check deploy-dryrun deploy-few deploy-few-check maintenance maintenance-check ssl-cert ssl-cert-assets ensure-deps ensure-playwright
 
 # Default target
 .DEFAULT_GOAL := help
@@ -20,6 +22,10 @@ FTP_PATH := $(or $(HOSTEUROPE_FTP_PATH),/)
 
 # Local paths for deployment
 LOCAL_DIST := $(APP_DIR)/out
+
+# Cloudflare Pages deployment (few.chat placeholder — separate from the FTP site)
+FEW_DIST := few.chat
+FEW_PROJECT := few-chat
 
 # Maintenance-mode source tree (must contain only index.html and any assets the
 # maintenance page references). Mirrored as-is to the remote root with --delete.
@@ -170,6 +176,28 @@ deploy-dryrun: ## Show what would be deployed (no upload)
 	@echo "  HOSTEUROPE_FTP_USER=$(FTP_USER)"
 	@if [ -n "$(FTP_PASS)" ]; then echo "  HOSTEUROPE_FTP_PASS=****"; else echo "  HOSTEUROPE_FTP_PASS=[NOT SET]"; fi
 	@echo "  HOSTEUROPE_FTP_PATH=$(FTP_PATH)"
+
+# =============================================================================
+# Cloudflare Pages (few.chat placeholder)
+# =============================================================================
+# Deploys the static $(FEW_DIST)/ folder to the Cloudflare Pages project
+# $(FEW_PROJECT) (served at few.chat / few-chat.pages.dev). Credentials come
+# from the gitignored .cloudflare file (CLOUDFLARE_API_TOKEN[,_ACCOUNT_ID]).
+# This is independent of the FTP `deploy` target — the FTP site is untouched.
+
+deploy-few-check: ## Verify Cloudflare deployment prerequisites
+	@echo "Checking Cloudflare deployment prerequisites..."
+	@if [ -z "$(CLOUDFLARE_API_TOKEN)" ]; then echo "ERROR: CLOUDFLARE_API_TOKEN not set (create .cloudflare)"; exit 1; fi
+	@if [ ! -f $(FEW_DIST)/index.html ]; then echo "ERROR: $(FEW_DIST)/index.html not found"; exit 1; fi
+	@if ! command -v npx >/dev/null 2>&1; then echo "ERROR: npx (Node.js) not installed"; exit 1; fi
+	@echo "All prerequisites satisfied."
+
+deploy-few: deploy-few-check ## Deploy few.chat placeholder to Cloudflare Pages
+	@echo "Deploying $(FEW_DIST)/ to Cloudflare Pages project '$(FEW_PROJECT)'..."
+	@npx --yes wrangler@latest pages deploy $(FEW_DIST) \
+		--project-name=$(FEW_PROJECT) --branch=main --commit-dirty=true
+	@echo ""
+	@echo "Deployment complete!"
 
 # =============================================================================
 # Maintenance Mode

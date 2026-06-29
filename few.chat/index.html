@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>few.chat — Just chat.</title>
+  <meta name="description" content="Private, end-to-end encrypted chats. Just chat." />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #ffffff;
+      line-height: 1.5;
+    }
+    .hero {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: 70vh;
+      background-image: url("few.webp");
+      background-size: cover;
+      background-position: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hero h1 {
+      color: #ffffff;
+      font-size: clamp(3rem, 16vw, 9rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      text-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+    }
+    .hero .soon {
+      position: absolute;
+      bottom: 1rem;
+      right: 1.25rem;
+      color: #000000;
+      font-size: clamp(1rem, 4vw, 1.75rem);
+      font-weight: 700;
+    }
+    main {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 4rem;
+      text-align: center;
+    }
+    main h2 {
+      font-size: clamp(1.5rem, 5vw, 2.25rem);
+      margin-bottom: 1.5rem;
+    }
+    ul {
+      list-style: none;
+      display: inline-block;
+      text-align: left;
+    }
+    li {
+      font-size: 1.125rem;
+      color: #555;
+      padding: 0.4rem 0 0.4rem 1.75rem;
+      position: relative;
+    }
+    li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #1a1a1a;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <h1>few</h1>
+    <span class="soon">…soon</span>
+  </header>
+  <main>
+    <h2>Just chat.</h2>
+    <ul>
+      <li>No email address required</li>
+      <li>No login or password to remember</li>
+      <li>No phone number needed</li>
+      <li>Completely free</li>
+    </ul>
+  </main>
+</body>
+</html>
