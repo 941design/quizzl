@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T16:44:16Z",
+  "updated_at": "2026-06-29T16:49:01Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -140,7 +140,12 @@
         "path": "app/src/hooks"
       },
       "text": "Seven of nine custom hooks (useDirectReactions, useMoodTheme, useOnlineStatus, useSelectedTopics, useStudyTimer, useThemeStyles, useTopicProgress) have no unit test; only useDecryptedImage and useImageSend are covered.",
-      "created_at": "2026-05-18"
+      "created_at": "2026-05-18",
+      "deferred": {
+        "reason": "escalated",
+        "detail": "3 named hooks deleted (learning platform); 4 remaining are React-lifecycle, need DOM test infra (testing-library/happy-dom, deliberately absent) or refactor",
+        "stamped_at": "2026-06-29"
+      }
     },
     {
       "slug": "base-plugin-e2e-testing-skill-swallows-results",
