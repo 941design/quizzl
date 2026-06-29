@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T16:21:16Z",
+  "updated_at": "2026-06-29T16:25:47Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -119,15 +119,6 @@
     }
   ],
   "findings": [
-    {
-      "slug": "test-gap-register-handlers-no-unit-coverage",
-      "scope": "any",
-      "anchor": {
-        "path": "app/src/lib/marmot/registerHandlers.ts"
-      },
-      "text": "app/src/lib/marmot/registerHandlers.ts wires every marmot handler; a regression that silently drops a registration would be invisible until the relevant e2e fails. No unit-level guard on the registration chain.",
-      "created_at": "2026-05-18"
-    },
     {
       "slug": "test-gap-key-packages-no-unit-coverage",
       "scope": "any",
