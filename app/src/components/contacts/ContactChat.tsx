@@ -78,7 +78,7 @@ export default function ContactChat({
 }: ContactChatProps) {
   const copy = useCopy();
   const toast = useToast();
-  const { groups, ready: marmotReady } = useMarmot();
+  const { groups, ready: marmotReady, whenReady } = useMarmot();
   // Ref for groups so subscription handlers always see the latest whitelist
   // without the effect needing to re-subscribe on every membership change.
   const groupsRef = useRef(groups);
@@ -255,21 +255,15 @@ export default function ContactChat({
         // Without this wait, groupsRef.current is [] when we call isAllowedDmSender,
         // which drops every historical event from an allowed sender (false-positive
         // walled-garden drop).
-        // We poll marmotReadyRef with a 5-second ceiling so the chat still renders
-        // on slow networks / degraded state rather than hanging indefinitely.
+        // Await MarmotContext readiness via its whenReady() promise, with a
+        // 5-second ceiling so the chat still renders on slow networks / degraded
+        // state rather than hanging indefinitely. Replaces a 50 ms setInterval poll.
         if (!marmotReadyRef.current) {
-          await new Promise<void>((resolve) => {
-            const POLL_INTERVAL_MS = 50;
-            const MAX_WAIT_MS = 5_000;
-            let elapsed = 0;
-            const poll = setInterval(() => {
-              elapsed += POLL_INTERVAL_MS;
-              if (marmotReadyRef.current || elapsed >= MAX_WAIT_MS || cancelled) {
-                clearInterval(poll);
-                resolve();
-              }
-            }, POLL_INTERVAL_MS);
-          });
+          const MAX_WAIT_MS = 5_000;
+          await Promise.race([
+            whenReady(),
+            new Promise<void>((resolve) => setTimeout(resolve, MAX_WAIT_MS)),
+          ]);
         }
 
         // Process kind-4 results (existing path — D9a).

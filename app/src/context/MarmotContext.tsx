@@ -229,6 +229,12 @@ export async function fireAutoCommit(deps: FireAutoCommitDeps): Promise<void> {
 type MarmotContextValue = {
   /** Whether marmot client has been initialized */
   ready: boolean;
+  /**
+   * Resolves the first time `ready` becomes true (immediately if already ready).
+   * Lets consumers await readiness instead of polling — e.g. ContactChat gating
+   * historical DMs on group state being loaded.
+   */
+  whenReady: () => Promise<void>;
   /** True when groups are unavailable (e.g. non-HTTPS context) */
   unsupported: boolean;
   /** All groups the user belongs to */
@@ -306,6 +312,21 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
+
+  // whenReady(): a promise resolved the first time `ready` flips true, so
+  // consumers can await readiness instead of polling. Created exactly once (the
+  // null guard prevents the useRef initializer from overwriting the captured
+  // resolver on every render).
+  const readyGateRef = useRef<{ promise: Promise<void>; resolve: () => void } | null>(null);
+  if (readyGateRef.current === null) {
+    let resolveReady!: () => void;
+    const promise = new Promise<void>((r) => { resolveReady = r; });
+    readyGateRef.current = { promise, resolve: resolveReady };
+  }
+  const whenReady = useCallback(() => readyGateRef.current!.promise, []);
+  useEffect(() => {
+    if (ready) readyGateRef.current?.resolve();
+  }, [ready]);
   const clientRef = useRef<MarmotClientType | null>(null);
   // Track welcome subscription cleanup so it can be stopped on remount/identity change
   const welcomeSubRef = useRef<(() => void) | null>(null);
@@ -1580,6 +1601,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<MarmotContextValue>(
     () => ({
       ready,
+      whenReady,
       unsupported,
       groups,
       createGroup,
@@ -1611,6 +1633,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       ready,
+      whenReady,
       unsupported,
       groups,
       createGroup,
@@ -1652,6 +1675,8 @@ const NOOP_ARRAY = async () => [];
 
 const DEFAULT_MARMOT: MarmotContextValue = {
   ready: false,
+  // Default (no provider): never resolves — consumers gate on the 5 s ceiling.
+  whenReady: () => new Promise<void>(() => {}),
   unsupported: false,
   groups: [],
   createGroup: NOOP_NULL as () => Promise<null>,
