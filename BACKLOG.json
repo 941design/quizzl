@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T17:04:19Z",
+  "updated_at": "2026-06-29T17:06:59Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -202,7 +202,12 @@
         "line": 206
       },
       "text": "subscribeToGroupMessages creates a fresh processedIds Set on every call; if two subscription instances overlap during rapid re-subscribe (e.g. on groups state change), the same event ID can be dispatched twice across instances — cross-instance dedup requires module-level state or guaranteed teardown ordering.",
-      "created_at": "2026-05-18"
+      "created_at": "2026-05-18",
+      "deferred": {
+        "reason": "spec-gap",
+        "detail": "edge-case race likely absorbed by mlsGroup.ingest epoch idempotency (chat goes via applicationRumorDispatcher's module-level LRU, not here); module-level per-group dedup fix needs lifecycle/memory design to avoid dropping events",
+        "stamped_at": "2026-06-29"
+      }
     },
     {
       "slug": "dm-e2e-publish-via-app-refactor",
