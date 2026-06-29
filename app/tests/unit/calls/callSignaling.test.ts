@@ -34,6 +34,7 @@ import {
   CALL_RENEGOTIATE_KIND,
   CALL_GIFT_WRAP_KIND,
   SIGNALING_FRESHNESS_WINDOW_S,
+  DEDUP_SET_MAX,
   encodeOffer,
   encodeAnswer,
   encodeIceCandidate,
@@ -275,6 +276,26 @@ describe('encodeIceCandidate', () => {
     const payload = JSON.parse(draft.content);
     expect(payload.sdpMid).toBe('0');
     expect(payload.sdpMLineIndex).toBe(0);
+  });
+});
+
+// =============================================================================
+// encodeReject: encode-side defaults (AC-WIRE-4).
+// Closes mutant ID 39 (NoCoverage): encodeReject with no reason must produce
+// an empty-string content field via the `params.reason ?? ''` fallback.
+// =============================================================================
+
+describe('encodeReject', () => {
+  it('produces empty-string content when reason is omitted (AC-WIRE-4)', () => {
+    const draft = encodeReject({
+      senderPubkeyHex: CALLER_PUB,
+      recipientPubkeys: [LOCAL_PUB],
+      callId: CALL_ID,
+      // reason intentionally omitted — must default to ''
+    });
+
+    expect(draft.kind).toBe(CALL_REJECT_KIND);
+    expect(draft.content).toBe('');
   });
 });
 
@@ -779,6 +800,55 @@ describe('subscribeCallSignaling', () => {
       nowSpy.mockRestore();
     }
   });
+
+  // ── Dedup overflow eviction (DEDUP_SET_MAX boundary) ──────────────────────────
+  // Closes mutant IDs 153-157: the DEDUP_SET_MAX condition and its eviction body
+  // are never exercised unless 500+ events are delivered in one test run.
+  //
+  // Mutant kill map:
+  //   ID 153 (→ true):  always-clear — re-send of fill-0 before overflow passes (Phase 2 fails)
+  //   ID 154 (→ false): never-clear — re-send of fill-0 after overflow stays deduped (Phase 4 fails)
+  //   ID 155 (>):       clears one event late — same as 154 for Phase 4
+  //   ID 156 (<):       clears on every small set — same as 153, Phase 2 fails
+  //   ID 157 (body {}): clear is a no-op — same as 154, Phase 4 fails
+
+  it('clears the dedup set at exactly DEDUP_SET_MAX then allows re-delivery of evicted ids', async () => {
+    // Phase 1: fill the dedup set to DEDUP_SET_MAX.
+    // Every event has a unique id; all must be dispatched (no premature clear).
+    for (let i = 0; i < DEDUP_SET_MAX; i++) {
+      const inner = makeInnerEvent({ id: `fill-${i}` });
+      nip44.decrypt = vi.fn(() => JSON.stringify(inner)) as typeof nip44.decrypt;
+      await emitEvent(sub, { pubkey: EPHEMERAL_PUB, content: 'enc', created_at: inner.created_at });
+    }
+    expect(onEvent).toHaveBeenCalledTimes(DEDUP_SET_MAX);
+
+    // Phase 2: re-send fill-0 while the set is full — must be deduped
+    // (has() check fires first; overflow clear only triggers for a NEW id).
+    {
+      const inner = makeInnerEvent({ id: 'fill-0' });
+      nip44.decrypt = vi.fn(() => JSON.stringify(inner)) as typeof nip44.decrypt;
+      await emitEvent(sub, { pubkey: EPHEMERAL_PUB, content: 'enc', created_at: inner.created_at });
+    }
+    expect(onEvent).toHaveBeenCalledTimes(DEDUP_SET_MAX); // dedup held — still DEDUP_SET_MAX
+
+    // Phase 3: deliver the (DEDUP_SET_MAX + 1)th unique id — triggers `size >= DEDUP_SET_MAX`,
+    // clears the set, adds the overflow id, then dispatches the event.
+    {
+      const inner = makeInnerEvent({ id: 'overflow-trigger' });
+      nip44.decrypt = vi.fn(() => JSON.stringify(inner)) as typeof nip44.decrypt;
+      await emitEvent(sub, { pubkey: EPHEMERAL_PUB, content: 'enc', created_at: inner.created_at });
+    }
+    expect(onEvent).toHaveBeenCalledTimes(DEDUP_SET_MAX + 1); // overflow event delivered
+
+    // Phase 4: re-send fill-0 after the eviction — the set was cleared, so fill-0 is
+    // no longer tracked; it must be re-delivered (brief post-clear dedup miss).
+    {
+      const inner = makeInnerEvent({ id: 'fill-0' });
+      nip44.decrypt = vi.fn(() => JSON.stringify(inner)) as typeof nip44.decrypt;
+      await emitEvent(sub, { pubkey: EPHEMERAL_PUB, content: 'enc', created_at: inner.created_at });
+    }
+    expect(onEvent).toHaveBeenCalledTimes(DEDUP_SET_MAX + 2); // fill-0 re-delivered after eviction
+  });
 });
 
 // =============================================================================
@@ -886,5 +956,44 @@ describe('wrapAndPublish', () => {
     expect(outer.kind).toBe(CALL_GIFT_WRAP_KIND);
     // Exactly one p tag, addressed to the recipient, and no other tags.
     expect(outer.tags).toEqual([['p', recipientHex]]);
+  });
+
+  it('outer gift-wrap created_at is epoch seconds, not milliseconds (AC-WRAP-1)', async () => {
+    // Closes mutant ID 45 (Survived): wrapAndPublish uses Date.now() / 1000
+    // (correct, epoch seconds). The mutant flips it to * 1000 (milliseconds,
+    // ~1.78e15). The prior test only asserted kind + tags, not the timestamp.
+    const recipientHex = 'aaaa'.repeat(16);
+    const signedInner = { kind: CALL_OFFER_KIND, id: 'ts-inner-id', sig: 'ts-sig' };
+    const signer = {
+      signEvent: vi.fn().mockResolvedValue(signedInner),
+      nip44: { encrypt: vi.fn().mockResolvedValue('ts-encrypted-blob') },
+    };
+    const draft = encodeOffer({
+      senderPubkeyHex: 'bbbb'.repeat(16),
+      recipientPubkeys: [recipientHex],
+      callId: 'wrap-ts-call-id',
+      callType: 'voice',
+      sdp: 'v=0',
+    });
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    await wrapAndPublish(
+      draft,
+      recipientHex,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      signer as any,
+      makeFakeNdk() as unknown as NDK,
+    );
+
+    const outerEvent = ndkMock.publishedOuterEvents[0] as {
+      kind?: number;
+      tags?: string[][];
+      content?: string;
+      created_at?: number;
+    };
+    // A * 1000 drift would place created_at ~3 orders of magnitude above the
+    // current epoch second (~1.78e9 expected vs ~1.78e15 if mutated).
+    expect(outerEvent.created_at).toBeGreaterThanOrEqual(nowSeconds - 5);
+    expect(outerEvent.created_at).toBeLessThanOrEqual(nowSeconds + 5);
   });
 });

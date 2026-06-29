@@ -267,7 +267,7 @@ export const SIGNALING_FRESHNESS_WINDOW_S = 20;
  * cleared (LRU-approximate: full eviction keeps the implementation simple and
  * the bound tight at the cost of brief post-clear dedup misses).
  */
-const DEDUP_SET_MAX = 500;
+export const DEDUP_SET_MAX = 500;
 
 /**
  * Parse a signed inner event into an IncomingCallEvent.
