@@ -535,3 +535,12 @@ Signaling transport settled (§3, Amethyst-compatible gift-wrap). All four produ
 **Hangup (kind 25053):** same tag shape (`p` per remaining peer + `call-id`), `content` = ""
 or a reason string. **Reject (kind 25054):** `content` = `"busy"` for auto-decline.
 ```
+
+## Amendments
+
+- **2026-06-29 — AC-WIRE-5 added (receive-side structural validation).** Mutation
+  testing of `callSignaling.ts` surfaced that the receive path drops structurally-
+  malformed inner events (unrecognised kind, missing/empty `call-id`, non-JSON ICE
+  content) as real, now-tested behavior that no acceptance criterion governed.
+  Added AC-WIRE-5 to ground it (resolves BACKLOG finding
+  `receive-side-structural-validation-call-signaling`).

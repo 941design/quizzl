@@ -28,6 +28,11 @@ For a kind-25053 (Hangup) and kind-25054 (Reject) inner event, `callSignaling.ts
 
 **Verify:** Unit test; assert content of auto-reject event equals `"busy"`.
 
+### AC-WIRE-5
+On the receive path, `callSignaling.ts` MUST drop (not forward to `CallManager`) any inner call event that is structurally malformed, independently of the signature check (AC-WRAP-3): an event whose `kind` is outside the 25050–25055 range; an event with no `call-id` tag or an empty `call-id` value; or a kind-25052 (ICE Candidate) event whose content is not valid JSON.
+
+**Verify:** Unit tests in `app/tests/unit/calls/callSignaling.test.ts` feeding (a) an unrecognised kind, (b) a missing/empty call-id, and (c) non-JSON ICE content; assert the event handler is never called for each. (Amended 2026-06-29 to ground receive-side structural-validation behavior surfaced during mutation testing.)
+
 ### AC-WRAP-1
 `callSignaling.ts` MUST wrap every outgoing inner call event as a kind-21059 outer gift-wrap: the outer event MUST be signed by a **fresh random ephemeral key** (different per message), MUST have content equal to NIP-44 encryption of the JSON-serialised signed inner event addressed to the recipient pubkey, and MUST carry exactly one `["p", <recipientHex>]` tag and no other tags.
 
