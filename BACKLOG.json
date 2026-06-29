@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T19:50:36Z",
+  "updated_at": "2026-06-29T19:54:13Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -155,16 +155,6 @@
       "created_at": "2026-05-18"
     },
     {
-      "slug": "contactchat-tsx-uses-same-fetch-then",
-      "scope": "any",
-      "anchor": {
-        "path": "app/src/components/Chat/ContactChat.tsx",
-        "line": 213
-      },
-      "text": "ContactChat.tsx uses the same fetch-then-live-sub anti-pattern fixed in welcomeSubscription.ts: Phase-1 runs three parallel fetchEventsWithTimeout calls for DM history then Phase-2 opens three live ndk.subscribe calls, leaving a gap where events are silently lost.",
-      "created_at": "2026-05-18"
-    },
-    {
       "slug": "dm-e2e-publish-via-app-refactor",
       "scope": "any",
       "anchor": {
@@ -225,6 +215,12 @@
       "text": "groups+dm e2e suite scale-bleed: 177-test single-run cumulative had a 1-test failure at #130 (groups-profile-request.spec.ts:149 scenario 1 'aged-history backfill AC-045'), but the same scenario passes in 2.6s when run in isolation. After ~10min the dev server's HMR cache, strfry's tmpfs event log, and per-context IDB state accumulate enough drift to make subscription-driven assertions miss their deadline. Generalises the scenario-5 finding (profile-request-memo-attempts-stays-at) — same root pattern, different AC-045 scenario surfacing it.",
       "reason": "Did not reproduce: the named test (groups-profile-request scenario 1, aged-history AC-045) passed in 9.3s at position #168 of a clean 216-test/26-min full groups run this session (0 failures). Generalises the already-rejected scenario-5 finding; the AC-045 behaviors are deterministically unit-covered (profileRequestStorage.integration.test.ts). Intermittent e2e-infra drift, not a product bug; test-isolation hardening is uncertain-payoff for a non-reproducing flake.",
       "source_slug": "e2e-suite-scale-bleed-groups-profile-request"
+    },
+    {
+      "date": "2026-06-29",
+      "text": "ContactChat.tsx uses the same fetch-then-live-sub anti-pattern fixed in welcomeSubscription.ts: Phase-1 runs three parallel fetchEventsWithTimeout calls for DM history then Phase-2 opens three live ndk.subscribe calls, leaving a gap where events are silently lost.",
+      "reason": "The welcomeSubscription since-anchor fix does NOT transfer: ContactChat's primary DM path is kind-1059 gift-wraps whose outer created_at is randomized/backdated up to 2 days (NIP-59 privacy), so a since:fetchStartedAt filter on the gift-wrap live sub would DROP incoming DMs — a regression. since is only safe on the legacy kind-4 subs (real timestamps), whose inbound-only gap is negligible. Existing per-id dedup (ingestEvent/knownMessageIds + shouldIngestRumor) already absorbs the small overlap. Closing the gap properly would need a relay-replay mechanism that doesn't key on the spoofed gift-wrap timestamp — out of scope for a smell-driven refactor.",
+      "source_slug": "contactchat-tsx-uses-same-fetch-then"
     }
   ]
 }
