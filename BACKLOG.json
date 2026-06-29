@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T16:00:03Z",
+  "updated_at": "2026-06-29T16:01:47Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -119,15 +119,6 @@
     }
   ],
   "findings": [
-    {
-      "slug": "test-gap-chat-persistence-no-unit-coverage",
-      "scope": "any",
-      "anchor": {
-        "path": "app/src/lib/marmot/chatPersistence.ts"
-      },
-      "text": "app/src/lib/marmot/chatPersistence.ts (317 LOC) is the largest marmot persistence module — performs IDB writes for group chat history — and has no direct unit test; regressions here only surface via e2e.",
-      "created_at": "2026-05-18"
-    },
     {
       "slug": "test-gap-register-handlers-no-unit-coverage",
       "scope": "any",
