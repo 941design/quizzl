@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T17:01:06Z",
+  "updated_at": "2026-06-29T17:02:02Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -183,16 +183,6 @@
         "detail": "needs design: reconcile init-from-IDB with concurrent incrementUnread without double/under-count (init-before-subscribe ordering, generation counter, or message-id dedup)",
         "stamped_at": "2026-06-29"
       }
-    },
-    {
-      "slug": "dm-tests-never-run-no-collection-gate",
-      "scope": "any",
-      "anchor": {
-        "path": "app/playwright.config.ts",
-        "line": 36
-      },
-      "text": "Process gap: the dm-*.spec.ts files added in e9762ec (dm-giftwrap-bell, dm-historical-recovery, dm-self-heal, dm-third-party-inbound) shipped with multiple latent infra bugs and were never executed end-to-end — they were structurally invisible in BOTH run modes because playwright.config testMatch was 'groups-*.spec.ts' for groups mode and testIgnore: 'groups-*.spec.ts' for fast mode, so dm-* matched neither pattern. Bugs found: (a) wrong IDB schema in dm-self-heal (wrote to 'quizzl-messages' DB; app reads 'keyval-store'), (b) reference to global.__testPage never wired up in dm-historical-recovery, (c) removed nostr-tools API getSignature in dm-third-party-inbound, (d) closure-shadowing bug in lp_contacts_v1 seed shared by all four files, (e) stale selectors that no longer match the DOM. All fixed in this session (testMatch widened to ['groups-*', 'dm-*']), but the underlying CI gap remains: structural validation passed for tests that could not run.",
-      "created_at": "2026-05-18"
     },
     {
       "slug": "contactchat-tsx-uses-same-fetch-then",
