@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:groups": "E2E_GROUPS=1 npx playwright test",
     "test:e2e:ui": "playwright test --ui"
@@ -48,6 +49,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "18.3.28",
     "@types/react-dom": "^18",
+    "@vitest/coverage-v8": "^4.0.18",
     "fake-indexeddb": "^6.2.5",
     "typescript": "5.9.3",
     "vitest": "^4.0.18"

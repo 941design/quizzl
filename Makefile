@@ -24,7 +24,7 @@ PLAYWRIGHT_STAMP := $(PLAYWRIGHT_BROWSERS_PATH)/.installed_$(shell uname -s)-$(s
 -include .cloudflare
 export
 
-.PHONY: help test build test-unit test-e2e test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check deploy-dryrun deploy-few deploy-few-check maintenance maintenance-check ssl-cert ssl-cert-assets ensure-deps ensure-playwright
+.PHONY: help test build test-unit test-coverage test-e2e test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check deploy-dryrun deploy-few deploy-few-check maintenance maintenance-check ssl-cert ssl-cert-assets ensure-deps ensure-playwright
 
 # Default target
 .DEFAULT_GOAL := help
@@ -100,6 +100,9 @@ test: test-unit test-e2e ## Run all tests
 ## Run unit tests (Vitest)
 test-unit: ensure-deps ## Run unit tests (Vitest)
 	cd $(APP_DIR) && npx vitest run
+
+test-coverage: ensure-deps ## Run unit tests with v8 line/branch coverage (reports/coverage)
+	cd $(APP_DIR) && npx vitest run --coverage
 
 ## Run all Playwright E2E tests (with relay)
 test-e2e: ensure-playwright ## Run all Playwright E2E tests (with relay)

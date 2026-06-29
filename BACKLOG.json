@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T16:26:59Z",
+  "updated_at": "2026-06-29T16:29:14Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -119,16 +119,6 @@
     }
   ],
   "findings": [
-    {
-      "slug": "tooling-no-vitest-coverage-instrumentation",
-      "scope": "any",
-      "anchor": {
-        "path": "app/package.json",
-        "line": 51
-      },
-      "text": "app/package.json lacks @vitest/coverage-v8 or equivalent; make test-unit runs 866 tests but cannot report line/branch coverage, leaving 'mocks-the-helper-at-the-SUT-call-site' blind spots structurally invisible.",
-      "created_at": "2026-05-18"
-    },
     {
       "slug": "test-gap-context-providers-no-unit-coverage",
       "scope": "any",
