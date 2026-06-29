@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T16:29:14Z",
+  "updated_at": "2026-06-29T16:44:16Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -126,7 +126,12 @@
         "path": "app/src/context"
       },
       "text": "Six of seven React contexts (ChatStore, NostrIdentity, Profile, PollStore, Backup, Marmot) ship substantial state logic with no unit-level guard; only LanguageContext is exercised indirectly via i18n tests.",
-      "created_at": "2026-05-18"
+      "created_at": "2026-05-18",
+      "deferred": {
+        "reason": "escalated",
+        "detail": "epic-sized: 7 contexts/3375 LOC (Marmot 1689), needs multi-story test epic not 1 fix",
+        "stamped_at": "2026-06-29"
+      }
     },
     {
       "slug": "test-gap-hooks-no-unit-coverage",
