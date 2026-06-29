@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T20:00:23Z",
+  "updated_at": "2026-06-29T20:12:07Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -116,37 +116,19 @@
       "path": "specs/epic-voice-video-calls/",
       "status": "DONE",
       "next_action": "shipped 2026-06-23"
+    },
+    {
+      "path": "specs/epic-context-providers-unit-coverage/",
+      "status": "PLANNED",
+      "next_action": "promoted from finding 2026-06-29"
+    },
+    {
+      "path": "specs/epic-hooks-unit-coverage/",
+      "status": "PLANNED",
+      "next_action": "promoted from finding 2026-06-29"
     }
   ],
   "findings": [
-    {
-      "slug": "test-gap-context-providers-no-unit-coverage",
-      "scope": "any",
-      "anchor": {
-        "path": "app/src/context"
-      },
-      "text": "Six of seven React contexts (ChatStore, NostrIdentity, Profile, PollStore, Backup, Marmot) ship substantial state logic with no unit-level guard; only LanguageContext is exercised indirectly via i18n tests.",
-      "created_at": "2026-05-18",
-      "deferred": {
-        "reason": "escalated",
-        "detail": "epic-sized: 7 contexts/3375 LOC (Marmot 1689), needs multi-story test epic not 1 fix",
-        "stamped_at": "2026-06-29"
-      }
-    },
-    {
-      "slug": "test-gap-hooks-no-unit-coverage",
-      "scope": "any",
-      "anchor": {
-        "path": "app/src/hooks"
-      },
-      "text": "Seven of nine custom hooks (useDirectReactions, useMoodTheme, useOnlineStatus, useSelectedTopics, useStudyTimer, useThemeStyles, useTopicProgress) have no unit test; only useDecryptedImage and useImageSend are covered.",
-      "created_at": "2026-05-18",
-      "deferred": {
-        "reason": "escalated",
-        "detail": "3 named hooks deleted (learning platform); 4 remaining are React-lifecycle, need DOM test infra (testing-library/happy-dom, deliberately absent) or refactor",
-        "stamped_at": "2026-06-29"
-      }
-    },
     {
       "slug": "base-plugin-e2e-testing-skill-swallows-results",
       "scope": "base-plugin",
