@@ -134,6 +134,11 @@ test.describe.serial('Contacts and direct chat', () => {
 
     await pageA.getByTestId('chat-input').fill('Hi Bob, from contacts');
     await pageA.getByTestId('chat-send-btn').click();
-    await expect(pageB.locator('[data-testid^="msg-"]', { hasText: 'Hi Bob, from contacts' }).first()).toBeVisible({ timeout: 60_000 });
+    // A single send MUST render exactly one bubble on the recipient. The prior
+    // `.first()` masked a duplication bug (multiple distinct msg-<rumorId> ids per
+    // send). Assert the real invariant so any regression to duplication fails here.
+    const bobBubble = pageB.locator('[data-testid^="msg-"]', { hasText: 'Hi Bob, from contacts' });
+    await expect(bobBubble.first()).toBeVisible({ timeout: 60_000 });
+    await expect(bobBubble).toHaveCount(1);
   });
 });

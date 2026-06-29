@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T15:38:02Z",
+  "updated_at": "2026-06-29T15:58:36Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -119,16 +119,6 @@
     }
   ],
   "findings": [
-    {
-      "slug": "dm-rendering-produced-multiple-bubbles-per",
-      "scope": "any",
-      "anchor": {
-        "path": "app/tests/e2e/groups-contacts.spec.ts",
-        "line": 107
-      },
-      "text": "DM rendering produced multiple bubbles per single send (3 distinct msg-<rumorId> ids); locator narrowed via .first() in 3ea1716 masks the underlying duplication. The af27581 fix may be incomplete or a different surface. Capture kind:1059 WS frames on Bob to separate publish-vs-subscription-vs-render duplication.",
-      "created_at": "2026-05-18"
-    },
     {
       "slug": "profile-request-memo-attempts-stays-at",
       "scope": "any",
