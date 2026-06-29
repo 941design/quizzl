@@ -1,13 +1,24 @@
 import { test, expect } from '@playwright/test';
+import { computeTestKeypairs, USER_A } from './helpers/auth-helpers';
 
 test.describe('Avatar selection', () => {
   test.beforeEach(async ({ page }) => {
+    // Seed a known identity (and an empty, avatar-less profile) BEFORE hydration
+    // so /profile renders the own-profile view. Without an identity the
+    // navigation to /profile aborts with net::ERR_ABORTED. This mirrors the
+    // identity seeding the other fast specs (emoji-composer, banner-decor, …)
+    // use; the prior beforeEach cleared lp_* and relied on the app, which broke
+    // after the profile/settings split — and was never caught because no
+    // aggregate Make target ran the fast suite.
+    await computeTestKeypairs();
+    await page.context().addInitScript(
+      (user) => {
+        localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify(user));
+        localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: 'Tester', avatar: null }));
+      },
+      { privateKeyHex: USER_A.privateKeyHex, pubkeyHex: USER_A.pubkeyHex, seedHex: USER_A.seedHex },
+    );
     await page.goto('/');
-    await page.evaluate(() => {
-      Object.keys(localStorage)
-        .filter((key) => key.startsWith('lp_'))
-        .forEach((key) => localStorage.removeItem(key));
-    });
   });
 
   test('clicking an avatar card selects the avatar', async ({ page }) => {
