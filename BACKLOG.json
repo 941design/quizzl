@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-23T20:20:48Z",
+  "updated_at": "2026-06-29T15:04:37Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -119,16 +119,6 @@
     }
   ],
   "findings": [
-    {
-      "slug": "e2e-leave-intent-not-executed-only-structural",
-      "scope": "any",
-      "anchor": {
-        "path": "app/tests/e2e/groups-leave-intent.spec.ts",
-        "line": 1
-      },
-      "text": "make test-e2e-groups was not executed during S7 (Docker/static-build unavailable in worker); the two-client leave flow (AC-MEMBERS-2) passed only structural validation (tsc clean, playwright --list enumerates 9 tests) and has never been run end-to-end in CI.",
-      "created_at": "2026-05-18"
-    },
     {
       "slug": "makefile-envrc-not-pin-playwright-browsers",
       "scope": "any",
