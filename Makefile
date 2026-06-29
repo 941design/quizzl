@@ -1,7 +1,22 @@
 APP_DIR := app
 PLATFORM_STAMP := $(APP_DIR)/node_modules/.platform_$(shell uname -s)-$(shell uname -m)
-PLAYWRIGHT_STAMP := $(APP_DIR)/node_modules/.playwright_$(shell uname -s)-$(shell uname -m)
 BUILD_VERSION := $(shell git rev-parse --short HEAD 2>/dev/null || date +%s)
+
+# Pin Playwright browsers to a project-isolated cache so a different project's
+# `npx playwright install` cannot overwrite the chromium revision this project
+# pins — the shared /opt cache contention documented in
+# bug-reports/e2e-iteration-2026-05-08.md § C1. `:=` makes this default win over
+# any ambient PLAYWRIGHT_BROWSERS_PATH (e.g. a shared /opt export); override it
+# explicitly on the make command line (`make ... PLAYWRIGHT_BROWSERS_PATH=...`)
+# if a shared cache is genuinely wanted.
+PLAYWRIGHT_BROWSERS_PATH := $(HOME)/.cache/playwright-nostling
+# The Playwright version this project pins (devDependency in app/package.json).
+PLAYWRIGHT_VERSION := $(shell sed -nE 's/.*"@playwright\/test": *"[\^~]?([0-9.]+)".*/\1/p' $(APP_DIR)/package.json | head -1)
+# Key the install stamp by OS+arch AND Playwright version, and store it inside the
+# (persistent, non-node_modules) browsers cache — so a version bump forces a
+# reinstall even when node_modules was not wiped, and a node_modules reinstall
+# does not pointlessly discard a still-valid browser install.
+PLAYWRIGHT_STAMP := $(PLAYWRIGHT_BROWSERS_PATH)/.installed_$(shell uname -s)-$(shell uname -m)_$(PLAYWRIGHT_VERSION)
 
 # Load environment variables from .env if it exists (for FTP credentials)
 -include .env
@@ -54,10 +69,11 @@ node_modules: ensure-deps ## Install deps (auto-reinstalls on platform switch)
 
 ## Always-run check: install Playwright browsers if stamp is missing
 ensure-playwright: ensure-deps
-	@if [ ! -f $(PLAYWRIGHT_STAMP) ]; then \
-		echo "[make] Installing Playwright browsers for $$(uname -s)-$$(uname -m)..."; \
+	@if [ ! -f "$(PLAYWRIGHT_STAMP)" ]; then \
+		echo "[make] Installing Playwright browsers ($(PLAYWRIGHT_VERSION)) for $$(uname -s)-$$(uname -m) into $(PLAYWRIGHT_BROWSERS_PATH)..."; \
+		mkdir -p "$(PLAYWRIGHT_BROWSERS_PATH)"; \
 		cd $(APP_DIR) && npx playwright install chromium; \
-		touch ../$(PLAYWRIGHT_STAMP); \
+		touch "$(PLAYWRIGHT_STAMP)"; \
 	fi
 
 playwright: ensure-playwright ## Install Playwright browsers (auto-reinstalls on platform/version change)

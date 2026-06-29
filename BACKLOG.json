@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T15:04:37Z",
+  "updated_at": "2026-06-29T15:09:45Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -119,16 +119,6 @@
     }
   ],
   "findings": [
-    {
-      "slug": "makefile-envrc-not-pin-playwright-browsers",
-      "scope": "any",
-      "anchor": {
-        "path": "Makefile",
-        "line": 45
-      },
-      "text": "Makefile/.envrc do not pin PLAYWRIGHT_BROWSERS_PATH; e2e runs depend on a shared /opt cache that drifts across project Playwright versions (see bug-reports/e2e-iteration-2026-05-08.md § C1 for three documented permanent-fix candidates).",
-      "created_at": "2026-05-18"
-    },
     {
       "slug": "dm-rendering-produced-multiple-bubbles-per",
       "scope": "any",
