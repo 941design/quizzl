@@ -197,6 +197,40 @@ export async function subscribeToWelcomes(
   };
 }
 
+// Module-level, per-group seen-id dedup. Each subscribeToGroupMessages call used
+// to start with a FRESH local Set, so when two instances overlap (a rapid
+// re-subscribe on groups state change before the old instance's teardown runs)
+// the same kind-445 event id could be ingested by both. Sharing the set per
+// group makes dedup cross-instance. Bounded LRU (insertion-ordered Set, evict
+// oldest past the cap), mirroring applicationRumorDispatcher. Deliberately NEVER
+// cleared on unsubscribe — a fresh instance must see the prior instance's
+// processed ids. Re-adding a seen id is a harmless no-op, and an evicted-then-
+// reseen id costs at most a redundant resolver.ingestEvent, which mlsGroup.ingest
+// already treats idempotently by MLS epoch ordering.
+const GROUP_SEEN_IDS_CAP = 1000;
+const seenIdsByGroup = new Map<string, Set<string>>();
+
+function getGroupSeenIds(groupKey: string): Set<string> {
+  let set = seenIdsByGroup.get(groupKey);
+  if (!set) {
+    set = new Set<string>();
+    seenIdsByGroup.set(groupKey, set);
+  }
+  return set;
+}
+
+function markGroupSeen(set: Set<string>, id: string): void {
+  set.add(id);
+  if (set.size > GROUP_SEEN_IDS_CAP) {
+    const evictCount = set.size - GROUP_SEEN_IDS_CAP;
+    const iter = set.values();
+    for (let i = 0; i < evictCount; i++) {
+      const oldest = iter.next().value;
+      if (oldest !== undefined) set.delete(oldest);
+    }
+  }
+}
+
 /**
  * Subscribe to kind 445 (encrypted group messages) for a specific group.
  * Returns an unsubscribe function.
@@ -221,8 +255,10 @@ export async function subscribeToGroupMessages(
     '#h': [nostrGroupIdHex],
   };
 
-  // Track processed event IDs to avoid double-processing between fetch and subscription
-  const processedIds = new Set<string>();
+  // Track processed event IDs to avoid double-processing between fetch and the
+  // live subscription, AND across overlapping subscription instances for the same
+  // group (shared module-level set keyed by groupId — see getGroupSeenIds).
+  const processedIds = getGroupSeenIds(groupId);
 
   // EpochResolver wraps mlsGroup.ingest() with fork resolution, rollback,
   // and future-epoch buffering. Application messages are dispatched by the
@@ -235,10 +271,13 @@ export async function subscribeToGroupMessages(
     { onMembersChanged },
   );
 
-  async function ingestNdkEvent(ndkEvent: import('@nostr-dev-kit/ndk').NDKEvent) {
+  // Returns true when this call newly ingested the event (i.e. it was not a
+  // duplicate). Used by the historical-sync loop to count net-new ingests
+  // accurately even though processedIds is now shared across instances.
+  async function ingestNdkEvent(ndkEvent: import('@nostr-dev-kit/ndk').NDKEvent): Promise<boolean> {
     const eventId = ndkEvent.id ?? '';
-    if (!eventId || processedIds.has(eventId)) return;
-    processedIds.add(eventId);
+    if (!eventId || processedIds.has(eventId)) return false;
+    markGroupSeen(processedIds, eventId);
 
     try {
       const nostrEvent = {
@@ -255,6 +294,7 @@ export async function subscribeToGroupMessages(
     } catch (err) {
       console.debug('[welcomeSubscription] Could not ingest group message:', err);
     }
+    return true;
   }
 
   // Build a relay set scoped to this group's relays so that traffic and
@@ -298,9 +338,7 @@ export async function subscribeToGroupMessages(
     );
     historicalCount = sorted.length;
     for (const ev of sorted) {
-      const before = processedIds.size;
-      await ingestNdkEvent(ev);
-      if (processedIds.size > before) historicalIngested++;
+      if (await ingestNdkEvent(ev)) historicalIngested++;
     }
   } catch (err) {
     console.debug('[welcomeSubscription] Historical fetch failed:', err);

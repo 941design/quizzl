@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T19:45:56Z",
+  "updated_at": "2026-06-29T19:50:36Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -163,21 +163,6 @@
       },
       "text": "ContactChat.tsx uses the same fetch-then-live-sub anti-pattern fixed in welcomeSubscription.ts: Phase-1 runs three parallel fetchEventsWithTimeout calls for DM history then Phase-2 opens three live ndk.subscribe calls, leaving a gap where events are silently lost.",
       "created_at": "2026-05-18"
-    },
-    {
-      "slug": "subscribetogroupmessages-creates-fresh",
-      "scope": "any",
-      "anchor": {
-        "path": "app/src/lib/marmot/welcomeSubscription.ts",
-        "line": 206
-      },
-      "text": "subscribeToGroupMessages creates a fresh processedIds Set on every call; if two subscription instances overlap during rapid re-subscribe (e.g. on groups state change), the same event ID can be dispatched twice across instances — cross-instance dedup requires module-level state or guaranteed teardown ordering.",
-      "created_at": "2026-05-18",
-      "deferred": {
-        "reason": "spec-gap",
-        "detail": "edge-case race likely absorbed by mlsGroup.ingest epoch idempotency (chat goes via applicationRumorDispatcher's module-level LRU, not here); module-level per-group dedup fix needs lifecycle/memory design to avoid dropping events",
-        "stamped_at": "2026-06-29"
-      }
     },
     {
       "slug": "dm-e2e-publish-via-app-refactor",

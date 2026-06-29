@@ -37,11 +37,13 @@ vi.mock('@nostr-dev-kit/ndk', () => ({
 }));
 
 // EpochResolver is statically imported by welcomeSubscription.ts; mock it so the
-// test doesn't need a real MarmotGroup with event-emitter shape.
+// test doesn't need a real MarmotGroup with event-emitter shape. ingestEvent is a
+// spy so the dedup test can assert how many events actually reached the resolver.
+const { mockIngestEvent } = vi.hoisted(() => ({ mockIngestEvent: vi.fn(async (_event: unknown) => {}) }));
 vi.mock('@/src/lib/marmot/epochResolver', () => ({
   EpochResolver: class {
     constructor(_group: unknown, _opts: unknown) {}
-    ingestEvent(_event: unknown) { return Promise.resolve(); }
+    ingestEvent(event: unknown) { return mockIngestEvent(event); }
     dispose() {}
   },
 }));
@@ -558,5 +560,41 @@ describe('subscribeToWelcomes — receipt-handler integration', () => {
     expect(mockMarmotClient.joinGroupFromWelcome).not.toHaveBeenCalled();
 
     unsub();
+  });
+});
+
+describe('subscribeToGroupMessages — cross-instance dedup (shared per-group seen ids)', () => {
+  it('does not ingest the same event twice across overlapping subscription instances', async () => {
+    mockFetchEventsWithTimeout.mockReset();
+    mockFetchEventsWithTimeout.mockResolvedValue({ events: new Set(), timedOut: false });
+    mockIngestEvent.mockClear();
+
+    // Capture the live-sub 'event' handler from each subscribe() call.
+    const handlers: Array<(ev: unknown) => void> = [];
+    const mockNdk = {
+      subscribe: vi.fn(() => ({
+        on: (_event: string, fn: (ev: unknown) => void) => { handlers.push(fn); },
+        stop: vi.fn(),
+      })),
+    };
+    const mlsGroup = { groupData: { nostrGroupId: new Uint8Array(32).fill(0xcd) } };
+    const GROUP = 'dedup-group-unique-xyz';
+
+    // Two overlapping instances for the SAME group (rapid re-subscribe).
+    const unsub1 = await subscribeToGroupMessages(GROUP, ['wss://r'], mlsGroup as never, mockNdk as never);
+    const unsub2 = await subscribeToGroupMessages(GROUP, ['wss://r'], mlsGroup as never, mockNdk as never);
+
+    // The same kind-445 event id is delivered to BOTH instances' live subs.
+    const event = { id: 'evt-shared-dedup-1', pubkey: 'p', created_at: 1, kind: 445, tags: [], content: '', sig: 's' };
+    handlers[0](event);
+    handlers[1](event);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Shared per-group seen-id set → ingested exactly once (not once per instance).
+    expect(mockIngestEvent).toHaveBeenCalledTimes(1);
+
+    unsub1();
+    unsub2();
   });
 });
