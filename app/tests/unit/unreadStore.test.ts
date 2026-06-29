@@ -266,3 +266,63 @@ describe('unreadStore direct-message counters', () => {
     expect(typeof mod.initDirectMessageCounts).toBe('function');
   });
 });
+
+describe('unreadStore init reconciliation (live increment during init)', () => {
+  it('preserves a live increment that arrives during initUnreadCounts (no startup clobber)', async () => {
+    const unread = await import('@/src/lib/unreadStore');
+    const idb = await import('idb-keyval');
+    const getMock = idb.get as unknown as ReturnType<typeof vi.fn>;
+    const prev = getMock.getMockImplementation();
+
+    // Scan sees 1 message and, mid-scan, a live message arrives for the same
+    // group (chatHandler persists BEFORE incrementUnread, so by re-read time IDB
+    // holds 2). The old wholesale-replace would clobber the count back to the
+    // stale scan value (1); reconciliation re-reads and reports the true 2.
+    let reads = 0;
+    getMock.mockImplementation(async (key: string) => {
+      if (key === 'quizzl:messages:race-g1') {
+        reads += 1;
+        if (reads === 1) {
+          unread.incrementUnread('race-g1');
+          return [{ id: 'a', createdAt: 10, senderPubkey: 'peer' }];
+        }
+        return [
+          { id: 'a', createdAt: 10, senderPubkey: 'peer' },
+          { id: 'b', createdAt: 20, senderPubkey: 'peer' },
+        ];
+      }
+      return undefined;
+    });
+
+    await unread.initUnreadCounts(['race-g1'], 'own');
+    expect(unread.useUnreadCounts().counts['race-g1']).toBe(2);
+
+    getMock.mockImplementation(prev ?? (async () => undefined));
+  });
+
+  it('does not double-count when the live message was already in the scan snapshot', async () => {
+    const unread = await import('@/src/lib/unreadStore');
+    const idb = await import('idb-keyval');
+    const getMock = idb.get as unknown as ReturnType<typeof vi.fn>;
+    const prev = getMock.getMockImplementation();
+
+    // Here the scan already sees both messages (the live one was persisted before
+    // the scan read the key). The re-read returns the same 2 — authoritative IDB
+    // count, NOT scan(2) + live-bump(1) = 3.
+    getMock.mockImplementation(async (key: string) => {
+      if (key === 'quizzl:messages:race-g2') {
+        unread.incrementUnread('race-g2');
+        return [
+          { id: 'a', createdAt: 10, senderPubkey: 'peer' },
+          { id: 'b', createdAt: 20, senderPubkey: 'peer' },
+        ];
+      }
+      return undefined;
+    });
+
+    await unread.initUnreadCounts(['race-g2'], 'own');
+    expect(unread.useUnreadCounts().counts['race-g2']).toBe(2);
+
+    getMock.mockImplementation(prev ?? (async () => undefined));
+  });
+});

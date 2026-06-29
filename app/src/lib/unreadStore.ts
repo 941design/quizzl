@@ -42,6 +42,70 @@ function getServerSnapshot(): UnreadState {
   return { counts: {}, joinRequests: {}, directMessages: {} };
 }
 
+// --- Init / live-increment reconciliation ---
+// Each init*Counts reads IDB asynchronously, then replaces a state slice. A live
+// increment (incrementUnread / incrementJoinRequest / incrementDirectMessage)
+// arriving DURING that async scan must not be clobbered by the stale computed
+// snapshot — the bug where a freshly-arrived message lowered the badge right
+// after startup. Every increment source persists to IDB *before* calling its
+// increment (chatHandler awaits appendMessage first; the join-request and DM
+// paths likewise store before counting), so a key "touched" by a live increment
+// during init can be authoritatively RE-READ from IDB — capturing the new
+// message without double-counting the live bump.
+type CountSlice = 'counts' | 'joinRequests' | 'directMessages';
+const initInProgress: Record<CountSlice, boolean> = {
+  counts: false,
+  joinRequests: false,
+  directMessages: false,
+};
+const initTouched: Record<CountSlice, Set<string>> = {
+  counts: new Set(),
+  joinRequests: new Set(),
+  directMessages: new Set(),
+};
+
+function noteLiveIncrement(slice: CountSlice, key: string) {
+  if (initInProgress[slice]) initTouched[slice].add(key);
+}
+
+async function reconcileInit(
+  slice: CountSlice,
+  keys: string[],
+  computeForKey: (key: string) => Promise<number>,
+): Promise<void> {
+  initInProgress[slice] = true;
+  initTouched[slice].clear();
+
+  const next: Record<string, number> = {};
+  for (const key of keys) {
+    const n = await computeForKey(key);
+    if (n > 0) next[key] = n;
+  }
+
+  // Re-read keys a live increment touched during the scan; the authoritative IDB
+  // count supersedes both the stale `next` and the live bump. Bounded so a
+  // steady message stream cannot loop forever (residual staleness ≤ a handful of
+  // messages arriving in the final window — vs. the old bug losing them all).
+  let passes = 0;
+  while (initTouched[slice].size > 0 && passes < 3) {
+    passes++;
+    const toReread = Array.from(initTouched[slice]);
+    initTouched[slice].clear();
+    for (const key of toReread) {
+      const n = await computeForKey(key);
+      if (n > 0) next[key] = n;
+      else delete next[key];
+    }
+  }
+
+  initInProgress[slice] = false;
+  // `next` (authoritative) wins for every recomputed key; any live-only key not
+  // in `keys` is preserved. No await between here and the write, so no increment
+  // can interleave and be lost.
+  state = { ...state, [slice]: { ...state[slice], ...next } };
+  emit();
+}
+
 // --- Persistence helpers ---
 
 function loadLastReadTimestamps(): Record<string, number> {
@@ -86,6 +150,7 @@ function dmKey(peerPubkeyHex: string): string {
 
 /** Increment unread count for a group (called when a chat message arrives). */
 export function incrementUnread(groupId: string) {
+  noteLiveIncrement('counts', groupId);
   const next = { ...state.counts };
   next[groupId] = (next[groupId] ?? 0) + 1;
   state = { ...state, counts: next };
@@ -127,27 +192,20 @@ export function clearUnreadGroup(groupId: string) {
 export async function initUnreadCounts(groupIds: string[], ownPubkey: string) {
   const timestamps = loadLastReadTimestamps();
   const { get } = await import('idb-keyval');
-
-  const next: Record<string, number> = {};
-
-  for (const groupId of groupIds) {
+  await reconcileInit('counts', groupIds, async (groupId) => {
     const lastRead = timestamps[groupId] ?? 0;
-    const key = `quizzl:messages:${groupId}`;
     try {
-      const messages: Array<{ createdAt: number; senderPubkey: string }> | undefined = await get(key);
+      const messages: Array<{ createdAt: number; senderPubkey: string }> | undefined = await get(
+        `quizzl:messages:${groupId}`,
+      );
       if (messages && messages.length > 0) {
-        const unread = messages.filter(
-          (m) => m.createdAt > lastRead && m.senderPubkey !== ownPubkey,
-        ).length;
-        if (unread > 0) next[groupId] = unread;
+        return messages.filter((m) => m.createdAt > lastRead && m.senderPubkey !== ownPubkey).length;
       }
     } catch {
       // Non-fatal — group messages may not exist yet
     }
-  }
-
-  state = { ...state, counts: next };
-  emit();
+    return 0;
+  });
 }
 
 /**
@@ -158,26 +216,22 @@ export async function initJoinRequestCounts(groupIds: string[]) {
   const { entries } = await import('idb-keyval');
   const { createJoinRequestStore } = await import('@/src/lib/marmot/joinRequestStorage');
   const store = createJoinRequestStore();
-
-  try {
-    const all = await entries<string, { groupId: string }>(store);
-    const next: Record<string, number> = {};
-    for (const [, req] of all) {
-      if (groupIds.includes(req.groupId)) {
-        next[req.groupId] = (next[req.groupId] ?? 0) + 1;
-      }
+  await reconcileInit('joinRequests', groupIds, async (groupId) => {
+    try {
+      const all = await entries<string, { groupId: string }>(store);
+      return all.filter(([, req]) => req.groupId === groupId).length;
+    } catch {
+      // Non-fatal — join request store may not exist yet
+      return 0;
     }
-    state = { ...state, joinRequests: next };
-    emit();
-  } catch {
-    // Non-fatal — join request store may not exist yet
-  }
+  });
 }
 
 // --- Join request counter API ---
 
 /** Increment join request counter for a group. */
 export function incrementJoinRequest(groupId: string) {
+  noteLiveIncrement('joinRequests', groupId);
   const next = { ...state.joinRequests };
   next[groupId] = (next[groupId] ?? 0) + 1;
   state = { ...state, joinRequests: next };
@@ -227,6 +281,7 @@ export function clearJoinRequestGroup(groupId: string) {
 /** Increment unread direct-message count for a peer (called when a DM arrives). */
 export function incrementDirectMessage(peerPubkeyHex: string) {
   const key = dmKey(peerPubkeyHex);
+  noteLiveIncrement('directMessages', key);
   const next = { ...state.directMessages };
   next[key] = (next[key] ?? 0) + 1;
   state = { ...state, directMessages: next };
@@ -277,30 +332,25 @@ export async function initDirectMessageCounts(peerPubkeysHex: string[], ownPubke
   const own = ownPubkeyHex.toLowerCase();
   const timestamps = loadDirectMessageLastRead();
   const { get } = await import('idb-keyval');
-
-  const computed: Record<string, number> = {};
-
-  for (const peer of peerPubkeysHex) {
-    const key = dmKey(peer);
+  // Key the slice by dmKey (lowercased peer) — matches incrementDirectMessage and
+  // state.directMessages. reconcileInit re-reads any peer touched by a live DM
+  // during the scan, so a stale computed value can no longer overwrite a newer
+  // live count (the bug this finding flagged at the merge site).
+  const keys = peerPubkeysHex.map(dmKey);
+  await reconcileInit('directMessages', keys, async (key) => {
     const lastRead = timestamps[key] ?? 0;
-    const storageKey = `quizzl:messages:dm:${key}`;
     try {
-      const messages: Array<{ createdAt: number; senderPubkey: string }> | undefined = await get(storageKey);
+      const messages: Array<{ createdAt: number; senderPubkey: string }> | undefined = await get(
+        `quizzl:messages:dm:${key}`,
+      );
       if (messages && messages.length > 0) {
-        const unread = messages.filter(
-          (m) => m.createdAt > lastRead && m.senderPubkey.toLowerCase() !== own,
-        ).length;
-        if (unread > 0) computed[key] = unread;
+        return messages.filter((m) => m.createdAt > lastRead && m.senderPubkey.toLowerCase() !== own).length;
       }
     } catch {
       // Non-fatal — DM thread may not exist yet
     }
-  }
-
-  // Merge: preserve any live increments that arrived while we were reading
-  // IDB. `computed` wins for peers we re-evaluated from persistence.
-  state = { ...state, directMessages: { ...state.directMessages, ...computed } };
-  emit();
+    return 0;
+  });
 }
 
 /**
