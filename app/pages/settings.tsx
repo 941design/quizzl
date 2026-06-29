@@ -474,12 +474,15 @@ export default function SettingsPage() {
       await restoreFromBackup(pendingBackupPayload);
       window.location.reload();
     } catch (err) {
+      // Restore FAILED — surface the error, never a false-positive success.
+      // (The identity was already restored earlier in handleRestore; only the
+      // backup-payload application failed here, so the honest signal is an error.)
       console.error('[Settings] Backup restore failed:', err);
       backupRestoreDisclosure.onClose();
       setPendingBackupPayload(null);
-      setRestoreSuccess(true);
+      setRestoreError(copy.identity.restoreError);
     }
-  }, [pendingBackupPayload, backupRestoreDisclosure]);
+  }, [pendingBackupPayload, backupRestoreDisclosure, copy.identity.restoreError]);
 
   const handleDismissBackupRestore = useCallback(() => {
     backupRestoreDisclosure.onClose();

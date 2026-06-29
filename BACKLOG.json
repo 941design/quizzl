@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T16:51:04Z",
+  "updated_at": "2026-06-29T16:53:32Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -177,16 +177,6 @@
         "line": 125
       },
       "text": "Medium: unread-count initialization can clobber live increments during startup. unreadStore.ts:125 and :155 recompute state asynchronously then replace counts/joinRequests wholesale, so any message or join request arriving while IDB is being scanned can be lost. The DM path tries to preserve concurrent updates, but :298 still lets stale computed values overwrite newer live counts for peers it re-evaluated, contradicting the comment and lowering the badge count after startup.",
-      "created_at": "2026-05-18"
-    },
-    {
-      "slug": "restore-failure-reported-as-success",
-      "scope": "any",
-      "anchor": {
-        "path": "app/pages/settings.tsx",
-        "line": 219
-      },
-      "text": "Medium: failed backup restore is reported as success. In the error path of settings.tsx:219, a thrown restoreFromBackup() closes the dialog, clears the pending payload, and calls setRestoreSuccess(true) at :229 — producing a false-positive success state precisely when restore has failed.",
       "created_at": "2026-05-18"
     },
     {
