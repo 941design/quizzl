@@ -1,17 +1,18 @@
 {
   "epic_name": "voice-video-calls",
-  "status": "in_progress",
-  "phase": "IMPLEMENTING",
-  "current_story": "S1",
+  "status": "done",
+  "phase": "DONE",
+  "current_story": null,
   "created_at": "2026-06-23T00:00:00Z",
   "updated_at": "2026-06-23T00:00:00Z",
   "pre_existing_dirty_files": [],
-  "completed_stories": [],
+  "completed_stories": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12"],
   "escalated_stories": [],
   "phase_history": [
     {"phase": "SPEC_VALIDATED", "timestamp": "2026-06-23T00:00:00Z", "trigger": "validation_passed"},
     {"phase": "STORIES_PLANNED", "timestamp": "2026-06-23T00:00:00Z", "trigger": "stories_json_written"},
-    {"phase": "IMPLEMENTING", "timestamp": "2026-06-23T00:00:00Z", "trigger": "S1_started"}
+    {"phase": "IMPLEMENTING", "timestamp": "2026-06-23T00:00:00Z", "trigger": "S1_started"},
+    {"phase": "DONE", "timestamp": "2026-06-23T00:00:00Z", "trigger": "all_stories_complete"}
   ],
   "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
   "consumer_sha": "c64fe0f39c1fb833a5910b0f5ddf4449d9b47e54",
