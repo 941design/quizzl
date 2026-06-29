@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-06-29T16:53:32Z",
+  "updated_at": "2026-06-29T16:58:36Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -177,7 +177,12 @@
         "line": 125
       },
       "text": "Medium: unread-count initialization can clobber live increments during startup. unreadStore.ts:125 and :155 recompute state asynchronously then replace counts/joinRequests wholesale, so any message or join request arriving while IDB is being scanned can be lost. The DM path tries to preserve concurrent updates, but :298 still lets stale computed values overwrite newer live counts for peers it re-evaluated, contradicting the comment and lowering the badge count after startup.",
-      "created_at": "2026-05-18"
+      "created_at": "2026-05-18",
+      "deferred": {
+        "reason": "spec-gap",
+        "detail": "needs design: reconcile init-from-IDB with concurrent incrementUnread without double/under-count (init-before-subscribe ordering, generation counter, or message-id dedup)",
+        "stamped_at": "2026-06-29"
+      }
     },
     {
       "slug": "e2e-suite-scale-bleed-groups-profile-request",
