@@ -2,7 +2,7 @@
  * IndexedDB-backed group state storage using idb-keyval.
  *
  * Stores:
- * - Group metadata list (name, members, relays) in 'quizzl_groups_v1'
+ * - Group metadata list (name, members, relays) in 'few_groups_v1'
  * - MLS group state bytes (passed directly to MarmotClient as groupStateStore)
  * - KeyPackage private material (passed directly as keyPackageStore)
  */
@@ -24,10 +24,10 @@ type KeyValueStoreBackend<T> = {
 // IDB stores (separate IDB object stores for isolation)
 // ---------------------------------------------------------------------------
 
-const groupMetaStore = createStore('quizzl-groups-meta', 'groups');
-const groupStateStore = createStore('quizzl-groups-state', 'state');
-const keyPackageStore = createStore('quizzl-keypackages', 'keypackages');
-const memberProfileStore = createStore('quizzl-member-profiles', 'profiles');
+const groupMetaStore = createStore('few-groups-meta', 'groups');
+const groupStateStore = createStore('few-groups-state', 'state');
+const keyPackageStore = createStore('few-keypackages', 'keypackages');
+const memberProfileStore = createStore('few-member-profiles', 'profiles');
 
 // ---------------------------------------------------------------------------
 // Group metadata (name, members, relays) — our own overlay, not MLS state

@@ -322,20 +322,20 @@ export function buildChatRumor(params: {
  * Identical to publishDirectMessage in wire format (NIP-17 gift-wrap) but
  * adds two marker tags to the inner rumor so the maintainer can identify
  * feedback messages on receipt:
- *   ["client", "nostling", <build-version>]  — which app version sent this
+ *   ["client", "few", <build-version>]  — which app version sent this
  *   ["l", "feedback"]                          — label tag per NIP-32
  *
  * The build-version element is included only when NEXT_PUBLIC_BUILD_VERSION
- * is available; otherwise the tag is ["client", "nostling"] (two elements).
+ * is available; otherwise the tag is ["client", "few"] (two elements).
  *
  * Ordinary DMs sent via publishDirectMessage carry NO marker tags — this
  * function must not be confused with it.
  */
 /**
- * The sealed marker tags that identify a kind-14 rumor as Nostling feedback.
+ * The sealed marker tags that identify a kind-14 rumor as Few feedback.
  *
  * Two tags ride inside the sealed rumor (never on the relay-visible outer wrap):
- *   ["client", "nostling", <build-version>]  — NIP-89-style client identification
+ *   ["client", "few", <build-version>]  — NIP-89-style client identification
  *   ["l", "feedback"]                          — NIP-32 label discriminator
  *
  * The build-version slot is omitted when NEXT_PUBLIC_BUILD_VERSION is unavailable.
@@ -346,8 +346,8 @@ export function buildChatRumor(params: {
 export function feedbackMarkerTags(): string[][] {
   const buildVersion = process.env.NEXT_PUBLIC_BUILD_VERSION;
   const clientTag: string[] = buildVersion
-    ? ['client', 'nostling', buildVersion]
-    : ['client', 'nostling'];
+    ? ['client', 'few', buildVersion]
+    : ['client', 'few'];
   return [clientTag, ['l', 'feedback']];
 }
 

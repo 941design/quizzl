@@ -46,7 +46,7 @@ describe('maintainer config (S1) — default (env unset)', () => {
 
   it('MAINTAINER_DISPLAY_NAME is the expected constant', async () => {
     const { MAINTAINER_DISPLAY_NAME } = await import('@/src/config/maintainer');
-    expect(MAINTAINER_DISPLAY_NAME).toBe('Nostling Team');
+    expect(MAINTAINER_DISPLAY_NAME).toBe('Few Team');
   });
 
   it('isMaintainerPubkey returns true for a known maintainer hex', async () => {

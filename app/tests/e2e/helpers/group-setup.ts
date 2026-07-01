@@ -108,7 +108,7 @@ export async function createGroupAndInvite(
     : inviteeNpub;
 
   // Wait for Alice's MarmotContext to have persisted the invitee into memberPubkeys.
-  // Groups are stored in IndexedDB ('quizzl-groups-meta' / 'groups').
+  // Groups are stored in IndexedDB ('few-groups-meta' / 'groups').
   // The gate in DirectMessageNotificationsWatcher reads groupsRef.current which
   // is only accurate once MarmotContext has called setGroups with the updated
   // memberPubkeys — i.e. after reloadGroups() completes following Welcome processing.
@@ -117,7 +117,7 @@ export async function createGroupAndInvite(
   await alicePage.waitForFunction(
     (inviteePubHex: string) => {
       return new Promise<boolean>((resolve) => {
-        const req = indexedDB.open('quizzl-groups-meta');
+        const req = indexedDB.open('few-groups-meta');
         req.onerror = () => resolve(false);
         req.onsuccess = () => {
           const db = req.result;

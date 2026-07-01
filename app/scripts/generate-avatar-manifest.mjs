@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const FETCH_BASE_URL = 'https://assets.941design.de';
-const STORED_BASE_URL = '//assets.941design.de';
+const FETCH_BASE_URL = 'https://few.chat/assets';
+const STORED_BASE_URL = '//few.chat/assets';
 const SEARCH_URL = `${FETCH_BASE_URL}/cgi/search`;
 const PAGE_SIZE = 500;
 const CONCURRENCY = 8;

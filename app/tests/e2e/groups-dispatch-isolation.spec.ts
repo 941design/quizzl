@@ -77,15 +77,15 @@ async function getFirstMessageId(page: Page): Promise<string> {
 }
 
 /**
- * Install the window.__nostlingTest.onChatIdbWrite counter on the page.
+ * Install the window.__fewTest.onChatIdbWrite counter on the page.
  * Must be called via page.addInitScript BEFORE the page navigates so the
  * hook is in place when appendMessage fires.  (AC-AR-22)
  */
 async function installChatIdbWriteCounter(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    (window as any).__nostlingTest = (window as any).__nostlingTest ?? {};
+    (window as any).__fewTest = (window as any).__fewTest ?? {};
     (window as any).__chatIdbWriteCount = 0;
-    (window as any).__nostlingTest.onChatIdbWrite = (_args: { groupId: string; messageId: string }) => {
+    (window as any).__fewTest.onChatIdbWrite = (_args: { groupId: string; messageId: string }) => {
       (window as any).__chatIdbWriteCount++;
     };
   });
@@ -118,9 +118,9 @@ test.describe.serial('groups-dispatch-isolation', () => {
       localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
       localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null }));
       // IDB write counter for AC-AR-22
-      (window as any).__nostlingTest = (window as any).__nostlingTest ?? {};
+      (window as any).__fewTest = (window as any).__fewTest ?? {};
       (window as any).__chatIdbWriteCount = 0;
-      (window as any).__nostlingTest.onChatIdbWrite = (_args: { groupId: string; messageId: string }) => {
+      (window as any).__fewTest.onChatIdbWrite = (_args: { groupId: string; messageId: string }) => {
         (window as any).__chatIdbWriteCount++;
       };
     }, {
@@ -223,8 +223,8 @@ test.describe.serial('groups-dispatch-isolation', () => {
     await pageA.waitForTimeout(5_000);
 
     // --- IDB row count assertion (AC-AR-21) ---
-    // Read the raw array stored under "quizzl:messages:{groupId}".
-    const idbKey = `quizzl:messages:${sharedGroupId}`;
+    // Read the raw array stored under "few:messages:{groupId}".
+    const idbKey = `few:messages:${sharedGroupId}`;
     const storedMessages = await readIdbRecord<{ id: string }[]>(pageA, CHAT_IDB_DB, CHAT_IDB_STORE, idbKey);
     expect(storedMessages).not.toBeNull();
     const matching = (storedMessages ?? []).filter((m) => m.id === sharedMessageId);
@@ -266,7 +266,7 @@ test.describe.serial('groups-dispatch-isolation', () => {
     await expect(pageB.locator(`[data-testid="msg-${sharedMessageId}"]`)).toHaveCount(1);
 
     // IDB on Bob's side must also have exactly one entry for the message id.
-    const idbKey = `quizzl:messages:${sharedGroupId}`;
+    const idbKey = `few:messages:${sharedGroupId}`;
     const storedMessages = await readIdbRecord<{ id: string }[]>(pageB, CHAT_IDB_DB, CHAT_IDB_STORE, idbKey);
     expect(storedMessages).not.toBeNull();
     const matching = (storedMessages ?? []).filter((m) => m.id === sharedMessageId);

@@ -1,7 +1,7 @@
 /**
  * IndexedDB-backed pending join request storage using idb-keyval.
  *
- * Each request is keyed by its eventId in the 'quizzl-join-requests' database.
+ * Each request is keyed by its eventId in the 'few-join-requests' database.
  * Deduplication: savePendingJoinRequest is a no-op if a request with the same
  * pubkeyHex + groupId already exists.
  */
@@ -27,7 +27,7 @@ export interface PendingJoinRequest {
 // IDB store
 // ---------------------------------------------------------------------------
 
-const joinRequestStore = createStore('quizzl-join-requests', 'requests');
+const joinRequestStore = createStore('few-join-requests', 'requests');
 
 export function createJoinRequestStore() {
   return joinRequestStore;

@@ -25,7 +25,7 @@ export async function publishKeyPackages(
       await keyPackageManager.create({
         relays,
         isLastResort: i === count - 1, // last one is last-resort
-        client: 'nostling',
+        client: 'few',
       });
       published++;
     } catch (err) {

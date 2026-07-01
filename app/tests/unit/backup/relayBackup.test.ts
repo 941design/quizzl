@@ -201,7 +201,7 @@ describe('collectBackupPayload', () => {
   it('reads userProfile from localStorage', async () => {
     const profile = {
       nickname: 'Alice',
-      avatar: { imageUrl: '//assets.941design.de/a1.png' },
+      avatar: { imageUrl: '//few.chat/assets/a1.png' },
     };
     localStore[STORAGE_KEYS.userProfile] = JSON.stringify(profile);
 
@@ -277,10 +277,10 @@ describe('collectBackupPayload', () => {
         createdAt: 1700000000000,
       },
     ];
-    // chatPersistence stores in default idb-keyval store with key quizzl:messages:{groupId}
+    // chatPersistence stores in default idb-keyval store with key few:messages:{groupId}
     // We need to set it directly since loadMessages uses the default store
     const { set: idbSet } = await import('idb-keyval');
-    await idbSet(`quizzl:messages:g1`, messages);
+    await idbSet(`few:messages:g1`, messages);
 
     const payload = await collectBackupPayload();
     expect(payload.chatMessages['g1']).toEqual(messages);
@@ -309,7 +309,7 @@ describe('collectBackupPayload', () => {
     }));
 
     const { set: idbSet } = await import('idb-keyval');
-    await idbSet(`quizzl:messages:g1`, messages);
+    await idbSet(`few:messages:g1`, messages);
 
     const payload = await collectBackupPayload();
     expect(payload.chatMessages['g1']).toHaveLength(10);
@@ -451,7 +451,7 @@ function makeMockSigner() {
 const mockNdk = { fake: true } as unknown;
 
 describe('createBackupEvent', () => {
-  it('encrypts payload and returns kind 30078 event with d:nostling tag', async () => {
+  it('encrypts payload and returns kind 30078 event with d:few tag', async () => {
     const signer = makeMockSigner();
     const payload: BackupPayload = {
       version: 1,
@@ -467,7 +467,7 @@ describe('createBackupEvent', () => {
     const event = await createBackupEvent(payload, signer, 'deadbeef');
 
     expect(event.kind).toBe(30078);
-    expect(event.tags).toEqual([['d', 'nostling']]);
+    expect(event.tags).toEqual([['d', 'few']]);
     expect(event.content).toBe(`encrypted:${JSON.stringify(payload)}`);
     expect(signer.nip44.encrypt).toHaveBeenCalledWith('deadbeef', JSON.stringify(payload));
     expect(typeof event.created_at).toBe('number');
@@ -694,16 +694,16 @@ describe('restoreFromBackup', () => {
     expect(localStore[STORAGE_KEYS.nostrIdentity]).toBe(JSON.stringify({ pubkeyHex: 'abc' }));
   });
 
-  it('preserves DM thread messages (does not wipe quizzl:messages:dm:*)', async () => {
+  it('preserves DM thread messages (does not wipe few:messages:dm:*)', async () => {
     const dmMessages = [
       { id: 'd1', content: 'hi', senderPubkey: 'peer', groupId: 'dm:peer', createdAt: 1 },
     ];
-    await set('quizzl:messages:dm:peer', dmMessages);
+    await set('few:messages:dm:peer', dmMessages);
 
     // The payload carries no DM threads; restore must leave them intact.
     await restoreFromBackup(makeEmptyPayload());
 
-    expect(await get('quizzl:messages:dm:peer')).toEqual(dmMessages);
+    expect(await get('few:messages:dm:peer')).toEqual(dmMessages);
   });
 
   it('merges group chat by id, preserving local history beyond the backup cap', async () => {
@@ -714,7 +714,7 @@ describe('restoreFromBackup', () => {
       { id: 'm2', content: 'two', senderPubkey: 'pk', groupId: 'g1', createdAt: 2 },
       { id: 'm3', content: 'three', senderPubkey: 'pk', groupId: 'g1', createdAt: 3 },
     ];
-    await set('quizzl:messages:g1', local);
+    await set('few:messages:g1', local);
 
     const backup = [
       { id: 'm3', content: 'three', senderPubkey: 'pk', groupId: 'g1', createdAt: 3 },
@@ -745,7 +745,7 @@ describe('restoreFromBackup', () => {
   it('rehydrates userProfile from payload', async () => {
     const profile = {
       nickname: 'Alice',
-      avatar: { imageUrl: '//assets.941design.de/a1.png' },
+      avatar: { imageUrl: '//few.chat/assets/a1.png' },
     };
 
     await restoreFromBackup(makeEmptyPayload({ userProfile: profile }));

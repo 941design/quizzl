@@ -174,7 +174,7 @@ export async function collectBackupPayload(): Promise<BackupPayload> {
 
 /** Kind 30078 is a parameterized replaceable event (NIP-78: application data). */
 const BACKUP_EVENT_KIND = 30078;
-const BACKUP_D_TAG = 'nostling';
+const BACKUP_D_TAG = 'few';
 
 /** Kind 30051 is a relay list for specific use (NIP-51 sets). */
 const RELAY_LIST_KIND = 30051;
@@ -329,7 +329,7 @@ export async function getBackupRelays(
  *
  * Restore therefore overwrites ONLY the categories the backup carries and leaves
  * everything else untouched. An earlier implementation blanket-cleared every
- * `STORAGE_KEYS` entry and every `quizzl:messages:*` IDB key (including DM
+ * `STORAGE_KEYS` entry and every `few:messages:*` IDB key (including DM
  * threads) before rehydrating the subset, silently destroying DM history,
  * contacts, relay/signer config, polls, and media. Group chat is MERGED rather
  * than overwritten so the per-group MAX_CHAT_MESSAGES cap cannot erase local
@@ -368,10 +368,10 @@ export async function restoreFromBackup(payload: BackupPayload): Promise<void> {
   //    to the most recent MAX_CHAT_MESSAGES, so overwriting would erase local
   //    history beyond the cap. Union the backup messages with whatever is
   //    already stored (local wins on id collision), sorted chronologically. DM
-  //    threads (`quizzl:messages:dm:*`) are not in the payload and are untouched.
+  //    threads (`few:messages:dm:*`) are not in the payload and are untouched.
   const { get: idbGet, set: idbSet } = await import('idb-keyval');
   for (const [groupId, backupMessages] of Object.entries(payload.chatMessages)) {
-    const key = `quizzl:messages:${groupId}`;
+    const key = `few:messages:${groupId}`;
     const existing = (await idbGet<ChatMessage[]>(key)) ?? [];
     const byId = new Map<string, ChatMessage>();
     for (const m of existing) byId.set(m.id, m);

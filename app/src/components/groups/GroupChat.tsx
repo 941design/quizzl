@@ -20,13 +20,13 @@ export default function GroupChat({ threadId, pubkey, profileMap }: GroupChatPro
   }, [sendReaction]);
 
   // E2E state-injection bridge — only in non-production builds (AC-40, story brief).
-  // Exposes window.__nostlingReactions.send(groupId, messageId, emoji) for Playwright tests.
+  // Exposes window.__fewReactions.send(groupId, messageId, emoji) for Playwright tests.
   // Story-08 will replace this with real picker UI; the bridge is removed then.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (process.env.NODE_ENV === 'production') return;
 
-    (window as any).__nostlingReactions = {
+    (window as any).__fewReactions = {
       send: (targetGroupId: string, messageId: string, emoji: string, isRemoval?: boolean) => {
         // Find the target message in the current messages list
         const msg = messages.find((m) => m.id === messageId);

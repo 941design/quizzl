@@ -1,4 +1,4 @@
-# nostling
+# few-chat
 
 ## Multi-platform development
 
@@ -32,7 +32,7 @@ E2E tests (Playwright, under `app/tests/e2e/`) must drive publishes through the 
 
 - When a test needs a peer to send a message, gift-wrap, group event, etc., boot a second `browser.newContext()`, sign in as that peer, and call the app's publish helper (`publishDirectMessage`, group send, …).
 - Do not hand-sign a kind-1059 / kind-14 / kind-4 in the test process and `WebSocket.send` it to the relay. Such a test passes even when the app's signer, NDK config, retry/dedupe, or future protocol changes are broken — which defeats the point of an e2e test.
-- Narrow exception: events the app cannot itself produce (e.g., a bare-plaintext kind-4 from a non-Nostling client). Treat as exceptional, prefer a fixture loader over inline WebSocket, and call it out in the spec header.
+- Narrow exception: events the app cannot itself produce (e.g., a bare-plaintext kind-4 from a non-Few client). Treat as exceptional, prefer a fixture loader over inline WebSocket, and call it out in the spec header.
 
 ## Project state
 Project orientation lives in `BACKLOG.json`. On a fresh session — or when

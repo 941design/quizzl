@@ -430,8 +430,8 @@ export function NostrIdentityProvider({ children }: { children: React.ReactNode 
       await ephemeralSigner.blockUntilReady();
 
       const nip46 = NDKNip46Signer.nostrconnect(ndk, relay, ephemeralSigner, {
-        name: 'Nostling',
-        url: 'https://nostling.app',
+        name: 'Few',
+        url: 'https://few.chat',
         perms: REQUIRED_PERMS.join(','),
       });
 
@@ -715,9 +715,9 @@ async function publishIdentityToRelays(stored: StoredNostrIdentity): Promise<voi
     const metadataEvent = new NDK.NDKEvent(ndk, {
       kind: 0,
       content: JSON.stringify({
-        name: profile.nickname || 'Nostling User',
-        about: 'Chatting with Nostling',
-        client: 'nostling',
+        name: profile.nickname || 'Few User',
+        about: 'Chatting with Few',
+        client: 'few',
       }),
       tags: [],
       created_at: Math.floor(Date.now() / 1000),

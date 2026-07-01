@@ -1,7 +1,7 @@
 import { createStore, get, set, del, keys, clear } from 'idb-keyval';
 
-const blobStore = createStore('quizzl-media-blobs', 'blobs');
-const metaStore = createStore('quizzl-media-meta', 'meta');
+const blobStore = createStore('few-media-blobs', 'blobs');
+const metaStore = createStore('few-media-meta', 'meta');
 
 type BlobEntry = { bytes: Uint8Array; type: string };
 type MetaEntry = { messageIds: string[] };

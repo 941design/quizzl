@@ -38,7 +38,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
 async function waitForBridge(page: Page) {
   await page.waitForFunction(
-    () => !!(window as any).__nostlingUnread,
+    () => !!(window as any).__fewUnread,
     null,
     { timeout: 10_000 },
   );
@@ -163,18 +163,18 @@ test.describe.serial('DM walled garden: group member allowed (AC-TEST-5)', () =>
       return parseInt((badge.textContent ?? '0').trim(), 10);
     });
 
-    // Bob publishes a DM to Alice via the app's __nostlingPublishDm bridge (dev only).
+    // Bob publishes a DM to Alice via the app's __fewPublishDm bridge (dev only).
     // This avoids broken @/-alias dynamic imports from page.evaluate which fail in
     // the browser context — the bridge uses the page's already-loaded webpack bundle.
     const DM_CONTENT = `member-dm-${Date.now()}`;
     await bobPage.waitForFunction(
-      () => typeof (window as any).__nostlingPublishDm === 'function',
+      () => typeof (window as any).__fewPublishDm === 'function',
       null,
       { timeout: 10_000 },
     );
     await bobPage.evaluate(
       async ({ alicePub, content }) => {
-        await (window as any).__nostlingPublishDm(alicePub, content);
+        await (window as any).__fewPublishDm(alicePub, content);
       },
       {
         alicePub: USER_A.pubkeyHex,

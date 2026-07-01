@@ -133,7 +133,7 @@ describe('unreadStore join request counters', () => {
   });
 
   it('exports all join request functions for test bridge', async () => {
-    // The window.__nostlingUnread bridge is set at module load time only when
+    // The window.__fewUnread bridge is set at module load time only when
     // typeof window !== 'undefined'. In Vitest (no jsdom), window is undefined.
     // Instead we verify the functions are exported — the bridge just
     // re-exports these same references.
@@ -280,7 +280,7 @@ describe('unreadStore init reconciliation (live increment during init)', () => {
     // stale scan value (1); reconciliation re-reads and reports the true 2.
     let reads = 0;
     getMock.mockImplementation(async (key: string) => {
-      if (key === 'quizzl:messages:race-g1') {
+      if (key === 'few:messages:race-g1') {
         reads += 1;
         if (reads === 1) {
           unread.incrementUnread('race-g1');
@@ -310,7 +310,7 @@ describe('unreadStore init reconciliation (live increment during init)', () => {
     // the scan read the key). The re-read returns the same 2 — authoritative IDB
     // count, NOT scan(2) + live-bump(1) = 3.
     getMock.mockImplementation(async (key: string) => {
-      if (key === 'quizzl:messages:race-g2') {
+      if (key === 'few:messages:race-g2') {
         unread.incrementUnread('race-g2');
         return [
           { id: 'a', createdAt: 10, senderPubkey: 'peer' },

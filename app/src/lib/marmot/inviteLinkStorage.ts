@@ -1,7 +1,7 @@
 /**
  * IndexedDB-backed invite link storage using idb-keyval.
  *
- * Each invite link is keyed by its nonce in the 'quizzl-invite-links' database.
+ * Each invite link is keyed by its nonce in the 'few-invite-links' database.
  */
 
 import { createStore, get, set, del, entries, clear } from 'idb-keyval';
@@ -23,7 +23,7 @@ export interface InviteLink {
 // IDB store
 // ---------------------------------------------------------------------------
 
-const inviteLinkStore = createStore('quizzl-invite-links', 'links');
+const inviteLinkStore = createStore('few-invite-links', 'links');
 
 export function createInviteLinkStore() {
   return inviteLinkStore;

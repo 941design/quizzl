@@ -100,7 +100,7 @@ describe('UserProfile', () => {
     });
 
     expect(readUserProfile().avatar).toEqual({
-      imageUrl: '//assets.941design.de/berry-9.png',
+      imageUrl: '//few.chat/assets/berry-9.png',
     });
   });
 });

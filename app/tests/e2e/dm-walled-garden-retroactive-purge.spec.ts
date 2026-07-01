@@ -2,15 +2,15 @@
  * E2E: DM walled garden — retroactive purge on boot (AC-TEST-6)
  *
  * Pre-seeds Alice's IDB with:
- *   - quizzl:messages:dm:<malloryHex>  (stranger DM thread)
- *   - quizzl:messages:dm:<bobHex>      (member DM thread)
+ *   - few:messages:dm:<malloryHex>  (stranger DM thread)
+ *   - few:messages:dm:<bobHex>      (member DM thread)
  * And pre-seeds her localStorage with:
  *   - lp_contacts_v1 containing both Mallory and Bob
  *
  * Alice boots the app with Bob in a group but no Mallory group membership.
  * After hydration (MarmotContext runs purgeStrangerDmThreads), the app must:
- *   a. Delete the Mallory IDB thread key (quizzl:messages:dm:<malloryHex>)
- *   b. Retain the Bob IDB thread key (quizzl:messages:dm:<bobHex>)
+ *   a. Delete the Mallory IDB thread key (few:messages:dm:<malloryHex>)
+ *   b. Retain the Bob IDB thread key (few:messages:dm:<bobHex>)
  *   c. Remove Mallory from lp_contacts_v1
  *
  * Keypairs:
@@ -113,8 +113,8 @@ test.describe('DM walled garden: retroactive purge on boot (AC-TEST-6)', () => {
       await alicePage.waitForLoadState('networkidle');
 
       // ── 2. Pre-seed DM thread keys in IDB before clearAppState ──────────────
-      const malloryThreadKey = `quizzl:messages:dm:${USER_C.pubkeyHex.toLowerCase()}`;
-      const bobThreadKey = `quizzl:messages:dm:${USER_B.pubkeyHex.toLowerCase()}`;
+      const malloryThreadKey = `few:messages:dm:${USER_C.pubkeyHex.toLowerCase()}`;
+      const bobThreadKey = `few:messages:dm:${USER_B.pubkeyHex.toLowerCase()}`;
 
       await writeIdbRecord(alicePage, 'keyval-store', 'keyval', malloryThreadKey, FAKE_MALLORY_MESSAGE);
       await writeIdbRecord(alicePage, 'keyval-store', 'keyval', bobThreadKey, FAKE_BOB_MESSAGE);
@@ -164,7 +164,7 @@ test.describe('DM walled garden: retroactive purge on boot (AC-TEST-6)', () => {
 
       // Wait for MarmotContext to initialize (bridge becomes available)
       await alicePage.waitForFunction(
-        () => !!(window as any).__nostlingUnread,
+        () => !!(window as any).__fewUnread,
         null,
         { timeout: 15_000 },
       );

@@ -7,7 +7,7 @@
  * Assertions:
  *   a. Alice's notification bell stays at 0 (badge never appears).
  *   b. No `notification-dm-<malloryPub>` row appears in the dropdown.
- *   c. `quizzl:messages:dm:<malloryHex>` key is absent from idb-keyval after a wait.
+ *   c. `few:messages:dm:<malloryHex>` key is absent from idb-keyval after a wait.
  *
  * Uses the two-context pattern from dm-giftwrap-bell.spec.ts.
  * Mallory = USER_C (seedHex: 'cc'.repeat(16)) — the third deterministic identity.
@@ -26,7 +26,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
 async function waitForBridge(page: Page) {
   await page.waitForFunction(
-    () => !!(window as any).__nostlingUnread,
+    () => !!(window as any).__fewUnread,
     null,
     { timeout: 10_000 },
   );
@@ -133,18 +133,18 @@ test.describe('DM walled garden: stranger blocked (AC-TEST-4)', () => {
       await malloryPage.waitForLoadState('networkidle');
       await waitForBridge(malloryPage);
 
-      // Publish via the app's __nostlingPublishDm bridge (NOT raw WebSocket, NOT @/ imports).
+      // Publish via the app's __fewPublishDm bridge (NOT raw WebSocket, NOT @/ imports).
       // The bridge is installed by unreadStore.ts in dev mode and uses the page's own identity.
       const DM_CONTENT = 'stranger-dm-should-be-blocked';
       await malloryPage.waitForFunction(
-        () => typeof (window as any).__nostlingPublishDm === 'function',
+        () => typeof (window as any).__fewPublishDm === 'function',
         null,
         { timeout: 10_000 },
       );
       await malloryPage.evaluate(
         async ({ alicePub, content }) => {
           try {
-            await (window as any).__nostlingPublishDm(alicePub, content);
+            await (window as any).__fewPublishDm(alicePub, content);
           } catch {
             // Ignore publish errors — the relay may reject or the event may
             // still land; what matters is Alice's gate blocks it on receipt.
@@ -174,12 +174,12 @@ test.describe('DM walled garden: stranger blocked (AC-TEST-4)', () => {
         alicePage.getByTestId(`notification-dm-${USER_C.pubkeyHex}`),
       ).toHaveCount(0);
 
-      // ── 6. Assertion (c): no quizzl:messages:dm:<malloryHex> IDB key ─────────
+      // ── 6. Assertion (c): no few:messages:dm:<malloryHex> IDB key ─────────
       const malloryKey = await readIdbRecord(
         alicePage,
         'keyval-store',
         'keyval',
-        `quizzl:messages:dm:${USER_C.pubkeyHex.toLowerCase()}`,
+        `few:messages:dm:${USER_C.pubkeyHex.toLowerCase()}`,
       );
       expect(malloryKey).toBeNull();
     },

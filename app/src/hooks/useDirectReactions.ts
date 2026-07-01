@@ -2,7 +2,7 @@
  * useDirectReactions — read-side accessor for DM reactions (story-07, AC-45).
  *
  * Mirrors the group-side reactionsByMessageId pattern from ChatStoreContext but
- * operates on the DM namespace (quizzl:reactions:dm:{peerPubkeyHex}).
+ * operates on the DM namespace (few:reactions:dm:{peerPubkeyHex}).
  *
  * Architecture compliance:
  * - Lives in app/src/hooks/ (allowed to import from lib/).

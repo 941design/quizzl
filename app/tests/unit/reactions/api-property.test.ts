@@ -81,7 +81,7 @@ function makeRumor(overrides: Partial<{
 }
 
 const GROUP_THREAD = { kind: 'group' as const, groupId: 'group-prop' };
-const GROUP_KEY = 'quizzl:reactions:group:group-prop';
+const GROUP_KEY = 'few:reactions:group:group-prop';
 
 beforeEach(async () => {
   idbStore.clear();

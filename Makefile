@@ -9,7 +9,7 @@ BUILD_VERSION := $(shell git rev-parse --short HEAD 2>/dev/null || date +%s)
 # any ambient PLAYWRIGHT_BROWSERS_PATH (e.g. a shared /opt export); override it
 # explicitly on the make command line (`make ... PLAYWRIGHT_BROWSERS_PATH=...`)
 # if a shared cache is genuinely wanted.
-PLAYWRIGHT_BROWSERS_PATH := $(HOME)/.cache/playwright-nostling
+PLAYWRIGHT_BROWSERS_PATH := $(HOME)/.cache/playwright-few
 # The Playwright version this project pins (devDependency in app/package.json).
 PLAYWRIGHT_VERSION := $(shell sed -nE 's/.*"@playwright\/test": *"[\^~]?([0-9.]+)".*/\1/p' $(APP_DIR)/package.json | head -1)
 # Key the install stamp by OS+arch AND Playwright version, and store it inside the
@@ -18,36 +18,23 @@ PLAYWRIGHT_VERSION := $(shell sed -nE 's/.*"@playwright\/test": *"[\^~]?([0-9.]+
 # does not pointlessly discard a still-valid browser install.
 PLAYWRIGHT_STAMP := $(PLAYWRIGHT_BROWSERS_PATH)/.installed_$(shell uname -s)-$(shell uname -m)_$(PLAYWRIGHT_VERSION)
 
-# Load environment variables from .env if it exists (for FTP credentials)
--include .env
 # Load Cloudflare credentials (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID) if present
 -include .cloudflare
 export
 
-.PHONY: help test build test-unit test-coverage test-e2e test-e2e-all test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check deploy-dryrun deploy-few deploy-few-check maintenance maintenance-check ssl-cert ssl-cert-assets ensure-deps ensure-playwright
+.PHONY: help test build test-unit test-coverage test-e2e test-e2e-all test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check ensure-deps ensure-playwright
 
 # Default target
 .DEFAULT_GOAL := help
 
-# FTP Deployment Configuration
-FTP_HOST := $(HOSTEUROPE_FTP_HOST)
-FTP_USER := $(HOSTEUROPE_FTP_USER)
-FTP_PASS := $(HOSTEUROPE_FTP_PASS)
-FTP_PATH := $(or $(HOSTEUROPE_FTP_PATH),/)
-
-# Local paths for deployment
+# Local build output (the static Next.js export deployed to few.chat)
 LOCAL_DIST := $(APP_DIR)/out
 
-# Cloudflare Pages deployment (few.chat placeholder — separate from the FTP site)
-FEW_DIST := few.chat
+# Cloudflare Pages project (served at few.chat / few-chat.pages.dev)
 FEW_PROJECT := few-chat
 
-# Maintenance-mode source tree (must contain only index.html and any assets the
-# maintenance page references). Mirrored as-is to the remote root with --delete.
-MAINTENANCE_DIST := maintenance
-
 help: ## Show this help message
-	@echo "Nostling"
+	@echo "Few"
 	@echo ""
 	@echo "Usage: make [target]"
 	@echo ""
@@ -151,193 +138,25 @@ run-dev: ensure-deps ## Start development server
 	cd $(APP_DIR) && npm run dev
 
 # =============================================================================
-# Production Deployment (FTP to hosteurope)
+# Production Deployment (Cloudflare Pages → few.chat)
 # =============================================================================
+# Builds the static Next.js export ($(LOCAL_DIST)) and deploys it to the
+# Cloudflare Pages project $(FEW_PROJECT) (served at few.chat /
+# few-chat.pages.dev). Credentials come from the gitignored .cloudflare file
+# (CLOUDFLARE_API_TOKEN[, CLOUDFLARE_ACCOUNT_ID]). Cloudflare Pages manages
+# TLS for few.chat automatically — there is no certificate step to run.
 
 deploy-check: ## Verify deployment prerequisites
 	@echo "Checking deployment prerequisites..."
-	@if [ -z "$(FTP_HOST)" ]; then echo "ERROR: HOSTEUROPE_FTP_HOST not set"; exit 1; fi
-	@if [ -z "$(FTP_USER)" ]; then echo "ERROR: HOSTEUROPE_FTP_USER not set"; exit 1; fi
-	@if [ -z "$(FTP_PASS)" ]; then echo "ERROR: HOSTEUROPE_FTP_PASS not set"; exit 1; fi
+	@if [ -z "$(CLOUDFLARE_API_TOKEN)" ]; then echo "ERROR: CLOUDFLARE_API_TOKEN not set (create .cloudflare)"; exit 1; fi
 	@if [ ! -d $(LOCAL_DIST) ]; then echo "ERROR: Build output not found at $(LOCAL_DIST)/"; echo "Run 'make build' first"; exit 1; fi
 	@if [ ! -f $(LOCAL_DIST)/index.html ]; then echo "ERROR: index.html not found in $(LOCAL_DIST)/"; exit 1; fi
-	@if ! command -v lftp >/dev/null 2>&1; then echo "ERROR: lftp not installed. Run: brew install lftp"; exit 1; fi
-	@echo "All prerequisites satisfied."
-
-deploy: build deploy-check ## Deploy to production (FTP)
-	@echo "Deploying to $(FTP_HOST)$(FTP_PATH)..."
-	@lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
-		set ssl:verify-certificate no; \
-		mkdir -p $(FTP_PATH); \
-		set cmd:fail-exit yes; \
-		mirror -R --verbose --only-newer --parallel=4 \
-			--exclude version.json \
-			$(LOCAL_DIST)/ $(FTP_PATH)/; \
-		bye"
-	@lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
-		set ssl:verify-certificate no; \
-		put $(LOCAL_DIST)/version.json -o $(FTP_PATH)/version.json; \
-		bye"
-	@echo ""
-	@echo "Deployment complete!"
-
-deploy-dryrun: ## Show what would be deployed (no upload)
-	@echo "=== Deployment Dry Run ==="
-	@echo ""
-	@echo "Target: $(FTP_HOST)$(FTP_PATH)"
-	@echo ""
-	@echo "Local build output: $(LOCAL_DIST)/"
-	@if [ -d $(LOCAL_DIST) ]; then \
-		echo ""; \
-		ls -la $(LOCAL_DIST)/ 2>/dev/null; \
-		echo ""; \
-		echo "Total size:"; \
-		du -sh $(LOCAL_DIST)/; \
-	else \
-		echo "  [NOT BUILT - run 'make build']"; \
-	fi
-	@echo ""
-	@echo "Environment variables (from .env):"
-	@echo "  HOSTEUROPE_FTP_HOST=$(FTP_HOST)"
-	@echo "  HOSTEUROPE_FTP_USER=$(FTP_USER)"
-	@if [ -n "$(FTP_PASS)" ]; then echo "  HOSTEUROPE_FTP_PASS=****"; else echo "  HOSTEUROPE_FTP_PASS=[NOT SET]"; fi
-	@echo "  HOSTEUROPE_FTP_PATH=$(FTP_PATH)"
-
-# =============================================================================
-# Cloudflare Pages (few.chat placeholder)
-# =============================================================================
-# Deploys the static $(FEW_DIST)/ folder to the Cloudflare Pages project
-# $(FEW_PROJECT) (served at few.chat / few-chat.pages.dev). Credentials come
-# from the gitignored .cloudflare file (CLOUDFLARE_API_TOKEN[,_ACCOUNT_ID]).
-# This is independent of the FTP `deploy` target — the FTP site is untouched.
-
-deploy-few-check: ## Verify Cloudflare deployment prerequisites
-	@echo "Checking Cloudflare deployment prerequisites..."
-	@if [ -z "$(CLOUDFLARE_API_TOKEN)" ]; then echo "ERROR: CLOUDFLARE_API_TOKEN not set (create .cloudflare)"; exit 1; fi
-	@if [ ! -f $(FEW_DIST)/index.html ]; then echo "ERROR: $(FEW_DIST)/index.html not found"; exit 1; fi
 	@if ! command -v npx >/dev/null 2>&1; then echo "ERROR: npx (Node.js) not installed"; exit 1; fi
 	@echo "All prerequisites satisfied."
 
-deploy-few: deploy-few-check ## Deploy few.chat placeholder to Cloudflare Pages
-	@echo "Deploying $(FEW_DIST)/ to Cloudflare Pages project '$(FEW_PROJECT)'..."
-	@npx --yes wrangler@latest pages deploy $(FEW_DIST) \
+deploy: build deploy-check ## Deploy the app to production (Cloudflare Pages → few.chat)
+	@echo "Deploying $(LOCAL_DIST)/ to Cloudflare Pages project '$(FEW_PROJECT)'..."
+	@npx --yes wrangler@latest pages deploy $(LOCAL_DIST) \
 		--project-name=$(FEW_PROJECT) --branch=main --commit-dirty=true
 	@echo ""
 	@echo "Deployment complete!"
-
-# =============================================================================
-# Maintenance Mode
-# =============================================================================
-# Takes the live site offline by mirroring $(MAINTENANCE_DIST) onto the remote
-# root with --delete. After this target completes, the only file served from
-# $(FTP_HOST)$(FTP_PATH) is the maintenance index.html (all subpages,
-# _next/ chunks, assets, etc. are removed). Restore by running `make deploy`.
-
-maintenance-check: ## Verify maintenance prerequisites
-	@echo "Checking maintenance prerequisites..."
-	@if [ -z "$(FTP_HOST)" ]; then echo "ERROR: HOSTEUROPE_FTP_HOST not set"; exit 1; fi
-	@if [ -z "$(FTP_USER)" ]; then echo "ERROR: HOSTEUROPE_FTP_USER not set"; exit 1; fi
-	@if [ -z "$(FTP_PASS)" ]; then echo "ERROR: HOSTEUROPE_FTP_PASS not set"; exit 1; fi
-	@if [ ! -d $(MAINTENANCE_DIST) ]; then echo "ERROR: $(MAINTENANCE_DIST)/ not found"; exit 1; fi
-	@if [ ! -f $(MAINTENANCE_DIST)/index.html ]; then echo "ERROR: $(MAINTENANCE_DIST)/index.html missing"; exit 1; fi
-	@if ! command -v lftp >/dev/null 2>&1; then echo "ERROR: lftp not installed. Run: brew install lftp"; exit 1; fi
-	@echo "All prerequisites satisfied."
-
-maintenance: maintenance-check ## Take site offline: wipe remote tree and publish only $(MAINTENANCE_DIST)/index.html
-	@echo "Putting $(FTP_HOST)$(FTP_PATH) into maintenance mode..."
-	@echo "(this DELETES every remote file/dir not present in $(MAINTENANCE_DIST)/)"
-	@lftp -u "$(FTP_USER),$(FTP_PASS)" "$(FTP_HOST)" -e "\
-		set ssl:verify-certificate no; \
-		mkdir -p $(FTP_PATH); \
-		mirror -R --delete --verbose --parallel=4 \
-			$(MAINTENANCE_DIST)/ $(FTP_PATH)/; \
-		bye"
-	@echo ""
-	@echo "Maintenance mode active. Restore with: make deploy"
-
-# =============================================================================
-# SSL Certificate (Let's Encrypt for HostEurope)
-# =============================================================================
-# Generates a Let's Encrypt certificate using Certbot DNS manual challenge.
-# Output goes to .ssl/ — upload to HostEurope KIS:
-#   Webhosting → Sicherheit & SSL → SSL Administrieren → Ersetzen
-#
-#   ┌──────────────┬─────────────────────────┬───────────────────────────────┐
-#   │ KIS Field    │ File                    │ Contents                      │
-#   ├──────────────┼─────────────────────────┼───────────────────────────────┤
-#   │ Zertifikat   │ .ssl/fullchain.pem      │ Certificate + intermediates   │
-#   │ Key          │ .ssl/privkey.pem        │ Private key (keep secret!)    │
-#   │ Passwort     │ (leave empty)           │ Not encrypted                 │
-#   │ CA           │ (leave empty)           │ Already in fullchain.pem      │
-#   └──────────────┴─────────────────────────┴───────────────────────────────┘
-#
-# Renewal: re-run every ~60-90 days, then re-upload in KIS.
-# Requires: certbot (brew install certbot / apt install certbot)
-
-SSL_DOMAIN := nostling.941design.de
-SSL_ASSETS_DOMAIN := assets.941design.de
-SSL_DIR := .ssl
-
-ssl-cert: ## Generate Let's Encrypt certificate for HostEurope
-	@if ! command -v certbot >/dev/null 2>&1; then \
-		echo "ERROR: certbot not installed."; \
-		echo "  macOS:  brew install certbot"; \
-		echo "  Linux:  sudo apt install certbot"; \
-		exit 1; \
-	fi
-	@echo "Generating Let's Encrypt certificate for $(SSL_DOMAIN)..."
-	@echo ""
-	@echo "This will use a manual DNS challenge — you'll need to create a"
-	@echo "TXT record in your DNS settings when prompted."
-	@echo ""
-	certbot certonly \
-		--manual \
-		--preferred-challenges dns \
-		--key-type rsa \
-		--config-dir $(SSL_DIR)/config \
-		--work-dir $(SSL_DIR)/work \
-		--logs-dir $(SSL_DIR)/logs \
-		-d $(SSL_DOMAIN)
-	@echo ""
-	@echo "=== Certificate generated ==="
-	@echo ""
-	@echo "Files for HostEurope KIS upload:"
-	@echo "  Zertifikat:  $$(find $(SSL_DIR)/config/live/$(SSL_DOMAIN) -name fullchain.pem)"
-	@echo "  Key:         $$(find $(SSL_DIR)/config/live/$(SSL_DOMAIN) -name privkey.pem)"
-	@echo "  Passwort:    (leave empty)"
-	@echo "  CA:          (leave empty)"
-	@echo ""
-	@echo "Upload at: Webhosting → Sicherheit & SSL → SSL Administrieren → Ersetzen"
-	@echo "Renew in ~60-90 days by running: make ssl-cert"
-
-ssl-cert-assets: ## Generate Let's Encrypt certificate for assets subdomain
-	@if ! command -v certbot >/dev/null 2>&1; then \
-		echo "ERROR: certbot not installed."; \
-		echo "  macOS:  brew install certbot"; \
-		echo "  Linux:  sudo apt install certbot"; \
-		exit 1; \
-	fi
-	@echo "Generating Let's Encrypt certificate for $(SSL_ASSETS_DOMAIN)..."
-	@echo ""
-	@echo "This will use a manual DNS challenge — you'll need to create a"
-	@echo "TXT record in your DNS settings when prompted."
-	@echo ""
-	certbot certonly \
-		--manual \
-		--preferred-challenges dns \
-		--key-type rsa \
-		--config-dir $(SSL_DIR)/config \
-		--work-dir $(SSL_DIR)/work \
-		--logs-dir $(SSL_DIR)/logs \
-		-d $(SSL_ASSETS_DOMAIN)
-	@echo ""
-	@echo "=== Certificate generated ==="
-	@echo ""
-	@echo "Files for HostEurope KIS upload:"
-	@echo "  Zertifikat:  $$(find $(SSL_DIR)/config/live/$(SSL_ASSETS_DOMAIN) -name fullchain.pem)"
-	@echo "  Key:         $$(find $(SSL_DIR)/config/live/$(SSL_ASSETS_DOMAIN) -name privkey.pem)"
-	@echo "  Passwort:    (leave empty)"
-	@echo "  CA:          (leave empty)"
-	@echo ""
-	@echo "Upload at: Webhosting → Sicherheit & SSL → SSL Administrieren → Ersetzen"
-	@echo "Renew in ~60-90 days by running: make ssl-cert-assets"

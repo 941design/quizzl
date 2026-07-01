@@ -1,6 +1,6 @@
 # Feature Request — Storage Namespace Rebrand Migration (`quizzl…` → `nostling…`)
 
-**Status:** Proposed (not scheduled)
+**Status:** Superseded by specs/epic-few-chat-rebrand/
 **Author:** rebrand follow-up (2026-06-10)
 **Depends on:** brand-only rename (shipped — UI, package, wire `client` tag, window
 test hooks, docs all now say *Nostling*)

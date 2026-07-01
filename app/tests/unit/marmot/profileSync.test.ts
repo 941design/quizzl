@@ -184,6 +184,6 @@ describe('profileSync wire format', () => {
     });
     const parsed = parseProfilePayload(wire)!;
     const member = payloadToMemberProfile('pk-legacy', parsed);
-    expect(member.avatar).toEqual({ imageUrl: '//assets.941design.de/fox.png' });
+    expect(member.avatar).toEqual({ imageUrl: '//few.chat/assets/fox.png' });
   });
 });

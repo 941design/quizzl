@@ -61,12 +61,12 @@ describe('publishKeyPackages', () => {
     expect(create.mock.calls[2][0].isLastResort).toBe(true);
   });
 
-  it('passes the provided relays and the nostling client tag through', async () => {
+  it('passes the provided relays and the few client tag through', async () => {
     const mgr = makeManager();
     await publishKeyPackages(mgr, 1, ['wss://a', 'wss://b']);
     const arg = (mgr as unknown as { create: ReturnType<typeof vi.fn> }).create.mock.calls[0][0];
     expect(arg.relays).toEqual(['wss://a', 'wss://b']);
-    expect(arg.client).toBe('nostling');
+    expect(arg.client).toBe('few');
   });
 
   it('defaults to DEFAULT_RELAYS when relays are omitted', async () => {

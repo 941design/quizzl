@@ -196,7 +196,7 @@ export async function initUnreadCounts(groupIds: string[], ownPubkey: string) {
     const lastRead = timestamps[groupId] ?? 0;
     try {
       const messages: Array<{ createdAt: number; senderPubkey: string }> | undefined = await get(
-        `quizzl:messages:${groupId}`,
+        `few:messages:${groupId}`,
       );
       if (messages && messages.length > 0) {
         return messages.filter((m) => m.createdAt > lastRead && m.senderPubkey !== ownPubkey).length;
@@ -326,7 +326,7 @@ export function clearDirectMessageContact(peerPubkeyHex: string) {
 
 /**
  * Initialise direct-message unread counts from persisted DM threads.
- * Reads `quizzl:messages:dm:<peer>` keys (the same store ContactChat uses).
+ * Reads `few:messages:dm:<peer>` keys (the same store ContactChat uses).
  */
 export async function initDirectMessageCounts(peerPubkeysHex: string[], ownPubkeyHex: string) {
   const own = ownPubkeyHex.toLowerCase();
@@ -341,7 +341,7 @@ export async function initDirectMessageCounts(peerPubkeysHex: string[], ownPubke
     const lastRead = timestamps[key] ?? 0;
     try {
       const messages: Array<{ createdAt: number; senderPubkey: string }> | undefined = await get(
-        `quizzl:messages:dm:${key}`,
+        `few:messages:dm:${key}`,
       );
       if (messages && messages.length > 0) {
         return messages.filter((m) => m.createdAt > lastRead && m.senderPubkey.toLowerCase() !== own).length;
@@ -389,7 +389,7 @@ export function purgeStrangerDmCounters(
 // --- Test bridge ---
 // Expose store functions on window so e2e tests can inject unread state.
 if (typeof window !== 'undefined') {
-  (window as any).__nostlingUnread = {
+  (window as any).__fewUnread = {
     incrementUnread, markAsRead, clearUnreadGroup,
     incrementJoinRequest, markJoinRequestsRead, decrementJoinRequest, clearJoinRequestGroup,
     incrementDirectMessage, markDirectMessagesRead, clearDirectMessageContact,
@@ -401,7 +401,7 @@ if (typeof window !== 'undefined') {
 // send DMs without dynamic-importing webpack-aliased modules from page.evaluate.
 // The bridge reads the private key from localStorage at call time.
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-  (window as any).__nostlingPublishDm = async (peerPubkeyHex: string, content: string): Promise<void> => {
+  (window as any).__fewPublishDm = async (peerPubkeyHex: string, content: string): Promise<void> => {
     try {
       const identityRaw = localStorage.getItem('lp_nostrIdentity_v1');
       if (!identityRaw) throw new Error('No identity in localStorage');
@@ -411,7 +411,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
       const ndk = await connectNdk(identity.privateKeyHex);
       await publishDirectMessage({ ndk, privateKeyHex: identity.privateKeyHex, peerPubkeyHex, content });
     } catch (err) {
-      console.error('[__nostlingPublishDm] failed:', err);
+      console.error('[__fewPublishDm] failed:', err);
       throw err;
     }
   };

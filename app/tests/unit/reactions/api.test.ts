@@ -71,9 +71,9 @@ function makeRumor(overrides: Partial<{
 }
 
 const GROUP_THREAD = { kind: 'group' as const, groupId: 'group-42' };
-const GROUP_KEY = 'quizzl:reactions:group:group-42';
+const GROUP_KEY = 'few:reactions:group:group-42';
 const DM_THREAD = { kind: 'dm' as const, peerPubkeyHex: 'aabbccdd' };
-const DM_KEY = 'quizzl:reactions:dm:aabbccdd';
+const DM_KEY = 'few:reactions:dm:aabbccdd';
 
 // Import the idb-keyval mock to spy on it
 import * as idbKeyval from 'idb-keyval';
@@ -780,32 +780,32 @@ describe('subscribeReactions (AC-13)', () => {
 });
 
 describe('clearAllReactions (AC-14)', () => {
-  it('deletes both quizzl:reactions:group:* and quizzl:reactions:dm:* namespaces', async () => {
+  it('deletes both few:reactions:group:* and few:reactions:dm:* namespaces', async () => {
     // Seed both namespaces
-    idbStore.set('quizzl:reactions:group:group-1', [makeReaction({ id: 'g1' })]);
-    idbStore.set('quizzl:reactions:group:group-2', [makeReaction({ id: 'g2' })]);
-    idbStore.set('quizzl:reactions:dm:peer-abc', [makeReaction({ id: 'd1' })]);
+    idbStore.set('few:reactions:group:group-1', [makeReaction({ id: 'g1' })]);
+    idbStore.set('few:reactions:group:group-2', [makeReaction({ id: 'g2' })]);
+    idbStore.set('few:reactions:dm:peer-abc', [makeReaction({ id: 'd1' })]);
     // Also seed a non-reaction key that must be preserved
-    idbStore.set('quizzl:messages:group-1', [{ id: 'msg-1' }]);
+    idbStore.set('few:messages:group-1', [{ id: 'msg-1' }]);
 
     await clearAllReactions();
 
-    expect(idbStore.has('quizzl:reactions:group:group-1')).toBe(false);
-    expect(idbStore.has('quizzl:reactions:group:group-2')).toBe(false);
-    expect(idbStore.has('quizzl:reactions:dm:peer-abc')).toBe(false);
+    expect(idbStore.has('few:reactions:group:group-1')).toBe(false);
+    expect(idbStore.has('few:reactions:group:group-2')).toBe(false);
+    expect(idbStore.has('few:reactions:dm:peer-abc')).toBe(false);
     // Non-reaction key preserved
-    expect(idbStore.has('quizzl:messages:group-1')).toBe(true);
+    expect(idbStore.has('few:messages:group-1')).toBe(true);
   });
 
   it('is a no-op when no reaction keys exist', async () => {
-    idbStore.set('quizzl:messages:group-1', [{ id: 'msg-1' }]);
+    idbStore.set('few:messages:group-1', [{ id: 'msg-1' }]);
     await clearAllReactions(); // should not throw
-    expect(idbStore.has('quizzl:messages:group-1')).toBe(true);
+    expect(idbStore.has('few:messages:group-1')).toBe(true);
   });
 
   it('race guard: enqueue arriving during clearAllReactions is dropped; idb state is empty after clear', async () => {
     // Seed a reaction key so clearAllReactions has something to delete.
-    const seedKey = 'quizzl:reactions:group:race-group';
+    const seedKey = 'few:reactions:group:race-group';
     idbStore.set(seedKey, [makeReaction({ id: 'race-seed', messageId: 'msg-race' })]);
 
     // Delay the idb.keys() call so we get a window where the clear is in-flight
@@ -848,7 +848,7 @@ describe('clearAllReactions (AC-14)', () => {
 
     // The race write must have been dropped — no new reaction key was created.
     const remainingReactionKeys = [...idbStore.keys()].filter(
-      (k) => typeof k === 'string' && k.startsWith('quizzl:reactions:'),
+      (k) => typeof k === 'string' && k.startsWith('few:reactions:'),
     );
     expect(remainingReactionKeys).toHaveLength(0);
   });
@@ -866,9 +866,9 @@ describe('storage.ts integration', () => {
   // (AC-14, VQ-02-018)
   it('clearAccountScopedIdbData chain — both reaction namespaces are cleared', async () => {
     // Seed one group namespace and one dm namespace, plus a non-reaction key.
-    idbStore.set('quizzl:reactions:group:grp-cad-test', [makeReaction({ id: 'g-cad' })]);
-    idbStore.set('quizzl:reactions:dm:peer-cad-test', [makeReaction({ id: 'd-cad' })]);
-    idbStore.set('quizzl:messages:grp-cad-test', [{ id: 'msg-cad' }]);
+    idbStore.set('few:reactions:group:grp-cad-test', [makeReaction({ id: 'g-cad' })]);
+    idbStore.set('few:reactions:dm:peer-cad-test', [makeReaction({ id: 'd-cad' })]);
+    idbStore.set('few:messages:grp-cad-test', [{ id: 'msg-cad' }]);
 
     // Exercise the exact dynamic-import path that clearAccountScopedIdbData uses:
     //   import('@/src/lib/reactions/api').then(({ clearAllReactions }) => clearAllReactions())
@@ -876,10 +876,10 @@ describe('storage.ts integration', () => {
     await clearFn();
 
     // Both reaction namespaces must be gone
-    expect(idbStore.has('quizzl:reactions:group:grp-cad-test')).toBe(false);
-    expect(idbStore.has('quizzl:reactions:dm:peer-cad-test')).toBe(false);
+    expect(idbStore.has('few:reactions:group:grp-cad-test')).toBe(false);
+    expect(idbStore.has('few:reactions:dm:peer-cad-test')).toBe(false);
     // Non-reaction key must be preserved
-    expect(idbStore.has('quizzl:messages:grp-cad-test')).toBe(true);
+    expect(idbStore.has('few:messages:grp-cad-test')).toBe(true);
   });
 });
 

@@ -1,7 +1,7 @@
 /**
  * Discriminated union identifying the persistence namespace for a reaction thread.
- * - group: reactions stored under quizzl:reactions:group:{groupId}
- * - dm:    reactions stored under quizzl:reactions:dm:{peerPubkeyHex}
+ * - group: reactions stored under few:reactions:group:{groupId}
+ * - dm:    reactions stored under few:reactions:dm:{peerPubkeyHex}
  *
  * Single-identity app (D11): no identity_id concept.
  */

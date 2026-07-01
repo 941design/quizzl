@@ -54,7 +54,7 @@ export const MAINTAINER_PUBKEYS_HEX: string[] = resolveMaintainerPubkeys();
 export const MAINTAINER_ACTIVE_PUBKEY_HEX: string | null = MAINTAINER_PUBKEYS_HEX[0] ?? null;
 
 /** Display name shown in the feedback UI. */
-export const MAINTAINER_DISPLAY_NAME = 'Nostling Team';
+export const MAINTAINER_DISPLAY_NAME = 'Few Team';
 
 /** Returns true when the given hex pubkey belongs to a maintainer. Case-insensitive. */
 export function isMaintainerPubkey(hex: string): boolean {

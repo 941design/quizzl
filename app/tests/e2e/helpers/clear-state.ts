@@ -1,15 +1,15 @@
 import type { Page } from '@playwright/test';
 
 const INDEXEDDB_DATABASES = [
-  'quizzl-groups-meta',
-  'quizzl-groups-state',
-  'quizzl-keypackages',
-  'quizzl-member-scores',
-  'quizzl-member-profiles',
-  'quizzl-invite-links',
-  'quizzl-join-requests',
-  'quizzl-media-blobs',
-  'quizzl-media-meta',
+  'few-groups-meta',
+  'few-groups-state',
+  'few-keypackages',
+  'few-member-scores',
+  'few-member-profiles',
+  'few-invite-links',
+  'few-join-requests',
+  'few-media-blobs',
+  'few-media-meta',
   'keyval-store', // DM message storage
 ];
 

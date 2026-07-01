@@ -87,8 +87,8 @@ afterEach(() => {
 
 describe('purgeStrangerDmThreads', () => {
   it('removes stranger DM thread key and keeps member DM thread key', async () => {
-    const strangerKey = `quizzl:messages:dm:${STRANGER_HEX}`;
-    const memberKey = `quizzl:messages:dm:${MEMBER_HEX}`;
+    const strangerKey = `few:messages:dm:${STRANGER_HEX}`;
+    const memberKey = `few:messages:dm:${MEMBER_HEX}`;
     const fakeMessages = [{ id: 'msg-1', content: 'hello', senderPubkey: STRANGER_HEX, groupId: `dm:${STRANGER_HEX}`, createdAt: 1000 }];
     const memberMessages = [{ id: 'msg-2', content: 'hi', senderPubkey: MEMBER_HEX, groupId: `dm:${MEMBER_HEX}`, createdAt: 1000 }];
 
@@ -106,7 +106,7 @@ describe('purgeStrangerDmThreads', () => {
   });
 
   it('does not touch non-DM message keys (group message keys)', async () => {
-    const groupKey = 'quizzl:messages:group-xyz'; // no 'dm:' prefix
+    const groupKey = 'few:messages:group-xyz'; // no 'dm:' prefix
     idbStore.set(groupKey, [{ id: 'msg-g', content: 'group msg' }]);
 
     await purgeStrangerDmThreads(getWhitelist);
@@ -116,20 +116,20 @@ describe('purgeStrangerDmThreads', () => {
   });
 
   it('is a no-op when no DM thread keys exist', async () => {
-    idbStore.set('quizzl:messages:group-abc', [{ id: 'g1', content: 'hi' }]);
+    idbStore.set('few:messages:group-abc', [{ id: 'g1', content: 'hi' }]);
 
     await purgeStrangerDmThreads(getWhitelist);
 
     // Nothing deleted
     expect(idbStore.size).toBe(1);
-    expect(idbStore.has('quizzl:messages:group-abc')).toBe(true);
+    expect(idbStore.has('few:messages:group-abc')).toBe(true);
   });
 
   it('purges multiple stranger keys in a single sweep', async () => {
     const stranger2 = 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd';
-    const key1 = `quizzl:messages:dm:${STRANGER_HEX}`;
-    const key2 = `quizzl:messages:dm:${stranger2}`;
-    const memberKey = `quizzl:messages:dm:${MEMBER_HEX}`;
+    const key1 = `few:messages:dm:${STRANGER_HEX}`;
+    const key2 = `few:messages:dm:${stranger2}`;
+    const memberKey = `few:messages:dm:${MEMBER_HEX}`;
 
     idbStore.set(key1, []);
     idbStore.set(key2, []);
@@ -237,8 +237,8 @@ describe('purgeStrangerContacts', () => {
 
 describe('purgeStrangerDmReactions', () => {
   it('removes stranger DM reaction key and keeps member DM reaction key', async () => {
-    const strangerKey = `quizzl:reactions:dm:${STRANGER_HEX}`;
-    const memberKey = `quizzl:reactions:dm:${MEMBER_HEX}`;
+    const strangerKey = `few:reactions:dm:${STRANGER_HEX}`;
+    const memberKey = `few:reactions:dm:${MEMBER_HEX}`;
     const fakeReactions = [{ id: 'r-1', content: '+' }];
     const memberReactions = [{ id: 'r-2', content: '-' }];
 
@@ -253,7 +253,7 @@ describe('purgeStrangerDmReactions', () => {
   });
 
   it('does not touch group reaction keys', async () => {
-    const groupReactionKey = 'quizzl:reactions:group:group-abc';
+    const groupReactionKey = 'few:reactions:group:group-abc';
     idbStore.set(groupReactionKey, [{ id: 'r-g1', content: '+' }]);
 
     await purgeStrangerDmReactions(getWhitelist);
@@ -262,12 +262,12 @@ describe('purgeStrangerDmReactions', () => {
   });
 
   it('is a no-op when no DM reaction keys exist', async () => {
-    idbStore.set('quizzl:reactions:group:group-xyz', []);
+    idbStore.set('few:reactions:group:group-xyz', []);
 
     await purgeStrangerDmReactions(getWhitelist);
 
     expect(idbStore.size).toBe(1);
-    expect(idbStore.has('quizzl:reactions:group:group-xyz')).toBe(true);
+    expect(idbStore.has('few:reactions:group:group-xyz')).toBe(true);
   });
 });
 
@@ -290,7 +290,7 @@ describe('purgeStrangerDmThreads — in-flight write drain (Sev-5 regression)', 
     // deleted by a subsequent purge, regardless of write ordering.
     const { appendMessage } = await import('@/src/lib/marmot/chatPersistence');
     const strangerId = `dm:${STRANGER_HEX}`;
-    const strangerKey = `quizzl:messages:dm:${STRANGER_HEX}`;
+    const strangerKey = `few:messages:dm:${STRANGER_HEX}`;
 
     // Write a message to the stranger's thread.
     await appendMessage(strangerId, {
@@ -340,7 +340,7 @@ describe('purgeStrangerDmThreads — in-flight write drain (Sev-5 regression)', 
 describe('purgeStrangerDmReactions — in-flight write drain (Sev-5 regression)', () => {
   it('does not re-create a stranger reaction key when an enqueue is mid-flight during purge', async () => {
     const { applyInboundRumor } = await import('@/src/lib/reactions/api');
-    const strangerKey = `quizzl:reactions:dm:${STRANGER_HEX}`;
+    const strangerKey = `few:reactions:dm:${STRANGER_HEX}`;
 
     // Seed a fake reaction row so the write queue is touched.
     // We seed idbStore directly and rely on purge to pick it up.

@@ -8,8 +8,8 @@
  * both DM (ContactChat gift-wrap path) and group (MarmotContext case 7:) ingest.
  *
  * Persistence namespaces (D11):
- *   quizzl:reactions:group:{groupId}
- *   quizzl:reactions:dm:{peerPubkeyHex}
+ *   few:reactions:group:{groupId}
+ *   few:reactions:dm:{peerPubkeyHex}
  *
  * Design notes:
  * - Module-singleton in-memory map + listener registry (mirrors unreadStore.ts).
@@ -68,9 +68,9 @@ const listeners = new Map<string, Set<() => void>>();
 /** Derives the idb-keyval namespace key for a thread. */
 function idbKeyFor(thread: ReactionThreadKey): string {
   if (thread.kind === 'group') {
-    return `quizzl:reactions:group:${thread.groupId}`;
+    return `few:reactions:group:${thread.groupId}`;
   }
-  return `quizzl:reactions:dm:${thread.peerPubkeyHex}`;
+  return `few:reactions:dm:${thread.peerPubkeyHex}`;
 }
 
 // ─── Listener helpers ─────────────────────────────────────────────────────────
@@ -457,7 +457,7 @@ export async function clearAllReactions(): Promise<void> {
     const targets = allKeys.filter(
       (k): k is string =>
         typeof k === 'string' &&
-        (k.startsWith('quizzl:reactions:group:') || k.startsWith('quizzl:reactions:dm:')),
+        (k.startsWith('few:reactions:group:') || k.startsWith('few:reactions:dm:')),
     );
     if (targets.length > 0) {
       await delMany(targets);
@@ -471,9 +471,9 @@ export async function clearAllReactions(): Promise<void> {
  * Purges reaction-aggregate IDB keys for stranger DM peers (AC-PURGE-6).
  *
  * Follows the `clearAllReactions` pattern: enumerates keys matching
- * `quizzl:reactions:dm:<peerHex>`, calls `isAllowedDmSender` on the
+ * `few:reactions:dm:<peerHex>`, calls `isAllowedDmSender` on the
  * `<peerHex>` suffix, and `del()`s the key when the peer is a stranger.
- * Keys in the `quizzl:reactions:group:` namespace are NEVER touched.
+ * Keys in the `few:reactions:group:` namespace are NEVER touched.
  *
  * In-memory cache entries for purged keys are evicted so the next
  * `loadReactions` call re-reads from IDB (which will return undefined/[]).
@@ -485,7 +485,7 @@ export async function purgeStrangerDmReactions(
   const { keys, delMany } = await import('idb-keyval');
 
   const { groups, knownPeers, ownPubkeyHex } = getWhitelist();
-  const dmReactionPrefix = 'quizzl:reactions:dm:';
+  const dmReactionPrefix = 'few:reactions:dm:';
 
   const allKeys = await keys();
   const dmReactionKeys = allKeys.filter(

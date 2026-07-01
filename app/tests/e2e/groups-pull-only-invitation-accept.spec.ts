@@ -123,7 +123,7 @@ test.describe.serial('Pull-only invitation: Accept (AC-TEST-5)', () => {
     await bobPage.goto('/contacts');
     await bobPage.waitForLoadState('networkidle');
     await bobPage.waitForFunction(
-      () => !!(window as any).__nostlingUnread,
+      () => !!(window as any).__fewUnread,
       null,
       { timeout: 15_000 },
     );
@@ -137,13 +137,13 @@ test.describe.serial('Pull-only invitation: Accept (AC-TEST-5)', () => {
     // AC-TEST-5(f): Alice DMs Bob via the app bridge (not raw WebSocket)
     const DM_CONTENT = `accept-test-dm-${Date.now()}`;
     await alicePage.waitForFunction(
-      () => typeof (window as any).__nostlingPublishDm === 'function',
+      () => typeof (window as any).__fewPublishDm === 'function',
       null,
       { timeout: 15_000 },
     );
     await alicePage.evaluate(
       async ({ bobPub, content }) => {
-        await (window as any).__nostlingPublishDm(bobPub, content);
+        await (window as any).__fewPublishDm(bobPub, content);
       },
       { bobPub: USER_B.pubkeyHex, content: DM_CONTENT },
     );

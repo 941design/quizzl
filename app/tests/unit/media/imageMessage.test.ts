@@ -143,7 +143,7 @@ describe('extractAttachmentsByRole', () => {
     expect(result.thumb).toBeNull();
   });
 
-  it('preserves role even when sender uses non-Nostling filename convention', () => {
+  it('preserves role even when sender uses non-Few filename convention', () => {
     // A foreign sender that explicitly tags `role thumb` but does not use
     // the `.thumb.` filename suffix must still be classified as a thumb.
     // The previous filename/index heuristic mis-classified these.

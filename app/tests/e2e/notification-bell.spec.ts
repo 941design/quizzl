@@ -22,7 +22,7 @@ function badge(page: import('@playwright/test').Page) {
 
 async function waitForBridge(page: import('@playwright/test').Page) {
   await page.waitForFunction(
-    () => !!(window as any).__nostlingUnread,
+    () => !!(window as any).__fewUnread,
     null,
     { timeout: 10_000 },
   );
@@ -39,7 +39,7 @@ async function injectUnreadCount(
   await waitForBridge(page);
   await page.evaluate(
     ({ gid, n }) => {
-      const store = (window as any).__nostlingUnread;
+      const store = (window as any).__fewUnread;
       for (let i = 0; i < n; i++) store.incrementUnread(gid);
     },
     { gid: groupId, n: count },
@@ -54,7 +54,7 @@ async function injectDirectMessageCount(
   await waitForBridge(page);
   await page.evaluate(
     ({ peer, n }) => {
-      const store = (window as any).__nostlingUnread;
+      const store = (window as any).__fewUnread;
       for (let i = 0; i < n; i++) store.incrementDirectMessage(peer);
     },
     { peer: peerPubkeyHex, n: count },

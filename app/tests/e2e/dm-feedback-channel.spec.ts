@@ -18,7 +18,7 @@
  *
  * The maintainer is configured to USER_B via NEXT_PUBLIC_MAINTAINER_NPUBS so the
  * test controls the maintainer's private key. The maintainer reply is published
- * THROUGH THE APP (USER_B's own __nostlingPublishDm bridge), per the
+ * THROUGH THE APP (USER_B's own __fewPublishDm bridge), per the
  * publish-via-app rule (CLAUDE.md, feedback_e2e_no_direct_relay) — never a raw
  * WebSocket to the relay.
  *
@@ -37,7 +37,7 @@ import { createGroupAndInvite } from './helpers/group-setup';
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
 async function waitForBridge(page: Page) {
-  await page.waitForFunction(() => !!(window as any).__nostlingUnread, null, { timeout: 10_000 });
+  await page.waitForFunction(() => !!(window as any).__fewUnread, null, { timeout: 10_000 });
 }
 
 async function bootUserOnGroups(
@@ -131,13 +131,13 @@ test.describe.serial('Feedback channel — reply path + UI wiring', () => {
 
     // The maintainer (USER_B) replies to Alice THROUGH THE APP (its own bridge).
     await maintainerPage.waitForFunction(
-      () => typeof (window as any).__nostlingPublishDm === 'function',
+      () => typeof (window as any).__fewPublishDm === 'function',
       null,
       { timeout: 10_000 },
     );
     await maintainerPage.evaluate(
       async ({ alicePub, content }) => {
-        await (window as any).__nostlingPublishDm(alicePub, content);
+        await (window as any).__fewPublishDm(alicePub, content);
       },
       { alicePub: USER_A.pubkeyHex, content: REPLY },
     );

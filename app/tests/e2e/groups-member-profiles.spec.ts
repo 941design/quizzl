@@ -5,7 +5,7 @@ import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-err
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 const TEST_AVATAR = {
-  imageUrl: '//assets.941design.de/apple.png',
+  imageUrl: '//few.chat/assets/apple.png',
 };
 
 /** Boot a user with identity AND profile nickname pre-set in localStorage. */

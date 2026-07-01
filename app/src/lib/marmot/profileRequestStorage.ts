@@ -15,7 +15,7 @@ import { REQUEST_DEDUPE_MS } from '@/src/lib/marmot/profileRequestSync';
 // ---------------------------------------------------------------------------
 
 const profileRequestMemoStore = createStore(
-  'quizzl-profile-request-memos',
+  'few-profile-request-memos',
   'memos',
 );
 

@@ -1,8 +1,8 @@
 /**
  * Poll persistence layer — idb-keyval implementation.
  *
- * Polls are stored per-group under the key `quizzl:polls:{groupId}`.
- * Votes are stored per-poll under the key `quizzl:poll-votes:{pollId}`.
+ * Polls are stored per-group under the key `few:polls:{groupId}`.
+ * Votes are stored per-poll under the key `few:poll-votes:{pollId}`.
  */
 
 import { get, set, del, keys, delMany } from 'idb-keyval';
@@ -48,11 +48,11 @@ export interface PollVote {
 // ---- Storage keys ----
 
 function pollsKey(groupId: string): string {
-  return `quizzl:polls:${groupId}`;
+  return `few:polls:${groupId}`;
 }
 
 function votesKey(pollId: string): string {
-  return `quizzl:poll-votes:${pollId}`;
+  return `few:poll-votes:${pollId}`;
 }
 
 // ---- Polls CRUD ----
@@ -143,7 +143,7 @@ export async function clearAllPollData(): Promise<void> {
   const targets = allKeys.filter(
     (k): k is string =>
       typeof k === 'string' &&
-      (k.startsWith('quizzl:polls:') || k.startsWith('quizzl:poll-votes:')),
+      (k.startsWith('few:polls:') || k.startsWith('few:poll-votes:')),
   );
   if (targets.length > 0) {
     await delMany(targets);

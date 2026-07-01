@@ -457,7 +457,7 @@ export function detectBrowserLanguage(): LanguageCode {
 
 const copy: Record<LanguageCode, Copy> = {
   en: {
-    appName: 'Nostling',
+    appName: 'Few',
     languageNames: { en: 'English', de: 'Deutsch' },
     layout: {
       nav: {
@@ -491,7 +491,7 @@ const copy: Record<LanguageCode, Copy> = {
       vatLabel: 'VAT identification number pursuant to § 27a of the German VAT Act',
     },
     home: {
-      title: 'Welcome to Nostling',
+      title: 'Welcome to Few',
       description:
         'Private, end-to-end encrypted chats. Message your contacts directly or talk together in groups.',
       subheadingLead: 'Just chat.',
@@ -565,7 +565,7 @@ const copy: Record<LanguageCode, Copy> = {
     identity: {
       sectionHeading: 'Nostr Identity',
       sectionDescription:
-        'Your Nostling identity is used for groups and direct messages. It is stored in your browser.',
+        'Your Few identity is used for groups and direct messages. It is stored in your browser.',
       npubLabel: 'Your public key (npub)',
       copyNpub: 'Copy npub',
       copiedNpub: 'Copied!',
@@ -610,10 +610,10 @@ const copy: Record<LanguageCode, Copy> = {
       inviteTitle: 'Invite by Npub',
       inviteNpubLabel: "Member's npub",
       inviteNpubPlaceholder: 'npub1...',
-      inviteHelp: 'Enter or scan the npub of the person you want to invite. They must have used Nostling at least once to appear.',
+      inviteHelp: 'Enter or scan the npub of the person you want to invite. They must have used Few at least once to appear.',
       inviteSubmit: 'Send Invite',
       inviteSuccess: 'Invitation sent successfully.',
-      inviteErrorNoKeyPackage: 'This user has not set up their Nostling identity yet.',
+      inviteErrorNoKeyPackage: 'This user has not set up their Few identity yet.',
       inviteErrorInvalidNpub: 'Invalid npub format.',
       inviteErrorOffline: 'You are offline. Please connect to invite members.',
       inviteErrorTimeout: 'Relay timed out. Please try again.',
@@ -757,7 +757,7 @@ const copy: Record<LanguageCode, Copy> = {
       addToGroupSuccess: 'Contact added to the group.',
       addToGroupError: 'Could not add the contact to the group. Please try again.',
       ownHeading: 'My Profile',
-      ownDescription: 'Customize how you appear in Nostling.',
+      ownDescription: 'Customize how you appear in Few.',
       backupNeededHint: 'Your identity is not backed up yet. Go to Settings to back it up.',
     },
     polls: {
@@ -812,7 +812,7 @@ const copy: Record<LanguageCode, Copy> = {
     },
     feedback: {
       settingsRowLabel: 'Send feedback to the maintainers',
-      pageTitle: 'Feedback to the Nostling team',
+      pageTitle: 'Feedback to the Few team',
       encryptedSubtitle: 'End-to-end encrypted · only the team can read this',
       composerPlaceholder: 'Describe a bug, suggest a feature, or say hello…',
       unavailableState: 'Feedback is currently unavailable.',
@@ -914,7 +914,7 @@ const copy: Record<LanguageCode, Copy> = {
     },
   },
   de: {
-    appName: 'Nostling',
+    appName: 'Few',
     languageNames: { en: 'English', de: 'Deutsch' },
     layout: {
       nav: {
@@ -948,7 +948,7 @@ const copy: Record<LanguageCode, Copy> = {
       vatLabel: 'Umsatzsteuer-Identifikationsnummer gemäß § 27a Umsatzsteuergesetz',
     },
     home: {
-      title: 'Willkommen bei Nostling',
+      title: 'Willkommen bei Few',
       description:
         'Private, Ende-zu-Ende-verschlüsselte Chats. Schreibe deinen Kontakten direkt oder unterhalte dich gemeinsam in Gruppen.',
       subheadingLead: 'Einfach nur chatten.',
@@ -1022,7 +1022,7 @@ const copy: Record<LanguageCode, Copy> = {
     identity: {
       sectionHeading: 'Nostr-Identität',
       sectionDescription:
-        'Deine Nostling-Identität wird für Gruppen und Direktnachrichten verwendet und ist in deinem Browser gespeichert.',
+        'Deine Few-Identität wird für Gruppen und Direktnachrichten verwendet und ist in deinem Browser gespeichert.',
       npubLabel: 'Dein öffentlicher Schlüssel (npub)',
       copyNpub: 'npub kopieren',
       copiedNpub: 'Kopiert!',
@@ -1067,10 +1067,10 @@ const copy: Record<LanguageCode, Copy> = {
       inviteTitle: 'Per Npub einladen',
       inviteNpubLabel: 'Npub des Mitglieds',
       inviteNpubPlaceholder: 'npub1...',
-      inviteHelp: 'Gib die npub der Person ein oder scanne sie. Die Person muss Nostling bereits einmal verwendet haben.',
+      inviteHelp: 'Gib die npub der Person ein oder scanne sie. Die Person muss Few bereits einmal verwendet haben.',
       inviteSubmit: 'Einladung senden',
       inviteSuccess: 'Einladung erfolgreich gesendet.',
-      inviteErrorNoKeyPackage: 'Dieser Nutzer hat seine Nostling-Identität noch nicht eingerichtet.',
+      inviteErrorNoKeyPackage: 'Dieser Nutzer hat seine Few-Identität noch nicht eingerichtet.',
       inviteErrorInvalidNpub: 'Ungültiges npub-Format.',
       inviteErrorOffline: 'Du bist offline. Bitte verbinde dich, um Mitglieder einzuladen.',
       inviteErrorTimeout: 'Relay-Zeitüberschreitung. Bitte erneut versuchen.',
@@ -1213,7 +1213,7 @@ const copy: Record<LanguageCode, Copy> = {
       addToGroupSuccess: 'Kontakt zur Gruppe hinzugefügt.',
       addToGroupError: 'Kontakt konnte nicht zur Gruppe hinzugefügt werden. Bitte versuche es erneut.',
       ownHeading: 'Mein Profil',
-      ownDescription: 'Passe an, wie du in Nostling erscheinst.',
+      ownDescription: 'Passe an, wie du in Few erscheinst.',
       backupNeededHint: 'Deine Identität ist noch nicht gesichert. Gehe zu Einstellungen, um sie zu sichern.',
     },
     polls: {
@@ -1268,7 +1268,7 @@ const copy: Record<LanguageCode, Copy> = {
     },
     feedback: {
       settingsRowLabel: 'Feedback an die Entwickler senden',
-      pageTitle: 'Feedback an das Nostling-Team',
+      pageTitle: 'Feedback an das Few-Team',
       encryptedSubtitle: 'Ende-zu-Ende verschlüsselt · nur das Team kann dies lesen',
       composerPlaceholder: 'Fehler beschreiben, Feature vorschlagen oder einfach hallo sagen…',
       unavailableState: 'Feedback ist momentan nicht verfügbar.',

@@ -1,0 +1,60 @@
+{
+  "epic_name": "few-chat-rebrand",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-01T14:04:15Z",
+  "updated_at": "2026-07-01T14:34:00Z",
+  "pre_existing_dirty_files": [
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md"
+  ],
+  "completed_stories": ["S1", "S2", "S3", "S4", "S5"],
+  "escalated_stories": [],
+  "phase_history": [
+    {"phase": "SPEC_VALIDATED", "timestamp": "2026-07-01T14:04:15Z", "trigger": "validation_passed"},
+    {"phase": "COMPLETE", "timestamp": "2026-07-01T14:34:00Z", "trigger": "all_stories_done_review_clean"}
+  ],
+  "ac_closure": [
+    {"ac_id": "AC-STORE-1", "status": "met", "evidence": "git grep: no quizzl named-store in app/src"},
+    {"ac_id": "AC-STORE-2", "status": "met", "evidence": "few:messages/polls/reactions prefixes in app/src"},
+    {"ac_id": "AC-STORE-3", "status": "met", "evidence": "few_groups_v1"},
+    {"ac_id": "AC-STORE-4", "status": "met", "evidence": "lp_* keys untouched (no diff)"},
+    {"ac_id": "AC-STORE-5", "status": "met", "evidence": "build + unit suite green with few-* only"},
+    {"ac_id": "AC-BRAND-1", "status": "met", "evidence": "app/package.json name=few-chat"},
+    {"ac_id": "AC-BRAND-2", "status": "met", "evidence": "git grep quizzl|nostling app/ = 0"},
+    {"ac_id": "AC-BRAND-3", "status": "met", "evidence": "__fewPublishDm + siblings renamed both sides"},
+    {"ac_id": "AC-BRAND-4", "status": "met", "evidence": "no old token in app/pages,app/public"},
+    {"ac_id": "AC-BRAND-5", "status": "met", "evidence": "BACKUP_D_TAG = 'few', no fallback"},
+    {"ac_id": "AC-ASSET-1", "status": "met", "evidence": "FALLBACK_ORIGIN = https://few.chat"},
+    {"ac_id": "AC-ASSET-2", "status": "met", "evidence": "nostrconnect name=Few url=https://few.chat"},
+    {"ac_id": "AC-ASSET-3", "status": "met", "evidence": "avatar URLs //few.chat/assets/*.png"},
+    {"ac_id": "AC-ASSET-4", "status": "met", "evidence": "endpointBaseUrl=//few.chat/assets"},
+    {"ac_id": "AC-TEST-1", "status": "met", "evidence": "git grep app/tests/unit = 0"},
+    {"ac_id": "AC-TEST-2", "status": "met", "evidence": "git grep app/tests/e2e = 0"},
+    {"ac_id": "AC-TEST-3", "status": "met", "evidence": "1617/1617 unit tests pass"},
+    {"ac_id": "AC-MAKE-1", "status": "met", "evidence": "deploy/deploy-check are Cloudflare few.chat"},
+    {"ac_id": "AC-MAKE-2", "status": "met", "evidence": "no FTP/SSL/maintenance targets or vars"},
+    {"ac_id": "AC-MAKE-3", "status": "met", "evidence": ".PHONY matches defined targets"},
+    {"ac_id": "AC-MAKE-4", "status": "met", "evidence": "help banner = Few"},
+    {"ac_id": "AC-MAKE-5", "status": "met", "evidence": "PLAYWRIGHT_BROWSERS_PATH = playwright-few"},
+    {"ac_id": "AC-MAKE-6", "status": "met", "evidence": "make -n deploy-check has no FTP/SSL refs"},
+    {"ac_id": "AC-DOCS-1", "status": "met", "evidence": "CLAUDE.md clean"},
+    {"ac_id": "AC-DOCS-2", "status": "met", "evidence": "storage-namespace status = Superseded, 1 line diff"},
+    {"ac_id": "AC-DOCS-3", "status": "met", "evidence": "docs/*.md clean"},
+    {"ac_id": "AC-STRUCT-1", "status": "met", "evidence": "git grep quizzl|nostling app/ Makefile CLAUDE.md = 0"},
+    {"ac_id": "AC-STRUCT-2", "status": "met", "evidence": "historical surfaces only diff = 1 status line; BACKLOG only epic entry"},
+    {"ac_id": "AC-STRUCT-3", "status": "met", "evidence": "no dual-read/fallback shim in diff"}
+  ],
+  "manual_validation": [],
+  "gate_runs": [
+    {"gate_id": "pre_commit_review", "outcome": "fired_pass"}
+  ],
+  "plugin_sha": "unknown",
+  "consumer_sha": "60979f0",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "sonnet",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json"
+}

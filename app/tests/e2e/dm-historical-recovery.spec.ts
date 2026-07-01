@@ -66,7 +66,7 @@ async function buildGiftWrap(args: {
 /**
  * Publish a Nostr event directly to the relay via WebSocket (Node 22+ global).
  *
- * Narrow exception: historical seeding from a non-Nostling context is acceptable
+ * Narrow exception: historical seeding from a non-Few context is acceptable
  * here because the app cannot produce events in the past. The focus of this test
  * is the ContactChat recovery and dedup logic, not the publishing path.
  */

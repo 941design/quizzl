@@ -174,9 +174,9 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
     await pgA.waitForTimeout(5_000);
 
     // Simulate aged history: delete C's stored profiles and memos for A and B
-    await deleteIdbRecord(pgC, 'quizzl-member-profiles', 'profiles', `group:${groupId}`);
-    await deleteIdbRecord(pgC, 'quizzl-profile-request-memos', 'memos', `${groupId}:${USER_A.pubkeyHex}`);
-    await deleteIdbRecord(pgC, 'quizzl-profile-request-memos', 'memos', `${groupId}:${USER_B.pubkeyHex}`);
+    await deleteIdbRecord(pgC, 'few-member-profiles', 'profiles', `group:${groupId}`);
+    await deleteIdbRecord(pgC, 'few-profile-request-memos', 'memos', `${groupId}:${USER_A.pubkeyHex}`);
+    await deleteIdbRecord(pgC, 'few-profile-request-memos', 'memos', `${groupId}:${USER_B.pubkeyHex}`);
 
     // Reload C — app-start sweep fires, sees missing profiles, emits requests
     await pgC.reload();
@@ -210,7 +210,7 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
     // Read C's current profiles for the group and make B's profile stale
     const existingProfiles = await readIdbRecord<unknown[]>(
       pgC,
-      'quizzl-member-profiles',
+      'few-member-profiles',
       'profiles',
       `group:${groupId}`,
     );
@@ -220,10 +220,10 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
         ? { ...profile, updatedAt: staleDate, signedEvent: null }
         : profile;
     });
-    await writeIdbRecord(pgC, 'quizzl-member-profiles', 'profiles', `group:${groupId}`, stalifiedProfiles);
+    await writeIdbRecord(pgC, 'few-member-profiles', 'profiles', `group:${groupId}`, stalifiedProfiles);
 
     // Write a stale memo for B (lastRequestAt = 8d ago, so REQUEST_DEDUPE_MS window has expired)
-    await writeIdbRecord(pgC, 'quizzl-profile-request-memos', 'memos', `${groupId}:${USER_B.pubkeyHex}`, {
+    await writeIdbRecord(pgC, 'few-profile-request-memos', 'memos', `${groupId}:${USER_B.pubkeyHex}`, {
       groupId,
       targetPubkey: USER_B.pubkeyHex,
       lastRequestAt: eightDaysAgo,
@@ -244,7 +244,7 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
     // Verify memo was updated: lastRequestAt should be recent (sweep ran)
     const memo = await readIdbRecord<Record<string, unknown>>(
       pgC,
-      'quizzl-profile-request-memos',
+      'few-profile-request-memos',
       'memos',
       `${groupId}:${USER_B.pubkeyHex}`,
     );
@@ -290,15 +290,15 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
     // Delete C's stored profile for B and the memo (force fresh request)
     const existingProfiles = await readIdbRecord<unknown[]>(
       pgC,
-      'quizzl-member-profiles',
+      'few-member-profiles',
       'profiles',
       `group:${groupId}`,
     );
     const profilesWithoutBob = (existingProfiles ?? []).filter(
       (p: unknown) => (p as Record<string, unknown>).pubkeyHex !== USER_B.pubkeyHex,
     );
-    await writeIdbRecord(pgC, 'quizzl-member-profiles', 'profiles', `group:${groupId}`, profilesWithoutBob);
-    await deleteIdbRecord(pgC, 'quizzl-profile-request-memos', 'memos', `${groupId}:${USER_B.pubkeyHex}`);
+    await writeIdbRecord(pgC, 'few-member-profiles', 'profiles', `group:${groupId}`, profilesWithoutBob);
+    await deleteIdbRecord(pgC, 'few-profile-request-memos', 'memos', `${groupId}:${USER_B.pubkeyHex}`);
 
     // Navigate C into the group — requestProfilesIfStale fires → C emits PROFILE_REQUEST_KIND for B
     await openGroup(pgC, GROUP_NAME);
@@ -340,7 +340,7 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
     // Write a stale profile for B and clear the memo
     const existingProfiles = await readIdbRecord<unknown[]>(
       pgC,
-      'quizzl-member-profiles',
+      'few-member-profiles',
       'profiles',
       `group:${groupId}`,
     );
@@ -350,8 +350,8 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
         ? { ...profile, updatedAt: staleDate, signedEvent: null }
         : profile;
     });
-    await writeIdbRecord(pgC, 'quizzl-member-profiles', 'profiles', `group:${groupId}`, stalifiedProfiles);
-    await deleteIdbRecord(pgC, 'quizzl-profile-request-memos', 'memos', `${groupId}:${USER_B.pubkeyHex}`);
+    await writeIdbRecord(pgC, 'few-member-profiles', 'profiles', `group:${groupId}`, stalifiedProfiles);
+    await deleteIdbRecord(pgC, 'few-profile-request-memos', 'memos', `${groupId}:${USER_B.pubkeyHex}`);
 
     // Install a fake clock on C starting from the current real time
     await pgC.clock.install();
@@ -381,7 +381,7 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
     // Verify: memo.attempts = UNANSWERED_MAX_ATTEMPTS (3), no 4th attempt
     const memo = await readIdbRecord<Record<string, unknown>>(
       pgC,
-      'quizzl-profile-request-memos',
+      'few-profile-request-memos',
       'memos',
       `${groupId}:${USER_B.pubkeyHex}`,
     );
@@ -398,10 +398,10 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
   test('6. Forged-sig rejection: parseProfilePayload returns null for bad sig (AC-040 / AC-045)', async () => {
     test.setTimeout(30_000);
 
-    // Wait for window.__nostlingTest.parseProfilePayload to be exposed by MarmotContext
+    // Wait for window.__fewTest.parseProfilePayload to be exposed by MarmotContext
     await pgC.waitForFunction(
-      () => typeof (window as unknown as Record<string, unknown>).__nostlingTest !== 'undefined' &&
-        typeof ((window as unknown as Record<string, Record<string, unknown>>).__nostlingTest)?.parseProfilePayload === 'function',
+      () => typeof (window as unknown as Record<string, unknown>).__fewTest !== 'undefined' &&
+        typeof ((window as unknown as Record<string, Record<string, unknown>>).__fewTest)?.parseProfilePayload === 'function',
       { timeout: 20_000 },
     );
 
@@ -422,7 +422,7 @@ test.describe.serial('Profile request discovery — six scenarios (AC-045/AC-046
 
     // parseProfilePayload must return null — sig verification via nostr-tools verifyEvent fails
     const parsed = await pgC.evaluate((content) => {
-      return ((window as unknown as Record<string, Record<string, unknown>>).__nostlingTest)
+      return ((window as unknown as Record<string, Record<string, unknown>>).__fewTest)
         ?.parseProfilePayload(content);
     }, forgedContent);
 

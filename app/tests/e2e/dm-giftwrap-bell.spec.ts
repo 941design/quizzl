@@ -6,7 +6,7 @@
  *   1. Alice and Bob boot on /groups/ and establish a shared MLS group
  *      (required by the DM walled-garden gate).
  *   2. Alice navigates to /contacts — the bell watcher is mounted.
- *   3. Bob calls window.__nostlingPublishDm to send a NIP-17 gift-wrapped DM to Alice.
+ *   3. Bob calls window.__fewPublishDm to send a NIP-17 gift-wrapped DM to Alice.
  *   4. Assert Alice's bell badge becomes ≥ 1 without Alice ever opening the chat.
  *   5. Alice navigates to the DM thread → message renders.
  *
@@ -34,7 +34,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
 async function waitForBridge(page: Page) {
   await page.waitForFunction(
-    () => !!(window as any).__nostlingUnread,
+    () => !!(window as any).__fewUnread,
     null,
     { timeout: 10_000 },
   );
@@ -42,7 +42,7 @@ async function waitForBridge(page: Page) {
 
 /**
  * Boot a user in a fresh Playwright context, navigating to /groups/ so the
- * full app bundle (including unreadStore + __nostlingPublishDm bridge) is loaded.
+ * full app bundle (including unreadStore + __fewPublishDm bridge) is loaded.
  */
 async function bootUserOnGroups(
   browser: { newContext: (opts: object) => Promise<BrowserContext> },
@@ -116,15 +116,15 @@ test.describe.serial('DM gift-wrapped bell — AC-22', () => {
         return parseInt((badge.textContent ?? '0').trim(), 10);
       });
 
-      // ── 2. Bob sends a NIP-17 gift-wrapped DM via the __nostlingPublishDm bridge ─
+      // ── 2. Bob sends a NIP-17 gift-wrapped DM via the __fewPublishDm bridge ─
       await bobPage.waitForFunction(
-        () => typeof (window as any).__nostlingPublishDm === 'function',
+        () => typeof (window as any).__fewPublishDm === 'function',
         null,
         { timeout: 10_000 },
       );
       await bobPage.evaluate(
         async ({ alicePub, content }) => {
-          await (window as any).__nostlingPublishDm(alicePub, content);
+          await (window as any).__fewPublishDm(alicePub, content);
         },
         { alicePub: USER_A.pubkeyHex, content: RUMOR_CONTENT },
       );

@@ -1,7 +1,7 @@
 /**
  * E2E tests for story-06: Group reactions outbound and inbound.
  *
- * Uses the window.__nostlingReactions state-injection bridge (exposed in GroupChat.tsx
+ * Uses the window.__fewReactions state-injection bridge (exposed in GroupChat.tsx
  * in non-production builds) to send reactions without UI affordances.
  * Story-08 will replace the bridge with real picker UI.
  *
@@ -42,10 +42,10 @@ async function bootUserWithProfile(
   return { context, page };
 }
 
-/** Wait for the __nostlingReactions bridge to become available. */
+/** Wait for the __fewReactions bridge to become available. */
 async function waitForReactionsBridge(page: Page): Promise<void> {
   await page.waitForFunction(
-    () => !!(window as any).__nostlingReactions,
+    () => !!(window as any).__fewReactions,
     null,
     { timeout: 15_000 },
   );
@@ -65,7 +65,7 @@ async function sendReactionViaBridge(
   await waitForReactionsBridge(page);
   await page.evaluate(
     ({ gid, mid, emoji, isRemoval }) => {
-      return (window as any).__nostlingReactions.send(gid, mid, emoji, isRemoval);
+      return (window as any).__fewReactions.send(gid, mid, emoji, isRemoval);
     },
     { gid: groupId, mid: messageId, emoji, isRemoval: isRemoval ?? false },
   );
@@ -242,7 +242,7 @@ test.describe.serial('Group Reactions — story-06', () => {
  * Story-08 UI tests — reaction picker, own-reaction highlight, badge click toggle.
  *
  * These tests use the real picker UI (hover → trigger → picker → glyph click)
- * rather than the window.__nostlingReactions bridge. The bridge is preserved in
+ * rather than the window.__fewReactions bridge. The bridge is preserved in
  * GroupChat.tsx for story-06's tests above (backwards compat per story brief).
  *
  * AC-47, AC-48, AC-49, AC-50, AC-51, AC-52, AC-56, AC-63, AC-64.

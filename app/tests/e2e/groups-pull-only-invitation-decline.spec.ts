@@ -124,7 +124,7 @@ test.describe.serial('Pull-only invitation: Decline (AC-TEST-6)', () => {
     await bobPage.goto('/contacts');
     await bobPage.waitForLoadState('networkidle');
     await bobPage.waitForFunction(
-      () => !!(window as any).__nostlingUnread,
+      () => !!(window as any).__fewUnread,
       null,
       { timeout: 15_000 },
     );
@@ -139,13 +139,13 @@ test.describe.serial('Pull-only invitation: Decline (AC-TEST-6)', () => {
     // Alice sends a DM to Bob via the app bridge
     const DM_CONTENT = `decline-test-dm-${Date.now()}`;
     await alicePage.waitForFunction(
-      () => typeof (window as any).__nostlingPublishDm === 'function',
+      () => typeof (window as any).__fewPublishDm === 'function',
       null,
       { timeout: 15_000 },
     );
     await alicePage.evaluate(
       async ({ bobPub, content }) => {
-        await (window as any).__nostlingPublishDm(bobPub, content);
+        await (window as any).__fewPublishDm(bobPub, content);
       },
       { bobPub: USER_B.pubkeyHex, content: DM_CONTENT },
     );

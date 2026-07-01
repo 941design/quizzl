@@ -357,12 +357,12 @@ describe('buildChatRumor (closes L303 extraTags and L311 timestamp gaps)', () =>
       privateKeyHex: senderPrivHex,
       peerPubkeyHex: recipientPub,
       content: 'msg',
-      extraTags: [['l', 'feedback'], ['client', 'nostling']],
+      extraTags: [['l', 'feedback'], ['client', 'few']],
     });
     expect(rumor.tags.length).toBe(3);
     expect(rumor.tags[0]).toEqual(['p', recipientPub]);
     expect(rumor.tags[1]).toEqual(['l', 'feedback']);
-    expect(rumor.tags[2]).toEqual(['client', 'nostling']);
+    expect(rumor.tags[2]).toEqual(['client', 'few']);
   });
 
   it('sets created_at to a current unix-SECOND value, not milliseconds (L311)', () => {
@@ -449,7 +449,7 @@ describe('feedbackMarkerTags (closes L345-350 no-coverage block, AC-MARKER-1)', 
     process.env.NEXT_PUBLIC_BUILD_VERSION = '2026.06.15-abc';
     const tags = feedbackMarkerTags();
     expect(tags).toHaveLength(2);
-    expect(tags[0]).toEqual(['client', 'nostling', '2026.06.15-abc']);
+    expect(tags[0]).toEqual(['client', 'few', '2026.06.15-abc']);
     expect(tags[1]).toEqual(['l', 'feedback']);
   });
 
@@ -457,7 +457,7 @@ describe('feedbackMarkerTags (closes L345-350 no-coverage block, AC-MARKER-1)', 
     delete process.env.NEXT_PUBLIC_BUILD_VERSION;
     const tags = feedbackMarkerTags();
     expect(tags).toHaveLength(2);
-    expect(tags[0]).toEqual(['client', 'nostling']);
+    expect(tags[0]).toEqual(['client', 'few']);
     expect(tags[0]).toHaveLength(2);
     expect(tags[1]).toEqual(['l', 'feedback']);
   });
@@ -465,7 +465,7 @@ describe('feedbackMarkerTags (closes L345-350 no-coverage block, AC-MARKER-1)', 
   it('returns a 2-element client tag when NEXT_PUBLIC_BUILD_VERSION is the empty string (falsy)', () => {
     process.env.NEXT_PUBLIC_BUILD_VERSION = '';
     const tags = feedbackMarkerTags();
-    expect(tags[0]).toEqual(['client', 'nostling']);
+    expect(tags[0]).toEqual(['client', 'few']);
     expect(tags[0]).toHaveLength(2);
   });
 });

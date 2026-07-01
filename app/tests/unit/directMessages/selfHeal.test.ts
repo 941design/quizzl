@@ -117,7 +117,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
               type: 'image/webp',
               filename: 'photo.webp',
               nonce: 'd'.repeat(24),
-              version: 'quizzl-dm-media-v1',
+              version: 'few-dm-media-v1',
             },
             thumb: null,
           },
@@ -235,7 +235,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
             type: 'image/webp',
             filename: 'photo.webp',
             nonce: 'f'.repeat(24),
-            version: 'quizzl-dm-media-v1',
+            version: 'few-dm-media-v1',
             // url is missing — upload never completed
           } as any,
           thumb: null,
@@ -262,7 +262,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
             type: 'image/webp',
             filename: 'photo.webp',
             nonce: 'f'.repeat(24),
-            version: 'quizzl-dm-media-v1',
+            version: 'few-dm-media-v1',
             // url is missing
           } as any,
           thumb: null,
@@ -294,7 +294,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
             type: 'image/webp',
             filename: 'done.webp',
             nonce: 'f'.repeat(24),
-            version: 'quizzl-dm-media-v1',
+            version: 'few-dm-media-v1',
           },
           thumb: null,
         },
@@ -430,7 +430,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
         groupId: THREAD_ID,
         createdAt: Date.now(),
       };
-      idbStore.set(`quizzl:messages:${THREAD_ID}`, [malformedRow]);
+      idbStore.set(`few:messages:${THREAD_ID}`, [malformedRow]);
 
       const result = await loadMessages(THREAD_ID);
 
@@ -449,7 +449,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
         groupId: THREAD_ID,
         createdAt: Date.now(),
       };
-      idbStore.set(`quizzl:messages:${THREAD_ID}`, [malformedRow]);
+      idbStore.set(`few:messages:${THREAD_ID}`, [malformedRow]);
 
       // First call — heal and mark
       await loadMessages(THREAD_ID);
@@ -468,7 +468,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
 
     it('loadMessages for a group thread has no self-heal (no marker set)', async () => {
       const groupId = 'group:abc123';
-      idbStore.set(`quizzl:messages:${groupId}`, [{
+      idbStore.set(`few:messages:${groupId}`, [{
         id: 'a'.repeat(64),
         content: '{"type":"text","text":"group message"}',
         senderPubkey: PEER_PUB,
@@ -492,7 +492,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
         groupId: newThreadId,
         createdAt: Date.now(),
       };
-      idbStore.set(`quizzl:messages:${newThreadId}`, [malformedRow]);
+      idbStore.set(`few:messages:${newThreadId}`, [malformedRow]);
       // Ensure the healed marker exists but does NOT contain the new thread
       localStore['lp_dmHealed_v1'] = JSON.stringify(['dm:bob']);
 
@@ -510,7 +510,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
         groupId: THREAD_ID,
         createdAt: Date.now(),
       };
-      idbStore.set(`quizzl:messages:${THREAD_ID}`, [row]);
+      idbStore.set(`few:messages:${THREAD_ID}`, [row]);
       localStore['lp_dmHealed_v1'] = 'not valid json{{{';
 
       const result = await loadMessages(THREAD_ID);
@@ -519,7 +519,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
     });
 
     it('empty DM thread with no messages runs the pass but has nothing to do', async () => {
-      idbStore.set(`quizzl:messages:${THREAD_ID}`, []);
+      idbStore.set(`few:messages:${THREAD_ID}`, []);
 
       const result = await loadMessages(THREAD_ID);
 
@@ -538,7 +538,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
   describe('removeMessages (bug-3 regression)', () => {
 
     it('drops the requested ids from the per-group log', async () => {
-      const key = `quizzl:messages:${THREAD_ID}`;
+      const key = `few:messages:${THREAD_ID}`;
       idbStore.set(key, [
         { id: 'malformed-uuid', content: 'old envelope', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 1 },
         { id: 'a'.repeat(64), content: 'kept', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 2 },
@@ -552,7 +552,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
     });
 
     it('is a no-op for ids that are not present', async () => {
-      const key = `quizzl:messages:${THREAD_ID}`;
+      const key = `few:messages:${THREAD_ID}`;
       const stored = [
         { id: 'a'.repeat(64), content: 'msg', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 1 },
       ];
@@ -564,7 +564,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
     });
 
     it('serialises with appendMessage on the same key (no lost writes when interleaved)', async () => {
-      const key = `quizzl:messages:${THREAD_ID}`;
+      const key = `few:messages:${THREAD_ID}`;
       idbStore.set(key, [
         { id: 'malformed', content: 'old', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 1 },
       ]);
@@ -584,7 +584,7 @@ describe('selfHealMessages (story-04, §3.4)', () => {
     });
 
     it('empty ids array is a no-op (does not touch IDB)', async () => {
-      const key = `quizzl:messages:${THREAD_ID}`;
+      const key = `few:messages:${THREAD_ID}`;
       idbStore.set(key, [
         { id: 'a'.repeat(64), content: 'msg', senderPubkey: PEER_PUB, groupId: THREAD_ID, createdAt: 1 },
       ]);

@@ -79,7 +79,7 @@ async function bootUserOnGroups(
  * Seed a malformed DM row in the idb-keyval store the app actually reads from.
  *
  * The app uses `idb-keyval` (DB="keyval-store", store="keyval") and the chat
- * persistence layer keys rows under `quizzl:messages:dm:<peer-lowercase>`.
+ * persistence layer keys rows under `few:messages:dm:<peer-lowercase>`.
  * The whole record is the message array — the IDB record's value is
  * `ChatMessage[]`, not a single row.
  */
@@ -88,7 +88,7 @@ async function seedMalformedRow(page: import('@playwright/test').Page): Promise<
   await page.evaluate(
     ({ bobPub, envelopeContent, envelopeId, now }) => {
       const groupId = `dm:${bobPub.toLowerCase()}`;
-      const storageKey = `quizzl:messages:${groupId}`;
+      const storageKey = `few:messages:${groupId}`;
       const malformedRow = {
         id: envelopeId,
         content: envelopeContent,
@@ -129,7 +129,7 @@ async function readDmThread(
   peerPubkeyHex: string,
 ): Promise<Array<{ id: string; content: string; senderPubkey: string; createdAt: number }> | null> {
   return page.evaluate((peer) => {
-    const storageKey = `quizzl:messages:dm:${peer.toLowerCase()}`;
+    const storageKey = `few:messages:dm:${peer.toLowerCase()}`;
     return new Promise<any[] | null>((resolve) => {
       const openReq = indexedDB.open('keyval-store', 1);
       openReq.onupgradeneeded = () => {

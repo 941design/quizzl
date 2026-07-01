@@ -126,8 +126,8 @@ test.describe.serial('Migration backfill: knownPeers seeded from groups; strange
     await alicePage.goto('/');
     await alicePage.waitForLoadState('networkidle');
 
-    const malloryThreadKey = `quizzl:messages:dm:${USER_C.pubkeyHex.toLowerCase()}`;
-    const bobThreadKey = `quizzl:messages:dm:${USER_B.pubkeyHex.toLowerCase()}`;
+    const malloryThreadKey = `few:messages:dm:${USER_C.pubkeyHex.toLowerCase()}`;
+    const bobThreadKey = `few:messages:dm:${USER_B.pubkeyHex.toLowerCase()}`;
 
     await writeIdbRecord(alicePage, 'keyval-store', 'keyval', malloryThreadKey, FAKE_MALLORY_MESSAGE);
     await writeIdbRecord(alicePage, 'keyval-store', 'keyval', bobThreadKey, FAKE_BOB_MESSAGE);
@@ -167,7 +167,7 @@ test.describe.serial('Migration backfill: knownPeers seeded from groups; strange
 
     // Wait for MarmotContext to initialize and migration to complete
     await alicePage.waitForFunction(
-      () => !!(window as any).__nostlingUnread,
+      () => !!(window as any).__fewUnread,
       null,
       { timeout: 30_000 },
     );
@@ -195,12 +195,12 @@ test.describe.serial('Migration backfill: knownPeers seeded from groups; strange
     }
 
     // AC-TEST-8(c): Bob's IDB DM thread still exists
-    const bobThreadKey = `quizzl:messages:dm:${USER_B.pubkeyHex.toLowerCase()}`;
+    const bobThreadKey = `few:messages:dm:${USER_B.pubkeyHex.toLowerCase()}`;
     const bobAfter = await readIdbRecord(alicePage, 'keyval-store', 'keyval', bobThreadKey);
     expect(bobAfter).not.toBeNull();
 
     // AC-TEST-8(d): Mallory's IDB DM thread is gone
-    const malloryThreadKey = `quizzl:messages:dm:${USER_C.pubkeyHex.toLowerCase()}`;
+    const malloryThreadKey = `few:messages:dm:${USER_C.pubkeyHex.toLowerCase()}`;
     const malloryAfter = await readIdbRecord(alicePage, 'keyval-store', 'keyval', malloryThreadKey);
     expect(malloryAfter).toBeNull();
   });

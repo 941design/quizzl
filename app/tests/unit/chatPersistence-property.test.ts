@@ -107,7 +107,7 @@ describe('getHealedThreads — corrupt/missing data handled gracefully', () => {
   it('self-heal pass runs when healed marker is absent (no localStorage key)', async () => {
     // No marker set — should run the heal pass without throwing
     const msg = makeMsg({ content: '{"type":"text","text":"hi"}' });
-    idbStore.set('quizzl:messages:dm:test', [msg]);
+    idbStore.set('few:messages:dm:test', [msg]);
     const { messages } = await loadMessages('dm:test');
     expect(messages).toBeDefined();
     expect(Array.isArray(messages)).toBe(true);
@@ -116,7 +116,7 @@ describe('getHealedThreads — corrupt/missing data handled gracefully', () => {
   it('self-heal pass runs when healed marker is null string (returns messages)', async () => {
     lsStore.set('lp_dmHealed_v1', 'null');
     const msg = makeMsg({ content: 'plain' });
-    idbStore.set('quizzl:messages:dm:test2', [msg]);
+    idbStore.set('few:messages:dm:test2', [msg]);
     const { messages } = await loadMessages('dm:test2');
     expect(messages).toBeDefined();
     expect(Array.isArray(messages)).toBe(true);
@@ -125,7 +125,7 @@ describe('getHealedThreads — corrupt/missing data handled gracefully', () => {
   it('self-heal pass runs when healed marker is a non-array JSON value', async () => {
     lsStore.set('lp_dmHealed_v1', JSON.stringify({ notAnArray: true }));
     const msg = makeMsg();
-    idbStore.set('quizzl:messages:dm:test3', [msg]);
+    idbStore.set('few:messages:dm:test3', [msg]);
     const { messages } = await loadMessages('dm:test3');
     expect(messages).toBeDefined();
   });
@@ -133,7 +133,7 @@ describe('getHealedThreads — corrupt/missing data handled gracefully', () => {
   it('self-heal pass is skipped when the thread is already in the healed set', async () => {
     lsStore.set('lp_dmHealed_v1', JSON.stringify(['dm:healed']));
     const msg = makeMsg({ content: '{"type":"text","content":"hi"}' });
-    idbStore.set('quizzl:messages:dm:healed', [msg]);
+    idbStore.set('few:messages:dm:healed', [msg]);
     const { messages } = await loadMessages('dm:healed');
     // Returned as-is without envelope rewrite (healed marker present)
     expect(messages[0].content).toBe('{"type":"text","content":"hi"}');
@@ -284,7 +284,7 @@ describe('loadMessages — persisted-rewrite gate: IDB is updated when heal muta
     lsStore.set('lp_nostrIdentity_v1', JSON.stringify({ pubkeyHex: OWN_PUBKEY }));
     // Use the correct envelope format: {"type":"text","text":"..."} not "content"
     const msg = makeMsg({ content: '{"type":"text","text":"healed content"}' });
-    idbStore.set('quizzl:messages:dm:heal-write', [msg]);
+    idbStore.set('few:messages:dm:heal-write', [msg]);
 
     const { messages } = await loadMessages('dm:heal-write');
     // The healed content must reflect the rewrite
@@ -292,7 +292,7 @@ describe('loadMessages — persisted-rewrite gate: IDB is updated when heal muta
     // And it must have been persisted (IDB set was called for the thread key)
     const idbSet = vi.mocked(await import('idb-keyval')).set;
     const writeCalls = (idbSet as any).mock.calls.filter(
-      ([k]: [string]) => k === 'quizzl:messages:dm:heal-write',
+      ([k]: [string]) => k === 'few:messages:dm:heal-write',
     );
     expect(writeCalls.length).toBeGreaterThan(0);
   });
@@ -300,14 +300,14 @@ describe('loadMessages — persisted-rewrite gate: IDB is updated when heal muta
   it('IDB is NOT written when the self-heal pass makes no changes', async () => {
     lsStore.set('lp_nostrIdentity_v1', JSON.stringify({ pubkeyHex: OWN_PUBKEY }));
     const msg = makeMsg({ content: 'plain text no envelope' });
-    idbStore.set('quizzl:messages:dm:no-change', [msg]);
+    idbStore.set('few:messages:dm:no-change', [msg]);
 
     const idbSetMock = vi.mocked((await import('idb-keyval')).set);
     idbSetMock.mockClear();
 
     await loadMessages('dm:no-change');
     const writeCalls = idbSetMock.mock.calls.filter(
-      ([k]) => k === 'quizzl:messages:dm:no-change',
+      ([k]) => k === 'few:messages:dm:no-change',
     );
     expect(writeCalls).toHaveLength(0);
   });
@@ -344,7 +344,7 @@ describe('removeMessages — no IDB write when ids are not present', () => {
 
   it('does not write to IDB when no ids match', async () => {
     const msg = makeMsg({ id: 'a'.repeat(64) });
-    idbStore.set('quizzl:messages:group-no-change', [msg]);
+    idbStore.set('few:messages:group-no-change', [msg]);
 
     const idbSet = vi.mocked((await import('idb-keyval')).set);
     idbSet.mockClear();
@@ -357,7 +357,7 @@ describe('removeMessages — no IDB write when ids are not present', () => {
   it('writes to IDB when an id matches', async () => {
     const id = 'c'.repeat(64);
     const msg = makeMsg({ id });
-    idbStore.set('quizzl:messages:group-change', [msg]);
+    idbStore.set('few:messages:group-change', [msg]);
 
     const idbSet = vi.mocked((await import('idb-keyval')).set);
     idbSet.mockClear();
@@ -369,7 +369,7 @@ describe('removeMessages — no IDB write when ids are not present', () => {
 
 // ── clearAllMessages (lines 306, 312) ─────────────────────────────────────────
 
-describe('clearAllMessages — deletes all quizzl:messages: keys', () => {
+describe('clearAllMessages — deletes all few:messages: keys', () => {
   /**
    * Property: after clearAllMessages, no key matching the prefix survives in IDB.
    * Non-prefixed keys are untouched.
@@ -377,45 +377,45 @@ describe('clearAllMessages — deletes all quizzl:messages: keys', () => {
    *        ArrowFunction repl='() => undefined' on the key filter predicate (line 312).
    */
 
-  it('removes all quizzl:messages: keys from IDB', async () => {
-    idbStore.set('quizzl:messages:group-1', [makeMsg()]);
-    idbStore.set('quizzl:messages:group-2', [makeMsg()]);
-    idbStore.set('quizzl:messages:dm:peer', [makeMsg()]);
+  it('removes all few:messages: keys from IDB', async () => {
+    idbStore.set('few:messages:group-1', [makeMsg()]);
+    idbStore.set('few:messages:group-2', [makeMsg()]);
+    idbStore.set('few:messages:dm:peer', [makeMsg()]);
 
     await clearAllMessages();
 
-    expect(idbStore.has('quizzl:messages:group-1')).toBe(false);
-    expect(idbStore.has('quizzl:messages:group-2')).toBe(false);
-    expect(idbStore.has('quizzl:messages:dm:peer')).toBe(false);
+    expect(idbStore.has('few:messages:group-1')).toBe(false);
+    expect(idbStore.has('few:messages:group-2')).toBe(false);
+    expect(idbStore.has('few:messages:dm:peer')).toBe(false);
   });
 
-  it('does not remove keys that do not start with quizzl:messages:', async () => {
-    idbStore.set('quizzl:reactions:group:g1', []);
-    idbStore.set('quizzl:messages:group-1', [makeMsg()]);
+  it('does not remove keys that do not start with few:messages:', async () => {
+    idbStore.set('few:reactions:group:g1', []);
+    idbStore.set('few:messages:group-1', [makeMsg()]);
 
     await clearAllMessages();
 
-    expect(idbStore.has('quizzl:reactions:group:g1')).toBe(true);
+    expect(idbStore.has('few:reactions:group:g1')).toBe(true);
   });
 
   it('is idempotent: calling twice does not throw', async () => {
-    idbStore.set('quizzl:messages:group-1', [makeMsg()]);
+    idbStore.set('few:messages:group-1', [makeMsg()]);
     await clearAllMessages();
     await clearAllMessages();
-    expect(idbStore.has('quizzl:messages:group-1')).toBe(false);
+    expect(idbStore.has('few:messages:group-1')).toBe(false);
   });
 
-  it('key filter only matches strings starting with quizzl:messages:', async () => {
+  it('key filter only matches strings starting with few:messages:', async () => {
     // Verify the filter predicate specifically (line 312 mutation target)
-    idbStore.set('quizzl:messages:abc', []);
+    idbStore.set('few:messages:abc', []);
     idbStore.set('other:messages:abc', []);
-    idbStore.set('quizzl:reactions:dm:abc', []);
+    idbStore.set('few:reactions:dm:abc', []);
 
     await clearAllMessages();
 
-    expect(idbStore.has('quizzl:messages:abc')).toBe(false);
+    expect(idbStore.has('few:messages:abc')).toBe(false);
     expect(idbStore.has('other:messages:abc')).toBe(true);
-    expect(idbStore.has('quizzl:reactions:dm:abc')).toBe(true);
+    expect(idbStore.has('few:reactions:dm:abc')).toBe(true);
   });
 });
 
@@ -433,7 +433,7 @@ describe('loadMessages — ownPubkeyHex fallback when identity is absent', () =>
   it('self-heal pass runs without identity in localStorage (no crash)', async () => {
     // No identity set
     const msg = makeMsg({ content: '{"type":"text","text":"ok"}' });
-    idbStore.set('quizzl:messages:dm:no-identity', [msg]);
+    idbStore.set('few:messages:dm:no-identity', [msg]);
     const { messages } = await loadMessages('dm:no-identity');
     expect(Array.isArray(messages)).toBe(true);
     expect(messages[0].content).toBe('ok');
@@ -446,7 +446,7 @@ describe('loadMessages — ownPubkeyHex fallback when identity is absent', () =>
       senderPubkey: OWN_PUBKEY,
       attachments: { full: { sha256: 'hash', width: 1, height: 1 } as any },
     });
-    idbStore.set('quizzl:messages:dm:no-id-orphan', [msg]);
+    idbStore.set('few:messages:dm:no-id-orphan', [msg]);
     const { messages } = await loadMessages('dm:no-id-orphan');
     // With ownPubkeyHex = '', the check `senderPubkey === ''` fails → not dropped
     expect(messages).toHaveLength(1);
@@ -455,7 +455,7 @@ describe('loadMessages — ownPubkeyHex fallback when identity is absent', () =>
   it('corrupt identity JSON is silently ignored (no crash)', async () => {
     lsStore.set('lp_nostrIdentity_v1', '{NOT VALID JSON}');
     const msg = makeMsg({ content: 'plain' });
-    idbStore.set('quizzl:messages:dm:corrupt-id', [msg]);
+    idbStore.set('few:messages:dm:corrupt-id', [msg]);
     await expect(loadMessages('dm:corrupt-id')).resolves.toBeDefined();
   });
 });
@@ -473,7 +473,7 @@ describe('loadMessages — healed-marker early-return skips the pass', () => {
     lsStore.set('lp_dmHealed_v1', JSON.stringify(['dm:already-healed']));
     const raw = '{"type":"text","text":"should stay raw"}';
     const msg = makeMsg({ content: raw });
-    idbStore.set('quizzl:messages:dm:already-healed', [msg]);
+    idbStore.set('few:messages:dm:already-healed', [msg]);
     const { messages } = await loadMessages('dm:already-healed');
     expect(messages[0].content).toBe(raw);
   });
@@ -506,7 +506,7 @@ describe('loadMessages — ownPubkeyHex is read from identity when present (line
       senderPubkey: OWN_PUBKEY,
       attachments: { full: { sha256: 'abc', width: 10, height: 10 } as any },
     });
-    idbStore.set('quizzl:messages:dm:identity-present', [orphanSelf]);
+    idbStore.set('few:messages:dm:identity-present', [orphanSelf]);
     const { messages } = await loadMessages('dm:identity-present');
     // Case 3 fires: ownPubkeyHex is read from identity → orphan is dropped
     expect(messages).toHaveLength(0);
@@ -519,7 +519,7 @@ describe('loadMessages — ownPubkeyHex is read from identity when present (line
       senderPubkey: PEER_PUBKEY,
       attachments: { full: { sha256: 'abc', width: 10, height: 10 } as any },
     });
-    idbStore.set('quizzl:messages:dm:peer-orphan-with-id', [orphanPeer]);
+    idbStore.set('few:messages:dm:peer-orphan-with-id', [orphanPeer]);
     const { messages } = await loadMessages('dm:peer-orphan-with-id');
     expect(messages).toHaveLength(1);
   });
@@ -531,7 +531,7 @@ describe('loadMessages — ownPubkeyHex is read from identity when present (line
       senderPubkey: OWN_PUBKEY, // won't match '' → not dropped
       attachments: { full: { sha256: 'abc', width: 10, height: 10 } as any },
     });
-    idbStore.set('quizzl:messages:dm:missing-pubkey', [orphanLooksLikeSelf]);
+    idbStore.set('few:messages:dm:missing-pubkey', [orphanLooksLikeSelf]);
     const { messages } = await loadMessages('dm:missing-pubkey');
     // ownPubkeyHex = '' via ?? '' fallback → senderPubkey !== '' → not dropped
     expect(messages).toHaveLength(1);
@@ -577,7 +577,7 @@ describe('selfHealMessages — peer orphan image: content suppressed (lines 137,
         type: 'image/webp',
         filename: 'img.webp',
         nonce: 'b'.repeat(24),
-        version: 'quizzl-dm-media-v1',
+        version: 'few-dm-media-v1',
         // url intentionally absent — upload pending
       },
       thumb: null,

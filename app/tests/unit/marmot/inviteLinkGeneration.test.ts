@@ -51,7 +51,7 @@ describe('inviteLinkGeneration', () => {
 
   describe('buildInviteUrl', () => {
     it('builds the correct URL with all parameters', () => {
-      setOrigin('https://nostling.941design.de');
+      setOrigin('https://few.chat');
       const url = buildInviteUrl({
         nonce: 'aabbccdd11223344aabbccdd11223344',
         adminNpub: 'npub1test123',
@@ -59,7 +59,7 @@ describe('inviteLinkGeneration', () => {
       });
 
       const parsed = new URL(url);
-      expect(parsed.origin + parsed.pathname).toBe('https://nostling.941design.de/groups/');
+      expect(parsed.origin + parsed.pathname).toBe('https://few.chat/groups/');
       expect(parsed.searchParams.get('join')).toBe('aabbccdd11223344aabbccdd11223344');
       expect(parsed.searchParams.get('admin')).toBe('npub1test123');
       expect(parsed.searchParams.get('name')).toBe('Biology Study Group');
@@ -92,11 +92,11 @@ describe('inviteLinkGeneration', () => {
         adminNpub: 'npub1abc',
         groupName: 'X',
       });
-      expect(url.startsWith('https://nostling.941design.de/groups/?')).toBe(true);
+      expect(url.startsWith('https://few.chat/groups/?')).toBe(true);
     });
 
     it('uses a trailing slash on the /groups/ path (matches trailingSlash config)', () => {
-      setOrigin('https://nostling.941design.de');
+      setOrigin('https://few.chat');
       const url = buildInviteUrl({
         nonce: '00000000000000000000000000000000',
         adminNpub: 'npub1x',
@@ -106,7 +106,7 @@ describe('inviteLinkGeneration', () => {
     });
 
     it('URL-encodes the group name', () => {
-      setOrigin('https://nostling.941design.de');
+      setOrigin('https://few.chat');
       const url = buildInviteUrl({
         nonce: 'aabbccdd11223344aabbccdd11223344',
         adminNpub: 'npub1abc',
@@ -120,7 +120,7 @@ describe('inviteLinkGeneration', () => {
     });
 
     it('handles special characters in group name', () => {
-      setOrigin('https://nostling.941design.de');
+      setOrigin('https://few.chat');
       const url = buildInviteUrl({
         nonce: 'aabbccdd11223344aabbccdd11223344',
         adminNpub: 'npub1abc',
@@ -132,7 +132,7 @@ describe('inviteLinkGeneration', () => {
     });
 
     it('preserves nonce and admin npub exactly', () => {
-      setOrigin('https://nostling.941design.de');
+      setOrigin('https://few.chat');
       const nonce = 'ff00ff00ff00ff00ff00ff00ff00ff00';
       const adminNpub = 'npub1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqspmhp7';
       const url = buildInviteUrl({ nonce, adminNpub, groupName: 'Test' });

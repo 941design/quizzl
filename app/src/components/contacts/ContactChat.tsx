@@ -41,7 +41,7 @@ type ContactChatProps = {
   signer: EventSigner;
   profileMap: Record<string, MemberProfile>;
   /**
-   * When 'feedback', outgoing text messages carry the sealed Nostling feedback
+   * When 'feedback', outgoing text messages carry the sealed Few feedback
    * marker tags (client + l=feedback) on the inner rumor (AC-MARKER-1/2/3).
    * Omitted (ordinary DM) leaves the rumor with only the ["p", peer] tag.
    */
@@ -668,7 +668,7 @@ export default function ContactChat({
     }
   }, [copy.emoji.couldntReact, dmThread, peerPubkeyHex, privateKeyHex, pubkeyHex, toast]);
 
-  // Story-07: __nostlingDmReactions dev bridge for E2E tests (AC-46, e2e-policy.md).
+  // Story-07: __fewDmReactions dev bridge for E2E tests (AC-46, e2e-policy.md).
   // Guarded by NODE_ENV !== 'production' so it is tree-shaken in production builds.
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') return;
@@ -677,16 +677,16 @@ export default function ContactChat({
         if (targetPeerPubkeyHex !== peerPubkeyHex) return;
         const msg = messagesRef.current.find((m) => m.id === messageId);
         if (!msg) {
-          console.warn('[__nostlingDmReactions] message not found:', messageId);
+          console.warn('[__fewDmReactions] message not found:', messageId);
           return;
         }
         void handleReact(emoji, msg, isRemoval ? 'remove' : 'add');
       },
     };
-    (window as any).__nostlingDmReactions = bridge;
+    (window as any).__fewDmReactions = bridge;
     return () => {
-      if ((window as any).__nostlingDmReactions === bridge) {
-        delete (window as any).__nostlingDmReactions;
+      if ((window as any).__fewDmReactions === bridge) {
+        delete (window as any).__fewDmReactions;
       }
     };
   }, [handleReact, peerPubkeyHex]);

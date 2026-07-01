@@ -1,7 +1,7 @@
 /**
  * Chat message persistence layer — idb-keyval implementation.
  *
- * Messages are stored per-group under the key `quizzl:messages:{groupId}`
+ * Messages are stored per-group under the key `few:messages:{groupId}`
  * in the default idb-keyval store.
  */
 
@@ -30,7 +30,7 @@ export interface ChatMessage {
 }
 
 function storageKey(groupId: string): string {
-  return `quizzl:messages:${groupId}`;
+  return `few:messages:${groupId}`;
 }
 
 // ─── Self-heal pass (story-04, §3.4) ────────────────────────────────────────
@@ -250,7 +250,7 @@ export function appendMessage(groupId: string, message: ChatMessage): Promise<vo
     await set(key, [...existing, message]);
     // Dev-only hook: notify E2E tests when a message is written to IDB.
     if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-      (window as any).__nostlingTest?.onChatIdbWrite?.({ groupId, messageId: message.id });
+      (window as any).__fewTest?.onChatIdbWrite?.({ groupId, messageId: message.id });
     }
   });
   const settled = next.catch(() => {});
@@ -310,7 +310,7 @@ export async function clearAllMessages(): Promise<void> {
   appendQueues.clear();
   const allKeys = await keys();
   const messageKeys = allKeys.filter(
-    (k): k is string => typeof k === 'string' && k.startsWith('quizzl:messages:'),
+    (k): k is string => typeof k === 'string' && k.startsWith('few:messages:'),
   );
   if (messageKeys.length > 0) {
     await delMany(messageKeys);
@@ -320,10 +320,10 @@ export async function clearAllMessages(): Promise<void> {
 /**
  * Purges IDB DM thread keys belonging to stranger peers.
  *
- * Enumerates all keys matching `quizzl:messages:dm:<peerHex>`, calls
+ * Enumerates all keys matching `few:messages:dm:<peerHex>`, calls
  * `isAllowedDmSender` on each `<peerHex>`, and `del()`s the key when the
- * peer is a stranger.  Keys that carry the `quizzl:messages:` prefix but
- * lack the `dm:` discriminator (e.g. `quizzl:messages:<groupId>`) are
+ * peer is a stranger.  Keys that carry the `few:messages:` prefix but
+ * lack the `dm:` discriminator (e.g. `few:messages:<groupId>`) are
  * NEVER touched (AC-PURGE-3, VQ-S3-013).
  *
  * AC-PERF-1: logs a warning when sweep exceeds 500 ms; throws when it
@@ -339,7 +339,7 @@ export async function purgeStrangerDmThreads(
   const start = performance.now();
 
   const allKeys = await keys();
-  const dmPrefix = 'quizzl:messages:dm:';
+  const dmPrefix = 'few:messages:dm:';
   const dmKeys = allKeys.filter(
     (k): k is string => typeof k === 'string' && k.startsWith(dmPrefix),
   );

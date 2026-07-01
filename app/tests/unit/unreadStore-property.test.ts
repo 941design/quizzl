@@ -660,7 +660,7 @@ describe('markAsRead — spread-base preserves other counters (line 102)', () =>
 
 describe('initUnreadCounts — NoCoverage baseline: IDB-backed group message counts', () => {
   /**
-   * initUnreadCounts reads `quizzl:messages:{groupId}` from IDB, filters by
+   * initUnreadCounts reads `few:messages:{groupId}` from IDB, filters by
    * lastRead timestamp and senderPubkey, and sets state.counts.
    *
    * Kills every NoCoverage mutant on lines 127-150:
@@ -685,7 +685,7 @@ describe('initUnreadCounts — NoCoverage baseline: IDB-backed group message cou
     // Seed lastRead in localStorage
     lsStore.set(GRP_LS_KEY, JSON.stringify({ [g]: lastReadMs }));
     // Seed IDB with 3 messages: 2 from PEER newer than lastRead, 1 older
-    idbStore.set(`quizzl:messages:${g}`, [
+    idbStore.set(`few:messages:${g}`, [
       { createdAt: lastReadMs + 1000, senderPubkey: PEER },
       { createdAt: lastReadMs + 2000, senderPubkey: PEER },
       { createdAt: lastReadMs - 1000, senderPubkey: PEER }, // older — not counted
@@ -697,7 +697,7 @@ describe('initUnreadCounts — NoCoverage baseline: IDB-backed group message cou
   it('does not count own messages', async () => {
     const g = uid();
     lsStore.set(GRP_LS_KEY, JSON.stringify({ [g]: 0 }));
-    idbStore.set(`quizzl:messages:${g}`, [
+    idbStore.set(`few:messages:${g}`, [
       { createdAt: 1000, senderPubkey: OWN },
       { createdAt: 2000, senderPubkey: PEER },
     ]);
@@ -709,7 +709,7 @@ describe('initUnreadCounts — NoCoverage baseline: IDB-backed group message cou
     const g = uid();
     const lastReadMs = 5000;
     lsStore.set(GRP_LS_KEY, JSON.stringify({ [g]: lastReadMs }));
-    idbStore.set(`quizzl:messages:${g}`, [
+    idbStore.set(`few:messages:${g}`, [
       { createdAt: lastReadMs, senderPubkey: PEER },     // AT threshold — not counted (>)
       { createdAt: lastReadMs - 1, senderPubkey: PEER }, // below — not counted
       { createdAt: lastReadMs + 1, senderPubkey: PEER }, // above — counted
@@ -729,7 +729,7 @@ describe('initUnreadCounts — NoCoverage baseline: IDB-backed group message cou
     const g = uid();
     const lastReadMs = 9999;
     lsStore.set(GRP_LS_KEY, JSON.stringify({ [g]: lastReadMs }));
-    idbStore.set(`quizzl:messages:${g}`, [
+    idbStore.set(`few:messages:${g}`, [
       { createdAt: lastReadMs - 100, senderPubkey: PEER }, // before lastRead
     ]);
     await initUnreadCounts([g], OWN);
@@ -740,7 +740,7 @@ describe('initUnreadCounts — NoCoverage baseline: IDB-backed group message cou
     const peer = uid();
     incrementDirectMessage(peer);
     const g = uid();
-    idbStore.set(`quizzl:messages:${g}`, [{ createdAt: 1000, senderPubkey: PEER }]);
+    idbStore.set(`few:messages:${g}`, [{ createdAt: 1000, senderPubkey: PEER }]);
     await initUnreadCounts([g], OWN);
     // DM counter must still be present after state = { ...state, counts: next }
     expect(useUnreadCounts().directMessages[peer.toLowerCase()]).toBe(1);
@@ -757,7 +757,7 @@ describe('initUnreadCounts — NoCoverage baseline: IDB-backed group message cou
         createdAt: lastReadMs + (i + 1) * 100,
         senderPubkey: PEER,
       }));
-      if (messages.length > 0) idbStore.set(`quizzl:messages:${g}`, messages);
+      if (messages.length > 0) idbStore.set(`few:messages:${g}`, messages);
       await initUnreadCounts([g], OWN);
       if (total > 0) {
         expect(useUnreadCounts().counts[g]).toBe(total);
@@ -839,7 +839,7 @@ describe('initJoinRequestCounts — NoCoverage baseline: IDB-backed join request
 
 describe('initDirectMessageCounts — NoCoverage baseline: IDB-backed DM counts', () => {
   /**
-   * initDirectMessageCounts reads `quizzl:messages:dm:{peer}` from IDB,
+   * initDirectMessageCounts reads `few:messages:dm:{peer}` from IDB,
    * filters by lastRead and senderPubkey, and merges into state.directMessages.
    *
    * Kills every NoCoverage mutant on lines 276-302:
@@ -864,7 +864,7 @@ describe('initDirectMessageCounts — NoCoverage baseline: IDB-backed DM counts'
     const peerKey = PEER_A.toLowerCase();
     const lastReadMs = 2_000_000;
     lsStore.set(DM_LS_KEY, JSON.stringify({ [peerKey]: lastReadMs }));
-    idbStore.set(`quizzl:messages:dm:${peerKey}`, [
+    idbStore.set(`few:messages:dm:${peerKey}`, [
       { createdAt: lastReadMs + 1000, senderPubkey: PEER_A },
       { createdAt: lastReadMs + 2000, senderPubkey: PEER_A },
       { createdAt: lastReadMs - 500, senderPubkey: PEER_A }, // old
@@ -876,7 +876,7 @@ describe('initDirectMessageCounts — NoCoverage baseline: IDB-backed DM counts'
   it('does not count own DMs', async () => {
     const peerKey = PEER_A.toLowerCase();
     lsStore.set(DM_LS_KEY, JSON.stringify({ [peerKey]: 0 }));
-    idbStore.set(`quizzl:messages:dm:${peerKey}`, [
+    idbStore.set(`few:messages:dm:${peerKey}`, [
       { createdAt: 1000, senderPubkey: OWN },   // own — not counted
       { createdAt: 2000, senderPubkey: PEER_A }, // peer — counted
     ]);
@@ -888,7 +888,7 @@ describe('initDirectMessageCounts — NoCoverage baseline: IDB-backed DM counts'
     const peerKey = PEER_A.toLowerCase();
     const lastReadMs = 3000;
     lsStore.set(DM_LS_KEY, JSON.stringify({ [peerKey]: lastReadMs }));
-    idbStore.set(`quizzl:messages:dm:${peerKey}`, [
+    idbStore.set(`few:messages:dm:${peerKey}`, [
       { createdAt: lastReadMs, senderPubkey: PEER_A },     // AT boundary — not counted
       { createdAt: lastReadMs + 1, senderPubkey: PEER_A }, // after — counted
     ]);
@@ -901,7 +901,7 @@ describe('initDirectMessageCounts — NoCoverage baseline: IDB-backed DM counts'
     const peerMixed = 'AABB'.repeat(16); // mixed case
     const peerLow = peerMixed.toLowerCase();
     lsStore.set(DM_LS_KEY, JSON.stringify({ [peerLow]: 0 }));
-    idbStore.set(`quizzl:messages:dm:${peerLow}`, [
+    idbStore.set(`few:messages:dm:${peerLow}`, [
       { createdAt: 1000, senderPubkey: peerMixed },
     ]);
     await initDirectMessageCounts([peerMixed], OWN);
@@ -916,7 +916,7 @@ describe('initDirectMessageCounts — NoCoverage baseline: IDB-backed DM counts'
     const peerKeyB = PEER_B.toLowerCase();
     incrementDirectMessage(PEER_A); // live count = 1
     // IDB has 2 unread for PEER_A (computed replaces live)
-    idbStore.set(`quizzl:messages:dm:${peerKeyA}`, [
+    idbStore.set(`few:messages:dm:${peerKeyA}`, [
       { createdAt: 1000, senderPubkey: PEER_A },
       { createdAt: 2000, senderPubkey: PEER_A },
     ]);
@@ -951,7 +951,7 @@ describe('initDirectMessageCounts — NoCoverage baseline: IDB-backed DM counts'
         createdAt: lastReadMs + (i + 1) * 100,
         senderPubkey: PEER_A,
       }));
-      if (msgs.length > 0) idbStore.set(`quizzl:messages:dm:${peerKey}`, msgs);
+      if (msgs.length > 0) idbStore.set(`few:messages:dm:${peerKey}`, msgs);
       await initDirectMessageCounts([PEER_A], OWN);
       if (n > 0) {
         expect(useUnreadCounts().directMessages[peerKey]).toBe(n);
@@ -964,7 +964,7 @@ describe('initDirectMessageCounts — NoCoverage baseline: IDB-backed DM counts'
 
 // ── Unclassified survivors: test-bridge blocks (lines 342, 354-364) ───────────
 // Re-classified as equivalent / side-effect-only:
-//  L342 ObjectLiteral — window.__nostlingUnread assignment: this is the dev-only
+//  L342 ObjectLiteral — window.__fewUnread assignment: this is the dev-only
 //    test bridge setup. The bridge is never observable through any exported API
 //    in unit tests (window is undefined in Vitest). Equivalent.
 //  L354 BlockStatement — the outer `if (window !== undefined && NODE_ENV !== 'production')`.
@@ -980,7 +980,7 @@ describe('initDirectMessageCounts — NoCoverage baseline: IDB-backed DM counts'
 
 describe('test-bridge window assignment (lines 342, 354-364) — classified as equivalent', () => {
   /**
-   * The window.__nostlingUnread and window.__nostlingPublishDm bridges are dev-only
+   * The window.__fewUnread and window.__fewPublishDm bridges are dev-only
    * side effects that run only in browser (window !== undefined) and are not
    * observable through the module's exported functions in a Vitest environment.
    * These mutations are equivalent: no exported function's return value changes.

@@ -51,7 +51,7 @@ describe('buildChatRumor — extraTags (S2)', () => {
   });
 
   it('extraTags are appended after ["p", peerPubkeyHex]', () => {
-    const extra: string[][] = [['client', 'nostling', '1.0.0'], ['l', 'feedback']];
+    const extra: string[][] = [['client', 'few', '1.0.0'], ['l', 'feedback']];
     const rumor = buildChatRumor({
       privateKeyHex: sender.privateKeyHex,
       peerPubkeyHex: peer.pubkeyHex,
@@ -59,7 +59,7 @@ describe('buildChatRumor — extraTags (S2)', () => {
       extraTags: extra,
     });
     expect(rumor.tags[0]).toEqual(['p', peer.pubkeyHex]);
-    expect(rumor.tags[1]).toEqual(['client', 'nostling', '1.0.0']);
+    expect(rumor.tags[1]).toEqual(['client', 'few', '1.0.0']);
     expect(rumor.tags[2]).toEqual(['l', 'feedback']);
     expect(rumor.tags.length).toBe(3);
   });
@@ -112,7 +112,7 @@ describe('feedbackMarkerTags (AC-MARKER-1)', () => {
     const tags = feedbackMarkerTags();
     // First tag is the client identifier; with no build version it is 2-element.
     expect(tags[0][0]).toBe('client');
-    expect(tags[0][1]).toBe('nostling');
+    expect(tags[0][1]).toBe('few');
     // The label discriminator is always present and exact.
     const labelTag = tags.find((t) => t[0] === 'l');
     expect(labelTag).toEqual(['l', 'feedback']);
@@ -123,7 +123,7 @@ describe('feedbackMarkerTags (AC-MARKER-1)', () => {
     process.env.NEXT_PUBLIC_BUILD_VERSION = '2026.06.15-abc';
     try {
       const tags = feedbackMarkerTags();
-      expect(tags[0]).toEqual(['client', 'nostling', '2026.06.15-abc']);
+      expect(tags[0]).toEqual(['client', 'few', '2026.06.15-abc']);
     } finally {
       if (prev === undefined) delete process.env.NEXT_PUBLIC_BUILD_VERSION;
       else process.env.NEXT_PUBLIC_BUILD_VERSION = prev;
@@ -135,7 +135,7 @@ describe('feedbackMarkerTags (AC-MARKER-1)', () => {
     delete process.env.NEXT_PUBLIC_BUILD_VERSION;
     try {
       const tags = feedbackMarkerTags();
-      expect(tags[0]).toEqual(['client', 'nostling']);
+      expect(tags[0]).toEqual(['client', 'few']);
     } finally {
       if (prev !== undefined) process.env.NEXT_PUBLIC_BUILD_VERSION = prev;
     }
@@ -151,7 +151,7 @@ describe('feedbackMarkerTags (AC-MARKER-1)', () => {
       extraTags: feedbackMarkerTags(),
     });
     expect(rumor.tags[0]).toEqual(['p', p.pubkeyHex]);
-    expect(rumor.tags.some((t) => t[0] === 'client' && t[1] === 'nostling')).toBe(true);
+    expect(rumor.tags.some((t) => t[0] === 'client' && t[1] === 'few')).toBe(true);
     expect(rumor.tags.some((t) => t[0] === 'l' && t[1] === 'feedback')).toBe(true);
   });
 });

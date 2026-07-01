@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Story 01 - Project Scaffold and Routing', () => {
   test('home page loads with correct title and navigation', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/Nostling/);
-    await expect(page.getByRole('heading', { name: /Welcome to Nostling/i })).toBeVisible();
+    await expect(page).toHaveTitle(/Few/);
+    await expect(page.getByRole('heading', { name: /Welcome to Few/i })).toBeVisible();
     const subheading = page.getByTestId('home-subheading');
     await expect(subheading).toBeVisible();
     await expect(subheading.getByRole('listitem')).toHaveCount(4);

@@ -12,7 +12,7 @@
  * deployment the inviter is actually using — surviving domain/brand changes
  * without a code edit.
  */
-const FALLBACK_ORIGIN = 'https://nostling.941design.de';
+const FALLBACK_ORIGIN = 'https://few.chat';
 
 /**
  * Resolve the base URL for invite links from the current document origin,
