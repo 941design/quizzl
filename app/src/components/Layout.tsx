@@ -352,6 +352,24 @@ export default function Layout({ children }: LayoutProps) {
           {children}
         </Container>
       )}
+
+      {/* Footer — legal links at the very bottom of every page */}
+      <Box as="footer" borderTopWidth="1px" borderTopColor="borderSubtle" py={4}>
+        <Container maxW="container.xl">
+          <Flex justify="center">
+            <NextLink href="/imprint" passHref legacyBehavior>
+              <Link
+                fontSize="sm"
+                color="textMuted"
+                _hover={{ color: 'brand.500', textDecoration: 'underline' }}
+                data-testid="footer-imprint-link"
+              >
+                {copy.layout.imprintLink}
+              </Link>
+            </NextLink>
+          </Flex>
+        </Container>
+      </Box>
     </Box>
   );
 }

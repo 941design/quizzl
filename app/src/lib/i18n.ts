@@ -18,6 +18,21 @@ type Copy = {
     joinRequestNotification: (count: number) => string;
     directMessageNotification: (count: number) => string;
     backupNeededLabel: string;
+    imprintLink: string;
+  };
+  imprint: {
+    pageTitle: string;
+    heading: string;
+    providerHeading: string;
+    representedByLabel: string;
+    contactHeading: string;
+    emailLabel: string;
+    phoneLabel: string;
+    registerHeading: string;
+    registerCourtLabel: string;
+    registerNumberLabel: string;
+    vatHeading: string;
+    vatLabel: string;
   };
   home: {
     title: string;
@@ -459,6 +474,21 @@ const copy: Record<LanguageCode, Copy> = {
       joinRequestNotification: (count: number) => count === 1 ? '1 join request' : `${count} join requests`,
       directMessageNotification: (count: number) => count === 1 ? '1 new direct message' : `${count} new direct messages`,
       backupNeededLabel: 'Backup needed',
+      imprintLink: 'Imprint',
+    },
+    imprint: {
+      pageTitle: 'Imprint',
+      heading: 'Imprint',
+      providerHeading: 'Information pursuant to § 5 DDG',
+      representedByLabel: 'Represented by',
+      contactHeading: 'Contact',
+      emailLabel: 'Email',
+      phoneLabel: 'Phone',
+      registerHeading: 'Commercial register',
+      registerCourtLabel: 'Register court',
+      registerNumberLabel: 'Register number',
+      vatHeading: 'VAT ID',
+      vatLabel: 'VAT identification number pursuant to § 27a of the German VAT Act',
     },
     home: {
       title: 'Welcome to Nostling',
@@ -901,6 +931,21 @@ const copy: Record<LanguageCode, Copy> = {
       joinRequestNotification: (count: number) => count === 1 ? '1 Beitrittsanfrage' : `${count} Beitrittsanfragen`,
       directMessageNotification: (count: number) => count === 1 ? '1 neue Direktnachricht' : `${count} neue Direktnachrichten`,
       backupNeededLabel: 'Sicherung erforderlich',
+      imprintLink: 'Impressum',
+    },
+    imprint: {
+      pageTitle: 'Impressum',
+      heading: 'Impressum',
+      providerHeading: 'Angaben gemäß § 5 DDG',
+      representedByLabel: 'Vertreten durch',
+      contactHeading: 'Kontakt',
+      emailLabel: 'E-Mail',
+      phoneLabel: 'Telefon',
+      registerHeading: 'Registereintrag',
+      registerCourtLabel: 'Registergericht',
+      registerNumberLabel: 'Registernummer',
+      vatHeading: 'Umsatzsteuer-ID',
+      vatLabel: 'Umsatzsteuer-Identifikationsnummer gemäß § 27a Umsatzsteuergesetz',
     },
     home: {
       title: 'Willkommen bei Nostling',
