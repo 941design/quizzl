@@ -1,0 +1,64 @@
+{
+  "module_name": "themes-scaffold",
+  "purpose": "Pure-data schema, manifest-to-Chakra transform, font-union, contrast-math, and per-surface treatment catalog modules under app/src/themes/ — the module layer that S2-S4 fill in with real manifests, a generated registry, and consumer wiring. S1 itself wires nothing into any existing consumer; app/src/themes/index.ts is a deliberate no-op pass-through to app/src/lib/theme.ts so the public API surface (AC-STRUCT-5) and all six existing consumers are unaffected.",
+  "public_api": [
+    { "name": "ThemeManifestSchema", "signature": "z.ZodType (app/src/themes/schema.ts)", "description": "Strict zod schema for the full ThemeManifest shape; rejects unexpected/extra top-level and nested keys." },
+    { "name": "ThemeManifest", "signature": "type ThemeManifest = z.infer<typeof ThemeManifestSchema>", "description": "Inferred manifest type; the ThemeManifest seam contract consumed by S2 (manifests), buildChakraTheme, fontUnion, contrast." },
+    { "name": "validateManifest", "signature": "validateManifest(data: unknown): ThemeManifest", "description": "Parses and throws (ZodError) on any invalid/missing/extra field; never returns a partially-valid object." },
+    { "name": "createScale", "signature": "createScale(values: readonly string[]): Record<number, string>", "description": "Lifted unchanged from theme.ts:71; expands a 10-value hex tuple into Chakra's step-keyed color-scale shape." },
+    { "name": "buildThemeOverride", "signature": "buildThemeOverride(manifest: ThemeManifest): ThemeOverride", "description": "Pure, function-free manifest -> Chakra-extendTheme-input transform (app/src/themes/buildChakraTheme.ts)." },
+    { "name": "ThemeOverride", "signature": "type ThemeOverride = { colors; semanticTokens; fonts; fontSizes?; radii?; styles; config; components }", "description": "The ThemeOverride seam contract type — the object handed to extendTheme." },
+    { "name": "getChakraTheme (buildChakraTheme.ts)", "signature": "getChakraTheme(manifest: ThemeManifest): ChakraTheme", "description": "extendTheme(buildThemeOverride(manifest)), cached by manifest.id for referential stability. Manifest-keyed (not id/registry-keyed) — see design note below." },
+    { "name": "buildThemeFonts", "signature": "buildThemeFonts(manifests: ThemeManifest[]): FontLoad[]", "description": "Deduplicated font union across manifests (app/src/themes/fontUnion.ts)." },
+    { "name": "buildFontLinkHref", "signature": "buildFontLinkHref(fonts: FontLoad[]): string", "description": "Google Fonts CSS2 <link> href builder per spec.md §6.5's axis-encoding rules." },
+    { "name": "FontLoad", "signature": "type FontLoad = { family: string; weights?: number[]; ital?: boolean; subset?: string }", "description": "The FontLoad seam contract type." },
+    { "name": "wcagRatio", "signature": "wcagRatio(hexA: string, hexB: string): number", "description": "WCAG relative-luminance contrast ratio between two hex colors (app/src/themes/contrast.ts)." },
+    { "name": "evaluateThemeContrast", "signature": "evaluateThemeContrast(manifest: ThemeManifest): { pass: boolean; failures: ContrastFailure[] }", "description": "Evaluates spec.md §6.7's pair table against real hex values; appBg pairs required only when contentSurface is falsy." },
+    { "name": "CARD_ELEVATION / BUTTON_ELEVATION / NAV_ELEVATION / CONTENT_PANEL_STYLES", "signature": "Record<ElevationName, BoxProps> / Record<ContentPanelName, BoxProps>", "description": "app/src/themes/treatments/elevation.ts — per-surface elevation and content-panel BoxProps catalogs." },
+    { "name": "ICON_SETS / resolveIconId", "signature": "Record<string, Record<IconSetName, string>> / resolveIconId(name, iconSet): string", "description": "app/src/themes/treatments/iconSets.ts — icon-name -> iconify-id maps per icon set." },
+    { "name": "SURFACE_PATTERNS / APP_BG_GRADIENTS", "signature": "Record<SurfacePatternName, BoxProps> / Record<'lego'|'minecraft'|'flower', string>", "description": "app/src/themes/treatments/patterns.ts — surface pattern BoxProps + reference appBg gradient strings." },
+    { "name": "themes/index.ts re-exports", "signature": "APP_THEMES, DEFAULT_THEME_NAME, isAppThemeName, normalizeThemeName, getThemeDefinition, getChakraTheme, AppThemeName (type), AppThemeDefinition (type), ThemeVisualStyle (type)", "description": "S1: pure pass-through re-export of app/src/lib/theme.ts's existing public API — no registry import, no behavior change." }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "the ThemeManifest shape and its validation (schema.ts)",
+    "the manifest -> Chakra ThemeOverride transform (buildChakraTheme.ts)",
+    "font dedup + Google Fonts URL construction (fontUnion.ts)",
+    "contrast math + the §6.7 pair rules (contrast.ts)",
+    "per-elevation / icon-set / surface-pattern treatment catalogs (treatments/*)"
+  ],
+  "dependencies_allowed": [
+    "zod (schema.ts only, runtime import)",
+    "@chakra-ui/react (extendTheme + ThemeConfig type in buildChakraTheme.ts; BoxProps type only in treatments/elevation.ts and treatments/patterns.ts)",
+    "app/src/lib/theme.ts (index.ts only, value + type re-export — S1's pass-through)",
+    "app/src/types (index.ts only, type re-export of AppThemeName)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/themes/registry.generated.ts (does not exist until S2; buildChakraTheme.ts and index.ts must not depend on it in S1)",
+    "any app/src/themes/<id>/manifest.ts (do not exist until S2)",
+    "any runtime import of schema.ts from a module other than schema.ts itself (AC-BOUND-1 zod boundary; fontUnion.ts, contrast.ts, treatments/*, index.ts, buildChakraTheme.ts all use `import type` only)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S2", "S3", "S4"]
+  },
+  "test_targets": [
+    "app/tests/unit/themes/schema.test.ts",
+    "app/tests/unit/themes/buildChakraTheme.test.ts",
+    "app/tests/unit/themes/fontUnion.test.ts",
+    "app/tests/unit/themes/contrast.test.ts",
+    "app/tests/unit/themes/treatments.test.ts",
+    "app/tests/unit/themes/index.test.ts",
+    "app/tests/unit/themes/zodBoundary.test.ts"
+  ],
+  "design_notes": [
+    "getChakraTheme signature (flagged as an open structural question in the story brief): architecture.md's Boundary Rules grant buildChakraTheme.ts only an edge to @chakra-ui/react and treatments/* — no edge to registry.generated.ts, which does not exist yet at S1 regardless. So buildChakraTheme.ts's getChakraTheme is keyed by a full ThemeManifest (cached by manifest.id), not by an AppThemeName id resolved against a registry. index.ts IS allowed to depend on both registry.generated and buildChakraTheme (per the Boundary Rules table), so the id -> manifest -> getChakraTheme(manifest) composition is wired there once the registry exists (S2+). This resolves the ambiguity without escalation: the no-op pass-through index.ts and a working, registry-agnostic getChakraTheme coexist cleanly because the manifest-keyed signature never required the registry in the first place.",
+    "ContentPanelName is not called out as its own file in architecture.md's per-file list; it is colocated in treatments/elevation.ts (CONTENT_PANEL_STYLES) since it is, like elevation, a small BoxProps catalog keyed by a content-panel treatment name, and useThemeStyles.ts's pre-refactor contentPanel() switch lived alongside cardOverlay/buttonOverlay/navOverlay in the same file. Only one named variant ('panel') exists today, mirroring the pre-refactor code's single non-empty case (pixel/minecraft).",
+    "ElevationName's five values map onto the pre-refactor visualStyle switch as: soft(calm)->flat, rounded(playful)->softDrop, toy(lego)->hardDrop, pixel(minecraft)->pixelBevel, floral(flower)->floralGlow. flat and softDrop both currently resolve to an empty BoxProps ({}), preserving byte-identical output for calm/playful while reserving two distinct names for future themes that may want to diverge from 'no elevation' in different ways.",
+    "treatments/patterns.ts's APP_BG_GRADIENTS exports the three pre-refactor per-theme backgroundImage gradient strings (lego/minecraft/flower) verbatim, per architecture.md's Module Map entry for this file ('surface/background patterns + appBg gradients'). Since manifests may only import the ThemeManifest type (not treatments/*), these are documentation/reference constants, not a runtime dependency edge — S2's manifests will inline the same literal string into colors.backgroundImage rather than import this export.",
+    "RawOverrides (treatments.overrides) is validated permissively in schema.ts as z.record(z.string(), z.unknown()) per surface (card/button/nav/surface) rather than typed against Chakra's BoxProps, since zod cannot meaningfully validate arbitrary Chakra style-prop shapes; the authoring guide (S5) documents this escape hatch's stated limits per spec.md §3."
+  ]
+}

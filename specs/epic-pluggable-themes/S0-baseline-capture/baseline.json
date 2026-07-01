@@ -1,0 +1,22 @@
+{
+  "story_id": "S0",
+  "captured_at": "2026-07-01T18:10:00Z",
+  "commands": {
+    "test": "make test-unit",
+    "typecheck": "cd app && npx tsc --noEmit -p .",
+    "lint": "cd app && npx next lint"
+  },
+  "test": {
+    "status": "PASS",
+    "test_files": 105,
+    "tests": 1617
+  },
+  "typecheck": {
+    "status": "clean",
+    "errors": 0
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "notes": "No ESLint config present (no .eslintrc*). `npx next lint` prompts for interactive first-time setup rather than running a check — there is no lint gate to baseline in this repo."
+  }
+}

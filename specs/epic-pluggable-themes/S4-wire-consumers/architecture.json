@@ -1,0 +1,49 @@
+{
+  "module_name": "wire-consumers",
+  "purpose": "Migrate useThemeStyles.ts, ThemeIcon.tsx, and profile.tsx off the S2->S4 transitional compat fields (visualStyle, labelKey, descriptionKey, backgroundImage) and onto direct manifest reads (treatments.*, contentSurface, label/description, colors.backgroundImage), remove the 10 per-theme i18n.ts keys, and tear down the compat bridge in themes/index.ts so AppThemeDefinition collapses to the literal ThemeManifest alias architecture.md's Registry seam contract always described as the epic end state.",
+  "public_api": [
+    { "name": "useThemeStyles()", "signature": "(): ThemeStyles", "description": "Six-field return { cardStyle, surfaceStyle, navStyle, buttonStyle, contentPanelStyle, bannerDecorStyle } (AC10/AC-UX-1). visualStyle and isFunTheme removed. Thin wrapper around the new exported pure computeThemeStyles(definition) for testability without a React render tree." },
+    { "name": "computeThemeStyles(definition)", "signature": "(definition: AppThemeDefinition): ThemeStyles", "description": "New pure export (implementation seam, not in architecture.md's contract table) — looks up treatments.card/button/nav/surface/contentPanel in treatments/elevation.ts and treatments/patterns.ts, merges treatments.overrides, and builds bannerDecorStyle from treatments.banner. Same lookup path the hook uses at runtime; exists so per-theme byte-identical parity can be asserted against real manifest data without mocking React context." },
+    { "name": "ThemeIcon (component)", "signature": "(props: ThemeIconProps) => JSX.Element | null", "description": "Unchanged props/behavior; internally resolves via manifest.treatments.iconSet against treatments/iconSets.ts's resolveIconId instead of a local ICON_MAP keyed by the removed visualStyle." },
+    { "name": "getThemeIconId(name, iconSet)", "signature": "(name: string, iconSet: IconSetName): string", "description": "Signature changed from (name, visualStyle: string) to (name, iconSet: IconSetName) — no external callers existed (grep-confirmed), so this is a safe, non-breaking signature change within the story's scope." },
+    { "name": "themes/index.ts: AppThemeDefinition", "signature": "type AppThemeDefinition = ThemeManifest", "description": "Compat bridge torn down: pure alias, no visualStyle/labelKey/descriptionKey/backgroundImage. toCompatDefinition, ELEVATION_TO_VISUAL_STYLE, and the ThemeVisualStyle re-export are deleted." },
+    { "name": "themes/index.ts: listThemes(options)", "signature": "(options?: { includeHidden?: boolean }): AppThemeDefinition[]", "description": "New export (architecture.md Implementation Constraint 14 / spec.md §6.10). Excludes status:'hidden' themes by default. Re-exported through lib/theme.ts (profile.tsx's only allowed import path per Boundary Rules)." },
+    { "name": "themes/index.ts: isThemeVisible(theme)", "signature": "(theme: ThemeManifest): boolean", "description": "New export — the predicate listThemes() filters with (theme.status !== 'hidden'). Exported separately (not inlined) so the filtering branch can be exercised directly against a real-manifest-spread fixture, since none of the five migrated themes sets status:'hidden' today." }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "the treatment-lookup + override-merge logic in useThemeStyles.ts's computeThemeStyles",
+    "the icon-set resolution call site in ThemeIcon.tsx",
+    "the label/description localization fallback logic (localizedThemeText) in profile.tsx",
+    "themes/index.ts's AppThemeDefinition alias, listThemes/isThemeVisible predicates"
+  ],
+  "dependencies_allowed": [
+    "useThemeStyles.ts -> lib/theme (type-only AppThemeDefinition), treatments/elevation.ts, treatments/patterns.ts (value)",
+    "ThemeIcon.tsx -> treatments/iconSets.ts (value), hooks/useMoodTheme (useAppTheme)",
+    "profile.tsx -> lib/theme (APP_THEMES type via listThemes/AppThemeName, value listThemes)",
+    "themes/index.ts -> registry.generated (APP_THEMES, AppThemeName), buildChakraTheme (getChakraTheme), schema (type-only ThemeManifest)"
+  ],
+  "dependencies_forbidden": [
+    "useThemeStyles.ts -> registry.generated directly (must go via lib/theme -> index)",
+    "useThemeStyles.ts / ThemeIcon.tsx / profile.tsx / themes/index.ts -> schema.ts at runtime (type-only ThemeManifest import only; AC-BOUND-1)",
+    "Layout.tsx, pages/index.tsx edits (AC-UX-1 forbids; both remain byte-for-byte unchanged)",
+    "manifests, buildChakraTheme, treatments/*, the generator, storage.ts edits (S1/S3 own these; no genuine AC-UX-4 fix was needed here)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S5"]
+  },
+  "test_targets": [
+    "app/tests/unit/hooks/useThemeStyles.test.ts (new)",
+    "app/tests/unit/components/ThemeIcon.test.ts (new)",
+    "app/tests/unit/profile.themePicker.test.ts (new)",
+    "app/tests/unit/themes/index.test.ts (extended)",
+    "app/tests/unit/themes-validation.test.ts (regression — ELEVATION_TO_VISUAL_STYLE enum-sync assertion removed)",
+    "app/tests/unit/themes/parity.test.ts (regression, unaffected)",
+    "app/tests/unit/themes/zodBoundary.test.ts (regression, unaffected)",
+    "app/tests/unit/storage.test.ts (regression, unaffected)"
+  ]
+}

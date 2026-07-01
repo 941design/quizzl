@@ -1,0 +1,23 @@
+{
+  "story_id": "S3",
+  "captured_at": "2026-07-01T20:10:00Z",
+  "commands": {
+    "test": "make test-unit",
+    "typecheck": "cd app && npx tsc --noEmit",
+    "lint": "cd app && npx next lint"
+  },
+  "test": {
+    "status": "PASS",
+    "test_files": 114,
+    "tests": 1719
+  },
+  "typecheck": {
+    "status": "clean",
+    "errors": 0
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "notes": "No ESLint config present (no .eslintrc*/eslint.config.*) since S0. `npx next lint` prompts for interactive first-time setup rather than running a check — no lint gate to baseline in this repo."
+  },
+  "note": "Pre-story baseline == S2-migrate-five-themes/result.json's final state (1716 tests recorded there) plus S2's own post-hoc verification.json additions/fixes bringing the tree to 1719 tests / 114 files at the time this story starts. No repo changes occurred between S2's completion and this story's start."
+}

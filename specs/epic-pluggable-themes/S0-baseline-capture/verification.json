@@ -1,0 +1,69 @@
+{
+  "story_id": "S0",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-01T18:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S0-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `app/scripts/capture-theme-baseline.mjs` contain any hardcoded/frozen substitute for the ALLOWLIST subtrees (e.g. a literal object typed in rather than derived from actually invoking the real `getChakraTheme(id)` export), or a mock/stub of `theme.ts`'s exports? Does the script fail loudly (non-zero exit, thrown error) if `getChakraTheme` is undefined or throws for any of the five theme ids, rather than silently writing a partial or empty snapshot?"
+    },
+    {
+      "question_id": "VQ-S0-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `capture-theme-baseline.mjs` import `getChakraTheme` exclusively from the current, unmodified `app/src/lib/theme.ts` (not from any not-yet-created `app/src/themes/*` module)? Confirm no import of `app/src/themes/index.ts`, `buildChakraTheme.ts`, or any file under `app/src/themes/` exists in this script or is implied by `theme-baseline.generated.ts`."
+    },
+    {
+      "question_id": "VQ-S0-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `baseline capture` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S0-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Is there a way to verify `app/tests/unit/theme-baseline.generated.ts` was produced by actually executing `capture-theme-baseline.mjs` (e.g. re-running `node app/scripts/capture-theme-baseline.mjs` and diffing its output against the committed file) rather than hand-typed by an author guessing at `getChakraTheme`'s shape? Does that re-run/diff produce zero difference?"
+    },
+    {
+      "question_id": "VQ-S0-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the committed `app/tests/unit/theme-baseline.generated.ts` contain, for every one of calm/playful/lego/minecraft/flower, all eight ALLOWLIST subtrees (`colors, semanticTokens, fonts, fontSizes, radii, styles, config, components.<Name>.defaultProps` for `Name` in Button/Tabs/Progress/Badge/Tag/Checkbox/Radio) and nothing outside that allowlist (no full theme dump), matching spec §6.8's intent that this baseline serve strictly as the AC-PARITY-1 fixture?"
+    },
+    {
+      "question_id": "VQ-S0-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does `capture-theme-baseline.mjs` avoid mutating `app/src/lib/theme.ts` or any other `src/` file as a side effect of import (no monkey-patching, no writes outside `app/tests/unit/theme-baseline.generated.ts`)? Is the script idempotent — does running it twice in succession against an unmodified `theme.ts` produce byte-identical output both times?"
+    },
+    {
+      "question_id": "VQ-S0-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "For each of calm, playful, lego, minecraft, and flower, does `app/tests/unit/theme-baseline.generated.ts` contain the ALLOWLIST subtrees (`colors, semanticTokens, fonts, fontSizes, radii, styles, config, components.<Name>.defaultProps`) captured from the pre-refactor, unmodified `app/src/lib/theme.ts`'s `getChakraTheme(id)` export — with zero edits made to `theme.ts` to produce it? Provide the generation script's diff (or lack thereof) against the committed file as evidence, plus confirmation `app/src/lib/theme.ts` has no diff from its pre-S0 state."
+    },
+    {
+      "question_id": "VQ-S0-008",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "`capture-theme-baseline.mjs`'s JSON-round-trip assertion uses a custom `deepEqual` (Jest-`toEqual`-compatible: an own property with value `undefined` is treated as equivalent to that key being absent) rather than strict `Object.keys`-based structural equality. This was necessary because `theme.ts`'s `createTheme()` legitimately emits own-enumerable `undefined`-valued keys in `styles.global.body` (e.g. `backgroundAttachment: backgroundImage ? 'fixed' : undefined`) for themes without a background image, and `JSON.stringify` silently drops those keys on serialization. Was this the correct call, or could a stricter check have caught a real bug the looser one would miss? Confirm no non-`undefined`-related information loss (e.g. a dropped array element, a `Date`/`Symbol`/`Map` coerced unexpectedly) slips through this looser check for any of the five themes' allowlist subtrees."
+    },
+    {
+      "question_id": "VQ-S0-009",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PARITY-1",
+      "question": "Because the committed `theme-baseline.generated.ts` is produced via `JSON.stringify`, it necessarily omits the own-enumerable `undefined`-valued keys that the *live* `getChakraTheme(id).styles.global.body` still carries (see VQ-S0-008). When story S2 writes its AC-PARITY-1 assertion (`expect(pick(getChakraTheme(id), ALLOWLIST)).toEqual(baseline[id])`), does it in fact use Jest `toEqual` (which treats an absent key and an `undefined`-valued key as equal) rather than `toStrictEqual` (which would treat them as different and spuriously fail on every theme's `styles.global.body`)? This is a real trap for whoever writes S2's test, not merely a hypothetical."
+    },
+    {
+      "question_id": "VQ-S0-010",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "`architecture.md`'s terse 'Allowed dependency edges' bullet list (Boundary Rules section) does not separately list a 'baseline capture → app/src/lib/theme.ts' edge, even though the Module Map row for 'baseline capture' and Implementation Constraint #4 both explicitly describe and authorize exactly this import. Is this omission from the terse list acceptable as a documentation completeness gap (given the same authoritative document grants the edge unambiguously elsewhere), or should architecture.md be amended to add the edge to the bullet list for future readers who consult only that section?"
+    }
+  ]
+}

@@ -1,76 +1,19 @@
+// app/src/components/ThemeIcon.tsx
+//
+// Renders a themed icon by resolving `manifest.treatments.iconSet`
+// (canonical path — architecture.md's Implementation Constraint 10) against
+// `treatments/iconSets.ts`'s icon-name -> iconify-id maps (S1 moved
+// `ICON_MAP` there, renamed to `ICON_SETS`, and renamed its sub-keys to the
+// manifest vocabulary: `default` -> `line`, `toy` -> `filled`, `pixel` ->
+// `pixel`). Every currently-mapped icon name resolves to the same iconify id
+// per theme as the pre-refactor `ICON_MAP` (AC-UX-2 / AC11).
+//
+// Boundary Rules: ThemeIcon -> treatments/iconSets (value), lib/theme (type
+// only for the hook's definition shape, sourced indirectly via useAppTheme).
 import React from 'react';
 import { Icon } from '@iconify/react';
 import { useAppTheme } from '@/src/hooks/useMoodTheme';
-
-/**
- * Maps semantic icon names to icon identifiers per visual style.
- *
- * - "pixel" uses pixelarticons (MIT, 24x24 pixel art style)
- * - "toy" uses ph:*-fill (Phosphor filled, playful weight)
- * - default uses ph:*-bold (Phosphor bold, clean line style)
- */
-const ICON_MAP: Record<string, Record<string, string>> = {
-  heart: {
-    pixel: 'pixelarticons:heart',
-    toy: 'ph:heart-fill',
-    default: 'ph:heart-bold',
-  },
-  check: {
-    pixel: 'pixelarticons:check',
-    toy: 'ph:check-circle-fill',
-    default: 'ph:check-circle-bold',
-  },
-  close: {
-    pixel: 'pixelarticons:close',
-    toy: 'ph:x-circle-fill',
-    default: 'ph:x-circle-bold',
-  },
-  home: {
-    pixel: 'pixelarticons:home',
-    toy: 'ph:house-fill',
-    default: 'ph:house-bold',
-  },
-  settings: {
-    pixel: 'pixelarticons:sliders',
-    toy: 'ph:gear-fill',
-    default: 'ph:gear-bold',
-  },
-  clock: {
-    pixel: 'pixelarticons:clock',
-    toy: 'ph:clock-fill',
-    default: 'ph:clock-bold',
-  },
-  prev: {
-    pixel: 'pixelarticons:chevron-left',
-    toy: 'ph:caret-left-fill',
-    default: 'ph:caret-left-bold',
-  },
-  next: {
-    pixel: 'pixelarticons:chevron-right',
-    toy: 'ph:caret-right-fill',
-    default: 'ph:caret-right-bold',
-  },
-  bell: {
-    pixel: 'pixelarticons:notification',
-    toy: 'ph:bell-ringing-fill',
-    default: 'ph:bell-bold',
-  },
-  person: {
-    pixel: 'pixelarticons:user',
-    toy: 'ph:user-circle-fill',
-    default: 'ph:user-circle-bold',
-  },
-  phone: {
-    pixel: 'pixelarticons:phone',
-    toy: 'ph:phone-fill',
-    default: 'ph:phone-bold',
-  },
-  video: {
-    pixel: 'pixelarticons:camera',
-    toy: 'ph:video-camera-fill',
-    default: 'ph:video-camera-bold',
-  },
-};
+import { resolveIconId, type IconSetName } from '@/src/themes/treatments/iconSets';
 
 type ThemeIconProps = {
   name: string;
@@ -90,14 +33,11 @@ export default function ThemeIcon({
   'aria-hidden': ariaHidden = true,
 }: ThemeIconProps) {
   const { activeThemeDefinition } = useAppTheme();
-  const vs = activeThemeDefinition.visualStyle;
+  const iconId = resolveIconId(name, activeThemeDefinition.treatments.iconSet);
 
-  const iconSet = ICON_MAP[name];
-  if (!iconSet) {
+  if (!iconId) {
     return null;
   }
-
-  const iconId = iconSet[vs] ?? iconSet.default;
 
   return (
     <Icon
@@ -112,9 +52,7 @@ export default function ThemeIcon({
   );
 }
 
-/** Get the raw icon identifier for use in non-React contexts */
-export function getThemeIconId(name: string, visualStyle: string): string {
-  const iconSet = ICON_MAP[name];
-  if (!iconSet) return '';
-  return iconSet[visualStyle] ?? iconSet.default;
+/** Get the raw icon identifier for use in non-React contexts. */
+export function getThemeIconId(name: string, iconSet: IconSetName): string {
+  return resolveIconId(name, iconSet);
 }

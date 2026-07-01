@@ -1,6 +1,11 @@
 {
   "epic": "pluggable-themes",
   "spec": "specs/epic-pluggable-themes/spec.md",
+  "prior_learnings": [
+    {"id": "vitest-passing-does-not-mean-build", "title": "Vitest passing does not mean build passing: TS type errors in Chakra/Zustand JSX slip past unit tests", "tags": "typescript,chakra-ui,zustand,vitest,nextjs,testing"},
+    {"id": "vitest-node-env-cannot-import-tsx", "title": "vitest node env cannot import .tsx files with vite:define + NEXT_PUBLIC_* env vars", "tags": "vitest,tsx,jsx,vite-define,node-environment,testing"},
+    {"id": "extract-pure-helpers-ts-when-vitest", "title": "Extract pure helpers to .ts when vitest env is node to avoid JSX parse failure", "tags": "vitest,jsx,testing,react,nextjs"}
+  ],
   "architecture": {
     "paradigm": {
       "actual": "layered/n-tier (with a functional-core + imperative-shell grain inside the theme module)",

@@ -80,18 +80,8 @@ type Copy = {
     languageDescription: string;
     themeHeading: string;
     themeDescription: string;
-    calm: string;
-    playful: string;
-    lego: string;
-    minecraft: string;
-    flower: string;
     active: string;
     currentTheme: string;
-    calmDescription: string;
-    playfulDescription: string;
-    legoDescription: string;
-    minecraftDescription: string;
-    flowerDescription: string;
     cancel: string;
   };
   storage: {
@@ -542,18 +532,8 @@ const copy: Record<LanguageCode, Copy> = {
       languageDescription: 'Choose which language the app should use.',
       themeHeading: 'Theme',
       themeDescription: 'Choose the visual theme for the app.',
-      calm: 'Calm',
-      playful: 'Playful',
-      lego: 'Brick Builder',
-      minecraft: 'Block World',
-      flower: 'Flower Garden',
       active: 'Active',
       currentTheme: 'Current theme',
-      calmDescription: 'Muted blues and greens, minimal animations.',
-      playfulDescription: 'Warm oranges and purples, rounded corners.',
-      legoDescription: 'Bold brick colors, toy-like contrast, and a stud-patterned background.',
-      minecraftDescription: 'Earthy block tones, squared surfaces, and a pixelated backdrop.',
-      flowerDescription: 'Soft blossom tones, petal-like shapes, and a bright floral backdrop.',
       cancel: 'Cancel',
     },
     storage: {
@@ -999,18 +979,8 @@ const copy: Record<LanguageCode, Copy> = {
       languageDescription: 'Lege fest, in welcher Sprache die App angezeigt wird.',
       themeHeading: 'Design',
       themeDescription: 'Wähle das visuelle Design der App.',
-      calm: 'Ruhig',
-      playful: 'Verspielt',
-      lego: 'Baustein',
-      minecraft: 'Blockwelt',
-      flower: 'Bluetengarten',
       active: 'Aktiv',
       currentTheme: 'Aktuelles Design',
-      calmDescription: 'Gedämpfte Blau- und Grüntöne, minimale Animationen.',
-      playfulDescription: 'Warme Orange- und Lilatöne, runde Ecken.',
-      legoDescription: 'Kräftige Steinfarben, spielzeughafte Kontraste und ein Noppen-Hintergrund.',
-      minecraftDescription: 'Erdige Blockfarben, eckige Flächen und ein verpixelter Hintergrund.',
-      flowerDescription: 'Sanfte Blütentöne, blütenartige Formen und ein heller floraler Hintergrund.',
       cancel: 'Abbrechen',
     },
     storage: {

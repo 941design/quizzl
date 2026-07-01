@@ -1,0 +1,45 @@
+{
+  "story_id": "S0",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-01T18:30:00Z",
+  "files_created": [
+    "app/scripts/capture-theme-baseline.mjs",
+    "app/tests/unit/theme-baseline.generated.ts",
+    "specs/epic-pluggable-themes/S0-baseline-capture/architecture.json",
+    "specs/epic-pluggable-themes/S0-baseline-capture/baseline.json",
+    "specs/epic-pluggable-themes/S0-baseline-capture/result.json"
+  ],
+  "files_modified": [
+    "specs/epic-pluggable-themes/S0-baseline-capture/verification.json"
+  ],
+  "tests_added": {
+    "unit": 0
+  },
+  "test_counts": {
+    "baseline": 1617,
+    "final": 1617
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "architect_skipped": false,
+  "modules_touched": [
+    "baseline capture"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The 'plain .mjs cannot import .ts' constraint (spec \u00a74/D5, inherited from the folder-scaffold generator's rule) reads as a hard prohibition on evaluating any .ts source from a .mjs script, but S0's job genuinely requires exactly that (import the current, unmodified getChakraTheme). Resolving the apparent conflict took a proof-of-concept before delegating: confirming theme.ts's only non-type-only import is the real npm package @chakra-ui/react (its other import is `import type`-only and fully erased by a syntax-only strip), so TypeScript's already-installed `transpileModule` API could strip the .ts syntax without needing a full program/path-alias resolution, a bundler, or a new dependency (tsx/ts-node/esbuild were all rejected -- esbuild specifically because it's an undeclared transitive native binary, a real cross-platform risk this project's CLAUDE.md already flags for rolldown/@next/swc). Once that mechanism was validated empirically (all five themes transpile/import/round-trip cleanly with zero functions in the allowlist subtrees), the rest of the implementation was straightforward.",
+    "surprised_by": "Chakra's extendTheme deep-merge preserves explicit `undefined`-valued object keys as real own-enumerable properties in the merged theme (e.g. `styles.global.body.backgroundAttachment: undefined` for themes without a background image) rather than dropping them. A naive JSON-round-trip/deep-equal check that treats 'key present with value undefined' and 'key absent' as different will always flag this as data loss, even though it isn't information loss in any sense that matters to a downstream consumer. The dev agent caught this on first run and switched to Jest-toEqual-compatible semantics; I've recorded a post-impl verification question (VQ-S0-009) flagging that S2's AC-PARITY-1 assertion must use `toEqual` (not `toStrictEqual`) against `baseline[id]` for the same reason, since the committed JSON-literal baseline necessarily omits those undefined-valued keys that the live theme output still carries.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "spawn_index": 1,
+        "note": "Round-trip check needed Jest-toEqual semantics (undefined-valued key == absent key) because Chakra's extendTheme merge preserves explicit undefined values in styles.global.body; flagged that S2's parity test must use toEqual, not toStrictEqual, against the committed baseline for the same reason. Folded into this retro's surprised_by and into post-impl questions VQ-S0-008/VQ-S0-009."
+      }
+    ],
+    "lead_clarifications": []
+  }
+}

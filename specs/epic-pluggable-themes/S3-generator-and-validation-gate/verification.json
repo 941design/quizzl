@@ -1,0 +1,161 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-01T18:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `themes-validation.test.ts` contain any tautological assertion (e.g. asserting a value equals itself, or asserting a mock's return value against that same mock) in any of its gates (schema, contrast, drift, freshness, order-uniqueness, font-URL, zod-boundary)? Does `generate-theme-registry.mjs` contain a frozen/hardcoded theme list that would keep passing even if the real `app/src/themes/*` folder set changed, instead of genuinely globbing the filesystem at run time?"
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `app/scripts/generate-theme-registry.mjs` import only `node:fs/promises`, `node:path`, and `node:url` (per architecture.md's Implementation Constraint #8) — with zero import of any TypeScript file, `ts-node`, or a TypeScript compiler API? Does `themes-validation.test.ts` import only `index`, `schema`, `fontUnion`, and `contrast` (per the Boundary Rules table), with no direct import of `buildChakraTheme` bypassing `index`?"
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `generator` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "For each of the seven validation gates (schema/id-regex, contrast, drift, metadata-freshness, order-uniqueness, font-URL, zod-boundary), does the test suite include both a passing fixture (current five themes) and at least one deliberately-broken fixture that triggers the gate's failure path? Are these fixture-driven tests, not tests that only assert the validation function was called (no mock-spy standing in for the real manifests/registry)?"
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the overall `prebuild` gate fail the build (non-zero exit) whenever any one of the seven validation checks fails, matching spec's intent that this story makes non-conformance unbuildable rather than merely logged? Does a single injected violation (pick any one gate) actually abort `npm run build` end-to-end, not just fail an isolated `vitest` invocation run manually?"
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the zod-boundary architectural test in `themes-validation.test.ts` inspect the actual `next build` client bundle output (or an equivalent resolved-module-graph analysis) to confirm `zod` does not appear, rather than relying solely on a naive static grep of import statements in source files? Construct or point to a fixture where a client-bundle-reachable file imports `schema.ts` through a disguised or dynamically-constructed path, and confirm the test still catches it rather than being satisfied by the absence of a literal `zod` string in source."
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-2",
+      "question": "For each of calm/playful/lego/minecraft/flower, does `app/src/themes/<id>/manifest.ts` exist and does `app/src/lib/theme.ts` contain zero inline theme object literals, instead re-exporting its entire public API from `app/src/themes/index.ts`? Provide the production diff (theme.ts's new content) and the test that fails if an inline object is reintroduced, plus confirmation the test is not a mock-spy proxy over theme.ts's exports."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-3",
+      "question": "Does running `node app/scripts/generate-theme-registry.mjs --check` against the committed `app/src/themes/registry.generated.ts` exit 0 (idempotent) on a clean checkout, and does deliberately adding or removing a theme folder before running `--check` cause a non-zero exit? Show both the pass and the intentionally-broken-case output as evidence the check is state-discriminating, not merely a fixed always-pass exit."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-4",
+      "question": "After adding a new schema-conforming `app/src/themes/<new-id>/manifest.ts` (status not `'hidden'`) and rebuilding, does `<new-id>` appear in `APP_THEMES` and on the `/profile` picker with zero edits to any file outside `app/src/themes/<new-id>/`? After removing that folder and rebuilding, does `<new-id>` disappear from both `APP_THEMES` and the picker? Provide the before/after `registry.generated.ts` diffs and picker-render evidence for both directions (add and remove), demonstrating the test doesn't just assert the generator ran without checking its actual output changed."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEP-1",
+      "question": "Does `app/package.json`'s `prebuild` script literally invoke `node scripts/generate-theme-registry.mjs` followed by `vitest run tests/unit/themes-validation.test.ts`, and does `npm run build` (and `make build`) execute `prebuild` before `next build` runs? Show the `prebuild` script's exact command string and evidence (e.g. an `npm run build` trace) that both steps executed in that order before the Next.js build started."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEP-2",
+      "question": "When a manifest is made non-conforming (e.g. an invalid `id`) and `npm run build` is run against a pre-existing `app/out` directory, does the build command exit non-zero, and can you show evidence that `next build` itself never ran (a log marker or absence of a fresh `next build` step), rather than inferring failure from `app/out`'s deletion or absence? Confirm the negative test does not assert on `app/out`'s deletion as its success signal."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VAL-1",
+      "question": "When a manifest sets `colorScheme:'light'` but its actual computed `textStrong`/`appBg` (or another required §6.7 pair) hex values yield a WCAG ratio below 4.5:1, does `themes-validation.test.ts` still fail that manifest — i.e. does the contrast gate compute the ratio strictly from the real hex values of the pair and never read or trust the `colorScheme` or `contentSurface` fields as a shortcut? Construct or point to a test fixture where `colorScheme` is mislabeled `'light'` while the real hex pair fails contrast, and confirm the gate fails it anyway, naming the theme id, the failing `(text, surface)` pair, and the computed ratio in its failure message."
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VAL-2",
+      "question": "Does a manifest whose `id` differs from its folder's basename, or whose `id` violates `^[a-z][a-z0-9-]*$` (e.g. an uppercase letter or a leading digit), fail either `ThemeManifestSchema.parse` or the explicit `id === folder` assertion in `themes-validation.test.ts`? Show the specific fixture and failure output for both violation types (mismatched id, invalid regex)."
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VAL-3",
+      "question": "Does `themes-validation.test.ts` fail when the theme-folder set (folders containing `manifest.ts`) differs from `Object.keys(APP_THEMES)` (drift)? Does it independently fail — with the folder set unchanged — when an existing manifest's `order` value is edited such that the order-sorted key list no longer matches the committed `registry.generated.ts`, or when a manifest's `fontLoad` entry is edited such that recomputed `THEME_FONTS` no longer matches the committed export (metadata-freshness)? Demonstrate both failure modes are independently triggered by fixtures that isolate each cause."
+    },
+    {
+      "question_id": "VQ-S3-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VAL-4",
+      "question": "Does declaring two manifests with the same `order` value (e.g. both `order: 2`) cause `themes-validation.test.ts` to fail with a message identifying an order-uniqueness violation, rather than silently sorting them into an arbitrary but passing order?"
+    },
+    {
+      "question_id": "VQ-S3-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-FONT-1",
+      "question": "Does `buildFontLinkHref(THEME_FONTS)` evaluated against the five real manifests equal, byte-for-byte, `https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&family=Press+Start+2P&family=VT323&display=swap`? Does `app/pages/_document.tsx`'s rendered `<link>` `href` use this built value directly (not a hardcoded string literal duplicating it)? Show the test assertion and the `_document.tsx` source line."
+    },
+    {
+      "question_id": "VQ-S3-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BOUND-1",
+      "question": "Does the architectural scan in `themes-validation.test.ts` match forbidden imports by their statically RESOLVED module target (following any path alias, e.g. a tsconfig path mapping) rather than by literal source-string matching against `'./schema'` or `'../schema'`? Construct or point to a fixture where a client-bundle-reachable file imports `schema.ts` through an alias path whose literal text does not contain the substring `schema`, and confirm the test still fails it. Separately, confirm `zod` does not appear in the actual `next build` client bundle output (not just in the source-level scan)."
+    },
+    {
+      "question_id": "VQ-S3-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-3",
+      "question": "Does the generator-emitted `app/src/themes/registry.generated.ts` (post-regeneration in this story) preserve the exact same observable contract as the S2 hand-authored stub — `AppThemeName` as a folder-derived string union, `APP_THEMES: Record<AppThemeName, ThemeManifest>` keyed and order-sorted ascending, `THEME_FONTS: FontLoad[]` deduplicated via `buildThemeFonts` — with zero field renames or type changes? Does `generate-theme-registry.mjs --check` confirm this by exiting zero against the committed file, and does it do so without ever importing or evaluating any TypeScript file (fs/path/url-only, per architecture.md's Implementation Constraint #8)?"
+    },
+    {
+      "question_id": "VQ-S3-019",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-STRUCT-3",
+      "question": "The first vitest suite the dev subagent produced covered AC-STRUCT-4 (folder-add/remove via temp fixtures) but had no automated regression test for AC-STRUCT-3's `--check` idempotence against the REAL committed `registry.generated.ts` — that had only been confirmed manually via the CLI (`node scripts/generate-theme-registry.mjs --check`, exit 0) during architect-level verification. The architect closed this gap post-hoc by adding two tests (`generate({check:true})` against the real themes dir succeeds; against a deliberately stale temp file it throws). Is this addition sufficient to prevent a future silent drift between `renderRegistrySource`'s template and the committed file (e.g. a hand-edit to `registry.generated.ts`, or a template change that isn't re-run), or does the idempotence guarantee still depend on someone remembering to run `npm run prebuild`/`node scripts/generate-theme-registry.mjs` before committing?"
+    },
+    {
+      "question_id": "VQ-S3-020",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The generator declares theme imports and the `_all` array in ALPHABETICAL folder-name order (calm, flower, lego, minecraft, playful) rather than the S2 hand-authored stub's `order`-value sequence (calm, playful, lego, minecraft, flower) — a deliberate choice, since the generator never reads `order` (it never evaluates TypeScript) and `_sorted`/`APP_THEMES`/`THEME_FONTS` are always re-sorted by `order` at eval time regardless of `_all`'s declaration order. Confirm this is genuinely observationally inert: does anything (a snapshot test, a `toMatchSnapshot()` somewhere, a diff-based review tool, or a future consumer) depend on `_all`'s or the import statements' declaration order rather than on `APP_THEMES`'s/`THEME_FONTS`'s computed (order-sorted / dedup) output? (Confirmed clean by the full regression run — 1779/1779 passing, including `parity.test.ts` and `compatBridge.test.ts` unmodified — but flagged here since it is a visible, non-obvious diff against the S2 file a future reviewer might mistake for an unintended change.)"
+    },
+    {
+      "question_id": "VQ-S3-021",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-BOUND-1",
+      "question": "The dev subagent exported `ELEVATION_TO_VISUAL_STYLE` (previously module-private) from `app/src/themes/index.ts` — the S2 compat-bridge file — solely to make the AC-BOUND-1 enum-sync assertion (`ELEVATION_TO_VISUAL_STYLE` keys === `treatments/elevation.ts`'s `ElevationName` options, the '3rd sync site') testable from `themes-validation.test.ts`. S2's mocks-registry/architecture.json list `useThemeStyles.ts`/`ThemeIcon.tsx`/`profile.tsx`/`_document.tsx`/`i18n.ts` edits as explicitly out of scope for any story before S4, but say nothing about S3 itself adding an export to `index.ts`. Is a purely-additive export (no signature change to any existing export, no behavior change) an acceptable boundary-safe way to satisfy a carried test guarantee, or should this sync assertion instead have been written as a black-box test against `getThemeDefinition(id).visualStyle` (already public) cross-referenced with a hardcoded expectation, avoiding any edit to the S2 compat-bridge file at all?"
+    },
+    {
+      "question_id": "VQ-S3-022",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "ac_id": "AC-BOUND-1",
+      "question": "Architect-level verification ran a full `npm run build` once and grepped `.next/static/chunks/*.js` for `zod`/`ZodError`/`ThemeManifestSchema`, confirming zero matches — empirical proof (not just the source-level resolved-target scan) that zod stays out of the client bundle, satisfying VQ-S3-006/017's original demand. This check is NOT wired into CI/the vitest suite (a full `next build` is too slow to run on every `vitest run tests/unit/themes-validation.test.ts`). Should a lighter-weight, CI-runnable equivalent (e.g. a periodic or pre-release full-build bundle grep, or a webpack-stats-based check) be added as a follow-up so this guarantee doesn't silently rot as new client-reachable modules are added in S4/S5, or is the source-level resolved-target scan (already in the suite, re-run on every prebuild) sufficient ongoing protection on its own?"
+    },
+    {
+      "question_id": "VQ-S3-023",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-DEP-2",
+      "question": "AC-DEP-2's build-abort guarantee (non-conforming manifest -> `prebuild` exits non-zero -> `next build` never runs) was verified once, manually, by the architect: temporarily renaming `calm`'s `id` to an invalid value, running `npm run prebuild` (confirmed exit 1), then restoring the file and re-confirming `--check`/full test suite green. This is not captured as a repeatable automated test (doing so safely would require either a subprocess-spawning integration test that mutates a real file and restores it, or a temp-project-fixture with its own `package.json`/`node_modules` — both meaningfully heavier than the existing suite). Is the one-time manual confirmation (recorded here and in `result.json`) sufficient ongoing evidence for AC-DEP-2, or does the guarantee's durability over future S4/S5 changes warrant a scripted (not committed as a permanent fixture-mutating test, but at least a documented repeatable verification recipe) check?"
+    }
+  ]
+}

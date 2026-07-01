@@ -1,0 +1,85 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-01T18:20:00Z",
+  "files_created": [
+    "app/src/themes/schema.ts",
+    "app/src/themes/buildChakraTheme.ts",
+    "app/src/themes/fontUnion.ts",
+    "app/src/themes/contrast.ts",
+    "app/src/themes/treatments/elevation.ts",
+    "app/src/themes/treatments/iconSets.ts",
+    "app/src/themes/treatments/patterns.ts",
+    "app/src/themes/index.ts",
+    "app/tests/unit/themes/fixtures.ts",
+    "app/tests/unit/themes/schema.test.ts",
+    "app/tests/unit/themes/buildChakraTheme.test.ts",
+    "app/tests/unit/themes/fontUnion.test.ts",
+    "app/tests/unit/themes/contrast.test.ts",
+    "app/tests/unit/themes/treatments.test.ts",
+    "app/tests/unit/themes/index.test.ts",
+    "app/tests/unit/themes/zodBoundary.test.ts",
+    "specs/epic-pluggable-themes/S1-themes-scaffold/architecture.json",
+    "specs/epic-pluggable-themes/S1-themes-scaffold/baseline.json",
+    "specs/epic-pluggable-themes/S1-themes-scaffold/result.json"
+  ],
+  "files_modified": [
+    "app/package-lock.json",
+    "app/package.json",
+    "app/src/themes/buildChakraTheme.ts",
+    "app/src/themes/contrast.ts",
+    "app/src/themes/fontUnion.ts",
+    "app/src/themes/index.ts",
+    "app/src/themes/schema.ts",
+    "app/src/themes/treatments/elevation.ts",
+    "app/src/themes/treatments/iconSets.ts",
+    "app/src/themes/treatments/patterns.ts",
+    "specs/epic-pluggable-themes/S1-themes-scaffold/verification.json"
+  ],
+  "tests_added": {
+    "unit": 61
+  },
+  "test_counts": {
+    "baseline": 1617,
+    "final": 1678
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "architect_skipped": false,
+  "modules_touched": [
+    "buildChakraTheme",
+    "schema",
+    "fontUnion",
+    "contrast",
+    "treatments/elevation",
+    "treatments/iconSets",
+    "treatments/patterns",
+    "themes-index"
+  ],
+  "verification_summary": {
+    "pre_impl_questions": 10,
+    "post_impl_questions": 5,
+    "zero_behavior_change_confirmed": true,
+    "consumer_files_untouched": [
+      "app/src/lib/theme.ts",
+      "app/src/hooks/useMoodTheme.tsx",
+      "app/src/hooks/useThemeStyles.ts",
+      "app/src/components/ThemeIcon.tsx",
+      "app/src/lib/storage.ts",
+      "app/pages/profile.tsx",
+      "app/pages/_document.tsx",
+      "app/src/types/index.ts"
+    ]
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The story brief flagged the `getChakraTheme` signature as an open structural question (the seam contract's stated form is `getChakraTheme(id) = extendTheme(buildThemeOverride(APP_THEMES[id]))`, which requires a registry that does not exist until S2). Resolving this without escalating required cross-referencing architecture.md's terse 'Allowed dependency edges' list (buildChakraTheme -> @chakra-ui/react, treatments/* only, no registry edge) against Chakra's own exported `ThemeOverride`/`extendTheme` type definitions (checked directly in node_modules) to confirm a manifest-keyed `getChakraTheme(manifest)` both type-checks cleanly and composes correctly once index.ts wires in the registry in S2. This took real investigation time but resolved cleanly; documented as a design note in architecture.json and as post-impl question VQ-S1-011 for the verifier to confirm.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

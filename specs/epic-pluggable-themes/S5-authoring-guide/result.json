@@ -1,0 +1,47 @@
+{
+  "story_id": "S5",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-01T21:07:00Z",
+  "remediation_rounds": 1,
+  "files_created": [
+    "docs/themes/authoring-guide.md",
+    "app/src/themes/README.md",
+    "specs/epic-pluggable-themes/S5-authoring-guide/architecture.json",
+    "specs/epic-pluggable-themes/S5-authoring-guide/baseline.json",
+    "specs/epic-pluggable-themes/S5-authoring-guide/result.json"
+  ],
+  "files_modified": [
+    "app/src/themes/README.md",
+    "docs/themes/authoring-guide.md",
+    "specs/epic-pluggable-themes/S5-authoring-guide/verification.json"
+  ],
+  "modules_touched": [
+    "authoring-guide"
+  ],
+  "tests_added": {},
+  "test_counts": {
+    "baseline": 1894,
+    "final": 1894
+  },
+  "mocks": [],
+  "architect_skipped": false,
+  "implementation_summary": "Docs-only story (AC-DOC-1): no code, test, schema, or manifest file was edited (scope.excludes honored). Wrote docs/themes/authoring-guide.md, deriving every factual claim from the shipped S0-S4 implementation rather than the spec's aspirational description: the field reference was cross-checked field-for-field against schema.ts's ThemeManifestSchema (including .strict() rejection of extra keys, the id regex, order-uniqueness-not-position per the retired AC-VAL-3 sub-clause / AC-VAL-4 collision rule); the treatment catalog against treatments/elevation.ts, patterns.ts, and iconSets.ts's actual exported Record keys; the contrast pair table and AA 4.5:1 threshold, the fail-loud non-hex-token behavior, and the backgroundImage limitation against contrast.ts and its own doc comments; the FontLoad shape and Google-Fonts-URL union behavior against fontUnion.ts; the status:hidden/listThemes/APP_THEMES semantics against the S4-landed index.ts; and the validation-gate mechanics (prebuild wiring, --check idempotence mode) against package.json's prebuild script and generate-theme-registry.mjs. Section 10's worked sample ('sunrise', order 6) was not just written by hand -- it was dropped into a temporary app/src/themes/sunrise-sample/ folder (id set to sunrise-sample to avoid a folder/id mismatch), run through the real `npm run prebuild` gate, confirmed to pass all 63 validation assertions (schema, id/folder consistency, every required contrast pair, order uniqueness, drift, font-URL parity, zod-boundary, enum-catalog sync), then deleted and the registry regenerated back to the committed 5-theme state -- so the sample is verified-correct, not merely plausible. The AC-DEP-2 build-abort recipe in Section 9 was similarly executed against the live tree (temporarily setting calm/manifest.ts's id to 'Calm', confirming npm run prebuild exits non-zero across 12 cascading assertion failures, then restoring the file byte-identical via a pre-edit backup) rather than described from assumption; the guide's wording was corrected mid-write once the actual failure mode (an id/folder-key cascade, not a single 'id regex' message) was observed to differ from the first draft's phrasing. Wrote a short app/src/themes/README.md pointing at the guide via a verified-resolving relative path. No removed concept (visualStyle, isFunTheme, labelKey, descriptionKey, ELEVATION_TO_VISUAL_STYLE, ThemeVisualStyle, the retired order-position AC-VAL-3 sub-clause) is referenced as live API surface anywhere in either file -- the one incidental mention of 'visualStyle' explicitly describes its absence ('there is no single closed visualStyle enum'). Full test suite (make test-unit) and typecheck were re-run after all temporary fixture/edit cleanup and are byte-identical to the pre-story baseline (117 files / 1894 tests / clean typecheck); git status confirms no stray files remain under app/src/themes/ and no pre-existing tracked file was left modified.",
+  "verification_summary": {
+    "pre_impl_questions": 6,
+    "post_impl_questions": 3,
+    "worked_sample_evidence": "app/src/themes/sunrise-sample/manifest.ts (temporary) validated via `npm run prebuild`: 63/63 assertions passed, including all 11 contrast pairs at the manifest's actual hex values (verified independently via a WCAG luminance/ratio calculation before authoring the palette, then confirmed by the real contrast.ts gate). Folder removed and registry.generated.ts regenerated back to the committed 5-theme state; make test-unit returned to the exact baseline count (117/1894) afterward.",
+    "build_abort_evidence": "calm/manifest.ts's id was temporarily changed to 'Calm' (backed up first); `npm run prebuild` exited non-zero with 12 failing assertions across schema/id-consistency/contrast/drift/enum-catalog checks. File restored byte-identical (diff-confirmed) before this story completed; registry regenerated back to 5 themes; suite re-confirmed green.",
+    "no_removed_concepts": "grep across both shipped doc files for visualStyle/isFunTheme/labelKey/descriptionKey/ELEVATION_TO_VISUAL_STYLE/ThemeVisualStyle/order-position: one hit (visualStyle), describing its removal, not presenting it as live API."
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The CRITICAL instruction to derive every claim from the shipped code (not the spec's aspirational wording) meant reading six source files in full (schema.ts, contrast.ts, elevation.ts, patterns.ts, iconSets.ts, fontUnion.ts, index.ts, generate-theme-registry.mjs) before writing a line of the guide, plus actually executing both the worked-sample and build-abort recipes against the live tree rather than describing them from inference. That is inherently more work than a typical docs pass, but it caught one real inaccuracy before it shipped: my first-draft wording for the build-abort recipe claimed 'the id-regex assertion fails' when the actual observed failure was a 12-assertion cascade triggered by a registry key mismatch (REGISTRY_APP_THEMES.calm resolving to undefined once the manifest's own id diverged from its folder key) -- a materially different failure mode than what the prose implied. Executing the recipe rather than assuming its shape is what surfaced this.",
+    "surprised_by": "Editing calm/manifest.ts's id to an invalid value did not fail cleanly on the id-regex check alone as the spec's contrast/id validation ordering might suggest -- it cascaded into 12 separate failing assertions (schema parse, id/folder consistency, contrast, drift, order-uniqueness, enum-catalog) because several tests index into REGISTRY_APP_THEMES by folder name and the mismatched id silently orphans that lookup rather than being caught at a single validation site. The build-abort guarantee still holds (non-zero exit, `next build` never runs), but the failure signature is broader/noisier than a single targeted assertion.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

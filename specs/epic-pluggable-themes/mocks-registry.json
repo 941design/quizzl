@@ -1,0 +1,16 @@
+{
+  "created_at": "2026-07-01T15:00:00Z",
+  "updated_at": "2026-07-01T20:10:00Z",
+  "mocks": [
+    {
+      "mock_id": "MOCK-02-001",
+      "description": "Hand-authored registry.generated.ts stub (real working impl, manually maintained) stands in for the S3 codegen-emitted registry.",
+      "interface_mocked": "app/src/themes/registry.generated.ts (APP_THEMES/AppThemeName/THEME_FONTS)",
+      "introduced_by": "S2",
+      "resolution_story": "S3",
+      "resolved": true,
+      "resolution_note": "app/scripts/generate-theme-registry.mjs now generates and commits app/src/themes/registry.generated.ts from the app/src/themes/*/manifest.ts folder set; the file is regenerated (byte-identical on a clean checkout) and its --check mode is idempotent, confirmed via both a manual CLI run and an automated themes-validation.test.ts regression test (AC-STRUCT-3). The observable contract (AppThemeName union, APP_THEMES Record, THEME_FONTS array) is unchanged from the S2 stub."
+    }
+  ],
+  "all_resolved": true
+}

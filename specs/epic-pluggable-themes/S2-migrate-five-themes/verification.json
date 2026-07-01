@@ -1,0 +1,82 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-01T18:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the hand-authored `app/src/themes/registry.generated.ts` stub introduced in this story a fully working implementation (real `APP_THEMES`/`AppThemeName`/`THEME_FONTS` values computed from the five real manifests) rather than an inert placeholder that would silently degrade behavior if it were never superseded? Does any of the five `manifest.ts` files contain a frozen/hardcoded stand-in value (e.g. a hex string copy-pasted without deriving it from `theme.ts`'s actual pre-refactor values) instead of a field-for-field translation of the current `theme.ts`/`useThemeStyles.ts` content?"
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Do the five `manifest.ts` files import nothing beyond the `ThemeManifest` type (no `@chakra-ui/react`, no `buildChakraTheme`, no `treatments/*` runtime import)? Does `registry.generated.ts` import manifests via static import, `schema.ts` for the type only, and `fontUnion.ts`'s `buildThemeFonts` — with no import of `buildChakraTheme`? Is `app/src/lib/theme.ts` now a thin re-export of `themes/index.ts` with no inline theme object definitions remaining?"
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `manifests` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does a real (non-mocked) test invoke `getChakraTheme(id)` for each of calm/playful/lego/minecraft/flower and assert `pick(getChakraTheme(id), ALLOWLIST)` deep-equals the corresponding entry in `theme-baseline.generated.ts`, plus the full-extend guard (`getChakraTheme(id).components.Button.variants` is a non-empty object) and the minecraft `contentSurface`/`fontSizes` checks — rather than asserting against a re-derived or newly-computed expectation object constructed in the test file itself?"
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does migrating the five themes into manifests preserve every color scale, semantic-token hex value, typography choice, and banner asset field-for-field from today's `theme.ts` and `useThemeStyles.ts` — with no re-tuning of any value — matching spec §13/architecture.md's explicit 'no re-tuning' instruction for this story?"
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does wiring `app/src/types/index.ts` to import `AppThemeName` from the registry avoid introducing a circular import (does `registry.generated.ts` avoid importing anything from `types/index.ts`)? Does this wiring order match architecture.md's Story Order note that `types/index.ts` changes happen only after the registry stub exists?"
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PARITY-1",
+      "question": "Is the parity assertion in this story's test genuine equality against the pre-existing, already-committed `app/tests/unit/theme-baseline.generated.ts` (produced by S0 before any `src/` edit) — not a fresh re-derivation computed at test time from the new manifests? For each of calm/playful/lego/minecraft/flower, does `pick(getChakraTheme(id), ALLOWLIST)` deep-equal (`toEqual`) that committed baseline entry, and does `getChakraTheme(id).components.Button.variants` evaluate to a non-empty object for every theme (the full-extend guard, catching a regression that returns the bare override instead of `extendTheme(...)`'s result — e.g. a component that returns only the override would make this assertion empty/undefined)? Provide the test's actual pass/fail output as evidence, not a description of what it is intended to check."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PARITY-2",
+      "question": "Is the effective `contentSurface` read by the contrast gate and `useThemeStyles` truthy specifically for the `minecraft` manifest and falsy for calm/playful/lego/flower? Does `getChakraTheme('minecraft').fontSizes.md` evaluate to `>= 1.1rem`, is `fontSizes.lg > fontSizes.md`, and is `fontSizes['4xl'] > fontSizes.xl`? Provide the actual computed values for minecraft as evidence, not just an assertion that the test exists."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PARITY-1",
+      "question": "Does the committed `app/src/themes/registry.generated.ts` stub export exactly `AppThemeName` (a string union of calm|playful|lego|minecraft|flower), `APP_THEMES` (`Record<AppThemeName, ThemeManifest>` whose keys are ordered ascending by each manifest's `order` field: calm=1, playful=2, lego=3, minecraft=4, flower=5), and `THEME_FONTS` (the deduplicated `FontLoad[]` union recomputed from all five manifests via `buildThemeFonts`)? Confirm this is the exact same shape (field names, types, and order-derivation formula) that architecture.md commits the S3 generator to reproduce — i.e. the stub is not a shortcut shape the generator will later need to change."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "This story introduces a transitional `AppThemeDefinition = Omit<ThemeManifest,'id'> & { id: AppThemeName; visualStyle; labelKey; descriptionKey; backgroundImage? }` type in `themes/index.ts`, rather than the literal `AppThemeDefinition = ThemeManifest` alias architecture.md's Registry seam contract names as the epic's end state. Is this deviation justified and narrowly scoped — i.e. are `useThemeStyles.ts`, `ThemeIcon.tsx`, and `profile.tsx` (all explicitly out of this story's scope, all migrated only in S4) the ONLY reason the four extra fields exist, are all four fields *derived* from the manifest with no independently-authored data, and is each field's removal explicitly documented as an S4 obligation (in this story's architecture.json design_notes and in the field-level `@deprecated` JSDoc in themes/index.ts) rather than left as an undocumented wart?"
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "`registry.generated.ts` exports its own `APP_THEMES` (pure `Record<AppThemeName, ThemeManifest>`) and `themes/index.ts` separately exports a DIFFERENT `APP_THEMES` (compat-augmented `Record<AppThemeName, AppThemeDefinition>`) under the same name. Does any current consumer (via `lib/theme.ts`) actually receive the WRONG one — i.e. does `profile.tsx`'s `Object.values(APP_THEMES)` (through `lib/theme.ts` -> `themes/index.ts`) receive the compat-augmented map (so `.labelKey`/`.descriptionKey` resolve), and does nothing in this story's own code accidentally import `registry.generated.ts`'s raw `APP_THEMES` where the augmented one was needed, or vice versa?"
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "Each manifest's `treatments.iconSet` was set by reasoning through `ThemeIcon.tsx`'s pre-refactor `ICON_MAP` fallback (`iconSet[vs] ?? iconSet.default`) rather than assuming visualStyle names map 1:1 onto iconSet names — concretely: calm/playful/flower -> 'line' (their old visualStyle keys 'soft'/'rounded'/'floral' have no entry in ICON_MAP, so they fell through to 'default'/'line'), lego -> 'filled' ('toy' key exists), minecraft -> 'pixel' ('pixel' key exists). Is this derivation correct for all twelve icon names in `ICON_MAP`, and will S4's `ThemeIcon.tsx` rewiring onto `manifest.treatments.iconSet` reproduce the exact same rendered icon per theme as today (AC-UX-2), given this story does not itself add a test asserting icon-set-per-theme (that assertion belongs to S4/AC-UX-2)?"
+    }
+  ]
+}

@@ -376,3 +376,13 @@ enforced by AC9 (§6.8) against a baseline captured before story 1.
 4. **Consumers** — `useThemeStyles`, `ThemeIcon`, `profile.tsx` (+ `listThemes` filtering),
    `_document.tsx`, `i18n.ts`. AC10, AC11, AC13, AC15.
 5. **Authoring guide** — `docs/themes/authoring-guide.md` + `README.md`. AC16.
+
+## Amendments
+
+### 2026-07-01 — AC-VAL-3 metadata-drift sub-clause retired (order-position)
+
+**Trigger:** Codex cross-vendor review (S0 Stage-2) flagged that AC-VAL-3's "a manifest's `order`-sorted position differs from what the committed `registry.generated.ts` exports" sub-clause is untestable-with-teeth, and it was found to contradict §12.
+
+**Reasoning:** Per §6.4/D5 the `.mjs` generator emits only a folder-name scaffold and cannot materialize `order`/font values; the committed `registry.generated.ts` therefore computes `APP_THEMES`/`THEME_FONTS` from the live manifests at module-evaluation time. A "recompute-from-manifests vs committed-registry" comparison thus compares a value to itself (vacuous). Independently, §12 states manual `order` reassignment is an **intended** edit ("not silent reordering"); only `order` *collisions* are a validation failure. Flagging a reorder as "drift" would contradict that design.
+
+**Resolution:** The `order`-sorted-position sub-clause is retired. The real metadata-drift surface remains fully covered: **AC-FONT-1** (font drift — `buildFontLinkHref(THEME_FONTS)` byte-equality against the committed `_document.tsx` URL) and **AC-VAL-4** (duplicate-`order` collision). Folder drift (AC-VAL-3 clause 1) is unchanged. No US2 guarantee is weakened. `themes-validation.test.ts` (S3) implements the amended AC-VAL-3.

@@ -1,0 +1,83 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-01T19:30:00Z",
+  "remediation_rounds": 1,
+  "files_created": [
+    "app/src/themes/calm/manifest.ts",
+    "app/src/themes/playful/manifest.ts",
+    "app/src/themes/lego/manifest.ts",
+    "app/src/themes/minecraft/manifest.ts",
+    "app/src/themes/flower/manifest.ts",
+    "app/src/themes/registry.generated.ts",
+    "app/tests/unit/themes/parity.test.ts",
+    "specs/epic-pluggable-themes/S2-migrate-five-themes/architecture.json",
+    "specs/epic-pluggable-themes/S2-migrate-five-themes/baseline.json",
+    "specs/epic-pluggable-themes/S2-migrate-five-themes/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/theme.ts",
+    "app/src/themes/calm/manifest.ts",
+    "app/src/themes/flower/manifest.ts",
+    "app/src/themes/index.ts",
+    "app/src/themes/lego/manifest.ts",
+    "app/src/themes/minecraft/manifest.ts",
+    "app/src/themes/playful/manifest.ts",
+    "app/src/themes/registry.generated.ts",
+    "app/src/types/index.ts",
+    "app/tests/unit/themes/compatBridge.test.ts",
+    "app/tests/unit/themes/parity.test.ts",
+    "specs/epic-pluggable-themes/S2-migrate-five-themes/verification.json"
+  ],
+  "modules_touched": [
+    "manifests",
+    "registry",
+    "themes-index",
+    "lib-theme",
+    "types"
+  ],
+  "tests_added": {
+    "unit": 12
+  },
+  "test_counts": {
+    "baseline": 1678,
+    "final": 1716
+  },
+  "mocks": [],
+  "architect_skipped": false,
+  "implementation_summary": "Migrated the five existing themes (calm, playful, lego, minecraft, flower) out of app/src/lib/theme.ts's inline createTheme() calls into pure-data ThemeManifest objects under app/src/themes/<id>/manifest.ts, transcribed field-for-field from theme.ts's createTheme() inputs (colors, typography, radii, backgroundImage) plus useThemeStyles.ts's per-visualStyle treatment blocks (card/button/nav elevation, surface pattern, contentPanel, icon set) and BANNER_SVG. Authored a hand-written registry.generated.ts stub matching the exact shape the S3 generator will later emit (static manifest imports, folder-derived AppThemeName union, order-sorted APP_THEMES, buildThemeFonts-deduped THEME_FONTS). Rewired themes/index.ts from S1's no-op pass-through into the real public API: getChakraTheme(id) now bridges id -> registry manifest -> buildChakraTheme.ts's manifest-keyed getChakraTheme (aliased to avoid a name collision), and getThemeDefinition(id)/APP_THEMES return a transitional AppThemeDefinition (ThemeManifest plus four @deprecated derived compat fields: visualStyle, labelKey, descriptionKey, backgroundImage) so the three S4-scheduled, untouched consumers (useThemeStyles.ts, ThemeIcon.tsx, profile.tsx) keep compiling and behaving identically. Flipped lib/theme.ts to a thin re-export and types/index.ts's AppThemeName to an import from the registry.",
+  "compat_bridge_decision": "AppThemeDefinition = Omit<ThemeManifest,'id'> & { id: AppThemeName; visualStyle: ThemeVisualStyle; labelKey; descriptionKey; backgroundImage? }, all four extra fields derived (never independently authored) from the manifest: visualStyle from treatments.card via a hand-maintained ELEVATION_TO_VISUAL_STYLE reverse map; labelKey/descriptionKey from id (id already equals the historical i18n key); backgroundImage from colors.backgroundImage. contentSurface required NO derivation \u2014 S1's schema.ts already places it as a top-level optional boolean on ThemeManifest itself, matching the pre-refactor field exactly (no 'behavior' nesting exists in this codebase). Each field carries an @deprecated JSDoc naming its S4 removal condition. Full rationale is in architecture.json's design_notes (also covers why registry.generated.ts's own APP_THEMES and themes/index.ts's re-exported APP_THEMES are deliberately different shapes under the same name, and why that does not collide).",
+  "verification_summary": {
+    "pre_impl_questions": 9,
+    "post_impl_questions": 3,
+    "ac_parity_1_evidence": "app/tests/unit/themes/parity.test.ts's 5 it.each(...) cases deep-equal pick(getChakraTheme(id), ALLOWLIST) against the pre-existing, S0-committed app/tests/unit/theme-baseline.generated.ts via toEqual (never toStrictEqual, per that file's own header) \u2014 genuine comparison against the frozen pre-refactor fixture, not a re-derived expectation. All 5 pass. The full-extend guard (components.Button.variants non-empty) also passes for all 5.",
+    "ac_parity_2_evidence": "getThemeDefinition('minecraft').contentSurface === true; calm/playful/lego/flower falsy. getChakraTheme('minecraft').fontSizes: md=1.12rem (>=1.1), lg=1.25rem (>md), 4xl=2.1rem (>xl=1.35rem). All assertions pass.",
+    "consumer_files_untouched": [
+      "app/src/hooks/useThemeStyles.ts",
+      "app/src/components/ThemeIcon.tsx",
+      "app/pages/profile.tsx",
+      "app/pages/_document.tsx",
+      "app/src/lib/i18n.ts",
+      "app/src/hooks/useMoodTheme.tsx",
+      "app/src/lib/storage.ts"
+    ],
+    "pre_existing_tests_still_green_unmodified": [
+      "app/tests/unit/theme.test.ts",
+      "app/tests/unit/themes/index.test.ts"
+    ],
+    "all_tests_passing": 1716,
+    "typecheck": "clean (npx tsc --noEmit, 0 errors)",
+    "lint": "NO_LINT (unchanged since S0/S1 \u2014 no ESLint config present in the repo)"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Two design decisions required cross-referencing architecture.md against the story brief's own explicit override rather than following either alone: (1) the story brief's prose described the compat bridge as needing a 'nested behavior.contentSurface' field, but S1's already-committed schema.ts places contentSurface as a top-level optional boolean on ThemeManifest \u2014 no 'behavior' object exists anywhere in this codebase's actual schema, so the correct move was to recognize the brief's phrasing as generic/illustrative and defer to the real, already-frozen S1 schema rather than introduce a nesting that isn't there. (2) architecture.md's Registry seam contract states the terminal 'AppThemeDefinition = ThemeManifest' alias, which appears to conflict with the story brief's explicit direction to add transitional compat fields; resolving this required treating architecture.md's line as describing the S4 end-state (once the three unmigrated consumers no longer need those fields) rather than a same-story constraint, and documenting that reading explicitly in architecture.json so a reviewer isn't left wondering why the story diverges from the letter of the seam contract.",
+    "surprised_by": "profile.tsx reads labelKey/descriptionKey/backgroundImage directly off every entry in Object.values(APP_THEMES) (not just off getThemeDefinition's single active-theme return) \u2014 meaning the compat augmentation had to apply to the whole exported APP_THEMES map, not only to getThemeDefinition's return value, which the story brief's RISK section didn't call out explicitly (it only named useThemeStyles.ts/ThemeIcon.tsx's activeThemeDefinition.visualStyle/.contentSurface reads). Missing this would have produced a TS compile error and a broken theme picker on /profile.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

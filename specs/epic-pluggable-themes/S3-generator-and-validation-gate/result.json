@@ -1,0 +1,72 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-01T20:15:00Z",
+  "remediation_rounds": 2,
+  "files_created": [
+    "app/scripts/generate-theme-registry.mjs",
+    "app/tests/unit/themes-validation.test.ts",
+    "specs/epic-pluggable-themes/S3-generator-and-validation-gate/architecture.json",
+    "specs/epic-pluggable-themes/S3-generator-and-validation-gate/baseline.json",
+    "specs/epic-pluggable-themes/S3-generator-and-validation-gate/result.json"
+  ],
+  "files_modified": [
+    "app/package.json",
+    "app/pages/_document.tsx",
+    "app/scripts/generate-theme-registry.mjs",
+    "app/src/themes/index.ts",
+    "app/src/themes/registry.generated.ts",
+    "app/tests/unit/themes-validation.test.ts",
+    "specs/epic-pluggable-themes/S3-generator-and-validation-gate/verification.json",
+    "specs/epic-pluggable-themes/mocks-registry.json"
+  ],
+  "modules_touched": [
+    "generator",
+    "validation-test",
+    "registry",
+    "_document",
+    "package-json",
+    "themes-index"
+  ],
+  "tests_added": {
+    "unit": 60
+  },
+  "test_counts": {
+    "baseline": 1719,
+    "final": 1779
+  },
+  "mocks": [],
+  "architect_skipped": false,
+  "implementation_summary": "Built app/scripts/generate-theme-registry.mjs, a plain Node ESM codegen script (fs/promises + path + url only, never imports TypeScript) that globs app/src/themes/*/ for folders containing a manifest.ts, performs the two filesystem-derivable structural checks (manifest.ts present; folder name matches ^[a-z][a-z0-9-]*$), and emits app/src/themes/registry.generated.ts: one static import per theme (alphabetical folder-name order \u2014 the generator never reads `order`, so APP_THEMES/THEME_FONTS are correctly order-sorted at eval time by the emitted file's own hand-written helpers regardless of import-declaration order), the AppThemeName union, an _all array, and the order-sort/buildThemeFonts wiring. Every core function (findThemeFolders, validateFolderNames, renderRegistrySource, generate) is exported and parameterized on themesDir/outputPath so themes-validation.test.ts's AC-STRUCT-4 fixture tests can drive the real generator logic against temp folders without touching the real five themes; the CLI entry point is guarded to run only when the script is executed directly, not on import. Ran the generator to regenerate and commit registry.generated.ts, resolving MOCK-02-001 (the S2 hand-authored stub is now generator-emitted) with a fully preserved observable contract (parity.test.ts and compatBridge.test.ts pass unmodified against it). Wired `\"prebuild\": \"node scripts/generate-theme-registry.mjs && vitest run tests/unit/themes-validation.test.ts\"` into app/package.json (zod was already a devDependency from S1). Delegated to a dev subagent (base:dev) the full value-validation suite app/tests/unit/themes-validation.test.ts (60 tests across schema/id, hardened contrast incl. non-hex fail-loud and colorScheme-never-trusted fixtures, folder drift against the pure registry.generated.ts export, order uniqueness, byte-identical font-URL parity, AC-STRUCT-2's lib/theme.ts re-export lock, AC-STRUCT-4's temp-fixture folder add/remove proof, and a generalized cross-directory zod-boundary scanner covering every client-bundle-reachable module plus the S1/S2 carried enum-catalog/treatment-sync and FontLoadSchema-structural-parity guarantees) and the forced AC-FONT-1 consumer edit to app/pages/_document.tsx (renders href from buildFontLinkHref(THEME_FONTS) instead of a hardcoded URL literal). The amended AC-VAL-3 (order-position sub-clause retired per spec.md's 2026-07-01 Amendments) was implemented as clause-1-only (folder-set drift against registry.generated.ts's pure APP_THEMES), with a code comment documenting the retirement and pointing to AC-FONT-1/AC-VAL-4 as the surviving metadata-drift coverage \u2014 no order-position comparison was written. Post-dev-spawn, the architect closed one real gap found during independent verification: AC-STRUCT-3's `--check` idempotence had only been confirmed manually via the CLI, so two automated regression tests were added (idempotent against the real committed file; throws against a deliberately stale fixture).",
+  "verification_summary": {
+    "pre_impl_questions": 18,
+    "post_impl_questions": 5,
+    "generator_evidence": "node scripts/generate-theme-registry.mjs regenerates registry.generated.ts (5 themes: calm, flower, lego, minecraft, playful \u2014 alphabetical); `--check` exits 0 against the committed file (idempotent), confirmed both via CLI and via two new automated tests (AC-STRUCT-3 describe block).",
+    "ac_dep2_evidence": "Manually verified end-to-end: temporarily set calm/manifest.ts's id to an invalid value, ran `npm run prebuild` from a clean shell (not piped through another command that would mask the exit code) -> exit 1, 11 vitest failures cascading from the broken id. Restored the file, re-confirmed `--check` passes and the full suite is green (1779/1779). Separately ran a full, real `npm run build` (not just prebuild) against the VALID themes end-to-end -> exit 0, confirming prebuild's pre-script hook actually gates next build in the real npm lifecycle, producing a working static export at app/out with the correct built font URL in the rendered HTML.",
+    "ac_bound1_evidence": "themes-validation.test.ts's generalized resolved-target scanner (own-directory-relative + @/-alias resolution) found zero runtime imports resolving to schema.ts across every manifest (discovered via findThemeFolders, not hardcoded), registry.generated.ts, buildChakraTheme.ts, fontUnion.ts, index.ts, all three treatments/* files, _document.tsx, useThemeStyles.ts, and ThemeIcon.tsx, with a 12-case self-test proving the resolver discriminates (not a false-pass). Independently confirmed empirically against the REAL client bundle: grepped app/.next/static/chunks/*.js from the full `npm run build` run above for `zod`/`ZodError`/`ThemeManifestSchema` -> zero matches.",
+    "all_tests_passing": 1779,
+    "typecheck": "clean (npx tsc --noEmit, 0 errors)",
+    "lint": "NO_LINT (unchanged since S0 \u2014 no ESLint config present in the repo)",
+    "regression_confirmed": "app/tests/unit/themes/parity.test.ts, compatBridge.test.ts, and zodBoundary.test.ts (S1's early guard) all pass unmodified against the regenerated registry.generated.ts and the new _document.tsx/index.ts edits."
+  },
+  "mocks_resolved": [
+    "MOCK-02-001"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The story brief pre-specified an unusually complete design (generator emit format, --check semantics, every validation gate's fixture strategy, the exact zod v4 API path for reading enum options back from a nested schema shape) \u2014 closer to a detailed implementation ticket than a typical story brief. This made the work fast but meant most of the architect's own judgment calls were about scope boundaries (e.g. whether adding `ELEVATION_TO_VISUAL_STYLE` as an additive export to the S2 compat-bridge file was acceptable) rather than design tradeoffs. The one genuine gap requiring judgment \u2014 AC-STRUCT-3's `--check` idempotence not having an automated regression test after the dev spawn returned \u2014 was only caught by independently re-deriving and manually running the full verification checklist rather than trusting the dev's self-report; the dev's summary did not surface this gap on its own.",
+    "surprised_by": "Piping `npm run prebuild` output through `tail` and reading `$?` afterward captures `tail`'s exit code, not npm's \u2014 a first verification attempt at AC-DEP-2's negative path silently reported PREBUILD_EXIT:0 even though 11 tests had failed and vitest exited 1. Caught only by re-running without the pipe (redirecting to a file instead) before trusting the result.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "spawn_index": 1,
+        "note": "Dev's own retro was skipped (routine, no debug cycles) per the dev's final report \u2014 no substantive flag to absorb beyond the design-note judgment calls already folded into implementation_summary/verification_summary above (AC-VAL-3 drift-fixture approach, AC-STRUCT-2 line-pattern regex choice, FontLoadSchema access path via ZodArray.element)."
+      }
+    ],
+    "lead_clarifications": []
+  }
+}

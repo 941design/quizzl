@@ -1,0 +1,353 @@
+{
+  "epic": "pluggable-themes",
+  "concepts": [
+    {
+      "id": "schema-manifest-shape",
+      "name": "ThemeManifest shape and validation (zod ThemeManifestSchema + validateManifest())",
+      "owning_module": "schema",
+      "type": "public_contract",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "build-chakra-theme-transform",
+      "name": "buildThemeOverride(manifest) / cached getChakraTheme(id) transform",
+      "owning_module": "buildChakraTheme",
+      "type": "public_contract",
+      "added_by_story": "S1",
+      "note": "override forwards shape.borderWidths (parity-neutral: outside AC9 ALLOWLIST, tested)."
+    },
+    {
+      "id": "font-union-and-url",
+      "name": "Font declaration union + Google Fonts CSS2 URL construction (FontLoad, buildThemeFonts, buildFontLinkHref)",
+      "owning_module": "fontUnion",
+      "type": "public_contract",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "contrast-gate-rule",
+      "name": "WCAG contrast gate: real-hex pair evaluation at AA 4.5:1, never trusting colorScheme/contentSurface as a shortcut",
+      "owning_module": "contrast",
+      "type": "validation_rule",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "elevation-treatment-catalog",
+      "name": "ElevationName catalog (flat|softDrop|hardDrop|pixelBevel|floralGlow) for card/button/nav",
+      "owning_module": "treatments/elevation",
+      "type": "naming_scheme",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "iconset-treatment-catalog",
+      "name": "IconSetName catalog (line|filled|pixel) and icon-name -> iconify id maps",
+      "owning_module": "treatments/iconSets",
+      "type": "naming_scheme",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "pattern-treatment-catalog",
+      "name": "SurfacePatternName catalog (none|studs|grid|petals) and appBg gradients",
+      "owning_module": "treatments/patterns",
+      "type": "naming_scheme",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "registry-scaffold-shape",
+      "name": "Generated registry shape: AppThemeName union, APP_THEMES sorted by order, THEME_FONTS deduped union",
+      "owning_module": "registry.generated",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "themes-public-api",
+      "name": "themes/index.ts public API re-exported by lib/theme.ts",
+      "owning_module": "index",
+      "type": "public_contract",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "manifest-folder-convention",
+      "name": "One manifest.ts per theme folder; folder basename === manifest.id (drives auto-detection)",
+      "owning_module": "manifests",
+      "type": "path_convention",
+      "added_by_story": null
+    },
+    {
+      "id": "generator-folder-name-only-emission",
+      "name": "Generator emits only a folder-name-derived scaffold and never imports/evaluates TypeScript; --check is idempotent",
+      "owning_module": "generator",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "baseline-capture-precedes-refactor",
+      "name": "AC9 parity baseline is captured from the unmodified getChakraTheme before any src/ refactor and never regenerated afterward",
+      "owning_module": "baseline capture",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "validation-gate-composition",
+      "name": "themes-validation.test.ts composes schema/contrast/drift/metadata-freshness/order-uniqueness/font-URL/zod-boundary checks and gates prebuild",
+      "owning_module": "validation test",
+      "type": "validation_rule",
+      "added_by_story": null
+    },
+    {
+      "id": "lib-theme-api-stability",
+      "name": "lib/theme.ts keeps pre-refactor exported names and call signatures (isAppThemeName, normalizeThemeName, getThemeDefinition, getChakraTheme, DEFAULT_THEME_NAME, AppThemeName) for its 6 existing consumers",
+      "owning_module": "lib/theme",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "zod-bundle-boundary",
+      "name": "zod stays out of the client bundle: only the generator and tests import schema.ts at runtime; every client-bundle-reachable module uses import type only",
+      "owning_module": "schema",
+      "type": "invariant",
+      "added_by_story": "S1",
+      "dependency_declared": "app/package.json devDependencies zod 4.4.3 (exact, devDep not dependency \u2014 client-bundle-safe). AC-BOUND-1 architectural test still carried to S3.",
+      "s1_early_guard": "zodBoundary.test.ts hardened with resolved-target runtime-import scanner (S1 modules only) + 12 negative self-tests. Full AC-BOUND-1 walk (incl _document/useThemeStyles/ThemeIcon) still carried to S3."
+    },
+    {
+      "id": "order-uniqueness-and-sort",
+      "name": "order is a required unique positive integer across all themes; APP_THEMES is sorted ascending by order",
+      "owning_module": "registry.generated",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "parity-assertion-must-be-toequal",
+      "name": "AC-PARITY-1 must assert with toEqual, never toStrictEqual: the JSON baseline cannot represent the undefined-valued styles.global.body.background* keys the live pick carries (calm/playful). The generated-file HEADER now pins this, but it is a convention-not-structure mitigation \u2014 S2 review MUST confirm the actual assertion operator.",
+      "owning_module": "validation test",
+      "type": "invariant",
+      "added_by_story": "S0",
+      "mitigation": "generated-file HEADER pins toEqual and forbids toStrictEqual",
+      "verify_in_story": "S2",
+      "resolved": true,
+      "resolved_in_story": "S2",
+      "resolution": "parity.test.ts uses toEqual with documented reason; exercises S0 baseline via public getChakraTheme(id); full-extend guard present."
+    },
+    {
+      "id": "metadata-freshness-teeth",
+      "name": "spec \u00a76.4 metadata-freshness test is vacuous as literally worded (recompute-from-manifests vs committed-registry-that-also-recomputes). Real drift already covered by AC-FONT-1 (fontLoad) + AC8b (order uniqueness). S3 must materialize a committed order/fonts snapshot OR narrow AC8.",
+      "owning_module": "generator",
+      "type": "structural_finding",
+      "added_by_story": "S0 (Codex Stage-2)",
+      "verify_in_story": "S3",
+      "resolved": true,
+      "resolved_in_story": "S3-planning(lead)",
+      "resolution": "AC-VAL-3 amended (spec.md Amendments 2026-07-01): order-position sub-clause retired (vacuous under eval-time computation + contradicts \u00a712). Font drift \u2192 AC-FONT-1; order collision \u2192 AC-VAL-4; folder drift \u2192 AC-VAL-3 clause 1. No US2 loss."
+    },
+    {
+      "id": "contrast-gate-requires-hex-tokens",
+      "name": "evaluateThemeContrast now FAILS (not silently passes) on non-hex color tokens after S1 remediation (isParsableHexColor guard). S3 validation test should still assert hex format on gate tokens; S5 authoring guide must state hex-only.",
+      "owning_module": "contrast",
+      "type": "validation_rule",
+      "added_by_story": "S1",
+      "mitigation": "S1 remediation: non-hex token \u2192 ContrastFailure (pass:false)",
+      "verify_in_story": "S3 + S5",
+      "resolved": true,
+      "resolved_in_story": "S3",
+      "revisit_in_story": "S5",
+      "resolution": "runtime fail-loud (S1) + validation test asserts non-hex token fails + colorScheme-never-trusted (S3). S5 authoring guide still owns the hex-only doc statement.",
+      "doc_portion_resolved_in_story": "S5"
+    },
+    {
+      "id": "enum-catalog-schema-treatment-sync",
+      "name": "ElevationName/SurfacePatternName/IconSetName/ContentPanelName + FontLoad duplicated between schema.ts (zod enums) and treatments/*+fontUnion.ts (TS unions), hand-synced only (Boundary Rules forbid the edge). Currently in sync; no structural/test guard.",
+      "owning_module": "schema",
+      "type": "invariant",
+      "added_by_story": "S1",
+      "verify_in_story": "S3 (drift test: zod enum options === treatment Record keys)",
+      "s2_extension": "ElevationName now also duplicated in index.ts (ELEVATION_TO_VISUAL_STYLE) \u2014 a THIRD site while the compat bridge exists. S3 drift test should also assert index.ts ELEVATION_TO_VISUAL_STYLE keys === treatments/elevation.ts ElevationName options (until S4 removes the bridge).",
+      "resolved": true,
+      "resolved_in_story": "S3",
+      "resolution": "themes-validation.test.ts asserts 4 zod enums === treatment Record keys (non-tautological) + index.ts ELEVATION_TO_VISUAL_STYLE 3rd site + FontLoadSchema===FontLoad. Revisit at S4 (3rd site removed when compat bridge torn down)."
+    },
+    {
+      "id": "getchakratheme-id-manifest-bridge",
+      "name": "buildChakraTheme.getChakraTheme(manifest) (lazy cache by manifest.id) vs public getChakraTheme(id). S2 index.ts must bridge id\u2192APP_THEMES[id]\u2192getChakraTheme without a name collision; eager-warm optional (Constraint 9 intent = referential stability, already preserved).",
+      "owning_module": "index",
+      "type": "public_contract",
+      "added_by_story": "S1",
+      "verify_in_story": "S2",
+      "resolved": true,
+      "resolved_in_story": "S2",
+      "resolution": "index.ts getChakraTheme(id)\u2192REGISTRY_APP_THEMES[id]\u2192getCachedChakraTheme (aliased, no collision); referential stability preserved."
+    },
+    {
+      "id": "themevisualstyle-reexport-delete-s4",
+      "name": "index.ts re-exports ThemeVisualStyle to mirror lib/theme at S1; Constraint 3 directs deleting it in S4 alongside dropping visualStyle/isFunTheme from the hook return.",
+      "owning_module": "index",
+      "type": "invariant",
+      "added_by_story": "S1",
+      "verify_in_story": "S4"
+    },
+    {
+      "id": "visualstyle-reverse-map-lock",
+      "name": "getThemeDefinition(id).visualStyle must equal {calm:soft,playful:rounded,lego:toy,minecraft:pixel,flower:floral} \u2014 load-bearing for useThemeStyles/ThemeIcon branch selection; correct in S2, being test-locked in S2 remediation; target changes when S4 removes the compat field.",
+      "owning_module": "index",
+      "type": "invariant",
+      "added_by_story": "S2",
+      "verify_in_story": "S2 remediation + re-check at S4",
+      "resolved": true,
+      "resolved_in_story": "S4",
+      "revisit_in_story": "S4",
+      "resolution": "replaced by stronger output-level locks (useThemeStyles.test.ts 6-field BoxProps + ThemeIcon.test.ts icon ids); compatBridge.test.ts deletion dropped no coverage."
+    },
+    {
+      "id": "s3-freshness-targets-pure-registry",
+      "name": "S3 metadata-freshness + folder-drift tests MUST diff against registry.generated.ts PURE APP_THEMES/THEME_FONTS, never index.ts compat-augmented APP_THEMES (4 extra derived fields would cause spurious diff or mask a real one).",
+      "owning_module": "validation test",
+      "type": "invariant",
+      "added_by_story": "S2",
+      "verify_in_story": "S3",
+      "resolved": true,
+      "resolved_in_story": "S3",
+      "resolution": "folder-drift test diffs REGISTRY_APP_THEMES (pure), never index.ts augmented."
+    },
+    {
+      "id": "s4-compat-bridge-teardown-consistency",
+      "name": "S4 must remove visualStyle/labelKey/descriptionKey from AppThemeDefinition AND migrate useThemeStyles.ts/ThemeIcon.tsx/profile.tsx to read manifest.treatments/contentSurface/label/description/colors.backgroundImage directly, AND delete ELEVATION_TO_VISUAL_STYLE, AND remove the 10 i18n *Description keys, AND delete-or-repoint compatBridge.test.ts + remove the index.ts 3rd-site assertion from the enum-sync test. AppThemeDefinition collapses to = ThemeManifest.",
+      "owning_module": "index",
+      "type": "invariant",
+      "added_by_story": "S3",
+      "verify_in_story": "S4",
+      "resolved": true,
+      "resolved_in_story": "S4",
+      "resolution": "every teardown item verified: AppThemeDefinition=ThemeManifest, toCompatDefinition/ELEVATION_TO_VISUAL_STYLE/ThemeVisualStyle deleted, compatBridge.test.ts deleted, 3rd-site enum-sync removed (others kept), 10 i18n keys removed, no residual compat identifier. tsc clean."
+    },
+    {
+      "id": "ac-dep-2-verification-recipe",
+      "name": "AC-DEP-2 build-abort property is verified (broke manifest id \u2192 prebuild exit 1) but not auto-tested (that would test npm lifecycle, not epic code). S5 authoring guide must document the repeatable verification recipe (AC-DOC-1 'how to validate locally').",
+      "owning_module": "authoring-guide",
+      "type": "invariant",
+      "added_by_story": "S3",
+      "verify_in_story": "S5",
+      "resolved": true,
+      "resolved_in_story": "S5",
+      "resolution": "guide \u00a79 documents the build-abort recipe (multi-assertion cascade from folder\u2192id mismatch), verified by execution."
+    },
+    {
+      "id": "s5-authoring-guide-matches-final-shape",
+      "name": "S5 authoring guide/README must document the FINAL post-teardown manifest shape + treatment catalog, state the hex-only contrast requirement (closes doc portion of contrast-gate-requires-hex-tokens), and must NOT reference removed compat fields (visualStyle/labelKey/descriptionKey) or the retired AC-VAL-3 order-position sub-clause. Also include the AC-DEP-2 verification recipe (from ac-dep-2-verification-recipe).",
+      "owning_module": "authoring-guide",
+      "type": "invariant",
+      "added_by_story": "S4",
+      "verify_in_story": "S5",
+      "resolved": true,
+      "resolved_in_story": "S5",
+      "resolution": "guide documents final post-teardown shape + treatment catalog + hex contrast; no removed compat fields; order described as intended-edit/collision-only (not the retired order-position sub-clause). Two minor doc findings remediated."
+    }
+  ],
+  "stories": [
+    {
+      "id": "S0",
+      "title": "baseline capture",
+      "reviewed": true,
+      "remediated": true,
+      "verdict": "clean",
+      "files_modified": [
+        "app/scripts/capture-theme-baseline.mjs",
+        "app/tests/unit/theme-baseline.generated.ts"
+      ],
+      "surfaces_touched": [
+        "scripts/capture-theme-baseline (one-shot ESM capture tool)",
+        "tests/unit/theme-baseline.generated.ts (frozen AC-PARITY-1 fixture, 5 themes \u00d7 ALLOWLIST)"
+      ],
+      "concepts_touched": [
+        "baseline-capture-precedes-refactor"
+      ],
+      "notes": "No src/ change (git diff HEAD -- app/src/lib/theme.ts empty). ALLOWLIST matches spec \u00a76.8. Stage-1 Opus converged clean after 1 remediation round (header toEqual pin, docstring accuracy, pickAllowlist fail-loud). Codex P2s: zod-dep routed to S3 scope; metadata-freshness carried to S3; mark-complete transient."
+    },
+    {
+      "id": "S1",
+      "title": "Scaffold themes/ pure-data and transform modules",
+      "reviewed": true,
+      "remediated": true,
+      "verdict": "clean",
+      "files_modified": [
+        "app/src/themes/schema.ts",
+        "app/src/themes/buildChakraTheme.ts",
+        "app/src/themes/fontUnion.ts",
+        "app/src/themes/contrast.ts",
+        "app/src/themes/treatments/elevation.ts",
+        "app/src/themes/treatments/iconSets.ts",
+        "app/src/themes/treatments/patterns.ts",
+        "app/src/themes/index.ts",
+        "app/package.json",
+        "app/package-lock.json"
+      ],
+      "notes": "Opus clean after 2 remediation rounds (contrast fail-loud, code-unit font sort; zod devDep, borderWidths forward). Codex Stage-2 partial (found the 2 P2s pre-outage; post-fix Codex confirmation blocked by credit outage \u2014 Opus-reconfirmed). zod pinned exact 4.4.3."
+    },
+    {
+      "id": "S2",
+      "title": "Migrate the five existing themes into manifests + registry stub",
+      "reviewed": true,
+      "verdict": "clean",
+      "files_modified": [
+        "app/src/themes/calm/manifest.ts",
+        "app/src/themes/playful/manifest.ts",
+        "app/src/themes/lego/manifest.ts",
+        "app/src/themes/minecraft/manifest.ts",
+        "app/src/themes/flower/manifest.ts",
+        "app/src/themes/registry.generated.ts",
+        "app/src/themes/index.ts",
+        "app/src/lib/theme.ts",
+        "app/src/types/index.ts",
+        "app/tests/unit/themes/parity.test.ts"
+      ],
+      "notes": "Parity verified (toEqual vs S0 baseline, full-extend guard, 1716 pass). Compat bridge covers all consumer reads; visualStyle reverse-map correct for all 5 (test-lock added in remediation). No import cycle. zod boundary preserved. MOCK-02-001 (registry stub) resolves S3."
+    },
+    {
+      "id": "S3",
+      "title": "Generator + validation gate",
+      "reviewed": true,
+      "verdict": "clean",
+      "files_modified": [
+        "app/scripts/generate-theme-registry.mjs",
+        "app/tests/unit/themes-validation.test.ts",
+        "app/src/themes/registry.generated.ts",
+        "app/pages/_document.tsx",
+        "app/package.json",
+        "app/src/themes/index.ts"
+      ],
+      "notes": "--check byte-exact (MOCK-02-001 resolved). zod source-scan teeth (13 self-tests)+real-bundle grep clean. AC-VAL-3 amendment sound. Two test-quality findings remediated (tautological id===folder; AC-STRUCT-2 comment brittleness)."
+    },
+    {
+      "id": "S4",
+      "title": "Wire consumers + compat-bridge teardown",
+      "reviewed": true,
+      "verdict": "clean",
+      "files_modified": [
+        "app/src/hooks/useThemeStyles.ts",
+        "app/src/components/ThemeIcon.tsx",
+        "app/pages/profile.tsx",
+        "app/src/lib/i18n.ts",
+        "app/src/themes/index.ts",
+        "app/src/lib/theme.ts",
+        "app/tests/unit/hooks/useThemeStyles.test.ts",
+        "app/tests/unit/components/ThemeIcon.test.ts",
+        "app/tests/unit/profile.themePicker.test.ts",
+        "app/tests/unit/themes-validation.test.ts"
+      ],
+      "notes": "Byte-identical verified (navBannerDecor diffed vs git HEAD; 6 ThemeStyles fields frozen-locked non-tautological; ICON_MAP frozen-locked). Teardown complete+consistent. Opus clean first pass. Codex Stage-2 skipped (outage)."
+    },
+    {
+      "id": "S5",
+      "title": "Authoring guide + README",
+      "reviewed": true,
+      "verdict": "clean",
+      "files_modified": [
+        "docs/themes/authoring-guide.md",
+        "app/src/themes/README.md"
+      ],
+      "notes": "Docs-only. Field ref/treatment catalog/contrast pairs+threshold/FontLoad/AC-DEP-2 cascade verified accurate vs source; worked-sample ratios independently recomputed (match). Two minor findings remediated (sunrise folder-name consistency; hex-rule scoping)."
+    }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "S5",
+    "model_at": "2026-07-01T17:10:00Z"
+  }
+}

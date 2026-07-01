@@ -1,0 +1,61 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-01T21:00:00Z",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/tests/unit/hooks/useThemeStyles.test.ts",
+    "app/tests/unit/components/ThemeIcon.test.ts",
+    "app/tests/unit/profile.themePicker.test.ts",
+    "specs/epic-pluggable-themes/S4-wire-consumers/architecture.json",
+    "specs/epic-pluggable-themes/S4-wire-consumers/baseline.json",
+    "specs/epic-pluggable-themes/S4-wire-consumers/result.json"
+  ],
+  "files_modified": [
+    "app/pages/profile.tsx",
+    "app/src/components/ThemeIcon.tsx",
+    "app/src/hooks/useThemeStyles.ts",
+    "app/src/lib/i18n.ts",
+    "app/src/lib/theme.ts",
+    "app/src/themes/index.ts",
+    "app/tests/unit/themes-validation.test.ts",
+    "app/tests/unit/themes/index.test.ts",
+    "specs/epic-pluggable-themes/S4-wire-consumers/verification.json"
+  ],
+  "files_deleted": [
+    "app/tests/unit/themes/compatBridge.test.ts"
+  ],
+  "modules_touched": [
+    "consumers",
+    "themes-index"
+  ],
+  "tests_added": {
+    "unit": 115
+  },
+  "test_counts": {
+    "baseline": 1783,
+    "final": 1894
+  },
+  "mocks": [],
+  "architect_skipped": false,
+  "implementation_summary": "Migrated the three real UI consumers off the S2->S4 transitional compat bridge and onto direct manifest reads, then tore the bridge down. useThemeStyles.ts: extracted a new pure `computeThemeStyles(definition)` (thin-wrapped by `useThemeStyles()`) that reads `treatments.card/button/nav/surface/contentPanel/banner` and `contentSurface` directly off the manifest, looks up BoxProps in the S1-lifted `treatments/elevation.ts`/`treatments/patterns.ts` Records, and merges `treatments.overrides` (none of the five themes uses this escape hatch today, so it is a no-op for byte-identical parity). Returns exactly the six AC10 fields; `visualStyle`/`isFunTheme` removed. The bannerDecorStyle boxProps/style split (Chakra drops data-URI backgroundImage when merged) is preserved verbatim. ThemeIcon.tsx: `getThemeIconId`/the component now resolve via `manifest.treatments.iconSet` against `treatments/iconSets.ts`'s `resolveIconId` instead of a local `ICON_MAP` keyed by the removed `visualStyle`; signature changed from `(name, visualStyle: string)` to `(name, iconSet: IconSetName)` (grep-confirmed zero external callers, so non-breaking). profile.tsx: the picker now iterates `listThemes()` (excludes `status:'hidden'`, new export) instead of `Object.values(APP_THEMES)`, renders `label`/`description` via a small `localizedThemeText(text, language)` helper (de falls back to en), and the preview reads `activeThemeDefinition.colors.backgroundImage` instead of the removed compat `.backgroundImage` field; `setTheme(themeOption.id as AppThemeName)` casts the now-widened `ThemeManifest.id: string` back to the narrower union at the call site (same idiom the pre-refactor `toCompatDefinition` used). i18n.ts: removed the 10 `calm/playful/lego/minecraft/flower(+Description)` keys from the `Copy` type and both `en`/`de` objects; `themeHeading/themeDescription/active/currentTheme` retained. Compat-bridge teardown in themes/index.ts: `AppThemeDefinition` collapses to the literal `= ThemeManifest` alias; `toCompatDefinition`, `ELEVATION_TO_VISUAL_STYLE`, and the `ThemeVisualStyle` re-export (also dropped from lib/theme.ts) are deleted; added `listThemes(options)` and `isThemeVisible(theme)` (the latter exported separately so its filtering branch is directly testable via a real-manifest-spread fixture, since none of the five migrated themes is hidden today). Deleted the now-target-less `compatBridge.test.ts` per the story brief's 'deletion is cleaner' guidance (its three assertions are superseded by the new useThemeStyles/ThemeIcon parity tests, which pin the real post-migration read paths instead of the removed compat derivation). Removed the 'ELEVATION_TO_VISUAL_STYLE keys === CARD_ELEVATION keys' 3rd-sync-site assertion from themes-validation.test.ts (the table no longer exists); the other enum-sync assertions (schema enums === treatment Record keys) are untouched. Implemented directly rather than delegating to a dev subagent: the scope was a well-bounded, fully-specified mechanical migration (six consumer files, exact target shapes already dictated by architecture.md and the existing treatments/* Records lifted verbatim in S1), so TDD-first direct implementation was more efficient than a spawn-and-verify round trip; no architectural judgment calls arose that a dev spawn would have surfaced differently.",
+  "verification_summary": {
+    "pre_impl_questions": 11,
+    "post_impl_questions": 3,
+    "byte_identical_evidence": "app/tests/unit/hooks/useThemeStyles.test.ts (31 tests): computeThemeStyles(APP_THEMES[id]) compared via toEqual against FROZEN pre-refactor BoxProps literals (hand-copied from the deleted cardOverlay/buttonOverlay/navOverlay/surfaceOverlay/contentPanel switch functions, independent of treatments/elevation.ts/patterns.ts to avoid tautology) for all five themes' card/button/nav/surface/contentPanel styles; plus a per-theme unique-hex-fingerprint decode of bannerDecorStyle.style.backgroundImage proving genuine per-theme banner variance and the boxProps/style split contract (boxProps never carries backgroundImage).",
+    "icon_parity_evidence": "app/tests/unit/components/ThemeIcon.test.ts (62 tests): getThemeIconId parameterized across all 12 icon names x all 5 themes' treatments.iconSet, compared against a FROZEN independent copy of the pre-refactor ICON_MAP.",
+    "profile_i18n_evidence": "app/tests/unit/profile.themePicker.test.ts (13 tests): source-scan confirms profile.tsx uses listThemes() (not Object.values(APP_THEMES)) and has zero references to labelKey/descriptionKey/the removed compat backgroundImage field or any of the 10 removed i18n keys; i18n.ts regression test confirms the 10 keys are absent from both en/de copy.settings while the 4 retained keys resolve non-empty.",
+    "teardown_evidence": "app/tests/unit/themes/index.test.ts (9 new tests): APP_THEMES entries carry none of the compat fields; ELEVATION_TO_VISUAL_STYLE/toCompatDefinition/ThemeVisualStyle are undefined on the module; isThemeVisible/listThemes hidden-status filtering verified via real-manifest-spread fixtures.",
+    "residual_grep": "grep across app/src, app/pages, app/tests for visualStyle/isFunTheme/ELEVATION_TO_VISUAL_STYLE/labelKey/descriptionKey/toCompatDefinition: zero code hits, only explanatory comments and test assertions confirming absence.",
+    "all_tests_passing": 1894,
+    "typecheck": "clean (npx tsc --noEmit, 0 errors)",
+    "lint": "NO_LINT (unchanged since S0 \u2014 no ESLint config present in the repo)",
+    "regression_confirmed": "Layout.tsx and pages/index.tsx: `git diff --stat` empty (byte-for-byte unchanged). themes-validation.test.ts (63 tests, incl. the hardened zod-boundary scan), parity.test.ts (12 tests, AC9), zodBoundary.test.ts (30 tests), storage.test.ts (12 tests), theme.test.ts (3 tests) all pass unmodified against the migrated consumers."
+  },
+  "mocks_resolved": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  }
+}

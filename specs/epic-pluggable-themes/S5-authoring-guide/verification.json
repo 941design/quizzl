@@ -1,0 +1,62 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-01T18:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S5-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `docs/themes/authoring-guide.md` avoid any `<placeholder>`, `TODO: fill in`, or `...` stand-in section — particularly in the 'one fully worked sample theme' section, which must be a complete, copy-pasteable manifest rather than a truncated sketch? Does every normative instruction in the guide (field requirements, contrast thresholds, id rules) use MUST/MUST NOT language rather than vague advice a reader could interpret multiple ways?"
+    },
+    {
+      "question_id": "VQ-S5-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the guide's `ThemeManifest` field reference match the actual, landed `app/src/themes/schema.ts` shape and `architecture.md`'s Seam Contracts table field-for-field (names, optionality, types) rather than an earlier draft or an aspirational shape? Does its treatment catalog list match the actual `ElevationName`/`SurfacePatternName`/`IconSetName` values implemented in `treatments/*` as landed in S1?"
+    },
+    {
+      "question_id": "VQ-S5-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `authoring-guide` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S5-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "If a new contributor follows the guide's instructions literally to author a brand-new theme folder, does the resulting manifest actually pass `ThemeManifestSchema.parse` and the contrast gate on the first attempt (i.e. does the guide's prose match the real enforced validation behavior rather than reading well but omitting a requirement the validator actually enforces)?"
+    },
+    {
+      "question_id": "VQ-S5-005",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the guide correctly instruct that dark themes must either pass the real-hex contrast gate or set `contentSurface`, and that `backgroundImage` must stay decorative/low-opacity so `appBg` remains the effective text background — matching the actual enforced behavior in `contrast.ts` and the treatments library, not an outdated or aspirational description?"
+    },
+    {
+      "question_id": "VQ-S5-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DOC-1",
+      "question": "Does `docs/themes/authoring-guide.md` exist and document all of: the folder structure; the complete `ThemeManifest` field reference (required vs. optional, types, the `id` regex, `order` uniqueness); the exact contrast pairs and threshold (§6.7); typography and `FontLoad`; the treatment catalog and the `overrides` escape hatch with its stated limits (§3); banner/asset options; localization; `status` behavior; how to run validation locally; one fully worked sample theme; and the gotchas list (static export; dark themes must pass contrast or set `contentSurface`; `backgroundImage` must stay decorative/low-opacity)? Does `app/src/themes/README.md` exist and link to `docs/themes/authoring-guide.md`? Provide the file paths and confirm each listed topic has a corresponding section, not just a passing mention."
+    },
+    {
+      "question_id": "VQ-S5-007",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The guide's §10 worked sample (`sunrise`/`sunrise-sample`) claims to have been dropped into a temporary `app/src/themes/sunrise-sample/` folder and run through `npm run prebuild` (63/63 assertions passing) before being written into the doc, then removed. Independently re-verify this claim: recreate the folder with the exact manifest text from §10 (with `id: 'sunrise-sample'` in place of `id: 'sunrise'`, matching the note's own caveat about the folder-vs-doc id difference), run `cd app && npm run prebuild`, confirm all validation assertions pass including every contrast pair named in the doc's inline ratio comments, then delete the folder and regenerate `registry.generated.ts` back to 5 themes. Confirm `make test-unit` returns to the exact pre-check count afterward and `git status` shows no stray files."
+    },
+    {
+      "question_id": "VQ-S5-008",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "§9 of the guide includes the carried AC-DEP-2 build-abort verification recipe (S3-carried note, VQ-S3-023): edit `calm/manifest.ts`'s `id` to an invalid value, run `npm run prebuild`, confirm non-zero exit and that `next build` does not run, then restore. Actually execute this recipe against the current tree (on a throwaway edit, reverted immediately afterward) and confirm the guide's described behavior — non-zero `prebuild` exit, `next build` never invoked via the npm pre-hook chain — matches reality, and that the manifest is left byte-identical to its pre-check state afterward."
+    },
+    {
+      "question_id": "VQ-S5-009",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The carried guarantee (s5-authoring-guide-matches-final-shape) forbids referencing any removed concept (`visualStyle`, `isFunTheme`, `labelKey`, `descriptionKey`, `ELEVATION_TO_VISUAL_STYLE`, `ThemeVisualStyle`) or the retired AC-VAL-3 order-position sub-clause, and requires citing AC-VAL-4's collision-only rule for `order`. Grep both shipped doc files for each removed identifier and confirm every hit (if any) is describing the concept's absence/removal rather than presenting it as live API surface, and confirm §2's `order` row states reassignment is a normal edit and only a same-value collision fails (not a 'position differs from committed registry' framing)."
+    }
+  ]
+}

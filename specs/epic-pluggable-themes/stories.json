@@ -1,0 +1,556 @@
+{
+  "epic_name": "pluggable-themes",
+  "created_at": "2026-07-01T17:10:00Z",
+  "updated_at": "2026-07-01T19:10:00Z",
+  "total_stories": 6,
+  "dependency_notes": "Strictly sequential per architecture.md Story Order (supersedes spec.md \u00a713 ordering ambiguity \u2014 none exists here, both agree S0..S5). S0 must land before S1 touches app/src/lib/theme.ts (baseline is captured against the unmodified file). S1 is pure scaffold with no registry import \u2014 no behavior change, so it has no direct runtime dependency on S0 but must not regress the file S0 just read. S2 depends on S1's schema/buildChakraTheme/fontUnion/contrast/treatments modules existing, and on S0's committed baseline for its AC-PARITY-1/2 assertions. S3 depends on S2's registry stub (same shape, replaces it) and on S1's schema/contrast/fontUnion for the validation suite. S4 depends on S2's registry + S1's treatments library. S5 depends on the field/behavior surface being final (S1-S4 complete) to document it accurately. No two stories touch package.json's prebuild wiring simultaneously (only S3), and stories 3 and 4 share no simultaneous write target per architecture.md.",
+  "mock_resolution_plan": "MOCK-02-001 (hand-authored registry.generated.ts stub introduced in S2) is resolved in S3 when generate-theme-registry.mjs regenerates the same file programmatically and --check confirms idempotence (byte-equivalent shape). No mock survives past S3; mocks-registry.json should be updated by the lead when S3 lands.",
+  "seams": [
+    {
+      "data": "Per-theme manifest object (identity, color scales/semantic tokens, typography, shape, treatments, behavior flags)",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/themes/schema.ts (ThemeManifestSchema, ThemeManifest type, validateManifest())"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/themes/{calm,playful,lego,minecraft,flower}/manifest.ts"
+      },
+      "contract": {
+        "type_name": "ThemeManifest",
+        "fields": [
+          {
+            "name": "id",
+            "type": "string (matches ^[a-z][a-z0-9-]*$, equals folder basename)"
+          },
+          {
+            "name": "order",
+            "type": "number (unique positive integer across all themes)"
+          },
+          {
+            "name": "label",
+            "type": "{ en: string; de?: string }"
+          },
+          {
+            "name": "description",
+            "type": "{ en: string; de?: string }"
+          },
+          {
+            "name": "previewColorScheme",
+            "type": "'brand'|'success'|'warning'|'danger'"
+          },
+          {
+            "name": "author",
+            "type": "string",
+            "optional": true
+          },
+          {
+            "name": "license",
+            "type": "string",
+            "optional": true
+          },
+          {
+            "name": "status",
+            "type": "'stable'|'experimental'|'hidden'",
+            "optional": true
+          },
+          {
+            "name": "colorScheme",
+            "type": "'light'|'dark' (descriptive only, never trusted by the contrast gate)"
+          },
+          {
+            "name": "colors",
+            "type": "5x Scale10 (brand/success/warning/danger/neutral) + semantic tokens (appBg, backgroundImage?, surfaceBg, surfaceMutedBg, surfaceRaisedBg, borderSubtle, borderStrong, textMuted, textStrong, status bg/border/text, buttonColorScheme)"
+          },
+          {
+            "name": "typography",
+            "type": "{ fonts{heading,body,display?}; fontLoad: FontLoad[]; fontSizes? }"
+          },
+          {
+            "name": "shape",
+            "type": "{ radii?; borderWidths? }",
+            "optional": true
+          },
+          {
+            "name": "treatments",
+            "type": "{ card: ElevationName; button: ElevationName; nav: ElevationName; surface: SurfacePatternName; iconSet: IconSetName; banner: string; contentPanel?: ContentPanelName; overrides?: RawOverrides }"
+          },
+          {
+            "name": "contentSurface",
+            "type": "boolean (explicit, not auto-derived)",
+            "optional": true
+          }
+        ],
+        "invariants": [
+          "id === folder basename for every theme",
+          "order values are unique positive integers across all manifests",
+          "id matches ^[a-z][a-z0-9-]*$",
+          "manifest.ts contains no functions and no @chakra-ui/react runtime import (pure, serializable data)",
+          "computed WCAG contrast ratio >= 4.5:1 for every required (text, surface) pair in \u00a76.7, from actual hex values only"
+        ]
+      }
+    },
+    {
+      "data": "Chakra theme override object and the cached, referentially-stable getChakraTheme(id) result",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/themes/buildChakraTheme.ts (buildThemeOverride(manifest), getChakraTheme(id) = extendTheme(buildThemeOverride(...)))"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "S2",
+        "artifact": "app/tests/unit/theme.test.ts (or themes-validation.test.ts) AC-PARITY-1/AC-PARITY-2 assertions against theme-baseline.generated.ts"
+      },
+      "contract": {
+        "type_name": "ThemeOverride",
+        "fields": [
+          {
+            "name": "colors",
+            "type": "object"
+          },
+          {
+            "name": "semanticTokens",
+            "type": "object"
+          },
+          {
+            "name": "fonts",
+            "type": "object"
+          },
+          {
+            "name": "fontSizes",
+            "type": "object"
+          },
+          {
+            "name": "radii",
+            "type": "object"
+          },
+          {
+            "name": "styles",
+            "type": "object"
+          },
+          {
+            "name": "config",
+            "type": "object"
+          },
+          {
+            "name": "components",
+            "type": "Record<'Button'|'Tabs'|'Progress'|'Badge'|'Tag'|'Checkbox'|'Radio', { defaultProps: object }>"
+          }
+        ],
+        "invariants": [
+          "buildThemeOverride is pure and function-free (JSON-round-trippable)",
+          "pick(getChakraTheme(id), ALLOWLIST) deep-equals the committed pre-refactor baseline for each of calm/playful/lego/minecraft/flower",
+          "getChakraTheme(id).components.Button.variants is a non-empty object (full-extend guard: catches a regression that returns the bare override instead of extendTheme(...))",
+          "getChakraTheme(id) is a stable reference across calls (module-level cache, no re-render churn)"
+        ]
+      }
+    },
+    {
+      "data": "The generated theme registry: which themes exist, their sort order, and the deduplicated font union",
+      "source": {
+        "story": "S2",
+        "artifact": "app/src/themes/registry.generated.ts (committed hand-authored stub: APP_THEMES, AppThemeName, THEME_FONTS)"
+      },
+      "intermediaries": [
+        {
+          "story": "S3",
+          "artifact": "app/scripts/generate-theme-registry.mjs (regenerates the same file from folder names; --check verifies idempotence)"
+        }
+      ],
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/themes/index.ts, app/src/lib/theme.ts, app/src/types/index.ts, app/pages/_document.tsx, app/pages/profile.tsx (readers of APP_THEMES / AppThemeName / THEME_FONTS)"
+      },
+      "contract": {
+        "type_name": "ThemeRegistry",
+        "fields": [
+          {
+            "name": "AppThemeName",
+            "type": "string union built from theme folder names"
+          },
+          {
+            "name": "APP_THEMES",
+            "type": "Record<AppThemeName, ThemeManifest>, keys equal the folder set, sorted by ascending order"
+          },
+          {
+            "name": "THEME_FONTS",
+            "type": "FontLoad[] (deduplicated union across all manifests)"
+          }
+        ],
+        "invariants": [
+          "Object.keys(APP_THEMES) exactly equals the set of app/src/themes/*/ folders containing manifest.ts (no drift)",
+          "APP_THEMES key order reflects ascending order (calm=1, playful=2, lego=3, minecraft=4, flower=5)",
+          "THEME_FONTS matches buildThemeFonts(all manifests) recomputed at test time (no metadata drift)",
+          "generate-theme-registry.mjs --check exits zero against the committed file (idempotent) and never imports/evaluates TypeScript"
+        ]
+      }
+    },
+    {
+      "data": "Font declarations and the byte-exact Google Fonts CSS2 URL",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/themes/fontUnion.ts (FontLoad type, buildThemeFonts(manifests), buildFontLinkHref(fonts))"
+      },
+      "intermediaries": [
+        {
+          "story": "S3",
+          "artifact": "themes-validation.test.ts font-URL parity test"
+        }
+      ],
+      "destination": {
+        "story": "S4",
+        "artifact": "app/pages/_document.tsx (renders the <link> href from buildFontLinkHref(THEME_FONTS))"
+      },
+      "contract": {
+        "type_name": "FontLoad",
+        "fields": [
+          {
+            "name": "family",
+            "type": "string"
+          },
+          {
+            "name": "weights",
+            "type": "number[]",
+            "optional": true
+          },
+          {
+            "name": "ital",
+            "type": "boolean",
+            "optional": true
+          },
+          {
+            "name": "subset",
+            "type": "string",
+            "optional": true
+          }
+        ],
+        "invariants": [
+          "buildFontLinkHref(THEME_FONTS) equals byte-for-byte https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&family=Press+Start+2P&family=VT323&display=swap",
+          "families are sorted alphabetically in the URL",
+          "axis encoding: ital-only -> Family:ital@0;1; weights-only -> Family:wght@w1;w2; both -> Family:ital,wght@0,w1;1,w1; neither -> Family; suffix &display=swap"
+        ]
+      }
+    },
+    {
+      "data": "Resolved per-surface treatment styles consumed by Layout.tsx and index.tsx",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/themes/treatments/{elevation,iconSets,patterns}.ts (named ElevationName/IconSetName/SurfacePatternName implementations)"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/hooks/useThemeStyles.ts (return value consumed by Layout.tsx and pages/index.tsx)"
+      },
+      "contract": {
+        "type_name": "ThemeStyles",
+        "fields": [
+          {
+            "name": "cardStyle",
+            "type": "BoxProps"
+          },
+          {
+            "name": "surfaceStyle",
+            "type": "BoxProps"
+          },
+          {
+            "name": "navStyle",
+            "type": "BoxProps"
+          },
+          {
+            "name": "buttonStyle",
+            "type": "BoxProps"
+          },
+          {
+            "name": "contentPanelStyle",
+            "type": "BoxProps | null"
+          },
+          {
+            "name": "bannerDecorStyle",
+            "type": "{ boxProps: BoxProps; style: object } | null"
+          }
+        ],
+        "invariants": [
+          "exactly these six fields are returned; no visualStyle, no isFunTheme",
+          "bannerDecorStyle keeps boxProps and style split (Chakra drops data-URI backgroundImage when merged into BoxProps)",
+          "per-theme values match the pre-refactor useThemeStyles.ts output exactly"
+        ]
+      }
+    }
+  ],
+  "stories": [
+    {
+      "id": "S0",
+      "name": "baseline-capture",
+      "title": "Capture the pre-refactor Chakra theme baseline",
+      "description": "Add app/scripts/capture-theme-baseline.mjs, which imports the currently-exported getChakraTheme (with zero edits to app/src/lib/theme.ts) and picks the ALLOWLIST subtrees (colors, semanticTokens, fonts, fontSizes, radii, styles, config, components.<Name>.defaultProps) for calm, playful, lego, minecraft, and flower. Commit the resulting snapshot as app/tests/unit/theme-baseline.generated.ts. This is the parity fixture every later refactor step is asserted against, so it must be captured before story S1 touches theme.ts.",
+      "acceptance_criteria": [
+        "AC-STRUCT-1"
+      ],
+      "scope": {
+        "includes": [
+          "Add app/scripts/capture-theme-baseline.mjs",
+          "Commit app/tests/unit/theme-baseline.generated.ts",
+          "Capture ALLOWLIST subtrees for all five current themes from the unmodified getChakraTheme"
+        ],
+        "excludes": [
+          "Any edit to app/src/lib/theme.ts or any other src/ file",
+          "Any change to rendered theme output",
+          "Writing the AC-PARITY-1 assertion test itself (that lands in S2, consuming this baseline)"
+        ]
+      },
+      "complexity": "low",
+      "status": "done",
+      "owning_module": "baseline capture",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "lighter_path": false,
+      "files": [
+        "app/scripts/capture-theme-baseline.mjs",
+        "app/tests/unit/theme-baseline.generated.ts"
+      ],
+      "notes": "Hard prerequisite for AC-PARITY-1 (S2) per spec \u00a76.8/architecture.md Implementation Constraint #4. lighter_path is false: all file targets are executable .mjs/.ts codegen, not markdown-class files."
+    },
+    {
+      "id": "S1",
+      "name": "themes-scaffold",
+      "title": "Scaffold themes/ pure-data and transform modules",
+      "description": "Create app/src/themes/schema.ts (zod ThemeManifestSchema + inferred ThemeManifest type + validateManifest()), app/src/themes/buildChakraTheme.ts (pure buildThemeOverride(manifest) + cached getChakraTheme = extendTheme(override), lifting createScale() from theme.ts:71), app/src/themes/fontUnion.ts (buildThemeFonts/buildFontLinkHref), app/src/themes/contrast.ts (wcagRatio/evaluateThemeContrast), and app/src/themes/treatments/{elevation,iconSets,patterns}.ts. app/src/themes/index.ts is created as a pass-through that re-exports from app/src/lib/theme.ts unchanged \u2014 no registry import yet, no behavior change to any of the six existing consumer files.",
+      "acceptance_criteria": [
+        "AC-STRUCT-5"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/themes/schema.ts (zod schema + type + validateManifest)",
+          "app/src/themes/buildChakraTheme.ts (buildThemeOverride + cached getChakraTheme)",
+          "app/src/themes/fontUnion.ts (buildThemeFonts + buildFontLinkHref)",
+          "app/src/themes/contrast.ts (wcagRatio + evaluateThemeContrast)",
+          "app/src/themes/treatments/elevation.ts, iconSets.ts, patterns.ts",
+          "app/src/themes/index.ts as a no-op pass-through to lib/theme.ts"
+        ],
+        "excludes": [
+          "Any theme manifest content (S2)",
+          "The registry (S2 stub, S3 generator)",
+          "Any edit to app/src/lib/theme.ts's exported behavior or any of its 6 consumer files",
+          "The generator script and validation test (S3)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "buildChakraTheme",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "lighter_path": false,
+      "files": [
+        "app/src/themes/schema.ts",
+        "app/src/themes/buildChakraTheme.ts",
+        "app/src/themes/fontUnion.ts",
+        "app/src/themes/contrast.ts",
+        "app/src/themes/treatments/elevation.ts",
+        "app/src/themes/treatments/iconSets.ts",
+        "app/src/themes/treatments/patterns.ts",
+        "app/src/themes/index.ts"
+      ],
+      "notes": "owning_module is set to buildChakraTheme as the anchor module for this scaffold story; schema, fontUnion, contrast, and treatments/* are created alongside it in the same story because spec.md \u00a713 and architecture.md's Story Order both bundle them into one 'Scaffold' story. See story-planner retrospective: this is a genuine tension with the one-story-one-module design principle, not a re-derivation of architecture.md's module boundaries. AC-STRUCT-5 (public API surface stability across S1-S4) is assigned here because S1 is the first story touching the themes/ public surface and the schema requires every story to carry at least one AC; spec.md/architecture.md's story split assigns zero ACs to this story natively."
+    },
+    {
+      "id": "S2",
+      "name": "migrate-five-themes",
+      "title": "Migrate the five existing themes into manifests + registry stub",
+      "description": "Author app/src/themes/{calm,playful,lego,minecraft,flower}/manifest.ts, translating the explicit 10-step color scales, exact semantic-token hex values, typography, and banner SVGs from today's theme.ts and useThemeStyles.ts field-for-field (no re-tuning). Commit a hand-authored app/src/themes/registry.generated.ts stub exposing APP_THEMES/AppThemeName/THEME_FONTS with the same shape the S3 generator will later emit. Wire app/src/themes/index.ts to the registry, app/src/lib/theme.ts to re-export it, and app/src/types/index.ts to import AppThemeName from the registry. Assert byte-identical parity against the S0 baseline and the Minecraft/font-size invariants.",
+      "acceptance_criteria": [
+        "AC-PARITY-1",
+        "AC-PARITY-2"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/themes/{calm,playful,lego,minecraft,flower}/manifest.ts",
+          "app/src/themes/registry.generated.ts (committed hand-authored stub)",
+          "Wire app/src/themes/index.ts to the registry",
+          "app/src/lib/theme.ts becomes a thin re-export of themes/index.ts",
+          "app/src/types/index.ts imports AppThemeName from the registry",
+          "Parity assertions: pick(getChakraTheme(id), ALLOWLIST) toEqual baseline; full-extend guard; minecraft contentSurface/fontSizes invariants"
+        ],
+        "excludes": [
+          "The codegen generator script and --check mode (S3)",
+          "useThemeStyles/ThemeIcon/profile.tsx/_document.tsx/i18n.ts consumer changes (S4)",
+          "The full themes-validation.test.ts suite (contrast/drift/metadata/order-uniqueness/font-URL/zod-boundary land in S3)"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "owning_module": "manifests",
+      "creates_seam": true,
+      "consumes_seams": [
+        "ThemeManifest",
+        "ThemeOverride"
+      ],
+      "mock_dependencies": [],
+      "introduces_mocks": [
+        {
+          "mock_id": "MOCK-02-001",
+          "description": "Hand-authored registry.generated.ts stub stands in for the codegen-emitted registry until the generator lands in S3. It is a real, working implementation (not a stub that fakes behavior) but is manually maintained rather than derived from folder names, so it is tracked until the generator supersedes it.",
+          "interface_mocked": "app/src/themes/registry.generated.ts (APP_THEMES / AppThemeName / THEME_FONTS)",
+          "resolution_story": "S3"
+        }
+      ],
+      "lighter_path": false,
+      "files": [
+        "app/src/themes/calm/manifest.ts",
+        "app/src/themes/playful/manifest.ts",
+        "app/src/themes/lego/manifest.ts",
+        "app/src/themes/minecraft/manifest.ts",
+        "app/src/themes/flower/manifest.ts",
+        "app/src/themes/registry.generated.ts",
+        "app/src/themes/index.ts",
+        "app/src/lib/theme.ts",
+        "app/src/types/index.ts"
+      ],
+      "notes": "AC9/AC12 per spec \u00a713 and architecture.md Story Order (unambiguous \u2014 both documents agree these land in S2)."
+    },
+    {
+      "id": "S3",
+      "name": "generator-and-validation-gate",
+      "title": "Add the build-time generator, prebuild gate, and validation test suite",
+      "description": "Add app/scripts/generate-theme-registry.mjs (globs theme folders containing manifest.ts, emits registry.generated.ts as a folder-name-derived scaffold only, performs structural checks only, never imports TypeScript, supports --check idempotence mode). Wire app/package.json's prebuild script to run the generator then `vitest run tests/unit/themes-validation.test.ts` before next build. Add app/tests/unit/themes-validation.test.ts covering: zod schema parse + id===folder + id regex, the real-hex contrast gate (\u00a76.7 pairs, AA 4.5:1), drift (folder set vs APP_THEMES keys), metadata-freshness (order-sorted keys + THEME_FONTS recomputation), order uniqueness, font-URL byte parity, and the zod-boundary architectural scan.",
+      "acceptance_criteria": [
+        "AC-STRUCT-2",
+        "AC-STRUCT-3",
+        "AC-STRUCT-4",
+        "AC-DEP-1",
+        "AC-DEP-2",
+        "AC-VAL-1",
+        "AC-VAL-2",
+        "AC-VAL-3",
+        "AC-VAL-4",
+        "AC-FONT-1",
+        "AC-BOUND-1"
+      ],
+      "scope": {
+        "includes": [
+          "app/scripts/generate-theme-registry.mjs (folder-scaffold emission + --check)",
+          "app/package.json: add the prebuild script (generate-theme-registry.mjs && vitest themes-validation). NOTE: zod itself was added as a direct devDependency in S1 (where schema.ts + its test first import it) per Codex S1 finding \u2014 S3 only owns the prebuild wiring here.",
+          "app/tests/unit/themes-validation.test.ts: schema parse, id/folder regex, contrast gate, drift, metadata-freshness, order-uniqueness, font-URL parity, zod-boundary scan",
+          "Regenerating registry.generated.ts via the generator, replacing the S2 hand-authored stub (MOCK-02-001 resolution)"
+        ],
+        "excludes": [
+          "useThemeStyles/ThemeIcon/profile.tsx/_document.tsx/i18n.ts changes (S4)",
+          "The authoring guide (S5)"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "owning_module": "generator",
+      "creates_seam": false,
+      "consumes_seams": [
+        "ThemeRegistry",
+        "ThemeManifest",
+        "FontLoad"
+      ],
+      "mock_dependencies": [
+        "MOCK-02-001"
+      ],
+      "introduces_mocks": [],
+      "lighter_path": false,
+      "files": [
+        "app/scripts/generate-theme-registry.mjs",
+        "app/package.json",
+        "app/tests/unit/themes-validation.test.ts",
+        "app/src/themes/registry.generated.ts"
+      ],
+      "notes": "AC8b -> this story per lead resolution (architecture.md's Story Order table is silent on AC8b, not in conflict with spec.md \u00a713, which assigns it here). AC17 -> this story per the same resolution (architecture.md's table omits it; spec.md \u00a713 assigns it to this story alongside AC14, and this is the story that authors the zod-boundary architectural test, so the assignment is also independently correct on the merits). | CODEX-S0 (carried, resolve in S3): the spec \u00a76.4 \"metadata-freshness\" test as literally worded (recompute-from-manifests vs committed-registry-that-also-recomputes) is vacuous \u2014 both sides derive from the same live manifests. The real drift it targets is already covered by AC-FONT-1 (fontLoad edits fail the committed font-URL parity) and AC8b (duplicate order). S3 must EITHER materialize a committed order/fonts snapshot via a TS-capable codegen (mirrors the S0 baseline pattern) so the freshness test gains teeth, OR narrow AC8 given the sibling coverage. Decide with the concrete registry shape in front of you; escalate only if a genuine product tradeoff surfaces."
+    },
+    {
+      "id": "S4",
+      "name": "wire-consumers",
+      "title": "Wire useThemeStyles, ThemeIcon, profile picker, _document fonts, and i18n cleanup",
+      "description": "Update app/src/hooks/useThemeStyles.ts to resolve manifest.treatments.* through the treatments library and return exactly the six consumed fields (drop visualStyle/isFunTheme and the ThemeVisualStyle re-export). Update app/src/components/ThemeIcon.tsx to resolve icon ids via manifest.treatments.iconSet against treatments/iconSets.ts. Update app/pages/profile.tsx to render manifest label/description (en, de-fallback) via listThemes() with hidden-theme filtering. Update app/pages/_document.tsx to render its font <link> href from buildFontLinkHref(THEME_FONTS). Remove the 10 calm...flowerDescription keys from app/src/lib/i18n.ts while keeping themeHeading/themeDescription/active/currentTheme.",
+      "acceptance_criteria": [
+        "AC-UX-1",
+        "AC-UX-2",
+        "AC-UX-3",
+        "AC-UX-4"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/hooks/useThemeStyles.ts (treatment lookup; drop visualStyle/isFunTheme)",
+          "app/src/components/ThemeIcon.tsx (iconSet-driven)",
+          "app/pages/profile.tsx (label/description + listThemes() filtering)",
+          "app/pages/_document.tsx (built font URL)",
+          "app/src/lib/i18n.ts (remove 10 theme description/label keys)",
+          "normalizeThemeName fallback + hidden-id self-normalization + legacy mood field round-trip"
+        ],
+        "excludes": [
+          "app/src/components/Layout.tsx and app/pages/index.tsx must remain unchanged (only consume the same return shape)",
+          "The authoring guide (S5)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "consumers",
+      "creates_seam": true,
+      "consumes_seams": [
+        "ThemeStyles",
+        "ThemeRegistry",
+        "FontLoad",
+        "ThemeManifest"
+      ],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "lighter_path": false,
+      "files": [
+        "app/src/hooks/useThemeStyles.ts",
+        "app/src/components/ThemeIcon.tsx",
+        "app/pages/profile.tsx",
+        "app/pages/_document.tsx",
+        "app/src/lib/i18n.ts"
+      ],
+      "notes": "AC15 -> this story per lead resolution (architecture.md's Story Order table is silent on AC15 for this story; spec.md \u00a713 explicitly lists AC15 alongside AC10/AC11/AC13 here, and storage.ts/useMoodTheme.tsx \u2014 the two of AC-STRUCT-5's six named consumers not touched by any story \u2014 are only provably unbroken once this story's consumer changes land, making S4 the natural place to also close out AC-STRUCT-5's cross-cutting claim; it is tracked instead under S1 per the schema's one-story-per-AC constraint, see S1 notes)."
+    },
+    {
+      "id": "S5",
+      "name": "authoring-guide",
+      "title": "Publish the theme authoring guide and README",
+      "description": "Write docs/themes/authoring-guide.md documenting: folder structure; the complete ThemeManifest field reference (required/optional, types, id regex, order uniqueness); the exact contrast pairs and AA 4.5:1 threshold; typography and FontLoad; the treatment catalog and the overrides escape hatch with its stated limits; banner/asset options; localization; status behavior; how to run validation locally; one fully worked sample theme; and the gotchas list (static export; dark themes must pass contrast or set contentSurface; backgroundImage must stay decorative/low-opacity). Write a short app/src/themes/README.md that links to it.",
+      "acceptance_criteria": [
+        "AC-DOC-1"
+      ],
+      "scope": {
+        "includes": [
+          "docs/themes/authoring-guide.md (full field reference, contrast pairs, FontLoad, treatment catalog + overrides limits, banner/asset options, localization, status, validation instructions, worked sample, gotchas)",
+          "app/src/themes/README.md (short pointer to the authoring guide)"
+        ],
+        "excludes": [
+          "Any code change to app/src/themes/* or app/src/lib/*",
+          "Any change to the manifest schema, generator, or validation test"
+        ]
+      },
+      "complexity": "low",
+      "status": "done",
+      "owning_module": "authoring-guide",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "lighter_path": false,
+      "files": [
+        "docs/themes/authoring-guide.md",
+        "app/src/themes/README.md"
+      ],
+      "notes": "Despite being markdown-only (files_code is empty) and AC-DOC-1 being fully specified (no placeholder/ellipsis/trailing-question, uses MUST throughout), lighter_path computes to false: neither docs/themes/ nor app/src/themes/README.md exists on disk at planning time, so the new_file signal (AC-STORY-3, 'files list references a path that does not exist on disk') fires and forces the conservative default. This contradicts the spawn brief's suggestion that S5 was a 'strong lighter_path candidate' -- flagged in the retrospective below since the deterministic rule and the advisory guidance disagree for pure-greenfield doc stories. | CARRIED from S3 (VQ-S3-023): the authoring guide (AC-DOC-1 \"how to run validation\") MUST include a repeatable AC-DEP-2 build-abort verification recipe \u2014 e.g. \"edit a manifest id to an invalid value (Uppercase), run `npm run prebuild`, confirm it exits non-zero and `next build` does not run, then restore.\" The property is verified; this documents the repeatable check."
+    }
+  ],
+  "story_order": [
+    "S0",
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5"
+  ]
+}

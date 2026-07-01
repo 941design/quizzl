@@ -5,7 +5,12 @@
 export const SUPPORTED_LANGUAGES = ['en', 'de'] as const;
 
 export type LanguageCode = typeof SUPPORTED_LANGUAGES[number];
-export type AppThemeName = 'calm' | 'playful' | 'lego' | 'minecraft' | 'flower';
+// AppThemeName is derived from the theme registry (app/src/themes/registry.generated.ts),
+// not hardcoded here, so the folder-name set stays the single source of truth
+// (architecture.md Boundary Rules: "types -> registry.generated (AppThemeName type)").
+// Imported (not just re-exported) so it can also be used below in this file.
+import type { AppThemeName } from '@/src/themes/registry.generated';
+export type { AppThemeName };
 
 // ============================
 // User Data / localStorage Types

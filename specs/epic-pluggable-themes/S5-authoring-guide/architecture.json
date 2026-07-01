@@ -1,0 +1,23 @@
+{
+  "module_name": "authoring-guide",
+  "purpose": "Docs-only story: ship the theme-developer-facing documentation for the pluggable-themes system landed by S0-S4. Produces docs/themes/authoring-guide.md (the full field/behavior reference an author needs to write a valid theme folder) and app/src/themes/README.md (a short pointer file). No code, schema, generator, or test file is touched (AC-DOC-1; scope.excludes). There is no runtime module to design an interface for -- the 'public API' this story ships is the guide's section structure, not a code contract.",
+  "public_api": [],
+  "private_files": [
+    "docs/themes/authoring-guide.md",
+    "app/src/themes/README.md"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "authoring-guide -> (nothing; markdown only, read-only reference to schema.ts/contrast.ts/treatments/*/fontUnion.ts/generate-theme-registry.mjs for accuracy, no code edits or imports)"
+  ],
+  "dependencies_forbidden": [
+    "authoring-guide -> any edit to app/src/themes/*.ts, app/src/themes/treatments/*, app/src/themes/*/manifest.ts, app/scripts/generate-theme-registry.mjs, or any test file"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "seam": {
+    "cross_story": false
+  },
+  "test_targets": []
+}

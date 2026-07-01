@@ -1,0 +1,99 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-01T18:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `useThemeStyles()` return values that genuinely vary per theme (not a frozen constant style object returned regardless of the active theme)? Does `getThemeIconId()` in `ThemeIcon.tsx` avoid silently falling back to the same default icon for every theme/name combination when a lookup misses, instead surfacing the miss? Is there any placeholder/TODO left in `profile.tsx`'s label/description rendering path?"
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `useThemeStyles.ts` import only from `lib/theme` and `treatments/*` (never `registry.generated` directly, per the Boundary Rules' 'useThemeStyles -> registry.generated directly' forbidden edge)? Does `ThemeIcon.tsx` import only `treatments/iconSets` and `lib/theme`? Do `profile.tsx` and `storage.ts` import only from `lib/theme`? Does `_document.tsx` import only `registry.generated` (`THEME_FONTS`) and `fontUnion` (`buildFontLinkHref`)?"
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `consumers` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do per-theme snapshot/equality tests exist comparing the new `useThemeStyles()` output against the pre-refactor implementation's output for calm/playful/lego/minecraft/flower? Do parameterized tests exist for `ThemeIcon` covering every currently-mapped icon name across all three icon sets (line/filled/pixel)? Does a rendering test for `/profile` assert the picker text comes from manifest fields (not `i18n.ts`)? Does a regression test confirm the 10 removed i18n keys are gone while the 4 retained keys still resolve?"
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Do `app/src/components/Layout.tsx` and `app/pages/index.tsx` remain byte-for-byte unchanged (empty git diff) while still compiling and rendering correctly against the new six-field `useThemeStyles()` return shape, matching spec/architecture's explicit constraint that these two files are consumers only, never edited in this story?"
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does removing the 10 `calm...flowerDescription` i18n keys leave `themeHeading`, `themeDescription`, `active`, and `currentTheme` untouched and functional, and does a search of `app/src/lib/i18n.ts` and all its consumers confirm no remaining reference to any removed key (no dangling `t('calmDescription')`-style call anywhere in the codebase)?"
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-1",
+      "question": "Does `useThemeStyles()` return an object with exactly the six fields `cardStyle, surfaceStyle, navStyle, buttonStyle, contentPanelStyle, bannerDecorStyle` — with no `visualStyle` or `isFunTheme` key present — and do `Layout.tsx` and `pages/index.tsx` remain byte-for-byte unchanged while still compiling and rendering against this new return shape? Provide a per-theme equality test against the pre-refactor `useThemeStyles.ts` output for calm/playful/lego/minecraft/flower as evidence, and confirm the test asserts on real rendered style objects rather than mocking the hook itself."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-2",
+      "question": "Does `getThemeIconId()` resolve every currently-mapped icon name to the same iconify id as the pre-refactor `ICON_MAP`, for every theme's `treatments.iconSet` (line/filled/pixel), by looking up `app/src/themes/treatments/iconSets.ts` rather than a hardcoded per-theme map inside `ThemeIcon.tsx`? Show a parameterized test iterating all icon names across all five themes' icon sets and confirm it fails if a single `iconSets.ts` entry is deliberately mistyped."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-3",
+      "question": "Does the `/profile` theme picker and preview render `label`/`description` strings sourced from each manifest's `{en; de?}` fields (with `de` falling back to `en` when absent), and have all 10 `calm...flowerDescription` keys (both `en` and `de`) been removed from `app/src/lib/i18n.ts` while `themeHeading`/`themeDescription`/`active`/`currentTheme` remain present and functional? Provide the `i18n.ts` diff and a rendering test asserting the profile page no longer reads from the removed keys."
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-4",
+      "question": "Does `normalizeThemeName(id)` return `DEFAULT_THEME_NAME` for any stored id absent from `APP_THEMES`, return the id itself unchanged when that id is present in `APP_THEMES` with `status:'hidden'`, and do `readSettings`/`writeSettings` in `app/src/lib/storage.ts` plus the legacy `mood` field continue to round-trip correctly through this normalization? Provide unit tests covering all three cases (unknown id, hidden-but-present id, legacy mood fallback) exercising real storage read/write, not a storage mock that bypasses `normalizeThemeName`."
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-1",
+      "question": "Does `useThemeStyles()`'s return object match the `ThemeStyles` contract in architecture.md exactly — `cardStyle: BoxProps, surfaceStyle: BoxProps, navStyle: BoxProps, buttonStyle: BoxProps, contentPanelStyle: BoxProps|null, bannerDecorStyle: {boxProps: BoxProps; style: object}|null` — with `bannerDecorStyle`'s `boxProps` and `style` kept as separate top-level properties (not merged into a single `BoxProps`), since Chakra silently drops a data-URI `backgroundImage` when the two are merged? Show the type definition and a test asserting `boxProps`/`style` remain split for at least one theme with a non-trivial banner."
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-UX-4",
+      "question": "None of the five real migrated themes sets `status: 'hidden'`, so `isThemeVisible`/`listThemes({includeHidden:true})`'s filtering branch and `normalizeThemeName`'s 'hidden-but-present id normalizes to itself' behavior are exercised only via isolated fixture objects (real-manifest spreads with `status` overridden), never through `app/src/lib/storage.ts`'s actual `readSettings`/`writeSettings` round-trip with a genuinely hidden theme id. Is this residual risk acceptable given storage.ts's own logic (`normalizeThemeName(stored?.theme ?? stored?.mood)`) is unchanged from S2/S3 and its existing unit tests already cover the unknown-id and legacy-`mood` cases with real localStorage reads/writes — or does a future story authoring a `status:'hidden'` sample theme (per spec.md US1/AC3) need to add a real end-to-end storage round-trip test at that point?"
+    },
+    {
+      "question_id": "VQ-S4-013",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-UX-3",
+      "question": "`profile.tsx` calls `setTheme(themeOption.id as AppThemeName)` because `AppThemeDefinition` now collapses to the literal `ThemeManifest` alias, whose `id` field is `string` (the zod regex shape), not the narrower `AppThemeName` union the pre-refactor compat type carried. Is this cast provably safe (every entry in `APP_THEMES` is genuinely keyed by one of the `AppThemeName` folder names, enforced by `themes-validation.test.ts`'s id===folder guard and the drift test), and is the same `as AppThemeName` pattern already established elsewhere in the codebase (e.g. `themes/index.ts`'s own historical `toCompatDefinition`), making this a consistent, non-novel idiom rather than an unreviewed type-safety hole?"
+    },
+    {
+      "question_id": "VQ-S4-014",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "ac_id": "AC-UX-1",
+      "question": "`useThemeStyles()` was refactored into a thin wrapper around a new exported pure function `computeThemeStyles(definition)`, added specifically so the byte-identical per-theme BoxProps parity tests could exercise the real lookup path without mocking React context (since the vitest environment has no DOM renderer/@testing-library/react, per the established convention in `memberListAdminUi.test.ts`). Is `computeThemeStyles` an acceptable non-architecture.md-declared implementation seam (it is additive to, not a replacement of, the six-field `useThemeStyles()` contract architecture.md fixes), or should a future story fold it back into `useThemeStyles()` once/if a DOM-rendering test harness is introduced for this codebase?"
+    }
+  ]
+}

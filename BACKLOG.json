@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-01T14:33:55Z",
+  "updated_at": "2026-07-01T20:40:17Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -129,6 +129,11 @@
     },
     {
       "path": "specs/epic-few-chat-rebrand/",
+      "status": "DONE",
+      "next_action": "completed 2026-07-01"
+    },
+    {
+      "path": "specs/epic-pluggable-themes/",
       "status": "DONE",
       "next_action": "completed 2026-07-01"
     }

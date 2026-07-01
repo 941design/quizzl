@@ -1,0 +1,23 @@
+{
+  "story_id": "S2",
+  "captured_at": "2026-07-01T19:22:00Z",
+  "commands": {
+    "test": "make test-unit",
+    "typecheck": "cd app && npx tsc --noEmit",
+    "lint": "cd app && npx next lint"
+  },
+  "test": {
+    "status": "PASS",
+    "test_files": 112,
+    "tests": 1678
+  },
+  "typecheck": {
+    "status": "clean",
+    "errors": 0
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "notes": "No ESLint config present (no .eslintrc*/eslint.config.*). `npx next lint` prompts for interactive first-time setup rather than running a check — unchanged since S0/S1; there is no lint gate to baseline in this repo."
+  },
+  "note": "Pre-story baseline == S1-themes-scaffold/result.json's final state (1678 tests, clean typecheck, NO_LINT) — S1 is the immediately-preceding, already-landed story and no repo changes occurred between S1's completion and this story's start."
+}

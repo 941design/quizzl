@@ -1,0 +1,179 @@
+{
+  "epic_name": "pluggable-themes",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-01T15:00:00Z",
+  "updated_at": "2026-07-01T20:10:00Z",
+  "pre_existing_dirty_files": [
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md"
+  ],
+  "completed_stories": [
+    "S0",
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-01T15:00:00Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "IMPLEMENTING",
+      "timestamp": "2026-07-01T15:10:00Z",
+      "trigger": "planning_complete"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-01T20:05:00Z",
+      "trigger": "all_stories_done_gates_passed_mv_waived"
+    }
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "d7b3040d9e2000c9011faca29b3e9d940fee0d67",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "reviewer_agent_id": "a890c80b536489f48",
+  "ac_closure": [
+    {
+      "ac_id": "AC-STRUCT-1",
+      "status": "met",
+      "evidence": "theme-baseline.generated.ts committed from unmodified getChakraTheme; consumed by parity.test.ts (S0)"
+    },
+    {
+      "ac_id": "AC-STRUCT-2",
+      "status": "met",
+      "evidence": "themes-validation.test.ts AC-STRUCT-2 lock (comment-stripped scan): lib/theme.ts no inline defs, re-exports index (S3)"
+    },
+    {
+      "ac_id": "AC-STRUCT-3",
+      "status": "met",
+      "evidence": "generator emits registry; themes-validation.test.ts --check idempotence test (regenerate vs committed); MOCK-02-001 resolved (S3)"
+    },
+    {
+      "ac_id": "AC-STRUCT-4",
+      "status": "met",
+      "evidence": "themes-validation.test.ts fixture add/remove folder \u2192 APP_THEMES keys; listThemes picker visibility (S3/S4)"
+    },
+    {
+      "ac_id": "AC-STRUCT-5",
+      "status": "met",
+      "evidence": "public API surface stable across S1-S4; index passthrough + lib-theme stability tests"
+    },
+    {
+      "ac_id": "AC-PARITY-1",
+      "status": "met",
+      "evidence": "parity.test.ts pick(getChakraTheme(id),ALLOWLIST) toEqual frozen S0 baseline + full-extend guard, all 5 themes (S2); examiners independently confirmed toEqual not toStrictEqual"
+    },
+    {
+      "ac_id": "AC-PARITY-2",
+      "status": "met",
+      "evidence": "parity.test.ts minecraft contentSurface truthy/others falsy; fontSizes.md>=1.1, lg>md, 4xl>xl (S2)"
+    },
+    {
+      "ac_id": "AC-VAL-1",
+      "status": "met",
+      "evidence": "themes-validation.test.ts contrast gate: fails naming theme+pair+ratio; non-hex token fails (fail-loud); colorScheme never trusted (S3)"
+    },
+    {
+      "ac_id": "AC-VAL-2",
+      "status": "met",
+      "evidence": "themes-validation.test.ts direct folder-keyed id===folder assertion (non-tautological, teeth-proofed) + id regex (S3)"
+    },
+    {
+      "ac_id": "AC-VAL-3",
+      "status": "met",
+      "evidence": "themes-validation.test.ts folder-drift vs PURE registry (teeth); order-position sub-clause retired (amended 2026-07-01); font drift\u2192AC-FONT-1, order collision\u2192AC-VAL-4 (S3)"
+    },
+    {
+      "ac_id": "AC-VAL-4",
+      "status": "met",
+      "evidence": "themes-validation.test.ts duplicate-order fixture fails uniqueness (S3)"
+    },
+    {
+      "ac_id": "AC-DEP-1",
+      "status": "met",
+      "evidence": "package.json prebuild = generate + vitest themes-validation before next build (S3)"
+    },
+    {
+      "ac_id": "AC-DEP-2",
+      "status": "met",
+      "evidence": "validation logic tested (bad manifest \u2192 vitest fail); build-abort verified by execution (examiner broke id \u2192 prebuild exit 1, 12 failures, restored); recipe in guide \u00a79 (S3/S5)"
+    },
+    {
+      "ac_id": "AC-FONT-1",
+      "status": "met",
+      "evidence": "themes-validation.test.ts buildFontLinkHref(THEME_FONTS) byte-equals committed URL; _document.tsx renders built value (S3)"
+    },
+    {
+      "ac_id": "AC-BOUND-1",
+      "status": "met",
+      "evidence": "themes-validation.test.ts auto-glob resolved-target scan (teeth: throwaway-fixture demo) over full client-reachable set + real npm build bundle grep zero zod; zod devDep only (S3)"
+    },
+    {
+      "ac_id": "AC-UX-1",
+      "status": "met",
+      "evidence": "useThemeStyles.test.ts 6-field BoxProps vs frozen pre-refactor literals (non-tautological, diffed vs git HEAD); visualStyle/isFunTheme removed; Layout/index unchanged (S4)"
+    },
+    {
+      "ac_id": "AC-UX-2",
+      "status": "met",
+      "evidence": "ThemeIcon.test.ts 12 icons\u00d75 themes vs frozen ICON_MAP (matches git HEAD); getThemeIconId via manifest.treatments.iconSet (S4)"
+    },
+    {
+      "ac_id": "AC-UX-3",
+      "status": "met",
+      "evidence": "profile.themePicker.test.ts: label/description from manifest de\u2192en; listThemes hides hidden; 10 i18n keys removed, 4 kept (S4)"
+    },
+    {
+      "ac_id": "AC-UX-4",
+      "status": "met",
+      "evidence": "storage.test.ts + themes/index.test.ts: normalize\u2192DEFAULT for absent; hidden id normalizes to self; legacy mood round-trip (S4)"
+    },
+    {
+      "ac_id": "AC-DOC-1",
+      "status": "met",
+      "evidence": "docs/themes/authoring-guide.md (11 topics) + README link; examiner executed worked sample (prebuild pass) + recomputed contrast ratios + tested build-abort recipe (S5)"
+    }
+  ],
+  "manual_validation": [
+    {
+      "ac_id": "MV-1",
+      "status": "waived",
+      "owner": "Implementing developer",
+      "blocked_on": "AC-PARITY-1, AC-PARITY-2, AC-UX-1, AC-UX-2, AC-FONT-1",
+      "evidence": "User-authorized waiver (2026-07-01). Automated parity proves structural byte-identity across all observable layers: AC-PARITY-1 (getChakraTheme ALLOWLIST toEqual frozen S0 baseline, all 5 themes + full-extend guard), AC-UX-1 (useThemeStyles 6-field BoxProps frozen-locked, diffed vs git HEAD), AC-UX-2 (icon ids frozen-locked vs git HEAD), AC-FONT-1 (font URL byte-equal). Theme e2e 27/27 green (settings-theming, banner-decor, profile). Pixel/glyph-level visual confirmation deferred to user post-commit."
+    }
+  ],
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_remediated",
+      "detail": "10 modules audited (86.6% overall); real gap in contrast.ts closed via contrast.hexParsing.test.ts (48 tests, 81.6%\u219293.9%); others passed/skipped"
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_pass",
+      "detail": "27/27 theme-relevant specs + 32/32 other fast specs + 215/216 groups/DM passed. The 1 failure (groups-direct-chat-no-duplicates: message-after-reload) is a confirmed FLAKE \u2014 passed on isolated re-run (2/2); in DM/relay code the epic did NOT touch. No theme e2e regression."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_pass",
+      "detail": "Opus (resumable) clean, 0 findings; both structural checks pass (no cross-module reach-ins, no contract/doc drift). Codex Stage-2 user-authorized skip (Opus-only, credit outage).",
+      "structural_findings": {
+        "surfaced": 0,
+        "acted": 0,
+        "disclosed_unacted": 0
+      }
+    }
+  ]
+}

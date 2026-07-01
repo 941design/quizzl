@@ -1,0 +1,23 @@
+{
+  "story_id": "S5",
+  "captured_at": "2026-07-01T21:00:59Z",
+  "commands": {
+    "test": "make test-unit",
+    "typecheck": "cd app && npx tsc --noEmit",
+    "lint": "cd app && npx next lint"
+  },
+  "test": {
+    "status": "PASS",
+    "test_files": 117,
+    "tests": 1894
+  },
+  "typecheck": {
+    "status": "clean",
+    "errors": 0
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "notes": "No ESLint config present (no .eslintrc*/eslint.config.*) since S0. `npx next lint` prompts for interactive first-time setup rather than running a check — no lint gate to baseline in this repo (unchanged since S0/S3/S4)."
+  },
+  "note": "Docs-only story (AC-DOC-1): no code, test, schema, or manifest files are touched. Baseline captured to confirm the suite is unchanged/green before and after; the story does not expect the test/typecheck counts to move."
+}

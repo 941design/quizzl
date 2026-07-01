@@ -1,0 +1,102 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-01T18:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `buildThemeOverride(manifest)` in `app/src/themes/buildChakraTheme.ts` return a value that actually varies with its `manifest` argument (not a frozen constant object returned regardless of input)? Is `createScale()` (lifted from `theme.ts:71`) a genuine color-scale generator rather than a stubbed identity function? Does `validateManifest()` in `schema.ts` perform real zod validation rather than always returning success?"
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `fontUnion.ts` avoid importing `@chakra-ui/react` or `schema.ts` at runtime (pure, no dependencies per architecture.md's Boundary Rules)? Does `contrast.ts` contain only pure math with no imports? Do `treatments/elevation.ts`, `treatments/iconSets.ts`, and `treatments/patterns.ts` import `@chakra-ui/react` for the `BoxProps` type only (no runtime Chakra calls)? Does the new `app/src/themes/index.ts` re-export from `app/src/lib/theme.ts` unchanged, with zero import of a registry module and zero behavior change observable by any of `theme.ts`'s six existing consumer files?"
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `buildChakraTheme` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do unit tests exist for `validateManifest()` (accepts a conforming fixture, rejects a malformed one), `buildThemeOverride()` (determinism/purity across repeated calls with the same input), `wcagRatio()`/`evaluateThemeContrast()` (known hex pairs with a computable expected ratio), and each `treatments/*` lookup (elevation/iconSet/pattern name resolves to its expected value)? Do these tests run without a browser or DOM (pure Node/vitest)?"
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does introducing `app/src/themes/schema.ts`, `buildChakraTheme.ts`, `fontUnion.ts`, `contrast.ts`, `treatments/*`, and the pass-through `index.ts` produce zero observable behavior change in any of the six existing consumers of `app/src/lib/theme.ts` (`useMoodTheme.tsx`, `useThemeStyles.ts`, `ThemeIcon.tsx`, `storage.ts`, `profile.tsx`, `_document.tsx`), matching spec/architecture's intent that S1 is a pure scaffold story with no wiring yet? Provide a diff or test run showing these six files are untouched and their existing tests still pass unchanged."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does `ThemeManifestSchema` reject a manifest object carrying unexpected/extra top-level keys (i.e. is it declared with `.strict()` or an equivalent exact-shape check, not a permissive passthrough), and does `validateManifest()` throw or return a clear failure — rather than silently returning a partially-valid object — when a required field is missing or mistyped?"
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-5",
+      "question": "After this story lands, do `isAppThemeName`, `normalizeThemeName`, `getThemeDefinition`, `getChakraTheme`, `DEFAULT_THEME_NAME`, and the `AppThemeName` type still exist in `app/src/lib/theme.ts` with unchanged names and call signatures? Do all six existing consumer files still compile and pass their existing tests with no call-site signature change attributable to this story?"
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-5",
+      "question": "Does `app/src/themes/schema.ts`'s `ThemeManifestSchema` (and inferred `ThemeManifest` type) declare, with the exact field names and types from architecture.md's Seam Contracts table, `id` (string, `^[a-z][a-z0-9-]*$`), `order` (unique positive integer), `label`/`description` (`{en: string; de?: string}`), `previewColorScheme` (`'brand'|'success'|'warning'|'danger'`), `author`/`license` (optional string), `status` (optional `'stable'|'experimental'|'hidden'`), `colorScheme` (`'light'|'dark'`, descriptive-only), `colors` (5x `Scale10` + the named semantic tokens), `typography` (`{fonts{heading,body,display?}; fontLoad: FontLoad[]; fontSizes?}`), `shape` (optional), `treatments` (card/button/nav `ElevationName`, `surface` `SurfacePatternName`, `iconSet` `IconSetName`, `banner` string, `contentPanel?`, `overrides?`), and `contentSurface` (optional boolean)? Provide the schema source and confirm no field is missing, renamed, or has a widened/narrowed type relative to this list."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-5",
+      "question": "Does `buildThemeOverride(manifest)` in `app/src/themes/buildChakraTheme.ts` return an object with exactly the fields `colors, semanticTokens, fonts, fontSizes, radii, styles, config`, and `components` (keyed by `'Button'|'Tabs'|'Progress'|'Badge'|'Tag'|'Checkbox'|'Radio'`, each `{ defaultProps: object }`)? Is `buildThemeOverride` verifiably pure and function-free (a `JSON.stringify` round-trip preserves every key without throwing)? Does `getChakraTheme(id)` return a referentially stable value across repeated calls for the same `id` (a module-level cache, not a fresh `extendTheme()` per call)?"
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-5",
+      "question": "Does the `FontLoad` type in `app/src/themes/fontUnion.ts` declare exactly `{ family: string; weights?: number[]; ital?: boolean; subset?: string }`, with no additional required fields? Does `buildFontLinkHref` apply the documented axis-encoding formula (ital-only -> `Family:ital@0;1`; weights-only -> `Family:wght@w1;w2`; both -> `Family:ital,wght@0,w1;1,w1`; neither -> `Family`; suffix `&display=swap`) and sort families alphabetically before encoding, verifiable independently of any manifest content since no manifests exist yet in this story?"
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-STRUCT-5",
+      "question": "buildChakraTheme.ts's `getChakraTheme` is keyed by a full `ThemeManifest` object (`getChakraTheme(manifest)`, cached by `manifest.id`), not by an `AppThemeName` id resolved against a registry — because architecture.md's Boundary Rules grant `buildChakraTheme -> @chakra-ui/react, treatments/*` only, with no edge to `registry.generated.ts` (which does not exist until S2). Does this signature genuinely satisfy the seam contract's intent once `index.ts` (S2+, which IS allowed to depend on both `registry.generated` and `buildChakraTheme`) composes `id -> APP_THEMES[id] -> getChakraTheme(APP_THEMES[id])`? Or does deferring the id-keyed public signature to S2 create a rework risk (e.g. a caching-key collision, or a second cache layer) that should have been flagged as a cross-story seam risk instead of resolved unilaterally at S1?"
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "`ContentPanelName` (currently only `'panel'`) is declared in `treatments/elevation.ts` alongside `ElevationName`, rather than in its own file — architecture.md's per-file Module Map does not name a dedicated file for it. Is this colocation consistent with the boundary rules (no forbidden edge introduced), and does `schema.ts`'s independently-declared `ContentPanelNameSchema = z.enum(['panel'])` stay in sync with it, given the two are not literally imported from one another (schema.ts has no edge to treatments/*)?"
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The zod-boundary guard added in this story (`app/tests/unit/themes/zodBoundary.test.ts`) source-scans only the seven files S1 introduces (schema.ts, buildChakraTheme.ts, fontUnion.ts, contrast.ts, index.ts, treatments/elevation.ts, treatments/patterns.ts) via a regex match on import statements, not the full transitive-reachability walk architecture.md Implementation Constraint 16 describes (which must additionally cover manifests, registry.generated.ts, _document.tsx, useThemeStyles.ts, and ThemeIcon.tsx once they exist). Is this scoped-to-S1 guard an acceptable early signal that does not create a false sense of completeness before S3's authoritative architectural test lands, or should its existence be called out more prominently (e.g. a TODO comment referencing the specific S3 file) to prevent it from being mistaken for the full AC-BOUND-1 gate?"
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "`treatments/patterns.ts` exports `APP_BG_GRADIENTS` (the three pre-refactor lego/minecraft/flower backgroundImage gradient strings, copied verbatim) as a documentation/reference constant, since manifests may only import the `ThemeManifest` type and therefore cannot import this export at runtime — S2's manifests are expected to inline the same literal string into `colors.backgroundImage` independently. Does S2 in fact keep these two copies (the `APP_BG_GRADIENTS` constant here and each manifest's inlined literal) byte-identical, and is duplicating the string in two places (rather than, say, omitting `APP_BG_GRADIENTS` entirely since nothing imports it) the right call, or should this export be dropped as dead weight if S2 does not end up referencing it for anything (e.g. a future generator cross-check)?"
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "`schema.ts`'s `Scale10Schema` validates a 10-element hex-string tuple (matching the pre-refactor `createScale([...])` call-site array literal style) rather than a pre-expanded `Record<number,string>` object, specifically so `buildChakraTheme.ts`'s lifted `createScale()` still has expansion work to do (per architecture.md's explicit instruction to lift `createScale()` unchanged). Do S2's five manifests in fact supply these as flat 10-element arrays (preserving byte-identical parity with the pre-refactor theme.ts color literals), and does `RawOverridesSchema`'s permissive `z.record(z.string(), z.unknown())` per surface (rather than a BoxProps-shaped validator) still catch the failure modes the authoring guide (S5) needs to document under the overrides escape hatch's 'stated limits' (spec.md §3)?"
+    }
+  ]
+}

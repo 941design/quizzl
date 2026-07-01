@@ -1,0 +1,42 @@
+{
+  "module_name": "generator-and-validation-gate",
+  "purpose": "Replace S2's hand-authored registry.generated.ts stub with a generator-emitted file produced by app/scripts/generate-theme-registry.mjs (resolving MOCK-02-001), wire that generator plus the full value-validation suite into the npm/make build pipeline via a prebuild script so a non-conforming theme cannot reach next build, and author app/tests/unit/themes-validation.test.ts as the authoritative value-level gate (schema/id, contrast, folder drift, order uniqueness, font-URL parity, zod-boundary + enum/treatment sync). Also performs the one S4-adjacent consumer edit AC-FONT-1 forces into this story: app/pages/_document.tsx renders its font <link> href from buildFontLinkHref(THEME_FONTS) instead of a hardcoded string.",
+  "public_api": [
+    { "name": "generate-theme-registry.mjs (CLI)", "signature": "node scripts/generate-theme-registry.mjs [--check]", "description": "Plain Node ESM (fs/promises, path, url only — never imports TypeScript). Globs app/src/themes/*/ for folders containing manifest.ts, performs only filesystem-derivable structural checks (manifest.ts present; folder name matches ^[a-z][a-z0-9-]*$), and emits app/src/themes/registry.generated.ts: one static import per theme, the AppThemeName union from folder names, an _all array, and eval-time wiring (order-sort + buildThemeFonts) matching the S2 stub's shape exactly. --check regenerates in memory and exits non-zero on any diff vs the committed file (does not write); default mode writes the file and exits non-zero only on a structural violation." },
+    { "name": "app/src/themes/registry.generated.ts (regenerated output)", "signature": "export type AppThemeName = ...; export const APP_THEMES: Record<AppThemeName, ThemeManifest>; export const THEME_FONTS: FontLoad[];", "description": "Same observable contract as the S2 hand-authored stub (architecture.md Registry seam contract) — now generator-emitted and committed. Consumed unchanged by themes/index.ts and, new in this story, by _document.tsx (THEME_FONTS) via fontUnion's buildFontLinkHref." },
+    { "name": "app/package.json prebuild script", "signature": "\"prebuild\": \"node scripts/generate-theme-registry.mjs && vitest run tests/unit/themes-validation.test.ts\"", "description": "npm-lifecycle-invoked automatically before `npm run build` (and therefore `make build`), so a non-conforming manifest aborts before next build ever runs (AC-DEP-1/AC-DEP-2)." },
+    { "name": "app/tests/unit/themes-validation.test.ts", "signature": "vitest describe/it suite", "description": "The value-level validation gate: ThemeManifestSchema.parse + id===folder + id regex (AC-VAL-2); real-hex contrast gate incl. non-hex fail-loud fixture (AC-VAL-1, carries S1's contrast-gate-requires-hex-tokens guarantee); folder-drift against the PURE registry.generated.ts APP_THEMES (AC-VAL-3 clause 1, carries S2's s3-freshness-targets-pure-registry guarantee); order-uniqueness via fixture (AC-VAL-4); font-URL byte-parity (AC-FONT-1); zod-boundary architectural scan over the full client-bundle-reachable module list plus the S1/S2 enum-catalog<->treatment-Record sync guarantee (AC-BOUND-1, supersedes zodBoundary.test.ts's S1-scoped early guard)." },
+    { "name": "app/pages/_document.tsx (edited)", "signature": "<link href={buildFontLinkHref(THEME_FONTS)} rel=\"stylesheet\" />", "description": "Renders the built Google-Fonts URL from THEME_FONTS (registry.generated.ts) via fontUnion's buildFontLinkHref instead of a hardcoded string literal (AC-FONT-1's forced consumer edit; the only S4-adjacent file this story touches)." }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "the generator's structural-check logic (folder has manifest.ts; folder name regex) and its --check idempotence comparison (app/scripts/generate-theme-registry.mjs)",
+    "the emitted registry.generated.ts scaffold shape (import lines, AppThemeName union, _all array, eval-time order-sort/buildThemeFonts wiring)",
+    "the prebuild wiring string in app/package.json",
+    "every value-invariant assertion in themes-validation.test.ts (schema/contrast/drift/order-uniqueness/font-URL/zod-boundary/enum-sync)"
+  ],
+  "dependencies_allowed": [
+    "generate-theme-registry.mjs -> node:fs/promises, node:path, node:url only (never a TypeScript import)",
+    "themes-validation.test.ts -> index (@/src/themes/index), schema (@/src/themes/schema, test-only import of ThemeManifestSchema/validateManifest), fontUnion (@/src/themes/fontUnion), contrast (@/src/themes/contrast), registry.generated (direct import of the PURE APP_THEMES/THEME_FONTS for drift/freshness assertions per the s3-freshness-targets-pure-registry carried guarantee)",
+    "_document.tsx -> registry.generated (THEME_FONTS), fontUnion (buildFontLinkHref)"
+  ],
+  "dependencies_forbidden": [
+    "generate-theme-registry.mjs -> any .ts file, ts-node, or a TypeScript compiler API",
+    "registry.generated.ts (emitted) -> buildChakraTheme.ts (registry carries data only) or any RUNTIME import of schema.ts (type-only ThemeManifest import only)",
+    "themes-validation.test.ts -> buildChakraTheme.ts directly (must go via index, matching the Boundary Rules table's 'themes-validation.test -> index, schema, fontUnion, contrast')",
+    "_document.tsx, useThemeStyles.ts, ThemeIcon.tsx, profile.tsx, i18n.ts edits beyond the single _document.tsx font-href change AC-FONT-1 forces (all other S4 consumer wiring is out of this story's scope)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S4", "S5"]
+  },
+  "test_targets": [
+    "app/tests/unit/themes-validation.test.ts",
+    "app/tests/unit/themes/parity.test.ts (regression — must stay green against the regenerated registry.generated.ts)",
+    "app/tests/unit/themes/compatBridge.test.ts (regression)",
+    "app/tests/unit/themes/zodBoundary.test.ts (regression — S1-scoped early guard, superseded but not deleted by the S3 full scan)"
+  ]
+}

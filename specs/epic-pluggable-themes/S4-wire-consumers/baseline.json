@@ -1,0 +1,23 @@
+{
+  "story_id": "S4",
+  "captured_at": "2026-07-01T20:33:21Z",
+  "commands": {
+    "test": "make test-unit",
+    "typecheck": "cd app && npx tsc --noEmit",
+    "lint": "cd app && npx next lint"
+  },
+  "test": {
+    "status": "PASS",
+    "test_files": 115,
+    "tests": 1783
+  },
+  "typecheck": {
+    "status": "clean",
+    "errors": 0
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "notes": "No ESLint config present (no .eslintrc*/eslint.config.*) since S0. `npx next lint` prompts for interactive first-time setup rather than running a check — no lint gate to baseline in this repo (unchanged since S0/S3)."
+  },
+  "note": "Pre-story state == S3's final result.json test count (1779) plus S3's own compatBridge.test.ts (3 tests, unmodified by S3) already present, minus nothing — 1783 at S4 start reflects the tree exactly as S3 left it. No repo changes occurred between S3's completion and this story's start."
+}

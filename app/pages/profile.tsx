@@ -29,10 +29,20 @@ import { useAppTheme } from '@/src/hooks/useMoodTheme';
 import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
 import { addableGroupsForContact, archiveContact, eligibleGroupsForContact, getContact, unarchiveContact } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
-import { APP_THEMES } from '@/src/lib/theme';
+import { listThemes } from '@/src/lib/theme';
 import { PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
 import type { ContactListItem } from '@/src/lib/contacts';
-import type { ProfileAvatar, UserProfile } from '@/src/types';
+import type { AppThemeName } from '@/src/lib/theme';
+import type { ProfileAvatar, UserProfile, LanguageCode } from '@/src/types';
+
+/**
+ * Resolves a manifest's `{ en; de? }` localized-text field for the current
+ * language, falling back to `en` when `de` is absent (AC-UX-3 / spec.md
+ * Implementation Constraint 10 — "de falls back to en").
+ */
+function localizedThemeText(text: { en: string; de?: string }, language: LanguageCode): string {
+  return language === 'de' ? text.de ?? text.en : text.en;
+}
 
 function AvatarDisplay({ avatar, displayName, size }: { avatar: ProfileAvatar | null; displayName: string; size: string }) {
   return (
@@ -218,19 +228,19 @@ function OwnProfileSection() {
           </Text>
 
           <HStack spacing={4} flexWrap="wrap">
-            {Object.values(APP_THEMES).map((themeOption) => {
+            {listThemes().map((themeOption) => {
               const isActive = themeName === themeOption.id;
               return (
                 <Button
                   key={themeOption.id}
                   variant={isActive ? 'solid' : 'outline'}
                   colorScheme={themeOption.previewColorScheme}
-                  onClick={() => setTheme(themeOption.id)}
+                  onClick={() => setTheme(themeOption.id as AppThemeName)}
                   data-testid={`theme-${themeOption.id}-btn`}
                   size="lg"
                   leftIcon={isActive ? <span>✓</span> : undefined}
                 >
-                  {copy.settings[themeOption.labelKey]}
+                  {localizedThemeText(themeOption.label, language)}
                   {isActive && (
                     <Badge colorScheme={themeOption.previewColorScheme} ml={2} fontSize="xs">
                       {copy.settings.active}
@@ -248,18 +258,18 @@ function OwnProfileSection() {
             bg="surfaceMutedBg"
             borderWidth="1px"
             borderColor="borderSubtle"
-            backgroundImage={activeThemeDefinition.backgroundImage}
-            backgroundSize={activeThemeDefinition.backgroundImage ? '120px 120px' : undefined}
+            backgroundImage={activeThemeDefinition.colors.backgroundImage}
+            backgroundSize={activeThemeDefinition.colors.backgroundImage ? '120px 120px' : undefined}
             data-testid="theme-preview"
           >
             <Text fontSize="sm" color="textMuted">
               {copy.settings.currentTheme}:{' '}
               <Text as="span" fontWeight="semibold" textTransform="capitalize">
-                {copy.settings[activeThemeDefinition.labelKey]}
+                {localizedThemeText(activeThemeDefinition.label, language)}
               </Text>
             </Text>
             <Text fontSize="xs" color="textMuted" mt={1}>
-              {copy.settings[activeThemeDefinition.descriptionKey]}
+              {localizedThemeText(activeThemeDefinition.description, language)}
             </Text>
           </Box>
         </Box>
