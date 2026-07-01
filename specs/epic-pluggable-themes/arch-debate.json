@@ -1,0 +1,20 @@
+{
+  "status": "synthesized",
+  "mode": "epic",
+  "epic_slug": "pluggable-themes",
+  "adr_number": 4,
+  "proposal": "specs/epic-pluggable-themes/arch-debate-proposal.md",
+  "round1_challenge": "specs/epic-pluggable-themes/arch-debate-r1-challenge.json",
+  "round1_response": "specs/epic-pluggable-themes/arch-debate-r1-response.md",
+  "round2_challenge": "specs/epic-pluggable-themes/arch-debate-r2-challenge.json",
+  "synthesized_at": "2026-07-01",
+  "adr_path": "docs/adr/ADR-004-pluggable-themes.md",
+  "architecture_path": "specs/epic-pluggable-themes/architecture.md",
+  "debate_summary": {
+    "round1_blocking": 6,
+    "round1_resolved": 6,
+    "round2_blocking": 7,
+    "round2_adopted_as_constraints": 7,
+    "residual_accepted_risks": 4
+  }
+}

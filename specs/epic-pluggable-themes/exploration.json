@@ -1,0 +1,118 @@
+{
+  "epic": "pluggable-themes",
+  "spec": "specs/epic-pluggable-themes/spec.md",
+  "architecture": {
+    "paradigm": {
+      "actual": "layered/n-tier (with a functional-core + imperative-shell grain inside the theme module)",
+      "evidence": [
+        "app/src/types/index.ts:8 — type-only layer: AppThemeName union, Settings, STORAGE_KEYS; no logic",
+        "app/src/lib/theme.ts:86-204 — domain logic layer: pure createTheme() transforms flat input into Chakra ThemeOverride; no React, no side effects",
+        "app/src/lib/storage.ts:61-76 — persistence layer over localStorage; imports normalizeThemeName from domain, never from hooks/pages",
+        "app/src/hooks/useMoodTheme.tsx:14-45 — application-state layer: AppThemeProvider owns useState + localStorage side effect; imports inward only",
+        "app/src/hooks/useThemeStyles.ts:325-350 — derived-presentation layer: reads context, returns Chakra BoxProps",
+        "app/pages/_app.tsx:40 — shell layer: ChakraProvider at root consumes activeTheme; pages are pure consumers",
+        "app/src/lib/theme.ts:677-753 — functional core (APP_THEMES static record + pure accessors) + imperative shell in useMoodTheme.tsx"
+      ]
+    },
+    "theme_module_map": [
+      {"name": "AppThemeName union + Settings type", "location": "app/src/types/index.ts:8", "owns": "AppThemeName literal union; Settings.theme; STORAGE_KEYS", "boundary_notes": "No logic; imported by theme.ts, storage.ts, useMoodTheme.tsx, profile.tsx. Adding a theme edits this file today; spec migrates to generated-registry import."},
+      {"name": "Theme registry + public API", "location": "app/src/lib/theme.ts:1-753", "owns": "createTheme() (86-204), 5 inlined theme objects (206-675), APP_THEMES (677), DEFAULT_THEME_NAME (735), isAppThemeName/normalizeThemeName/getThemeDefinition/getChakraTheme (737-751), ThemeVisualStyle (17), AppThemeDefinition (51)", "boundary_notes": "extendTheme() called 5x eagerly at import. ThemeVisualStyle drives all switches in useThemeStyles.ts."},
+      {"name": "AppThemeProvider + useAppTheme", "location": "app/src/hooks/useMoodTheme.tsx:1-71", "owns": "AppThemeContext, provider (useState + 2 useEffects + writeSettings), useAppTheme(), useMoodTheme() alias", "boundary_notes": "Only module that calls writeSettings for theme; sets document.documentElement.dataset.theme (27); getChakraTheme/getThemeDefinition are O(1) lookups."},
+      {"name": "useThemeStyles", "location": "app/src/hooks/useThemeStyles.ts:1-350", "owns": "pattern constants (12-25), 5 switch fns surfaceOverlay/cardOverlay/buttonOverlay/contentPanel/navOverlay (27-176), BANNER_SVG map (179-292), navBannerDecor (301-323), useThemeStyles hook (325-350)", "boundary_notes": "7 switch blocks keyed on ThemeVisualStyle. BANNER_SVG is the inline-SVG data that moves into manifests (D4). contentPanelStyle gated on activeThemeDefinition.contentSurface (340)."},
+      {"name": "ThemeIcon", "location": "app/src/components/ThemeIcon.tsx:1-121", "owns": "ICON_MAP with 3 sub-keys pixel/toy/default (12-73), ThemeIcon (84), getThemeIconId() (116)", "boundary_notes": "Icon resolution is a 3-way branch not 5-way — soft/rounded/floral fall through to default. Map moves to treatments/iconSets.ts."},
+      {"name": "Font loader", "location": "app/pages/_document.tsx:9-13", "owns": "single hardcoded Google Fonts CSS2 URL (DM Serif Display, Fredoka, Nunito, Press Start 2P, VT323)", "boundary_notes": "Union-loads all fonts (spec non-goal: no lazy loading). Spec migrates to generated THEME_FONTS."},
+      {"name": "Theme picker UI", "location": "app/pages/profile.tsx:221-264", "owns": "button list over Object.values(APP_THEMES); preview box reading backgroundImage/labelKey/descriptionKey", "boundary_notes": "Imports APP_THEMES directly (32). labelKey/descriptionKey disappear post-migration; labels come from manifest.label."},
+      {"name": "Settings persistence + normalizeThemeName", "location": "app/src/lib/storage.ts:61-76", "owns": "readSettings with normalizeThemeName fallback (63), writeSettings normalizes (73), legacy mood fallback", "boundary_notes": "isAppThemeName does 'value in APP_THEMES' — registry keyset is the runtime source of valid ids. US5/AC15 path."}
+    ],
+    "current_theme_coupling": [
+      "app/src/types/index.ts:8 — AppThemeName hardcoded union; theme addition edits this file",
+      "app/src/lib/theme.ts:17 — ThemeVisualStyle closed union; new variant edits this file",
+      "app/src/lib/theme.ts:677-733 — APP_THEMES record inlines all 5 themes; extendTheme() 5x at import",
+      "app/src/lib/theme.ts:9-15 — ThemeTextKey/ThemeDescriptionKey mirror ids for i18n typing",
+      "app/src/hooks/useThemeStyles.ts:28-176 — 5 switch fns on visualStyle (toy/pixel/floral branches; soft/rounded fall through)",
+      "app/src/hooks/useThemeStyles.ts:136-153 — contentPanel() only 'pixel' non-empty",
+      "app/src/hooks/useThemeStyles.ts:179-292 — BANNER_SVG Record with 5 keys = 5 visualStyles",
+      "app/src/components/ThemeIcon.tsx:12-73 — ICON_MAP 3 sub-keys pixel/toy/default",
+      "app/pages/_document.tsx:9-13 — Google Fonts URL hardcodes all 5 themes' families",
+      "app/pages/profile.tsx:32,233,262 — imports APP_THEMES directly; reads labelKey/descriptionKey as i18n keys",
+      "app/src/lib/storage.ts:6 — imports normalizeThemeName/DEFAULT_THEME_NAME; registry keyset defines validity"
+    ],
+    "build_pipeline_facts": {
+      "bundler": "webpack via Next.js 14 (next.config.mjs:30); swcMinify:false; next-swc-loader workaround for ts-mls/marmot-ts/post-quantum/hpke (33-50)",
+      "output_mode": "output:'export' fully static to app/out/ (next.config.mjs:20); trailingSlash:true; no server runtime",
+      "codegen_precedent": "app/scripts/generate-avatar-manifest.mjs — plain Node ESM; fs/promises + fetch; writes src/data/avatarManifest.json (143); process.exitCode=1 on error (150-153); no TS runner",
+      "ts_runner": "none (no tsx/ts-node/@swc/node); vitest imports TS natively",
+      "test_runner": "vitest ^4.0.18; config app/vitest.config.ts includes tests/unit/**/*.test.ts; alias @ -> app/; coverage v8",
+      "make_targets": [
+        "Makefile:93 build -> ensure-deps -> cd app && npm run build",
+        "Makefile:109 test-unit -> cd app && npx vitest run",
+        "Makefile:58-66 ensure-deps -> platform stamp; npm ci when package.json/lock newer",
+        "Makefile:151 run-dev -> npm run dev"
+      ]
+    },
+    "constraints": [
+      "next.config.mjs:20 output:'export' -> no runtime FS reads; detection must be build-time codegen emitting a static registry",
+      "package.json -> no tsx/ts-node; generator must be plain Node ESM .mjs run via node",
+      "_app.tsx:40 ChakraProvider consumes a Chakra ThemeOverride; buildChakraTheme() must keep emitting one",
+      "types/index.ts:8 AppThemeName is a TS union; generated registry must export it (or types imports from registry) — enforced at TS compile",
+      "theme.ts:17 ThemeVisualStyle drives 7 switches; decomposing (D2) must preserve useThemeStyles return shape (AC10): cardStyle/surfaceStyle/navStyle/buttonStyle/contentPanelStyle/bannerDecorStyle/isFunTheme consumed by Layout.tsx:51 and index.tsx:19",
+      "_document.tsx:9-13 union font link; spec preserves union (no lazy); generated THEME_FONTS must produce equivalent union URL",
+      "storage.ts:63,73 normalizeThemeName via isAppThemeName ('value in APP_THEMES'); APP_THEMES must stay Record keyed by same ids so AC15 fallback holds",
+      "Makefile:58-66 + CLAUDE.md cross-platform node_modules platform stamp; generator is pure Node, unaffected",
+      "next.config.mjs:26 swcMinify:false; SWC crashes on bitwise in ts-mls — new bundle output must avoid bitwise or route via next-swc-loader"
+    ],
+    "assumptions": [
+      "zod NOT installed (absent from deps + devDeps); must be added before schema.ts",
+      "i18n.ts contains per-theme label/description keys (inferred from profile.tsx:233,262)",
+      "new themes-validation.test.ts must land at app/tests/unit/ to be picked up without config change",
+      "no 'prebuild' script yet; adding it is a package.json edit",
+      "app/src/themes/ is net-new (schema, buildChakraTheme, treatments, index, 5 manifests, registry.generated.ts)",
+      "BANNER_SVG (useThemeStyles.ts:179-292) must migrate to manifest.banner; spec 'files touched' says only 'treatment lookup' — implicit dependency",
+      "AC9 byte-identical getChakraTheme output: extendTheme() merges Chakra defaults and may not serialize deterministically — snapshot capture must handle this BEFORE any refactor"
+    ]
+  },
+  "similar_features": {
+    "codegen_patterns": [
+      {"file": "app/scripts/generate-avatar-manifest.mjs", "what": "plain Node ESM; process.exitCode=1 on fatal; fs.writeFile with JSON.stringify(...,null,2)+'\\n'; console.log count", "reuse": "direct scaffold for generate-theme-registry.mjs; differs only in input (local glob vs fetch) and output (.ts with imports vs .json)"},
+      {"file": "app/src/lib/theme.ts:71 createScale()", "reuse": "lift into buildChakraTheme.ts unchanged (used by all 5 themes)"},
+      {"file": "app/src/lib/theme.ts:86 createTheme(ThemeBuildInput)", "reuse": "direct precursor to buildChakraTheme(ThemeManifest): preserve extendTheme/semanticTokens/components structure"}
+    ],
+    "registry_or_manifest_patterns": [
+      {"file": "app/src/data/avatarManifest.json", "pattern": "generated JSON with generatedAt/total/typed arrays; committed to repo; consumer casts type locally", "notes": "theme registry is .ts (carries static imports + union type export). generatedAt timestamp worth keeping for drift detection. commit the generated file."},
+      {"file": "app/src/components/AvatarBrowserModal.tsx", "pattern": "consumer imports generated JSON + local type + cast", "notes": "@/src/data/ is the established location for generated data; .ts registry avoids the cast"}
+    ],
+    "validation_patterns": [
+      {"file": "app/tests/unit/avatarManifest.test.ts", "how": "vitest; imports generated manifest directly; one it() per invariant; structured regression-comment header (bug/date/root-cause/protection)", "notes": "template for themes-validation.test.ts"},
+      {"file": "app/tests/unit/theme.test.ts", "how": "imports APP_THEMES + getChakraTheme; contentSurface + minecraft font-size ordering; toBe/toBeFalsy/toBeGreaterThan; NO snapshots", "notes": "source for AC12; migrate to registry"},
+      {"file": "app/package.json", "how": "vitest present; zod NOT present anywhere", "notes": "D3 adds zod as a genuine new dependency"}
+    ],
+    "existing_docs": [
+      {"path": "docs/adr/ADR-001..003", "kind": "adr", "format": "# ADR-NNN: Title; bold Status/Date/Type/Affects/Supersedes/Superseded-by front-matter; ## Context; ## Decision. Type seen: 'Lightweight'. Status can be 'Proposed' or 'Accepted'."},
+      {"path": "docs/research/theme-ip-research.md", "kind": "research", "relevance": "existing theme IP note; authoring guide should live under docs/ tree (docs/themes/authoring-guide.md), not app/"},
+      {"path": "specs/epic-pluggable-themes/spec.md", "kind": "spec", "relevance": "the source spec"}
+    ],
+    "i18n_convention": {
+      "file": "app/src/lib/i18n.ts",
+      "how": "add key to Copy type; add value under copy.en AND copy.de; dynamic strings are arrow fns; consume via useCopy(); never hardcode in components",
+      "theme_keys": "copy.settings.{calm,playful,lego,minecraft,flower} + {calm..flower}Description; en ~545-557, de ~1001-1013. Remove all 10 per-language keys (AC13). KEEP themeHeading/themeDescription/active/currentTheme."
+    },
+    "test_conventions": {
+      "unit_dir": "app/tests/unit/",
+      "runner": "vitest ^4.0.18; include tests/unit/**/*.test.ts; alias @ -> project root",
+      "examples": ["avatarManifest.test.ts", "theme.test.ts", "publicEnv.test.ts"],
+      "snapshot_support": "NONE — zero toMatchSnapshot hits. AC9 byte-identical must use expect(...).toEqual(...) against a pre-captured object, not vitest snapshots."
+    },
+    "reuse_recommendations": [
+      "generate-avatar-manifest.mjs — copy scaffold verbatim",
+      "theme.ts:71 createScale() — lift unchanged",
+      "theme.ts:86 createTheme() — becomes buildChakraTheme(ThemeManifest)",
+      "theme.ts:677-733 APP_THEMES — exact source of truth for the 5 manifests (field-for-field, no re-tuning)",
+      "theme.ts:737-751 public API — preserve signatures in themes/index.ts, re-export from lib/theme.ts (6 consumers)",
+      "useThemeStyles.ts:179-292 BANNER_SVG — lift per-theme into manifest.banner",
+      "theme.test.ts — migrate contentSurface + minecraft font invariants",
+      "avatarManifest.test.ts — structural template for themes-validation.test.ts",
+      "ADR-001 header format — match for the new ADR",
+      "types/index.ts:8 AppThemeName — import from registry.generated.ts post-epic; Settings shape unchanged"
+    ]
+  }
+}
