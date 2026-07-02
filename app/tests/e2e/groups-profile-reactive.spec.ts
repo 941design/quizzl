@@ -93,7 +93,8 @@ async function updateProfileNickname(page: Page, newNickname: string): Promise<v
   await page.waitForLoadState('networkidle');
   await page.getByTestId('profile-nickname-input').clear();
   await page.getByTestId('profile-nickname-input').fill(newNickname);
-  await page.getByTestId('save-profile-btn').click();
+  // Leaving the field broadcasts the change; wait for the toast confirmation.
+  await page.getByTestId('profile-nickname-input').blur();
   await expect(page.locator('.chakra-toast')).toBeVisible({ timeout: 5_000 });
 }
 

@@ -63,7 +63,6 @@ type Copy = {
     changeAvatar: string;
     removeAvatar: string;
     noAvatarSelected: string;
-    saveProfile: string;
     avatarModalTitle: string;
     avatarModalDescription: string;
     avatarSubjectLabel: string;
@@ -515,7 +514,6 @@ const copy: Record<LanguageCode, Copy> = {
       changeAvatar: 'Change Avatar',
       removeAvatar: 'Remove Avatar',
       noAvatarSelected: 'No avatar picked yet.',
-      saveProfile: 'Save Profile',
       avatarModalTitle: 'Choose Your Avatar',
       avatarModalDescription: 'Pick a fruit, add accessories if you want, and choose a favorite.',
       avatarSubjectLabel: 'Fruit friend',
@@ -962,7 +960,6 @@ const copy: Record<LanguageCode, Copy> = {
       changeAvatar: 'Avatar aendern',
       removeAvatar: 'Avatar entfernen',
       noAvatarSelected: 'Noch kein Avatar ausgewaehlt.',
-      saveProfile: 'Profil speichern',
       avatarModalTitle: 'Waehle deinen Avatar',
       avatarModalDescription: 'Suche dir eine Frucht aus, fuege Accessoires hinzu und nimm deinen Favoriten.',
       avatarSubjectLabel: 'Fruchtfreund',

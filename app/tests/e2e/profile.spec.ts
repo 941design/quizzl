@@ -10,21 +10,24 @@ test.describe('Profile updates', () => {
     });
   });
 
-  test('saving nickname and avatar updates the header immediately without reload', async ({ page }) => {
+  test('editing nickname and avatar auto-saves and updates the header immediately without reload', async ({ page }) => {
     await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
+    // Nickname is persisted on every keystroke — the header reflects it with no
+    // explicit save action.
     await page.getByTestId('profile-nickname-input').fill('Berry Hero');
+
+    const headerChip = page.getByTestId('header-profile-chip');
+    await expect(headerChip.getByTestId('profile-display-name')).toHaveText('Berry Hero');
+
+    // Avatar is applied on selection.
     await page.getByTestId('choose-avatar-btn').click();
     await expect(page.getByTestId('avatar-browser-modal')).toBeVisible();
 
     const firstAvatarSelect = page.locator('[data-testid^="select-avatar-"]').first();
     await firstAvatarSelect.click();
 
-    await page.getByTestId('save-profile-btn').click();
-
-    const headerChip = page.getByTestId('header-profile-chip');
-    await expect(headerChip.getByTestId('profile-display-name')).toHaveText('Berry Hero');
     await expect(headerChip.getByTestId('profile-avatar-thumb').locator('img')).toBeVisible();
   });
 
@@ -34,7 +37,6 @@ test.describe('Profile updates', () => {
     await page.waitForLoadState('networkidle');
 
     await page.getByTestId('profile-nickname-input').fill('Pocket Pear');
-    await page.getByTestId('save-profile-btn').click();
 
     await page.getByTestId('mobile-menu-btn').click();
 

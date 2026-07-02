@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import NextLink from 'next/link';
@@ -73,7 +73,7 @@ function AvatarDisplay({ avatar, displayName, size }: { avatar: ProfileAvatar | 
 function OwnProfileSection() {
   const copy = useCopy();
   const { backedUp } = useNostrIdentity();
-  const { profile: savedProfile, saveProfile } = useProfile();
+  const { profile: savedProfile, hydrated, saveProfile } = useProfile();
   const { language, setLanguage } = useLanguage();
   const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
   const { publishProfileUpdate } = useMarmot();
@@ -81,25 +81,66 @@ function OwnProfileSection() {
   const toast = useToast();
   const [profile, setProfile] = useState<UserProfile>({ nickname: '', avatar: null });
 
+  // Tracks the nickname value as of the last broadcast so a blur that didn't
+  // change the text doesn't re-broadcast a profile-update to every group.
+  const lastBroadcastNickname = useRef<string | null>(null);
+
   useEffect(() => {
     setProfile(savedProfile);
   }, [savedProfile]);
 
-  function handleAvatarSelect(avatar: ProfileAvatar) {
-    setProfile((current) => ({ ...current, avatar }));
-    avatarDisclosure.onClose();
+  // Seed the broadcast baseline once from the hydrated profile: the persisted
+  // nickname is assumed already broadcast, so it isn't re-sent on first blur.
+  useEffect(() => {
+    if (hydrated && lastBroadcastNickname.current === null) {
+      lastBroadcastNickname.current = savedProfile.nickname;
+    }
+  }, [hydrated, savedProfile.nickname]);
+
+  const broadcastProfile = useCallback(
+    (next: UserProfile) => {
+      lastBroadcastNickname.current = next.nickname;
+      void publishProfileUpdate(next);
+      toast({
+        title: copy.settings.profileSaved,
+        status: 'success',
+        duration: 2500,
+        isClosable: true,
+      });
+    },
+    [publishProfileUpdate, toast, copy.settings.profileSaved],
+  );
+
+  // Nickname is stored locally on every keystroke, but only broadcast when the
+  // text field is left (blur) and the value actually changed.
+  const handleNicknameChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const nickname = event.target.value.slice(0, PROFILE_NICKNAME_MAX_LENGTH);
+      const next = { ...profile, nickname };
+      setProfile(next);
+      saveProfile(next);
+    },
+    [profile, saveProfile],
+  );
+
+  const handleNicknameBlur = useCallback(() => {
+    if (profile.nickname !== lastBroadcastNickname.current) {
+      broadcastProfile(profile);
+    }
+  }, [profile, broadcastProfile]);
+
+  // Avatar is a selection: persist locally and broadcast immediately.
+  function applyAvatar(avatar: ProfileAvatar | null) {
+    const next = { ...profile, avatar };
+    setProfile(next);
+    saveProfile(next);
+    broadcastProfile(next);
   }
 
-  const handleProfileSave = useCallback(() => {
-    saveProfile(profile);
-    void publishProfileUpdate(profile);
-    toast({
-      title: copy.settings.profileSaved,
-      status: 'success',
-      duration: 2500,
-      isClosable: true,
-    });
-  }, [profile, saveProfile, publishProfileUpdate, toast, copy.settings.profileSaved]);
+  function handleAvatarSelect(avatar: ProfileAvatar) {
+    applyAvatar(avatar);
+    avatarDisclosure.onClose();
+  }
 
   return (
     <>
@@ -123,12 +164,8 @@ function OwnProfileSection() {
               </Text>
               <Input
                 value={profile.nickname}
-                onChange={(event) =>
-                  setProfile((current) => ({
-                    ...current,
-                    nickname: event.target.value.slice(0, PROFILE_NICKNAME_MAX_LENGTH),
-                  }))
-                }
+                onChange={handleNicknameChange}
+                onBlur={handleNicknameBlur}
                 placeholder={copy.settings.nicknamePlaceholder}
                 maxLength={PROFILE_NICKNAME_MAX_LENGTH}
                 bg="surfaceBg"
@@ -198,10 +235,7 @@ function OwnProfileSection() {
                       {profile.avatar ? copy.settings.changeAvatar : copy.settings.chooseAvatar}
                     </Button>
                     {profile.avatar && (
-                      <Button
-                        variant="outline"
-                        onClick={() => setProfile((current) => ({ ...current, avatar: null }))}
-                      >
+                      <Button variant="outline" onClick={() => applyAvatar(null)}>
                         {copy.settings.removeAvatar}
                       </Button>
                     )}
@@ -209,10 +243,6 @@ function OwnProfileSection() {
                 </VStack>
               </HStack>
             </Box>
-
-            <Button alignSelf="flex-start" onClick={handleProfileSave} data-testid="save-profile-btn">
-              {copy.settings.saveProfile}
-            </Button>
           </VStack>
         </Box>
 
