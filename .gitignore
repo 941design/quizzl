@@ -19,6 +19,9 @@ implementation-state.json
 # Claude Code local state (per-machine)
 .claude/
 
+# Wrangler local state (per-machine)
+.wrangler/
+
 # Test artifacts
 app/test-results/
 /test-results/

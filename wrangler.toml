@@ -1,0 +1,23 @@
+# Cloudflare Pages configuration for the few.chat app.
+#
+# This project deploys by DIRECT UPLOAD via the Makefile:
+#   make deploy  ->  wrangler pages deploy --project-name=few-chat ...
+# (there is no Pages Git-integration build). Because of that, this file — not the
+# Pages dashboard — is the source of truth wrangler reads on deploy. It is what
+# makes wrangler:
+#   1. upload the static export in `pages_build_output_dir` as site assets, and
+#   2. compile the repo-root `functions/` directory into the Pages Worker, and
+#   3. attach the R2 binding below so `functions/assets/[[path]].js` can read the
+#      avatar PNGs out of the `few-assets` bucket.
+#
+# See proposals/PROPOSAL-few-chat-assets-serving.md for the full rationale.
+
+name = "few-chat"
+pages_build_output_dir = "app/out"
+compatibility_date = "2026-07-01"
+
+# Serve few.chat/assets/<id>.png from the few-assets R2 bucket.
+# `binding` is the name exposed on `env` inside the function (env.few_assets).
+[[r2_buckets]]
+binding     = "few_assets"
+bucket_name = "few-assets"

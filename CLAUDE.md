@@ -11,7 +11,7 @@ This project is developed across Linux x86_64 and macOS ARM (darwin-arm64). Nati
 
 ## Static export and dynamic data
 
-The app uses `output: 'export'` (fully static) and is hosted on GitHub Pages. Dynamic path segments like `/groups/[id]` cause 404s on page reload because no HTML file exists at that path.
+The app uses `output: 'export'` (fully static) and is hosted on Cloudflare Pages (`few.chat` / `few-chat.pages.dev`), deployed by direct upload via `make deploy` (`wrangler pages deploy app/out`). Dynamic path segments like `/groups/[id]` cause 404s on page reload because no HTML file exists at that path.
 
 - Use **query parameters** (`/groups?id=xxx`) instead of path segments for client-side dynamic data.
 - Keep all views for a route in a single page file (e.g. `pages/groups.tsx` renders both the list and detail views based on `router.query.id`).

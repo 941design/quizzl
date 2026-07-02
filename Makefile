@@ -156,7 +156,10 @@ deploy-check: ## Verify deployment prerequisites
 
 deploy: build deploy-check ## Deploy the app to production (Cloudflare Pages → few.chat)
 	@echo "Deploying $(LOCAL_DIST)/ to Cloudflare Pages project '$(FEW_PROJECT)'..."
-	@npx --yes wrangler@latest pages deploy $(LOCAL_DIST) \
+	# No positional output dir: wrangler.toml (pages_build_output_dir = app/out) is
+	# the source of truth, and dropping the arg is what makes wrangler also compile
+	# the repo-root functions/ dir and attach the R2 binding for /assets/*.
+	@npx --yes wrangler@latest pages deploy \
 		--project-name=$(FEW_PROJECT) --branch=main --commit-dirty=true
 	@echo ""
 	@echo "Deployment complete!"
