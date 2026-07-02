@@ -447,7 +447,7 @@ export function detectBrowserLanguage(): LanguageCode {
 
 const copy: Record<LanguageCode, Copy> = {
   en: {
-    appName: 'Few',
+    appName: 'few chat',
     languageNames: { en: 'English', de: 'Deutsch' },
     layout: {
       nav: {
@@ -481,7 +481,7 @@ const copy: Record<LanguageCode, Copy> = {
       vatLabel: 'VAT identification number pursuant to § 27a of the German VAT Act',
     },
     home: {
-      title: 'Welcome to Few',
+      title: 'Welcome to few chat',
       description:
         'Private, end-to-end encrypted chats. Message your contacts directly or talk together in groups.',
       subheadingLead: 'Just chat.',
@@ -894,7 +894,7 @@ const copy: Record<LanguageCode, Copy> = {
     },
   },
   de: {
-    appName: 'Few',
+    appName: 'few chat',
     languageNames: { en: 'English', de: 'Deutsch' },
     layout: {
       nav: {
@@ -928,7 +928,7 @@ const copy: Record<LanguageCode, Copy> = {
       vatLabel: 'Umsatzsteuer-Identifikationsnummer gemäß § 27a Umsatzsteuergesetz',
     },
     home: {
-      title: 'Willkommen bei Few',
+      title: 'Willkommen bei few chat',
       description:
         'Private, Ende-zu-Ende-verschlüsselte Chats. Schreibe deinen Kontakten direkt oder unterhalte dich gemeinsam in Gruppen.',
       subheadingLead: 'Einfach nur chatten.',
