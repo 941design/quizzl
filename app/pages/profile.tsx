@@ -19,7 +19,6 @@ import {
   Text,
   VStack,
   useDisclosure,
-  useToast,
 } from '@chakra-ui/react';
 import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
@@ -78,7 +77,6 @@ function OwnProfileSection() {
   const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
   const { publishProfileUpdate } = useMarmot();
   const avatarDisclosure = useDisclosure();
-  const toast = useToast();
   const [profile, setProfile] = useState<UserProfile>({ nickname: '', avatar: null });
 
   // Tracks the nickname value as of the last broadcast so a blur that didn't
@@ -101,14 +99,8 @@ function OwnProfileSection() {
     (next: UserProfile) => {
       lastBroadcastNickname.current = next.nickname;
       void publishProfileUpdate(next);
-      toast({
-        title: copy.settings.profileSaved,
-        status: 'success',
-        duration: 2500,
-        isClosable: true,
-      });
     },
-    [publishProfileUpdate, toast, copy.settings.profileSaved],
+    [publishProfileUpdate],
   );
 
   // Nickname is stored locally on every keystroke, but only broadcast when the

@@ -50,7 +50,6 @@ type Copy = {
     pageTitle: string;
     heading: string;
     description: string;
-    profileSaved: string;
     profileHeading: string;
     profileDescription: string;
     nicknameHeading: string;
@@ -501,7 +500,6 @@ const copy: Record<LanguageCode, Copy> = {
       pageTitle: 'Settings',
       heading: 'Settings',
       description: 'Manage your Nostr identity and key backup.',
-      profileSaved: 'Your profile look has been saved.',
       profileHeading: 'My Profile',
       profileDescription: 'Pick a nickname, an avatar, and a few fun badges.',
       nicknameHeading: 'Nickname',
@@ -947,7 +945,6 @@ const copy: Record<LanguageCode, Copy> = {
       pageTitle: 'Einstellungen',
       heading: 'Einstellungen',
       description: 'Verwalte deine Nostr-Identität und Schlüsselsicherung.',
-      profileSaved: 'Dein Profil wurde gespeichert.',
       profileHeading: 'Mein Profil',
       profileDescription: 'Wähle einen Spitznamen, einen Avatar und ein paar lustige Badges.',
       nicknameHeading: 'Spitzname',
