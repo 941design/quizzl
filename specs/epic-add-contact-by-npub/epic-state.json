@@ -1,0 +1,149 @@
+{
+  "epic_name": "add-contact-by-npub",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-02T16:11:48Z",
+  "updated_at": "2026-07-02T21:30:00Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "Makefile",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md",
+    "docs/adr/ADR-005-extend-ever-known-peers-trust-to-manually-added-contacts.md",
+    "specs/epic-add-contact-by-npub/acceptance-criteria.md",
+    "specs/epic-add-contact-by-npub/spec.md"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-02T16:11:48Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "PLANNING_COMPLETE",
+      "timestamp": "2026-07-02T16:35:00Z",
+      "trigger": "stories_and_verification_authored"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-02T21:30:00Z",
+      "trigger": "gates_passed_e2e_environmental_accepted"
+    }
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "8ab596a9c0a5a55fe4c1ac067ea82f86e3aadbbd",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "reviewer_agent_id": "a46dd39da096b7603",
+  "ac_closure": [
+    {
+      "ac_id": "AC-STRUCT-1",
+      "status": "met",
+      "evidence": "contacts-add-by-npub.test.ts new-contact success + persisted entry; examiner VQ-S1-007 YES@1.0"
+    },
+    {
+      "ac_id": "AC-STRUCT-2",
+      "status": "met",
+      "evidence": "contacts-add-by-npub.test.ts archived-reactivation re-read; examiner VQ-S1-008 YES@1.0"
+    },
+    {
+      "ac_id": "AC-ERR-1",
+      "status": "met",
+      "evidence": "contacts-add-by-npub.test.ts invalid+malformed npub, storage deep-equal unchanged; VQ-S1-009 YES@1.0"
+    },
+    {
+      "ac_id": "AC-ERR-2",
+      "status": "met",
+      "evidence": "contacts-add-by-npub.test.ts self same+differing case; VQ-S1-010 YES@1.0"
+    },
+    {
+      "ac_id": "AC-ERR-3",
+      "status": "met",
+      "evidence": "contacts-add-by-npub.test.ts already_exists full-record deep-equal + case-variant; VQ-S1-011 YES@1.0"
+    },
+    {
+      "ac_id": "AC-SEC-1",
+      "status": "met",
+      "evidence": "contacts-add-by-npub.test.ts loadKnownPeers().has(pubkey) real call; VQ-S1-012 YES@1.0"
+    },
+    {
+      "ac_id": "AC-SEC-2",
+      "status": "met",
+      "evidence": "contacts-add-by-npub.test.ts real isAllowedDmSender([]) true; VQ-S1-013 YES@1.0"
+    },
+    {
+      "ac_id": "AC-SEC-3",
+      "status": "met",
+      "evidence": "contacts-add-by-npub.test.ts real purgeStrangerContacts survival both stores + negative control; VQ-S1-014 YES@1.0"
+    },
+    {
+      "ac_id": "AC-UX-1",
+      "status": "met",
+      "evidence": "source-trace: add-contact-btn onClick=disclosure.onOpen (contacts.tsx:92-93); examiner VQ-S2-007 YES@1.0. Repo has no component-test framework (documented decision); behavioral wiring verified by inspection."
+    },
+    {
+      "ac_id": "AC-UX-2",
+      "status": "met",
+      "evidence": "source-trace: success→onSuccess→setContactsRevision→useMemo re-derive listContacts, no reload; VQ-S2-008 YES@1.0"
+    },
+    {
+      "ac_id": "AC-UX-3",
+      "status": "met",
+      "evidence": "source-trace: invalid_npub→addContactErrorInvalidNpub, Alert data-testid=add-contact-error, modal stays open; VQ-S2-009 YES@1.0"
+    },
+    {
+      "ac_id": "AC-UX-4",
+      "status": "met",
+      "evidence": "source-trace: self→addContactErrorSelf distinct key; VQ-S2-010 YES@1.0"
+    },
+    {
+      "ac_id": "AC-UX-5",
+      "status": "met",
+      "evidence": "source-trace: already_exists→addContactErrorAlreadyExists; VQ-S2-011 YES@1.0"
+    },
+    {
+      "ac_id": "AC-UX-6",
+      "status": "met",
+      "evidence": "source-trace: shared success path for reactivated true/false → revision bump; unarchive sets archivedAt null so listContacts default shows it; VQ-S2-012 YES@1.0"
+    },
+    {
+      "ac_id": "AC-INTL-1",
+      "status": "met",
+      "evidence": "addContactByNpub.i18n.test.ts asserts exact en+de values for all 12 keys + 2 reworded keys; VQ-S2-013 YES@1.0"
+    }
+  ],
+  "manual_validation": [
+    {
+      "ac_id": "MV-1",
+      "status": "waived",
+      "evidence": "NpubQrButton/NpubQrModal reused unchanged from the shipped InviteMemberModal flow; AddContactModal renders them via the identical prop contract (reviewer-confirmed). This epic does not modify the QR scan path, so a fresh real-device camera check is not warranted for these unchanged components."
+    }
+  ],
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_pass",
+      "detail": "contacts.ts score 0.8692->0.9538, 14 gap-closing tests written; 7 React/i18n modules skipped (behavior in tested lib helpers); 12 residuals all equivalent/side-effect-only"
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "accepted",
+      "detail": "Full suite ~215/216 per run; the 1 failure/run is a pre-existing load-sensitive DM-test flake (different test each run). AC-60 proven flaky (7/7 on isolated rerun) + hardened blind-wait->expect.poll; groups-direct-chat-no-duplicates proven to fail IDENTICALLY on clean HEAD (not a regression, environmental 30s-timeout under machine load). Epic changes verified non-regressive. Definitive clean full-suite run deferred to a less-loaded machine."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_pass",
+      "detail": "Opus (resumable, continued by agentId across S1+S2+gate-remediation) clean; Codex clean. No app-code changes after the final clean review (only test-file edits since)."
+    }
+  ]
+}

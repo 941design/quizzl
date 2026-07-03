@@ -1,0 +1,118 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-02T18:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `addContactByNpub`'s implementation perform real npub decoding via `npubToPubkeyHex`, real reads/writes against `readStoredContacts`/`rememberContact`/`unarchiveContact`, and a real call to `rememberKnownPeers` — or does any branch return a hard-coded/stubbed `AddContactResult` (e.g. always `{ ok: true }` regardless of input) that would pass the unit tests only because the tests themselves stub the same path? Cite the exact lines exercising each of `npubToPubkeyHex`, `rememberKnownPeers`, and the contacts-store write, and confirm none is a frozen stand-in constant or a dependency that silently degrades to a no-op when not injected."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `addContactByNpub` import `rememberKnownPeers` exclusively through `knownPeers.ts`'s public export (no reach into `lp_knownPeers_v1` internals or private helpers like `readRaw`/`writeRaw`), and does `contacts.ts` avoid importing anything from `context/` or `components/` per the `pages/ -> components/ -> context/ -> lib/` hierarchy declared in architecture.md? Cite the actual import statements added for this story."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `contacts` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/contacts-add-by-npub.test.ts` include at minimum: a new-contact success case (AC-STRUCT-1), a reactivate-archived-contact case (AC-STRUCT-2), an invalid-npub rejection case (AC-ERR-1), a self-npub rejection case (AC-ERR-2), an already-active-duplicate rejection case (AC-ERR-3), and assertions against `loadKnownPeers()` / `isAllowedDmSender` / `purgeStrangerContacts` for the SEC ACs — using the `contacts.test.ts` hand-rolled `Object.defineProperty(globalThis, 'localStorage', ...)` mock convention rather than a mocked `contacts.ts` module? List the actual test names and the concrete assertions each makes."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the shipped `addContactByNpub` match the spec/architecture's Design Decision ordering — npub decode, then self/duplicate/archived checks, then `rememberKnownPeers` seed, then the contacts-store write (`rememberContact`/`unarchiveContact`) — with no reordering that reintroduces the `purgeStrangerContacts` race the architecture explicitly flags as a HIGH finding? Walk through the actual statement order in the function body, not just the final return value."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does `addContactByNpub` validate the npub via `npubToPubkeyHex` and reject any input that isn't a syntactically valid NIP-19 npub *before* touching `rememberKnownPeers` or the contacts store (so a malformed or adversarial string can never seed `knownPeers` or create a contact entry), and is the self-pubkey comparison against `ownPubkeyHex` performed case-insensitively so a differently-cased copy of the caller's own npub cannot bypass AC-ERR-2? Cite the validation order in the function body."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "For a valid npub with no existing contact entry, does `addContactByNpub` return exactly `{ ok: true, pubkeyHex, reactivated: false }` (`pubkeyHex` equal to the hex decode of the npub) AND create a new `readStoredContacts()` entry keyed by that `pubkeyHex` with `archivedAt: null`? Show the production code path and the exact test assertion in `contacts-add-by-npub.test.ts` that checks both the return value and the persisted entry, and confirm the test reads real localStorage state rather than a mocked `readStoredContacts`."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-2",
+      "question": "For a valid npub whose decoded pubkey matches an existing archived contact, does `addContactByNpub` return `{ ok: true, pubkeyHex, reactivated: true }`, unarchive the entry (`archivedAt` becomes null) in `readStoredContacts()`, and bump `lastSeenAt` to the call time? Cite the test that seeds an archived contact, calls `addContactByNpub`, and re-reads `readStoredContacts()` to confirm both fields actually changed — not just that the return value looked right."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ERR-1",
+      "question": "For a string that fails `npubToPubkeyHex` decoding, does `addContactByNpub` return exactly `{ ok: false, error: 'invalid_npub' }` and leave `readStoredContacts()` byte-for-byte unchanged (no entry created or modified)? Cite the test that snapshots `readStoredContacts()` before and after the call and asserts deep equality, not merely that the function returned an error object."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ERR-2",
+      "question": "For an npub whose decoded pubkey equals `ownPubkeyHex` case-insensitively, does `addContactByNpub` return `{ ok: false, error: 'self' }` without creating or modifying any `readStoredContacts()` entry, and does the test suite include at least one case where the npub's casing differs from `ownPubkeyHex`'s casing to prove the comparison is truly case-insensitive rather than an exact-string match that happens to pass on same-case fixtures?"
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ERR-3",
+      "question": "For an npub matching an existing active (non-archived) contact, does `addContactByNpub` return `{ ok: false, error: 'already_exists' }` while leaving that contact's `lastSeenAt` and every other field byte-for-byte unchanged? Cite the test that captures the full contact record before the call and asserts deep equality after, not merely that `ok` is `false`."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-1",
+      "question": "After any successful `addContactByNpub` call (new or reactivated), is the decoded `pubkeyHex` present in the set returned by `loadKnownPeers()`? Cite the test asserting `loadKnownPeers().has(pubkeyHex)` (or equivalent) is true after a real, non-mocked call through `rememberKnownPeers` — not a spy that only records the call was made without exercising `knownPeers.ts`'s real storage write."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-2",
+      "question": "With `groups: []` and the newly-added pubkey as `knownPeers`' only entry, does `isAllowedDmSender(pubkeyHex, [], knownPeers, ownPubkeyHex)` return `true` after a successful `addContactByNpub` call? Cite the test that calls the real `isAllowedDmSender` from `walledGarden.ts` against the real `loadKnownPeers()` output — not a stubbed whitelist predicate that always returns `true`."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-3",
+      "question": "After a successful `addContactByNpub` call, does calling `purgeStrangerContacts(getWhitelist)` — where `getWhitelist()` returns `groups` still excluding the new contact and `knownPeers` including it — leave the manually-added contact's entry intact in both `lp_contacts_v1` and `lp_contactCache_v1`? Cite the specific test that seeds `knownPeers` via the real `addContactByNpub` call (not by hand-inserting the pubkey into a `knownPeers` mock) and then invokes the real `purgeStrangerContacts`, confirming the entry survives in both storage keys. This is the load-bearing knownPeers-before-storage-write ordering guarantee from architecture.md's Implementation constraints (Spec Design Decision 1, validator HIGH finding); a test that seeds `knownPeers` by any path other than a successful `addContactByNpub` call does not verify the ordering and would pass even if the seeding happened after the store write."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "Does the `AddContactResult` type exported from `contacts.ts` conform exactly to the frozen seam contract in `stories.json`'s `seams[0].contract` — fields `ok: boolean`, `pubkeyHex?: string`, `reactivated?: boolean`, `error?: 'invalid_npub' | 'self' | 'already_exists'` — with no additional fields, no renamed fields, and `error` constrained to exactly those three string literals with no other value ever assigned to it anywhere in the implementation? Separately confirm, by inspecting statement order, the contract's third invariant: a `true` result is only ever returned after `rememberKnownPeers` has already been called (not concurrently, not after) — since S2 (`AddContactModal.tsx`) depends on this exact shape and ordering guarantee without re-verifying S1's internals."
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The shipped `addContactByNpub` (app/src/lib/contacts.ts:287-317) looks up an existing contact via an EXACT-key match (`contacts[pubkeyHex]`), deliberately not case-insensitive, on the reasoning that `npubToPubkeyHex` always returns lowercase hex and `rememberContact`/`unarchiveContact` already index by that same exact key. But `readStoredContacts()` can also contain entries written by `rememberContactsFromGroups` (app/src/lib/contacts.ts:103-111), which is keyed directly by whatever casing `group.memberPubkeys` arrives in from a raw Nostr/MLS event — not guaranteed lowercase. If a user's existing (active or archived) group-derived contact happens to be stored under a mixed-case key, does `addContactByNpub` correctly recognize it as `already_exists`/reactivate it, or does the exact-key lookup miss it and create a second, duplicate lowercase-keyed entry for the same real-world peer? Is this a real gap, or is there an invariant elsewhere in the codebase (e.g. a normalization step on ingest) that guarantees all `StoredContact` keys are already lowercase, making the concern moot? Cite the actual code that establishes (or fails to establish) that invariant."
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "`contacts-add-by-npub.test.ts`'s AC-ERR-1/AC-ERR-2/AC-ERR-3 tests assert `readStoredContacts()` deep-equality (or single-record deep-equality) before/after the rejected call, which proves the contacts store (`lp_contacts_v1`) is untouched. None of them additionally assert that `loadKnownPeers()` or `lp_contactCache_v1` are also left untouched on a rejection path. Given the spec's 'MUST NOT create or modify any entry' language for AC-ERR-1/2/3 is scoped to `readStoredContacts()` specifically, is the current test coverage sufficient, or should a rejection-path test also confirm `rememberKnownPeers` was never reached (e.g. `loadKnownPeers()` stays empty) for defense-in-depth against a future refactor that reorders the guards?"
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "epic": "add-contact-by-npub",
+  "concepts": [
+    {
+      "id": "add-contact-result-contract",
+      "name": "AddContactResult return-shape contract",
+      "owning_module": "contacts",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "known-peers-seed-before-store-write",
+      "name": "knownPeers seeding must precede any contacts-store write it protects",
+      "owning_module": "knownPeers",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "walled-garden-predicate-purity",
+      "name": "isAllowedDmSender signature and purity are frozen (ADR-002 AC-SEC-13)",
+      "owning_module": "walledGarden",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "npub-hex-codec-single-source",
+      "name": "npubToPubkeyHex is the single validity source for npub decoding",
+      "owning_module": "nostrKeys",
+      "type": "validation_rule",
+      "added_by_story": null
+    },
+    {
+      "id": "add-contact-modal-error-mapping",
+      "name": "AddContactModal maps AddContactResult error codes to translated copy without altering error semantics",
+      "owning_module": "AddContactModal",
+      "type": "validation_rule",
+      "added_by_story": null
+    },
+    {
+      "id": "contacts-page-import-hierarchy",
+      "name": "pages/ -> components/ -> context/ -> lib/ strict import hierarchy",
+      "owning_module": "contacts page",
+      "type": "path_convention",
+      "added_by_story": null
+    },
+    {
+      "id": "i18n-en-de-key-parity",
+      "name": "Every new/reworded copy key has both an en and a de entry",
+      "owning_module": "i18n",
+      "type": "naming_scheme",
+      "added_by_story": null
+    },
+    {
+      "id": "known-peers-live-refresh",
+      "name": "Out-of-band lp_knownPeers_v1 writes must notify long-lived walled-garden subscribers so cached knownPeers refs refresh without a reload",
+      "owning_module": "MarmotContext",
+      "added_by_story": "gate-remediation",
+      "producers": [
+        "AddContactModal"
+      ],
+      "consumers": [
+        "DirectMessageNotificationsWatcher",
+        "IncomingCallWatcher",
+        "ContactChat"
+      ],
+      "note": "Any future out-of-band writer of lp_knownPeers_v1 MUST call notifyKnownPeersChanged(); any new long-lived subscriber caching loadKnownPeers() MUST add knownPeersRevision to its refresh-effect deps."
+    }
+  ],
+  "stories": [],
+  "reviewer_state": {
+    "last_story_reviewed": "S2 + gate-remediation (knownPeers live-refresh P2)",
+    "model_at": "2026-07-02T16:30:00Z"
+  }
+}

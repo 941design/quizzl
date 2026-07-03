@@ -1,0 +1,104 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-02T18:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `add-contact-btn`'s `onClick` genuinely open a real `AddContactModal` whose submit handler calls the real `addContactByNpub` export (not a stub returning a hard-coded success), and does the modal's error-`Alert` rendering branch on the real `AddContactResult.error` value rather than an always-true or always-false placeholder condition? Cite the handler wiring."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `AddContactModal.tsx` avoid importing anything from `lib/contacts.ts` beyond the declared `addContactByNpub` export (no reach into private helpers like `readStoredContacts`/`writeStoredContacts`, and no reach into `knownPeers.ts` internals), and does `pages/contacts.tsx` reach `AddContactModal` only through `components/` per the `pages/ -> components/ -> context/ -> lib/` hierarchy in architecture.md — with no `contacts.tsx` bypass that calls storage-mutating `lib/contacts.ts` functions directly for the add-flow instead of going through the modal/`addContactByNpub`? Cite the import statements added for this story."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `AddContactModal` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Since this repo has zero `.test.tsx` / React-Testing-Library component tests (confirmed by exploration.json) and `AddContactModal.tsx` is correctly excluded from component-level unit testing per `stories.json`'s scope, is this story's test coverage limited to (a) `app/tests/unit/addContactByNpub.i18n.test.ts` asserting exact `en`+`de` values for all twelve `contacts.addContact*` keys (AC-INTL-1), and (b) a manual source-level trace of `AddContactModal.tsx` and `pages/contacts.tsx` confirming the six UX behaviors (AC-UX-1..6) are wired to real state/handlers? Confirm no test file claims to cover AC-UX-1..6 via a mock of `addContactByNpub` or `listContacts` that would still pass green even if the actual UI wiring were broken."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the shipped `AddContactModal` plus `pages/contacts.tsx` wiring match the spec's Technical Approach — button opens modal, modal calls `addContactByNpub`, result's `error` code maps to translated copy, success bumps `contactsRevision` and refreshes the list — modeled on `InviteMemberModal`'s existing pattern, with no divergent flow such as a full page reload substituting for the revision-bump refresh?"
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does `AddContactModal` guard its submit action against double-submission (e.g. disabling the submit button while a call to `addContactByNpub` is in flight) and clear or reset its prior error state at the start of a new submission, following the same defensive-UI conventions already used in `InviteMemberModal`?"
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-1",
+      "question": "Does `pages/contacts.tsx` render a button with `data-testid=\"add-contact-btn\"` whose `onClick` opens `AddContactModal` (e.g. via `useDisclosure`'s `onOpen`)? Cite the JSX and the disclosure wiring, and confirm no other condition (a disabled or hidden flag) prevents the modal from actually opening in the default render path."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-2",
+      "question": "When `AddContactModal` is submitted with a valid, not-yet-known npub, does the corresponding pubkey appear in the rendered contacts list (`listContacts` output) without a full page reload — via the `contactsRevision` state bump triggering a re-derivation of the memoized contacts list rather than `window.location.reload()` or `router.reload()`? Cite the success-branch handler and the revision-bump call site."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-3",
+      "question": "When `AddContactModal` is submitted with an invalid npub string, does it render an `Alert` with `data-testid=\"add-contact-error\"` whose copy resolves to `copy.contacts.addContactErrorInvalidNpub`, and does the modal stay open (no `onClose` call) on this branch? Cite the error-code-to-copy mapping and confirm `'invalid_npub'` maps to exactly that key, not a generic fallback key."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-4",
+      "question": "When `AddContactModal` is submitted with the current user's own npub, does it render the error `Alert` with copy resolving to `copy.contacts.addContactErrorSelf`? Cite the mapping for the `'self'` error code and confirm it is distinguished from the `'invalid_npub'`/`'already_exists'` mappings rather than sharing a generic error copy key."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-5",
+      "question": "When `AddContactModal` is submitted with an npub belonging to an already-active contact, does it render the error `Alert` with copy resolving to `copy.contacts.addContactErrorAlreadyExists`? Cite the mapping for the `'already_exists'` error code."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-6",
+      "question": "When `AddContactModal` is submitted with an npub belonging to an existing archived contact, does that contact appear in the default (`showHidden=false`) rendered contacts list without a full page reload — i.e. does the success branch for `reactivated: true` trigger the same `contactsRevision` bump as the new-contact case, and does `listContacts(ownPubkeyHex, { includeArchived: false })`'s filter correctly stop excluding the contact once its `archivedAt` becomes null? Cite the shared success-handler code path for both `reactivated: true` and `reactivated: false`, and confirm it is genuinely shared rather than two divergent branches where only one is actually wired to the revision bump."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INTL-1",
+      "question": "Does `app/src/lib/i18n.ts` define both `en` and `de` entries for all twelve keys — `addContactBtn`, `addContactTitle`, `addContactNpubLabel`, `addContactNpubPlaceholder`, `addContactHelp`, `addContactSubmit`, `addContactCancel`, `addContactSuccess`, `addContactErrorInvalidNpub`, `addContactErrorSelf`, `addContactErrorAlreadyExists`, `addContactErrorGeneric` — under the `contacts` section, and does `app/tests/unit/addContactByNpub.i18n.test.ts` assert the exact string value (not merely key-presence) for each key in both languages? Cite the test assertions and confirm the two reworded pre-existing keys (`contacts.description`, `contacts.emptyBody`) are also covered."
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The implementation reuses `copy.contacts.addContactTitle` ('Add Contact by Npub' / 'Kontakt per Npub hinzufügen') as the `title` prop passed to the QR-scanner sub-modal (`NpubQrModal`), rather than introducing a thirteenth copy key or reusing `copy.groups.qrScannerTitle` — see `app/src/components/contacts/AddContactModal.tsx`'s `<NpubQrModal title={copy.contacts.addContactTitle} ...>` call. Is this an acceptable reuse (the scanner is scanning for the same 'add contact' action, so the same title is contextually correct), or does it read as mislabeled given `InviteMemberModal` uses a dedicated `copy.groups.qrScannerTitle` ('Scan QR Code') for the analogous sub-modal rather than reusing its own `inviteTitle`? If mislabeled, this is a cosmetic follow-up, not a functional defect — AC-UX-1..6 do not assert on the QR sub-modal's title text."
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "question": "`pages/contacts.tsx`'s `ContactListView` header was changed from a single `Box` to a `Flex` (`justify=\"space-between\"`, `wrap=\"wrap\"`) containing the heading block and the new `add-contact-btn` Button, so the button can sit alongside the heading rather than below the description. At narrow viewport widths, does `wrap=\"wrap\"` keep the button reachable and non-overlapping (wrapping to its own line under the heading) rather than clipping or overlapping the heading text? This is a layout judgment call made during implementation with no unit-test coverage (no `.test.tsx` precedent in this repo per architecture.md) — flagging for a manual/visual check rather than as a confirmed defect."
+    }
+  ]
+}

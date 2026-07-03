@@ -1,0 +1,134 @@
+{
+  "epic_name": "add-contact-by-npub",
+  "created_at": "2026-07-02T16:30:00Z",
+  "total_stories": 2,
+  "story_order": [
+    "S1",
+    "S2"
+  ],
+  "dependency_notes": "S2 depends on S1 only through the frozen AddContactResult seam contract (below). S1 is independently testable via Vitest unit tests against contacts.ts with no UI dependency. S2 cannot be independently verified until S1 lands (it consumes the real addContactByNpub export, per architecture.md's note that S1 lets S2 depend only on the return-shape contract, not internals) — implemented sequentially per story_order, not in parallel.",
+  "mock_resolution_plan": "No temporary mocks introduced by either story; both consume only existing, already-implemented modules (knownPeers.ts, walledGarden.ts, nostrKeys.ts, NpubQrButton/NpubQrModal).",
+  "seams": [
+    {
+      "data": "AddContactResult",
+      "contract": {
+        "type_name": "AddContactResult",
+        "fields": [
+          {
+            "name": "ok",
+            "type": "boolean"
+          },
+          {
+            "name": "pubkeyHex",
+            "type": "string",
+            "optional": true
+          },
+          {
+            "name": "reactivated",
+            "type": "boolean",
+            "optional": true
+          },
+          {
+            "name": "error",
+            "type": "'invalid_npub' | 'self' | 'already_exists'",
+            "optional": true
+          }
+        ],
+        "invariants": [
+          "when ok is true, pubkeyHex is the lowercase hex decoding of the submitted npub and reactivated is present; error is absent",
+          "when ok is false, error is exactly one of 'invalid_npub' | 'self' | 'already_exists'; pubkeyHex and reactivated are absent",
+          "a true result is only returned after knownPeers has already been seeded with pubkeyHex (rememberKnownPeers precedes rememberContact/unarchiveContact)"
+        ]
+      },
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/contacts.ts#addContactByNpub"
+      },
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/components/contacts/AddContactModal.tsx"
+      }
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "add-contact-by-npub-core-logic",
+      "title": "addContactByNpub core logic",
+      "description": "New addContactByNpub(npub, ownPubkeyHex) function in app/src/lib/contacts.ts: decodes and validates the npub, rejects self/duplicate/malformed input, creates or reactivates a StoredContact entry, and seeds knownPeers before any contact-store write so a concurrent purgeStrangerContacts sweep cannot delete the newly-trusted peer. Returns the AddContactResult seam contract this story defines.",
+      "acceptance_criteria": [
+        "AC-STRUCT-1",
+        "AC-STRUCT-2",
+        "AC-ERR-1",
+        "AC-ERR-2",
+        "AC-ERR-3",
+        "AC-SEC-1",
+        "AC-SEC-2",
+        "AC-SEC-3"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/contacts.ts",
+          "app/tests/unit/contacts-add-by-npub.test.ts"
+        ],
+        "excludes": [
+          "AddContactModal.tsx and any UI wiring (S2)",
+          "changes to knownPeers.ts, walledGarden.ts, or nostrKeys.ts internals (reused as-is)",
+          "i18n copy keys (S2)"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "owning_module": "contacts",
+      "creates_seam": true,
+      "lighter_path": false,
+      "consumes_seams": [],
+      "notes": "Follows contacts.test.ts's hand-rolled localStorage mock convention (Object.defineProperty(globalThis, 'localStorage', ...)) per exploration.json's storage_mock_note. Ordering constraint from architecture.md's Implementation constraints section (rememberKnownPeers before any contacts-store write) is itself an AC-SEC-1..3 assertion, not just an internal detail — tests must observe it via knownPeers/purgeStrangerContacts side effects, not by inspecting call order."
+    },
+    {
+      "id": "S2",
+      "name": "add-contact-ui",
+      "title": "Add Contact UI",
+      "description": "New AddContactModal component (modeled on InviteMemberModal) plus contacts.tsx wiring (add-contact-btn button, useDisclosure, contactsRevision bump on success) and new/reworded i18n copy keys. Consumes the AddContactResult contract from S1 to map error codes to translated Alert copy and to trigger the contacts-list refresh on success.",
+      "acceptance_criteria": [
+        "AC-UX-1",
+        "AC-UX-2",
+        "AC-UX-3",
+        "AC-UX-4",
+        "AC-UX-5",
+        "AC-UX-6",
+        "AC-INTL-1"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/components/contacts/AddContactModal.tsx",
+          "app/pages/contacts.tsx",
+          "app/src/lib/i18n.ts",
+          "app/tests/unit/addContactByNpub.i18n.test.ts"
+        ],
+        "excludes": [
+          "addContactByNpub implementation (S1, consumed as a dependency)",
+          "NpubQrButton / NpubQrModal changes (reused as-is)",
+          "new e2e spec (architecture.md: no new e2e spec by default; regression via existing 48-test suite)",
+          "AddContactModal component-level unit test (no *.test.tsx precedent in repo per exploration.json; matches spec scope of testing addContactByNpub only)"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "owning_module": "AddContactModal",
+      "creates_seam": false,
+      "lighter_path": false,
+      "consumes_seams": [
+        "AddContactResult"
+      ],
+      "notes": "Also rewords two pre-existing i18n keys (contacts.description, contacts.emptyBody) per spec Technical Approach; these are modifications to app/src/lib/i18n.ts already listed in scope.includes, not a separate file target. i18n test file asserts exact en+de string values per exploration.json's i18n_test convention (no structural key-parity gate exists)."
+    }
+  ],
+  "updated_at": "2026-07-02T19:30:00Z"
+}

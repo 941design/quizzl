@@ -1,0 +1,38 @@
+{
+  "module_name": "AddContactModal",
+  "purpose": "Contacts-page UI for adding a contact by npub: an 'Add Contact' button on pages/contacts.tsx opens AddContactModal, which collects a typed or QR-scanned npub, calls the S1 addContactByNpub seam, maps its error codes to translated Alert copy, and on success bumps the page's contactsRevision so the newly-added (or reactivated) contact appears in the list without a reload.",
+  "public_api": [
+    {
+      "name": "AddContactModal",
+      "signature": "AddContactModal(props: { isOpen: boolean; onClose: () => void; onSuccess: () => void }): JSX.Element",
+      "description": "Modal component modeled on InviteMemberModal. Renders an npub Input + NpubQrButton/NpubQrModal + submit Button. On submit, calls addContactByNpub(npubInput.trim(), ownPubkeyHex) where ownPubkeyHex comes from useNostrIdentity(). On ok:true, sets a local success state, clears the input, calls onSuccess() (contacts-page bumps contactsRevision), then after ~1500ms clears success and calls onClose() — mirroring InviteMemberModal's success-timeout pattern. On ok:false, renders an error Alert (data-testid=add-contact-error) mapped from result.error via a getErrorMessage switch and keeps the modal open. Guards against double-submit (isLoading disables submit; submit is also disabled when input is empty or success is true)."
+    }
+  ],
+  "private_files": [
+    "app/src/components/contacts/AddContactModal.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/contacts.ts (addContactByNpub export only)",
+    "app/src/context/LanguageContext.tsx (useCopy)",
+    "app/src/context/NostrIdentityContext.tsx (useNostrIdentity)",
+    "app/src/components/groups/NpubQrButton.tsx (reused as-is)",
+    "app/src/components/groups/NpubQrModal.tsx (reused as-is)",
+    "@chakra-ui/react (Modal primitives, Button, Input, Alert, etc.)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/knownPeers.ts",
+    "app/src/lib/walledGarden.ts",
+    "app/src/lib/nostrKeys.ts (internal helpers beyond what contacts.ts already re-exports via addContactByNpub's contract)",
+    "direct localStorage / readStoredContacts / writeStoredContacts access from the modal or the page"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/addContactByNpub.i18n.test.ts"
+  ],
+  "seam": {
+    "cross_story": false
+  }
+}

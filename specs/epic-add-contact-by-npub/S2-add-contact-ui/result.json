@@ -1,0 +1,94 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "remediation_rounds": 1,
+  "modules_touched": [
+    "AddContactModal",
+    "contacts page",
+    "i18n",
+    "MarmotContext"
+  ],
+  "files_created": [
+    "app/src/components/contacts/AddContactModal.tsx",
+    "app/tests/unit/addContactByNpub.i18n.test.ts",
+    "specs/epic-add-contact-by-npub/S2-add-contact-ui/architecture.json",
+    "specs/epic-add-contact-by-npub/S2-add-contact-ui/baseline.json",
+    "specs/epic-add-contact-by-npub/S2-add-contact-ui/result.json"
+  ],
+  "files_modified": [
+    "app/pages/contacts.tsx",
+    "app/src/lib/i18n.ts",
+    "specs/epic-add-contact-by-npub/S2-add-contact-ui/verification.json"
+  ],
+  "implementation_summary": "Added AddContactModal.tsx, modeled directly on InviteMemberModal.tsx: npub Input + NpubQrButton/NpubQrModal for scan + typed-error-code getErrorMessage switch ('invalid_npub'/'self'/'already_exists'/default -> generic) + success-timeout-then-close (~1500ms) pattern, calling the S1 addContactByNpub(npub, ownPubkeyHex) export (ownPubkeyHex from useNostrIdentity()). Submit is guarded against double-submission (isLoading disables both buttons; submit additionally disabled when input is empty or success is true). The success branch is a single shared code path for both reactivated:true and reactivated:false (no divergent branching) — calls onSuccess() unconditionally on result.ok before the timeout, so AC-UX-2 (new contact) and AC-UX-6 (reactivated archived contact) both refresh via the same mechanism. Wired pages/contacts.tsx's ContactListView with a useDisclosure(), an 'Add Contact' Button (data-testid=add-contact-btn) placed in a Flex alongside the existing heading block, and <AddContactModal> rendered as a JSX sibling whose onSuccess bumps the existing contactsRevision state (no new revision mechanism introduced — reuses the counter already bumped after rememberContactsFromGroups). Added all twelve new contacts.* i18n keys (en+de) plus reworded contacts.description and contacts.emptyBody (en+de) to mention npub-based adding, per spec Technical Approach. AddContactModal imports nothing from lib/contacts.ts beyond the addContactByNpub export (verified via grep — no readStoredContacts/writeStoredContacts/knownPeers reach from the component).",
+  "tests": {
+    "baseline": {
+      "test_files": 119,
+      "tests": 1956
+    },
+    "final": {
+      "test_files": 120,
+      "tests": 1958
+    },
+    "new_tests": 2,
+    "new_test_file": "app/tests/unit/addContactByNpub.i18n.test.ts",
+    "all_passing": true
+  },
+  "lint_typecheck": {
+    "lint": "NO_LINT (no ESLint config exists in app/; next lint prompts interactively and cannot run non-interactively — same baseline as S1, unchanged by this story)",
+    "typecheck": "clean (npx tsc --noEmit from app/, 0 errors, unchanged from baseline)"
+  },
+  "mocks_introduced": [],
+  "judgment_calls": [
+    {
+      "decision": "Add Contact button placed in a Flex (justify=space-between, wrap=wrap) alongside the existing page heading/description Box, rather than as a full-width button below the description.",
+      "rationale": "Keeps the primary action visually anchored to the page header, consistent with the 'create-group-btn' placement pattern in pages/groups.tsx. No component-test precedent exists in this repo to assert layout, so this was a visual judgment call.",
+      "residual_risk": "At narrow viewports the Flex wraps the button to its own line (wrap=wrap) rather than clipping, but this was not visually verified on a real narrow viewport during implementation. Flagged as VQ-S2-015 (post-impl) for a manual check."
+    },
+    {
+      "decision": "Kept handleAdd as a plain synchronous function (no async/await/void) since addContactByNpub (S1) is synchronous, unlike InviteMemberModal's async inviteByNpub — but preserved the try/catch/finally shape for defensive symmetry with InviteMemberModal's error handling.",
+      "rationale": "Matches the actual signature of the S1 seam contract; adding async/await around a sync call would be misleading dead ceremony.",
+      "residual_risk": "None — this is a straightforward simplification consistent with the real dependency's type."
+    },
+    {
+      "decision": "Reused copy.contacts.addContactTitle as the QR sub-modal's title prop, instead of adding a 13th copy key or reusing copy.groups.qrScannerTitle.",
+      "rationale": "The spec's twelve-key list (AC-INTL-1) is exhaustive and does not include a scanner-specific title key for this feature; reusing the feature's own title keeps the QR flow correctly attributed to 'adding a contact' without inventing an out-of-scope key.",
+      "residual_risk": "Cosmetic only — InviteMemberModal uses a dedicated, more generic 'Scan QR Code' title for its own scanner sub-modal, so there's a minor inconsistency in title-reuse convention across the two modals. Flagged as VQ-S2-014 (post-impl); does not affect any AC."
+    },
+    {
+      "decision": "German copy uses informal 'du' throughout (matching existing contacts.description tone: 'damit du direkt weiterschreiben kannst').",
+      "rationale": "Existing app-wide convention per exploration of i18n.ts's de object; consistency required across all new and reworded strings in this section.",
+      "residual_risk": "None."
+    }
+  ],
+  "verification_json": {
+    "pre_impl_questions": 13,
+    "post_impl_questions_appended": 2,
+    "post_impl_question_ids": [
+      "VQ-S2-014",
+      "VQ-S2-015"
+    ]
+  },
+  "retrospective": {
+    "skipped": true,
+    "reason": "routine"
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-02T19:30:00Z",
+  "verification_summary": {
+    "examiners": 2,
+    "verdicts": "13 YES @0.95-1.0",
+    "fast_path": "pass"
+  },
+  "gate_remediation": {
+    "finding": "Codex P2: manual-add knownPeers write not seen by live walled-garden subscribers (DM watcher, call watcher, ContactChat) until reload",
+    "fix": "MarmotContext knownPeersRevision counter + notifyKnownPeersChanged(); AddContactModal bumps on success; 3 watchers refresh knownPeersRef on the bump",
+    "files_added": [
+      "app/src/context/MarmotContext.tsx",
+      "app/src/components/DirectMessageNotificationsWatcher.tsx",
+      "app/src/components/calls/IncomingCallWatcher.tsx",
+      "app/src/components/contacts/ContactChat.tsx"
+    ],
+    "reviews": "opus clean, codex clean"
+  }
+}

@@ -78,15 +78,17 @@ export default function ContactChat({
 }: ContactChatProps) {
   const copy = useCopy();
   const toast = useToast();
-  const { groups, ready: marmotReady, whenReady } = useMarmot();
+  const { groups, ready: marmotReady, whenReady, knownPeersRevision } = useMarmot();
   // Ref for groups so subscription handlers always see the latest whitelist
   // without the effect needing to re-subscribe on every membership change.
   const groupsRef = useRef(groups);
   useEffect(() => { groupsRef.current = groups; }, [groups]);
   // Ref for ever-known peers — refreshed whenever groups change (which is also
-  // when knownPeers may have been updated by MarmotContext's maintenance effect).
+  // when knownPeers may have been updated by MarmotContext's maintenance effect)
+  // OR when knownPeersRevision bumps (an out-of-band write, e.g. manual
+  // add-contact-by-npub, that doesn't correlate with a groups change).
   const knownPeersRef = useRef(loadKnownPeers());
-  useEffect(() => { knownPeersRef.current = loadKnownPeers(); }, [groups]);
+  useEffect(() => { knownPeersRef.current = loadKnownPeers(); }, [groups, knownPeersRevision]);
   // Track MarmotContext readiness so the historical fetch can wait for the
   // group whitelist to be fully loaded before running the walled-garden gate.
   // Without this, a fast relay (< 100 ms) resolves the historical fetch before

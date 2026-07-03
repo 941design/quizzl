@@ -259,6 +259,18 @@ type Copy = {
     backToContacts: string;
     contactNotFound: string;
     commonGroups: (names: string[]) => string;
+    addContactBtn: string;
+    addContactTitle: string;
+    addContactNpubLabel: string;
+    addContactNpubPlaceholder: string;
+    addContactHelp: string;
+    addContactSubmit: string;
+    addContactCancel: string;
+    addContactSuccess: string;
+    addContactErrorInvalidNpub: string;
+    addContactErrorSelf: string;
+    addContactErrorAlreadyExists: string;
+    addContactErrorGeneric: string;
   };
   profile: {
     pageTitle: string;
@@ -700,9 +712,9 @@ const copy: Record<LanguageCode, Copy> = {
     contacts: {
       pageTitle: 'Contacts',
       heading: 'Contacts',
-      description: 'People from your shared groups stay here so you can keep chatting directly.',
+      description: 'People from your shared groups stay here so you can keep chatting directly. You can also add someone directly by their npub.',
       emptyTitle: 'No contacts yet',
-      emptyBody: 'Join a group with someone and they will appear here.',
+      emptyBody: 'Join a group with someone, or add their npub directly, and they will appear here.',
       listHeading: 'All contacts',
       hiddenFilterLabel: 'Hidden contacts',
       hideHiddenOption: 'Hide hidden contacts',
@@ -716,6 +728,18 @@ const copy: Record<LanguageCode, Copy> = {
       backToContacts: 'Back to Contacts',
       contactNotFound: 'Contact not found.',
       commonGroups: (names: string[]) => `Groups: ${names.join(', ')}`,
+      addContactBtn: 'Add Contact',
+      addContactTitle: 'Add Contact by Npub',
+      addContactNpubLabel: "Contact's npub",
+      addContactNpubPlaceholder: 'npub1...',
+      addContactHelp: "Enter or scan someone's npub to add them as a contact — no shared group needed.",
+      addContactSubmit: 'Add Contact',
+      addContactCancel: 'Cancel',
+      addContactSuccess: 'Contact added',
+      addContactErrorInvalidNpub: "That doesn't look like a valid npub. Please check and try again.",
+      addContactErrorSelf: "You can't add yourself as a contact.",
+      addContactErrorAlreadyExists: 'This person is already in your contacts.',
+      addContactErrorGeneric: "Couldn't add this contact. Please try again.",
     },
     profile: {
       pageTitle: 'Profile',
@@ -1144,9 +1168,9 @@ const copy: Record<LanguageCode, Copy> = {
     contacts: {
       pageTitle: 'Kontakte',
       heading: 'Kontakte',
-      description: 'Personen aus gemeinsamen Gruppen bleiben hier erhalten, damit du direkt weiterschreiben kannst.',
+      description: 'Personen aus gemeinsamen Gruppen bleiben hier erhalten, damit du direkt weiterschreiben kannst. Du kannst auch direkt jemanden über den Npub hinzufügen.',
       emptyTitle: 'Noch keine Kontakte',
-      emptyBody: 'Tritt einer Gruppe mit anderen Personen bei, dann erscheinen sie hier.',
+      emptyBody: 'Tritt einer Gruppe mit anderen Personen bei oder füge direkt einen Npub hinzu, dann erscheinen sie hier.',
       listHeading: 'Alle Kontakte',
       hiddenFilterLabel: 'Versteckte Kontakte',
       hideHiddenOption: 'Versteckte Kontakte ausblenden',
@@ -1160,6 +1184,18 @@ const copy: Record<LanguageCode, Copy> = {
       backToContacts: 'Zurück zu Kontakten',
       contactNotFound: 'Kontakt nicht gefunden.',
       commonGroups: (names: string[]) => `Gruppen: ${names.join(', ')}`,
+      addContactBtn: 'Kontakt hinzufügen',
+      addContactTitle: 'Kontakt per Npub hinzufügen',
+      addContactNpubLabel: 'Npub der Person',
+      addContactNpubPlaceholder: 'npub1...',
+      addContactHelp: 'Gib den Npub einer Person ein oder scanne ihn, um sie als Kontakt hinzuzufügen – eine gemeinsame Gruppe ist nicht nötig.',
+      addContactSubmit: 'Kontakt hinzufügen',
+      addContactCancel: 'Abbrechen',
+      addContactSuccess: 'Kontakt hinzugefügt',
+      addContactErrorInvalidNpub: 'Das sieht nicht nach einem gültigen Npub aus. Bitte überprüfe die Eingabe.',
+      addContactErrorSelf: 'Du kannst dich nicht selbst als Kontakt hinzufügen.',
+      addContactErrorAlreadyExists: 'Diese Person ist bereits in deinen Kontakten.',
+      addContactErrorGeneric: 'Der Kontakt konnte nicht hinzugefügt werden. Bitte versuche es erneut.',
     },
     profile: {
       pageTitle: 'Profil',

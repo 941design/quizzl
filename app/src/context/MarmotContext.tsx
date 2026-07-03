@@ -294,6 +294,24 @@ type MarmotContextValue = {
    * Call after saving a new relay list so discovery uses the updated set immediately.
    */
   republishDiscoverability: (relayUrls: string[]) => Promise<void>;
+  /**
+   * Monotonically increasing counter bumped whenever lp_knownPeers_v1 is written
+   * OUTSIDE the group-membership-driven seeding effects above (currently: the
+   * manual add-contact-by-npub flow). The three always-mounted watchers
+   * (DirectMessageNotificationsWatcher, IncomingCallWatcher, ContactChat) cache
+   * loadKnownPeers() in a ref that previously refreshed only on `groups` changes;
+   * before manual-add, every knownPeers write coincided with a groups change, so
+   * that was sufficient. This counter gives those refresh effects a second,
+   * independent trigger so a manually-added contact is immediately reachable via
+   * DMs/calls without waiting for an unrelated group change or a full reload.
+   */
+  knownPeersRevision: number;
+  /**
+   * Bumps knownPeersRevision. Call after any successful out-of-band write to
+   * lp_knownPeers_v1 that does not already correlate with a `groups` change —
+   * e.g. after addContactByNpub succeeds in AddContactModal.
+   */
+  notifyKnownPeersChanged: () => void;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -362,6 +380,9 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const [pollVersion, setPollVersion] = useState(0);
   // Bumped on every successfully applied inbound kind-7 reaction (S4, AC-38)
   const [reactionsVersion, setReactionsVersion] = useState(0);
+  // Bumped whenever lp_knownPeers_v1 is written outside the group-seeding
+  // effects (currently: manual add-contact-by-npub) — see notifyKnownPeersChanged.
+  const [knownPeersRevision, setKnownPeersRevision] = useState(0);
   // Track discoverability status
   const [discoverable, setDiscoverable] = useState(false);
 
@@ -1551,6 +1572,14 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     }
   }, [pubkeyHex]);
 
+  // Bumps knownPeersRevision so the always-mounted watchers (which cache
+  // loadKnownPeers() in a ref refreshed only on `groups` changes) pick up an
+  // out-of-band knownPeers write immediately. Functional update avoids a
+  // dependency on the current value, keeping this callback stable.
+  const notifyKnownPeersChanged = useCallback((): void => {
+    setKnownPeersRevision((n) => n + 1);
+  }, []);
+
   /**
    * Re-publish key-package discoverability and kind 30051 relay list to the given
    * relay URLs. Called from the relay settings save handler so discoverability
@@ -1630,6 +1659,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       grantAdmin,
       getPendingRemovals,
       republishDiscoverability,
+      knownPeersRevision,
+      notifyKnownPeersChanged,
     }),
     [
       ready,
@@ -1662,6 +1693,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       grantAdmin,
       getPendingRemovals,
       republishDiscoverability,
+      knownPeersRevision,
+      notifyKnownPeersChanged,
     ]
   );
 
@@ -1705,6 +1738,8 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   grantAdmin: async () => ({ ok: false, error: 'not_ready' }),
   getPendingRemovals: () => [],
   republishDiscoverability: NOOP_ASYNC,
+  knownPeersRevision: 0,
+  notifyKnownPeersChanged: () => {},
 };
 
 export function useMarmot(): MarmotContextValue {

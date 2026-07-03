@@ -1,0 +1,13 @@
+{
+  "story_id": "S1",
+  "captured_at": "2026-07-02T18:30:00Z",
+  "tests": {
+    "runner": "vitest (make test-unit)",
+    "status": "PASS",
+    "test_files": 118,
+    "tests": 1942
+  },
+  "lint": "NO_LINT",
+  "typecheck": "clean",
+  "notes": "No ESLint config present in app/ (npx next lint prompts for interactive first-time setup — treated as NO_LINT, consistent with no lint script producing a non-interactive pass/fail result). `npx tsc --noEmit` exits 0 cleanly."
+}

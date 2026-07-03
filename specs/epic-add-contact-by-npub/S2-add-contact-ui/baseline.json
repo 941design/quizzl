@@ -1,0 +1,20 @@
+{
+  "story_id": "S2",
+  "captured_at": "2026-07-02T19:10:00Z",
+  "tests": {
+    "command": "make test-unit",
+    "test_files": 119,
+    "tests": 1956,
+    "status": "PASS"
+  },
+  "lint": {
+    "command": "npx next lint (app/package.json 'lint' script)",
+    "status": "NO_LINT",
+    "note": "No ESLint config file exists in app/ (no .eslintrc*/eslint.config*); `next lint` prompts interactively to scaffold one and cannot run non-interactively. Treated as NO_LINT per the Step 0 tolerance — pre-existing project state, not introduced by this story."
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit (from app/)",
+    "status": "clean",
+    "errors": 0
+  }
+}

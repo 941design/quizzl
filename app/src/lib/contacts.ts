@@ -3,6 +3,8 @@ import { STORAGE_KEYS } from '@/src/types';
 import { isStorageAvailable } from '@/src/lib/storage';
 import { isAllowedDmSender } from '@/src/lib/walledGarden';
 import type { WhitelistArgs } from '@/src/lib/walledGarden';
+import { npubToPubkeyHex } from '@/src/lib/nostrKeys';
+import { rememberKnownPeers } from '@/src/lib/knownPeers';
 
 export type StoredContact = {
   pubkeyHex: string;
@@ -243,6 +245,100 @@ export function addableGroupsForContact(
   return eligibleGroupsForContact(groups, contactPubkeyHex).filter((group) =>
     adminGroupIds.has(group.id),
   );
+}
+
+export type AddContactResult =
+  | { ok: true; pubkeyHex: string; reactivated: boolean }
+  | { ok: false; error: 'invalid_npub' | 'self' | 'already_exists' };
+
+/**
+ * Adds a contact by npub, the entry point for "add contact by npub" (S1).
+ *
+ * Decodes `npub` to hex first — no storage read or write happens before that
+ * check, so an invalid npub never touches storage. Self-addressing is
+ * rejected next, comparing `ownPubkeyHex` case-insensitively (Nostr pubkeys
+ * arrive in varying capitalisations from different clients), also before any
+ * storage mutation.
+ *
+ * `npubToPubkeyHex` decodes any well-formed bech32 npub, including ones that
+ * checksum-decode to a payload that is not a valid 32-byte pubkey (e.g. an
+ * npub built from a 2-character payload). Its result is therefore validated
+ * here as exactly 64 lowercase hex characters (`/^[0-9a-f]{64}$/`) before it
+ * is treated as a pubkey — a decoded-but-malformed payload is rejected as
+ * `invalid_npub` with no storage mutation, same as a decode failure.
+ *
+ * Contact lookup is **case-insensitive** against `readStoredContacts()`.
+ * `npubToPubkeyHex` always returns lowercase hex, but stored keys are NOT
+ * guaranteed to be lowercase: `rememberContact` and `rememberContactsFromGroups`
+ * index by whatever case the caller (or a group's `memberPubkeys`) happens to
+ * supply, un-normalized. An exact-key match would therefore miss an existing
+ * entry stored under a mixed/upper-case key — silently creating a duplicate
+ * and bypassing both the `already_exists` guard and archived-contact
+ * reactivation. The resolution below gathers ALL case-insensitive matches
+ * (there can be more than one, e.g. an active entry and a separately-stored
+ * archived entry differing only in case) and operates on that set, consistent
+ * with the case-insensitive comparisons used elsewhere in this module
+ * (`commonGroups`, `eligibleGroupsForContact`, `listContacts`). If ANY match
+ * is active, the request is rejected as `already_exists` even if another
+ * matching entry is archived — an active entry always wins the guard check
+ * over reactivating a different archived duplicate.
+ *
+ * An existing, non-archived contact is left completely untouched (not even
+ * `lastSeenAt` is bumped) and reported as `already_exists`. An existing,
+ * archived contact (with no active match) is reactivated: `rememberKnownPeers`
+ * runs BEFORE any contacts-store write, in both the reactivate and new-contact
+ * branches — this ordering is load-bearing (ADR-005). It closes a window
+ * where a concurrent `purgeStrangerContacts` sweep (e.g. from another browser
+ * tab sharing localStorage) could otherwise delete the contact before it is
+ * recognized as an ever-known peer. Do not reorder for convenience.
+ *
+ * @param npub          - Bech32 npub string supplied by the user.
+ * @param ownPubkeyHex  - The local user's hex pubkey (any case, or
+ *                        null/undefined). When falsy, the self-check is
+ *                        skipped.
+ * @returns `{ ok: true, pubkeyHex, reactivated }` on success — `reactivated`
+ *   is `true` when an archived entry was restored, `false` for a brand-new
+ *   entry. `{ ok: false, error }` otherwise, where `error` identifies which
+ *   guard rejected the request.
+ */
+export function addContactByNpub(
+  npub: string,
+  ownPubkeyHex: string | null | undefined,
+): AddContactResult {
+  const decoded = npubToPubkeyHex(npub);
+  if (decoded === null || !/^[0-9a-f]{64}$/.test(decoded.toLowerCase())) {
+    return { ok: false, error: 'invalid_npub' };
+  }
+  const pubkeyHex = decoded.toLowerCase();
+
+  if (ownPubkeyHex && pubkeyHex === ownPubkeyHex.toLowerCase()) {
+    return { ok: false, error: 'self' };
+  }
+
+  const contacts = readStoredContacts();
+  // Resolve ALL stored keys matching case-insensitively — pubkeyHex is
+  // already lowercase (validated above), but the stored key(s) may not be,
+  // and more than one case-variant entry can coexist.
+  const matchingKeys = Object.keys(contacts).filter((key) => key.toLowerCase() === pubkeyHex);
+  const hasActiveMatch = matchingKeys.some((key) => !contacts[key].archivedAt);
+
+  if (hasActiveMatch) {
+    return { ok: false, error: 'already_exists' };
+  }
+
+  if (matchingKeys.length > 0) {
+    // All matches are archived — reactivate the first one deterministically;
+    // any remaining archived duplicates are left as-is.
+    const existingKey = matchingKeys[0];
+    rememberKnownPeers([pubkeyHex]);
+    unarchiveContact(existingKey);
+    rememberContact(existingKey);
+    return { ok: true, pubkeyHex, reactivated: true };
+  }
+
+  rememberKnownPeers([pubkeyHex]);
+  rememberContact(pubkeyHex);
+  return { ok: true, pubkeyHex, reactivated: false };
 }
 
 /**

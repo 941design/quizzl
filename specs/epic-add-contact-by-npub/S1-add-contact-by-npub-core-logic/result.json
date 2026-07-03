@@ -1,0 +1,87 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "remediation_rounds": 2,
+  "modules_touched": [
+    "contacts"
+  ],
+  "files_created": [
+    "app/tests/unit/contacts-add-by-npub.test.ts",
+    "specs/epic-add-contact-by-npub/S1-add-contact-by-npub-core-logic/architecture.json",
+    "specs/epic-add-contact-by-npub/S1-add-contact-by-npub-core-logic/baseline.json",
+    "specs/epic-add-contact-by-npub/S1-add-contact-by-npub-core-logic/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/contacts.ts",
+    "specs/epic-add-contact-by-npub/S1-add-contact-by-npub-core-logic/verification.json"
+  ],
+  "implementation_summary": "Added addContactByNpub(npub, ownPubkeyHex): AddContactResult to app/src/lib/contacts.ts, plus the exported AddContactResult union type, matching stories.json seams[0] exactly. Algorithm: (1) decode via npubToPubkeyHex; validate result is well-formed 64-char lowercase hex (/^[0-9a-f]{64}$/) — reject as invalid_npub (no storage touch) on null OR malformed payload (e.g. checksummed-but-short npub); (2) case-insensitive self-check against ownPubkeyHex, no storage touch; (3) gather ALL case-insensitive key matches via filter; (4) if ANY match is active -> already_exists, no mutation; (5) all matches archived -> rememberKnownPeers([pubkeyHex]) THEN unarchiveContact THEN rememberContact on first archived match (reactivated: true); (6) no match -> rememberKnownPeers([pubkeyHex]) THEN rememberContact (reactivated: false). rememberKnownPeers-before-any-contacts-store-write ordering (ADR-005) preserved in both success branches. Two lead-owned review remediation rounds applied: (R1, Opus) case-insensitive resolution + JSDoc correction + honest test comment; (R2, Codex) 64-hex-char malformed-npub validation + all-active-match guard against case-variant duplicates.",
+  "tests": {
+    "baseline": {
+      "test_files": 118,
+      "tests": 1942
+    },
+    "final": {
+      "test_files": 119,
+      "tests": 1956
+    },
+    "new_tests": 14,
+    "new_test_file": "app/tests/unit/contacts-add-by-npub.test.ts",
+    "all_passing": true
+  },
+  "lint_typecheck": {
+    "lint": "NO_LINT",
+    "typecheck": "clean (npx tsc --noEmit, 0 errors, unchanged from baseline)"
+  },
+  "mocks_introduced": [],
+  "judgment_calls": [
+    {
+      "decision": "Existing-contact lookup gathers ALL case-insensitive key matches (filter), rejecting if any is active and reactivating only when all matches are archived.",
+      "rationale": "Consistent with the rest of contacts.ts, which compares pubkeys case-insensitively (commonGroups, eligibleGroupsForContact, listContacts) because stored keys are NOT normalized to lowercase at write time (rememberContact/rememberContactsFromGroups index by caller casing). Prevents duplicate-entry creation and duplicate-active records.",
+      "residual_risk": "On reactivation of a mixed/upper-case-keyed archived entry, the store retains the original mixed-case key while the function returns lowercase pubkeyHex. A downstream getContact() (exact-match on pubkeyHex) could miss it. Pre-existing module-wide case-normalization gap, low impact for this feature (S2 refreshes via listContacts which reads all entries regardless of key case, so the reactivated contact still appears). Disclosed as a Review note and flagged to S2; not fixed in S1 to avoid a module-wide change touching other callers."
+    }
+  ],
+  "verification_json": {
+    "pre_impl_questions": 15,
+    "post_impl_questions_appended": 2,
+    "post_impl_question_ids": [
+      "VQ-S1-016",
+      "VQ-S1-017"
+    ]
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The initial implementation shipped an exact-key contact lookup that looked reasonable but was wrong: contacts.ts stored keys are NOT lowercase-normalized at write time (rememberContact/rememberContactsFromGroups index by caller casing), yet the module compares case-insensitively everywhere else. This latent invariant was not documented at the call site, so it took two review rounds (Opus, then Codex) to surface — first the exact-key vs case-insensitive gap, then the all-active-match refinement and the malformed-npub-payload gap in npubToPubkeyHex.",
+    "surprised_by": "npubToPubkeyHex returns decoded data for ANY checksummed bech32 npub regardless of payload length (nip19.npubEncode(\"aa\") decodes to \"aa\", not null), so callers must validate 64-hex before trusting the result.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "note": "initial addContactByNpub implementation + 10 tests, correct on first pass for the happy paths"
+      },
+      {
+        "agent": "code-reviewer",
+        "spawn_index": 1,
+        "note": "R1 Opus: exact-key lookup is a real duplicate-contact bug given un-normalized stored keys; JSDoc stated a false premise; test comment overstated ordering coverage"
+      },
+      {
+        "agent": "codex:review",
+        "spawn_index": 1,
+        "note": "R2 Codex: malformed-payload npub bypasses invalid_npub (add 64-hex validation); .find could reactivate an archived variant when an active case-variant also exists (gather all matches, reject if any active)"
+      }
+    ]
+  },
+  "review": {
+    "stage1_opus": "clean after R1+R2 (1 residual sev-3 out-of-scope, disclosed)",
+    "stage2_codex": "clean (no discrete correctness issues)"
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-02T19:04:00Z",
+  "verification_summary": {
+    "examiners": 2,
+    "verdicts": "16 YES @1.0, 1 PARTIAL(VQ-S1-017 sev3 conf0.8 defense-in-depth, hardened by lead)",
+    "fast_path": "pass"
+  }
+}

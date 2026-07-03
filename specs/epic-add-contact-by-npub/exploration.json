@@ -1,0 +1,43 @@
+{
+  "epic": "add-contact-by-npub",
+  "explored_at": "2026-07-02T16:12:00Z",
+  "similar_features": {
+    "invite_member_modal": {
+      "path": "app/src/components/groups/InviteMemberModal.tsx",
+      "props": "{ isOpen, onClose, groupId }",
+      "state": ["npubInput", "isLoading", "error: string|null", "success: boolean"],
+      "error_mapping": "getErrorMessage(errorCode) switch → copy.groups.* with generic default (lines 43-56)",
+      "success_flow": "on result.ok: setSuccess, clear input, setTimeout 1500ms → clear success + onClose (lines 58-84)",
+      "qr": "NpubQrModal rendered as fragment sibling, own useDisclosure (scanDisclosure), mode='scan', onScan writes npubInput",
+      "note": "AddContactModal mirrors this, dropping groupId; adds onSuccess callback for contactsRevision bump"
+    },
+    "npub_qr_button": "app/src/components/groups/NpubQrButton.tsx:1-19 — IconButton wrapper, reused as-is",
+    "npub_qr_modal": "app/src/components/groups/NpubQrModal.tsx:21-33 — reused as-is (mode='scan')",
+    "trigger_pattern": "pages/groups.tsx: useDisclosure() named {feature}Disclosure, Button onClick=onOpen with data-testid, modal as JSX sibling (repeated 4x convention)",
+    "contacts_page": "app/pages/contacts.tsx ContactListView (line 38): contactsRevision state (45) bumped after rememberContactsFromGroups (52-56), consumed as memo dep. Add button+modal here, bump on success. Copy keys to reword: description (85), emptyTitle/emptyBody (99-102)."
+  },
+  "architecture": {
+    "purity_confirmed": {
+      "knownPeers.ts": "zero imports, header states no IDB/NDK/React/context/components; synchronous localStorage",
+      "walledGarden.ts": "imports only `type Group`; single export isAllowedDmSender",
+      "contacts.ts": "imports types, STORAGE_KEYS, isStorageAvailable (lib), isAllowedDmSender/WhitelistArgs (walledGarden.ts). lib→lib only."
+    },
+    "public_exports": {
+      "contacts.ts": ["StoredContact", "ContactListItem", "readStoredContacts", "rememberContact", "rememberContactsFromGroups", "archiveContact", "unarchiveContact", "listContacts", "getContact", "commonGroups", "eligibleGroupsForContact", "addableGroupsForContact", "purgeStrangerContacts"],
+      "knownPeers.ts": ["loadKnownPeers", "rememberKnownPeer", "rememberKnownPeers", "isKnownPeer", "knownPeersMigrationComplete", "markKnownPeersMigrationComplete"],
+      "walledGarden.ts": ["WhitelistArgs", "isAllowedDmSender"]
+    },
+    "layering": "context/ → lib/ only; nothing in lib/ imports from context/. contacts.ts already imports walledGarden.ts (sibling lib), so adding knownPeers.ts import is same pattern — NO circular import risk.",
+    "no_prior_impl": "no addContactByNpub symbol exists anywhere; no contacts.ts partial impl",
+    "paradigm_precedent": "specs/epic-walled-garden-v2/architecture.md:3-6 'Modular monolith. Package-by-feature for module layout. Hexagonal seams at external boundaries' + strict hierarchy pages/ → components/ → context/ → lib/"
+  },
+  "testing": {
+    "unit_runner": "Vitest, config app/vitest.config.ts (picks up tests/unit/**/*.test.ts only). Run via `make test-unit` (cd app && npx vitest run).",
+    "example_lib_test": "app/tests/unit/contacts-groups.test.ts — Vitest, local makeGroup() factory + module-const pubkeys, no mocking libs (pure fns). app/tests/unit/contacts.test.ts uses hand-rolled localStorage mock via Object.defineProperty(globalThis,'localStorage',...).",
+    "storage_mock_note": "addContactByNpub touches localStorage — follow contacts.test.ts / contacts-ssr-guard.test.ts localStorage-mock convention.",
+    "i18n_test": "No structural key-parity gate. Convention: per-feature tests/unit/<feature>.i18n.test.ts asserting exact en+de string VALUES via getCopy('en'|'de'). New keys need their own such file.",
+    "component_tests": "NONE exist — zero *.test.tsx in repo. No RTL setup, no useMarmot() mock precedent. AddContactModal (S2) gets NO unit test, matching spec scope (only addContactByNpub tested).",
+    "e2e": "Only app/tests/e2e/groups-contacts.spec.ts touches Contacts page (relay-dependent, two-peer group discovery). Feature is local-only (npub→localStorage, no relay). New e2e not a technical necessity; CLAUDE.md gate is full 48-test suite (make test-e2e-all) regardless. Adding a spec would change the '48-test' baseline in CLAUDE.md — needs sign-off, so DEFAULT: no new e2e spec, rely on unit tests + full suite regression.",
+    "make_targets": "make test (unit+e2e-all), make test-unit, make test-e2e-all, make test-coverage (Makefile:89-141)"
+  }
+}

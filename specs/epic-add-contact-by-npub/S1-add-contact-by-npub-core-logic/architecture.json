@@ -1,0 +1,41 @@
+{
+  "module_name": "contacts",
+  "purpose": "Contact storage + derivation. This story adds addContactByNpub, the manual npub-based contact-creation entry point: decodes/validates the npub, rejects self/duplicate/malformed input, creates or reactivates a StoredContact entry, and seeds knownPeers before any contacts-store write.",
+  "public_api": [
+    {
+      "name": "addContactByNpub",
+      "signature": "addContactByNpub(npub: string, ownPubkeyHex: string | null | undefined): AddContactResult",
+      "description": "Decodes npub via npubToPubkeyHex (nostrKeys.ts). Returns { ok: false, error: 'invalid_npub' } on decode failure with no storage mutation. Returns { ok: false, error: 'self' } if the decoded pubkey case-insensitively equals ownPubkeyHex, with no storage mutation. Returns { ok: false, error: 'already_exists' } if an active (non-archived) StoredContact already exists for the pubkey, with no field changed. Otherwise seeds knownPeers via rememberKnownPeers([pubkeyHex]) BEFORE any contacts-store write (load-bearing ordering, ADR-005 / architecture.md Implementation constraints), then either unarchiveContact + rememberContact (archived case, returns reactivated: true) or rememberContact alone (new-contact case, returns reactivated: false)."
+    },
+    {
+      "name": "AddContactResult",
+      "signature": "export type AddContactResult = { ok: true; pubkeyHex: string; reactivated: boolean } | { ok: false; error: 'invalid_npub' | 'self' | 'already_exists' }",
+      "description": "Frozen seam contract (stories.json seams[0]) between S1 (this story, contacts.ts) and S2 (AddContactModal.tsx, consumes the return shape only, not internals)."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "localStorage['lp_contacts_v1'] (StoredContact map) — unchanged ownership, no new keys introduced"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/nostrKeys.ts (npubToPubkeyHex) — reused as-is, no changes",
+    "app/src/lib/knownPeers.ts (rememberKnownPeers) — reused as-is, no changes",
+    "app/src/lib/walledGarden.ts (isAllowedDmSender, WhitelistArgs) — already an existing contacts.ts dependency, unchanged"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/*",
+    "app/src/components/*"
+  ],
+  "external_ports": [
+    "localStorage (via existing readStoredContacts/writeStoredContacts, rememberContact, unarchiveContact helpers)"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/contacts-add-by-npub.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S2"]
+  }
+}

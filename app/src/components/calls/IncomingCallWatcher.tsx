@@ -45,7 +45,7 @@ export function getCallManager(): CallManager | null {
 
 export function IncomingCallWatcher() {
   const { hydrated, pubkeyHex, privateKeyHex } = useNostrIdentity();
-  const { groups, getClient } = useMarmot();
+  const { groups, getClient, knownPeersRevision } = useMarmot();
 
   // Live ref keeps the group roster current without tearing down the subscription
   // on every membership change. Mirrors the pattern in ContactChat.tsx / DMNotificationsWatcher.
@@ -53,12 +53,14 @@ export function IncomingCallWatcher() {
   useEffect(() => { groupsRef.current = groups; }, [groups]);
 
   // Ever-known peers ref — refreshed whenever groups change (MarmotContext's
-  // maintenance effect may have updated lp_knownPeers_v1). Mirrors
-  // DirectMessageNotificationsWatcher so call authorization uses the same
-  // walled-garden whitelist as DMs, which is what makes the spec §5.3 1:1
-  // fallback (calls from a known contact with no shared MLS group) reachable.
+  // maintenance effect may have updated lp_knownPeers_v1) OR when knownPeersRevision
+  // bumps (an out-of-band write, e.g. manual add-contact-by-npub, that doesn't
+  // correlate with a groups change). Mirrors DirectMessageNotificationsWatcher so
+  // call authorization uses the same walled-garden whitelist as DMs, which is what
+  // makes the spec §5.3 1:1 fallback (calls from a known contact with no shared MLS
+  // group) reachable.
   const knownPeersRef = useRef(loadKnownPeers());
-  useEffect(() => { knownPeersRef.current = loadKnownPeers(); }, [groups]);
+  useEffect(() => { knownPeersRef.current = loadKnownPeers(); }, [groups, knownPeersRevision]);
 
   // getClient is stable (useCallback) — safe to read directly in the effect.
   const getClientRef = useRef(getClient);

@@ -336,13 +336,15 @@ test.describe('DM reactions — outbound and inbound (AC-46)', () => {
     // Send a reaction via bridge
     await sendDmReactionViaBridge(alicePage, bobKeys.pubkeyHex, messageId, '❤️');
 
-    // Give the publish a moment to complete
-    await alicePage.waitForTimeout(2000);
+    // Poll until the gift-wrapped reaction actually lands on the wire, rather
+    // than a blind fixed wait: the kind-1059 publish is async (NIP-44 encrypt +
+    // gift-wrap + relay round-trip) and under load occasionally takes longer
+    // than a fixed 2s, which made this assertion flaky. Polling preserves the
+    // same assertion but waits for the observable condition.
+    await expect.poll(() => publishedKinds, { timeout: 15_000 }).toContain(1059);
 
     // No kind-7 plaintext should have been published — only kind-1059 gift wrap
     expect(publishedKinds).not.toContain(7);
-    // At least one kind-1059 was published
-    expect(publishedKinds).toContain(1059);
   });
 });
 
