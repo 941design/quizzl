@@ -1,13 +1,16 @@
 # Asks for ink — dynamic banner
 
-**Status:** Under review — awaiting ink's confirmation
+**Status:** Superseded in part by `05` — see note.
 **Owner:** few.chat (integrator). Source refs are to `tools/watercolor/svg.js` in the ink tree.
 
-This is the concrete, prioritized list of what ink needs to change or confirm, derived
-from reading the actual generator source (see `02-integration-contract.md` Addendum A).
-It supersedes the aspirational generator contract in `02` §4–§5. Items are tagged
-**[blocking]** (we can't ship without it), **[needed-for-scope]** (gates dark-theme
-support), or **[confirm]** (no code change expected, just a yes/no).
+> **Superseded:** the delivery/packaging question (§3) and the generic base-colour +
+> sizing asks (§2, §5) are now folded into the fuller
+> `05-ink-artifact-publication-proposal.md`, which reframes them generically (ink as a
+> consumer-agnostic library, delivered via a private git repo). This file remains as the
+> low-level, source-cited record and for the FYIs/confirmations below.
+
+This is the concrete, source-cited list derived from reading the actual generator source
+(see `02` Addendum A).
 
 ## 1. [not an ask — FYI] Determinism is NOT required by us
 

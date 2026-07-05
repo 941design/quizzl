@@ -1,4 +1,4 @@
-# few.chat change plan — dynamic (per-load) banner images
+# few.chat change plan — dynamic (per-load) theme elements
 
 **Status:** Draft — engineering plan for our side, grounded in the ink source (sessions
 read 2026-07-05). This is the "what we change here" picture.
@@ -6,16 +6,21 @@ read 2026-07-05). This is the "what we change here" picture.
 
 ## TL;DR
 
-Non-determinism is the feature: each page load renders a **unique** watercolour that
-stays **within the selected theme**. We achieve that by calling ink's `renderSVG` with
-a fresh (unseeded) call each load, while **pinning four colour-identity params** from
-the theme so only composition varies, never colour character.
+Non-determinism is the feature: each page load renders **unique** visuals that stay
+**within the selected theme**. We extend the pluggable-theme system so that **any element
+can be dynamic** (generated per load), not just the banner — a generic capability. The
+first element we implement is the banner; the abstraction is generic (background, and
+later button/card fills, follow the same path).
 
-**We can ship v1 with the ink generator exactly as it is today — zero ink code
-changes** — on a *light* theme (its base tone is a fixed warm off-white). The only ink
-dependency, a themeable base colour for *dark* themes, is a later scope expansion, not a
-v1 blocker. Everything else is our-side code: a schema field, a generator adapter, a
-client-only render hook, a legibility scrim, and tests.
+Each dynamic element calls ink's generator with a fresh (unseeded) call each load, while
+**pinning four colour-identity params** so only composition varies, never colour
+character. **We ship v1 with the ink generator exactly as it is today — zero ink code
+changes** — on a **brand-new light watercolour theme** (working name `aquarelle`), dropped
+into the theme folder like any other theme. Delivery of the ink module is a **git
+dependency on ink's private repo** (see `05-ink-artifact-publication-proposal.md`); the
+themeable base colour for *dark* themes is a later scope expansion, not a v1 blocker.
+Everything else is our-side code: a generic dynamic-element schema, a generator adapter,
+a client-only render hook, a legibility scrim, the new theme, and tests.
 
 ## The mechanism (verified against `tools/watercolor/svg.js`)
 
@@ -54,52 +59,66 @@ adapter, not author-set.
 
 ## Change list (by file)
 
-### 1. Schema — `app/src/themes/schema.ts`
-Add an optional `bannerDynamic` to `TreatmentsSchema` (sibling of the still-required
-static `banner`):
+### 1. Schema — `app/src/themes/schema.ts` (generic dynamic elements)
+Add an optional **`dynamic`** map to `TreatmentsSchema` — a generic binding of *any*
+surface to a generator, not a banner-specific field. Banner is the first key we implement;
+`background`, and later `button`/`card`, use the identical shape.
 
 ```ts
-bannerDynamic: z.object({
+const DynamicElementSchema = z.object({
   generator: z.enum(['watercolor']),          // closed catalog union, like iconSet
-  identity: z.object({
+  style: z.object({                            // the generic "style token" (colour identity)
     anchorHue:  z.number().min(0).max(359),
     scheme:     z.enum(['monochromatic','analogous','analogous-accent',
                         'split-complementary','triadic','complementary']),
     saturation: z.number().min(20).max(100),
     lightness:  z.number().min(20).max(75),
   }).strict(),
+  clip:   z.enum(['button','card','avatar']).optional(),  // consumer-side shape to mask a fill into
   render: z.object({ /* zones, layerProb, splatter, halo, grain, bleed,
                         smoothness, darkening */ }).partial().strict().optional(),
+}).strict();
+
+// in TreatmentsSchema:
+dynamic: z.object({
+  banner:     DynamicElementSchema.optional(),
+  background: DynamicElementSchema.optional(),
+  // button / card added when we implement clip-into-shape
 }).strict().optional()
 ```
-- `treatments.banner` (static SVG string) **stays required** — it's the fallback.
+- Every static treatment (incl. the required static `banner` fallback) is **unchanged**.
+  `dynamic` is purely additive and opt-in.
 - The `generator` enum joins the existing catalog check → unknown generator fails the
-  build, exactly like the other treatment unions. Zod stays build/test-only; the
-  generator function is referenced by name and lives in `treatments/`, so this holds the
-  "manifest is pure data" invariant.
+  build, like the other treatment unions. Zod stays build/test-only; the generator is
+  referenced by name and lives in `treatments/`, holding the "manifest is pure data"
+  invariant.
+- `clip` is where the §4-boundary of `05` lands on our side: for a shaped element we take
+  ink's generic **fill** and mask it into the component shape ourselves.
 
-### 2. Generator adapter — `app/src/themes/treatments/banners.ts` (NEW)
-Wraps the vendored/imported ink module behind a name → function registry:
+### 2. Generator adapter — `app/src/themes/treatments/dynamicVisuals.ts` (NEW)
+Wraps the ink module behind a name → function registry, translating our `style` token
+into ink's params and forcing the element kind we need:
 
 ```ts
-import { renderSVG, randomizeParams } from '<watercolor module>';
-export const BANNER_GENERATORS = {
-  watercolor: (identity, render = {}) => {
+import { renderSVG, randomizeParams } from '@ink/visuals';   // git dependency, see 05
+export const DYNAMIC_GENERATORS = {
+  watercolor: (style, kind, render = {}) => {
     const p = randomizeParams();
-    Object.assign(p, render, identity, { format: 'banner' });  // identity wins, banner forced
-    return renderSVG({ params: p }).svg;                       // fresh each call
+    Object.assign(p, render, style, { format: kind === 'banner' ? 'banner' : 'square' });
+    return renderSVG({ params: p }).svg;                      // seed omitted → fresh each call
   },
 } as const;
 ```
-Delivery of the ink module (vendor the single file vs. npm dependency) is the open
-product-owner decision — the adapter's import line is the only thing that changes.
+**Delivery is decided:** a **git dependency on ink's private repo** (`05`). The adapter's
+import line is the seam; if ink ships the generic `render(req)` wrapper (`05` §3) we call
+that instead of `renderSVG`+`randomizeParams`, and this adapter shrinks to a pass-through.
 
 ### 3. Client render hook — `app/src/hooks/useDynamicBanner.ts` (NEW)
 - `computeThemeStyles()` (the pure, unit-tested path) **stays unchanged**, still
   returning the **static** `bannerDecorStyle` from `treatments.banner`. That is the
   SSR/first-paint/no-JS image.
 - `useDynamicBanner(definition)` runs client-only (`useEffect`, post-hydration): if
-  `treatments.bannerDynamic` is present, generate a fresh SVG, encode it as a data-URI
+  `treatments.dynamic?.banner` is present, generate a fresh SVG, encode it as a data-URI
   the same way `navBannerDecor` does (`url("data:image/svg+xml,${encodeURIComponent}")`,
   on the raw `style` prop — Chakra drops data-URI values through its style pipeline),
   and swap `bannerDecorStyle.style.backgroundImage`. Regenerates on mount (= per reload)
@@ -134,6 +153,14 @@ on-theme watercolour. No determinism needed — it's a one-time captured sample.
   independent of banner content; (d) the adapter output is self-contained (no `<script>`,
   has `viewBox`). **No per-seed determinism tests** — non-determinism is intended.
 
+### 8. The new theme — `app/src/themes/aquarelle/manifest.ts` (NEW, working name)
+A **brand-new** theme (not derived from `calm` or any existing one), authored as pure
+data and dropped into the themes folder like any other — the pluggable system picks it up
+with no shared-file edits. It sets a light palette and declares
+`treatments.dynamic.banner = { generator: 'watercolor', style: {…}, render: {…lite…} }`,
+plus a frozen static `banner` fallback (§6). This theme is the proof that the generic
+dynamic-element extension is genuinely drop-in.
+
 ## Performance plan
 
 CPU scales with `zones × layers`; paint is dominated by `feTurbulence`(×3) +
@@ -149,12 +176,15 @@ gap. Measure gen + paint on a low-end device before promoting out of `experiment
 
 ## Scope & rollout
 
-- **v1:** one **light** watercolour theme, `status: 'experimental'`, generator as-is.
-- **v2 (dark themes):** needs the single ink change — a `params.background` override for
-  the hardcoded `#f4efe6` base (tracked in `03-asks-for-ink.md`). Everything else already
-  works.
+- **v1:** the brand-new light `aquarelle` theme with a dynamic banner,
+  `status: 'experimental'`, generator as-is, consumed as a git dependency on ink's
+  private repo.
+- **v2:** dark themes (needs ink's generic `baseColor`, `05` §5.4) and additional dynamic
+  element kinds (`background`, then `button`/`card` via `clip`).
 
-## The only external dependency
+## External dependencies
 
-`params.background` in the ink generator — needed **only** to extend to dark themes.
-v1 needs nothing from ink beyond a delivery decision (vendor vs npm).
+- **v1:** a published ink artifact to depend on — the subject of
+  `05-ink-artifact-publication-proposal.md`. Nothing else.
+- **v2:** ink's generic `baseColor` (dark themes) and arbitrary sizing (non-banner
+  elements), both folded into `05` §5.

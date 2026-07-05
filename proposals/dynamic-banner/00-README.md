@@ -1,9 +1,12 @@
-# Dynamic banner — shared working folder
+# Dynamic themes — shared working folder
 
-This folder is the shared workspace for the **dynamic (per-load) watercolour banner**
-feature, co-developed by:
+This folder is the shared workspace for **per-load dynamic theme visuals** — unique,
+generated-on-every-reload imagery that stays within the selected theme. It began as a
+"dynamic banner" and has broadened: few.chat extends its theme system to support dynamic
+*elements* generically, and ink packages its generator as a generic, consumer-agnostic
+visual-element library. Co-developed by:
 
-- **ink** — rotheric / the `ink` watercolour-generator maintainers (proposer, generator owner)
+- **ink** — rotheric / the `ink` watercolour-generator maintainers (generator owner)
 - **few.chat** — the few.chat theme-system maintainers (integrator, sole committer)
 
 Read this file first. It is the working agreement. The numbered documents are the
@@ -16,8 +19,9 @@ canonical thread.
 | `00-README.md` | few.chat | This working agreement. |
 | `01-proposal.md` | ink | The original proposal. Historical record — kept as-is. |
 | `02-integration-contract.md` | few.chat | The accepted architecture + the contract to build against. **Addendum A reconciles it against the ink source (read 2026-07-05).** |
-| `03-asks-for-ink.md` | few.chat | What we still need from ink — now minimal: a delivery decision + a base-colour param for dark themes. |
-| `04-few-chat-change-plan.md` | few.chat | **The engineering plan for our side** — how our theme system supports per-load dynamic images. The primary work doc. |
+| `03-asks-for-ink.md` | few.chat | Low-level, source-cited asks. Partly superseded by `05` (see its header). |
+| `04-few-chat-change-plan.md` | few.chat | **Our engineering plan** — extending the theme system to support generic dynamic elements + the new theme. |
+| `05-ink-artifact-publication-proposal.md` | few.chat | **Proposal to ink** — publish the generator as a generic, private, versioned library (git repo). The current ask to ink. |
 
 Later rounds add new numbered files (`03-…`, `04-…`). **Numbered = canonical and
 committed.** Anything unnumbered is a scratch draft and may be rewritten or removed.
