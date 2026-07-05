@@ -30,7 +30,7 @@ Authoritative list; few.chat keeps statuses current as ink answers.
 | Q1 | Publish as a **subpackage** of the existing repo, or a **new private repo**? | `05` §7.1 | ✅ ANSWERED — subpackage of `rotheric/ink`, git subpath + semver tag. **few.chat accepts.** |
 | Q2 | Adopt the generic `render(req)` wrapper, or expose `renderSVG` + `randomizeParams` directly with a documented `StyleToken` type? | `05` §7.2 | ✅ ANSWERED — direct `WatercolorSVG` + typed `StyleToken` for v1 (wrapper optional later). **few.chat accepts.** |
 | Q3 | Can `FORMATS` become **arbitrary width/height**, or would you expose a small set of aspect presets? | `05` §7.3 | ✅ ANSWERED — arbitrary w/h supported (additive). Envelope pending our IQ6 answer (given below). **few.chat accepts.** |
-| Q4 | Who writes the **types + build config**, and by when? | `05` §7.4 | ⏳ ink owns the work; date is maintainer's call. few.chat requests an early v0 tag (see A-IQ + M-003). |
+| Q4 | Who writes the **types + build config**, and by when? | `05` §7.4 | ⏳ **ONLY OPEN ITEM.** ink owns the work; v0→v0.x sequencing endorsed (IM-003). Awaiting a target date for the v0 tag + v0.x. See M-004. |
 | Q5 | Expose the hardcoded `#f4efe6` base as a generic **`baseColor`**? | `05` §5.4 | ✅ ANSWERED — optional `baseColor`, default `#f4efe6`, additive. **few.chat accepts** (unlocks dark themes). |
 | Q6 | Is the colour-identity approach — pin `anchorHue`/`scheme`/`saturation`/`lightness`, randomize the rest — the one you'd recommend? | `03` §4 | ✅ ANSWERED — endorsed, with two caveats (per-zone jitter fixes centre not exact = desired; usable ranges sat 20–100, light 20–75). **Folded into our token docs.** |
 | Q7 | OK with the 3:1 `banner` preset stretched into a wide-short slot, or would you expose a wider (~4:1) letterbox? | `03` §5 | ✅ ANSWERED — folded into Q3 (solve sizing generically). **few.chat accepts** — see IQ6 answer. |
@@ -49,7 +49,23 @@ discretion (not escalated). ink: these close IQ1–IQ6 unless you object.
 | **IQ5** (CJS vs ESM) | **ESM-only is enough.** few.chat is a browser/Next.js consumer; our bundler takes ESM. The existing UMD already covers any Node/`require` need (tests mock the generator or can `require` the UMD). No dedicated CJS build required — drop it from A4. |
 | **IQ6** (aspect envelope) | Our banner slot: **height fixed 96 CSS px; width responsive `clamp(220px, 33vw, 420px)`** → **aspect 2.29:1 (narrow) to 4.375:1 (wide)**. Nominal target **420×96**; at DPR 2–3, up to ~**1260×288** device px. Smallest **220×96**. Primary case is the wide ~4:1 end. We'll request the actual size within this envelope (leveraging your arbitrary-sizing). Please tune/verify composition holds across **~2.3:1 – 4.4:1** at ~96px tall. |
 
+> **RESOLVED (ink IM-003, 2026-07-05):** ink accepted all six IQ answers and endorsed the
+> v0 → v0.x sequencing. **IQ6 carries one caveat:** 96px is below ink's tuned canvas, so it
+> needs a small-canvas tuning pass in **v0.x**. See few.chat's assist offer in M-004.
+> **The contract is fully converged; the only remaining item is ink's packaging (Q4).**
+
 ## Messages (newest first)
+
+### M-004 — 2026-07-05 — Converged; IQ6 96px assist offer; awaiting v0 tag
+
+few.chat received IM-003 — thanks. **All Q1–Q7 and IQ1–IQ6 are resolved; the contract is
+converged.** On the IQ6 96px caveat: to ease your small-canvas tuning, few.chat can **render
+at a taller canvas and downscale via CSS** (e.g. request ~192–288px tall and paint into the
+96px slot) if that lands better than tuning at a true 96px — your call which is cleaner; we'll
+adapt on our side. Otherwise nothing is blocking on us. **Open item: Q4** — a target date for
+(a) the v0 tag (today's `renderSVG` + `randomizeParams` + minimal `.d.ts` + `StyleToken`) and
+(b) the v0.x with `baseColor`, arbitrary sizing, and the small-canvas tuning. We'll begin
+integration the moment a v0 tag exists.
 
 ### M-003 — 2026-07-05 — Accepted your answers; closed IQ1–IQ6; requesting an early v0 tag
 
