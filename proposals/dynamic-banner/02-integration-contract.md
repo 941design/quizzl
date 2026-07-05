@@ -202,13 +202,14 @@ Good news: the output is already self-contained (no `<script>`, no external refs
 opaque `#f4efe6` base rect, seed-namespaced filter ids). But five contract points must
 be revised against reality — **this addendum wins where it conflicts with §1/§4/§5.**
 
-1. **§4 determinism — currently BROKEN, and it's a required ink fix.**
-   `blobPoints` (≈ line 204) draws `const fine = (Math.random() - 0.5) * jitter` from
-   **unseeded** `Math.random()` on every blob of every render. So the same
-   `(seed, params, ranges)` does *not* reproduce the same SVG. This also silently
-   breaks ink's own `encodeId`/`decodeId` "share this exact image" feature. Routing
-   that one draw through the seeded `rng` is the fix. Determinism remains a hard
-   precondition (our repro + sampled legibility tests depend on it). See `03-asks-for-ink.md` #1.
+1. **§4 determinism — NOT required (superseded 2026-07-05).** Non-determinism is the
+   product goal: each reload paints a unique watercolour. We call `renderSVG` with the
+   seed omitted and freshly-randomized non-identity params each load. The unseeded
+   `Math.random()` in `blobPoints` (≈ line 204) is therefore fine for us — it only
+   breaks ink's *own* `encodeId`/`decodeId` share feature, which is their call. §4's
+   deterministic-generator + `safeZone` contract is withdrawn. The real integration
+   mechanism — pin four colour-identity params, randomize the rest — is in
+   `04-few-chat-change-plan.md`.
 
 2. **§5 legibility — moved to the few.chat side; no longer an ink requirement.**
    The generator has no safe-zone concept and won't gain one cheaply. Instead, few.chat

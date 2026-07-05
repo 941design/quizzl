@@ -16,7 +16,8 @@ canonical thread.
 | `00-README.md` | few.chat | This working agreement. |
 | `01-proposal.md` | ink | The original proposal. Historical record — kept as-is. |
 | `02-integration-contract.md` | few.chat | The accepted architecture + the contract to build against. **Addendum A reconciles it against the ink source (read 2026-07-05).** |
-| `03-asks-for-ink.md` | few.chat | The concrete, prioritized list of code changes/confirmations ink needs to make. Start here for what to build. |
+| `03-asks-for-ink.md` | few.chat | What we still need from ink — now minimal: a delivery decision + a base-colour param for dark themes. |
+| `04-few-chat-change-plan.md` | few.chat | **The engineering plan for our side** — how our theme system supports per-load dynamic images. The primary work doc. |
 
 Later rounds add new numbered files (`03-…`, `04-…`). **Numbered = canonical and
 committed.** Anything unnumbered is a scratch draft and may be rewritten or removed.
