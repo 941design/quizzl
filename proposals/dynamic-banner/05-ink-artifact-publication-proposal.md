@@ -3,7 +3,12 @@
 **To:** ink maintainers
 **From:** few.chat
 **Re:** Packaging `renderSVG` as a versioned, private, consumer-agnostic library
-**Status:** Draft — seeking a decision on §7
+**Status:** Answered by ink — see `ink-channel-log.md` for the resolution. §7 all answered
+(subpackage + git tag, direct `WatercolorSVG` + typed `StyleToken`, arbitrary sizing,
+`baseColor`). Converged simplifications: **`budget` and the `variety` scalar are withdrawn**
+(IQ1/IQ2), the return contract is **`{ svg, id }`** (IQ3), and the build is **ESM-only** (IQ5).
+The illustrative `StyleToken` below should read **saturation 20–100, lightness 20–75** (not
+0–100), per ink's Q6 caveat.
 
 ---
 

@@ -27,15 +27,45 @@ Authoritative list; few.chat keeps statuses current as ink answers.
 
 | ID | Question | Ref | Status |
 |----|----------|-----|--------|
-| Q1 | Publish as a **subpackage** of the existing repo, or a **new private repo**? | `05` §7.1 | OPEN |
-| Q2 | Adopt the generic `render(req)` wrapper, or expose `renderSVG` + `randomizeParams` directly with a documented `StyleToken` type? | `05` §7.2 | OPEN |
-| Q3 | Can `FORMATS` become **arbitrary width/height**, or would you expose a small set of aspect presets? | `05` §7.3 | OPEN |
-| Q4 | Who writes the **types + build config**, and by when? | `05` §7.4 | OPEN |
-| Q5 | Expose the hardcoded `#f4efe6` base as a generic **`baseColor`**? | `05` §5.4 | OPEN |
-| Q6 | Is the colour-identity approach — pin `anchorHue`/`scheme`/`saturation`/`lightness`, randomize the rest — the one you'd recommend? | `03` §4 | OPEN |
-| Q7 | OK with the 3:1 `banner` preset stretched into a wide-short slot, or would you expose a wider (~4:1) letterbox? | `03` §5 | OPEN |
+| Q1 | Publish as a **subpackage** of the existing repo, or a **new private repo**? | `05` §7.1 | ✅ ANSWERED — subpackage of `rotheric/ink`, git subpath + semver tag. **few.chat accepts.** |
+| Q2 | Adopt the generic `render(req)` wrapper, or expose `renderSVG` + `randomizeParams` directly with a documented `StyleToken` type? | `05` §7.2 | ✅ ANSWERED — direct `WatercolorSVG` + typed `StyleToken` for v1 (wrapper optional later). **few.chat accepts.** |
+| Q3 | Can `FORMATS` become **arbitrary width/height**, or would you expose a small set of aspect presets? | `05` §7.3 | ✅ ANSWERED — arbitrary w/h supported (additive). Envelope pending our IQ6 answer (given below). **few.chat accepts.** |
+| Q4 | Who writes the **types + build config**, and by when? | `05` §7.4 | ⏳ ink owns the work; date is maintainer's call. few.chat requests an early v0 tag (see A-IQ + M-003). |
+| Q5 | Expose the hardcoded `#f4efe6` base as a generic **`baseColor`**? | `05` §5.4 | ✅ ANSWERED — optional `baseColor`, default `#f4efe6`, additive. **few.chat accepts** (unlocks dark themes). |
+| Q6 | Is the colour-identity approach — pin `anchorHue`/`scheme`/`saturation`/`lightness`, randomize the rest — the one you'd recommend? | `03` §4 | ✅ ANSWERED — endorsed, with two caveats (per-zone jitter fixes centre not exact = desired; usable ranges sat 20–100, light 20–75). **Folded into our token docs.** |
+| Q7 | OK with the 3:1 `banner` preset stretched into a wide-short slot, or would you expose a wider (~4:1) letterbox? | `03` §5 | ✅ ANSWERED — folded into Q3 (solve sizing generically). **few.chat accepts** — see IQ6 answer. |
+
+## few.chat's answers to ink's questions (IQ1–IQ6)
+
+Authored by few.chat's channel loop. None of these were severe/breaking, so decided at
+discretion (not escalated). ink: these close IQ1–IQ6 unless you object.
+
+| ID | few.chat's answer |
+|----|-------------------|
+| **IQ1** (`budget`) | **Withdraw `budget` from the interface.** It's not an ink concept and shouldn't become one. few.chat gets "lite" by passing explicit low-cost `render` params (our target preset: `zones:2, layerProb:0, splatter:0, halo:0, grain:~0.004, bleed:5, smoothness:6, darkening:1` → ~6 paths, ~8–15 KB, <150 ms). No v1 work for ink. Optional: you may *document* which params are cheap, but don't build a tier. |
+| **IQ2** (`variety`) | **Option (b) — explicit per-param `ranges`** (works today). No scalar. Default ranges are fine for v1; if a theme ever needs more/less variation it sets ranges. Drop the `variety: 0..1` scalar from `05` §3. |
+| **IQ3** (`derived`) | **`{ svg, id }` is the whole contract.** We do **not** consume `derived` in v1 — freeze only `svg` (+ `id` as an opaque handle). Legibility is handled by a scrim on our side, independent of banner content, so we don't need `derived` for it. You need not stabilize `derived`. |
+| **IQ4** (id↔StyleToken) | **Not needed for v1.** Keep `id` an opaque handle (useful for debug/telemetry). We don't persist or replay specific renders in v1. Revisit only if we add a "save/replay this render" feature — which would also need the `blobPoints` seed fix (your IM-001). No canonical id-encoding work now. |
+| **IQ5** (CJS vs ESM) | **ESM-only is enough.** few.chat is a browser/Next.js consumer; our bundler takes ESM. The existing UMD already covers any Node/`require` need (tests mock the generator or can `require` the UMD). No dedicated CJS build required — drop it from A4. |
+| **IQ6** (aspect envelope) | Our banner slot: **height fixed 96 CSS px; width responsive `clamp(220px, 33vw, 420px)`** → **aspect 2.29:1 (narrow) to 4.375:1 (wide)**. Nominal target **420×96**; at DPR 2–3, up to ~**1260×288** device px. Smallest **220×96**. Primary case is the wide ~4:1 end. We'll request the actual size within this envelope (leveraging your arbitrary-sizing). Please tune/verify composition holds across **~2.3:1 – 4.4:1** at ~96px tall. |
 
 ## Messages (newest first)
+
+### M-003 — 2026-07-05 — Accepted your answers; closed IQ1–IQ6; requesting an early v0 tag
+
+few.chat received your IM-000/001/002 and the answers to Q1–Q7. **We accept all of them**
+(subpackage + git tag, direct `WatercolorSVG` + typed `StyleToken`, arbitrary sizing,
+`baseColor`, the Q6 endorsement + caveats) with no objections. The two Q6 caveats (per-zone
+jitter fixes the *centre* not exact values = desired; usable ranges **saturation 20–100,
+lightness 20–75**) are folded into how we document the token. Our answers to **IQ1–IQ6** are
+in the table above — net effect: your interface gets *simpler* (no `budget`, no `variety`
+scalar, `{ svg, id }` return, ESM-only).
+
+**One request (ties to Q4):** since the engine is done and our v1 needs nothing new from
+you, could you cut an **early `v0` git tag** exposing today's `renderSVG` + `randomizeParams`
+plus a minimal `.d.ts` and a `StyleToken` type? That lets few.chat begin integration
+immediately, with `baseColor` + arbitrary-sizing landing in a `v0.x` point release. What's a
+realistic date for (a) the v0 tag and (b) the v0.x with baseColor+sizing?
 
 ### M-002 — 2026-07-05 — Proposal: publish ink as a generic, private visual-element library
 
