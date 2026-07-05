@@ -3,7 +3,7 @@
 **To:** rotheric / `ink` (watercolour generator)
 **From:** few.chat theme-system maintainers
 **Re:** Your `dynamic-banner-proposal.md` — decision on §7 + how this integrates
-**Status:** Under review — decisions in §1 are Agreed; awaiting ink's answers to §8.
+**Status:** Under review — §1 decisions Agreed; **Addendum A (below) reconciles §1/§4/§5 against the ink source read on 2026-07-05 and supersedes them where they conflict.**
 
 ---
 
@@ -189,3 +189,56 @@ SVG — which *removes* your id/script/blend concerns but *adds* one hard requir
 a deterministic, self-asserting **safe-zone legibility guarantee** under the nav logo,
 because the build gate can't check a non-deterministic image. Build to §4–§5 and it
 drops in.
+
+---
+
+## Addendum A — Ground-truth reconciliation (ink source, read 2026-07-05)
+
+few.chat read the actual generator (`tools/watercolor/svg.js`) via the ink project
+index before hand-off. The public API is `renderSVG({ seed, params, ranges }) → { svg,
+… }`, returning a serialized SVG string; the SVG path is a single UMD file with **zero
+runtime dependencies** (`sharp` lives only in the separate `generate.js` rasterizer).
+Good news: the output is already self-contained (no `<script>`, no external refs, an
+opaque `#f4efe6` base rect, seed-namespaced filter ids). But five contract points must
+be revised against reality — **this addendum wins where it conflicts with §1/§4/§5.**
+
+1. **§4 determinism — currently BROKEN, and it's a required ink fix.**
+   `blobPoints` (≈ line 204) draws `const fine = (Math.random() - 0.5) * jitter` from
+   **unseeded** `Math.random()` on every blob of every render. So the same
+   `(seed, params, ranges)` does *not* reproduce the same SVG. This also silently
+   breaks ink's own `encodeId`/`decodeId` "share this exact image" feature. Routing
+   that one draw through the seeded `rng` is the fix. Determinism remains a hard
+   precondition (our repro + sampled legibility tests depend on it). See `03-asks-for-ink.md` #1.
+
+2. **§5 legibility — moved to the few.chat side; no longer an ink requirement.**
+   The generator has no safe-zone concept and won't gain one cheaply. Instead, few.chat
+   renders a small scrim/gradient behind the nav logo so legibility is guaranteed
+   independent of what the banner paints. The `BannerContext.safeZone`/`overlayColor`/
+   `minContrast` fields in §4 are **withdrawn** — ink does not need to honor them.
+
+3. **§5 dimensions — use the fixed 3:1 `banner` preset; no arbitrary sizing.**
+   `FORMATS` (≈ line 122) offers only `square` 1000×1000 and `banner` 1500×500. The
+   caller cannot request 420×96. few.chat paints the 3:1 preset into the nav box
+   (`backgroundSize: 100% 100%`, so a mild horizontal stretch across our ~2.3–4.4:1
+   range) — acceptable for an abstract wash. Open item for ink in `03` #5.
+
+4. **Palette — hue-biased, not hex-matched; base color needs a param.**
+   Colors are HSL/scheme-based; there is no way to pass exact brand hex. But
+   `params.anchorHue` (degrees, ≈ line 237) overrides the hue, so few.chat derives it
+   from each theme's `brand.500` (hex → HSL hue) and drives `params.saturation` /
+   `params.lightness` ranges from the theme. The one real gap is the **hardcoded
+   `#f4efe6` base** (≈ line 364) with no override — it clashes on dark themes. ink adds
+   a `params.background` override (`03` #2); until then, dynamic banners ship on
+   light/warm themes only (staged rollout).
+
+5. **§1.3 supply chain — the "npm dependency" premise is void.**
+   The package is `watercolor-grade-tools`, `private: true`, unpublished, with no root
+   `package.json`. An external npm dependency is not currently possible. Since `svg.js`
+   is a single `Math`-only, browser-safe UMD file, few.chat's **working assumption is to
+   vendor that one file** into `treatments/` — auditable in-tree, no third-party runtime
+   pulled into a key-handling app. **Provisional, pending few.chat product-owner
+   confirmation** (the alternative is asking ink to extract and publish a trimmed
+   package). §1.4's ≤15 KB gz ceiling is informational under the vendor path (the file
+   is ~22–28 KB min / ~12–18 KB gz; vendoring lets us trim if needed).
+
+The consolidated, actionable list of what ink must change is `03-asks-for-ink.md`.

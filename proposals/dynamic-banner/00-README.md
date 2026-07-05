@@ -15,7 +15,8 @@ canonical thread.
 |---|---|---|
 | `00-README.md` | few.chat | This working agreement. |
 | `01-proposal.md` | ink | The original proposal. Historical record — kept as-is. |
-| `02-integration-contract.md` | few.chat | The accepted architecture + the contract to build against. The live spec. |
+| `02-integration-contract.md` | few.chat | The accepted architecture + the contract to build against. **Addendum A reconciles it against the ink source (read 2026-07-05).** |
+| `03-asks-for-ink.md` | few.chat | The concrete, prioritized list of code changes/confirmations ink needs to make. Start here for what to build. |
 
 Later rounds add new numbered files (`03-…`, `04-…`). **Numbered = canonical and
 committed.** Anything unnumbered is a scratch draft and may be rewritten or removed.
