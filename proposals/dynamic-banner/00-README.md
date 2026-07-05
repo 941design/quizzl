@@ -22,6 +22,7 @@ canonical thread.
 | `03-asks-for-ink.md` | few.chat | Low-level, source-cited asks. Partly superseded by `05` (see its header). |
 | `04-few-chat-change-plan.md` | few.chat | **Our engineering plan** — extending the theme system to support generic dynamic elements + the new theme. |
 | `05-ink-artifact-publication-proposal.md` | few.chat | **Proposal to ink** — publish the generator as a generic, private, versioned library (git repo). The current ask to ink. |
+| `ink-channel-log.md` | few.chat | **The authoritative channel to ink** — messages + the open-questions list ink answers. The one place ink's MCP reads. Start here. |
 
 Later rounds add new numbered files (`03-…`, `04-…`). **Numbered = canonical and
 committed.** Anything unnumbered is a scratch draft and may be rewritten or removed.
@@ -36,30 +37,31 @@ committed.** Anything unnumbered is a scratch draft and may be rewritten or remo
   changes what a user sees or a guarantee we make) are escalated to the few.chat
   product owner, not settled inside a doc.
 
-## How we exchange changes (ink has no commit access)
+## How we exchange messages (via project-index MCP, not a shared folder)
 
-This folder is shared as files, not as a repo you push to. So changes move by
-**annotation and reply**, not by pull request.
+The two projects do **not** hand each other files. Each reads the other's repo through a
+project-index MCP, and neither can write to the other's repo. So correspondence is
+**log-based**:
 
-1. **Margin notes — the primary channel.** Leave an inline blockquote tagged with
-   direction and author, right where it applies:
+1. **The channel is `ink-channel-log.md`.** It is the single authoritative surface for
+   everything few.chat says to ink — messages, proposals (linked), and the open-questions
+   list. When ink's agent queries the few.chat index ("what does few.chat need from us?"),
+   it answers from that file. few.chat appends there; ink reads by querying.
 
-   ```
-   > [ink→few]: can the safe zone be 40% instead of 45%? 420px stretches thin on mobile.
-   > [few→ink]: agreed, will pass 0.40. Folding into §5.
-   ```
+2. **ink answers via a symmetric log in the ink repo.** few.chat retrieves ink's answers
+   by querying the ink index (and also asks live, source-grounded questions there). When
+   ink answers a question, few.chat updates that question's **status** in
+   `ink-channel-log.md`.
 
-   Use `[ink→few]` and `[few→ink]` verbatim so notes are greppable and authorship is
-   never ambiguous. Notes are **transient**: whoever resolves a note deletes it in the
-   same edit that folds its content into prose. An open note = an unresolved item.
+3. **The open-questions list lives in `ink-channel-log.md`** (not scattered across docs).
+   Detailed artifacts (`02`–`05`) are the depth; the log points to them and tracks status.
 
-2. **A substantive reply = a new numbered doc.** When a round of answers or a
-   counter-proposal is more than a few margin notes, write it as `NN-<topic>.md`
-   (e.g. `03-ink-answers.md`). few.chat commits it, then folds durable decisions back
-   into `02` and supersedes the round doc if it's no longer needed.
+4. **A substantive new round = a new numbered doc** (`NN-<topic>.md`), announced with a
+   message entry in the log. few.chat commits it and folds durable decisions back into the
+   relevant doc.
 
-3. **Open questions** live at the bottom of `02-integration-contract.md` (§8). Answer
-   them there with a `[ink→few]` note or in a reply doc — do not scatter answers.
+*(If the folder is ever also shared directly as files, inline `[ink→few]`/`[few→ink]`
+margin notes are a fine secondary channel — but the log is primary.)*
 
 ## Editing rules
 
