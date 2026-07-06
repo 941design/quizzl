@@ -1,0 +1,103 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-05T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does DYNAMIC_GENERATORS.watercolor perform genuine randomized generation (calling a real randomizeParams()-equivalent path and folding the pinned style fields into the output) on each invocation, or is there a load-bearing branch where the Phase-A stub degrades to a frozen/constant SVG string when the (currently absent) real @ink/visuals dependency is un-injected — i.e., does it silently return the same string every call rather than genuinely varying per AC-UX-1?"
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Is dynamicVisuals.ts's watercolor entry structured, per architecture.md's Module Map and Boundary Rule 2, as the sole point of contact with the generator/stub, with the randomizeParams()+style-override call shape owned entirely inside this file — not partially duplicated in useDynamicBanner.ts or banner.worker.ts?"
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `dynamicVisuals` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/themes/treatments.test.ts contain a describe('themes/treatments/dynamicVisuals') block (sibling to the existing elevation/iconSets/patterns blocks) covering: DYNAMIC_GENERATORS' registry shape (AC-STRUCT-3); two successive watercolor() calls differing while the pinned style holds (AC-UX-1); and self-contained output with no <script>/external href/url() (AC-STRUCT-6)? Separately, does themes-validation.test.ts contain the single-import-site scanner test for AC-STRUCT-4, reusing the resolved-import-scanner pattern (not a literal grep) retargeted at dynamicVisuals.ts's absolute path?"
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the implementation match spec.md/architecture.md's description of dynamicVisuals.ts as the first treatments/* module with real computation and a real runtime import — an intentional, scoped precedent-break — without any other treatments/* file gaining similar computation or import behavior as a side effect?"
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the watercolor generator's output defensively checked (in tests) for absence of <script> tags and external href/url() references on every invocation path, including the stub's random variation, such that no random output shape could smuggle an external reference through an untested branch?"
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-3",
+      "question": "For AC-STRUCT-3 ('dynamicVisuals.ts MUST export a name->function registry DYNAMIC_GENERATORS with a watercolor entry of signature (style, kind, render?) -> string returning a self-contained SVG string'), show: (a) the registry's production code and type signature; (b) the treatments.test.ts test asserting the registry shape and return type; and (c) confirmation the test calls the real watercolor function, not a mock standing in for it."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-4",
+      "question": "For AC-STRUCT-4 ('dynamicVisuals.ts MUST be the only module in app/src that imports the generator/stub'), show: (a) the resolved-import-scanner test retargeted at dynamicVisuals.ts's absolute path; (b) confirmation the scanner parses imports and classifies runtime vs type-only, resolving specifiers rather than doing a literal text grep (which would false-positive/negative on aliased or re-exported specifiers); and (c) confirmation this test currently passes against the real app/src tree, not a synthetic fixture tree."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-1",
+      "question": "For AC-UX-1 ('the watercolor entry MUST call the generator with a fresh randomized param set each invocation... so two successive calls return different svg strings while both reflect the pinned identity; in Phase A the stub MUST also vary its output per call'), show: (a) the stub's per-call randomization code; (b) a treatments.test.ts test calling watercolor() twice with the same style and asserting the two returned strings differ while both encode the pinned style; and (c) confirmation this is a real invocation-based assertion, not a mock-spy proxy that only checks the function was called twice."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-6",
+      "question": "For AC-STRUCT-6 ('a test MUST assert adapter output is self-contained: no <script>, no external href/url() to outside resources'), show: (a) the watercolor entry's production code guaranteeing self-containment; (b) the treatments.test.ts assertion checking for absence of <script> and external href/url() in the generated string; and (c) confirmation the assertion runs against a real generated string (including the stub's randomized variants), not a single hand-picked fixture chosen to trivially pass."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-3",
+      "question": "The DYNAMIC_GENERATORS registry contract defined here is consumed downstream by S3 (useDynamicBanner.ts, direct call) and S5 (banner.worker.ts, off-thread wrapper), per stories.json's seams[1] and architecture.md's Seam Contracts section. Does the shipped registry assert exactly: watercolor has signature (style: StyleToken, kind: 'banner', render?: Record<string, unknown>) => string; two successive calls return different svg strings while both reflect the pinned style identity (AC-UX-1); and the returned string is always self-contained (AC-STRUCT-6)? Is there a test asserting this full signature/behavior contract, not just a subset, so S3 and S5 can rely on it without re-verifying the adapter themselves?"
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VAL-1",
+      "question": "S1 left a placeholder describe('AC-VAL-1 carried guarantee (generator-enum-catalog-sync, placeholder pending S2)') in themes-validation.test.ts (TODO(S2), flagged by the examiner as VQ-S1-002/VQ-S1-013) that pinned the schema's generator enum standalone against a restated literal (['watercolor']) rather than against a real runtime registry. Was this specific test upgraded IN PLACE (not duplicated alongside a second sync test) to assert ThemeManifestSchema.shape.treatments.shape.dynamic.unwrap().shape.banner.unwrap().shape.generator.options exactly equals Object.keys(DYNAMIC_GENERATORS), imported from dynamicVisuals.ts, mirroring the non-tautological elevation/pattern/iconSet sync-test pattern at themes-validation.test.ts lines ~732-765?"
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "StyleToken in dynamicVisuals.ts is derived by indexing off ThemeManifest (NonNullable<ThemeManifest['treatments']['dynamic']>['banner']['style']) rather than hand-redeclared, per S1's examiner-verified convention. Does dynamicVisuals.ts's only import from schema.ts remain a TYPE-ONLY import (`import type { ThemeManifest }`), with zero runtime import of zod or of ThemeManifestSchema — i.e., does this file hold both the AC-BOUND-1 zod-boundary invariant (inherited from S1) and its own AC-STRUCT-4 single-import-site invariant simultaneously, with neither undermining the other?"
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The watercolor stub forces every call to a fixed BANNER_FORMAT ({ width: 420, height: 96 }) regardless of the `render` argument passed in, per spec.md's 'forces the element size/format' requirement. Is there a test (or is it self-evident from the production code with no test needed) confirming that passing an arbitrary `render` object (e.g. { width: 50, height: 50 }) does NOT change the emitted SVG's width/height/viewBox away from the forced envelope — i.e., the forcing is genuine and not silently overridable by a caller-supplied render knob?"
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The AC-STRUCT-4 scanner in themes-validation.test.ts recursively walks the entire app/src tree (not just src/themes/) since AC-STRUCT-4's scope is 'the only module in app/src'. Does this scan set, at the time of this story landing, actually include directories like app/src/hooks, app/src/components, app/src/lib, and app/src/workers (i.e. did the beforeAll's glob-has-teeth sanity assertion get exercised against a realistically broad tree, not just src/themes/ subfiles), so a future file anywhere under app/src that imports dynamicVisuals.ts at runtime would be caught?"
+    }
+  ]
+}

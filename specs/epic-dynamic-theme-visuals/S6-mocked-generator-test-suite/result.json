@@ -1,0 +1,73 @@
+{
+  "story_id": "S6",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-06T02:00:00Z",
+  "files_created": [],
+  "files_modified": [
+    "app/tests/unit/hooks/useDynamicBanner.test.ts"
+  ],
+  "tests_added": {
+    "unit": 11
+  },
+  "test_counts": {
+    "baseline": 2050,
+    "final": 2061
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "useDynamicBanner.test.ts"
+  ],
+  "escalation_history": [],
+  "spec_clause_coverage": {
+    "source": "spec.md §7 S6 description: 'Fallback renders; on mount the background swaps to a valid data-URI SVG; scrim guarantees logo contrast; adapter output is self-contained. No per-seed determinism tests.'",
+    "clauses": [
+      {
+        "clause": "Fallback renders (AC-UX-4)",
+        "status": "pre-existing coverage extended by this story",
+        "detail": "S3's AC-UX-2 block already proved the absent-declaration case (resolveDynamicBannerStyle(STATIC_ONLY, null) returns computeThemeStyles()'s own static bannerDecorStyle unchanged). This story added a NAMED describe('AC-UX-4', ...) block (house 1:1 AC-to-block convention) that re-asserts that case explicitly plus a strictly stronger check: decoding the returned backgroundImage back and comparing it against a value derived directly from the theme manifest's OWN raw treatments.banner field (not against computeThemeStyles()'s derived output), for both a static-only theme and a dynamic-declaring theme pre-hydration (generatedSvg: null), plus a cross-theme check that two different themes' no-JS fallbacks resolve to THEIR OWN distinct static banners."
+      },
+      {
+        "clause": "On mount the background swaps to a valid data-URI SVG (AC-UX-5)",
+        "status": "pre-existing coverage extended by this story",
+        "detail": "S3's AC-UX-2/AC-UX-3 blocks already proved the swap happens (backgroundImage changes, differs across mounts) via exact-string-match against known fixtures. This story added a NAMED describe('AC-UX-5', ...) block asserting the specific shape AC-UX-5 names: the decoded value parses as SVG (starts with <svg ...>), contains a viewBox attribute, and contains no <script> tag -- plus one test that runs this against a REAL DYNAMIC_GENERATORS.watercolor() call (not just the hand-authored SVG_A/SVG_B fixtures), proving the swap path preserves a genuine generator's shape rather than merely echoing a fixture pre-built to pass the regex (VQ-S6-008)."
+      },
+      {
+        "clause": "Scrim guarantees logo contrast (AC-A11Y-1, AC-A11Y-2)",
+        "status": "already fully covered, no S6 work needed",
+        "detail": "S4 (specs/epic-dynamic-theme-visuals/S4-legibility-scrim/) already added describe('AC-A11Y-1', ...) and describe('AC-A11Y-2', ...) blocks in this same file, testing resolveScrimColor/shouldRenderScrim against every real theme's brand.500 plus an arbitrary spread of hex values. No gap found; nothing added here."
+      },
+      {
+        "clause": "Adapter output is self-contained (AC-STRUCT-6)",
+        "status": "already fully covered, no S6 work needed",
+        "detail": "S2 (app/tests/unit/themes/treatments.test.ts) already added three AC-STRUCT-6-labeled tests: no <script>, no external href/url(), and a well-formed SVG root with viewBox, all against several randomized real generator calls. No gap found; nothing added here."
+      },
+      {
+        "clause": "No per-seed determinism tests (AC-META-1)",
+        "status": "new work, entirely added by this story",
+        "detail": "No prior story had an explicit negative-assertion check for this. Added describe('AC-META-1', ...) with: (1) a documented convention explaining why every generator-output assertion in the suite is either a behavior/shape check or a two-outputs-differ check, never a fixed-expected-output check; (2) an executable scan of this file plus treatments.test.ts for vitest's snapshot-matcher family (the most direct route to an accidental pixel test), using a concatenation-built marker so the scan can legitimately include itself; (3) a structural check that DYNAMIC_GENERATORS.watercolor's real signature exposes no seed-like parameter, so a per-seed test isn't even expressible against the real API."
+      }
+    ]
+  },
+  "production_bugs_found": [],
+  "verification": {
+    "pre_impl_questions": 9,
+    "post_impl_questions": 3,
+    "verification_json_path": "specs/epic-dynamic-theme-visuals/S6-mocked-generator-test-suite/verification.json"
+  },
+  "lint_typecheck": {
+    "lint": "NO_LINT",
+    "typecheck": "NO_TYPECHECK"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Designing AC-META-1's negative assertion required rejecting the tempting 'documentary comment only' option (weak, nothing stops silent drift) in favor of a real executable scan, but the executable scan then had to scan this FILE'S OWN SOURCE -- and the first version failed immediately because its own prose comments and test title spelled out the literal forbidden string ('toMatchSnapshot') contiguously, tripping the very check it was implementing. Fixed by building the marker via string concatenation and rewriting the surrounding prose to avoid the literal substring. This is a real but narrow gotcha specific to self-referential structural-scan tests (captured as a durable learning: self-referential-structural-scan-tests-must, base:learnings, cross-project scope) -- not a spec or architecture problem, just a pattern worth knowing before writing the next one.",
+    "surprised_by": "The AC-META-1 scan caught a real bug in itself on the first `make test-unit` run -- a useful, if slightly funny, proof that the check is not vacuous.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

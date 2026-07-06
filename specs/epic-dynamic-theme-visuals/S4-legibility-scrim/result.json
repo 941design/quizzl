@@ -1,0 +1,49 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-06T01:20:00Z",
+  "files_created": [],
+  "files_modified": [
+    "app/src/hooks/useDynamicBanner.ts",
+    "app/src/components/Layout.tsx",
+    "app/tests/unit/hooks/useDynamicBanner.test.ts"
+  ],
+  "tests_added": {
+    "unit": 11
+  },
+  "test_counts": {
+    "baseline": 2027,
+    "final": 2038
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": ["Layout.tsx"],
+  "escalation_history": [],
+  "manual_verification_required": [
+    {
+      "risk": "opaque-scrim JSX not verifiable without jsdom/real browser (this repo has no jsdom/RTL)",
+      "detail": "The scrim's WCAG AA guarantee depends on the Box actually rendering as a fully opaque solid background (no alpha) sitting visually in front of the banner, in the DOM stacking order that puts it above `activeBanner`'s background-image Box. Unit tests prove resolveScrimColor's contrast math and shouldRenderScrim's gating exhaustively, but this repo cannot mount Layout.tsx to prove the DOM actually paints the scrim opaquely in front of the banner rather than, e.g., a stacking-context bug placing it behind.",
+      "recommended_check": "Once Phase B's aquarelle theme (S8) exists and declares treatments.dynamic.banner, visually load the app with that theme active and confirm in DevTools that the nav logo's backing Box paints fully opaque above the generated banner image, with the logo text passing a real contrast-checker reading against the rendered pixels. This is the same class of manual-verification gap already flagged by S3 (MV-1) for the banner swap itself."
+    }
+  ],
+  "verification": {
+    "pre_impl_questions": 8,
+    "post_impl_questions": 4,
+    "verification_json_path": "specs/epic-dynamic-theme-visuals/S4-legibility-scrim/verification.json"
+  },
+  "lint_typecheck": {
+    "lint": "NO_LINT",
+    "typecheck": "clean"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The story brief instructed looking up 'brand.500's actual hex value' as if a single app-wide constant existed, but this codebase's pluggable-themes epic means every theme manifest declares its own colors.brand 10-step scale — brand.500 is genuinely per-theme, not a fixed value. A scrim color hardcoded against one theme's brand.500 would have silently broken WCAG AA the moment a different theme (in particular Phase B's still-undesigned aquarelle, the first theme that will actually use this scrim) picked a brand.500 outside that one color's safety margin. Resolved by computing the scrim from the ACTIVE theme's real brand.500 at render time and picking whichever of pure black/white has the higher contrast ratio — a choice that is mathematically guaranteed (not just empirically observed) to clear the 4.5 threshold for any input color, so it needs no rework once aquarelle's actual brand.500 is chosen in S8. Flagging this explicitly (also as post-impl VQ-S4-009/010) since it's the kind of task-brief assumption that could otherwise get silently baked into a fragile hardcoded value.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

@@ -20,6 +20,8 @@ import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import StorageWarning from '@/src/components/StorageWarning';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
+import { useDynamicBanner, shouldRenderScrim, resolveScrimColor } from '@/src/hooks/useDynamicBanner';
+import { useAppTheme } from '@/src/hooks/useMoodTheme';
 import ThemeIcon from '@/src/components/ThemeIcon';
 import NotificationBell from '@/src/components/NotificationBell';
 import DirectMessageNotificationsWatcher from '@/src/components/DirectMessageNotificationsWatcher';
@@ -49,6 +51,19 @@ export default function Layout({ children }: LayoutProps) {
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
   const { navStyle, surfaceStyle, bannerDecorStyle, contentPanelStyle } = useThemeStyles();
+  const { activeThemeDefinition } = useAppTheme();
+  const dynamicBanner = useDynamicBanner(activeThemeDefinition);
+  const activeBanner = dynamicBanner ?? bannerDecorStyle;
+  // AC-A11Y-1/AC-A11Y-2 (S4): legibility scrim behind the nav logo. Gated on
+  // the SAME declaration-based hasDynamicBanner semantic S3 established (see
+  // shouldRenderScrim's docstring) — never on generation success, so the
+  // scrim doesn't flicker off during a generation-failure window. Colors.brand
+  // index 5 is the 500 shade (SCALE_STEPS in buildChakraTheme.ts: 50,100,...,900),
+  // i.e. the same value the logo Text below resolves via Chakra's `brand.500`
+  // token for the CURRENTLY active theme (brand.500 is theme-specific, not a
+  // fixed app-wide color — see resolveScrimColor's docstring).
+  const showNavLogoScrim = shouldRenderScrim(dynamicBanner?.hasDynamicBanner ?? false);
+  const navLogoScrimColor = resolveScrimColor(activeThemeDefinition.colors.brand[5]);
 
   // AC-INVITE-8: reactive pending invitation count for Groups nav badge
   const pendingInvitations = useSyncExternalStore(
@@ -86,20 +101,41 @@ export default function Layout({ children }: LayoutProps) {
         aria-label="Main navigation"
         {...navStyle}
       >
-        {bannerDecorStyle && (
+        {activeBanner && (
           <Box
             data-testid="nav-banner-decor"
-            {...bannerDecorStyle.boxProps}
-            style={bannerDecorStyle.style}
+            {...activeBanner.boxProps}
+            style={{ transition: 'background-image 0.3s ease-in-out', ...activeBanner.style }}
           />
         )}
         <Container maxW="container.xl" position="relative" zIndex={1}>
           <Flex h={16} align="center" justify="space-between">
             <NextLink href="/" passHref legacyBehavior>
               <Link _hover={{ textDecoration: 'none' }}>
-                <Text fontWeight="bold" fontSize="lg" color="brand.500">
-                  {copy.appName}
-                </Text>
+                {showNavLogoScrim ? (
+                  // AC-A11Y-1: opaque scrim, fully occludes the banner behind
+                  // it — the only free variable left is navLogoScrimColor vs
+                  // brand.500, proven >= 4.5:1 by resolveScrimColor's
+                  // black-or-white guarantee (see its docstring).
+                  <Box
+                    data-testid="nav-logo-scrim"
+                    display="inline-block"
+                    bg={navLogoScrimColor}
+                    px={2}
+                    py={1}
+                    borderRadius="md"
+                  >
+                    <Text fontWeight="bold" fontSize="lg" color="brand.500">
+                      {copy.appName}
+                    </Text>
+                  </Box>
+                ) : (
+                  // AC-A11Y-2: static-only themes render exactly as before —
+                  // no scrim, no wrapping Box, no layout change.
+                  <Text fontWeight="bold" fontSize="lg" color="brand.500">
+                    {copy.appName}
+                  </Text>
+                )}
               </Link>
             </NextLink>
 

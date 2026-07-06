@@ -1,0 +1,91 @@
+{
+  "module_name": "banner.worker",
+  "purpose": "Move banner-SVG generation off the main thread. A new pure message-passing Worker entry (app/src/workers/banner.worker.ts) wraps DYNAMIC_GENERATORS.watercolor and posts the result back; app/src/hooks/useDynamicBanner.ts's generation call path is rewired from S3's direct synchronous call to construct that Worker (Next.js's native `new Worker(new URL(...))` ESM pattern) and, if Worker construction/usage is unavailable or throws (architecture.md Boundary Rule 11's acknowledged static-export risk), defer generation via requestIdleCallback (or a setTimeout shim where requestIdleCallback does not exist) so the call is never on the synchronous render/effect path either way. First paint is not blocked because generation now only ever starts from an asynchronous continuation (a worker message round-trip or a scheduled idle/timeout callback) — never from code executed synchronously during the effect that runs on mount.",
+  "public_api": [
+    {
+      "name": "BannerWorkerRequest",
+      "signature": "type BannerWorkerRequest = { style: StyleToken; kind: 'banner'; render?: Record<string, unknown> }",
+      "description": "Message contract posted TO banner.worker.ts. Declared in banner.worker.ts (the module that owns the message contract) and consumed by useDynamicBanner.ts as a type-only import so the worker's runtime module is never bundled into the main thread's chunk by accident."
+    },
+    {
+      "name": "BannerWorkerResponse",
+      "signature": "type BannerWorkerResponse = { ok: true; svg: string } | { ok: false }",
+      "description": "Message contract posted FROM banner.worker.ts back to the main thread. ok:false is the worker's own fail-soft signal for a generator throw inside the worker; the hook's onerror handler (an uncaught worker-thread error, e.g. a module-load failure) maps to the identical ok:false shape via resolveWorkerMessageOutcome, so both failure sources collapse to the same null outcome."
+    },
+    {
+      "name": "resolveIdleScheduler",
+      "signature": "function resolveIdleScheduler(): (callback: () => void) => void",
+      "description": "Returns requestIdleCallback when it exists on the global, else a setTimeout(callback, 0) shim. This repo's Vitest environment has no jsdom and no requestIdleCallback global, so calling this in tests exercises the TRUE fallback-of-fallback branch honestly (not a mocked stand-in) -- see verification.json VQ-S5-004."
+    },
+    {
+      "name": "generateViaFallback",
+      "signature": "function generateViaFallback(params: BannerGenerationParams): string | null",
+      "description": "Calls DYNAMIC_GENERATORS.watercolor(params.style, params.kind, params.render) inside a try/catch, returning the SVG string or null on any throw -- the exact same fail-soft contract S3's original synchronous try/catch established, now reused by the requestIdleCallback fallback path instead of running on the effect's synchronous body."
+    },
+    {
+      "name": "scheduleFallbackGeneration",
+      "signature": "function scheduleFallbackGeneration(params: BannerGenerationParams, onResult: (svg: string | null) => void, scheduler?: (callback: () => void) => void): void",
+      "description": "Defers a call to generateViaFallback through the given scheduler (default: resolveIdleScheduler()), then invokes onResult with the outcome. The scheduler parameter exists so tests can inject a synchronous fake to assert the generator is genuinely reached through the deferred path, in addition to exercising the real default scheduler."
+    },
+    {
+      "name": "resolveWorkerMessageOutcome",
+      "signature": "function resolveWorkerMessageOutcome(response: BannerWorkerResponse): string | null",
+      "description": "Pure mapping from the worker's postMessage response (or the hook's own ok:false stand-in for an onerror event) to the generatedSvg state value -- ok:true -> svg, ok:false -> null. Never throws."
+    },
+    {
+      "name": "resolveDynamicBannerStyle",
+      "signature": "function resolveDynamicBannerStyle(definition: AppThemeDefinition, generatedSvg: string | null): ResolveDynamicBannerStyleReturn | null",
+      "description": "UNCHANGED from S3/S4 -- not modified by this story. Still the pure decision function computing the boxProps/style split."
+    },
+    {
+      "name": "useDynamicBanner",
+      "signature": "function useDynamicBanner(definition: AppThemeDefinition): ResolveDynamicBannerStyleReturn | null",
+      "description": "MODIFIED generation call path only (this story's actual change). Same public signature and same external contract as S3: resets generatedSvg to null at the start of every effect run (so a theme change never shows a stale SVG), and on cleanup/re-run cancels the in-flight attempt (worker.terminate() if a worker was created; a `cancelled` flag guards late fallback results from calling setState after the effect has re-run or unmounted). Never throws uncaught, mirrors S3's fail-soft guarantee (AC-UX-3a) now across both the worker-message and fallback-callback code paths."
+    },
+    {
+      "name": "shouldRenderScrim",
+      "signature": "function shouldRenderScrim(hasDynamicBanner: boolean): boolean",
+      "description": "UNCHANGED from S4 -- not modified by this story."
+    },
+    {
+      "name": "resolveScrimColor",
+      "signature": "function resolveScrimColor(brand500Hex: string): string",
+      "description": "UNCHANGED from S4 -- not modified by this story."
+    }
+  ],
+  "private_files": [
+    "app/src/hooks/useDynamicBanner.ts (internal, unexported: encodeSvgDataUri -- unchanged from S3/S4)",
+    "app/src/workers/banner.worker.ts (internal: the top-level self.addEventListener('message', ...) handler -- not exported, it is the worker's own entry-point side effect, executed only inside the Worker global scope this file is instantiated into via new URL(...), never imported for its runtime value from the main thread)"
+  ],
+  "owned_data": [
+    "the per-mount generatedSvg state (string | null) inside useDynamicBanner's useState -- unchanged ownership from S3, now populated asynchronously (worker message or deferred fallback callback) instead of synchronously",
+    "the in-flight Worker instance and the cancelled/cleanup flag inside a single useEffect run -- not shared across mounts, torn down on every re-run/unmount"
+  ],
+  "dependencies_allowed": [
+    "app/src/themes/treatments/dynamicVisuals.ts (value import of DYNAMIC_GENERATORS from BOTH useDynamicBanner.ts's fallback path AND banner.worker.ts's message handler -- declared seam per architecture.md Module Map; banner.worker.ts is the second consumer this story adds)",
+    "app/src/hooks/useThemeStyles.ts (value import of computeThemeStyles from useDynamicBanner.ts -- unchanged from S3, read-only reuse, useThemeStyles.ts itself is NOT modified)",
+    "app/src/themes/index.ts / app/src/lib/theme.ts (type-only import of AppThemeDefinition -- unchanged from S3)",
+    "app/src/workers/banner.worker.ts (type-only import of BannerWorkerRequest/BannerWorkerResponse from useDynamicBanner.ts -- NEW seam this story introduces; type-only so the worker's runtime module is never pulled into the main-thread bundle by this import, only via the new URL(...) Worker-construction reference)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/themes/schema.ts (no direct import -- unchanged from S3)",
+    "the ink package / stub generator directly from anywhere other than dynamicVisuals.ts (AC-STRUCT-4 single-import-site invariant -- banner.worker.ts goes through DYNAMIC_GENERATORS exactly like useDynamicBanner.ts already does, never re-implementing randomizeParams/override logic itself)",
+    "a runtime (non-type-only) import of banner.worker.ts's module from useDynamicBanner.ts or any other main-thread file -- would defeat the off-thread split by executing the worker's self.addEventListener side effect in the main-thread's `self` (== window) instead of inside an actual Worker global scope"
+  ],
+  "external_ports": [
+    "Web Worker (app/src/workers/banner.worker.ts, instantiated via new Worker(new URL(...)), Next.js's native ESM worker-bundling support -- genuinely greenfield, zero prior Worker usage in this repo per architecture.md Boundary Rule 11)",
+    "requestIdleCallback / setTimeout (browser main-thread deferred-scheduling primitives, used only when the Worker path is unavailable or fails to construct)"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/hooks/useDynamicBanner.test.ts"
+  ],
+  "seam": {
+    "cross_story": false
+  },
+  "manual_verification_notes": [
+    "Real off-thread execution (does the Worker genuinely run on a separate OS thread under output: 'export', with correct webpack bundling of the new URL(...) reference) cannot be verified by this repo's test suite -- no real Worker-thread mocking/execution infrastructure exists here (architecture.md Implementation Constraints, explicitly scoping S6's Web-Worker-path coverage to the requestIdleCallback/fallback mechanism only). `make build` was run as a best-effort static-export bundling check; see result.json for the outcome and any residual risk.",
+    "Real paint-timing (does moving generation off the synchronous effect body actually prevent measurable jank on a low-end device) is explicitly AC-PERF-3 / Phase B (S9), out of this story's scope per acceptance-criteria.md's own scope note on AC-PERF-2."
+  ]
+}

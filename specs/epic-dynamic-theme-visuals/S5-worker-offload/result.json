@@ -1,0 +1,62 @@
+{
+  "story_id": "S5",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-06T01:40:00Z",
+  "files_created": [
+    "app/src/workers/banner.worker.ts"
+  ],
+  "files_modified": [
+    "app/src/hooks/useDynamicBanner.ts",
+    "app/tests/unit/hooks/useDynamicBanner.test.ts"
+  ],
+  "tests_added": {
+    "unit": 12
+  },
+  "test_counts": {
+    "baseline": 2038,
+    "final": 2050
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "banner.worker"
+  ],
+  "escalation_history": [],
+  "manual_verification_required": [
+    {
+      "risk": "Real off-thread execution and cross-mount cleanup correctness cannot be observed by any test in this jsdom-less, no-Worker-mocking repo (architecture.md Implementation Constraints).",
+      "detail": "The hook's `cancelled` flag (set on effect cleanup, checked inside `applyResult`) is meant to stop a stale Worker message, a stale `worker.onerror` firing, or a stale scheduled `requestIdleCallback`/`setTimeout` fallback callback from calling `setGeneratedSvg` after the effect has re-run (theme change) or the component has unmounted, and `worker?.terminate()` is meant to avoid leaking a live Worker thread across re-renders. Both are structurally present and route every async result through the single `applyResult` helper (verified by source read, not by a mounted-component test), but no jsdom/RTL exists in this repo to actually mount/re-render/unmount the hook and observe the guard firing.",
+      "recommended_check": "In a real browser (or once Phase B's aquarelle theme exists, S8), rapidly toggle between a dynamic-banner theme and a different theme (or navigate away) while the banner is mid-generation, and confirm via DevTools (Application > Frameworks or a console log) that no stale SVG from the abandoned attempt is ever applied, and that no orphaned Worker threads accumulate across repeated toggles."
+    },
+    {
+      "risk": "Worker bundling under `output: 'export'` is the story's own acknowledged risk (architecture.md Boundary Rule 11) \u2014 verified via `make build` in this session, but that is a single build-time observation, not a standing regression test.",
+      "detail": "`make build` was run and succeeded. The emitted `_app` chunk contains `new Worker(n.tu(new URL(n.p+n.u(6865),n.b)))`, and `out/_next/static/chunks/6865.e5beb5c9dc6fac5a.js` is a genuinely separate chunk containing the worker's `self.addEventListener` and the `watercolor` generator body (confirmed independently in this review pass: `grep -c 'self.addEventListener' 6865.<hash>.js` = 1; the same string count in the main `_app` chunk = 0, so the worker's runtime side effect is not leaking into the main-thread bundle via the type-only import). No `next.config.mjs` change was needed or made.",
+      "recommended_check": "Re-confirm `make build` stays green on CI/future Next.js version bumps, since webpack's native `new Worker(new URL(...))` recognition is a build-time feature, not something a unit test can regression-guard. A real-browser load of a dynamic-banner theme (once one exists, Phase B) would additionally confirm the worker actually executes off-thread rather than merely bundling correctly."
+    }
+  ],
+  "verification": {
+    "pre_impl_questions": 7,
+    "post_impl_questions": 3,
+    "verification_json_path": "specs/epic-dynamic-theme-visuals/S5-worker-offload/verification.json"
+  },
+  "lint_typecheck": {
+    "lint": "NO_LINT",
+    "typecheck": "clean"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Nothing harder than expected in the implementation itself; the one friction point was a false-positive in the AC-PERF-2 structural regex scanner (it matched the literal word randomizeParams inside a header-comment sentence, not code) that needed a one-line comment reword to clear \u2014 see surprised_by for the positive surprise (worker bundling risk did not materialize).",
+    "surprised_by": "The story's own acknowledged risk (architecture.md Boundary Rule 11: worker bundling under `output: 'export'` might prove fussy and need the `requestIdleCallback` escape hatch) did not materialize \u2014 `make build` succeeded on the first attempt with Next.js 14's native webpack5 `new Worker(new URL(...))` pattern, no `next.config.mjs` change needed. Verified concretely, not just by absence of a build error: the worker's `self.addEventListener` appears in an isolated chunk and zero times in the main `_app` chunk.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "note": "Dev's own retro was skipped (clean run; one minor iteration where the worker file's header-comment prose contained the literal word 'randomizeParams', which false-tripped the AC-PERF-2 structural regex scanner in useDynamicBanner.test.ts \u2014 reworded the comment, no test or contract change needed). Dev also independently confirmed the make-build worker-chunk evidence I re-verified above."
+      }
+    ],
+    "lead_clarifications": []
+  }
+}

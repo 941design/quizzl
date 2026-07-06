@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-03T07:56:17Z",
+  "updated_at": "2026-07-06T08:40:08Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -141,6 +141,11 @@
       "path": "specs/epic-add-contact-by-npub/",
       "status": "DONE",
       "next_action": "completed 2026-07-02"
+    },
+    {
+      "path": "specs/epic-dynamic-theme-visuals/",
+      "status": "DONE",
+      "next_action": "Phase A (S1-S6) completed 2026-07-06; Phase B (S7-S9) blocked on ink v0 tag, dispatch separately once available"
     }
   ],
   "findings": [

@@ -169,3 +169,23 @@ Phase A merged and green against the stub; ink v0 published; Phase B merged; the
 a unique watercolour banner on every reload, always legible under the logo, no layout shift, correct
 no-JS fallback, and measured acceptable on low-end mobile. Dark-theme and non-banner elements are
 explicitly out of v1 (v2).
+
+## Amendments
+
+- **2026-07-05** — This epic's first `/base:feature` run is scoped to **Phase A only** (S1–S6). Phase B
+  (S7–S9) and v2 remain blocked on ink's v0 tag (§5) and will be dispatched as a separate future run once
+  it publishes.
+- **2026-07-05** — Added AC-UX-3a (runtime generation-failure fallback): if generation fails
+  post-hydration, `useDynamicBanner` keeps/reverts to the static fallback rather than showing a broken or
+  blank banner, and must not throw uncaught. Decided directly (consistent with the existing G6/AC-UX-4
+  no-JS fallback philosophy) rather than escalated, since the spec already established the underlying
+  principle.
+- **2026-07-05** — Clarified AC-PERF-1/AC-PERF-2 scope for Phase A: S6's mocked-generator test suite
+  verifies the *mechanism* (reserved box dimensions unchanged; worker/idle-callback path exercised), not
+  real CLS/paint-timing measurement, which is AC-PERF-3 (Phase B).
+- **2026-07-06** — Added `## Manual Validation` MV-1 (acceptance-criteria.md): S3's implementation
+  correctly preserves the `boxProps`/`style` split that keeps the dynamic banner's data-URI on Chakra's
+  raw `style` prop (never folded into `boxProps`, where Chakra would silently drop it) — proven
+  structurally by unit tests, but not renderable-in-a-real-browser-provable in this jsdom-less repo.
+  Flagged as a manual/deferred check, expected to be waived for this Phase-A run (no theme declares
+  `treatments.dynamic` yet) and re-raised as a hard gate before Phase B's `aquarelle` (S8) ships.

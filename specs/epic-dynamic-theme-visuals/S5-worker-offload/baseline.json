@@ -1,0 +1,17 @@
+{
+  "story_id": "S5",
+  "captured_at": "2026-07-06T01:24:00Z",
+  "command": "make test-unit (cd app && npx vitest run)",
+  "status": "PASS",
+  "test_files": 122,
+  "tests": 2038,
+  "lint": {
+    "status": "NO_LINT",
+    "detail": "No ESLint config exists anywhere under app/ (confirmed absent: no .eslintrc*, no eslint.config.*, no eslintConfig key in package.json), unchanged since S1-S4's baseline. package.json's 'lint' script ('next lint') would prompt interactively to scaffold a config on first run — not invoked."
+  },
+  "typecheck": {
+    "status": "clean",
+    "command": "cd app && npx tsc --noEmit -p tsconfig.json",
+    "detail": "No dedicated Makefile/package.json typecheck script exists; ran the project's own installed typescript directly against tsconfig.json (strict: true, noEmit: true, lib: [dom, dom.iterable, esnext] — no 'webworker' lib entry, relevant to this story's new Worker file). Zero errors at baseline."
+  }
+}

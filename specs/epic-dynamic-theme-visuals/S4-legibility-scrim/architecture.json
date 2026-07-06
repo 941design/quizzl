@@ -1,0 +1,37 @@
+{
+  "module_name": "Layout",
+  "purpose": "Render an opaque legibility scrim behind the nav logo (brand.500 Text) whenever the active theme's dynamic banner is active, guaranteeing WCAG AA (>= 4.5:1) contrast for the logo regardless of what banner content sits behind it, while leaving static-only themes visually unchanged. Adds two small pure decision functions co-located with S3's resolveDynamicBannerStyle in useDynamicBanner.ts (shouldRenderScrim, resolveScrimColor), consumed by Layout.tsx's render.",
+  "public_api": [
+    {
+      "name": "shouldRenderScrim",
+      "signature": "function shouldRenderScrim(hasDynamicBanner: boolean): boolean",
+      "description": "Thin passthrough of the declaration-based hasDynamicBanner boolean S3 established on ResolveDynamicBannerStyleReturn. Named explicitly (rather than inlined at the Layout.tsx render site) for API stability — a future story that needs to narrow scrim presence has exactly one seam to change. Lives in app/src/hooks/useDynamicBanner.ts, co-located with resolveDynamicBannerStyle."
+    },
+    {
+      "name": "resolveScrimColor",
+      "signature": "function resolveScrimColor(brand500Hex: string): string",
+      "description": "Pure function: returns whichever of '#000000'/'#ffffff' has the higher wcagRatio (contrast.ts) against the given brand.500 hex. Mathematically guaranteed to clear WCAG_AA_THRESHOLD (4.5) for ANY input color (proof in the function's docstring), so it needs no re-verification once Phase B's aquarelle theme picks its own brand.500. Takes the hex as its only argument — cannot depend on banner content, satisfying AC-A11Y-1's independence requirement by construction (signature-level, not just behaviorally). Lives in app/src/hooks/useDynamicBanner.ts, co-located with resolveDynamicBannerStyle and shouldRenderScrim."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "scrim presence/contrast at the Layout.tsx render site (per architecture.md Module Map row for Layout.tsx) — showNavLogoScrim/navLogoScrimColor are local render-time values, not persisted state"
+  ],
+  "dependencies_allowed": [
+    "app/src/hooks/useDynamicBanner.ts (new value imports: shouldRenderScrim, resolveScrimColor — same already-declared seam Layout.tsx consumes useDynamicBanner/ResolveDynamicBannerStyleReturn through, per architecture.md's 'useDynamicBanner return (useDynamicBanner.ts -> Layout.tsx)' seam contract, extended to cover S4's two new exports)",
+    "app/src/themes/contrast.ts (read-only reuse of wcagRatio/WCAG_AA_THRESHOLD from within useDynamicBanner.ts, per architecture.md Boundary Rule 9 — contrast.ts itself is not modified)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/themes/contrast.ts's evaluateThemeContrast (takes a ThemeManifest, not arbitrary colors — architecture.md Boundary Rule 9 explicitly excludes it from this use case)",
+    "no re-derived contrast math in Layout.tsx or useDynamicBanner.ts outside of calling wcagRatio directly"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/hooks/useDynamicBanner.test.ts"
+  ],
+  "seam": {
+    "cross_story": false
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-05T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the scrim contrast assertion call the real wcagRatio(hexA, hexB) from contrast.ts against actual brand.500 and scrim color hex values, or does the test hardcode/mock a pre-computed ratio constant that would still pass even if wcagRatio itself were broken?"
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the scrim implementation reuse contrast.ts's wcagRatio(hexA, hexB) primitive directly, per architecture.md Boundary Rule 9, with no re-derived contrast math duplicated in Layout.tsx or useDynamicBanner.ts, and with no use of evaluateThemeContrast() (which takes a ThemeManifest, not arbitrary colors, per architecture.md's explicit note that it is NOT reusable here)?"
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `Layout.tsx` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does useDynamicBanner.test.ts contain describe('AC-A11Y-1') and describe('AC-A11Y-2') blocks asserting scrim + brand.500 contrast via wcagRatio independent of any generated image? Does the AC-A11Y-2 coverage specifically assert no visual regression on a static-only-banner theme (no scrim required, or a no-op) — i.e. is the scrim-off path itself asserted, not merely the scrim-on path?"
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does shouldRenderScrim(hasDynamicBanner) key the scrim-presence decision exactly off the hasDynamicBanner boolean from S3's ResolveDynamicBannerStyleReturn (per the seam contract), with no additional undocumented condition (e.g. a specific theme id check) silently narrowing when the scrim appears?"
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Is the existing WCAG_AA_THRESHOLD = 4.5 constant reused (not re-declared/hardcoded separately in the scrim code), and does the AC-A11Y-1 test assert the >= 4.5:1 threshold in a way that is independent of banner content per the AC's own text (not just a single favorable example that happens to pass)?"
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-A11Y-1",
+      "question": "For AC-A11Y-1 ('a scrim/backing behind the nav logo MUST guarantee the brand.500 logo text meets WCAG AA (>= 4.5:1) contrast regardless of the banner content behind it, asserted independent of any generated image'), show: (a) the scrim's production code and color values; (b) a test computing wcagRatio(scrim color, brand.500) and asserting >= 4.5; and (c) confirmation this test does not depend on any generated banner image (per the AC's own independence requirement), and is not a mock-spy proxy around wcagRatio."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-A11Y-2",
+      "question": "For AC-A11Y-2 ('the scrim MUST be present whenever a dynamic banner is active and MUST NOT visually regress themes using only a static banner'), show: (a) shouldRenderScrim's production code for both the true and false branches; (b) a test asserting scrim presence when hasDynamicBanner is true and no-regression (no scrim, or a genuine no-op) when false; and (c) confirmation both branches are exercised by real calls to the function, not an assertion of only the true case."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "brand.500 turned out NOT to be a single app-wide fixed hex value (contrary to the story brief's phrasing) — every theme manifest (app/src/themes/<id>/manifest.ts) declares its own colors.brand 10-step scale, and Chakra resolves the `brand.500` token against whichever theme is currently active. Does the implementation compute the scrim's color from the ACTIVE theme's actual brand.500 (activeThemeDefinition.colors.brand[5]) at render time in Layout.tsx, rather than a hardcoded literal hex that would only be provably safe for one specific theme and could silently fail WCAG AA once Phase B's aquarelle theme (the first to actually declare a dynamic banner) picks its own brand.500?"
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "ac_id": "AC-A11Y-1",
+      "question": "resolveScrimColor picks whichever of pure black (#000000) or pure white (#ffffff) has the higher wcagRatio against the given brand.500 hex, on the mathematical claim that at least one of the two always reaches the 4.5 threshold for any input color. Is this claim tested against more than the 5 currently-shipped themes' brand.500 values — i.e. against a spread of arbitrary/edge-case hex values (including ones near the luminance band where the black-vs-white choice is close) — so the guarantee is verified as a general property, not merely observed to hold for today's specific color palette?"
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Is the scrim rendered as a fully opaque Box (solid `bg`, no alpha/rgba, no transparency) in Layout.tsx's production JSX? This is the structural precondition AC-A11Y-1's 'regardless of the banner content behind it' claim depends on — a translucent scrim would make the effective on-screen color a composite of the scrim and whatever banner pixel sits behind it, which wcagRatio (a two-opaque-hex-value function) cannot account for and the test suite does not attempt to verify by compositing math."
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-A11Y-2",
+      "question": "Does the no-scrim (false) branch in Layout.tsx render the exact same Text JSX element (fontWeight, fontSize, color=\"brand.500\", children) that existed before this story, with no wrapping Box, padding, or borderRadius added — i.e. is 'MUST NOT visually regress themes that use only a static banner' satisfied structurally by the false branch being byte-identical to the pre-S4 markup, rather than relying on manual visual inspection to confirm no regression?"
+    }
+  ]
+}

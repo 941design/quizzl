@@ -1,0 +1,68 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-05T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S5-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does banner.worker.ts genuinely wrap DYNAMIC_GENERATORS.watercolor's real call (postMessage-ing its actual return value), or is there a load-bearing stand-in where the worker path returns a hardcoded/frozen SVG placeholder regardless of what the generator produces — undetectable because no real Worker-thread test infrastructure exists in this repo?"
+    },
+    {
+      "question_id": "VQ-S5-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does banner.worker.ts hold zero state of its own — a pure message-passing wrapper per architecture.md's Module Map — with no duplication of dynamicVisuals's randomizeParams()+override call shape inside the worker file itself?"
+    },
+    {
+      "question_id": "VQ-S5-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `banner.worker` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S5-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Since no real Worker-thread mocking infrastructure exists in this repo (per architecture.md's Implementation Constraints), is the requestIdleCallback fallback path independently exercised by a real test — not skipped or left untested merely because the Worker path itself is untestable here? Show the specific test asserting the fallback triggers and completes without blocking, and confirm it is not a no-op/pass-through mock of requestIdleCallback that always resolves without exercising the deferred-callback contract."
+    },
+    {
+      "question_id": "VQ-S5-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the implementation confirm generation is genuinely deferred off the critical rendering path (off-thread via Worker, or deferred via requestIdleCallback) such that first paint is not blocked, per AC-PERF-2's mechanism-only Phase-A scope, without silently regressing to a synchronous main-thread call in the fallback branch?"
+    },
+    {
+      "question_id": "VQ-S5-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "If worker bundling under output: 'export' proves fussy and the implementation falls back to requestIdleCallback per spec.md §6's acknowledged escape hatch, is this fallback decision made through a real feature-detection/try-catch path (not a permanently-disabled Worker branch masquerading as a fallback), and is any next.config.mjs change scoped narrowly per the story's exclusion of unrelated webpack changes?"
+    },
+    {
+      "question_id": "VQ-S5-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PERF-2",
+      "question": "For AC-PERF-2 ('banner generation MUST run off the main thread via Worker when supported, with a requestIdleCallback (or equivalent deferred) fallback, and MUST NOT block first paint'), show: (a) the production code for both the Worker path and the fallback path; (b) the mocked-generator test(s) exercising the fallback mechanism end-to-end; and (c) confirmation these tests are not pure mock-spy proxies that merely assert a function was called, but actually verify the deferred/non-blocking behavior."
+    },
+    {
+      "question_id": "VQ-S5-008",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "useDynamicBanner.ts imports BannerWorkerResponse from '@/src/workers/banner.worker' as `import type { ... }` (never a runtime import). Confirm this stays type-only under the actual webpack/Next.js build — i.e. that `make build`'s emitted main-thread chunk does not itself contain banner.worker.ts's `self.addEventListener('message', ...)` side effect (which would mean the type-only erasure failed or a future edit accidentally added a runtime import), and that the only reference to the worker module from the main thread is the `new URL('../workers/banner.worker.ts', import.meta.url)` string passed to `new Worker(...)`."
+    },
+    {
+      "question_id": "VQ-S5-009",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The `cancelled` flag set in the effect's cleanup (and checked inside `applyResult`) is meant to stop a stale Worker message or a stale scheduled fallback callback from calling `setGeneratedSvg` after the effect has re-run (theme change) or the component has unmounted. Since no jsdom/RTL exists here to mount/unmount/re-render the hook, this guard is unverified by any test in this repo. Is the guard actually reachable in the shipped code (not dead code — e.g. does `worker.onmessage`/`worker.onerror`/the fallback's `onResult` callback all route through `applyResult` and nothing bypasses it with a direct `setGeneratedSvg` call), and is this flagged as a manual/browser-verification item in result.json rather than silently assumed correct?"
+    },
+    {
+      "question_id": "VQ-S5-010",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "question": "dev's implementation run reported that `make build` succeeded and that the built `_app` chunk contains a `new Worker(n.tu(new URL(...)))` call resolving to a genuinely separate chunk file containing banner.worker.ts's `self.addEventListener` and the `watercolor` generator body. Is this evidence reproducible (not a one-off artifact of that specific build run), and does it hold up as suffficient confirmation that Boundary Rule 11's acknowledged worker-bundling risk under `output: 'export'` did not materialize for this story — i.e. no next.config.mjs change was needed, matching the story's exclusion of unrelated webpack changes?"
+    }
+  ]
+}

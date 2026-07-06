@@ -143,6 +143,86 @@ const RawOverridesSchema = z
   })
   .strict();
 
+/**
+ * Closed, build-time generator catalog for dynamic (load-time-generated)
+ * visual elements (spec.md §2 G2, §6 Architecture & seams). v1 has exactly
+ * one entry, `'watercolor'`. Declared inline here — never imported from
+ * `treatments/dynamicVisuals.ts` — following this file's own established
+ * convention for enum-like fields (see header comment / ElevationNameSchema
+ * etc. above): kept in sync by hand, pinned by a
+ * themes-validation.test.ts describe block (AC-BOUND-1 carried guarantee,
+ * mirroring the existing enum-catalog-schema-treatment-sync pattern) once
+ * `treatments/dynamicVisuals.ts`'s `DYNAMIC_GENERATORS` registry exists (S2).
+ * An out-of-catalog value MUST fail `.parse()` (AC-VAL-1).
+ */
+const DynamicGeneratorNameSchema = z.enum(['watercolor']);
+
+/**
+ * The pinned colour identity a dynamic element renders within (spec.md §5,
+ * the converged ink contract). Composition varies per generation; this
+ * token fixes the centre. Bounds are exact per the converged contract
+ * (AC-VAL-2) — do not narrow or widen without re-confirming against
+ * proposals/dynamic-banner/ink-channel-log.md.
+ */
+const StyleTokenSchema = z
+  .object({
+    anchorHue: z.number().min(0).max(359),
+    scheme: z.enum([
+      'monochromatic',
+      'analogous',
+      'analogous-accent',
+      'split-complementary',
+      'triadic',
+      'complementary',
+    ]),
+    saturation: z.number().min(20).max(100),
+    lightness: z.number().min(20).max(75),
+  })
+  .strict();
+
+/**
+ * A manifest-declared visual element generated at load time (spec.md §1/§6,
+ * `treatments.dynamic.<surface>`). Additive: the presence of a dynamic
+ * element never removes the requirement for the corresponding static
+ * treatment (e.g. `treatments.banner` stays required — AC-STRUCT-2). This
+ * shape is pure data; WHEN/HOW it renders is owned by
+ * `treatments/dynamicVisuals.ts` (the generator registry, S2) and
+ * `useDynamicBanner.ts` (the client-only render hook, S3) — schema.ts only
+ * validates the declaration.
+ */
+const DynamicElementSchema = z
+  .object({
+    generator: DynamicGeneratorNameSchema,
+    style: StyleTokenSchema,
+    /** Unused in Phase A/v1 (banner only); admitted now so v2's button/card
+     * fills (masked into a component shape) need no schema redesign. */
+    clip: z.enum(['button', 'card', 'avatar']).optional(),
+    /**
+     * Perf-knob escape hatch (e.g. a "lite" vs "full" generation preset).
+     * Left permissive (`z.record(z.string(), z.unknown())`, same escape
+     * hatch as `RawOverridesSchema` above) since the exact knob field set
+     * is not yet nailed down (architecture.md Open Questions) and zod
+     * cannot meaningfully validate arbitrary per-generator knobs anyway.
+     */
+    render: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+
+/**
+ * `treatments.dynamic` — optional, additive sibling map next to the static
+ * treatment fields (AC-STRUCT-1). A manifest that omits this key entirely
+ * validates and renders exactly as before this epic (opt-in, purely
+ * additive — spec.md §2 G1/G2). Only `banner` is implemented end-to-end in
+ * Phase A; `background` is admitted now (v2 expands it) so the schema
+ * shape does not need to change later.
+ */
+const DynamicTreatmentsSchema = z
+  .object({
+    banner: DynamicElementSchema.optional(),
+    background: DynamicElementSchema.optional(),
+  })
+  .strict();
+
 const TreatmentsSchema = z
   .object({
     card: ElevationNameSchema,
@@ -153,6 +233,7 @@ const TreatmentsSchema = z
     banner: z.string(),
     contentPanel: ContentPanelNameSchema.optional(),
     overrides: RawOverridesSchema.optional(),
+    dynamic: DynamicTreatmentsSchema.optional(),
   })
   .strict();
 

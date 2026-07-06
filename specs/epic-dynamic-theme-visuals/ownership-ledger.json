@@ -1,0 +1,167 @@
+{
+  "epic": "dynamic-theme-visuals",
+  "concepts": [
+    {
+      "id": "dynamic-element-schema-shape",
+      "name": "Dynamic-element / style-token schema shape (validation-only, never in client bundle)",
+      "owning_module": "schema",
+      "type": "public_contract",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "dynamic-generators-registry-seam",
+      "name": "DYNAMIC_GENERATORS name->function registry; watercolor(style, kind, render?) => self-contained SVG; forces size/format (never overridable by caller render knob); non-deterministic per call (unseeded); pinned style identity preserved",
+      "owning_module": "dynamicVisuals",
+      "type": "public_contract",
+      "added_by_story": "S2"
+    },
+    {
+      "id": "single-import-site-invariant",
+      "name": "Randomize+override call shape / sole generator-import site (dynamicVisuals.ts is the only app/src module allowed a runtime import of the generator/stub)",
+      "owning_module": "dynamicVisuals",
+      "type": "invariant",
+      "added_by_story": "S2",
+      "review_note": "RESOLVED (S2->S3 gate-remediation). The invariant is: dynamicVisuals.ts is the only app/src module that runtime-imports the ink GENERATOR (bare '@ink/visuals' specifier; stub is inline in Phase A). The AC-STRUCT-4 scanner (themes-validation.test.ts ~1104) now checks a runtime bare '@ink/visuals' import via hasRuntimeBareImport (reuses parseImports; exact-match, not text grep) - vacuously true in Phase A, activates in Phase B/S7 with no rewrite. Regression-proof tests confirm S3/S5's legitimate DYNAMIC_GENERATORS import of dynamicVisuals.ts does NOT trip it. Superseded the earlier incorrect assertion (no file resolves-to dynamicVisuals.ts) which would have blocked S3/S5."
+    },
+    {
+      "id": "dynamic-banner-state-fail-soft",
+      "name": "Dynamic banner state ownership; runtime generation failure is fail-soft (useThemeStyles.ts must NOT be modified)",
+      "owning_module": "useDynamicBanner",
+      "type": "invariant",
+      "added_by_story": "S3",
+      "review_note": "S3 verified: useThemeStyles.ts git-diff is empty (untouched); the hook's synchronous generator call is wrapped in try/catch that sets generatedSvg=null on any throw (AC-UX-3a, never uncaught). computeThemeStyles imported value-only (read-only), not mutated."
+    },
+    {
+      "id": "resolve-dynamic-banner-style-seam",
+      "name": "ResolveDynamicBannerStyleReturn { hasDynamicBanner, boxProps, style } — the two-field boxProps/style split (mirrors navBannerDecor; swapped backgroundImage stays on raw style, never folded into boxProps) + declaration-based hasDynamicBanner (reflects manifest, not per-attempt success) that S4's scrim keys off",
+      "owning_module": "useDynamicBanner",
+      "type": "public_contract",
+      "added_by_story": "S3",
+      "review_note": "Resolves the cross-doc discrepancy (VQ-S3-013): architecture.md's Seam Contract {boxProps, style} split wins over stories.json's flatter {hasDynamicBanner, backgroundImage:string}; the flat shape would have lost boxProps and invited folding backgroundImage into a single field (the Chakra silent-drop trap). hasDynamicBanner additively preserved from stories.json intent for S4. Split proven STRUCTURALLY by unit tests (boxProps has no backgroundImage key; style.backgroundImage carries the swap); real-browser render is MV-1 (waived Phase A, hard gate before S8). encodeSvgDataUri mirrors navBannerDecor byte-for-byte (verified)."
+    },
+    {
+      "id": "worker-stateless-wrapper",
+      "name": "banner.worker.ts holds no state of its own - pure message-passing wrapper around dynamicVisuals's generator call",
+      "owning_module": "banner.worker",
+      "type": "invariant",
+      "added_by_story": "S5",
+      "review_note": "S5 verified. banner.worker.ts is a thin wrapper: one self.addEventListener('message'), one DYNAMIC_GENERATORS.watercolor call in a try/catch, one postMessage per branch ({ok:true,svg} / {ok:false}); no blob math or randomizeParams duplication. It runtime-imports DYNAMIC_GENERATORS (a legitimate consumer) which does NOT trip S2's AC-STRUCT-4 scanner (that targets bare '@ink/visuals', confirmed - 98 themes-validation tests still green). Independent `make build`: the worker's response side-effect (postMessage({ok:...})) lands ONLY in its emitted chunk 6865, absent from _app; _app holds only the new Worker(new URL) call site + the generator (required by the main-thread fallback) + the message receiver. MV-3 build observation confirmed."
+    },
+    {
+      "id": "scrim-logo-contrast-guarantee",
+      "name": "Scrim presence/contrast guarantee - brand.500 logo text meets WCAG AA regardless of banner content",
+      "owning_module": "Layout.tsx",
+      "type": "invariant",
+      "added_by_story": "S4",
+      "review_note": "S4 verified. resolveScrimColor(brand500Hex) picks whichever of #000/#fff has the higher wcagRatio vs the ACTIVE theme's real brand.500 (activeThemeDefinition.colors.brand[5]; Scale10Schema tuple, SCALE_STEPS[5]=500, = Chakra's brand.500 token). The scrim is rendered OPAQUE, so it fully occludes the banner and the only contrast variable is scrim-vs-brand.500 (AC-A11Y-1 'regardless of banner content' by construction). Black-or-white guarantee is mathematically SOUND: both ratios <4.5 would require L<0.175 AND L>0.1833 (impossible); worst case at the crossover is ~4.58:1. Verified independently. contrast.ts untouched (git diff empty); wcagRatio reused read-only, order-independent (Boundary Rule 9). shouldRenderScrim is a declaration-based passthrough of S3's hasDynamicBanner (no flicker during the AC-UX-3a fallback window). No-scrim else-branch is byte-identical to the pre-existing logo JSX (no static-theme regression, AC-A11Y-2)."
+    },
+    {
+      "id": "compute-theme-styles-purity",
+      "name": "computeThemeStyles() purity - explicitly NOT touched by this epic; stays pure and keeps returning the static bannerDecorStyle",
+      "owning_module": "useThemeStyles.ts",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "generator-catalog-validation-gate",
+      "name": "Generator-catalog / style-token bounds validation gate (fail-loud at build time)",
+      "owning_module": "themes-validation.test.ts",
+      "type": "validation_rule",
+      "added_by_story": null
+    },
+    {
+      "id": "mocked-generator-no-per-seed-determinism",
+      "name": "Mocked-generator behavioral test coverage convention - no per-seed determinism tests anywhere in the suite",
+      "owning_module": "useDynamicBanner.test.ts",
+      "type": "path_convention",
+      "added_by_story": "S6",
+      "review_note": "S6 enforces this via a hybrid AC-META-1 block: documentary convention + a live self-scan of the suite files for the snapshot-matcher family (markers built by concatenation so the scan doesn't trip on its own source - verified green) + a generator-signature check. Meaningful, not theater; the snapshot-matcher absence check catches the idiomatic determinism-test route. LOW: the signature check ('watercolor.length <= 3') is a loose proxy - it wouldn't catch a seed param added within arity 3 (current sig has only 2 required params), so its 'no seed-like parameter' claim is slightly overstated; the real defense is the snapshot scan + convention."
+    }
+  ],
+  "stories": [
+    {
+      "story": "S1",
+      "files": ["app/src/themes/schema.ts", "app/tests/unit/themes-validation.test.ts"],
+      "concepts_contributed": [
+        "dynamic-element-schema-shape"
+      ],
+      "concepts_seeded_for_later": [
+        "generator-catalog-validation-gate"
+      ],
+      "notes": "Added StyleToken/DynamicElement/DynamicTreatments schemas (all .strict()) + optional treatments.dynamic map to ThemeManifestSchema; generator enum declared inline per Boundary Rule 3. 21 new fail-asserting tests across 7 AC blocks. The generator-catalog-schema-sync test is a standalone placeholder pinning enum membership to ['watercolor']; TODO(S2) upgrades it to a real sync against DYNAMIC_GENERATORS keys once dynamicVisuals.ts exists."
+    },
+    {
+      "story": "S2",
+      "files": [
+        "app/src/themes/treatments/dynamicVisuals.ts",
+        "app/tests/unit/themes/treatments.test.ts",
+        "app/tests/unit/themes-validation.test.ts"
+      ],
+      "concepts_contributed": [
+        "dynamic-generators-registry-seam",
+        "single-import-site-invariant"
+      ],
+      "concepts_realized_from_seed": [
+        "generator-catalog-validation-gate"
+      ],
+      "notes": "Added dynamicVisuals.ts: DYNAMIC_GENERATORS registry with watercolor stub (mock MOCK-02-001). StyleToken derived by indexing ThemeManifest (no hand-redeclare, type-only schema import). Stub uses unseeded Math.random -> genuine per-call non-determinism (AC-UX-1); base fill derived only from pinned StyleToken; size/format forced to 420x96 and NOT overridable by caller render knob (verified by test). Output self-contained (no <script>/href/url) (AC-STRUCT-6). Upgraded S1's placeholder enum-sync test to pin schema enum against Object.keys(DYNAMIC_GENERATORS) - clean, no duplicate. AC-STRUCT-4 scanner reuses S1's parseImports/resolveSpecifierAbs (real resolved-specifier scan, not text grep) with a discriminating self-test block. All 114 tests green. OPEN ISSUE (escalated then RESOLVED via S2->S3 gate-remediation): the earlier AC-STRUCT-4 scanner target (dynamicVisuals.ts itself) forbade the runtime consumption S3/S5 require; now retargeted at the bare '@ink/visuals' specifier - see single-import-site-invariant.review_note."
+    },
+    {
+      "story": "S3",
+      "files": [
+        "app/src/hooks/useDynamicBanner.ts",
+        "app/tests/unit/hooks/useDynamicBanner.test.ts",
+        "app/src/components/Layout.tsx"
+      ],
+      "concepts_contributed": [
+        "dynamic-banner-state-fail-soft",
+        "resolve-dynamic-banner-style-seam"
+      ],
+      "notes": "Added useDynamicBanner.ts: pure resolveDynamicBannerStyle(definition, generatedSvg) wrapped by a thin client-only useEffect/useState hook (Boundary Rule 7 - all branch logic in the pure fn). Layout.tsx calls it alongside the untouched useThemeStyles() and passes activeThemeDefinition from useAppTheme (= APP_THEMES[name], referentially stable, so useEffect[definition] only re-fires on real theme change - verified). Two-field boxProps/style split preserved end-to-end; backgroundImage lands on raw DOM style attr, never boxProps. encodeSvgDataUri mirrors navBannerDecor byte-for-byte. hasDynamicBanner is declaration-based (sound for S4 scrim-gating, no flicker during fallback window). 11 unit tests green, tsc --noEmit exit 0, useThemeStyles.ts diff empty. VERDICT: APPROVED. One LOW forward-looking note: Layout's transition:'background-image ...' is ineffective (background-image isn't transitionable) - harmless in Phase A (no dynamic theme, AC-PERF-1 scope is dimensions-only) but won't satisfy AC-PERF-1 'cross-fades in' at S8; recommend real opacity-layer cross-fade in S4/Phase B. MV-1 disclosure (acceptance-criteria.md) is honest and correctly waived for Phase A / re-raised as hard gate before S8."
+    },
+    {
+      "story": "S4",
+      "files": [
+        "app/src/hooks/useDynamicBanner.ts",
+        "app/src/components/Layout.tsx",
+        "app/tests/unit/hooks/useDynamicBanner.test.ts"
+      ],
+      "concepts_contributed": [
+        "scrim-logo-contrast-guarantee"
+      ],
+      "notes": "Added shouldRenderScrim(hasDynamicBanner) (declaration-based passthrough) + resolveScrimColor(brand500Hex) (opaque black/white, higher-wcagRatio pick) to useDynamicBanner.ts; Layout renders an opaque scrim Box behind the logo when a dynamic banner is declared. Resolved the brief's wrong single-app-wide-brand.500 assumption: brand.500 is per-theme, read from activeThemeDefinition.colors.brand[5] (verified = Chakra brand.500 token). Black-or-white >=4.5 guarantee mathematically verified sound (worst case ~4.58:1). contrast.ts untouched; wcagRatio read-only reuse (Boundary Rule 9). Tests: property-style over every real theme brand[5] + 12 arbitrary hexes using the REAL wcagRatio, signature-guard that resolveScrimColor takes no banner arg, and the fallback-window no-flicker check. 22/22 unit green, tsc exit 0. VERDICT: APPROVED. Two VERY-LOW optional notes (non-blocking): (a) the arbitrary-hex test comment says 'near the crossover band' but no value actually sits at L~0.179 - cosmetic, the math proof is unconditional; (b) resolveScrimColor inherits contrast.ts's hex-parseability assumption (a future named-CSS-color brand[5] would yield NaN -> pick white -> fail the A11Y test), consistent with the existing contrast gate - worth a one-line docstring caveat."
+    },
+    {
+      "story": "S5",
+      "files": [
+        "app/src/workers/banner.worker.ts",
+        "app/src/hooks/useDynamicBanner.ts",
+        "app/tests/unit/hooks/useDynamicBanner.test.ts"
+      ],
+      "concepts_contributed": [
+        "worker-stateless-wrapper"
+      ],
+      "notes": "Moved generation off the synchronous effect body (AC-PERF-2). Hook now tries `new Worker(new URL('../workers/banner.worker.ts', import.meta.url))` + postMessage/onmessage/onerror, falling back to scheduleFallbackGeneration (requestIdleCallback else setTimeout(0)) when Worker is undefined or construction throws. Pure S3/S4 functions (encodeSvgDataUri, resolveDynamicBannerStyle, shouldRenderScrim, resolveScrimColor) are BYTE-IDENTICAL (verified against prior reads); only new type imports + new helpers (resolveIdleScheduler, generateViaFallback, scheduleFallbackGeneration, resolveWorkerMessageOutcome) + the rewired useEffect were added. Race guard: per-effect-run `cancelled` closure + applyResult gate + worker?.terminate() on cleanup - structurally sound (MV-2). Fail-soft covers worker-internal throw ({ok:false}), worker.onerror, Worker-unavailable/constructor-throw (->fallback), and fallback generator throw (->null); no synchronous generator call on the effect body. 34 hook + 98 themes-validation = 132 unit green, tsc exit 0. Independent make build confirms worker side-effect isolated to chunk 6865, not _app (MV-3). VERDICT: APPROVED. Two LOW forward-looking notes: (a) the main-thread fallback necessarily bundles the generator into _app - trivial for the Phase-A inline stub, but at S7 AC-DEP-2's 'client bundle MUST NOT pull sharp/Node deps' must hold on the fallback path too, not just the worker; (b) theoretical benign double-apply if postMessage throws AFTER successful worker construction (both paths fail-soft, last-wins, no crash)."
+    },
+    {
+      "story": "S6",
+      "files": [
+        "app/tests/unit/hooks/useDynamicBanner.test.ts"
+      ],
+      "concepts_contributed": [
+        "mocked-generator-no-per-seed-determinism"
+      ],
+      "notes": "Test-only capstone (production files byte-identical to S5 - hook pure fns at identical line numbers, worker markers intact, tail identical; dynamicVisuals.ts/banner.worker.ts/Layout.tsx line counts match last-reviewed). Added AC-UX-4 (no-JS static fallback decoded against the RAW treatments.banner manifest field via an independently-authored encoding - genuinely non-circular w.r.t. computeThemeStyles, plus a multi-theme anti-coincidence check), AC-UX-5 (genuine decode: regex-extract payload + decodeURIComponent, then shape-check the DECODED value; round-trips a REAL DYNAMIC_GENERATORS.watercolor output exactly; no SVG-parser dep per Boundary Rule 8), AC-META-1 (hybrid negative assertion - see concept note). Full epic suite 162 green (45 hook + 19 treatments + 98 themes-validation), no orphaned TODO/FIXME/skip/only. Completeness sweep accurate: AC-A11Y-1/2 already covered by S4, AC-STRUCT-6 by S2's treatments.test.ts - nothing new needed. VERDICT: APPROVED. One LOW note on AC-META-1's signature-check looseness (non-blocking)."
+    }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "S6",
+    "epic_phase_a_status": "ALL STORIES S1-S6 REVIEWED & APPROVED (S2 had 1 remediation round). Full Phase-A test suite internally consistent: 162 tests green across the 3 epic files, complete 1:1 AC-to-describe-block coverage, no orphaned placeholders/TODOs. Open items are all non-blocking forward-looking notes for Phase B/S7 (main-thread fallback bundles the generator -> AC-DEP-2 must hold on that path; S3 inert background-image cross-fade transition) + MV-1/2/3 browser-render manual checks waived for Phase A. Ready for mutation/e2e/pre-commit gates.",
+    "s6_status": "APPROVED (162/162 epic-suite green, test-only confirmed, AC-UX-4 non-circular + AC-UX-5 genuine-decode verified; 1 LOW note on AC-META-1 signature check)",
+    "s5_status": "APPROVED (132/132 unit green, tsc exit 0, pure S3/S4 fns byte-identical, worker chunk-isolation independently build-verified; 2 LOW forward-looking notes for S7)",
+    "s2_status": "converged (AC-STRUCT-4 gate-remediation re-verified green, 117/117 in the two S2 files)",
+    "s3_status": "APPROVED (11/11 unit green, tsc exit 0, useThemeStyles.ts untouched; 1 LOW non-blocking cross-fade note deferred to S4/Phase B)",
+    "s4_status": "APPROVED (22/22 unit green, tsc exit 0, contrast.ts untouched, black/white contrast guarantee verified sound; 2 VERY-LOW optional notes)",
+    "model_at": "2026-07-06T01:38:00Z"
+  }
+}

@@ -36,6 +36,7 @@ import {
 import { CARD_ELEVATION, CONTENT_PANEL_STYLES } from '@/src/themes/treatments/elevation';
 import { SURFACE_PATTERNS } from '@/src/themes/treatments/patterns';
 import { ICON_SETS } from '@/src/themes/treatments/iconSets';
+import { DYNAMIC_GENERATORS } from '@/src/themes/treatments/dynamicVisuals';
 
 // The generator's pure, exported functions (structural scaffold only — see
 // generate-theme-registry.mjs's header). Reused directly rather than
@@ -788,5 +789,401 @@ describe('AC-BOUND-1 carried guarantee: FontLoadSchema (schema.ts) structurally 
   it('a FontLoad-shaped object with an extra unexpected key FAILS (FontLoadSchema is .strict())', () => {
     const withExtraKey = { ...neither, unexpectedKey: 'drift' };
     expect(fontLoadElementSchema.safeParse(withExtraKey).success).toBe(false);
+  });
+});
+
+// ===========================================================================
+// Epic: dynamic-theme-visuals, Story S1 — `treatments.dynamic` schema +
+// validation gate (specs/epic-dynamic-theme-visuals/acceptance-criteria.md).
+// AC IDs below (AC-STRUCT-1/2, AC-VAL-1/2, AC-BOUND-1) belong to THIS epic's
+// own numbering and are unrelated to the same-named AC-STRUCT-2/AC-BOUND-1
+// blocks above, which belong to the earlier pluggable-themes epic (S3).
+// ===========================================================================
+
+// A valid, minimal `treatments.dynamic.banner` fixture reused across the
+// blocks below.
+const VALID_DYNAMIC_BANNER = {
+  generator: 'watercolor' as const,
+  style: {
+    anchorHue: 200,
+    scheme: 'triadic' as const,
+    saturation: 60,
+    lightness: 50,
+  },
+};
+
+describe('AC-STRUCT-1: treatments.dynamic is optional and additive — a manifest without it validates and renders exactly as today', () => {
+  it('a real manifest with no treatments.dynamic key parses successfully and treatments.dynamic is undefined', () => {
+    const parsed = ThemeManifestSchema.parse(REGISTRY_APP_THEMES.calm);
+    expect(parsed.treatments.dynamic).toBeUndefined();
+  });
+
+  it('a manifest with a valid treatments.dynamic.banner also parses successfully (additive, not merely absent-tolerant)', () => {
+    const fixture = {
+      ...REGISTRY_APP_THEMES.calm,
+      treatments: {
+        ...REGISTRY_APP_THEMES.calm.treatments,
+        dynamic: { banner: VALID_DYNAMIC_BANNER },
+      },
+    };
+    expect(() => ThemeManifestSchema.parse(fixture)).not.toThrow();
+  });
+
+  it('a manifest with treatments.dynamic: {} (both banner/background absent) also parses successfully', () => {
+    const fixture = {
+      ...REGISTRY_APP_THEMES.calm,
+      treatments: { ...REGISTRY_APP_THEMES.calm.treatments, dynamic: {} },
+    };
+    expect(() => ThemeManifestSchema.parse(fixture)).not.toThrow();
+  });
+});
+
+describe('AC-STRUCT-1: .strict() rejects unknown keys at every treatments.dynamic nesting level', () => {
+  it('an unknown key on treatments.dynamic itself fails', () => {
+    const fixture = {
+      ...REGISTRY_APP_THEMES.calm,
+      treatments: {
+        ...REGISTRY_APP_THEMES.calm.treatments,
+        dynamic: { notARealKey: {} },
+      },
+    };
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+
+  it('an unknown key on treatments.dynamic.banner (the DynamicElement object) fails', () => {
+    const fixture = {
+      ...REGISTRY_APP_THEMES.calm,
+      treatments: {
+        ...REGISTRY_APP_THEMES.calm.treatments,
+        dynamic: { banner: { ...VALID_DYNAMIC_BANNER, foo: 'bar' } },
+      },
+    };
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+
+  it('an unknown key on treatments.dynamic.banner.style (the StyleToken object) fails', () => {
+    const fixture = {
+      ...REGISTRY_APP_THEMES.calm,
+      treatments: {
+        ...REGISTRY_APP_THEMES.calm.treatments,
+        dynamic: {
+          banner: { ...VALID_DYNAMIC_BANNER, style: { ...VALID_DYNAMIC_BANNER.style, foo: 'bar' } },
+        },
+      },
+    };
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+});
+
+describe('AC-STRUCT-2: treatments.banner stays required even when treatments.dynamic.banner is present', () => {
+  it('deleting treatments.banner while treatments.dynamic.banner is present still fails validation', () => {
+    const { banner: _banner, ...restTreatments } = {
+      ...REGISTRY_APP_THEMES.calm.treatments,
+      dynamic: { banner: VALID_DYNAMIC_BANNER },
+    };
+    const fixture = { ...REGISTRY_APP_THEMES.calm, treatments: restTreatments };
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+
+  it('sanity: the same fixture WITH treatments.banner present (the normal case) does not throw', () => {
+    const fixture = {
+      ...REGISTRY_APP_THEMES.calm,
+      treatments: {
+        ...REGISTRY_APP_THEMES.calm.treatments,
+        dynamic: { banner: VALID_DYNAMIC_BANNER },
+      },
+    };
+    expect(() => ThemeManifestSchema.parse(fixture)).not.toThrow();
+  });
+});
+
+describe('AC-VAL-1: an unknown generator value fails validation', () => {
+  it('generator: "not-a-real-generator" fails', () => {
+    const fixture = {
+      ...REGISTRY_APP_THEMES.calm,
+      treatments: {
+        ...REGISTRY_APP_THEMES.calm.treatments,
+        dynamic: {
+          banner: { ...VALID_DYNAMIC_BANNER, generator: 'not-a-real-generator' },
+        },
+      },
+    };
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+
+  it('sanity: generator: "watercolor" (the one real catalog entry) does not throw', () => {
+    const fixture = {
+      ...REGISTRY_APP_THEMES.calm,
+      treatments: {
+        ...REGISTRY_APP_THEMES.calm.treatments,
+        dynamic: { banner: VALID_DYNAMIC_BANNER },
+      },
+    };
+    expect(() => ThemeManifestSchema.parse(fixture)).not.toThrow();
+  });
+
+  // ===========================================================================
+  // AC-VAL-1 carried guarantee (generator-enum-catalog-sync): mirrors the
+  // enum-catalog-schema-treatment-sync pattern above (line ~732), which pins
+  // a schema enum against a REAL runtime registry object (e.g.
+  // CARD_ELEVATION from treatments/elevation.ts). Upgraded from S1's
+  // standalone placeholder (which pinned only `['watercolor']` as a literal,
+  // since `DYNAMIC_GENERATORS` did not exist yet) now that S2's
+  // `app/src/themes/treatments/dynamicVisuals.ts` exports it — this closes
+  // the gap S1's examiner flagged (VQ-S1-002/VQ-S1-013): the schema enum is
+  // now pinned against the real registry's keys, not a restated literal.
+  // ===========================================================================
+  describe('AC-VAL-1 carried guarantee (generator-enum-catalog-sync): schema generator enum options exactly match DYNAMIC_GENERATORS keys', () => {
+    it("ThemeManifestSchema's dynamic.banner.generator enum options === Object.keys(DYNAMIC_GENERATORS)", () => {
+      const options = ThemeManifestSchema.shape.treatments.shape.dynamic.unwrap().shape.banner.unwrap().shape.generator
+        .options;
+      expect(new Set(options)).toEqual(new Set(Object.keys(DYNAMIC_GENERATORS)));
+    });
+
+    it('sanity: today that set is exactly [\'watercolor\']', () => {
+      expect(Object.keys(DYNAMIC_GENERATORS)).toEqual(['watercolor']);
+    });
+  });
+});
+
+describe('AC-VAL-2: style token bounds violations fail validation', () => {
+  function fixtureWithStyle(style: Record<string, unknown>) {
+    return {
+      ...REGISTRY_APP_THEMES.calm,
+      treatments: {
+        ...REGISTRY_APP_THEMES.calm.treatments,
+        dynamic: {
+          banner: { ...VALID_DYNAMIC_BANNER, style },
+        },
+      },
+    };
+  }
+
+  it('anchorHue: -1 fails', () => {
+    const fixture = fixtureWithStyle({ ...VALID_DYNAMIC_BANNER.style, anchorHue: -1 });
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+
+  it('anchorHue: 360 fails', () => {
+    const fixture = fixtureWithStyle({ ...VALID_DYNAMIC_BANNER.style, anchorHue: 360 });
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+
+  it('saturation: 19 fails', () => {
+    const fixture = fixtureWithStyle({ ...VALID_DYNAMIC_BANNER.style, saturation: 19 });
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+
+  it('saturation: 101 fails', () => {
+    const fixture = fixtureWithStyle({ ...VALID_DYNAMIC_BANNER.style, saturation: 101 });
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+
+  it('lightness: 19 fails', () => {
+    const fixture = fixtureWithStyle({ ...VALID_DYNAMIC_BANNER.style, lightness: 19 });
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+
+  it('lightness: 76 fails', () => {
+    const fixture = fixtureWithStyle({ ...VALID_DYNAMIC_BANNER.style, lightness: 76 });
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+
+  it('scheme: "not-a-real-scheme" fails', () => {
+    const fixture = fixtureWithStyle({ ...VALID_DYNAMIC_BANNER.style, scheme: 'not-a-real-scheme' });
+    expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
+  });
+
+  it('sanity: a fully-valid style token at the boundary-inclusive minimums does NOT throw', () => {
+    const fixture = fixtureWithStyle({ anchorHue: 0, scheme: 'monochromatic', saturation: 20, lightness: 20 });
+    expect(() => ThemeManifestSchema.parse(fixture)).not.toThrow();
+  });
+
+  it('sanity: a fully-valid style token at the boundary-inclusive maximums does NOT throw', () => {
+    const fixture = fixtureWithStyle({ anchorHue: 359, scheme: 'complementary', saturation: 100, lightness: 75 });
+    expect(() => ThemeManifestSchema.parse(fixture)).not.toThrow();
+  });
+});
+
+describe('AC-BOUND-1: treatments.dynamic addition introduces no new runtime zod importer', () => {
+  it(
+    "schema.ts remains the only file with the new DynamicElement/StyleToken/dynamic shapes, and the existing " +
+      "resolved-import scanner (AC-BOUND-1 describe block above) already covers this story's change with no " +
+      'modification needed — this test is a documentation/regression marker, not new scanning logic',
+    () => {
+      const source = fs.readFileSync(path.join(THEMES_DIR, 'schema.ts'), 'utf8');
+      expect(source).toContain('DynamicElementSchema');
+      expect(source).toContain('StyleTokenSchema');
+    }
+  );
+});
+
+// ===========================================================================
+// Epic: dynamic-theme-visuals, Story S2 — dynamicVisuals.ts adapter +
+// registry + stub (specs/epic-dynamic-theme-visuals/acceptance-criteria.md).
+//
+// AC-STRUCT-4 (verbatim): "The adapter MUST be the only module in app/src
+// that imports the ink generator (or, in Phase A, the stub)." This is an
+// invariant about who imports the underlying GENERATOR IMPLEMENTATION — the
+// real `@ink/visuals` package (Phase B, S7) or, in Phase A, its inline stub
+// — NOT about who imports dynamicVisuals.ts's own public `DYNAMIC_GENERATORS`
+// registry export. Per architecture.md's Seam Contracts
+// ("DYNAMIC_GENERATORS registry (dynamicVisuals.ts -> useDynamicBanner.ts)")
+// and Module Map ("banner.worker.ts": a pure message-passing wrapper around
+// dynamicVisuals's generator call), S3's useDynamicBanner.ts and S5's
+// banner.worker.ts are BOTH required to import that registry — that fan-out
+// is the intended design, not a violation.
+//
+// (Stage-1 review, S2->S3 gate-remediation fix): an earlier version of this
+// block asserted the opposite — that NO other file may runtime-resolve an
+// import to dynamicVisuals.ts itself. That assertion was modeled on the
+// zod-boundary check above (AC-BOUND-1), but AC-BOUND-1 is a two-part
+// invariant: (1) only schema.ts imports zod, and (2) no client file
+// runtime-imports schema.ts — and part (2) only works because schema.ts's
+// runtime export is build-time-only, never meant to be imported by client
+// code. dynamicVisuals.ts's runtime export (DYNAMIC_GENERATORS) IS the
+// client-facing feature; consumption is the point. The old assertion was
+// unsatisfiable given the design — it would go red the moment S3 wires up
+// its own legitimate import. This block now checks the actually-relevant
+// half: no other module in app/src holds a runtime import of the bare
+// `@ink/visuals` specifier. In Phase A this is vacuously true (the stub
+// lives entirely inline inside dynamicVisuals.ts — no separate importable
+// stub module exists per S2's result.json, so there is no Phase-A
+// specifier for this check to catch yet) but it is structurally in place
+// to activate automatically in Phase B, with no rewrite needed once S7
+// adds the real package import.
+// ===========================================================================
+
+/**
+ * True when `source` has a RUNTIME (non-`type`-only) import of the exact
+ * bare specifier `bareSpecifier` (e.g. `@ink/visuals`). Bare/package
+ * specifiers don't resolve relative to anything, so this compares the raw
+ * specifier string rather than reusing `resolveSpecifierAbs` (which returns
+ * `null` for bare specifiers by design — see its doc comment above).
+ * Reuses `parseImports` (runtime vs type-only classification) defined above
+ * for AC-BOUND-1; this is not a literal text grep, so it discriminates
+ * type-only imports and unrelated/lookalike specifiers correctly (see the
+ * self-test block below).
+ */
+function hasRuntimeBareImport(source: string, bareSpecifier: string): boolean {
+  return parseImports(source).some((imp) => imp.isRuntime && imp.specifier === bareSpecifier);
+}
+
+const INK_GENERATOR_BARE_SPECIFIER = '@ink/visuals';
+
+const SRC_DIR = path.join(APP_ROOT, 'src');
+const DYNAMIC_VISUALS_FILE_ABS = path.join(THEMES_DIR, 'treatments', 'dynamicVisuals.ts');
+
+/**
+ * Recursively collects every `.ts`/`.tsx` file under `dir`, excluding
+ * `dynamicVisuals.ts` itself (the ONE module AC-STRUCT-4 permits to import
+ * the generator/stub) and any test file. Derived from the filesystem for
+ * the same reason `collectTsFilesRecursive` (AC-BOUND-1, above) is: a
+ * future module added anywhere under app/src is automatically in scope
+ * with no edit to this test required — the scan is over ALL of app/src
+ * (AC-STRUCT-4's stated scope), not just src/themes/.
+ */
+async function collectSrcFilesRecursiveExcludingDynamicVisuals(dir: string): Promise<string[]> {
+  const entries = await fsp.readdir(dir, { withFileTypes: true });
+  const results: string[] = [];
+  for (const entry of entries) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...(await collectSrcFilesRecursiveExcludingDynamicVisuals(entryPath)));
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    if (!/\.(ts|tsx)$/.test(entry.name)) continue;
+    if (/\.(test|spec)\.(ts|tsx)$/.test(entry.name)) continue;
+    if (entryPath === DYNAMIC_VISUALS_FILE_ABS) continue;
+    results.push(entryPath);
+  }
+  return results;
+}
+
+describe('AC-STRUCT-4: dynamicVisuals.ts is the only module in app/src with a runtime import of the ink generator (bare `@ink/visuals` specifier)', () => {
+  let srcFiles: string[] = [];
+
+  beforeAll(async () => {
+    srcFiles = (await collectSrcFilesRecursiveExcludingDynamicVisuals(SRC_DIR)).sort();
+  });
+
+  it("the derived scan set is non-empty and covers app/src (glob has teeth: an empty/broken glob cannot make the guard vacuously pass)", () => {
+    expect(srcFiles.length).toBeGreaterThan(10);
+    expect(srcFiles).not.toContain(DYNAMIC_VISUALS_FILE_ABS);
+    // Sanity: a known sibling treatments/* file is present in the scan.
+    expect(srcFiles).toContain(path.join(THEMES_DIR, 'treatments', 'elevation.ts'));
+  });
+
+  it('the scan set genuinely spans app/src beyond src/themes/ — hooks/ and components/ (the two directories S3/S4 will add dynamicVisuals.ts consumers to) are included today (post-impl VQ-S2-015)', () => {
+    expect(srcFiles).toContain(path.join(APP_ROOT, 'src', 'hooks', 'useThemeStyles.ts'));
+    expect(srcFiles).toContain(path.join(APP_ROOT, 'src', 'components', 'Layout.tsx'));
+  });
+
+  it("none of app/src's other files has a RUNTIME import of the bare `@ink/visuals` specifier (Phase A: vacuously true — the package isn't installed until S7; Phase B: this is the real single-import-site guard)", () => {
+    expect(srcFiles.length).toBeGreaterThan(10); // sanity: beforeAll populated it
+    for (const absPath of srcFiles) {
+      const source = fs.readFileSync(absPath, 'utf8');
+      expect(
+        hasRuntimeBareImport(source, INK_GENERATOR_BARE_SPECIFIER),
+        `${path.relative(APP_ROOT, absPath)} has a runtime import of the bare '${INK_GENERATOR_BARE_SPECIFIER}' specifier`
+      ).toBe(false);
+    }
+  });
+
+  it("does NOT flag S3/S5's legitimate `DYNAMIC_GENERATORS` consumption of dynamicVisuals.ts — proves this fix does not regress the intended registry fan-out", () => {
+    // Sanity fixture standing in for what useDynamicBanner.ts (S3) and
+    // banner.worker.ts (S5) both legitimately do per architecture.md's Seam
+    // Contracts: import the public registry export from dynamicVisuals.ts.
+    // This must NOT trip the bare-`@ink/visuals`-specifier check above.
+    const fixture = `import { DYNAMIC_GENERATORS } from '@/src/themes/treatments/dynamicVisuals';\n`;
+    expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(false);
+  });
+});
+
+describe('AC-STRUCT-4: bare-specifier scanner self-test for the ink generator import (proves the scanner discriminates, not just passes)', () => {
+  it('flags a runtime named import of the bare `@ink/visuals` specifier (the exact regression this scanner guards against once Phase B/S7 lands)', () => {
+    const fixture = `import { renderSVG } from '@ink/visuals';\n`;
+    expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(true);
+  });
+
+  it('does NOT flag a type-only import of `@ink/visuals`', () => {
+    const fixture = `import type { RenderOptions } from '@ink/visuals';\n`;
+    expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(false);
+  });
+
+  it('flags a mixed import where only one named binding carries an inline `type` modifier', () => {
+    const fixture = `import { type RenderOptions, renderSVG } from '@ink/visuals';\n`;
+    expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(true);
+  });
+
+  it('flags a namespace import of `@ink/visuals`', () => {
+    const fixture = `import * as ink from '@ink/visuals';\n`;
+    expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(true);
+  });
+
+  it('flags a default import of `@ink/visuals`', () => {
+    const fixture = `import ink from '@ink/visuals';\n`;
+    expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(true);
+  });
+
+  it('flags a side-effect import of `@ink/visuals`', () => {
+    const fixture = `import '@ink/visuals';\n`;
+    expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(true);
+  });
+
+  it('does NOT flag an unrelated bare specifier (no false positive)', () => {
+    const fixture = `import { z } from 'zod';\n`;
+    expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(false);
+  });
+
+  it("does NOT flag a lookalike scoped specifier like `@ink/visuals-extra` (no substring false positive — exact match only)", () => {
+    const fixture = `import { renderSVG } from '@ink/visuals-extra';\n`;
+    expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(false);
+  });
+
+  it("does NOT flag dynamicVisuals.ts's own public `DYNAMIC_GENERATORS` export — the legitimate S3/S5 fan-out this fix must not block", () => {
+    const fixture = `import { DYNAMIC_GENERATORS } from '@/src/themes/treatments/dynamicVisuals';\n`;
+    expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(false);
   });
 });

@@ -1,0 +1,30 @@
+{
+  "module_name": "useDynamicBanner.test.ts",
+  "purpose": "Test-only capstone for Phase A of the dynamic-theme-visuals epic. Introduces no production module and no new public API — it closes remaining gaps in AC-UX-4 (static fallback / no-JS path), AC-UX-5 (valid data-URI SVG shape on swap), and AC-META-1 (a live, executable negative assertion that no per-seed determinism/pixel-snapshot test exists anywhere in the suite), against the SAME pure-function boundary (resolveDynamicBannerStyle, DYNAMIC_GENERATORS.watercolor) that S3/S4/S5's tests already exercise. No production file is read for behavior other than via its existing exported surface.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/unit/hooks/useDynamicBanner.test.ts (MODIFIED — 3 new describe blocks appended: AC-UX-4, AC-UX-5, AC-META-1; header comment updated to mention S6; two new path constants added: THIS_TEST_FILE_PATH, TREATMENTS_TEST_PATH)"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/hooks/useDynamicBanner.ts (resolveDynamicBannerStyle — already-imported seam, read-only, no changes)",
+    "app/src/themes/treatments/dynamicVisuals.ts (DYNAMIC_GENERATORS — already-imported seam, read-only, no changes)",
+    "app/src/hooks/useThemeStyles.ts (computeThemeStyles — already-imported seam, read-only, no changes)",
+    "app/src/lib/theme.ts (APP_THEMES, AppThemeDefinition — already-imported, read-only)",
+    "app/tests/unit/themes/treatments.test.ts (read-only, via readFileSync, for the AC-META-1 structural self-scan only — not imported as a module)"
+  ],
+  "dependencies_forbidden": [
+    "any production source file edit (schema.ts, dynamicVisuals.ts, useDynamicBanner.ts, Layout.tsx, banner.worker.ts) — this story is test-only per spec.md §7's S6 description and stories.json's scope.excludes",
+    "jsdom / React Testing Library (architecture.md Boundary Rule 7 — no rendered/mounted hook is introduced)",
+    "any SVG parser dependency (architecture.md Boundary Rule 8 — string/regex matching against decoded data-URI content only)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/hooks/useDynamicBanner.test.ts"
+  ],
+  "seam": {
+    "cross_story": false
+  }
+}

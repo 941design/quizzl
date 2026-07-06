@@ -1,0 +1,55 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-06T01:00:00Z",
+  "files_created": [
+    "app/src/hooks/useDynamicBanner.ts",
+    "app/tests/unit/hooks/useDynamicBanner.test.ts"
+  ],
+  "files_modified": [
+    "app/src/components/Layout.tsx"
+  ],
+  "tests_added": {
+    "unit": 11
+  },
+  "test_counts": {
+    "baseline": 2016,
+    "final": 2027
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": ["useDynamicBanner"],
+  "escalation_history": [],
+  "manual_verification_required": [
+    {
+      "risk": "boxProps/style split not fully testable without jsdom (the single highest-risk silent-failure point in this epic per architecture.md)",
+      "detail": "resolveDynamicBannerStyle returns { hasDynamicBanner, boxProps, style } and Layout.tsx renders it as <Box {...activeBanner.boxProps} style={{ transition: '...', ...activeBanner.style }} />, keeping the swapped backgroundImage on the raw style prop and never folded into boxProps, exactly mirroring useThemeStyles.ts's BannerDecor split. Unit tests (app/tests/unit/hooks/useDynamicBanner.test.ts, AC-UX-2/AC-UX-3 blocks) prove this STRUCTURALLY — boxProps has no backgroundImage key, style.backgroundImage carries the swapped data-URI — but this repo has no jsdom/browser DOM, so no test can prove Chakra actually RENDERS the raw style prop's backgroundImage in a real browser rather than silently dropping it (which is exactly what happens if this value were instead spread into boxProps as a Chakra style prop). This is a review-level/manual-verification guarantee, not a unit-test guarantee.",
+      "recommended_check": "Once a dynamic-declaring theme exists (Phase B / aquarelle, S8) or via a temporary manual test manifest, load the app in a real browser and visually confirm the nav banner shows a generated watercolor image (not blank/missing) after hydration, and that DevTools' computed style shows background-image resolving on the rendered DOM node."
+    }
+  ],
+  "verification": {
+    "pre_impl_questions": 12,
+    "post_impl_questions": 4,
+    "verification_json_path": "specs/epic-dynamic-theme-visuals/S3-use-dynamic-banner-hook-layout-swap/verification.json"
+  },
+  "lint_typecheck": {
+    "lint": "NO_LINT",
+    "typecheck": "clean"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The epic's own planning artifacts disagree on the resolveDynamicBannerStyle return shape: architecture.md's Seam Contracts section (and this story's own task brief) require the SAME { boxProps, style } split navBannerDecor() uses — explicitly because folding backgroundImage into boxProps silently breaks in a real browser — while stories.json's seams[2] contract literally names a flatter { hasDynamicBanner, backgroundImage: string } shape that cannot even carry boxProps (which Layout.tsx needs to render the reserved box at all). Resolved in favor of architecture.md per its own stated precedence ('this file wins' on conflict) and because the flat shape is structurally incompatible with the reserved-box requirement it must also satisfy (AC-PERF-1) — but this is exactly the kind of cross-document drift a downstream verifier or S4 implementer could otherwise stumble on, so it's called out explicitly here and as post-impl question VQ-S3-013 rather than silently picked.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "note": "Dev's own retro was skipped (clean run, spec fully specified, first-try green) — no substantive flag to absorb beyond dev's own noted judgment call on the CSS cross-fade transition placement, which is documented as Phase-A mechanism-only and not independently verifiable in this jsdom-less repo."
+      }
+    ],
+    "lead_clarifications": []
+  }
+}

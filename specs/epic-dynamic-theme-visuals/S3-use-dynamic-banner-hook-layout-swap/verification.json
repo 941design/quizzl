@@ -1,0 +1,111 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-05T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does resolveDynamicBannerStyle's swap logic apply the generated data-URI to the raw style.backgroundImage property specifically — never folding it into boxProps? Folding it into boxProps would silently break in the browser (Chakra drops data-URI backgroundImage through its style pipeline) without failing any test in this jsdom-less repo, per architecture.md's explicit callout that this is the single highest-risk silent-failure point in the epic. Is there a test asserting the returned object's shape explicitly distinguishes style.backgroundImage from boxProps, rather than a generic 'contains the string somewhere' match that would pass regardless of which field holds it?"
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Is all decision logic contained in the exported pure function resolveDynamicBannerStyle(definition, generatedSvg | null), with useDynamicBanner.ts itself reduced to a thin useEffect/useState wrapper carrying no independent decision branches, per architecture.md Boundary Rule 7 (no jsdom/RTL in this repo)? Does useThemeStyles.ts remain completely unmodified (AC-STRUCT-5), with zero dynamic branches added to computeThemeStyles()?"
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `useDynamicBanner` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/hooks/useDynamicBanner.test.ts test resolveDynamicBannerStyle directly (never a rendered/mounted hook, per the no-jsdom constraint) with: two distinct generatedSvg strings exercising the swap and per-mount difference (AC-UX-2, AC-UX-3); and generatedSvg = null exercising the static/failure path (AC-UX-3a)? Is there a reserved-box-dimensions assertion (unchanged before/after the swap) covering AC-PERF-1's mechanism-only check?"
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the data-URI encoding in useDynamicBanner match navBannerDecor()'s exact encoding convention (URL-encoded, on the raw style prop) with no divergent encoding scheme introduced for the dynamic path?"
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the hook's try/catch around the generator call (architecture.md Boundary Rule 6) guarantee generatedSvg is only ever a valid string or null — never a partial/broken value passed through — via a real try/catch in the hook's useEffect (not merely asserted in a comment), even though this specific guarantee is a review-level check rather than independently unit-testable in this repo (per architecture.md's own note)?"
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-5",
+      "question": "For AC-STRUCT-5 ('computeThemeStyles() MUST remain pure and keep returning the static bannerDecorStyle; no dynamic/generation logic is added to it'), show: (a) a diff or current read of useThemeStyles.ts confirming zero changes; (b) any existing useThemeStyles.test.ts coverage still passing unmodified; and (c) confirmation this is a real file-diff check, not an assertion based on the story's description alone."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-2",
+      "question": "For AC-UX-2 ('useDynamicBanner(definition) MUST run client-only; when treatments.dynamic?.banner is present it MUST generate a fresh SVG, encode as data-URI exactly as navBannerDecor does, and swap bannerDecorStyle.style.backgroundImage; when absent, the static banner MUST render unchanged'), show: (a) resolveDynamicBannerStyle's production code for both branches; (b) a useDynamicBanner.test.ts case for each branch; and (c) confirmation both are direct calls to the exported pure function with real definition/generatedSvg values, not mock-spy proxies."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-3",
+      "question": "For AC-UX-3 ('on a fresh mount the rendered banner background MUST change from the static fallback to a generated data-URI SVG; across two mounts the generated value MUST differ'), show: (a) the production code producing a per-mount-distinct backgroundImage; (b) a test passing two distinct generated strings and asserting resolveDynamicBannerStyle's output differs from the static value and across the two calls; and (c) confirmation this is a genuine comparison of returned values, not an assertion that a function was merely invoked."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-3a",
+      "question": "For AC-UX-3a ('if generation fails post-hydration, useDynamicBanner MUST keep/revert to the static bannerDecorStyle background, never leave a broken/blank banner, and MUST NOT throw an uncaught error'), show: (a) resolveDynamicBannerStyle's handling of generatedSvg = null; (b) a test passing generatedSvg = null and asserting the static value is returned, with no exception thrown; and (c) confirmation the test calls the real function under the failure input, not a mock that assumes the failure path without exercising it."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PERF-1",
+      "question": "For AC-PERF-1 ('the swap MUST NOT cause layout shift: the banner box is reserved at its fixed dimensions, and the generated image cross-fades in; Phase A verifies the mechanism only'), show: (a) the Layout.tsx code reserving the banner box's fixed dimensions independent of whether a dynamic image has loaded; (b) a test or reviewable assertion that the reserved dimensions are unchanged before/after the swap; and (c) confirmation this is checked against real style/dimension values, not asserted from the description alone."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-2",
+      "question": "The ResolveDynamicBannerStyleReturn contract defined here is consumed downstream by S4 (Layout.tsx / shouldRenderScrim), per stories.json's seams[2] and architecture.md's Seam Contracts section. Does the shipped resolveDynamicBannerStyle assert exactly: { hasDynamicBanner: boolean, backgroundImage: string }, where backgroundImage equals the static bannerDecorStyle value unchanged when treatments.dynamic?.banner is absent (AC-UX-2); is swapped to a fresh generated data-URI on mount and differs across two mounts when present (AC-UX-3); keeps/reverts to the static value with no uncaught throw on failure (AC-UX-3a); and hasDynamicBanner is exactly the boolean shouldRenderScrim(hasDynamicBanner) keys off (AC-A11Y-2)? Is there a test asserting this full shape and all four invariants together, so S4 can rely on it without re-deriving the hook's internals?"
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-UX-2",
+      "question": "stories.json's seams[2] contract literally names the shipped shape { hasDynamicBanner: boolean, backgroundImage: string } (a FLAT return), while architecture.md's Seam Contracts section and this story's own task brief both require the SAME { boxProps, style } split navBannerDecor() uses (style.backgroundImage nested inside style, never a top-level backgroundImage field) — a flat backgroundImage-only return cannot carry boxProps at all, which Layout.tsx needs to render the reserved box. The shipped resolveDynamicBannerStyle returns { hasDynamicBanner, boxProps, style } (style.backgroundImage nested), following architecture.md's explicit directive ('this file wins' over other epic documents on conflict) rather than stories.json's flatter description. Is this the correct resolution, and does S4's shouldRenderScrim(hasDynamicBanner: boolean) only ever need the hasDynamicBanner field (never backgroundImage/boxProps/style directly), so the discrepancy is immaterial to S4's actual consumption?"
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-A11Y-2",
+      "question": "hasDynamicBanner is implemented as Boolean(definition.treatments.dynamic?.banner) — a pure manifest-DECLARATION check, true regardless of whether the most recent generation attempt succeeded or failed (so it stays true through the AC-UX-3a static-fallback window). Is this the correct reading of AC-A11Y-2's 'whenever a dynamic banner is active' for S4's scrim-presence decision, or did the spec intend 'active' to mean 'currently showing a successfully-generated image' (which would require threading generation-success state, not just the declaration, into hasDynamicBanner)? If the latter, shouldRenderScrim's input contract needs revisiting before S4 implements against it — flagging now since S3 fixed this semantic and S4 will build directly on it."
+    },
+    {
+      "question_id": "VQ-S3-015",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "At the actual Layout.tsx render site (not just the hook's return type), style={{ transition: 'background-image 0.3s ease-in-out', ...activeBanner.style }} — since activeBanner.style is spread AFTER the transition literal, does activeBanner.style.backgroundImage always win (object spread: later keys override earlier ones for the same key name, and 'transition' vs 'backgroundImage' are different keys so there is no collision at all)? Confirm boxProps ({...activeBanner.boxProps}) and style are still passed as two structurally separate JSX props at this call site (never merged into one object before being spread), preserving the split all the way to the actual DOM render, not just inside resolveDynamicBannerStyle's return value."
+    },
+    {
+      "question_id": "VQ-S3-016",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "question": "useDynamicBanner's useEffect resets generatedSvg to null at the start of every effect run (before attempting generation), so a definition/theme change that removes treatments.dynamic.banner correctly falls back to static rather than showing a stale SVG from the previous theme. Since this repo has no jsdom, this reset-then-regenerate ordering is not exercised by an automated re-render/theme-change test (only resolveDynamicBannerStyle's static branches are unit-tested). Is this ordering choice reviewed and accepted as correct on inspection (per architecture.md's own acknowledgment that some of Boundary Rule 6/7's guarantees are review-level, not independently unit-testable in this repo), or does it warrant a manual/visual check during S4/S5 integration when a real theme switch can be exercised in a browser?"
+    }
+  ]
+}

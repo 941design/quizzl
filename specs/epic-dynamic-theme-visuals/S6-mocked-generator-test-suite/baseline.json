@@ -1,0 +1,16 @@
+{
+  "story_id": "S6",
+  "command": "make test-unit",
+  "status": "PASS",
+  "test_files": 122,
+  "tests": 2050,
+  "notes": "Captured before S6's edits. S1-S5 were already implemented (uncommitted working tree) at the time this story started; the full unit suite was green with no pre-existing failures.",
+  "lint": {
+    "status": "NO_LINT",
+    "notes": "app/package.json declares a 'lint' script ('next lint'), but architecture.md's Boundary Rules explicitly confirm no ESLint config exists anywhere under app/, and no Makefile target wraps it. Recorded as NO_LINT per the story-planner's own established Phase-A baseline convention (see S1-S5 architecture notes) — not a gate this story is required to pass or fix."
+  },
+  "typecheck": {
+    "status": "NO_TYPECHECK",
+    "notes": "No dedicated typecheck script or Makefile target exists (tsconfig.json is present but only consumed by next build's internal type-checking step, which is not a standalone discoverable gate). Recorded as NO_TYPECHECK."
+  }
+}

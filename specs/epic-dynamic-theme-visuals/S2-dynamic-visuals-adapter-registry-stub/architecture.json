@@ -1,0 +1,40 @@
+{
+  "module_name": "dynamicVisuals",
+  "purpose": "Provide the DYNAMIC_GENERATORS name->function registry (app/src/themes/treatments/dynamicVisuals.ts) that owns the randomizeParams()+style-override call shape for load-time-generated visual elements, forces the element's size/format to few.chat's banner envelope, and returns a self-contained SVG string. Backed in Phase A by a stub generator (MOCK-02-001) standing in for the not-yet-published @ink/visuals git dependency. This file is the sole module in app/src permitted a runtime import of the generator/stub (AC-STRUCT-4).",
+  "public_api": [
+    {
+      "name": "DYNAMIC_GENERATORS",
+      "signature": "Record<'watercolor', (style: StyleToken, kind: 'banner', render?: Record<string, unknown>) => string>",
+      "description": "Name->function registry. The 'watercolor' entry calls a fresh randomizeParams()-equivalent each invocation, Object.assign's the pinned style fields (+ forced format/size) over the randomized params, and returns a self-contained SVG string that varies per call while reflecting the pinned StyleToken identity (AC-UX-1). Consumed by S3's useDynamicBanner.ts and (off-thread) S5's banner.worker.ts."
+    },
+    {
+      "name": "StyleToken",
+      "signature": "type StyleToken = NonNullable<ThemeManifest['treatments']['dynamic']>['banner'] extends infer T ? T extends { style: infer S } ? S : never : never (derived by indexing off ThemeManifest, not hand-redeclared)",
+      "description": "Type-only re-export/alias derived from schema.ts's ThemeManifest via indexed access, per S1's examiner-verified pattern. Not a runtime value."
+    }
+  ],
+  "private_files": [
+    "app/src/themes/treatments/dynamicVisuals.ts (internal, unexported: the stub generator function, randomizeParams()-equivalent helper, self-containment-guaranteeing SVG builder)"
+  ],
+  "owned_data": [
+    "the randomizeParams()+style-override call shape and the forced size/format envelope (96px tall, 220-420px wide) for the watercolor generator/stub"
+  ],
+  "dependencies_allowed": [
+    "app/src/themes/schema.ts (type-only import of ThemeManifest, to derive StyleToken/DynamicElement's field shape by indexing rather than hand-redeclaring)"
+  ],
+  "dependencies_forbidden": [
+    "@ink/visuals (does not exist yet - Phase B/S7; this file's stub stands in for it, and no other app/src file may import the stub either)",
+    "app/src/hooks/useDynamicBanner.ts (does not exist yet - S3; dynamicVisuals.ts must not depend on its consumer)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/themes/treatments.test.ts",
+    "app/tests/unit/themes-validation.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S3", "S5"]
+  }
+}

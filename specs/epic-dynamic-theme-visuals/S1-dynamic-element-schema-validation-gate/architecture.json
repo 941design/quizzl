@@ -1,0 +1,41 @@
+{
+  "module_name": "schema",
+  "purpose": "Extend ThemeManifestSchema (app/src/themes/schema.ts) with an optional, additive treatments.dynamic map so a manifest can declare a load-time-generated visual element (banner first) alongside its required static fallback, and join a build-time validation gate that fails loud on an unknown generator name or an out-of-bounds style token.",
+  "public_api": [
+    {
+      "name": "ThemeManifestSchema",
+      "signature": "z.ZodObject<...> (extended: treatments.dynamic is now an additional optional field on the existing treatments object)",
+      "description": "Existing exported schema, unchanged in shape except for the new optional treatments.dynamic key. Every other field (including the required treatments.banner) is untouched."
+    },
+    {
+      "name": "ThemeManifest",
+      "signature": "type ThemeManifest = z.infer<typeof ThemeManifestSchema>",
+      "description": "Existing exported inferred type; now structurally includes an optional treatments.dynamic?: { banner?: DynamicElement, background?: DynamicElement }. Downstream modules (S2's dynamicVisuals.ts, S3's useDynamicBanner.ts) consume the DynamicElement/StyleToken shape via TypeScript indexing off this type (e.g. NonNullable<ThemeManifest['treatments']['dynamic']>['banner']), matching the existing convention that nested schema shapes (e.g. FontLoadSchema) are not separately exported from schema.ts."
+    },
+    {
+      "name": "validateManifest",
+      "signature": "function validateManifest(data: unknown): ThemeManifest",
+      "description": "Existing exported function, unchanged signature and behavior — throws (ZodError) on any missing/mistyped/extra field, now including violations nested under treatments.dynamic."
+    }
+  ],
+  "private_files": [
+    "app/src/themes/schema.ts (internal, unexported additions: DynamicGeneratorNameSchema, StyleTokenSchema, DynamicElementSchema, DynamicTreatmentsSchema — reached in tests via ThemeManifestSchema.shape.treatments.shape.dynamic.* accessors, mirroring the existing FontLoadSchema/ElevationNameSchema convention of not exporting nested schema objects)"
+  ],
+  "owned_data": [
+    "the DynamicElement / StyleToken shape and its validation bounds (anchorHue 0-359, saturation 20-100, lightness 20-75, scheme enum, generator enum) — validation-only, never present at runtime in the client bundle"
+  ],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": [
+    "app/src/themes/treatments/dynamicVisuals.ts (does not exist yet - S2; schema.ts must not import it, per architecture.md Boundary Rule 3's inline-enum convention)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/themes-validation.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S2", "S3"]
+  }
+}

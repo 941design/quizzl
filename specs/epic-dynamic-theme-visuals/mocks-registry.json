@@ -1,0 +1,13 @@
+{
+  "created_at": "2026-07-05T00:00:00Z",
+  "updated_at": "2026-07-05T21:11:25Z",
+  "mocks": [
+    {
+      "mock_id": "MOCK-02-001",
+      "description": "Stub watercolor generator standing in for the real @ink/visuals git dependency. Returns a valid, self-contained placeholder SVG that varies its output per call (AC-UX-1) while honoring the pinned StyleToken. Introduced by S2 (dynamic-visuals-adapter-registry-stub).",
+      "interface_mocked": "DYNAMIC_GENERATORS.watercolor(style, kind, render?) => string, as it will be satisfied by @ink/visuals's renderSVG API in Phase B",
+      "resolution_story": "S7"
+    }
+  ],
+  "all_resolved": false
+}

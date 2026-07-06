@@ -1,0 +1,46 @@
+{
+  "module_name": "useDynamicBanner",
+  "purpose": "Add a client-only, post-hydration hook that regenerates the nav banner's background as a fresh watercolor SVG on every mount when a theme declares treatments.dynamic.banner, while ALL decision logic (the static-vs-dynamic-vs-failure branch, and the exact boxProps/style split navBannerDecor() uses) lives in an exported pure function so it is unit-testable in a repo with no jsdom/React Testing Library. computeThemeStyles()/useThemeStyles.ts remain completely untouched (Boundary Rule 5) — this is a second, independent hook Layout.tsx calls alongside useThemeStyles().",
+  "public_api": [
+    {
+      "name": "resolveDynamicBannerStyle",
+      "signature": "function resolveDynamicBannerStyle(definition: AppThemeDefinition, generatedSvg: string | null): ResolveDynamicBannerStyleReturn | null",
+      "description": "Pure decision function holding all branch logic. Reuses computeThemeStyles(definition) (read-only value import, not a modification) to obtain the static bannerDecorStyle as both the boxProps source and the static-fallback style. When treatments.dynamic?.banner is absent, or generatedSvg is null (no generation yet / generation failed, AC-UX-3a), returns the static style unchanged. When present and generatedSvg is a non-null string, returns the SAME { boxProps, style } split with style.backgroundImage swapped to the generated data-URI (encoded exactly as navBannerDecor: whitespace-collapse+trim, encodeURIComponent) — boxProps is never mutated, backgroundImage is never folded into it. Returns null only in the same degenerate case computeThemeStyles itself returns a null bannerDecorStyle (an empty static banner string). hasDynamicBanner reflects the manifest DECLARATION (treatments.dynamic?.banner present), not per-attempt generation success, so it stays stable across the static-fallback window and is the boolean S4's shouldRenderScrim(hasDynamicBanner) keys off."
+    },
+    {
+      "name": "useDynamicBanner",
+      "signature": "function useDynamicBanner(definition: AppThemeDefinition): ResolveDynamicBannerStyleReturn | null",
+      "description": "Thin useEffect/useState wrapper carrying NO independent decision branches. On mount (and whenever `definition` changes identity, i.e. on theme change — APP_THEMES[id] objects are referentially stable per theme, so this does not re-fire on unrelated re-renders), if treatments.dynamic?.banner is present, calls DYNAMIC_GENERATORS.watercolor(style, 'banner', render) directly and synchronously inside a try/catch (Boundary Rule 6: fail-soft, never throws uncaught) and stores the resulting string (or null on any throw) in state. Always calls resolveDynamicBannerStyle(definition, generatedSvg) to compute the returned value — never branches on its own. Each mount starts generatedSvg back at null and re-invokes the generator fresh (no caching/memoization across mounts), so two separate mounts produce two independently-random SVGs (AC-UX-3)."
+    },
+    {
+      "name": "ResolveDynamicBannerStyleReturn",
+      "signature": "type ResolveDynamicBannerStyleReturn = { hasDynamicBanner: boolean; boxProps: BoxProps; style: React.CSSProperties }",
+      "description": "The seam type Layout.tsx (this story) and S4's shouldRenderScrim (next story) consume. boxProps/style are kept as two separate top-level fields, mirroring useThemeStyles.ts's BannerDecor type exactly — NEVER merged into one BoxProps object, because Chakra silently drops a data-URI backgroundImage value through its style-prop pipeline (the single highest-risk silent-failure point in this epic per architecture.md; not detectable by any test in this jsdom-less repo, see RETROSPECTIVE / result.json for the manual-verification flag)."
+    }
+  ],
+  "private_files": [
+    "app/src/hooks/useDynamicBanner.ts (internal, unexported: encodeSvgDataUri(svg) — mirrors useThemeStyles.ts's private navBannerDecor() encoding exactly: svg.replace(/\\s+/g, ' ').trim(), then url(\"data:image/svg+xml,${encodeURIComponent(svg)}\"))"
+  ],
+  "owned_data": [
+    "the per-mount generatedSvg state (string | null) inside useDynamicBanner's useState — not persisted, not shared across hook instances"
+  ],
+  "dependencies_allowed": [
+    "app/src/hooks/useThemeStyles.ts (value import of computeThemeStyles — read-only reuse to obtain the static bannerDecorStyle; useThemeStyles.ts itself is NOT modified)",
+    "app/src/themes/treatments/dynamicVisuals.ts (value import of DYNAMIC_GENERATORS — declared seam per architecture.md Module Map)",
+    "app/src/themes/index.ts / app/src/lib/theme.ts (type-only import of AppThemeDefinition)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/themes/schema.ts (no direct import — AppThemeDefinition is consumed as a type via lib/theme.ts, per existing convention; zod stays out of this module entirely)",
+    "the ink package / stub generator directly (must go through DYNAMIC_GENERATORS — dynamicVisuals.ts is the sole import site, AC-STRUCT-4)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/hooks/useDynamicBanner.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S4"]
+  }
+}

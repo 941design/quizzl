@@ -1,0 +1,19 @@
+{
+  "story_id": "S1",
+  "captured_at": "2026-07-05T23:22:00Z",
+  "command": "make test-unit (cd app && npx vitest run)",
+  "status": "PASS",
+  "test_files": 121,
+  "tests": 1972,
+  "scoped_file": "app/tests/unit/themes-validation.test.ts",
+  "scoped_file_tests": 63,
+  "lint": {
+    "status": "NO_LINT",
+    "detail": "No ESLint config exists anywhere under app/ (confirmed: no .eslintrc*, no eslint devDependency, no eslintConfig key in package.json). package.json's \"lint\" script (\"next lint\") would prompt interactively to scaffold a config on first run - not invoked as a baseline gate for this reason, consistent with architecture.md's own note that no ESLint config exists."
+  },
+  "typecheck": {
+    "status": "clean",
+    "command": "cd app && npx tsc --noEmit",
+    "detail": "No dedicated Makefile/package.json typecheck script exists; ran the project's own installed typescript (5.9.3) directly against tsconfig.json (strict: true, noEmit: true). Zero errors at baseline."
+  }
+}

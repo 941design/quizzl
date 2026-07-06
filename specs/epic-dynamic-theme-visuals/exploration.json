@@ -1,0 +1,71 @@
+{
+  "epic_name": "dynamic-theme-visuals",
+  "scope_note": "Phase A only (S1-S6). Phase B (S7-S9) and v2 out of scope, blocked on ink v0 tag.",
+  "prior_learnings": [
+    {
+      "id": "theme-registry-id-folder-mismatch-fails",
+      "title": "Theme-registry id/folder mismatch fails via a broad assertion cascade, not a single targeted error",
+      "tags": ["validation", "zod", "test-cascade", "registry-pattern", "debugging"]
+    }
+  ],
+  "explorers": {
+    "similar-features": {
+      "key_files": [
+        "app/src/themes/schema.ts:146-157 (TreatmentsSchema, .strict(), banner required)",
+        "app/src/hooks/useThemeStyles.ts:59-81 (navBannerDecor - exact encoding to replicate)",
+        "app/src/components/Layout.tsx:89-95 (banner Box render site)",
+        "app/scripts/generate-theme-registry.mjs:58-74 (structural-only codegen, no value validation)",
+        "app/tests/unit/themes-validation.test.ts:732-765 (enum-catalog-schema-treatment-sync pattern)",
+        "app/src/themes/treatments/elevation.ts, iconSets.ts (registry/adapter precedent)",
+        "app/src/themes/lego/manifest.ts (concrete manifest shape)",
+        "app/next.config.mjs:20,30-54 (output:export + one webpack carve-out precedent)",
+        "app/package.json (vitest v4.0.18, zod 4.4.3, no jsdom/RTL)"
+      ],
+      "findings": [
+        "TreatmentsSchema already requires banner: z.string() - S1 only adds a sibling optional `dynamic` key, not a change to banner itself.",
+        "Every nested zod object uses .strict() with no exceptions - new StyleToken/DynamicElement schemas must follow this at every nesting level.",
+        "Enum names (ElevationNameSchema etc.) are independently declared inline in schema.ts, NOT imported from treatments/* - 'kept in sync by hand' per the file's own header comment. S1's generator enum must follow this same convention, pinned by a themes-validation.test.ts describe block mirroring lines 732-765.",
+        "RawOverridesSchema uses z.record(z.string(), z.unknown()) as a deliberate escape hatch for untyped knobs - the spec's DynamicElement.render? perf-knobs likely needs the same escape hatch unless the field set is nailed down in story-planning.",
+        "treatments/* files are always pure lookup tables with only type-only Chakra imports - dynamicVisuals.ts breaks this precedent as the first file with a real runtime import (the ink package/stub) and the first with actual computation instead of static lookup. Flag explicitly in architecture.md as an intentional, sole exception.",
+        "iconSets.ts's resolveIconId() shows the established fail-soft-at-runtime pattern; validateManifest() shows fail-loud-at-build-time. Split for this epic: S1 schema/build gate fails loud on unknown generator name; S3's hook fails soft per AC-UX-3a (runtime fallback lives in the hook, not the adapter).",
+        "generate-theme-registry.mjs does ZERO value-level validation (only file-existence + folder-name regex, never imports/evaluates TS). The generator-catalog check (AC-VAL-1) belongs in themes-validation.test.ts's vitest suite, not in the .mjs codegen script - resolves an ambiguity in spec.md section 4.",
+        "Test file organizes describe blocks 1:1 with AC IDs - new S1/S6 tests should add new describe('AC-...') blocks, not fold into existing ones.",
+        "Zero existing Worker usage anywhere in the app (confirmed via grep) - S5 is a first-of-its-kind addition with no established convention or test-mocking infrastructure to extend.",
+        "next.config.mjs's only webpack customization is a babel-loader carve-out for 4 packages that crash SWC's optimizer - the only precedent for 'special-case webpack for a dependency', relevant if S5's worker needs its own loader rule."
+      ]
+    },
+    "architecture": {
+      "key_files": [
+        "specs/epic-pluggable-themes/architecture.md (prior epic's authoritative architecture doc - paradigm to reuse verbatim)",
+        "app/src/themes/schema.ts:1-19 (zod boundary: schema.ts is the ONLY module with a runtime zod import)",
+        "app/src/themes/contrast.ts (wcagRatio, evaluateThemeContrast, WCAG_AA_THRESHOLD=4.5 - reusable for AC-A11Y-1/2)",
+        "app/tests/unit/themes-validation.test.ts:443-731 (resolved-import boundary scanner - reusable pattern for AC-STRUCT-4)",
+        "app/next.config.mjs (output:export confirmed, no worker-loader config exists)"
+      ],
+      "findings": [
+        "Paradigm (reuse verbatim from prior epic's architecture.md): package-by-feature per theme folder; shared infrastructure is layered n-tier + functional-core/imperative-shell (manifests/transforms pure = core; generator script + vitest gate = imperative shell). New modules slot into the imperative-shell layer, no new paradigm needed.",
+        "The zod/client-bundle boundary (AC-BOUND-1) is enforced by an automated resolved-import scanner in themes-validation.test.ts (not ESLint - no eslint config exists anywhere under app/), which parses imports, classifies runtime vs type-only, and resolves specifiers against schema.ts's absolute path. This is the exact reusable pattern for AC-STRUCT-4's single-import-site invariant on dynamicVisuals.ts - add a sibling test using the same resolver, target = the ink-package/stub specifier.",
+        "End-to-end static banner data flow traced: manifest.treatments.banner (literal SVG) -> generate-theme-registry.mjs (structural glob only) -> registry.generated.ts (static imports, committed) -> useThemeStyles.ts computeThemeStyles()/navBannerDecor() (pure, URL-encodes into data-URI, returns {boxProps, style} SPLIT because Chakra drops data-URI backgroundImage through its style pipeline) -> Layout.tsx (spreads at zIndex 0, behind nav Container at zIndex 1, logo Text color=brand.500 is leftmost child).",
+        "computeThemeStyles() must stay untouched/pure; useDynamicBanner.ts is a SEPARATE, second, client-only hook that Layout.tsx calls alongside useThemeStyles(), producing a second style object to conditionally overlay - never a modification of useThemeStyles.ts.",
+        "No existing Worker/worker-loader convention in next.config.mjs - Next.js 14.2.35's built-in `new Worker(new URL('../workers/banner.worker.ts', import.meta.url))` native ESM pattern is genuinely greenfield here, no plugin needed, static export does not preclude it.",
+        "contrast.ts's wcagRatio(hexA, hexB) is generic pure math (zero imports) and directly reusable for the scrim-vs-brand.500 contrast check; evaluateThemeContrast() itself is NOT directly reusable since it takes a ThemeManifest and checks manifest-declared color pairs, not arbitrary colors."
+      ]
+    },
+    "testing-and-conventions": {
+      "key_files": [
+        "app/package.json (vitest, NO jsdom, NO @testing-library/react)",
+        "app/tests/unit/themes-validation.test.ts (AC-ID-keyed describe blocks, string/regex SVG assertions)",
+        "app/tests/unit/hooks/useThemeStyles.test.ts (hook test location + pure-function-testing precedent)",
+        "app/src/themes/contrast.ts (reusable WCAG utility, threshold 4.5/AA)"
+      ],
+      "findings": [
+        "CRITICAL: this project has NO jsdom and NO React Testing Library installed at all (confirmed absent from package.json). No hook can be rendered/mounted in tests. Every existing hook is built as a thin useEffect/useState wrapper around an exported PLAIN FUNCTION that holds all actual decision logic - that plain function is what gets unit-tested, never the hook itself via a render. useDynamicBanner.ts MUST follow this same split (mirrors computeThemeStyles() being pure and separately tested from useThemeStyles()).",
+        "No Web Worker mocking precedent anywhere in the codebase - S5's worker tests are first-of-kind. Either mock the Worker global directly (novel infrastructure) or scope S6's automated tests to the requestIdleCallback/fallback path only, per the spec's own 'mechanism, not real timing' framing (already reflected in the AC-PERF-1/2 amendment).",
+        "No SVG parser exists in test suite; existing convention is lightweight string/regex matching on the encoded banner data (prefix checks, substring checks for viewBox presence / <script> absence). AC-STRUCT-6/AC-UX-5 assertions should follow this same string-matching style, not introduce a new SVG parsing dependency.",
+        "contrast.ts + WCAG_AA_THRESHOLD=4.5 is a real, reusable utility for AC-A11Y-1/2 - reuse wcagRatio() directly rather than re-deriving contrast math.",
+        "No i18n gap: feature is purely decorative, no new user-facing text; codebase convention is that purely-decorative elements carry no translated strings (only interactive/informative ones do).",
+        "E2E scope: the existing static banner already has visual-only (no-click) e2e coverage, so that category is precedented in this suite if ever wanted - but the epic's own phasing (S6 = unit tests against the stub only, deeper visual/perf verification deferred) is a legitimate spec-driven scoping choice already confirmed by spec validation, not a testing-convention gap."
+      ]
+    }
+  }
+}

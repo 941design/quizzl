@@ -1,0 +1,240 @@
+{
+  "epic_name": "dynamic-theme-visuals",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-05T00:00:00Z",
+  "updated_at": "2026-07-06T02:15:00Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "Makefile",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md",
+    "specs/epic-dynamic-theme-visuals/acceptance-criteria.md",
+    "specs/epic-dynamic-theme-visuals/spec.md"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-05T00:00:00Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "S1_IN_PROGRESS",
+      "timestamp": "2026-07-05T21:20:00Z",
+      "trigger": "story_loop_start"
+    },
+    {
+      "phase": "S1_DONE",
+      "timestamp": "2026-07-06T00:00:00Z",
+      "trigger": "fast_path_pass"
+    },
+    {
+      "phase": "S2_DONE",
+      "timestamp": "2026-07-06T00:45:00Z",
+      "trigger": "fast_path_pass_after_1_remediation_round"
+    },
+    {
+      "phase": "S3_DONE",
+      "timestamp": "2026-07-06T01:15:00Z",
+      "trigger": "fast_path_pass"
+    },
+    {
+      "phase": "S4_DONE",
+      "timestamp": "2026-07-06T01:30:00Z",
+      "trigger": "fast_path_pass"
+    },
+    {
+      "phase": "S5_DONE",
+      "timestamp": "2026-07-06T01:45:00Z",
+      "trigger": "fast_path_pass"
+    },
+    {
+      "phase": "S6_DONE",
+      "timestamp": "2026-07-06T02:00:00Z",
+      "trigger": "lead_accept_with_doc_clarification"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-06T02:15:00Z",
+      "trigger": "done_interlock_satisfied"
+    }
+  ],
+  "plugin_sha": "1b6099eb7e04f90fea0f4e2a195881ffffd53315",
+  "consumer_sha": "fd9abd86311f50e4b8705fe1e7f707109606acad",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "run_scope_note": "This run implements Phase A only (S1-S6). Phase B (S7-S9) and v2 are out of scope, blocked on ink's v0 tag.",
+  "reviewer_agent_id": "reviewer-dynamic-theme-visuals@session-70a61c1d",
+  "codex_unavailable_user_authorized": true,
+  "codex_unavailable_note": "Codex out of credits at S1 review gate 2026-07-05; user authorized Opus-only review for the remainder of this run.",
+  "manual_validation": [
+    {
+      "ac_id": "MV-1",
+      "status": "waived",
+      "owner": null,
+      "blocked_on": "A theme declaring treatments.dynamic.banner (Phase B S8, aquarelle) must exist before this can be checked in a real browser.",
+      "evidence": "Not checkable until a theme declaring treatments.dynamic.banner exists (Phase B S8, aquarelle) \u2014 no Phase A theme uses this capability. Waived for this Phase-A-only run; re-raised as a hard gate in acceptance-criteria.md before S8 ships. User-authorized 2026-07-06."
+    },
+    {
+      "ac_id": "MV-2",
+      "status": "waived",
+      "owner": null,
+      "blocked_on": "A theme declaring treatments.dynamic.banner (Phase B S8, aquarelle) must exist before this can be checked in a real browser.",
+      "evidence": "Not checkable until a theme declaring treatments.dynamic.banner exists (Phase B S8, aquarelle) \u2014 no Phase A theme uses this capability. Waived for this Phase-A-only run; re-raised as a hard gate in acceptance-criteria.md before S8 ships. User-authorized 2026-07-06."
+    },
+    {
+      "ac_id": "MV-3",
+      "status": "satisfied",
+      "owner": null,
+      "blocked_on": null,
+      "evidence": "make build succeeds under output:export; self.addEventListener (worker side effect) appears exactly once, in the isolated chunk out/_next/static/chunks/6865.e5beb5c9dc6fac5a.js, and zero times in the main _app/main chunks. Independently re-verified twice this session (once by the lead directly via grep, once by the Stage-1 Opus reviewer via its own make build + chunk inspection). User-authorized 2026-07-06."
+    }
+  ],
+  "ac_closure": [
+    {
+      "ac_id": "AC-STRUCT-1",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S1, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-STRUCT-2",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S1, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-VAL-1",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S1, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-VAL-2",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S1, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-BOUND-1",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S1, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-STRUCT-3",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S2, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-STRUCT-4",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S2, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-UX-1",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S2, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-STRUCT-6",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S2, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-STRUCT-5",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S3, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-UX-2",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S3, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-UX-3",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S3, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-UX-3a",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S3, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-PERF-1",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S3, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-A11Y-1",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S4, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-A11Y-2",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S4, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-PERF-2",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S5, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-UX-4",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S6, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-UX-5",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S6, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-META-1",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S6, behavioral test (not structural-proxy), full suite green"
+    }
+  ],
+  "ac_closure_scope_note": "This run (Phase A only) closes the 20 Phase A ACs. Phase B (AC-DEP-1/2, AC-THEME-1/2, AC-UX-6, AC-PERF-3) and v2 (AC-THEME-3, AC-STRUCT-7) ACs are explicitly out of scope per spec.md Amendments and are not counted against this run's AC-closure gate.",
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "skipped",
+      "skip_reason": "tool_failure (Stryker test-runner timeouts in this sandbox, 8/8 mutants reported Timeout status, no real coverage signal produced across two retry attempts); user instructed to stop at the intermediate result and proceed rather than continue remediation rounds, 2026-07-06"
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "skipped",
+      "skip_reason": "Phase A change has zero live UI surface (no theme declares treatments.dynamic yet; that is Phase B S8 aquarelle) -- the 48-test Docker-based e2e suite would exercise nothing new for this epic. User-authorized skip 2026-07-06. Re-required before aquarelle (S8) ships."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_remediated",
+      "structural_findings": {
+        "surfaced": 1,
+        "acted": 1,
+        "disclosed_unacted": 0
+      }
+    }
+  ],
+  "mutation_gate_residuals": [
+    {
+      "module": "app/src (dynamic-theme-visuals touched files)",
+      "residuals": [
+        "tool_failure: Stryker timeouts, no usable mutation score produced in this sandbox"
+      ]
+    }
+  ],
+  "completed_at": "2026-07-06T02:15:00Z"
+}

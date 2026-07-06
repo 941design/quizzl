@@ -1,0 +1,339 @@
+{
+  "epic_name": "dynamic-theme-visuals",
+  "created_at": "2026-07-05T21:11:25Z",
+  "total_stories": 6,
+  "dependency_notes": "Phase A only (S1-S6); Phase B (S7-S9) and v2 (S10) are deliberately excluded from this stories.json, blocked on ink's v0 git tag per spec.md \u00a75/\u00a77 Amendments (2026-07-05). They are not stubbed here as pending stories - a future /base:feature run against this same epic will re-invoke story-planner Mode 2 to add them once ink publishes v0. Sequential dependency chain for S1-S6: S1 (schema) gates everything; S2 (adapter+stub) depends on S1's DynamicElement/StyleToken types; S3 (hook+Layout swap) depends on S2's DYNAMIC_GENERATORS registry; S4 (scrim) and S5 (worker offload) both depend on S3 and are independent of each other; S6 (mocked-generator test suite) depends on S1-S5 all landing, since it closes out comprehensive behavioral coverage across all five. Stories are implemented sequentially, not in parallel (per commands/feature.md 'Design priorities and non-goals') - owning_module is a correctness/verticalization boundary, not a concurrency license.",
+  "mock_resolution_plan": "S2 introduces MOCK-02-001 (the stub watercolor generator standing in for @ink/visuals). It is NOT resolved within this Phase-A run - resolution is S7 (Phase B, wire the real @ink/visuals git dependency), which is out of scope until ink publishes its v0 tag. Tracked in specs/epic-dynamic-theme-visuals/mocks-registry.json with all_resolved: false until then.",
+  "stories": [
+    {
+      "id": "S1",
+      "name": "dynamic-element-schema-validation-gate",
+      "title": "Dynamic-element schema + validation gate",
+      "description": "Add an optional treatments.dynamic map ({ banner?, background? }) of .strict() DynamicElement objects ({ generator, style, clip?, render? }) plus the StyleToken shape ({ anchorHue, scheme, saturation, lightness }) to ThemeManifestSchema in schema.ts, with the generator enum declared inline (not imported) per the existing ElevationNameSchema convention. Join the closed generator-catalog check and the style-token bounds check to the vitest validation gate. treatments.banner stays required on every manifest, including ones that also declare a dynamic banner. A manifest without treatments.dynamic must validate and render exactly as today.",
+      "acceptance_criteria": [
+        "AC-STRUCT-1",
+        "AC-STRUCT-2",
+        "AC-VAL-1",
+        "AC-VAL-2",
+        "AC-BOUND-1"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/themes/schema.ts - add treatments.dynamic map, StyleToken, DynamicElement, inline generator enum, all .strict()",
+          "app/tests/unit/themes-validation.test.ts - add describe('AC-STRUCT-1'), describe('AC-STRUCT-2'), describe('AC-VAL-1'), describe('AC-VAL-2'), describe('AC-BOUND-1') blocks, and an enum-catalog-schema-treatment-sync describe block for the generator enum mirroring the existing pattern at lines 732-765"
+        ],
+        "excludes": [
+          "app/src/themes/treatments/dynamicVisuals.ts (S2's adapter file - not touched here)",
+          "any theme manifest (aquarelle is Phase B / S8, out of scope)",
+          "the single-import-site scanner for dynamicVisuals.ts (AC-STRUCT-4, owned by S2 since the adapter doesn't exist yet)"
+        ]
+      },
+      "owning_module": "schema",
+      "complexity": "medium",
+      "status": "done",
+      "lighter_path": false,
+      "introduces_mocks": [],
+      "mock_dependencies": [],
+      "creates_seam": true,
+      "notes": "Foundation story; gates S2 and (transitively) S3-S6. Produces the DynamicElement/StyleToken seam contract. No dependency on any other Phase-A story."
+    },
+    {
+      "id": "S2",
+      "name": "dynamic-visuals-adapter-registry-stub",
+      "title": "Generator adapter + registry + stub",
+      "description": "Create app/src/themes/treatments/dynamicVisuals.ts exporting a name->function registry DYNAMIC_GENERATORS with a watercolor entry of signature (style, kind, render?) -> string. The watercolor entry owns the randomizeParams()+style-override call shape, forces the element's size/format, and returns a self-contained SVG string. In Phase A this is backed by a stub generator (MOCK-02-001) standing in for @ink/visuals, which must itself vary its output per call. This file is the ONLY module in app/src permitted a runtime import of the generator/stub (single-import-site invariant).",
+      "acceptance_criteria": [
+        "AC-STRUCT-3",
+        "AC-STRUCT-4",
+        "AC-UX-1",
+        "AC-STRUCT-6"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/themes/treatments/dynamicVisuals.ts (NEW) - DYNAMIC_GENERATORS registry, watercolor entry, stub generator behind the real import seam",
+          "app/tests/unit/themes/treatments.test.ts - add a sibling describe('themes/treatments/dynamicVisuals') block (precedent: existing elevation/iconSets/patterns describe blocks) covering AC-STRUCT-3 (registry shape), AC-UX-1 (two calls differ, pinned style holds), AC-STRUCT-6 (self-contained output: no <script>, no external href/url())",
+          "app/tests/unit/themes-validation.test.ts - add the single-import-site scanner test for AC-STRUCT-4, reusing the resolved-import-scanner pattern already used for the zod boundary at lines 443-731, retargeted at dynamicVisuals.ts's absolute path"
+        ],
+        "excludes": [
+          "the real @ink/visuals git dependency (Phase B / S7 - stub only in Phase A)",
+          "app/src/hooks/useDynamicBanner.ts (S3 - this story only produces the registry the hook will call)"
+        ]
+      },
+      "owning_module": "dynamicVisuals",
+      "complexity": "medium",
+      "status": "done",
+      "lighter_path": false,
+      "introduces_mocks": [
+        {
+          "mock_id": "MOCK-02-001",
+          "description": "Stub watercolor generator standing in for the real @ink/visuals git dependency. Returns a valid, self-contained placeholder SVG that varies its output per call (to exercise AC-UX-1's non-determinism contract) while honoring the pinned StyleToken.",
+          "interface_mocked": "DYNAMIC_GENERATORS.watercolor(style, kind, render?) => string, as it will be satisfied by @ink/visuals's renderSVG API in Phase B",
+          "resolution_story": "S7"
+        }
+      ],
+      "mock_dependencies": [],
+      "consumes_seams": [
+        "DynamicElement"
+      ],
+      "creates_seam": true,
+      "notes": "Depends on S1 (consumes the StyleToken/DynamicElement types). Produces the DYNAMIC_GENERATORS seam consumed by S3 and (for off-thread wrapping) S5. MOCK-02-001 remains unresolved until Phase B's S7, which is out of scope for this run."
+    },
+    {
+      "id": "S3",
+      "name": "use-dynamic-banner-hook-layout-swap",
+      "title": "useDynamicBanner hook + Layout swap",
+      "description": "Add a client-only (post-hydration, useEffect) useDynamicBanner(definition) hook that, when treatments.dynamic?.banner is present, generates a fresh SVG via DYNAMIC_GENERATORS, encodes it as a data-URI exactly as navBannerDecor does (URL-encoded, on the raw style prop, never folded into boxProps), and swaps bannerDecorStyle.style.backgroundImage. When absent, the static banner renders unchanged. Because this repo has no jsdom/React Testing Library, all decision logic lives in an exported pure function (resolveDynamicBannerStyle(definition, generatedSvg | null)) that the thin hook wraps - mirroring the computeThemeStyles()/useThemeStyles() split. On a fresh mount the background changes from the static fallback to a generated data-URI SVG, and differs across two mounts. If generation fails (throws, or the Worker errors with no fallback success), the hook keeps/reverts to the static bannerDecorStyle and never throws uncaught. computeThemeStyles() and useThemeStyles.ts are explicitly NOT modified. Layout.tsx reserves the banner box at its fixed dimensions and cross-fades the generated image over the static one (no layout shift) - legibility scrim rendering itself is S4's concern.",
+      "acceptance_criteria": [
+        "AC-STRUCT-5",
+        "AC-UX-2",
+        "AC-UX-3",
+        "AC-UX-3a",
+        "AC-PERF-1"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/hooks/useDynamicBanner.ts (NEW) - thin useEffect/useState wrapper + exported pure resolveDynamicBannerStyle(definition, generatedSvg | null) decision function",
+          "app/src/components/Layout.tsx - call useDynamicBanner alongside useThemeStyles(); reserve the banner box at fixed dimensions; cross-fade the generated image over the static one",
+          "app/tests/unit/hooks/useDynamicBanner.test.ts (NEW) - describe('AC-STRUCT-5'), describe('AC-UX-2'), describe('AC-UX-3'), describe('AC-UX-3a'), describe('AC-PERF-1') blocks against resolveDynamicBannerStyle directly (never a rendered/mounted hook), passing two distinct generated strings to exercise the swap/per-mount difference and generatedSvg = null to exercise the static/failure path"
+        ],
+        "excludes": [
+          "app/src/hooks/useThemeStyles.ts (explicitly untouched by this epic - Boundary Rule 5)",
+          "legibility scrim rendering behind the logo (S4)",
+          "Web Worker / requestIdleCallback wiring for the generation call itself (S5 - S3's hook calls the generator directly; S5 swaps that call path to go off-thread)"
+        ]
+      },
+      "owning_module": "useDynamicBanner",
+      "complexity": "high",
+      "status": "done",
+      "lighter_path": false,
+      "introduces_mocks": [],
+      "mock_dependencies": [],
+      "consumes_seams": [
+        "DynamicElement",
+        "DYNAMIC_GENERATORS"
+      ],
+      "creates_seam": true,
+      "notes": "Depends on S2 (calls DYNAMIC_GENERATORS.watercolor) and transitively S1. Produces the ResolveDynamicBannerStyleReturn seam consumed by S4 (scrim gating) and by Layout.tsx generally. Gates S4 and S5, which have no dependency on each other once S3 lands."
+    },
+    {
+      "id": "S4",
+      "name": "legibility-scrim",
+      "title": "Legibility scrim",
+      "description": "Add a scrim/backing behind the nav logo in Layout.tsx that guarantees the brand.500 logo text meets WCAG AA (>= 4.5:1) contrast regardless of the banner content behind it, reusing contrast.ts's wcagRatio(hexA, hexB) primitive directly (evaluateThemeContrast() is not reusable here - it takes a ThemeManifest, not arbitrary colors) at the existing WCAG_AA_THRESHOLD = 4.5. The scrim is present whenever a dynamic banner is active and must not visually regress themes using only a static banner (no scrim required, or a no-op). Exposed as an exported pure decision function (e.g. shouldRenderScrim(hasDynamicBanner: boolean): boolean), following the same no-jsdom pure-function testing convention as S3's hook.",
+      "acceptance_criteria": [
+        "AC-A11Y-1",
+        "AC-A11Y-2"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/components/Layout.tsx - render the legibility scrim behind the nav logo",
+          "app/src/hooks/useDynamicBanner.ts - add exported shouldRenderScrim(hasDynamicBanner: boolean): boolean pure decision function, co-located with resolveDynamicBannerStyle",
+          "app/tests/unit/hooks/useDynamicBanner.test.ts - add describe('AC-A11Y-1'), describe('AC-A11Y-2') blocks asserting scrim + brand.500 contrast via wcagRatio, independent of any generated image"
+        ],
+        "excludes": [
+          "app/src/themes/contrast.ts (read-only reuse of wcagRatio - no changes expected)",
+          "worker offload (S5)"
+        ]
+      },
+      "owning_module": "Layout.tsx",
+      "complexity": "low",
+      "status": "done",
+      "lighter_path": false,
+      "introduces_mocks": [],
+      "mock_dependencies": [],
+      "consumes_seams": [
+        "ResolveDynamicBannerStyleReturn"
+      ],
+      "creates_seam": false,
+      "notes": "Depends on S3 (needs hasDynamicBanner / the banner box wired into Layout.tsx). Independent of S5 - both can proceed once S3 lands, per architecture.md's Story Order."
+    },
+    {
+      "id": "S5",
+      "name": "worker-offload",
+      "title": "Worker offload",
+      "description": "Run banner generation off the main thread via a Web Worker (app/src/workers/banner.worker.ts, using Next.js's built-in new Worker(new URL(...)) native ESM pattern - genuinely greenfield, zero existing Worker usage in this repo), postMessage-ing the generated SVG string back to useDynamicBanner. Provide a requestIdleCallback (or equivalent deferred) main-thread fallback if worker bundling under output: 'export' proves fussy. Generation must not block first paint. banner.worker.ts is a pure message-passing wrapper carrying no state of its own - it wraps dynamicVisuals's DYNAMIC_GENERATORS call, it does not duplicate it.",
+      "acceptance_criteria": [
+        "AC-PERF-2"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/workers/banner.worker.ts (NEW) - postMessage wrapper around DYNAMIC_GENERATORS.watercolor",
+          "app/src/hooks/useDynamicBanner.ts - wire the Worker + requestIdleCallback fallback into the generation call path (swapping the direct S3 call for the off-thread path)",
+          "app/tests/unit/hooks/useDynamicBanner.test.ts - add describe('AC-PERF-2') covering the worker/idle-callback mechanism only (no real Worker-thread mocking infrastructure exists in this repo; real off-thread execution is a Phase B / manual-verification concern per architecture.md's Implementation Constraints)"
+        ],
+        "excludes": [
+          "real off-thread execution timing/paint measurement (AC-PERF-3, Phase B / S9)",
+          "app/next.config.mjs webpack changes, unless worker bundling under output: 'export' genuinely requires a carve-out (fallback to requestIdleCallback is the spec's own acknowledged non-blocking escape hatch first)"
+        ]
+      },
+      "owning_module": "banner.worker",
+      "complexity": "medium",
+      "status": "done",
+      "lighter_path": false,
+      "introduces_mocks": [],
+      "mock_dependencies": [],
+      "consumes_seams": [
+        "DYNAMIC_GENERATORS"
+      ],
+      "creates_seam": false,
+      "notes": "Depends on S3 (extends the hook's generation call path). Independent of S4. Carries the spec's own acknowledged worker-bundling risk (no precedent in this repo), not a new risk introduced here."
+    },
+    {
+      "id": "S6",
+      "name": "mocked-generator-test-suite",
+      "title": "Tests (mocked generator)",
+      "description": "Close out comprehensive behavioral coverage of the dynamic-banner mechanism across S1-S5 in the mocked-generator test suite: assert the static fallback renders when JS/dynamic is unavailable (no-JS path shows a correct image); assert that on mount the background swaps to a valid data-URI SVG (parses as SVG string-match: contains a viewBox, no <script>); and confirm there is no per-seed determinism test anywhere in the suite (non-determinism is intended - the suite mocks the generator for speed and asserts behaviour, not pixels). This story is test-only; it introduces no production code.",
+      "acceptance_criteria": [
+        "AC-UX-4",
+        "AC-UX-5",
+        "AC-META-1"
+      ],
+      "scope": {
+        "includes": [
+          "app/tests/unit/hooks/useDynamicBanner.test.ts - add describe('AC-UX-4'), describe('AC-UX-5') blocks against resolveDynamicBannerStyle (same pure-function boundary as S3/S4/S5's tests, no rendered/mounted hook); add or confirm an describe('AC-META-1') assertion (e.g. a suite-level check/comment convention) that no test asserts on a fixed seed/pixel output"
+        ],
+        "excludes": [
+          "any production code change (test-only story)",
+          "per-seed determinism tests of any kind (explicitly excluded by AC-META-1)",
+          "real CLS/paint-timing measurement (AC-PERF-3, Phase B)"
+        ]
+      },
+      "owning_module": "useDynamicBanner.test.ts",
+      "complexity": "medium",
+      "status": "done",
+      "lighter_path": false,
+      "introduces_mocks": [],
+      "mock_dependencies": [],
+      "consumes_seams": [
+        "DynamicElement",
+        "DYNAMIC_GENERATORS",
+        "ResolveDynamicBannerStyleReturn"
+      ],
+      "creates_seam": false,
+      "notes": "Depends on S1-S5 all landing - it is the capstone story closing out full behavioral coverage of the mocked-generator suite (spec.md \u00a77's S6 description: 'Fallback renders; on mount the background swaps to a valid data-URI SVG; scrim guarantees logo contrast; adapter output is self-contained. No per-seed determinism tests.'). AC-STRUCT-6 (self-containment), AC-A11Y-1/2 (scrim), AC-UX-3a/AC-PERF-1/AC-PERF-2 (fail-soft, layout-shift mechanism, worker mechanism) are implemented and given their own initial tests by S2/S4/S3/S5 respectively as each module lands; S6 is the final pass ensuring AC-UX-4, AC-UX-5, and the AC-META-1 no-per-seed-determinism convention are in place across the whole suite."
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6"
+  ],
+  "seams": [
+    {
+      "data": "DynamicElement / StyleToken shape - the manifest's optional treatments.dynamic.banner declaration",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/themes/schema.ts#DynamicElement,StyleToken (zod .strict() schemas)"
+      },
+      "intermediaries": [
+        {
+          "story": "S2",
+          "artifact": "app/src/themes/treatments/dynamicVisuals.ts (consumes StyleToken's field types for the randomizeParams+override call)"
+        }
+      ],
+      "destination": {
+        "story": "S3",
+        "artifact": "app/src/hooks/useDynamicBanner.ts (reads definition.treatments.dynamic?.banner to decide whether/how to generate)"
+      },
+      "contract": {
+        "type_name": "DynamicElement",
+        "fields": [
+          {
+            "name": "generator",
+            "type": "'watercolor' (closed enum, inline-declared in schema.ts)",
+            "optional": false
+          },
+          {
+            "name": "style",
+            "type": "StyleToken { anchorHue: 0-359, scheme: enum, saturation: 20-100, lightness: 20-75 }",
+            "optional": false
+          },
+          {
+            "name": "clip",
+            "type": "'button' | 'card' | 'avatar'",
+            "optional": true
+          },
+          {
+            "name": "render",
+            "type": "Record<string, unknown> (perf-knob escape hatch, z.record precedent)",
+            "optional": true
+          }
+        ],
+        "invariants": [
+          "an unknown generator value fails the build (AC-VAL-1)",
+          "style.saturation is within 20-100, style.lightness within 20-75, style.anchorHue within 0-359, style.scheme is one of the enum members, or validation fails (AC-VAL-2)",
+          "a manifest without treatments.dynamic validates and renders exactly as today (AC-STRUCT-1)",
+          "treatments.banner remains required even when treatments.dynamic.banner is present (AC-STRUCT-2)"
+        ]
+      }
+    },
+    {
+      "data": "DYNAMIC_GENERATORS registry - the name->function map the hook (and, off-thread, the worker) calls to produce a fresh SVG string",
+      "source": {
+        "story": "S2",
+        "artifact": "app/src/themes/treatments/dynamicVisuals.ts#DYNAMIC_GENERATORS"
+      },
+      "intermediaries": [
+        {
+          "story": "S5",
+          "artifact": "app/src/workers/banner.worker.ts (wraps the watercolor call for the off-thread path; postMessage's the string back)"
+        }
+      ],
+      "destination": {
+        "story": "S3",
+        "artifact": "app/src/hooks/useDynamicBanner.ts (invokes DYNAMIC_GENERATORS.watercolor directly on main thread, or via the S5 worker/idle-callback path once wired)"
+      },
+      "contract": {
+        "type_name": "DYNAMIC_GENERATORS",
+        "fields": [
+          {
+            "name": "watercolor",
+            "type": "(style: StyleToken, kind: 'banner', render?: Record<string, unknown>) => string",
+            "optional": false
+          }
+        ],
+        "invariants": [
+          "two successive calls return different svg strings while both reflect the pinned style identity (AC-UX-1)",
+          "the returned string is self-contained: no <script>, no external href/url() references to outside resources (AC-STRUCT-6)",
+          "dynamicVisuals.ts is the only module in app/src that imports the underlying generator/stub (AC-STRUCT-4)"
+        ]
+      }
+    },
+    {
+      "data": "resolveDynamicBannerStyle return - the swapped style state Layout.tsx and the scrim decision key off",
+      "source": {
+        "story": "S3",
+        "artifact": "app/src/hooks/useDynamicBanner.ts#resolveDynamicBannerStyle(definition, generatedSvg | null)"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/components/Layout.tsx / shouldRenderScrim(hasDynamicBanner) - scrim rendering keyed off dynamic-banner presence"
+      },
+      "contract": {
+        "type_name": "ResolveDynamicBannerStyleReturn",
+        "fields": [
+          {
+            "name": "hasDynamicBanner",
+            "type": "boolean",
+            "optional": false
+          },
+          {
+            "name": "backgroundImage",
+            "type": "string (data-URI, either the static bannerDecorStyle value or a freshly generated SVG, URL-encoded exactly as navBannerDecor does)",
+            "optional": false
+          }
+        ],
+        "invariants": [
+          "when treatments.dynamic?.banner is absent, backgroundImage equals the static bannerDecorStyle value unchanged (AC-UX-2)",
+          "when present, backgroundImage is swapped to a fresh generated data-URI on mount and differs across two mounts (AC-UX-3)",
+          "when generation fails (generatedSvg is null / the generator threw), backgroundImage keeps/reverts to the static value and the function never throws uncaught (AC-UX-3a)",
+          "hasDynamicBanner is what shouldRenderScrim(hasDynamicBanner) keys the scrim-presence decision off (AC-A11Y-2)"
+        ]
+      }
+    }
+  ]
+}

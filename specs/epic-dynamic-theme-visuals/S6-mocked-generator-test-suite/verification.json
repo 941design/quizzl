@@ -1,0 +1,84 @@
+{
+  "story_id": "S6",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-05T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S6-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Do the AC-UX-4/AC-UX-5 tests assert genuine behavior (a real call to resolveDynamicBannerStyle with representative generatedSvg values) rather than a tautological assertion (e.g. asserting a hardcoded string equals itself) that would pass even if resolveDynamicBannerStyle were broken?"
+    },
+    {
+      "question_id": "VQ-S6-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Do the new AC-UX-4/AC-UX-5 test blocks continue testing exclusively against the exported pure function boundary (resolveDynamicBannerStyle), per architecture.md Boundary Rule 7, with zero rendered/mounted hook usage introduced anywhere in this story — this story is test-only and must not introduce jsdom/RTL as a new dependency?"
+    },
+    {
+      "question_id": "VQ-S6-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `useDynamicBanner.test.ts` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S6-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does the test suite, taken as a whole after S6 lands, provide at least one assertion for each of: static fallback rendering when JS/dynamic is unavailable (AC-UX-4); the mounted swap to a valid data-URI SVG (AC-UX-5); self-contained adapter output (AC-STRUCT-6, from S2); scrim-guaranteed contrast (AC-A11Y-1/AC-A11Y-2, from S4); and the fail-soft/layout-shift/worker mechanisms (AC-UX-3a, AC-PERF-1, AC-PERF-2, from S3/S5)? Is S6's 'closing pass' claim verifiable by an actual inventory of existing describe('AC-...') blocks across the suite, not merely asserted in a commit message?"
+    },
+    {
+      "question_id": "VQ-S6-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does this story confirm that no production code changed as a byproduct of adding these tests (S6 declares itself test-only) — i.e. is the diff scoped exclusively to app/tests/unit/hooks/useDynamicBanner.test.ts (or a declared sibling test file), with zero changes to schema.ts, dynamicVisuals.ts, useDynamicBanner.ts, Layout.tsx, or banner.worker.ts?"
+    },
+    {
+      "question_id": "VQ-S6-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Are the AC-UX-4/AC-UX-5 tests written against representative/varied fixture values (not a single always-passing trivial fixture), and do they assert on resolveDynamicBannerStyle's observable return shape rather than on internal implementation details (e.g. private variable names)?"
+    },
+    {
+      "question_id": "VQ-S6-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-4",
+      "question": "For AC-UX-4 ('a test MUST assert the static fallback renders when JS/dynamic is unavailable'), show: (a) the resolveDynamicBannerStyle code path taken when generatedSvg is null/unavailable; (b) the test calling the pure function with that null/unavailable state and asserting the static bannerDecorStyle image is returned unchanged; and (c) confirmation this test is a real assertion against the function's return value, not a mock/spy that only checks the function was invoked."
+    },
+    {
+      "question_id": "VQ-S6-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-5",
+      "question": "For AC-UX-5 ('a test MUST assert that, on mount, the background swaps to a valid data-URI SVG — parses as SVG, contains a viewBox, no <script>'), show: (a) the test's string/regex-based assertions (per architecture.md Boundary Rule 8 — no SVG parser dependency) checking for a viewBox marker and absence of <script>; (b) confirmation the assertion runs against a real generated-SVG-shaped data-URI produced by the swap path, not a fixture pre-built to trivially pass the regex; and (c) confirmation this is a genuine string-content assertion, not a mock-spy proxy."
+    },
+    {
+      "question_id": "VQ-S6-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-META-1",
+      "question": "AC-META-1 requires a NEGATIVE assertion: there MUST be no per-seed determinism/pixel-snapshot test anywhere in the suite. Show: (a) a documented convention (describe block, comment, or check) that actively confirms the suite does NOT contain a fixed-seed or pixel-snapshot test, not merely the absence of evidence that one exists; (b) a full search across app/tests/unit/hooks/useDynamicBanner.test.ts (and any sibling dynamic-banner test files) for patterns like toMatchSnapshot, a hardcoded expected SVG string compared byte-for-byte, or a seeded-RNG assertion, confirming zero matches; and (c) confirmation this check was actually run against the final test file contents, not asserted from memory of what was written."
+    },
+    {
+      "question_id": "VQ-S6-010",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "ac_id": "AC-META-1",
+      "question": "The shipped AC-META-1 block scans this file plus treatments.test.ts for the literal strings 'toMatchSnapshot'/'toMatchInlineSnapshot', built via string concatenation ('toMatch' + 'Snapshot') so the scan can legitimately include ITSELF among the scanned files without matching its own marker definition. The first implementation attempt failed exactly this way (the marker appeared contiguously in prose comments describing the check, e.g. 'toMatchSnapshot / toMatchInlineSnapshot'), and was caught immediately by make test-unit failing with 'found \"toMatchSnapshot\"' pointing at this file itself — fixed by rewriting the comment/test-title prose to break the literal substring. Confirm: (a) grep for the contiguous strings 'toMatchSnapshot' and 'toMatchInlineSnapshot' across app/tests/unit/hooks/useDynamicBanner.test.ts now returns zero matches (the concatenation technique holds); (b) the scan's coverage is genuinely limited to vitest's snapshot-matcher family and a signature-arity check on DYNAMIC_GENERATORS.watercolor — it does NOT attempt to detect a hand-rolled seeded-RNG-plus-fixed-expected-output pattern via a semantic/AST scan (rejected in-file as undecidable-by-regex/over-engineering, per a documented judgment call in the block's own leading comment) — is that trade-off (narrow-but-real executable checks plus documented convention, rather than a broader but brittle heuristic scan) the correct one for a negative assertion the story owns no production code to enforce mechanically otherwise?"
+    },
+    {
+      "question_id": "VQ-S6-011",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-UX-4",
+      "question": "The shipped AC-UX-4 block decodes resolveDynamicBannerStyle's returned style.backgroundImage and compares it against a value derived directly from the theme manifest's OWN raw treatments.banner field (via a locally-defined expectedDataUriFromRawBanner helper that re-implements navBannerDecor's collapse-whitespace+trim+encodeURIComponent encoding), rather than against computeThemeStyles(definition).bannerDecorStyle (the pattern S3's AC-UX-2 block already used). This is deliberately a stronger, more independent check (a bug that corrupted computeThemeStyles() and resolveDynamicBannerStyle identically would slip past the AC-UX-2-style comparison but not this one) — but it does duplicate useThemeStyles.ts's private encoding logic in test code, a second place that must stay in sync with navBannerDecor()'s encoding if it ever changes (mirroring the existing `expectedDataUri` helper already at the top of this file, which the same duplication risk already applied to before this story). Is duplicating the encoding a second time (rather than reusing the file's existing `expectedDataUri` helper directly on the raw manifest string, which would have been equivalent and avoided introducing a second near-identical helper) an unnecessary redundancy worth collapsing into one shared helper, or is keeping them separate (one named for 'the SUT's own computed value', one named for 'the raw manifest source') valuable for readability/traceability?"
+    },
+    {
+      "question_id": "VQ-S6-012",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "S6 was implemented directly by the architect (no base:dev delegation) since the story introduces zero production code and zero new components — the entire scope is additive describe blocks against an already-proven pure-function boundary (resolveDynamicBannerStyle, DYNAMIC_GENERATORS.watercolor) that S3/S4/S5's tests already exercise extensively. Is a test-only capstone story with no production surface an appropriate case to skip the dev-delegation step entirely (Step 5's 'for each non-trivial component' threshold read as not met here), or should even test-only additions route through base:dev for a second independent pass regardless of production-code absence?"
+    }
+  ]
+}

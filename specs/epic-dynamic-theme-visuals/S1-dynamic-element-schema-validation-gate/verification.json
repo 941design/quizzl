@@ -1,0 +1,103 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-05T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does app/src/themes/schema.ts's DynamicElement/StyleToken .strict() validation perform genuine zod-level enforcement (rejecting an out-of-range style token or an unknown generator value via .parse()/.safeParse() failure), or is there a load-bearing case where the schema silently accepts any object shape and the 'validation' in themes-validation.test.ts is actually a tautological assertion (e.g. asserting the schema accepts a fixture the test itself built to already comply, without ever exercising a rejecting path)? Show both the passing and the failing fixture."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the generator enum (e.g. z.enum(['watercolor'])) exist inline, independently declared in schema.ts — never imported from app/src/themes/treatments/dynamicVisuals.ts or any generator module — per architecture.md Boundary Rule 3 and the existing ElevationNameSchema convention? Is the enum-catalog-schema-treatment-sync describe block (mirroring the existing test at themes-validation.test.ts:732-765) present, and does it fail if the inline enum and DYNAMIC_GENERATORS' keys diverge?"
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `schema` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does themes-validation.test.ts contain unit coverage for: (a) a manifest with treatments.dynamic absent parsing and rendering identically to today (AC-STRUCT-1); (b) a manifest with treatments.dynamic.banner present but treatments.banner missing failing validation (AC-STRUCT-2); (c) an out-of-catalog generator value failing (AC-VAL-1); and (d) each of the four StyleToken bounds (anchorHue, saturation, lightness, scheme) independently violated and failing (AC-VAL-2)? Are these covered in individual describe('AC-...') blocks per the 1:1 convention in architecture.md's Implementation Constraints, rather than folded into one shared assertion?"
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the shipped treatments.dynamic schema match spec.md §5's converged ink contract exactly (anchorHue 0-359, saturation 20-100, lightness 20-75, scheme enum), with no narrower or wider bound silently substituted during implementation?"
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the treatments.dynamic map and its DynamicElement/StyleToken schema parsed exclusively through zod's .strict() boundary (never a hand-rolled or partial check), such that a malformed manifest (an extra unknown key at any nesting level) is rejected at every level — the dynamic map itself, DynamicElement, and StyleToken — not just the outermost object?"
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "For AC-STRUCT-1 ('a manifest without treatments.dynamic MUST validate and render exactly as today'), show: (a) the schema.ts code making treatments.dynamic optional; (b) the themes-validation.test.ts test parsing an existing non-dynamic manifest and asserting successful, unchanged validation; and (c) confirmation this test performs a real parse() call against a representative manifest fixture, not a mock/spy proxy around zod."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-2",
+      "question": "For AC-STRUCT-2 ('treatments.banner MUST remain required on every manifest, including those with a dynamic banner'), show: (a) the schema.ts field marking treatments.banner required regardless of treatments.dynamic; (b) a themes-validation.test.ts case constructing a manifest with treatments.dynamic.banner set but treatments.banner omitted, asserting it fails validation; and (c) confirmation the test exercises real schema parsing, not a stubbed validator."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VAL-1",
+      "question": "For AC-VAL-1 ('an unknown generator value MUST fail the build'), show: (a) the inline generator enum in schema.ts; (b) a themes-validation.test.ts case with a generator value outside the catalog asserting a parse failure; and (c) confirmation the test is a genuine failing-parse assertion, not merely a check of the enum's declared members without ever calling parse()."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VAL-2",
+      "question": "For AC-VAL-2 ('style token bounds violations MUST fail validation'), show: (a) the StyleToken schema's bound definitions for anchorHue/saturation/lightness/scheme; (b) themes-validation.test.ts cases for each of the four fields independently violating its bound and failing; and (c) confirmation each case is a real assertion against zod's parse result, not a hardcoded expectation."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BOUND-1",
+      "question": "For AC-BOUND-1 ('adding treatments.dynamic MUST NOT introduce a runtime zod import into the client bundle'), show: (a) that schema.ts remains the only runtime zod importer after this change, per the existing resolved-import scanner at themes-validation.test.ts:443-731; (b) that scanner test still passing with the new DynamicElement/StyleToken types in place; and (c) confirmation the scanner resolves specifiers rather than doing a literal text grep."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "The DynamicElement/StyleToken contract defined here is consumed downstream by S2 (dynamicVisuals.ts) and S3 (useDynamicBanner.ts), per stories.json's seams[0] and architecture.md's Seam Contracts section. Does the shipped schema assert exactly: generator is the single closed-enum field 'watercolor' (no other members); style is a StyleToken object with anchorHue: number 0-359, scheme: enum matching the converged ink contract's full membership, saturation: number 20-100, lightness: number 20-75; clip is optional 'button'|'card'|'avatar'; render is optional Record<string, unknown>? Is there a test asserting the schema rejects every out-of-range/out-of-enum value along each of these fields (not just a subset), so S2 and S3 can rely on the full field/type/range contract as documented?"
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The generator-enum-catalog-sync test added in themes-validation.test.ts (describe block 'AC-VAL-1 carried guarantee (generator-enum-catalog-sync, placeholder pending S2)') asserts `ThemeManifestSchema.shape.treatments.shape.dynamic.unwrap().shape.banner.unwrap().shape.generator.options` equals `['watercolor']` standalone, rather than against a real DYNAMIC_GENERATORS registry (which does not exist until S2's dynamicVisuals.ts lands). Is the TODO(S2) comment sufficiently discoverable that S2's implementer will actually find and upgrade this specific test to the full non-tautological sync pattern (pinning against Object.keys(DYNAMIC_GENERATORS)), rather than leaving the placeholder in place indefinitely alongside a separately-added sync test that duplicates coverage?"
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "DynamicGeneratorNameSchema, StyleTokenSchema, DynamicElementSchema, and DynamicTreatmentsSchema are all internal (unexported) from schema.ts, matching the existing FontLoadSchema convention. S2 (dynamicVisuals.ts) and S3 (useDynamicBanner.ts) will need the DynamicElement/StyleToken shape as a TypeScript type to type their own function signatures (e.g. DYNAMIC_GENERATORS.watercolor(style: StyleToken, ...)). Can S2/S3 actually derive a usable StyleToken/DynamicElement type purely via indexing off the exported ThemeManifest type (e.g. NonNullable<ThemeManifest['treatments']['dynamic']>['banner']), or will they be forced to either import a zod-inferred type from schema.ts (fine, type-only) or redeclare the shape by hand (undesirable duplication) because no ergonomic exported type alias exists?"
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "AC-VAL-2's test suite covers each StyleToken field's below-min/above-max boundary independently (anchorHue -1/360, saturation 19/101, lightness 19/76) plus one invalid-scheme case and two boundary-inclusive sanity cases (min values and max values each fully valid). Are there any StyleToken field-bound combinations NOT exercised that a future regression could silently break — e.g. a non-integer anchorHue (schema uses z.number(), not z.number().int()), a non-numeric string coerced into a numeric field, or a missing required style field (e.g. style object present but anchorHue omitted) — and if the schema does not reject these (since anchorHue/saturation/lightness are declared as plain z.number(), not int-constrained), is that intentional per the converged ink contract (spec.md §5 does not state integer-only) or a gap worth flagging?"
+    }
+  ]
+}
