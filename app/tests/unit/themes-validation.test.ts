@@ -53,7 +53,7 @@ const TEST_FILE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(TEST_FILE_DIR, '..', '..'); // app/tests/unit -> app/
 const THEMES_DIR = path.join(APP_ROOT, 'src', 'themes');
 
-const THEME_IDS: AppThemeName[] = ['calm', 'playful', 'lego', 'minecraft', 'flower'];
+const THEME_IDS: AppThemeName[] = ['calm', 'playful', 'lego', 'minecraft', 'flower', 'aquarelle'];
 
 // ===========================================================================
 // AC-VAL-2 (spec AC7): schema/id validation
@@ -244,10 +244,10 @@ describe('AC-VAL-4: order uniqueness', () => {
     return new Set(manifests.map((m) => m.order)).size === manifests.length;
   }
 
-  it('the five REAL manifests currently have unique order values (1..5, no duplicates)', () => {
+  it('the six REAL manifests currently have unique order values (1..6, no duplicates)', () => {
     const manifests = THEME_IDS.map((id) => REGISTRY_APP_THEMES[id]);
     expect(hasUniqueOrders(manifests)).toBe(true);
-    expect(new Set(manifests.map((m) => m.order))).toEqual(new Set([1, 2, 3, 4, 5]));
+    expect(new Set(manifests.map((m) => m.order))).toEqual(new Set([1, 2, 3, 4, 5, 6]));
   });
 
   it('flags two fixture manifests sharing the same order value as a uniqueness violation', () => {
@@ -274,7 +274,7 @@ describe('AC-VAL-4: order uniqueness', () => {
 // ===========================================================================
 describe('AC-FONT-1: font-URL parity (hardened)', () => {
   const EXPECTED_HREF =
-    'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&family=Press+Start+2P&family=VT323&display=swap';
+    'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Serif+Display:ital@0;1&family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Nunito:wght@400;600;700;800&family=Press+Start+2P&family=VT323&display=swap';
 
   it('buildFontLinkHref(THEME_FONTS) equals the committed Google Fonts URL byte-for-byte', () => {
     expect(buildFontLinkHref(THEME_FONTS)).toBe(EXPECTED_HREF);
@@ -994,6 +994,26 @@ describe('AC-VAL-2: style token bounds violations fail validation', () => {
     expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
   });
 
+  // Full-membership pin (mutation-gate real-gap closure, 2026-07-06):
+  // StyleTokenSchema's `scheme` enum is the converged ink contract (spec.md
+  // §5) — "do not narrow or widen without re-confirming against
+  // proposals/dynamic-banner/ink-channel-log.md". Only 'triadic',
+  // 'monochromatic', and 'complementary' were previously exercised by other
+  // tests in this block; a silent drop of 'analogous-accent' or
+  // 'split-complementary' from the schema's z.enum(...) array would pass
+  // every other test here. Enumerate all six so any narrowing is caught.
+  it.each([
+    ['monochromatic'],
+    ['analogous'],
+    ['analogous-accent'],
+    ['split-complementary'],
+    ['triadic'],
+    ['complementary'],
+  ])('scheme: %s validates successfully (full StyleTokenSchema.scheme enum membership)', (scheme) => {
+    const fixture = fixtureWithStyle({ ...VALID_DYNAMIC_BANNER.style, scheme: scheme as never });
+    expect(() => ThemeManifestSchema.parse(fixture)).not.toThrow();
+  });
+
   it('sanity: a fully-valid style token at the boundary-inclusive minimums does NOT throw', () => {
     const fixture = fixtureWithStyle({ anchorHue: 0, scheme: 'monochromatic', saturation: 20, lightness: 20 });
     expect(() => ThemeManifestSchema.parse(fixture)).not.toThrow();
@@ -1021,13 +1041,14 @@ describe('AC-BOUND-1: treatments.dynamic addition introduces no new runtime zod 
 // ===========================================================================
 // Epic: dynamic-theme-visuals, Story S2 — dynamicVisuals.ts adapter +
 // registry + stub (specs/epic-dynamic-theme-visuals/acceptance-criteria.md).
+// Re-targeted at the real package by Story S7 (Phase B).
 //
 // AC-STRUCT-4 (verbatim): "The adapter MUST be the only module in app/src
 // that imports the ink generator (or, in Phase A, the stub)." This is an
 // invariant about who imports the underlying GENERATOR IMPLEMENTATION — the
-// real `@ink/visuals` package (Phase B, S7) or, in Phase A, its inline stub
-// — NOT about who imports dynamicVisuals.ts's own public `DYNAMIC_GENERATORS`
-// registry export. Per architecture.md's Seam Contracts
+// real `@rotheric/visuals` package (Phase B, S7; Phase A's inline stub
+// before it) — NOT about who imports dynamicVisuals.ts's own public
+// `DYNAMIC_GENERATORS` registry export. Per architecture.md's Seam Contracts
 // ("DYNAMIC_GENERATORS registry (dynamicVisuals.ts -> useDynamicBanner.ts)")
 // and Module Map ("banner.worker.ts": a pure message-passing wrapper around
 // dynamicVisuals's generator call), S3's useDynamicBanner.ts and S5's
@@ -1046,17 +1067,20 @@ describe('AC-BOUND-1: treatments.dynamic addition introduces no new runtime zod 
 // unsatisfiable given the design — it would go red the moment S3 wires up
 // its own legitimate import. This block now checks the actually-relevant
 // half: no other module in app/src holds a runtime import of the bare
-// `@ink/visuals` specifier. In Phase A this is vacuously true (the stub
-// lives entirely inline inside dynamicVisuals.ts — no separate importable
-// stub module exists per S2's result.json, so there is no Phase-A
-// specifier for this check to catch yet) but it is structurally in place
-// to activate automatically in Phase B, with no rewrite needed once S7
-// adds the real package import.
+// `@rotheric/visuals` specifier. Prior to S7, this was vacuously true (the
+// stub lived entirely inline inside dynamicVisuals.ts — no separate
+// importable module existed for the check to catch yet); as of S7 the real
+// package is installed and imported by dynamicVisuals.ts alone, so this is
+// now the live single-import-site guard (VQ-S7-004: reverting
+// dynamicVisuals.ts's import back to the stub would not, on its own, flip
+// this specific describe block red — see its own re-verification note below
+// — but the bare-specifier constant change below re-targets the guard at
+// the real package for the first time).
 // ===========================================================================
 
 /**
  * True when `source` has a RUNTIME (non-`type`-only) import of the exact
- * bare specifier `bareSpecifier` (e.g. `@ink/visuals`). Bare/package
+ * bare specifier `bareSpecifier` (e.g. `@rotheric/visuals`). Bare/package
  * specifiers don't resolve relative to anything, so this compares the raw
  * specifier string rather than reusing `resolveSpecifierAbs` (which returns
  * `null` for bare specifiers by design — see its doc comment above).
@@ -1069,7 +1093,10 @@ function hasRuntimeBareImport(source: string, bareSpecifier: string): boolean {
   return parseImports(source).some((imp) => imp.isRuntime && imp.specifier === bareSpecifier);
 }
 
-const INK_GENERATOR_BARE_SPECIFIER = '@ink/visuals';
+/** The real ink generator package (Phase B, S7). Was `@ink/visuals` (a name that never
+ * existed — a naming error in the epic's original spec, corrected 2026-07-06) in Phase A's
+ * doc-only placeholder form; the actual published package name is `@rotheric/visuals`. */
+const INK_GENERATOR_BARE_SPECIFIER = '@rotheric/visuals';
 
 const SRC_DIR = path.join(APP_ROOT, 'src');
 const DYNAMIC_VISUALS_FILE_ABS = path.join(THEMES_DIR, 'treatments', 'dynamicVisuals.ts');
@@ -1101,7 +1128,7 @@ async function collectSrcFilesRecursiveExcludingDynamicVisuals(dir: string): Pro
   return results;
 }
 
-describe('AC-STRUCT-4: dynamicVisuals.ts is the only module in app/src with a runtime import of the ink generator (bare `@ink/visuals` specifier)', () => {
+describe('AC-STRUCT-4: dynamicVisuals.ts is the only module in app/src with a runtime import of the ink generator (bare `@rotheric/visuals` specifier)', () => {
   let srcFiles: string[] = [];
 
   beforeAll(async () => {
@@ -1120,7 +1147,7 @@ describe('AC-STRUCT-4: dynamicVisuals.ts is the only module in app/src with a ru
     expect(srcFiles).toContain(path.join(APP_ROOT, 'src', 'components', 'Layout.tsx'));
   });
 
-  it("none of app/src's other files has a RUNTIME import of the bare `@ink/visuals` specifier (Phase A: vacuously true — the package isn't installed until S7; Phase B: this is the real single-import-site guard)", () => {
+  it("none of app/src's other files has a RUNTIME import of the bare `@rotheric/visuals` specifier (S7: the package is now installed, so this is the live single-import-site guard)", () => {
     expect(srcFiles.length).toBeGreaterThan(10); // sanity: beforeAll populated it
     for (const absPath of srcFiles) {
       const source = fs.readFileSync(absPath, 'utf8');
@@ -1135,40 +1162,40 @@ describe('AC-STRUCT-4: dynamicVisuals.ts is the only module in app/src with a ru
     // Sanity fixture standing in for what useDynamicBanner.ts (S3) and
     // banner.worker.ts (S5) both legitimately do per architecture.md's Seam
     // Contracts: import the public registry export from dynamicVisuals.ts.
-    // This must NOT trip the bare-`@ink/visuals`-specifier check above.
+    // This must NOT trip the bare-`@rotheric/visuals`-specifier check above.
     const fixture = `import { DYNAMIC_GENERATORS } from '@/src/themes/treatments/dynamicVisuals';\n`;
     expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(false);
   });
 });
 
 describe('AC-STRUCT-4: bare-specifier scanner self-test for the ink generator import (proves the scanner discriminates, not just passes)', () => {
-  it('flags a runtime named import of the bare `@ink/visuals` specifier (the exact regression this scanner guards against once Phase B/S7 lands)', () => {
-    const fixture = `import { renderSVG } from '@ink/visuals';\n`;
+  it('flags a runtime named import of the bare `@rotheric/visuals` specifier (the exact regression this scanner guards against)', () => {
+    const fixture = `import { renderSVG } from '@rotheric/visuals';\n`;
     expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(true);
   });
 
-  it('does NOT flag a type-only import of `@ink/visuals`', () => {
-    const fixture = `import type { RenderOptions } from '@ink/visuals';\n`;
+  it('does NOT flag a type-only import of `@rotheric/visuals`', () => {
+    const fixture = `import type { RenderOptions } from '@rotheric/visuals';\n`;
     expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(false);
   });
 
   it('flags a mixed import where only one named binding carries an inline `type` modifier', () => {
-    const fixture = `import { type RenderOptions, renderSVG } from '@ink/visuals';\n`;
+    const fixture = `import { type RenderOptions, renderSVG } from '@rotheric/visuals';\n`;
     expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(true);
   });
 
-  it('flags a namespace import of `@ink/visuals`', () => {
-    const fixture = `import * as ink from '@ink/visuals';\n`;
+  it('flags a namespace import of `@rotheric/visuals`', () => {
+    const fixture = `import * as ink from '@rotheric/visuals';\n`;
     expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(true);
   });
 
-  it('flags a default import of `@ink/visuals`', () => {
-    const fixture = `import ink from '@ink/visuals';\n`;
+  it('flags a default import of `@rotheric/visuals`', () => {
+    const fixture = `import ink from '@rotheric/visuals';\n`;
     expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(true);
   });
 
-  it('flags a side-effect import of `@ink/visuals`', () => {
-    const fixture = `import '@ink/visuals';\n`;
+  it('flags a side-effect import of `@rotheric/visuals`', () => {
+    const fixture = `import '@rotheric/visuals';\n`;
     expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(true);
   });
 
@@ -1177,8 +1204,8 @@ describe('AC-STRUCT-4: bare-specifier scanner self-test for the ink generator im
     expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(false);
   });
 
-  it("does NOT flag a lookalike scoped specifier like `@ink/visuals-extra` (no substring false positive — exact match only)", () => {
-    const fixture = `import { renderSVG } from '@ink/visuals-extra';\n`;
+  it("does NOT flag a lookalike scoped specifier like `@rotheric/visuals-extra` (no substring false positive — exact match only)", () => {
+    const fixture = `import { renderSVG } from '@rotheric/visuals-extra';\n`;
     expect(hasRuntimeBareImport(fixture, INK_GENERATOR_BARE_SPECIFIER)).toBe(false);
   });
 

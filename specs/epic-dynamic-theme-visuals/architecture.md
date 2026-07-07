@@ -1,10 +1,12 @@
-# Epic Architecture: dynamic-theme-visuals (Phase A)
+# Epic Architecture: dynamic-theme-visuals (Phase A + Phase B)
 
-**ADR**: docs/adr/ADR-004-pluggable-themes.md (extends; no new ADR needed for Phase A)
+**ADR**: docs/adr/ADR-004-pluggable-themes.md (extends; no new ADR needed for Phase A or B)
 **Status**: current
-**Scope**: Phase A only (S1–S6). Phase B (S7–S9) and v2 are out of scope — blocked on ink's v0 tag
-(see spec.md §5). This document does not plan Phase B's architecture; it only ensures Phase A's seam
-(the adapter's import line) is the sole point Phase B will touch.
+**Scope**: Phase A (S1–S6, shipped 2026-07-06) + Phase B (S7–S9, unblocked 2026-07-06 — ink published
+`visuals-v0.1.2`, see spec.md `## Amendments`). v2 (dark themes, more elements) remains out of scope.
+Phase B touches exactly the one seam Phase A reserved for it: `dynamicVisuals.ts`'s import line (swap
+the stub for `@rotheric/visuals`), plus a new theme folder and a perf-validation pass — no other Phase A
+module changes shape.
 
 > Agents read this file before every story. It is directive, not narrative.
 > Where this file and `spec.md` disagree, **this file wins**.
@@ -35,6 +37,9 @@ B). This is intentional and scoped to exactly one file (AC-STRUCT-4).
 | useThemeStyles.ts (unmodified) | `computeThemeStyles()` stays pure, keeps returning static `bannerDecorStyle` | app/src/hooks/useThemeStyles.ts | — (explicitly NOT touched by this epic) |
 | themes-validation.test.ts (extended) | new `describe('AC-...')` blocks: generator-catalog check (AC-VAL-1), style-token bounds (AC-VAL-2), zod-boundary extension (AC-BOUND-1), single-import-site scanner for `dynamicVisuals.ts` (AC-STRUCT-4) | app/tests/unit/themes-validation.test.ts | — |
 | useDynamicBanner.test.ts (NEW) | unit tests for the hook's pure decision function (see Boundary Rules — no jsdom/RTL in this repo) | app/tests/unit/hooks/useDynamicBanner.test.ts | — |
+| dynamicVisuals (Phase B, modified) | swap the stub import for the real `@rotheric/visuals` package pinned to the `visuals-v0.1.2` git tag; `DYNAMIC_GENERATORS.watercolor`'s signature and call shape are unchanged (the seam held) | app/src/themes/treatments/dynamicVisuals.ts | same as Phase A row — only the import line and package.json's git dependency entry change |
+| aquarelle theme (S8, NEW) | brand-new light theme folder declaring `treatments.dynamic.banner` with a tuned `StyleToken` and a frozen static fallback captured from one real generator run; drop-in via the existing theme registry, no shared-file edits beyond what S1 already added | app/src/themes/aquarelle/manifest.ts (+ any co-located static-fallback asset, following existing per-theme folder precedent) | this theme's own palette/style-token pin; ships `status: 'experimental'` until S9 clears AC-PERF-3 |
+| perf validation (S9, no new module) | measure real generation+paint cost on a low-end profile, finalize the `render` lite-preset knob values, flip `aquarelle`'s `status` from `'experimental'` once green | touches `aquarelle/manifest.ts` (`status` field, `render` knob values) — no new files | — |
 
 ## Seam Contracts
 
@@ -61,10 +66,11 @@ required even when `treatments.dynamic.banner` is present (AC-STRUCT-2).
 | `watercolor` | `(style: StyleToken, kind: 'banner', render?) => string` | calls `randomizeParams()` + overrides pinned `style` fields; forces size/format; returns self-contained SVG string (no `<script>`, no external refs) |
 
 **Invariant**: two successive calls return different `svg` strings while both reflect the pinned style
-identity (AC-UX-1). In Phase A this is verified against the stub, which must also vary its output per
-call.
+identity (AC-UX-1). In Phase A this is verified against the stub; in Phase B (S7) the same invariant
+must hold against the real `@rotheric/visuals` `renderSVG` call — AC-UX-1 is not re-tested from scratch,
+but S7 must confirm the real package satisfies the same contract the stub was standing in for.
 
-**Produced by**: S2 | **Consumed by**: S3.
+**Produced by**: S2 (stub) / S7 (real) | **Consumed by**: S3.
 
 ### useDynamicBanner return (useDynamicBanner.ts → Layout.tsx)
 
@@ -87,9 +93,10 @@ in play here — so this must be caught by review/manual check, not assumed caug
    vs. type-only, resolve specifiers against an absolute target path) is the **exact reusable mechanism**
    for the next rule.
 2. **Single-import-site invariant (AC-STRUCT-4).** `dynamicVisuals.ts` is the only module in `app/src`
-   that imports the generator (the stub in Phase A, `@ink/visuals` in Phase B). Enforce with a sibling
-   test using the same resolved-import-scanner pattern as rule 1, targeting `dynamicVisuals.ts`'s import
-   specifier instead of `schema.ts`.
+   that imports the generator (the stub in Phase A, `@rotheric/visuals` pinned to `visuals-v0.1.2` in
+   Phase B). Enforce with a sibling test using the same resolved-import-scanner pattern as rule 1,
+   targeting `dynamicVisuals.ts`'s import specifier instead of `schema.ts`. S7 re-runs this scanner
+   against the real import, not just the stub.
 3. **Generator/style-token enum declared inline, not imported.** Per this file's own established
    convention (`ElevationNameSchema` etc. are independently declared in `schema.ts`, "kept in sync by
    hand" — see schema.ts header comment), the new `generator: z.enum(['watercolor'])` follows the same
@@ -150,16 +157,30 @@ in play here — so this must be caught by review/manual check, not assumed caug
   should not be read as a precedent for testing runtime *behavior* by reading source text instead of
   calling a function.
 
-## Story Order (Phase A only)
+## Story Order
 
-S1 → S2 → S3 → S4 → S5 → S6, as ordered in spec.md §7. S1 (schema) gates everything; S2 (adapter+stub)
-gates S3; S4 (scrim) and S5 (worker offload) can proceed once S3 lands and have no dependency on each
-other; S6 (tests) is last, covering all of S1–S5's behavioral surface.
+**Phase A** (shipped): S1 → S2 → S3 → S4 → S5 → S6, as ordered in spec.md §7. S1 (schema) gates
+everything; S2 (adapter+stub) gates S3; S4 (scrim) and S5 (worker offload) can proceed once S3 lands and
+have no dependency on each other; S6 (tests) is last, covering all of S1–S5's behavioral surface.
+
+**Phase B**: S7 → S8 → S9, strictly sequential — no parallel opportunity. S7 (wire the real package)
+must land before S8 can capture a real static-fallback render or tune a real style token; S9's
+measurement is meaningless without S8's actual theme to measure. Implemented one story at a time per
+the same "sequential by design" rule Phase A followed (feature.md "Design priorities and non-goals").
 
 ## Open Questions / Accepted Risks
 
 - The exact `render` perf-knob field set is left as a `z.record` escape hatch (Implementation
   Constraints) rather than fully typed — S1's story may tighten this if the story-planner determines the
-  full knob set is already implied by spec.md's "lite preset" numbers (§ink-channel-log.md IQ1).
-- Worker bundling under `output: 'export'` is unverified in this exact repo (no precedent); S5 carries the
-  spec's own acknowledged fallback risk, not a new one introduced here.
+  full knob set is already implied by spec.md's "lite preset" numbers (§ink-channel-log.md IQ1). **S9 is
+  where this finally gets resolved**: the lite preset's concrete knob values are only knowable once real
+  perf measurement (S9) is in hand.
+- Worker bundling under `output: 'export'` is unverified in this exact repo (no precedent); S5 carried the
+  spec's own acknowledged fallback risk in Phase A (against the stub). **S7 must re-confirm this holds
+  against the real `@rotheric/visuals` package** — a Worker-safe pure function per ink's README is a
+  stated property of the package, but the stub's Worker-safety doesn't prove the real package's.
+- **New Phase B risk**: `@rotheric/visuals`'s `main`/`browser`/`module` fields all resolve to
+  `./dist/index.js`, and the package ships no `prepare`/`postinstall` (per ink's README) — so no build
+  step runs on install. Confirm this resolves cleanly through Next.js's static-export bundler on first
+  wire-up (S7); if it doesn't, the failure mode is a bundler resolution error, not a silent behavioral
+  regression, so it will surface immediately rather than needing a dedicated test.

@@ -1,0 +1,43 @@
+{
+  "module_name": "dynamicVisuals (Phase B, modified)",
+  "purpose": "Swap dynamicVisuals.ts's Phase A stub watercolor generator (MOCK-02-001) for a real import of the @rotheric/visuals git dependency (pinned to tag visuals-v0.1.2), with the DYNAMIC_GENERATORS registry's exported signature and every downstream call site left byte-identical (AC-DEP-1). Adds the git dependency to app/package.json/package-lock.json (AC-DEP-2's bundling/no-Node-deps requirement verified against the real package).",
+  "public_api": [
+    {
+      "name": "DYNAMIC_GENERATORS.watercolor",
+      "signature": "(style: StyleToken, kind: 'banner', render?: Record<string, unknown>) => string",
+      "description": "Unchanged from Phase A (S2). Calls the real @rotheric/visuals randomizeParams()+renderSVG({params}) instead of the removed inline stub; forces few.chat's banner envelope (420x96) and forwards `render` as composition knobs before the pinned style/forced envelope are applied. Returns only the `svg` field of renderSVG's {svg, id} result."
+    },
+    {
+      "name": "StyleToken",
+      "signature": "type StyleToken = DynamicElement['style']",
+      "description": "Unchanged from Phase A — still derived by indexing off ThemeManifest, never hand-redeclared."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "the randomizeParams()+override call shape (unchanged from Phase A)",
+    "the forced banner envelope constant (BANNER_FORMAT, unchanged)"
+  ],
+  "dependencies_allowed": [
+    "@/src/themes/schema (type-only import of ThemeManifest, unchanged from Phase A)",
+    "@rotheric/visuals (NEW, Phase B — the real git-dependency package; sole import site enforced by AC-STRUCT-4)"
+  ],
+  "dependencies_forbidden": [
+    "any other app/src module importing @rotheric/visuals directly (AC-STRUCT-4 single-import-site invariant)",
+    "zod at runtime (Boundary Rule 1 — unaffected by this story)"
+  ],
+  "external_ports": [
+    "@rotheric/visuals (git dependency, package.json: \"@rotheric/visuals\": \"github:rotheric/ink#visuals-v0.1.2\", resolved in package-lock.json to the immutable visuals-v0.1.2 tag commit 0f27a822c03a07c5b3fe00ddd927b10a36cc29ab)"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/themes/treatments.test.ts (AC-UX-1, AC-STRUCT-3, AC-STRUCT-6 re-verified against the real package)",
+    "app/tests/unit/themes-validation.test.ts (AC-STRUCT-4 bare-specifier scanner re-targeted at '@rotheric/visuals')",
+    "app/tests/unit/hooks/useDynamicBanner.test.ts (unchanged; already calls DYNAMIC_GENERATORS.watercolor directly, now exercising the real package with no test edits needed)"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S8", "S9"]
+  }
+}

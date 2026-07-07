@@ -1,0 +1,66 @@
+{
+  "story_id": "S8",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-06T19:15:00Z",
+  "files_created": [
+    "app/src/themes/aquarelle/manifest.ts",
+    "specs/epic-dynamic-theme-visuals/S8-aquarelle-theme/architecture.json",
+    "specs/epic-dynamic-theme-visuals/S8-aquarelle-theme/result.json"
+  ],
+  "files_modified": [
+    "app/src/themes/aquarelle/manifest.ts",
+    "app/src/themes/registry.generated.ts",
+    "app/tests/e2e/banner-decor.spec.ts",
+    "app/tests/unit/profile.themePicker.test.ts",
+    "app/tests/unit/themes-validation.test.ts",
+    "app/tests/unit/themes/index.test.ts",
+    "specs/epic-dynamic-theme-visuals/S8-aquarelle-theme/verification.json",
+    "specs/epic-dynamic-theme-visuals/epic-state.json"
+  ],
+  "tests_added": {
+    "unit": 4,
+    "e2e": 3
+  },
+  "test_counts": {
+    "baseline": 2061,
+    "final": 2065
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "modules_touched": [
+    "aquarelle theme"
+  ],
+  "escalation_history": [],
+  "verification": {
+    "pre_impl_questions": 10,
+    "post_impl_questions": 4,
+    "verification_json_path": "specs/epic-dynamic-theme-visuals/S8-aquarelle-theme/verification.json"
+  },
+  "lint_typecheck": {
+    "lint": "NO_LINT",
+    "typecheck": "clean"
+  },
+  "manual_validation_resolved": [
+    {
+      "ac_id": "MV-1",
+      "status": "satisfied",
+      "detail": "Resolved via a new real-Chromium e2e test (app/tests/e2e/banner-decor.spec.ts, 'AC-UX-6/MV-1'): two separate full page loads with aquarelle active produce distinct data-URI SVG backgrounds on [data-testid=nav-banner-decor], proving the boxProps/style split renders correctly in a real DOM and that the real @rotheric/visuals engine's non-determinism reaches the browser. See epic-state.json's manual_validation ledger for full evidence."
+    },
+    {
+      "ac_id": "MV-2",
+      "status": "satisfied",
+      "detail": "Resolved via a new real-Chromium e2e test ('MV-2: rapidly toggling live...'): 5 rapid live setTheme() toggles between aquarelle and calm via the /profile picker, settling on aquarelle, then asserting the final banner is always a valid non-blank SVG data-URI with zero uncaught page errors and zero banner/worker/generation-related console errors. See epic-state.json's manual_validation ledger for full evidence and the environment caveat (sandbox Playwright-MCP tools were unusable on this Linux ARM64 host; verification ran through the project's own Playwright e2e harness instead)."
+    }
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The sandbox's Playwright MCP tools (mcp__playwright__* and mcp__plugin_playwright_playwright__*) could not be made to work on this Linux ARM64 host for the real-browser manual validation the story asked for: the chrome-for-testing channel downloaded successfully via the documented install command but the MCP tool kept reporting it as not installed on every retry, and the alternate 'chrome' channel failed outright as unsupported on linux-arm64. Recovered by falling back to the project's OWN Playwright e2e harness (a manually-started `next dev` server + `node scripts/run-e2e.mjs`), which worked cleanly and produced genuine real-browser evidence for both MV-1 and MV-2 \u2014 but this cost a full browser download and several failed round-trips before the dead end was clear. Captured as a cross-project learning (playwright-mcp-browser-tools-unusable-linux) so a future run does not repeat the same dead end.",
+    "surprised_by": "The AC-VAL-4 order-uniqueness and AC-FONT-1 font-URL-parity tests in themes-validation.test.ts, plus id-list assertions in themes/index.test.ts and profile.themePicker.test.ts, are all hardcoded per-theme literals that needed a one-line update for the new theme \u2014 consistent with the precedent every prior theme (calm/playful/lego/minecraft/flower) must have already required, but not called out anywhere in architecture.md or the pre-impl verification questions, so it surfaced only by running the full suite and reading the failures.",
+    "scope": "meta",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

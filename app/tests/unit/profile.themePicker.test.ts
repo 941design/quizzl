@@ -93,9 +93,9 @@ describe('theme label/description resolution (AC-UX-3): de falls back to en', ()
     expect(localizedThemeText(fixture, 'de')).toBe('English Only');
   });
 
-  it('listThemes() returns all five real themes (none are status:hidden today) in order-sorted sequence', () => {
+  it('listThemes() returns all six real themes (none are status:hidden today) in order-sorted sequence', () => {
     const ids = listThemes().map((t) => t.id);
-    expect(ids).toEqual(['calm', 'playful', 'lego', 'minecraft', 'flower']);
+    expect(ids).toEqual(['calm', 'playful', 'lego', 'minecraft', 'flower', 'aquarelle']);
   });
 });
 

@@ -174,6 +174,24 @@ describe("AC-UX-3a: generation failure (generatedSvg: null) keeps/reverts to the
   it('calling resolveDynamicBannerStyle with generatedSvg: null never throws', () => {
     expect(() => resolveDynamicBannerStyle(withDynamicBanner(), null)).not.toThrow();
   });
+
+  // Real-gap closure (mutation gate, 2026-07-06): resolveDynamicBannerStyle's
+  // own docstring states it "Returns null only in the same degenerate case
+  // computeThemeStyles itself returns a null bannerDecorStyle (an empty
+  // static banner string) — mirrors the existing contract, never introduces
+  // a new one." No test in this file previously exercised that early return
+  // (line ~101's `if (bannerDecorStyle === null) return null`), since no
+  // real theme manifest ships an empty treatments.banner. A synthetic
+  // fixture is required to reach it at all.
+  it('returns null (not a broken/partial object) when the static banner string is empty/whitespace-only, regardless of generatedSvg', () => {
+    const emptyBannerDef: AppThemeDefinition = {
+      ...APP_THEMES.calm,
+      treatments: { ...APP_THEMES.calm.treatments, banner: '   ' },
+    };
+    expect(computeThemeStyles(emptyBannerDef).bannerDecorStyle).toBeNull();
+    expect(resolveDynamicBannerStyle(emptyBannerDef, null)).toBeNull();
+    expect(resolveDynamicBannerStyle(emptyBannerDef, SVG_A)).toBeNull();
+  });
 });
 
 describe('AC-PERF-1: reserved box dimensions are unchanged before/after the swap (mechanism only)', () => {

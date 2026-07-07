@@ -4,8 +4,9 @@
 > Companion documents (authoritative on conflict): `proposals/dynamic-banner/04-few-chat-change-plan.md`
 > (our engineering plan), `proposals/dynamic-banner/05-ink-artifact-publication-proposal.md`
 > (the ink library contract), and `proposals/dynamic-banner/ink-channel-log.md`
-> (the converged Q&A with ink). The ink integration contract is **fully converged**; only
-> ink's packaging (the v0 tag) is outstanding — see §5 (the v0 gate) and §7 (phasing).
+> (the converged Q&A with ink). The ink integration contract is **fully converged**, and ink
+> has now published its v0 release (`visuals-v0.1.2`, verified 2026-07-06) — see §5 (the v0
+> gate) and §7 (phasing) and the `## Amendments` entry below for corrected naming.
 
 ## 1. Motivation
 
@@ -97,13 +98,16 @@ The interface few.chat depends on (converged in `proposals/dynamic-banner/ink-ch
 - **Return:** `{ svg, id }`. `svg` is a self-contained string (no scripts, no external refs, opaque
   base, seed-namespaced ids). We consume `svg`; `id` is an opaque handle. `derived` is not used.
 - **Sizing:** arbitrary width/height supported (agreed). Our envelope: 96px tall, 220–420px wide.
-- **Packaging:** ink subpackage of `rotheric/ink`, **ESM-only**, `.d.ts` types, semver **git tag**;
-  `baseColor` + the 96px small-canvas tuning land in **v0.x**.
+- **Packaging:** published as the `@rotheric/visuals` package (git subtree split of
+  `packages/visuals/` in `rotheric/ink`), **ESM-only**, `.d.ts` types, tagged `visuals-vX.Y.Z`
+  (not a bare `v0` — see `## Amendments`); `baseColor` + the 96px small-canvas tuning land in
+  **v0.x**.
 
-**The v0 gate.** Phase A stories (§7) build against a typed **stub** and are unblocked now. Phase B
-stories are **BLOCKED until ink publishes a consumable v0 git tag** (tracked as Q4 in
-`ink-channel-log.md`). Wiring the real dependency, tuning the theme's look, capturing the static
-fallback, and validating real-output performance all require v0.
+**The v0 gate — satisfied 2026-07-06.** Phase A stories (§7) built against a typed **stub**.
+Ink has now published `visuals-v0.1.2` (verified: real tag, root contains `package.json` +
+built `dist/index.js`), so Phase B is unblocked. Wiring the real dependency, tuning the
+theme's look, capturing the static fallback, and validating real-output performance can now
+proceed.
 
 ## 6. Architecture & seams
 
@@ -115,8 +119,8 @@ fallback, and validating real-output performance all require v0.
 - **Adapter seam (`app/src/themes/treatments/dynamicVisuals.ts`, NEW).** A name→function registry
   `DYNAMIC_GENERATORS = { watercolor(style, kind, render) → svgString }` that owns the
   `randomizeParams()`+override call and forces the element size/format. **This is the only module that
-  imports the ink package.** Built against a stub in Phase A; swapped to `@ink/visuals` in Phase B (the
-  import line is the seam).
+  imports the ink package.** Built against a stub in Phase A; swapped to `@rotheric/visuals` in Phase B
+  (the import line is the seam).
 - **Render hook (`app/src/hooks/useDynamicBanner.ts`, NEW).** Client-only (`useEffect`, post-hydration):
   if `treatments.dynamic?.banner` present, generate a fresh SVG (via the worker, §Perf), encode as a
   data-URI exactly as `navBannerDecor` does, and swap `bannerDecorStyle.style.backgroundImage`.
@@ -148,10 +152,10 @@ fallback, and validating real-output performance all require v0.
 - **S6 — Tests (mocked generator).** Fallback renders; on mount the background swaps to a valid data-URI
   SVG; scrim guarantees logo contrast; adapter output is self-contained. No per-seed determinism tests.
 
-### Phase B — gated on ink's v0 tag
+### Phase B — unblocked (ink's v0 published as `visuals-v0.1.2`)
 
-- **S7 — Wire the real `@ink/visuals` git dependency** into the adapter (replace the stub); confirm ESM
-  bundling under static export; confirm Worker consumption.
+- **S7 — Wire the real `@rotheric/visuals` git dependency** (pinned to the `visuals-v0.1.2` tag) into the
+  adapter (replace the stub); confirm ESM bundling under static export; confirm Worker consumption.
 - **S8 — The `aquarelle` theme.** Brand-new light theme folder using `treatments.dynamic.banner` with
   tuned `style` params + a captured static fallback; drop-in via the registry.
 - **S9 — Performance validation.** Measure generation + paint on a low-end device with real output;
@@ -172,6 +176,13 @@ explicitly out of v1 (v2).
 
 ## Amendments
 
+- **2026-07-06** — Ink published its v0 release: tag `visuals-v0.1.2` on `rotheric/ink` (a git subtree
+  split of `packages/visuals/`, per ink's own release mechanism — not a bare `v0` tag as originally
+  assumed). Verified directly via `gh api`: the tag's root contains `package.json` and a built
+  `dist/index.js`. Two naming corrections follow from this: the package is **`@rotheric/visuals`**, not
+  `@ink/visuals` as written throughout §5–§7 and in `acceptance-criteria.md`'s S7/AC-DEP-1 (corrected in
+  place); and the version pin for S7 is the tag `visuals-v0.1.2`, not a generic `v0`. The v0 gate (§5) is
+  satisfied — Phase B (S7–S9) is unblocked and being dispatched as of this amendment.
 - **2026-07-05** — This epic's first `/base:feature` run is scoped to **Phase A only** (S1–S6). Phase B
   (S7–S9) and v2 remain blocked on ink's v0 tag (§5) and will be dispatched as a separate future run once
   it publishes.

@@ -1,0 +1,30 @@
+{
+  "module_name": "perf validation (S9, no new module)",
+  "purpose": "Finalize the previously-open `render` lite-preset knob values for aquarelle's treatments.dynamic.banner (resolving architecture.md's Open Questions z.record escape hatch), re-capture the frozen static treatments.banner fallback at those knobs, measure real generation+paint cost against a low-end-mobile-equivalent profile, and flip aquarelle's status from 'experimental' to 'stable' once the AC-PERF-3 budget is met. Touches only app/src/themes/aquarelle/manifest.ts's render and status fields plus its header comment (architecture.md Module Map row: 'touches aquarelle/manifest.ts (status field, render knob values) — no new files'). Adds one regression-guard test (a new describe block in the existing app/tests/unit/themes/treatments.test.ts) asserting the manifest's actual render knobs keep real DYNAMIC_GENERATORS.watercolor output inside the tuned path-count/size band — a mechanical safety net, not a substitute for AC-PERF-3's real measurement.",
+  "public_api": [],
+  "private_files": [],
+  "owned_data": [
+    "aquarelle/manifest.ts's treatments.dynamic.banner.render field values (zones, layers, darkening, halo, splatter, smoothness)",
+    "aquarelle/manifest.ts's status field value",
+    "aquarelle/manifest.ts's frozen treatments.banner static fallback string (re-captured at the finalized render knobs)"
+  ],
+  "dependencies_allowed": [
+    "app/src/themes/treatments/dynamicVisuals.ts (DYNAMIC_GENERATORS.watercolor — read-only, exercised by the new regression test and by the offline measurement scripts, never modified)",
+    "@rotheric/visuals (exercised indirectly through DYNAMIC_GENERATORS.watercolor in the new regression test and directly in the offline, non-shipped measurement scripts used to derive the knob values — never a new app/src import site; AC-STRUCT-4's single-import-site invariant is unchanged)"
+  ],
+  "dependencies_forbidden": [
+    "any edit to dynamicVisuals.ts, useDynamicBanner.ts, banner.worker.ts, Layout.tsx, or schema.ts (architecture.md: S9 touches only aquarelle/manifest.ts)",
+    "any new file under app/src (architecture.md: 'no new files')"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/themes/treatments.test.ts (new 'S9 regression guard (AC-PERF-3)' describe block: real DYNAMIC_GENERATORS.watercolor calls at aquarelle's actual manifest-declared render knobs stay at exactly 6 <path> elements / 0 <circle> elements / 8.4-9.6 KB measured band, with an outer 6-15 KB assertion band for tolerance; also asserts the frozen static banner was captured at the same knobs)",
+    "app/tests/unit/themes-validation.test.ts (existing AC-VAL-2 schema-parse loop over THEME_IDS including aquarelle — re-validates the manifest still parses with the added render field and flipped status, no edits needed)",
+    "manual/offline: one-off Node.js timing scripts (not committed) measuring DYNAMIC_GENERATORS.watercolor's real CPU cost under the tuned preset, and a real headless-Chromium Playwright script (project's own @playwright/test install, CDP Emulation.setCPUThrottlingRate at 1x/4x) confirming off-main-thread swap timing and CLS — see result.json for full methodology and honest limitations"
+  ],
+  "seam": {
+    "cross_story": false
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "story_id": "S9",
+  "status": "done",
+  "completed_at": "2026-07-06T20:00:00Z",
+  "files_created": [
+    "specs/epic-dynamic-theme-visuals/S9-performance-validation/architecture.json",
+    "specs/epic-dynamic-theme-visuals/S9-performance-validation/result.json"
+  ],
+  "files_modified": [
+    "app/src/themes/aquarelle/manifest.ts",
+    "app/src/themes/registry.generated.ts",
+    "app/tests/unit/themes/treatments.test.ts",
+    "specs/epic-dynamic-theme-visuals/S9-performance-validation/verification.json",
+    "specs/epic-dynamic-theme-visuals/epic-state.json"
+  ],
+  "tests_added": {
+    "unit": 3
+  },
+  "test_counts": {
+    "baseline": 2065,
+    "final": 2068
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "modules_touched": [
+    "perf validation"
+  ],
+  "escalation_history": [],
+  "verification": {
+    "pre_impl_questions": 9,
+    "post_impl_questions": 4,
+    "verification_json_path": "specs/epic-dynamic-theme-visuals/S9-performance-validation/verification.json"
+  },
+  "lint_typecheck": {
+    "lint": "NO_LINT",
+    "typecheck": "clean"
+  },
+  "perf_measurement": {
+    "render_knobs_finalized": {
+      "zones": 2,
+      "layers": 3,
+      "darkening": 1,
+      "halo": 0,
+      "splatter": 0,
+      "smoothness": 28
+    },
+    "derivation": "Reverse-engineered by reading the wrapped engine's source (@rotheric/visuals dist/index.js, which bundles tools/watercolor/svg.js) \u2014 no path-count/size knob is documented in the package's public README or index.d.ts. zones=2 (engine minimum) + layers=3 (explicit `layers` wins over the randomized `layerProb` draw) fixes emitted <path> count at exactly zones*layers=6. darkening=1 was required in addition \u2014 without it, the same zones/layers values produced EITHER 6 or 9 paths nondeterministically, because darkening<1 gates an undocumented duplicate-path-group branch for multiply-blend zones (captured as a durable cross-project learning: rotheric-visuals-darkening-1-silently-doubles). halo=0/splatter=0 remove the two other conditionally-emitted element groups. smoothness=28 (of the engine's 6-40 range) was the dominant remaining lever tuned to hit the byte-size target once path count was fixed.",
+    "measured_over_30_real_draws": {
+      "path_count": "exactly 6 every draw (0 variance)",
+      "circle_count": "0 every draw",
+      "byte_size_range": "8488-9610 bytes (avg ~8915)",
+      "has_script_tag": false
+    },
+    "static_fallback_recapture": {
+      "exact_length_chars": 8567,
+      "selection_method": "middle-sized of 3 real samples at the finalized knobs, following S8's own precedent of avoiding an outlier rather than defaulting to the smallest (S8's remediation history: a picked-smallest sample at Phase A's un-pinned knobs was visually washed-out)"
+    },
+    "generation_cost_node_timing": {
+      "methodology": "Real @rotheric/visuals randomizeParams()+renderSVG() calls, exact production call shape, timed with process.hrtime.bigint(), 50-call JIT warmup then 200 timed calls",
+      "tuned_lite_preset": {
+        "p50_ms": 0.11,
+        "p95_ms": 0.193,
+        "p99_ms": 0.231,
+        "max_ms": 0.244
+      },
+      "old_s8_unbounded_preset_for_contrast": {
+        "p50_ms": 0.348,
+        "p99_ms": 1.149,
+        "max_ms": 1.247
+      },
+      "pessimistic_4x_lighthouse_scaled_estimate": {
+        "p50_ms": 0.44,
+        "p99_ms": 0.93
+      }
+    },
+    "real_browser_measurement": {
+      "tool": "project's own @playwright/test-installed headless Chromium, driven directly by a standalone script (NOT the sandbox's separate Playwright-MCP tool, which epic-state.json already records as non-functional for launching a real Chromium session in this exact Linux ARM64 sandbox during S8)",
+      "cpu_throttle_method": "Chrome DevTools Protocol Emulation.setCPUThrottlingRate, rates 1x and 4x (4x = Lighthouse's own standard 'low-end mobile' multiplier)",
+      "swap_detection_result": "at both 1x and 4x throttle, the nav banner's backgroundImage already differed from the manifest's known static-fallback encoding on the VERY FIRST post-navigation read -- i.e. generation-to-swap completed faster than the measurement's own polling resolution (a single Playwright evaluate() round-trip). No positive millisecond swap-latency figure was directly observable in-browser; see VQ-S9-010 for the honest limitation this creates.",
+      "longtask_observation": "main-thread PerformanceObserver longtask entries were present during page load (63-269ms, startup/hydration work) but occurred independent of the already-completed banner swap, consistent with off-main-thread Worker execution (structurally verified in S3/S5, real-browser-confirmed for aquarelle by S8's MV-1/MV-2, not re-verified from scratch here)",
+      "cls_measurement": {
+        "aquarelle_cls": 0.004615637010998196,
+        "calm_control_cls_no_font_no_banner": 0,
+        "lego_control_cls_custom_font_no_banner": 0.006564806699752808,
+        "interpretation": "aquarelle's CLS sits at/below lego's (a theme with a custom webfont but NO dynamic banner), isolating the small measured CLS to ordinary font-loading rather than the banner swap; both are far below the 0.1 'good' Core Web Vitals threshold. See VQ-S9-012 for a discussion of this comparison's rigor."
+      }
+    },
+    "honest_limitations": [
+      "This sandbox has no reachable physical low-end mobile device. The 4x CPU throttle is Lighthouse's own documented 'low-end mobile' proxy multiplier applied via Chrome DevTools Protocol in a real (not emulated-in-software) headless Chromium -- not a claim of real-device measurement.",
+      "No positive in-browser millisecond figure for generation-to-swap latency was captured: the swap completed before the first observable read at both 1x and 4x throttle. The 'no measurable jank' conclusion rests on this observation plus the separately-measured pure-Node.js renderSVG timing, not a single unified in-browser stopwatch reading.",
+      "The CLS isolation used a cross-theme A/B comparison (aquarelle vs calm vs lego), not a same-theme banner-present-vs-absent controlled comparison; see VQ-S9-012."
+    ]
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The 'lite preset' path-count target (~6 paths) was not achievable by tuning zones/layers alone: pinning zones=2/layers=3 still produced EITHER 6 or 9 paths nondeterministically. The cause was a third, unrelated-looking render knob (`darkening`) that the package documents only as a 0-1 opacity parameter but that actually gates an undocumented duplicate-path-group branch in the wrapped engine for multiply-blend zones -- found only by reading dist/index.js directly, since neither the README nor index.d.ts mentions it (captured as a durable learning: rotheric-visuals-darkening-1-silently-doubles). Separately, the first version of the real-browser CPU-throttle measurement script had its own bug: it captured a live first-read as the presumed 'static' baseline to detect the swap, which silently failed because in a warm `next dev` session the swap can complete faster than that first read -- the fix was to compute the known static encoding directly from the manifest source (mirroring tests/e2e/banner-decor.spec.ts's own existing convention, which I should have matched from the start).",
+    "surprised_by": "Swap-to-generation latency was too fast to observe directly even under 4x CPU throttle -- the banner had already swapped by the very first post-navigation read at both 1x and 4x. A stronger result than expected, but it means the 'no measurable jank' claim rests on a combination of proxies (browser observation + separate Node.js timing) rather than one directly-observed in-browser millisecond figure -- flagged as a post-impl verification question (VQ-S9-010) rather than overstated as a precise measurement.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "decider_caveats": [
+    {
+      "finding": "VQ-S9-012: CLS attribution used a cross-theme comparison, not same-theme banner-present-vs-absent",
+      "verdict": "ACCEPT",
+      "reasoning": "Ceiling argument: CLS is a sum of non-negative contributions, so the banner's contribution cannot exceed the measured total (0.0046), ~20x under the 0.1 threshold. A same-theme A/B could only refine a number already provably passing; it cannot flip the verdict. Aquarelle also measured lower than lego (no dynamic banner), pointing the same direction. Watch item: re-measure if a future theme's banner uses fundamentally different layout mechanics."
+    }
+  ]
+}

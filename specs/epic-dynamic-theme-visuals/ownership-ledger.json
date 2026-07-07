@@ -21,7 +21,7 @@
       "owning_module": "dynamicVisuals",
       "type": "invariant",
       "added_by_story": "S2",
-      "review_note": "RESOLVED (S2->S3 gate-remediation). The invariant is: dynamicVisuals.ts is the only app/src module that runtime-imports the ink GENERATOR (bare '@ink/visuals' specifier; stub is inline in Phase A). The AC-STRUCT-4 scanner (themes-validation.test.ts ~1104) now checks a runtime bare '@ink/visuals' import via hasRuntimeBareImport (reuses parseImports; exact-match, not text grep) - vacuously true in Phase A, activates in Phase B/S7 with no rewrite. Regression-proof tests confirm S3/S5's legitimate DYNAMIC_GENERATORS import of dynamicVisuals.ts does NOT trip it. Superseded the earlier incorrect assertion (no file resolves-to dynamicVisuals.ts) which would have blocked S3/S5."
+      "review_note": "RESOLVED (S2->S3 gate-remediation); ACTIVATED (S7). The invariant is: dynamicVisuals.ts is the only app/src module that runtime-imports the ink GENERATOR. Phase A: bare '@ink/visuals' specifier, vacuously true (stub was inline). S7 retargeted the scanner's constant to the real '@rotheric/visuals' specifier (themes-validation.test.ts:1079) and its discriminating self-test (1152-1172) confirms it now genuinely flags the live import, not a vacuous placeholder. Regression-proof tests confirm S3/S5's legitimate DYNAMIC_GENERATORS import of dynamicVisuals.ts does NOT trip it."
     },
     {
       "id": "dynamic-banner-state-fail-soft",
@@ -33,7 +33,7 @@
     },
     {
       "id": "resolve-dynamic-banner-style-seam",
-      "name": "ResolveDynamicBannerStyleReturn { hasDynamicBanner, boxProps, style } — the two-field boxProps/style split (mirrors navBannerDecor; swapped backgroundImage stays on raw style, never folded into boxProps) + declaration-based hasDynamicBanner (reflects manifest, not per-attempt success) that S4's scrim keys off",
+      "name": "ResolveDynamicBannerStyleReturn { hasDynamicBanner, boxProps, style } \u2014 the two-field boxProps/style split (mirrors navBannerDecor; swapped backgroundImage stays on raw style, never folded into boxProps) + declaration-based hasDynamicBanner (reflects manifest, not per-attempt success) that S4's scrim keys off",
       "owning_module": "useDynamicBanner",
       "type": "public_contract",
       "added_by_story": "S3",
@@ -81,7 +81,10 @@
   "stories": [
     {
       "story": "S1",
-      "files": ["app/src/themes/schema.ts", "app/tests/unit/themes-validation.test.ts"],
+      "files": [
+        "app/src/themes/schema.ts",
+        "app/tests/unit/themes-validation.test.ts"
+      ],
       "concepts_contributed": [
         "dynamic-element-schema-shape"
       ],
@@ -152,16 +155,57 @@
         "mocked-generator-no-per-seed-determinism"
       ],
       "notes": "Test-only capstone (production files byte-identical to S5 - hook pure fns at identical line numbers, worker markers intact, tail identical; dynamicVisuals.ts/banner.worker.ts/Layout.tsx line counts match last-reviewed). Added AC-UX-4 (no-JS static fallback decoded against the RAW treatments.banner manifest field via an independently-authored encoding - genuinely non-circular w.r.t. computeThemeStyles, plus a multi-theme anti-coincidence check), AC-UX-5 (genuine decode: regex-extract payload + decodeURIComponent, then shape-check the DECODED value; round-trips a REAL DYNAMIC_GENERATORS.watercolor output exactly; no SVG-parser dep per Boundary Rule 8), AC-META-1 (hybrid negative assertion - see concept note). Full epic suite 162 green (45 hook + 19 treatments + 98 themes-validation), no orphaned TODO/FIXME/skip/only. Completeness sweep accurate: AC-A11Y-1/2 already covered by S4, AC-STRUCT-6 by S2's treatments.test.ts - nothing new needed. VERDICT: APPROVED. One LOW note on AC-META-1's signature-check looseness (non-blocking)."
+    },
+    {
+      "story": "S7",
+      "files": [
+        "app/package.json",
+        "app/package-lock.json",
+        "app/src/themes/treatments/dynamicVisuals.ts",
+        "app/tests/unit/themes/treatments.test.ts",
+        "app/tests/unit/themes-validation.test.ts",
+        "specs/epic-dynamic-theme-visuals/mocks-registry.json"
+      ],
+      "concepts_realized_from_seed": [
+        "dynamic-generators-registry-seam",
+        "single-import-site-invariant"
+      ],
+      "notes": "Swapped the Phase A inline stub for the real @rotheric/visuals package (git tag visuals-v0.1.2). Seam shape byte-identical (satisfies clause intact); S3/S5 consumers (useDynamicBanner.ts, banner.worker.ts, Layout.tsx, useThemeStyles.ts) have an empty git diff. Color identity flows correctly (StyleToken -> Params draw-time overrides, render assigned before style so render can never override the 4 pinned identity fields); forced envelope verified (viewBox 420x96, width/height override format); self-containment verified against real output (internal seed-namespaced filter refs only, no script/external href). AC-UX-1 rewritten from an exact-hsl-string match to a hue-tolerance check since the real package's HSLA output carries legitimate per-zone jitter the stub didn't have. MOCK-02-001 resolved (mocks-registry.json all_resolved: true). 117/117 re-targeted tests green against the real package; full epic suite 2061/2061 green; tsc clean. Gate-remediation round fixed 4 Stage-1 Opus findings: (1) sev-5 lockfile ssh/https reproducibility - resolved via documentation + empirical proof (cold-cache npm ci with GIT_SSH=/bin/false still installs via the ambient gh HTTPS+token credential; the ssh:// string in package-lock.json is npm's unavoidable hosted-git-info canonicalization, not a config bug); (2) sev-3 stale header docblock (render/style ordering); (3) sev-2 dead 'format: banner' literal (now documented as an intentional inert fallback); (4) sev-2 overclaimed render-safety comment (baseColor caveat added). Re-review after remediation: 0 findings, clean. Codex unavailable (out of credits, same as Phase A) - user re-authorized Opus-only review for this Phase B run too."
+    },
+    {
+      "story": "S8",
+      "files": [
+        "app/src/themes/aquarelle/manifest.ts",
+        "app/src/themes/registry.generated.ts",
+        "app/tests/unit/themes-validation.test.ts",
+        "app/tests/unit/themes/index.test.ts",
+        "app/tests/unit/profile.themePicker.test.ts",
+        "app/tests/e2e/banner-decor.spec.ts"
+      ],
+      "concepts_contributed": [],
+      "notes": "New aquarelle light theme (anchorHue 250/analogous/55/45), genuinely additive: zero edits to schema.ts/dynamicVisuals.ts/useDynamicBanner.ts/Layout.tsx/useThemeStyles.ts (confirmed empty diffs). Frozen treatments.banner fallback confirmed structurally authentic (unmodified real @rotheric/visuals render at the pinned StyleToken - seed-namespaced filter IDs, feTurbulence/feDisplacementMap, hue clustering consistent with anchorHue 250). Static palette passes the real WCAG contrast gate with margin (all pairs >=6:1, independently recomputed). MV-1/MV-2 (previously waived in Phase A pending a theme that uses treatments.dynamic.banner) resolved genuinely in a real browser via 3 new e2e tests in banner-decor.spec.ts. Gate-remediation round fixed 3 Stage-1 Opus findings, all in the new e2e tests: (1) sev-5 MV-1's non-determinism assertion wasn't airtight against static-vs-dynamic swap timing - fixed with a waitForDynamicBannerSwap poll gate confirmed byte-for-byte against both production static-encode sites before comparing two guaranteed-dynamic reads; (2) sev-3 MV-2's blind waitForTimeout(500) settle window replaced with an expect.poll-based waitForBannerToSettle, per this project's own e2e_ac60 lesson against fixed waits; (3) sev-2 MV-2's console-error filter broadened to also catch generic React lifecycle warnings (unmounted/state update/setstate). Re-review after remediation: 0 findings, clean. Codex unavailable (same as S7); user's standing Opus-only authorization for this Phase B run covers this story too. SECOND remediation round (post-review, Decider-directed, 3 verification-examiner PARTIALs): visually inspected the frozen static banner and found it WAS a genuine outlier (washed-out/pale vs. a 20-sample distribution) - re-froze with a representative real sample (~54.7KB, still unmodified engine output); added an inline TODO(S9, AC-PERF-3) tracking comment noting the oversized static fallback awaits S9's lite-preset re-capture; waived the manual-THEME_IDS-registration finding as a pre-existing project-wide pattern every prior theme also required. All 13 banner-decor.spec.ts e2e tests (including the re-verified MV-1/MV-2) re-run green against the re-frozen banner; full 2065-test unit suite green."
+    },
+    {
+      "story": "S9",
+      "files": [
+        "app/src/themes/aquarelle/manifest.ts",
+        "app/src/themes/registry.generated.ts",
+        "app/tests/unit/themes/treatments.test.ts"
+      ],
+      "concepts_contributed": [],
+      "notes": "Capstone of Phase B - no new module. Finalized aquarelle's render lite-preset knobs {zones:2, layers:3, darkening:1, halo:0, splatter:0, smoothness:28}, resolving architecture.md's z.record Open Question. Discovered and pinned an undocumented @rotheric/visuals engine quirk: darkening<1 silently doubles a multiply-blend zone's path group (6 or 9 paths nondeterministically) - captured as a cross-project learning. Re-froze the static treatments.banner fallback at the finalized knobs (8567 chars/6 paths/0 circles, verified structurally consistent), superseding S8's oversized ~54.7KB capture and resolving its TODO(S9) comment. Flipped status experimental->stable on measured perf evidence: Node-level renderSVG timing (p50 0.11ms/p99 0.23ms), 4x CDP-throttled Chromium swap timing (generation completed off-thread, no main-thread jank observed), CLS 0.0046 (isolated to font-loading via a control-theme comparison, well below the 0.1 threshold). Honestly disclosed limitation: no real physical low-end device was reachable in this sandbox; the 4x throttle is documented as a proxy, not a real-device measurement. 3 new regression-guard unit tests against the real generator (exactly 6 paths, 0 circles, byte-band). Gate-remediation round fixed 2 Stage-1 Opus findings (both wording/comment-only, no logic change): (1) sev-3 a test title overclaimed capture provenance vs. what its assertions actually prove (structural consistency) - reworded; (2) sev-2 the darkening=1 guard was only incidentally covered by the path-count assertion with no comment naming it - added. Two other findings were informational/no-fix-needed (the stable-flip inference note, and a minor MIN_BYTES lower-bound looseness note). Re-review after remediation: 0 findings, clean. Codex unavailable (same as S7/S8); user's standing Opus-only authorization for this Phase B run covers this story too. Full 2068-test unit suite green. Verification-examiner: 12/13 YES; 1 PARTIAL (VQ-S9-012, CLS attribution used cross-theme not same-theme comparison) ACCEPTed by Decider on a ceiling argument (CLS is a sum of non-negative contributions, so the banner's share cannot exceed the measured total of 0.0046, ~20x under threshold; a same-theme A/B could only refine an already-passing number, not flip the verdict). Phase B (S7-S9) complete."
     }
   ],
   "reviewer_state": {
-    "last_story_reviewed": "S6",
+    "last_story_reviewed": "S9",
+    "phase_b_status": "ALL STORIES S7-S9 REVIEWED & APPROVED (S7: 1 remediation round; S8: 1 gate-remediation round + 1 Decider-directed round after a genuine outlier static-banner capture was caught and re-frozen; S9: 1 remediation round, comment-only). Codex unavailable throughout Phase B (out of credits) - user authorized Opus-only review for the whole run. Ready for mutation/e2e/pre-commit gates.",
     "epic_phase_a_status": "ALL STORIES S1-S6 REVIEWED & APPROVED (S2 had 1 remediation round). Full Phase-A test suite internally consistent: 162 tests green across the 3 epic files, complete 1:1 AC-to-describe-block coverage, no orphaned placeholders/TODOs. Open items are all non-blocking forward-looking notes for Phase B/S7 (main-thread fallback bundles the generator -> AC-DEP-2 must hold on that path; S3 inert background-image cross-fade transition) + MV-1/2/3 browser-render manual checks waived for Phase A. Ready for mutation/e2e/pre-commit gates.",
     "s6_status": "APPROVED (162/162 epic-suite green, test-only confirmed, AC-UX-4 non-circular + AC-UX-5 genuine-decode verified; 1 LOW note on AC-META-1 signature check)",
     "s5_status": "APPROVED (132/132 unit green, tsc exit 0, pure S3/S4 fns byte-identical, worker chunk-isolation independently build-verified; 2 LOW forward-looking notes for S7)",
     "s2_status": "converged (AC-STRUCT-4 gate-remediation re-verified green, 117/117 in the two S2 files)",
     "s3_status": "APPROVED (11/11 unit green, tsc exit 0, useThemeStyles.ts untouched; 1 LOW non-blocking cross-fade note deferred to S4/Phase B)",
     "s4_status": "APPROVED (22/22 unit green, tsc exit 0, contrast.ts untouched, black/white contrast guarantee verified sound; 2 VERY-LOW optional notes)",
-    "model_at": "2026-07-06T01:38:00Z"
+    "model_at": "2026-07-06T01:38:00Z",
+    "precommit_gate_status": "WHOLE-TREE PASS COMPLETE (2026-07-07) - 2 findings, both severity < 5, non-blocking: (1) aquarelle manifest header regenerate-recipe duplicated the watercolor call shape [sev-3, doc drift risk] - FIXED (comment now points at dynamicVisuals.ts as sole source of truth instead of re-encoding the shape); (2) useDynamicBanner.ts:156/173 stale still-undesigned-aquarelle comments in already-committed Phase A code [sev-2] - left unfixed, out of this commit scope, disclosed as a Review note. All factual comment claims (8567 chars/6 paths/0 circles/3 filters), single-import-site invariant, per-theme folder convention, and registration-site consistency verified clean across the assembled S7-S9 tree. Cross-module reach-ins, contract/doc accuracy, cross-story duplication, convention-vs-structure: all clean. Codex unavailable throughout (out of credits); user-authorized Opus-only review for the entire Phase B run, including this final gate."
   }
 }

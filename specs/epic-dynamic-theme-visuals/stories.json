@@ -1,9 +1,10 @@
 {
   "epic_name": "dynamic-theme-visuals",
   "created_at": "2026-07-05T21:11:25Z",
-  "total_stories": 6,
-  "dependency_notes": "Phase A only (S1-S6); Phase B (S7-S9) and v2 (S10) are deliberately excluded from this stories.json, blocked on ink's v0 git tag per spec.md \u00a75/\u00a77 Amendments (2026-07-05). They are not stubbed here as pending stories - a future /base:feature run against this same epic will re-invoke story-planner Mode 2 to add them once ink publishes v0. Sequential dependency chain for S1-S6: S1 (schema) gates everything; S2 (adapter+stub) depends on S1's DynamicElement/StyleToken types; S3 (hook+Layout swap) depends on S2's DYNAMIC_GENERATORS registry; S4 (scrim) and S5 (worker offload) both depend on S3 and are independent of each other; S6 (mocked-generator test suite) depends on S1-S5 all landing, since it closes out comprehensive behavioral coverage across all five. Stories are implemented sequentially, not in parallel (per commands/feature.md 'Design priorities and non-goals') - owning_module is a correctness/verticalization boundary, not a concurrency license.",
-  "mock_resolution_plan": "S2 introduces MOCK-02-001 (the stub watercolor generator standing in for @ink/visuals). It is NOT resolved within this Phase-A run - resolution is S7 (Phase B, wire the real @ink/visuals git dependency), which is out of scope until ink publishes its v0 tag. Tracked in specs/epic-dynamic-theme-visuals/mocks-registry.json with all_resolved: false until then.",
+  "updated_at": "2026-07-06T00:00:00Z",
+  "total_stories": 9,
+  "dependency_notes": "Phase A (S1-S6, shipped) + Phase B (S7-S9, unblocked 2026-07-06 - ink published visuals-v0.1.2). Sequential dependency chain for S1-S6: S1 (schema) gates everything; S2 (adapter+stub) depends on S1's DynamicElement/StyleToken types; S3 (hook+Layout swap) depends on S2's DYNAMIC_GENERATORS registry; S4 (scrim) and S5 (worker offload) both depend on S3 and are independent of each other; S6 (mocked-generator test suite) depends on S1-S5 all landing, since it closes out comprehensive behavioral coverage across all five. Phase B is strictly sequential per architecture.md's Phase B Story Order: S7 (wire the real @rotheric/visuals git dependency, pinned to visuals-v0.1.2) must land before S8 can capture a real static-fallback render or tune a real style token; S9's perf measurement is meaningless without S8's actual theme to measure. No parallel opportunity within S7-S9, and no dependency of S7-S9 on S1-S6 beyond consuming the seams S1-S3 already produced. Stories are implemented sequentially, not in parallel (per commands/feature.md 'Design priorities and non-goals') - owning_module is a correctness/verticalization boundary, not a concurrency license.",
+  "mock_resolution_plan": "S2 introduced MOCK-02-001 (the stub watercolor generator standing in for @rotheric/visuals). It is resolved by S7 (Phase B, wire the real @rotheric/visuals git dependency pinned to visuals-v0.1.2), which replaces the stub import in dynamicVisuals.ts without changing DYNAMIC_GENERATORS.watercolor's exported signature. Tracked in specs/epic-dynamic-theme-visuals/mocks-registry.json; all_resolved flips to true once S7 lands (S7 is 'pending' as of this stories.json update, so the registry file itself is left untouched here - the implementing story updates it on completion, per this epic's established Phase A convention).",
   "stories": [
     {
       "id": "S1",
@@ -211,6 +212,113 @@
       ],
       "creates_seam": false,
       "notes": "Depends on S1-S5 all landing - it is the capstone story closing out full behavioral coverage of the mocked-generator suite (spec.md \u00a77's S6 description: 'Fallback renders; on mount the background swaps to a valid data-URI SVG; scrim guarantees logo contrast; adapter output is self-contained. No per-seed determinism tests.'). AC-STRUCT-6 (self-containment), AC-A11Y-1/2 (scrim), AC-UX-3a/AC-PERF-1/AC-PERF-2 (fail-soft, layout-shift mechanism, worker mechanism) are implemented and given their own initial tests by S2/S4/S3/S5 respectively as each module lands; S6 is the final pass ensuring AC-UX-4, AC-UX-5, and the AC-META-1 no-per-seed-determinism convention are in place across the whole suite."
+    },
+    {
+      "id": "S7",
+      "name": "wire-real-visuals-git-dependency",
+      "title": "Wire the real @rotheric/visuals git dependency",
+      "description": "Replace dynamicVisuals.ts's stub watercolor generator (MOCK-02-001) with a real import of the @rotheric/visuals package, added to app/package.json as a git dependency pinned to the visuals-v0.1.2 tag. DYNAMIC_GENERATORS.watercolor's exported signature and call shape MUST NOT change - only the import line and package.json's git dependency entry change (the seam held). Confirm the package bundles cleanly under output: 'export' (ESM), is usable from the Web Worker (app/src/workers/banner.worker.ts, unchanged), and that the production client bundle does not pull sharp or any Node-only dependency. Re-run the AC-UX-1 non-determinism check and the AC-STRUCT-4 single-import-site scanner against the real import instead of the stub.",
+      "acceptance_criteria": [
+        "AC-DEP-1",
+        "AC-DEP-2"
+      ],
+      "scope": {
+        "includes": [
+          "app/package.json - add @rotheric/visuals as a git dependency pinned to the visuals-v0.1.2 tag",
+          "app/src/themes/treatments/dynamicVisuals.ts - swap the stub import for the real @rotheric/visuals renderSVG call; DYNAMIC_GENERATORS.watercolor's exported signature and downstream call shape stay unchanged",
+          "app/tests/unit/themes/treatments.test.ts - re-run/confirm the existing describe('themes/treatments/dynamicVisuals') block (AC-UX-1, AC-STRUCT-6) against the real import",
+          "app/tests/unit/themes-validation.test.ts - re-run the single-import-site scanner (AC-STRUCT-4) against the real @rotheric/visuals import specifier",
+          "confirm Web Worker consumption (app/src/workers/banner.worker.ts) still works unchanged against the real import (no code change expected there, per the seam holding)"
+        ],
+        "excludes": [
+          "app/src/themes/aquarelle/ (S8 - the new theme folder itself)",
+          "real device / CLS / paint-timing measurement (AC-PERF-3, S9)",
+          "tuning the aquarelle style token or capturing its static fallback (S8)"
+        ]
+      },
+      "owning_module": "dynamicVisuals",
+      "complexity": "medium",
+      "status": "done",
+      "lighter_path": false,
+      "introduces_mocks": [],
+      "mock_dependencies": [
+        "MOCK-02-001"
+      ],
+      "consumes_seams": [
+        "DynamicElement",
+        "DYNAMIC_GENERATORS"
+      ],
+      "creates_seam": true,
+      "notes": "Depends on S1/S2 (DynamicElement, DYNAMIC_GENERATORS) already landed in Phase A. Resolves MOCK-02-001 - the Phase A stub introduced by S2, standing in for @rotheric/visuals; once this story lands the mock is fully resolved (mocks-registry.json's all_resolved flips to true as part of this story's completion, per the established Phase A convention of the implementing story updating the registry). Gates S8 (aquarelle needs the real package wired before it can capture a static-fallback render or tune a real style token) and S9 (perf measurement is meaningless without S8's actual theme). Strictly sequential per architecture.md's Phase B Story Order - no parallel opportunity with S8/S9."
+    },
+    {
+      "id": "S8",
+      "name": "aquarelle-theme",
+      "title": "The aquarelle theme",
+      "description": "Add a brand-new light theme folder, app/src/themes/aquarelle/manifest.ts (not derived from an existing theme), declaring treatments.dynamic.banner with a tuned StyleToken (within S1's bounds: anchorHue 0-359, scheme enum, saturation 20-100, lightness 20-75) and a frozen static banner fallback captured from one real @rotheric/visuals generator run (post-S7). The theme MUST be auto-detected by the existing folder-name-driven registry (app/scripts/generate-theme-registry.mjs) with no edits to any shared file beyond what S1 already added. aquarelle MUST pass the existing WCAG contrast gate on its static palette and ships status: 'experimental' until S9 clears AC-PERF-3. With aquarelle active, reloading the page MUST show a visibly different banner every time, all recognizably the same theme (fixed colour identity), with the logo remaining legible (AC-A11Y-1) on every render.",
+      "acceptance_criteria": [
+        "AC-THEME-1",
+        "AC-THEME-2",
+        "AC-UX-6"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/themes/aquarelle/manifest.ts (NEW) - brand-new light theme, treatments.dynamic.banner with a tuned style token, frozen static banner fallback, status: 'experimental'",
+          "any co-located static-fallback asset following the existing per-theme folder precedent (e.g. app/src/themes/aquarelle/ static SVG capture)",
+          "capture the frozen static fallback from one real generator run (post-S7) using the same StyleToken pinned in the manifest",
+          "confirm aquarelle is picked up by app/scripts/generate-theme-registry.mjs's folder-name-driven registry with zero shared-file edits beyond S1's schema addition",
+          "app/tests/unit/themes-validation.test.ts and/or the theme-registry test path - confirm aquarelle passes the existing WCAG contrast gate on its static palette"
+        ],
+        "excludes": [
+          "app/src/themes/schema.ts and any other shared file (no shared-file edits beyond S1's already-landed capability)",
+          "app/src/themes/treatments/dynamicVisuals.ts (S7 - real package wiring, not touched here)",
+          "flipping status from 'experimental' to stable, and finalizing the render lite-preset knob values (S9 - gated on AC-PERF-3)",
+          "dark-theme variants (v2 / S10, out of scope)"
+        ]
+      },
+      "owning_module": "aquarelle theme",
+      "complexity": "medium",
+      "status": "done",
+      "lighter_path": false,
+      "introduces_mocks": [],
+      "mock_dependencies": [],
+      "consumes_seams": [
+        "DynamicElement"
+      ],
+      "creates_seam": true,
+      "notes": "Depends on S7 (needs the real @rotheric/visuals package wired to capture an authentic static fallback and tune a real style token - captured renders must come from the real generator, not the stub). Ships status: 'experimental'; S9 measures before promotion. No shared-file edits beyond S1's schema addition (architecture.md Module Map). Strictly sequential after S7 per architecture.md's Phase B Story Order."
+    },
+    {
+      "id": "S9",
+      "name": "performance-validation",
+      "title": "Performance validation",
+      "description": "Measure real @rotheric/visuals banner generation + paint cost on a low-end mobile profile against aquarelle's actual output (not the stub). Finalize the concrete render lite-preset knob values (previously left as a z.record escape hatch per architecture.md's Open Questions), targeting ~6 paths and ~8-15 KB SVG; confirm generation stays off-thread with no dropped frames on the nav; confirm no CLS attributable to the banner under real timing. Flip aquarelle's status field from 'experimental' once the budget is measured green. No new files or modules are introduced - this story touches only app/src/themes/aquarelle/manifest.ts's status and render knob fields.",
+      "acceptance_criteria": [
+        "AC-PERF-3"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/themes/aquarelle/manifest.ts - finalize render knob values (targeting ~6 paths, ~8-15 KB SVG) and flip status from 'experimental' once AC-PERF-3 is measured green",
+          "real-device / low-end-mobile-profile measurement of generation + paint cost (manual/instrumented validation, per architecture.md's Open Questions - the concrete render preset is only knowable once real perf measurement is in hand)",
+          "confirm no dropped frames on the nav and no CLS attributable to the banner under real (non-stub) generation timing"
+        ],
+        "excludes": [
+          "any new module or file (architecture.md: 'S9, no new module')",
+          "wiring the real package itself (S7) or authoring the theme (S8)",
+          "dark-theme / v2 work (S10, out of scope)"
+        ]
+      },
+      "owning_module": "perf validation",
+      "complexity": "medium",
+      "status": "done",
+      "lighter_path": false,
+      "introduces_mocks": [],
+      "mock_dependencies": [],
+      "consumes_seams": [
+        "AquarelleDynamicBannerDeclaration"
+      ],
+      "creates_seam": false,
+      "notes": "Depends on S8 (aquarelle must exist to measure real output) and transitively S7. Resolves the open render-knob-tuning question flagged in architecture.md's Open Questions / Accepted Risks. Capstone of Phase B - once green, aquarelle promotes out of experimental and the epic's Definition of Done (spec.md \u00a78) is satisfied for v1."
     }
   ],
   "story_order": [
@@ -219,7 +327,10 @@
     "S3",
     "S4",
     "S5",
-    "S6"
+    "S6",
+    "S7",
+    "S8",
+    "S9"
   ],
   "seams": [
     {
@@ -332,6 +443,84 @@
           "when present, backgroundImage is swapped to a fresh generated data-URI on mount and differs across two mounts (AC-UX-3)",
           "when generation fails (generatedSvg is null / the generator threw), backgroundImage keeps/reverts to the static value and the function never throws uncaught (AC-UX-3a)",
           "hasDynamicBanner is what shouldRenderScrim(hasDynamicBanner) keys the scrim-presence decision off (AC-A11Y-2)"
+        ]
+      }
+    },
+    {
+      "data": "@rotheric/visuals real renderSVG output - the Phase B swap of the Phase A stub (MOCK-02-001) for ink's published package",
+      "source": {
+        "story": "S7",
+        "artifact": "@rotheric/visuals's renderSVG({ params }) API (external git dependency, pinned to the visuals-v0.1.2 tag)"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "S7",
+        "artifact": "app/src/themes/treatments/dynamicVisuals.ts#DYNAMIC_GENERATORS.watercolor (adapter call site - replaces the stub)"
+      },
+      "contract": {
+        "type_name": "RenderSVGResult",
+        "fields": [
+          {
+            "name": "svg",
+            "type": "string (self-contained: no <script>, no external href/url() references)",
+            "optional": false
+          },
+          {
+            "name": "id",
+            "type": "string (opaque handle; not consumed downstream)",
+            "optional": false
+          }
+        ],
+        "invariants": [
+          "DYNAMIC_GENERATORS.watercolor's exported signature and downstream call shape are unchanged after the swap (AC-DEP-1)",
+          "the package bundles cleanly under output: 'export' (ESM) and is Worker-safe; the production client bundle does not pull sharp or any Node-only dependency (AC-DEP-2)",
+          "two successive calls continue to return different svg strings while reflecting the pinned style identity - re-affirms AC-UX-1 against the real package, per architecture.md's DYNAMIC_GENERATORS seam note"
+        ]
+      }
+    },
+    {
+      "data": "aquarelle theme's treatments.dynamic.banner declaration - the first real-world consumer of the DynamicElement/DYNAMIC_GENERATORS seam end-to-end, and the input S9 measures",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/themes/schema.ts#DynamicElement (same contract as the DynamicElement seam above)"
+      },
+      "intermediaries": [
+        {
+          "story": "S7",
+          "artifact": "app/src/themes/treatments/dynamicVisuals.ts#DYNAMIC_GENERATORS.watercolor (real @rotheric/visuals call)"
+        },
+        {
+          "story": "S3",
+          "artifact": "app/src/hooks/useDynamicBanner.ts (generates + swaps the banner at runtime for the active theme)"
+        }
+      ],
+      "destination": {
+        "story": "S8",
+        "artifact": "app/src/themes/aquarelle/manifest.ts (declares treatments.dynamic.banner with a tuned StyleToken + frozen static fallback; consumed for measurement by S9)"
+      },
+      "contract": {
+        "type_name": "AquarelleDynamicBannerDeclaration",
+        "fields": [
+          {
+            "name": "style",
+            "type": "StyleToken tuned for aquarelle, within S1's bounds (anchorHue 0-359, scheme enum, saturation 20-100, lightness 20-75)",
+            "optional": false
+          },
+          {
+            "name": "banner",
+            "type": "string (frozen static fallback SVG, captured from one real generator run post-S7)",
+            "optional": false
+          },
+          {
+            "name": "status",
+            "type": "'experimental' | <promoted value> (flips only once S9 measures AC-PERF-3 green)",
+            "optional": false
+          }
+        ],
+        "invariants": [
+          "aquarelle is a brand-new theme folder, not derived from an existing one, auto-detected with no edits to shared files beyond S1 (AC-THEME-1)",
+          "aquarelle passes the existing WCAG contrast gate and ships status: 'experimental' until AC-PERF-3 is met (AC-THEME-2)",
+          "reloading with aquarelle active shows a visibly different banner each time, recognizably the same theme, with the logo legible on every render (AC-UX-6)"
         ]
       }
     }

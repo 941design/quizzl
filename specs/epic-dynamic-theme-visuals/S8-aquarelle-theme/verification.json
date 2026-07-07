@@ -1,0 +1,109 @@
+{
+  "story_id": "S8",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-06T17:45:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S8-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is aquarelle's frozen static banner fallback (app/src/themes/aquarelle/manifest.ts's treatments.banner) captured from an actual real @rotheric/visuals generator run (post-S7) using the exact StyleToken pinned in the manifest — or is it a placeholder/copy of an existing theme's static SVG (or the Phase A stub's output) that would silently violate AC-THEME-1's 'frozen static banner fallback' requirement and misrepresent aquarelle's real visual identity?"
+    },
+    {
+      "question_id": "VQ-S8-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does adding the aquarelle theme touch zero shared files beyond what S1 already added to app/src/themes/schema.ts — i.e., no edits to app/scripts/generate-theme-registry.mjs, app/src/themes/treatments/dynamicVisuals.ts, or any other theme's manifest — per AC-THEME-1's 'no edits to shared files' requirement and architecture.md's package-by-feature paradigm (each theme a self-contained pure-data folder)?"
+    },
+    {
+      "question_id": "VQ-S8-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `aquarelle theme` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S8-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Is there a test confirming aquarelle is auto-detected by app/scripts/generate-theme-registry.mjs's folder-name-driven registry with zero manual registration, and a test (in app/tests/unit/themes-validation.test.ts or the theme-registry test path) confirming aquarelle's static palette passes the existing WCAG contrast gate — both exercising the real registry/gate code paths rather than asserting a hardcoded expectation about aquarelle's presence?"
+    },
+    {
+      "question_id": "VQ-S8-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does aquarelle's treatments.dynamic.banner StyleToken (anchorHue, scheme, saturation, lightness) stay strictly within S1's validated bounds (0-359, enum, 20-100, 20-75) as tuned for a genuinely new light-theme identity — not a copy of another theme's hue/scheme — matching spec.md's intent that aquarelle be the first real-world manifest to exercise the dynamic-banner capability end to end?"
+    },
+    {
+      "question_id": "VQ-S8-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does aquarelle/manifest.ts follow the existing per-theme folder and header-docblock conventions (matching other theme folders under app/src/themes/), ship `status: 'experimental'` exactly as AC-THEME-2 requires (not `'stable'` or omitted), and leave the `render` knob field either absent or set to values that S9 — not this story — is responsible for finalizing?"
+    },
+    {
+      "question_id": "VQ-S8-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-THEME-1",
+      "question": "For AC-THEME-1 ('app/src/themes/aquarelle/manifest.ts MUST exist as a brand-new light theme, not derived from an existing one, auto-detected by the registry with no edits to shared files beyond the S1 capability; it MUST declare treatments.dynamic.banner with a tuned style token and a frozen static banner fallback'), show: (a) the manifest.ts file and its treatments.dynamic.banner declaration; (b) a diff confirming no shared file changed beyond S1's prior schema.ts addition; and (c) confirmation the frozen static fallback was captured from a real (post-S7) generator run, not hand-authored or copied."
+    },
+    {
+      "question_id": "VQ-S8-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-THEME-2",
+      "question": "For AC-THEME-2 ('aquarelle MUST pass the existing WCAG contrast gate on its static palette and MUST ship as status: \"experimental\" until AC-PERF-3 is met'), show: (a) aquarelle's colors.brand scale and static banner passing the existing contrast-gate test unmodified; (b) the manifest's status: 'experimental' field; and (c) confirmation the contrast-gate test is the same shared gate every other theme passes through, not a theme-specific carve-out or a weakened assertion added to accommodate aquarelle."
+    },
+    {
+      "question_id": "VQ-S8-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-6",
+      "question": "For AC-UX-6 ('with aquarelle active, reloading the page MUST show a visibly different banner each time, all recognizably the same theme, and the logo MUST remain legible (AC-A11Y-1) on every render'), show: (a) evidence that aquarelle's dynamic banner produces visibly distinct output per reload (leveraging S2/S7's AC-UX-1 non-determinism guarantee against the real generator); (b) confirmation the fixed colour identity (the pinned StyleToken) holds across renders; and (c) confirmation the S4 scrim's AC-A11Y-1 contrast guarantee is exercised against aquarelle's actual brand.500 and banner, not merely assumed to carry over from Phase A's theme-agnostic scrim tests."
+    },
+    {
+      "question_id": "VQ-S8-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-THEME-1",
+      "question": "Per stories.json's seams array, aquarelle's treatments.dynamic.banner declaration is 'the first real-world consumer of the DynamicElement/DYNAMIC_GENERATORS seam end-to-end, and the input S9 measures.' Does the shipped manifest assert, and can it be shown, that: (a) the declared StyleToken's exact field values (anchorHue, scheme, saturation, lightness) are recorded and stable (not regenerated per build); (b) the `generator: 'watercolor'` field is set (the only catalog member in v1); and (c) the manifest's `render` field (if present) is a plain, inspectable object rather than a computed/dynamic value — so that S9 can measure a known, fixed input rather than a moving target? An unstable or undocumented StyleToken here would make S9's perf measurement non-reproducible."
+    },
+    {
+      "question_id": "VQ-S8-011",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "ac_id": "AC-THEME-1",
+      "question": "app/src/themes/aquarelle/manifest.ts's treatments.banner was captured by sampling ~15 real DYNAMIC_GENERATORS.watercolor()-equivalent calls at the exact pinned StyleToken (anchorHue:250, scheme:'analogous', saturation:55, lightness:45, no render override) and freezing the SMALLEST-output sample (16.5KB) rather than the very first call made (72.5KB) or a fixed/deterministic call. Is selecting-the-smallest-of-several-unmodified-real-draws a legitimate reading of AC-THEME-1's 'captured from one real generator run' (all samples are equally genuine, unaltered real-engine output at the SAME style token — this only picks which draw to freeze, never adds a render-knob override), or does it cross into a form of curation AC-THEME-1 did not intend, and should the header-comment's disclosure of this sampling method (app/src/themes/aquarelle/manifest.ts:24-33) be considered sufficient transparency either way?"
+    },
+    {
+      "question_id": "VQ-S8-012",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-THEME-1",
+      "question": "AC-THEME-1's 'no edits to shared files beyond the S1 capability' was read as scoped to PRODUCTION wiring (schema.ts, generate-theme-registry.mjs, dynamicVisuals.ts, other themes' manifests — none of which were touched) rather than to shared TEST files. Five shared test files were edited to add 'aquarelle' to hardcoded per-theme arrays that pre-existing precedent already required editing for every prior theme (calm/playful/lego/minecraft/flower): app/tests/unit/themes-validation.test.ts's THEME_IDS (+ its two literal expectation constants, order-set and the Google-Fonts EXPECTED_HREF), app/tests/unit/themes/index.test.ts's and app/tests/unit/profile.themePicker.test.ts's hardcoded id-list assertions, and app/tests/e2e/banner-decor.spec.ts's THEMES array. Is this reading of 'shared files' (production code only, not per-theme test enumerations that every prior theme also required) consistent with AC-THEME-1's intent and architecture.md's package-by-feature paradigm, or should these test-file edits have been called out to the Architect as a scope question before proceeding?"
+    },
+    {
+      "question_id": "VQ-S8-013",
+      "phase": "post-impl",
+      "category": "PERFORMANCE",
+      "ac_id": "AC-THEME-2",
+      "question": "aquarelle's frozen static banner (16.5KB, embedded as a literal string in manifest.ts) is ~20x larger than the five migrated themes' hand-authored static banners (~1-2KB each), and because registry.generated.ts statically imports every theme folder's manifest regardless of which theme a visitor has selected, this ~16.5KB ships in every visitor's JS bundle unconditionally. This was a deliberate choice (freeze the smallest of several real, un-tuned-render-knob draws rather than guess at S9's eventual 'lite' render-knob values, since architecture.md explicitly assigns render-knob tuning to S9) but was not perf-gated by this story (AC-PERF-3 is S9's). Does this bundle-size delta warrant an explicit flag for S9's attention (re-capturing the static fallback once the lite render preset is finalized), or is it acceptable to carry as-is given aquarelle ships status:'experimental'?"
+    },
+    {
+      "question_id": "VQ-S8-014",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-UX-6",
+      "question": "MV-1 and MV-2 (epic-state.json's manual_validation ledger) were resolved via three new real-Chromium Playwright tests added to app/tests/e2e/banner-decor.spec.ts (a per-load non-determinism check, a scrim-legibility check, and a rapid live-theme-toggle check) run against a manually-started `next dev` server and the project's own `node scripts/run-e2e.mjs` harness — NOT via the sandbox's Playwright-MCP tool (mcp__playwright__browser_navigate / mcp__plugin_playwright_playwright__browser_navigate), both of which were tried and failed for environment reasons (chrome-for-testing channel downloaded via `npx @playwright/mcp install-browser chrome-for-testing` but the MCP server still reported it as not installed across repeated retries; the alternate 'chrome' channel failed outright with 'not supported on Linux Arm64'). Is verification via the project's own e2e Playwright harness (real Chromium, real DOM, real @rotheric/visuals engine, real setTheme() live-toggle path) an adequate substitute for the MV items' original ask of a DevTools-driven manual check, or does the DevTools-specific language in MV-1/MV-2's original text (background-image computed-style inspection, Worker-thread accumulation via DevTools) imply a verification mode that automated Playwright assertions cannot fully replace?"
+    },
+    {
+      "question_id": "VQ-S8-004-REMEDIATION-1",
+      "phase": "post-remediation",
+      "resolves_question_id": "VQ-S8-004",
+      "category": "TEST",
+      "verdict": "WAIVED",
+      "decided_by": "Decider",
+      "decided_at": "2026-07-06",
+      "rationale": "VQ-S8-004 flagged that aquarelle's registration is not purely zero-manual-edit: five shared test files (app/tests/unit/themes-validation.test.ts's THEME_IDS plus its order-set and EXPECTED_HREF constants, app/tests/unit/themes/index.test.ts, app/tests/unit/profile.themePicker.test.ts, and app/tests/e2e/banner-decor.spec.ts's THEMES array) required a manual per-theme id addition, per VQ-S8-012's findings. On review, this is a pre-existing project-wide test-enumeration pattern that every one of the 5 prior themes (calm/playful/lego/minecraft/flower) also required — it is not something S8 introduced, and S8 could not have avoided it within this story's scope (the registry itself remains auto-detected with zero production-file edits; only hardcoded test-enumeration lists needed the addition, consistent with precedent). Waived per Decider ruling on the round-1 verification PARTIAL — no remediation needed, no code change made as a result of this entry."
+    }
+  ]
+}

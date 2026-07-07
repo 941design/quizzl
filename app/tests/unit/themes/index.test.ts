@@ -92,14 +92,22 @@ describe('themes/index (AC-UX-4 / AC15): normalizeThemeName / isAppThemeName / l
     expect(fixtures.map((t) => t.id)).toEqual(['calm', 'secret']);
   });
 
-  it('listThemes() against the real registry returns all five themes (none hidden), order-sorted', () => {
-    expect(themesIndex.listThemes().map((t) => t.id)).toEqual(['calm', 'playful', 'lego', 'minecraft', 'flower']);
+  it('listThemes() against the real registry returns all six themes (none hidden), order-sorted', () => {
+    expect(themesIndex.listThemes().map((t) => t.id)).toEqual([
+      'calm',
+      'playful',
+      'lego',
+      'minecraft',
+      'flower',
+      'aquarelle',
+    ]);
     expect(themesIndex.listThemes({ includeHidden: true }).map((t) => t.id)).toEqual([
       'calm',
       'playful',
       'lego',
       'minecraft',
       'flower',
+      'aquarelle',
     ]);
   });
 });

@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-06T08:40:08Z",
+  "updated_at": "2026-07-07T06:55:39Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -145,7 +145,7 @@
     {
       "path": "specs/epic-dynamic-theme-visuals/",
       "status": "DONE",
-      "next_action": "Phase A (S1-S6) completed 2026-07-06; Phase B (S7-S9) blocked on ink v0 tag, dispatch separately once available"
+      "next_action": "Phase A+B complete 2026-07-07; v2 (dark themes, more elements) remains out of scope, not yet planned"
     }
   ],
   "findings": [

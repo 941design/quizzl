@@ -1,0 +1,82 @@
+{
+  "story_id": "S7",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-06T17:45:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S7-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does DYNAMIC_GENERATORS.watercolor in app/src/themes/treatments/dynamicVisuals.ts genuinely call the real @rotheric/visuals package's exported render function on every invocation, with MOCK-02-001 (the Phase A stub) fully removed from the production call path — or is there a load-bearing fallback where the stub is retained as a silent default (e.g. behind a try/catch that swallows a real-import failure and returns frozen stub output) such that a broken or misconfigured @rotheric/visuals install would silently continue to pass AC-UX-1's non-determinism test against the stub rather than surfacing the real integration failure?"
+    },
+    {
+      "question_id": "VQ-S7-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does DYNAMIC_GENERATORS.watercolor's exported signature — (style: StyleToken, kind: 'banner', render?) => string — and its call shape at every existing call site (app/src/hooks/useDynamicBanner.ts, app/src/workers/banner.worker.ts) remain byte-identical to the Phase A contract, with the only production diff being dynamicVisuals.ts's import line and package.json's new git dependency entry, per architecture.md's Module Map row for 'dynamicVisuals (Phase B, modified)' and AC-DEP-1's 'no change to the adapter's exported signature or any downstream consumer' requirement?"
+    },
+    {
+      "question_id": "VQ-S7-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `dynamicVisuals` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S7-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Are the re-run AC-UX-1 non-determinism check (app/tests/unit/themes/treatments.test.ts) and the AC-STRUCT-4 single-import-site scanner (app/tests/unit/themes-validation.test.ts) actually re-targeted at the real @rotheric/visuals import specifier — not merely left passing against a stale reference to the now-removed stub module path — such that reverting dynamicVisuals.ts's import back to the stub would make at least one of these tests fail?"
+    },
+    {
+      "question_id": "VQ-S7-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does package.json's git dependency entry for @rotheric/visuals pin the exact visuals-v0.1.2 tag (an immutable ref, e.g. `git+https://...#visuals-v0.1.2` resolved to its tag commit) rather than a branch, `main`, or an unpinned range that could silently change contents after this story lands, matching spec.md's Amendments entry recording the v0.1.2 tag as the gate that unblocked Phase B?"
+    },
+    {
+      "question_id": "VQ-S7-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Per AC-DEP-2, does the production client bundle (confirmed via `make build`'s output under `output: 'export'`) demonstrably exclude `sharp` and every other Node-only dependency that `@rotheric/visuals` might pull transitively — i.e. is there a concrete check (bundle-content grep, `next build` output inspection, or a dependency-tree audit) rather than an assumption based on the package's README, and does the same check confirm the package is genuinely usable from app/src/workers/banner.worker.ts's Worker context (no `fs`/`process`-only APIs reached at runtime)?"
+    },
+    {
+      "question_id": "VQ-S7-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEP-1",
+      "question": "For AC-DEP-1 ('the adapter MUST import the real @rotheric/visuals package, replacing the stub, with no change to the adapter's exported signature or to any downstream consumer'), show: (a) the dynamicVisuals.ts diff showing only the import line (and, if applicable, the call into the real render-equivalent) changed; (b) the test(s) proving useDynamicBanner.ts and banner.worker.ts required zero code changes to consume the real generator; and (c) confirmation these are real assertions against the shipped module graph, not a mock of the @rotheric/visuals import substituted back in for the test run."
+    },
+    {
+      "question_id": "VQ-S7-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEP-2",
+      "question": "For AC-DEP-2 ('the ink package MUST bundle cleanly under output: \"export\" (ESM) and be usable from the Web Worker; the production client bundle MUST NOT pull sharp or any Node-only dependency'), show: (a) a successful `make build` run's output confirming ESM bundling with no bundler resolution errors; (b) evidence banner.worker.ts's off-thread call to DYNAMIC_GENERATORS.watercolor succeeds against the real package (not just a main-thread call); and (c) confirmation of (a)/(b) via inspection of the actual built artifact, not a claim based on the package's stated capabilities alone."
+    },
+    {
+      "question_id": "VQ-S7-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEP-1",
+      "question": "The DYNAMIC_GENERATORS registry seam (architecture.md's Seam Contracts) is consumed beyond this story: S8's aquarelle theme is authored against whatever real SVG shape/behavior DYNAMIC_GENERATORS.watercolor now produces, and S9 measures that real output's generation+paint cost. Does the real @rotheric/visuals-backed watercolor entry assert, and does a test confirm, the full seam contract holds post-swap: (a) signature (style: StyleToken, kind: 'banner', render?) => string unchanged; (b) the return value is always a self-contained SVG string (no `<script>`, no external href/url()) exactly as AC-STRUCT-6 required of the stub; (c) two successive calls with the same pinned style still return different SVG strings (AC-UX-1's non-determinism invariant) while both reflect the pinned style identity? A downstream story (S8) authoring against an unconfirmed subset of this contract would silently inherit a wrong assumption about generator output shape."
+    },
+    {
+      "question_id": "VQ-S7-010",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The real @rotheric/visuals engine renders each zone's colour as `hsla(hue sat% light% / alpha)` (CSS Color 4 space-separated syntax) with the hue jittered per zone by a scheme-dependent offset around the pinned `anchorHue` — NOT the Phase A stub's literal `hsl(hue, sat%, light%)` exact string. The rewritten AC-UX-1 'reflects the pinned identity' tests in treatments.test.ts now assert the CLOSEST extracted zone hue is within a 45-degree tolerance of the pinned anchorHue, sized from an empirical worst-case of ~33 degrees observed across 6 schemes x 8 anchors x 5 trials during S7 implementation (and <5 degrees across 1000 trials for the exact STYLE/otherStyle fixtures the suite uses). Is 45 degrees a defensible, non-arbitrary tolerance rather than a number picked to make the test pass, and does the test suite record the empirical basis for it (not just assert the number)?"
+    },
+    {
+      "question_id": "VQ-S7-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "app/package.json's committed dependency entry is `\"@rotheric/visuals\": \"github:rotheric/ink#visuals-v0.1.2\"` (npm's own normalized GitHub-shorthand form, produced by running `npm install \"@rotheric/visuals@git+https://github.com/rotheric/ink.git#visuals-v0.1.2\"` and letting npm rewrite it) rather than a literal `git+ssh://...` string. package-lock.json's resolved field independently records `git+ssh://git@github.com/rotheric/ink.git#0f27a822c03a07c5b3fe00ddd927b10a36cc29ab` (the exact commit the visuals-v0.1.2 tag pointed to when this story ran, confirmed via `gh api repos/rotheric/ink/tags`). This sandbox has no SSH key (`git@github.com` SSH auth fails with 'Permission denied (publickey)'); the actual install verification in this story ran over HTTPS using the session's own `gh`-issued OAuth token as an ephemeral, non-committed credential (never written to any committed file). Does a fresh clone of this repo, on a real developer or CI machine with either (a) a configured GitHub SSH key, or (b) `gh auth setup-git`/an equivalent HTTPS credential helper, actually succeed running `npm ci` against this exact committed package.json + package-lock.json state — i.e. is this verified reproducible beyond this one session's ephemeral credential, or does it rest on an assumption about npm's hosted-git-info fallback behavior that was only exercised once, in this sandbox?"
+    },
+    {
+      "question_id": "VQ-S7-012",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The built production bundle (`next build` under `output: 'export'`) contains the @rotheric/visuals engine code TWICE: once inlined into the shared `_app` chunk (reached via useDynamicBanner.ts's main-thread `requestIdleCallback`/`generateViaFallback` fallback path, S5) and once in its own webpack-split chunk (reached via banner.worker.ts's `new Worker(new URL(...))` construction, S5) — confirmed by grepping both chunks for a distinctive engine string (`PARAM_DEFS`) during S7's build verification. Is this intentional duplication (the fallback path and the Worker path are two independent execution contexts that cannot share a lazily-loaded chunk) an accepted cost, or should S9's performance-validation pass treat the `_app` chunk's ~38KB(gzipped estimate untested) unconditional inclusion of the full watercolor engine — paid by every page load regardless of whether any active theme declares `treatments.dynamic.banner` (only S8's future `aquarelle` theme will) — as an AC-PERF-3 budget concern?"
+    }
+  ]
+}

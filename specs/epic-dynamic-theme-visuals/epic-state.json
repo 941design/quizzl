@@ -3,7 +3,7 @@
   "status": "done",
   "phase": "COMPLETE",
   "created_at": "2026-07-05T00:00:00Z",
-  "updated_at": "2026-07-06T02:15:00Z",
+  "updated_at": "2026-07-07T09:15:00Z",
   "pre_existing_dirty_files": [
     ".serena/project.yml",
     "CLAUDE.md",
@@ -19,7 +19,10 @@
     "S3",
     "S4",
     "S5",
-    "S6"
+    "S6",
+    "S7",
+    "S8",
+    "S9"
   ],
   "escalated_stories": [],
   "phase_history": [
@@ -67,6 +70,36 @@
       "phase": "COMPLETE",
       "timestamp": "2026-07-06T02:15:00Z",
       "trigger": "done_interlock_satisfied"
+    },
+    {
+      "phase": "PHASE_B_PLANNING",
+      "timestamp": "2026-07-06T17:32:00Z",
+      "trigger": "ink_v0_published_visuals-v0.1.2_verified_reopening_epic_for_S7-S9"
+    },
+    {
+      "phase": "S7_DONE",
+      "timestamp": "2026-07-06T18:30:00Z",
+      "trigger": "fast_path_pass_after_1_remediation_round_opus_only_codex_unavailable"
+    },
+    {
+      "phase": "S8_DONE",
+      "timestamp": "2026-07-06T19:15:00Z",
+      "trigger": "decider_retry_then_pass_opus_only_codex_unavailable"
+    },
+    {
+      "phase": "S9_DONE",
+      "timestamp": "2026-07-06T22:20:00Z",
+      "trigger": "architect_direct_invocation_perf_measured_green"
+    },
+    {
+      "phase": "S9_DONE",
+      "timestamp": "2026-07-06T20:00:00Z",
+      "trigger": "decider_accept_ceiling_argument_opus_only_codex_unavailable"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-07T09:15:00Z",
+      "trigger": "phase_b_done_interlock_satisfied_mutation_and_e2e_gates_passed"
     }
   ],
   "plugin_sha": "1b6099eb7e04f90fea0f4e2a195881ffffd53315",
@@ -77,24 +110,24 @@
     "implementer": "sonnet"
   },
   "ownership_ledger_path": "ownership-ledger.json",
-  "run_scope_note": "This run implements Phase A only (S1-S6). Phase B (S7-S9) and v2 are out of scope, blocked on ink's v0 tag.",
+  "run_scope_note": "Phase A (S1-S6) shipped 2026-07-06. Phase B (S7-S9) shipped 2026-07-07 after ink published visuals-v0.1.2. v1 complete per spec.md Definition of Done. v2 remains out of scope.",
   "reviewer_agent_id": "reviewer-dynamic-theme-visuals@session-70a61c1d",
   "codex_unavailable_user_authorized": true,
-  "codex_unavailable_note": "Codex out of credits at S1 review gate 2026-07-05; user authorized Opus-only review for the remainder of this run.",
+  "codex_unavailable_note": "Codex out of credits at S1 review gate 2026-07-05; user authorized Opus-only review for the remainder of that run. Still out of credits at S7 review gate 2026-07-06 (Phase B); user re-authorized Opus-only review for the remainder of this Phase B run too. Still out of credits at the final whole-tree pre-commit gate 2026-07-07; covered by the same standing authorization.",
   "manual_validation": [
     {
       "ac_id": "MV-1",
-      "status": "waived",
+      "status": "satisfied",
       "owner": null,
-      "blocked_on": "A theme declaring treatments.dynamic.banner (Phase B S8, aquarelle) must exist before this can be checked in a real browser.",
-      "evidence": "Not checkable until a theme declaring treatments.dynamic.banner exists (Phase B S8, aquarelle) \u2014 no Phase A theme uses this capability. Waived for this Phase-A-only run; re-raised as a hard gate in acceptance-criteria.md before S8 ships. User-authorized 2026-07-06."
+      "blocked_on": null,
+      "evidence": "S8 (2026-07-06): resolved via a real Chromium browser (Playwright's own headless build, NOT the sandbox's Playwright-MCP tool \u2014 that tool's chrome-for-testing/chrome channels could not be made to work in this Linux ARM64 sandbox; see MV-2 evidence for detail). Added tests/e2e/banner-decor.spec.ts 'AC-UX-6/MV-1: aquarelle nav banner swaps to a freshly-generated SVG that differs across two separate page loads' \u2014 loads / with aquarelle active twice (two full page loads, not just two mounts), reads getComputedStyle(el).backgroundImage on [data-testid=nav-banner-decor] both times, and asserts (a) both are data:image/svg+xml URIs and (b) the two differ. Ran against a real `next dev` server: passed standalone (13/13 in the file, repeated twice) and as part of the full non-relay e2e bucket (63/63 via `node scripts/run-e2e.mjs`). This proves the boxProps/style split renders correctly in a real DOM (Chakra does not silently drop the data-URI backgroundImage) and that the real @rotheric/visuals engine's per-load non-determinism reaches the browser, not just the pure resolveDynamicBannerStyle function the jsdom-less unit suite exercises."
     },
     {
       "ac_id": "MV-2",
-      "status": "waived",
+      "status": "satisfied",
       "owner": null,
-      "blocked_on": "A theme declaring treatments.dynamic.banner (Phase B S8, aquarelle) must exist before this can be checked in a real browser.",
-      "evidence": "Not checkable until a theme declaring treatments.dynamic.banner exists (Phase B S8, aquarelle) \u2014 no Phase A theme uses this capability. Waived for this Phase-A-only run; re-raised as a hard gate in acceptance-criteria.md before S8 ships. User-authorized 2026-07-06."
+      "blocked_on": null,
+      "evidence": "S8 (2026-07-06): resolved via the same real Chromium browser path as MV-1 (the sandbox's Playwright-MCP tool could not be used \u2014 its bundled chrome-for-testing channel downloaded successfully via `npx @playwright/mcp install-browser chrome-for-testing` but the MCP server kept reporting it as not installed across repeated retries, and the alternate 'chrome' channel failed outright with 'not supported on Linux Arm64'; both are sandbox/tooling limitations, not something fixable from within this session without an MCP server restart the available tools do not expose). Added tests/e2e/banner-decor.spec.ts 'MV-2: rapidly toggling live between aquarelle and a static-only theme never leaves a broken/blank banner or logs an uncaught error' \u2014 drives the REAL in-SPA setTheme() toggle path (via the /profile theme-picker buttons, not page.goto reloads) rapidly between aquarelle and calm 5 times, then settles on aquarelle and asserts: (a) the final nav-banner-decor background is always a valid, non-blank data:image/svg+xml URI (AC-UX-3a's fail-soft contract, holds even under rapid supersession), (b) zero uncaught pageerror events, (c) zero console.error messages naming worker/banner/generat*/dynamicVisuals machinery. Ran green standalone and as part of the full non-relay bucket. This is a practical proxy for 'no stale SVG ever applied and no Worker threads accumulate' \u2014 Playwright cannot directly enumerate live Worker threads or introspect the cancelled-flag guard's internal state, so this real-browser check corroborates (does not replace) the structural source-read verification architecture.md's Boundary Rule 7 note already relies on."
     },
     {
       "ac_id": "MV-3",
@@ -204,19 +237,49 @@
       "ac_id": "AC-META-1",
       "status": "met",
       "evidence": "verified by verification-examiner pass on S6, behavioral test (not structural-proxy), full suite green"
+    },
+    {
+      "ac_id": "AC-DEP-1",
+      "status": "met",
+      "evidence": "verified by 3-way verification-examiner pass on S7 (VQ-S7-001/002/003/004/007/009 all YES, confidence 0.95-1.0): real @rotheric/visuals import replaces the stub, signature/call-sites byte-identical, single-import-site invariant re-targeted and holds, seam preserved for S8. Opus code-review clean after 1 remediation round (Codex unavailable, user-authorized Opus-only)."
+    },
+    {
+      "ac_id": "AC-DEP-2",
+      "status": "met",
+      "evidence": "verified by verification-examiner pass on S7 (VQ-S7-006/008/012 all YES, confidence 1.0): make build under output:export succeeds, banner.worker.ts consumes the real package unchanged, grep of built chunks confirms zero sharp/Node-only deps in the client bundle, engine code appears exactly once (dedup'd worker chunk, absent from _app)."
+    },
+    {
+      "ac_id": "AC-THEME-1",
+      "status": "met",
+      "evidence": "verification-examiner pass on S8 (VQ-S8-002/003/004/007/010/012 YES or waived-per-Decider): brand-new light theme, zero shared-file edits beyond S1, auto-detected by folder-driven registry, frozen static fallback genuinely captured from real @rotheric/visuals output (re-verified non-degenerate after Decider-directed remediation)."
+    },
+    {
+      "ac_id": "AC-THEME-2",
+      "status": "met",
+      "evidence": "verification-examiner pass on S8 (VQ-S8-008/013 YES/PARTIAL-accepted): passes real WCAG contrast gate with margin; ships status:experimental; oversized static banner is a disclosed, S9-scoped condition now tracked via inline TODO comment."
+    },
+    {
+      "ac_id": "AC-UX-6",
+      "status": "met",
+      "evidence": "verification-examiner pass on S8 (VQ-S8-009/014 YES): 13/13 real-browser e2e tests green post-remediation, including hardened MV-1/MV-2 poll-based non-determinism and no-broken-banner checks against the re-frozen banner."
+    },
+    {
+      "ac_id": "AC-PERF-3",
+      "status": "met",
+      "evidence": "S9 (2026-07-06): render lite-preset knobs finalized ({ zones: 2, layers: 3, darkening: 1, halo: 0, splatter: 0, smoothness: 28 }, derived from reading tools/watercolor/svg.js's element-emission logic and confirmed over 30 real draws) \u2014 fixes <path> count at exactly 6 with zero <circle> elements, byte size 8.4-9.6 KB, inside the ~6-path/~8-15 KB target. aquarelle/manifest.ts's treatments.dynamic.banner.render updated; frozen static treatments.banner fallback re-captured at these exact knobs (8567 chars, replacing S8's oversized ~54.7KB no-render-override capture). Perf measurement: (a) real @rotheric/visuals renderSVG Node.js execution time at this preset, p50=0.11ms/p99=0.23ms over 200 real calls (3x faster than the old unbounded preset's p50=0.35ms/p99=1.15ms); (b) real headless-Chromium check (project's own @playwright/test install, not the sandbox's non-functional Playwright-MCP tool) under CDP CPU throttling at 1x and 4x (Lighthouse's standard low-end-mobile multiplier) showed the banner already swapped to a fresh generated SVG by the first post-navigation read at both rates, with zero main-thread longtask entries attributable to generation (consistent with off-thread Worker execution, structurally verified in S3/S5 and real-browser-confirmed for aquarelle by S8's MV-1/MV-2); (c) real-browser CLS for aquarelle (0.0046) sits at/below lego's (0.0066, a theme with a custom webfont but no dynamic banner), isolating the small measured CLS to ordinary font-loading rather than the banner swap \u2014 both far below the 0.1 'good' CWV threshold. Honest limitation (see S9 result.json): this sandbox has no reachable physical low-end mobile device; the 4x CDP throttle is a documented proxy per Lighthouse's own methodology, not a real-device measurement. status flipped 'experimental' -> 'stable' on this evidence. New regression-guard test added (app/tests/unit/themes/treatments.test.ts, 'S9 regression guard (AC-PERF-3)') asserting the manifest's actual render knobs keep real output within this band going forward \u2014 a mechanical safety net, not a substitute for this measurement. Architect-direct-invocation run (no lead-driven Stage-1/Stage-2 review in this session \u2014 see S9 result.json); full unit suite green (2068/2068, baseline 2068 includes S9's own 3 new tests over the 2065 S8 baseline), typecheck clean."
     }
   ],
-  "ac_closure_scope_note": "This run (Phase A only) closes the 20 Phase A ACs. Phase B (AC-DEP-1/2, AC-THEME-1/2, AC-UX-6, AC-PERF-3) and v2 (AC-THEME-3, AC-STRUCT-7) ACs are explicitly out of scope per spec.md Amendments and are not counted against this run's AC-closure gate.",
+  "ac_closure_scope_note": "Phase A (20 ACs) + Phase B (AC-DEP-1/2, AC-THEME-1/2, AC-UX-6, AC-PERF-3 - 6 ACs) now fully closed, 26/26 in-scope ACs met. v2 (AC-THEME-3, AC-STRUCT-7) remains explicitly out of scope per spec.md Amendments.",
   "gate_runs": [
     {
       "gate_id": "mutation",
-      "outcome": "skipped",
-      "skip_reason": "tool_failure (Stryker test-runner timeouts in this sandbox, 8/8 mutants reported Timeout status, no real coverage signal produced across two retry attempts); user instructed to stop at the intermediate result and proceed rather than continue remediation rounds, 2026-07-06"
+      "outcome": "fired_remediated",
+      "detail": "Phase B re-run (2026-07-06): 3 modules with real logic audited (useDynamicBanner.ts, dynamicVisuals.ts, schema.ts) - 2 real gaps found and closed (empty-static-banner passthrough test; StyleToken scheme enum missing 2/6 round-trip cases), both re-verified killed. Layout.tsx/aquarelle manifest.ts/registry.generated.ts correctly skipped by established convention (no jsdom harness / pure data / generated file). Supersedes Phase A's tool_failure (Stryker timeouts) residual."
     },
     {
       "gate_id": "e2e",
-      "outcome": "skipped",
-      "skip_reason": "Phase A change has zero live UI surface (no theme declares treatments.dynamic yet; that is Phase B S8 aquarelle) -- the 48-test Docker-based e2e suite would exercise nothing new for this epic. User-authorized skip 2026-07-06. Re-required before aquarelle (S8) ships."
+      "outcome": "fired_pass",
+      "detail": "Phase B re-run (2026-07-07), full 48-test-class gate via make test-e2e-all: fast bucket 63 passed (1.9m); groups/relay bucket 216 passed, 3 skipped (pre-existing, unrelated to this epic - profile-request/reactive/member-profiles tests), 0 failed (25.9m). Includes S8 aquarelle MV-1/MV-2 real-browser tests, all green. Supersedes Phase A skip (no live UI surface then - aquarelle now ships)."
     },
     {
       "gate_id": "pre_commit_review",
@@ -228,13 +291,6 @@
       }
     }
   ],
-  "mutation_gate_residuals": [
-    {
-      "module": "app/src (dynamic-theme-visuals touched files)",
-      "residuals": [
-        "tool_failure: Stryker timeouts, no usable mutation score produced in this sandbox"
-      ]
-    }
-  ],
-  "completed_at": "2026-07-06T02:15:00Z"
+  "mutation_gate_residuals": [],
+  "completed_at": "2026-07-07T09:15:00Z"
 }

@@ -11,10 +11,10 @@
 - **static fallback** — the required `treatments.banner` SVG string; the SSR/first-paint/no-JS image.
 - **adapter** — `dynamicVisuals.ts`, the sole module importing the ink package; owns the
   `randomizeParams()`+override call and forces size/format.
-- **stub** — the placeholder generator used in Phase A in place of `@ink/visuals` (returns a valid
+- **stub** — the placeholder generator used in Phase A in place of `@rotheric/visuals` (returns a valid
   self-contained SVG), swapped for the real dependency in Phase B.
-- **v0 gate** — Phase B stories are blocked until ink publishes a consumable v0 git tag (Q4 in
-  `proposals/dynamic-banner/ink-channel-log.md`).
+- **v0 gate** — satisfied 2026-07-06: ink published `visuals-v0.1.2` (see spec.md `## Amendments`,
+  2026-07-06 entry). Phase B stories were blocked until this tag existed; they are unblocked now.
 
 ## Known TAGs
 
@@ -195,13 +195,13 @@ off-thread, not just that it bundles correctly.*
 
 ---
 
-## Phase B — gated on ink v0 tag
+## Phase B — unblocked (ink's v0 published as `visuals-v0.1.2`)
 
-### S7 — Wire the real `@ink/visuals` git dependency
+### S7 — Wire the real `@rotheric/visuals` git dependency
 
-**AC-DEP-1** — The adapter MUST import the real ink package (git dependency, pinned tag), replacing the
-stub, with **no change** to the adapter's exported signature or to any downstream consumer (the seam
-held).
+**AC-DEP-1** — The adapter MUST import the real ink package (`@rotheric/visuals`, git dependency pinned
+to the `visuals-v0.1.2` tag), replacing the stub, with **no change** to the adapter's exported signature
+or to any downstream consumer (the seam held).
 
 **AC-DEP-2** — The ink package MUST bundle cleanly under `output: 'export'` (ESM) and be usable from the
 Web Worker; the production client bundle MUST NOT pull `sharp` or any Node-only dependency.

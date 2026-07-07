@@ -5,17 +5,11 @@ vm:
   cpus: 4
   memory: 8GiB
   disk: 20GiB
-  claude_code_router:
-    enabled: false
-    providers:
-    - minimax
-    overrides:
-      haiku: minimax/MiniMax-M2.7
-      sonnet: minimax/MiniMax-M2.7
   forward_env:
   - MINIMAX_API_KEY
   - OLLAMA_REVIEW_MODEL
   - OLLAMA_HOST
+  - INK_GITHUB_TOKEN:GITHUB_TOKEN
 mount:
   host: /Users/mrother/Projects/941design/quizzl
   guest: /Users/mrother/Projects/941design/quizzl
@@ -30,6 +24,7 @@ environment:
   c: null
   tools:
   - docker
+  - gh
   databases:
   - sqlite
   frameworks:

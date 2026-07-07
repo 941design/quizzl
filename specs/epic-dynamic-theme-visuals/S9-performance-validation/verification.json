@@ -1,0 +1,87 @@
+{
+  "story_id": "S9",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-06T17:45:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S9-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is aquarelle's status field flip from 'experimental' to its post-measurement value gated on an actual recorded measurement result (a real number: paths count, SVG byte size, dropped-frame count, CLS score) — or could the flip land as a load-bearing assumption ('it's probably fine') with no evidence artifact backing AC-PERF-3's 'MUST NOT be promoted from experimental until this is measured green' requirement?"
+    },
+    {
+      "question_id": "VQ-S9-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does this story touch only app/src/themes/aquarelle/manifest.ts's `status` field and `render` knob values, per architecture.md's Module Map row ('perf validation (S9, no new module)... touches only aquarelle/manifest.ts's status field and render knob values — no new files'), with no change to dynamicVisuals.ts, useDynamicBanner.ts, banner.worker.ts, or any other Phase A/B module?"
+    },
+    {
+      "question_id": "VQ-S9-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `perf validation` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S9-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Since real low-end-mobile-profile perf measurement cannot be exercised by this repo's no-jsdom/no-browser test suite, is there at minimum a structural test asserting the finalized `render` knob values in aquarelle/manifest.ts stay within the 'lite preset' target (~6 paths, ~8-15 KB SVG) as a regression guard against a future edit silently drifting the knob values back up — separate from, and not a substitute for, the real-device measurement itself?"
+    },
+    {
+      "question_id": "VQ-S9-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the finalized `render` knob value set fully resolve architecture.md's Open Questions entry ('the exact render perf-knob field set is left as a z.record escape hatch... S9 is where this finally gets resolved')? I.e., are the concrete field names and values now fixed and documented (not still an untyped escape hatch), matching spec.md's intent that the lite preset be knowable only once real perf measurement is in hand?"
+    },
+    {
+      "question_id": "VQ-S9-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Is the real-device measurement methodology (device/profile used, tool used to capture generation time, paint timing, dropped-frame count, and CLS) recorded somewhere durable (e.g. a code comment near the render knob values, epic-state.json's manual_validation ledger, or this run's retro) rather than only asserted in a chat transcript that will not survive to a future audit of why aquarelle's status was flipped?"
+    },
+    {
+      "question_id": "VQ-S9-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PERF-3",
+      "question": "For AC-PERF-3 ('on a low-end mobile profile, banner generation + paint MUST stay within an agreed budget — target: lite preset ~6 paths, ~8-15 KB SVG, generation off-thread, no dropped frames on the nav — and aquarelle MUST NOT be promoted from experimental until this is measured green'), show: (a) the finalized render knob values and status field change in aquarelle/manifest.ts; (b) the actual measurement evidence (device/profile, generation+paint timing, dropped-frame count, CLS reading) demonstrating the budget is met; and (c) confirmation this measurement was taken against the real @rotheric/visuals-backed generator and aquarelle's actual StyleToken (not the Phase A stub, and not a synthetic/mocked timing harness that would pass regardless of real generation cost)."
+    },
+    {
+      "question_id": "VQ-S9-008",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "epic-state.json's manual_validation ledger waived MV-1 ('confirm via a real browser that the nav banner shows a generated image post-hydration, and DevTools' computed style shows background-image resolving on the rendered DOM node') specifically because 'no Phase A theme declares treatments.dynamic yet' and flagged it 're-raised as a hard gate before S8 ships.' Now that aquarelle (S8) exists and declares treatments.dynamic.banner, has MV-1 actually been checked in a real browser against aquarelle — not left waived by inertia — with a recorded pass/fail outcome update to the manual_validation ledger?"
+    },
+    {
+      "question_id": "VQ-S9-009",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "epic-state.json's manual_validation ledger similarly waived MV-2 (S5's cancelled-flag/Worker-termination guard against a stale result applying after a theme change or unmount) for the same reason — no dynamic-declaring theme existed to exercise it. Now that aquarelle exists, has MV-2 been checked for real (rapidly toggling between aquarelle and a different theme mid-generation, confirmed via DevTools that no stale SVG is applied and no Worker threads accumulate), with the ledger updated from 'waived' to a real 'satisfied'/'failed' outcome — rather than this precedent being silently left unresolved through Phase B's completion?"
+    },
+    {
+      "question_id": "VQ-S9-010",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-PERF-3",
+      "question": "The real-headless-Chromium CDP CPU-throttle measurement (1x and 4x Emulation.setCPUThrottlingRate) found the nav banner's backgroundImage already differed from the known static value on the VERY FIRST post-navigation read at both throttle rates — i.e., generation-to-swap completed faster than the measurement's own polling resolution (a single Playwright evaluate() round-trip), so no positive swap-latency number in milliseconds was directly observable in-browser. Is 'swap completed before the first observable read, at both 1x and 4x CPU throttle' adequate evidence for 'no measurable jank', or does the 'no measurable jank' claim need finer-grained instrumentation (e.g., performance.mark calls bracketing the Worker postMessage round-trip, injected via page.addInitScript, independent of app source changes) to produce an actual sub-millisecond-resolution generation-duration number rather than resting on the browser-side proxy plus the separately-measured pure-Node.js renderSVG timing (p50 0.11ms / p99 0.23ms at 1x, scaled to a hypothetical p99 ~0.93ms at 4x)?"
+    },
+    {
+      "question_id": "VQ-S9-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The finalized render knob set relies on setting `darkening: 1` specifically to avoid an UNDOCUMENTED engine behavior (tools/watercolor/svg.js duplicates a multiply-blend zone's path group into two <g> wrappers when `idx > 0 && darkening < 1`), discovered empirically while tuning (not stated anywhere in @rotheric/visuals's README or index.d.ts, both of which describe `darkening` only as a 0-1 opacity-style parameter with no mention of path-count side effects). Does this create a fragile, undocumented dependency on the engine's internal implementation that a future @rotheric/visuals version bump could silently break (e.g. if a later version changes the duplication condition or removes it), and should this be flagged upstream to the ink/rotheric maintainers as a candidate for either documenting the interaction in the public contract or exposing an explicit 'single-pass' knob so consumers aren't relying on an internal implementation detail for a path-count guarantee?"
+    },
+    {
+      "question_id": "VQ-S9-012",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The no-CLS-attributable-to-the-banner claim rests on comparing aquarelle's measured real-browser CLS (0.0046) against calm's (0, no custom font, no dynamic banner) and lego's (0.0066, custom webfont via fontLoad, but NO dynamic banner) — reasoning that aquarelle's CLS sits in the same tiny range as (and below) a theme with a custom font but no banner, so the observed CLS is attributable to font-loading rather than the banner swap. Is this indirect A/B comparison across different themes a sufficiently rigorous causal isolation, given calm/lego/aquarelle also differ in palette/typography beyond just font-loading and banner presence — or would a stronger, more direct proof have required disabling `treatments.dynamic.banner` on a COPY of aquarelle's own manifest (isolating exactly one variable: banner present vs absent, same theme, same font) and re-measuring, which this session did not do?"
+    },
+    {
+      "question_id": "VQ-S9-013",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The frozen static treatments.banner fallback was chosen as 'the middle-sized of 3 real samples at the finalized knobs' (mirroring S8's own precedent of avoiding an outlier), per the manifest's header comment — but unlike S8's remediation note (which recorded the exact prior/replacement byte sizes, ~16.5KB vs ~54.7KB), this capture's header comment states only an approximate '~8.6KB' rather than the frozen sample's exact byte length. Is an approximate size sufficient for future auditability (e.g., if a maintainer regenerates via the documented repro command and wants to confirm they landed on a comparably representative sample), or should the header comment additionally record the frozen sample's exact character length so a future regeneration attempt has a precise value to compare against rather than only the qualitative '~8.6KB, middle of 3 samples' description?"
+    }
+  ]
+}

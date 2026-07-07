@@ -26,6 +26,7 @@
     "@internet-privacy/marmot-ts": "^0.5.1",
     "@noble/post-quantum": "^0.5.2",
     "@nostr-dev-kit/ndk": "3.0.3",
+    "@rotheric/visuals": "git+https://github.com/rotheric/ink.git#visuals-v0.1.2",
     "@scure/bip39": "^1.4.0",
     "@tiptap/extension-link": "^3.20.0",
     "@tiptap/pm": "^3.20.0",
