@@ -236,8 +236,16 @@ strictly exceeds the tombstone's `rev`.
   oldest) and TTL'd, reusing the app's existing buffered-state bound rather than a new magic
   number — name the constant in implementation. (Edit-marked kind-5s are discarded on receipt
   per §2.5 and never enter the buffer.) Expiry semantics differ by signal type:
-  - A pending **delete** whose target never arrives is simply dropped — the target never
-    rendered, so nothing leaks.
+  - A pending **delete** whose target never arrives within the buffer window does **not**
+    silently drop its effect (that would violate the feature's core promise, §2.8). On
+    expiry it **persists a lightweight, content-free tombstone marker** keyed by the target
+    id (id-only — no row, no content), so a later-arriving original for that id is still
+    suppressed and never renders (AC-ORDER-4). This is symmetric with the edit branch's
+    materialize-in-place on expiry: both branches persist their effect rather than dropping
+    it. The persisted delete-marker set is **cap-bounded** (same cap discipline as AC-ORDER-2)
+    but is **NOT** TTL-expired: a marker's whole purpose is durable suppression of a retracted
+    message, so expiring it would un-suppress a message the author deleted. Markers are evicted
+    only under cap pressure (oldest first), never by age.
   - A pending **edit-marked replacement** whose original never arrives is, on expiry,
     **materialized as slot X** (keyed by its `["e", X, "", "edit"]` original id, retaining its
     `rev`), rendered as an ordinary message — *not* under its own rumor id. This is essential:
@@ -269,7 +277,7 @@ strictly exceeds the tombstone's `rev`.
 | **D11** | Edit anchor across repeated edits. | Edits always reference the **original** message id (stable slot anchor); reactions survive edits. |
 | **D12** | Revision ordering. | Every signal carries an explicit **`rev` clock** (real wall-seconds). A slot renders its **max-`rev`** signal; ties resolve **delete-wins**. Required because the replacement's wire `created_at` is pinned to the original and cannot double as the clock. |
 | **D13** | Edit is replacement-authoritative on Few clients. | A Few client applies the **edit-marked replacement alone** as a complete edit; the companion kind-5 is ignored by Few clients and exists only for non-Few degradation. Makes edit publish non-atomic-safe (a failed kind-5 never becomes a spurious delete). A **lone unmarked kind-5 is always a delete**. |
-| **D14** | Non-Few degradation for repeated edits. | An edit/delete kind-5 `e`-tags the original **plus every prior replacement id**, so a non-Few NIP-17 client hides all superseded versions instead of accumulating them. |
+| **D14** | Non-Few degradation for repeated edits. | An edit/delete kind-5 `e`-tags the original **plus any prior replacement ids the sender still retains**. Scoped to best-effort by the 2026-07-07 product decision: Few's in-place storage retains none, so it e-tags the original alone, and superseded copies may linger on non-Few clients (§4.8, AC-INTEROP-2). Few clients reconcile by the original id (AC-EDIT-6). |
 | **D15** | Equal-`rev` edit/edit tiebreak. | Resolved by **lexicographically higher replacement rumor id** (content-independent) so two same-second edits from two of the author's devices converge identically on every recipient. |
 | **D16** | `rev` monotonicity. | Sender clamps `rev = max(wallSeconds, slot's last-known rev + 1)`, per-slot and self-healing, so a future-skewed device cannot make a slot permanently unretractable by the author's own later action. |
 
@@ -408,8 +416,14 @@ accepted v1 limitation (§7), surfaced here so it is a decision rather than an o
 - **AC-DEL-7**: A standalone delete's kind-5 MUST NOT carry the `"edit"` marker; a lone
   unmarked kind-5 MUST be interpreted as a delete, and an `edit`-marked kind-5 MUST be ignored
   by a Few client (AC-ORDER-3 depends on this distinction).
-- **AC-DEL-8**: A delete/edit kind-5 MUST `e`-tag the original id **and** every prior
-  replacement id of the slot, so a non-Few NIP-17 client hides all superseded versions (D14).
+- **AC-DEL-8**: A delete/edit kind-5 MUST `e`-tag the original id, **plus** any prior
+  replacement ids of the slot **that the sender still retains**. Because Few uses in-place
+  storage with no retained revision history (§7), a Few sender retains **no** prior replacement
+  ids, so in practice the signal e-tags the original id alone. This is a **best-effort** D14
+  degradation aid for non-Few clients, not a guarantee (§4.8, AC-INTEROP-2): a message edited
+  more than once and then deleted may leave its superseded replacement copies visible on a
+  non-Few NIP-17 client. Few clients are unaffected (they reconcile by the original id alone,
+  AC-EDIT-6). See the 2026-07-07 amendment for the product decision behind this scoping.
 
 ### Time (no limit)
 - **AC-TIME-1**: Edit and delete MUST be offered regardless of the target message's age; no
@@ -427,7 +441,9 @@ accepted v1 limitation (§7), surfaced here so it is a decision rather than an o
   `created_at`, and whose tags include `["e", <originalId>, "", "edit"]` and `["rev", <real
   Unix seconds>]`; **plus** (b) a companion `edit`-marked kind-5 (§2.4) for non-Few
   degradation. The `created_at` equality is asserted on the wire rumor field, not the
-  millisecond `ChatMessage.createdAt` storage value.
+  millisecond `ChatMessage.createdAt` storage value. Across a repeated-edit chain, "the
+  original rumor's `created_at`" always means the **first** message's `created_at` (the stable
+  slot anchor, §2.1), never the immediately-prior edit's.
 - **AC-EDIT-5**: An edit that would produce empty content MUST be disallowed (the user is
   directed to delete instead).
 - **AC-EDIT-6**: Repeated edits MUST reference the original message id (stable anchor); the
@@ -443,8 +459,17 @@ accepted v1 limitation (§7), surfaced here so it is a decision rather than an o
   user.
 - **AC-AUTH-2**: On receive, a delete/edit signal MUST be honored only if its author pubkey
   matches the original message's author pubkey; a signal from any other author MUST be
-  ignored. (DM: verified via the seal's real-key signature; group: via the MLS-authenticated
-  rumor pubkey.)
+  ignored. **DM: fully enforced** — the pubkey is cryptographically bound via the seal's
+  real-key signature (`unwrapAndOpen`). **Group: best-effort (group-member-attested)** — the
+  signal is authorized on its self-asserted inner rumor pubkey, but marmot-ts 0.5.1 does **not**
+  expose the MLS-authenticated sender leaf credential for application messages (verified against
+  ts-mls source; see the 2026-07-07 amendment and `BACKLOG.json#marmot-ts-0-5-1-drops`), so this
+  pubkey is NOT cryptographically bound to the sending member. MLS still guarantees the sender is
+  a **current group member** (non-members cannot forge anything), so the residual is a malicious
+  in-group member impersonating another member — the **same trust model Few already applies to
+  group kind-9 messages and kind-7 reactions**, not a new exposure. A relay-facing kind-5 is never
+  used (§4.3), and the DM path is unaffected. The full MLS-identity binding is tracked as an
+  upstream marmot-ts fix.
 
 ### Storage & dedup
 - **AC-STORE-1**: For an identical set of signals delivered in any order, the DM and group
@@ -462,16 +487,31 @@ accepted v1 limitation (§7), surfaced here so it is a decision rather than an o
   arrives (NOT discarded).
 - **AC-ORDER-2**: Pending unresolved signals MUST be bounded by an explicit cap and TTL (a
   named constant, reusing the app's existing buffered-state bound — not an unstated value).
+  The buffer MUST be **keyed per unresolved target id**, collapsing to the **max-`rev`** pending
+  signal per id on insert (not storing every historical signal for that id); this keeps
+  eviction from being an arrival-order accident that could drop a higher-priority pending
+  signal under buffer pressure while a lower-priority one survives. Eviction under the cap
+  removes oldest **targets**, not raw signals.
 - **AC-ORDER-3**: Reconciliation MUST be order-independent: the slot's rendered state MUST
   equal the outcome of its **highest-`rev`** signal for every arrival order of {original,
   delete, edit-replacement}. Ties MUST resolve deterministically: **delete-vs-edit at equal
   `rev` → delete wins**; **edit-vs-edit at equal `rev` → higher replacement rumor id wins**
   (D15). No arrival order or multi-device split may produce divergent final content.
-- **AC-ORDER-4**: On buffer expiry, a pending **delete** MUST be dropped silently, while a
-  pending **edit-marked replacement** whose original never arrived MUST be **materialized under
-  its original (`e`-tagged) slot id** — retaining its `rev`, rendered as an ordinary message
+- **AC-ORDER-4**: On buffer expiry, a pending **delete** whose target never arrived MUST
+  persist a **content-free tombstone marker** keyed by the target id (id-only, no row) — so a
+  later-arriving original for that id is still suppressed and MUST NOT render. A pending
+  **edit-marked replacement** whose original never arrived MUST be **materialized under its
+  original (`e`-tagged) slot id** — retaining its `rev`, rendered as an ordinary message
   without the "(edited)" marker — so a later original or delete for that id reconciles normally
-  instead of forming a duplicate slot.
+  instead of forming a duplicate slot. Both branches persist their effect on expiry; neither
+  silently drops it. The persisted delete-marker set is **cap-bounded** (same cap as the pending
+  buffer, AC-ORDER-2) but is **NOT** TTL-expired — a marker is durable suppression of a retracted
+  message, so ageing it out would resurrect that message; markers are evicted only under cap
+  pressure (oldest first), never by age. Reconciliation is additionally **self-healing**: a
+  pending signal or marker whose target row already exists is applied to that row directly
+  (deferred authorization is satisfiable from the row's own author), so a missed resolve call or
+  a crash between append and resolve converges on the next signal or thread-open sweep rather
+  than diverging permanently.
 - **AC-ORDER-5**: `rev` MUST be sender-clamped to `max(wallSeconds, slot's last-known rev + 1)`
   (D16); a signal's slot MUST be resolvable by matching any of its `e`-tagged ids against the
   slot's original id or any stored replacement id (§2.5).
@@ -491,10 +531,10 @@ accepted v1 limitation (§7), surfaced here so it is a decision rather than an o
   file remaining fetchable is a documented limitation, not a defect.
 
 ### i18n `[ADDED]`
-- **AC-I18N-1**: All new user-facing strings (edit/delete actions, "editing" state, cancel,
+- **AC-INTL-1**: All new user-facing strings (edit/delete actions, "editing" state, cancel,
   delete confirmation, "(edited)") MUST have both `en` and `de` entries in
   `app/src/lib/i18n.ts` and MUST be consumed via `useCopy()`.
-- **AC-I18N-2**: No new user-visible string may be hardcoded in a component.
+- **AC-INTL-2**: No new user-visible string may be hardcoded in a component.
 
 ### Interop honesty `[ADDED]`
 - **AC-INTEROP-1**: No UI copy may imply a hard/enforced deletion (e.g. "erased",
@@ -508,7 +548,11 @@ accepted v1 limitation (§7), surfaced here so it is a decision rather than an o
   updates in place with "(edited)").
 - **MV-2**: DM delete sent from Few, observed on a NIP-17 non-Few client (e.g. Amethyst),
   hides the original (best-effort interop check; degradation for edit acceptable).
-- **MV-3**: Group delete/edit sent from Few is honored by a second Few group member.
+- **MV-3**: Group delete/edit sent from Few is honored by a second Few group member. **(Conditional
+  / known-limitation)** — this validates the honored-by-cooperating-Few behavior only; it does NOT
+  assert cryptographic sender authentication, which is a documented upstream gap (AC-AUTH-2 group
+  clause, `BACKLOG.json#marmot-ts-0-5-1-drops`). A forged-pubkey resistance check is out of scope
+  until the upstream marmot-ts fix lands.
 - **MV-4**: A delete signal that arrives before its target message (simulated ordering)
   results in the message never rendering (pending-apply works).
 - **MV-5**: Reactions on a message survive an edit and vanish on a delete.
@@ -535,10 +579,13 @@ accepted v1 limitation (§7), surfaced here so it is a decision rather than an o
 - **Shared reconciliation:** a new function analogous to `applyInboundRumor`
   (`app/src/lib/reactions/api.ts:301`) consumed by both transports.
 - **Storage:** extend `ChatMessage` (`app/src/lib/marmot/chatPersistence.ts:16-30`) with a
-  tombstone flag, an edited flag, and the slot's current `rev`. Keep `appendMessage`
-  upsert-by-id semantics **but** guard it so a re-delivered original (no `rev`) cannot clobber
-  an edited/tombstoned slot (AC-STORE-3); do not reuse the physical `removeMessages` (self-heal
-  only) for user delete.
+  tombstone flag, an edited flag, and the slot's current `rev`. Note the current
+  `appendMessage` (`chatPersistence.ts:244-262`) is **insert-if-absent** (it early-returns on a
+  known id and never overwrites), *not* an upsert — so the update-in-place path an edit needs
+  (overwrite a slot's content by original id) is **new code**, not a guard bolted onto existing
+  overwrite behavior. Add (a) that update-in-place path, and (b) the AC-STORE-3 clobber-guard so
+  a re-delivered original (no `rev`) cannot revert an edited/tombstoned slot. Do not reuse the
+  physical `removeMessages` (self-heal / ADR-001-002 purge path only) for user delete.
 - **Rendering:** `app/src/components/chat/ChatBox.tsx` — "(edited)" near the timestamp
   (`:510-524`), edit/delete actions in the per-bubble hover area (`:572-595`), filter
   tombstoned rows out of render (mirror reaction `removed` handling).
@@ -568,7 +615,92 @@ accepted v1 limitation (§7), surfaced here so it is a decision rather than an o
 
 ## Constrained by ADRs
 - **ADR-003** (last-writer-wins for reference-based mutations) — governs the concurrency
-  resolution in §4.7 / AC-ORDER-3.
+  resolution in §4.7 / AC-ORDER-3. ADR-003's decision content was backfilled on 2026-07-07;
+  this epic is now a listed consumer in its `Affects:` line.
 - **ADR-001 / ADR-002** (DM-history purge on losing shared-group membership; walled-garden
   posture) — adjacent deletion semantics; this feature's tombstones must coexist with those
   existing purge paths without conflict.
+- **ADR-006** (group-member-attested authorization for MLS application-message mutations) —
+  governs AC-AUTH-2's group clause: group delete/edit is authorized on the self-asserted inner
+  rumor pubkey, not a cryptographic binding to the MLS-authenticated sender leaf, because
+  marmot-ts 0.5.1 drops that leaf for application messages. Curator-promoted 2026-07-07 from
+  the S5-review product decision recorded in `## Amendments` below.
+
+## Amendments
+
+### 2026-07-07 — spec-validation resolutions (pre-implementation)
+Resolved during `/base:feature` Step 2 validation:
+- **Delete on buffer expiry (§2.8 / AC-ORDER-4)** — changed from "silently dropped" to
+  "persist a content-free tombstone marker keyed by target id." A pending delete whose target
+  first arrives *after* the buffer window previously rendered the message as un-retracted,
+  contradicting the feature's core promise (§2.8). Now symmetric with the edit branch's
+  materialize-on-expiry: both persist their effect. The marker set is bounded by the same
+  cap/TTL as the pending buffer.
+- **Buffer eviction (AC-ORDER-2)** — clarified the pending buffer is keyed per target id,
+  collapsing to the max-`rev` signal per id, evicting oldest *targets* (not raw signals), so
+  buffer pressure cannot drop a higher-priority pending signal as an arrival-order accident.
+- **AC-EDIT-4** — clarified "the original rumor's `created_at`" means the *first* message's
+  `created_at` across a repeated-edit chain, never the prior edit's.
+- **§6 storage pointer** — corrected: current `appendMessage` is insert-if-absent, not upsert;
+  the update-in-place path an edit needs is new code, not a guard on existing overwrite.
+- **ADR-003** — backfilled from a template stub to real decision content (the LWW substance was
+  already stated in §4.7); citation is now load-bearing rather than hollow.
+### 2026-07-07 — AC-AUTH-2 group clause scoped to best-effort (product decision, during S5 review)
+The S5 review found AC-AUTH-2's group clause ("via the MLS-authenticated rumor pubkey") is not
+satisfiable in-app. Verified against ts-mls/marmot-ts 0.5.1 source (marmot-researcher): the library
+returns only the decrypted `{message: Uint8Array}` for an application message and **drops the MLS
+sender leaf credential** (proposals retain it; `unprotectPrivateMessage` is not exported), so the
+inner rumor's `pubkey` cannot be compared to the authenticated sender. The Marmot protocol spec
+itself requires this check (`group-messaging.md:43`) — it is an unmet upstream requirement.
+**Consequence:** a malicious current group member can forge the inner pubkey to impersonate another
+member's delete/edit. **Mitigating facts:** MLS still bars non-members entirely; this is the *same*
+trust model Few already applies to group kind-9 messages and kind-7 reactions (a member can already
+impersonate another member's message/reaction today); and DMs are fully secure (seal signatures).
+**Product-owner decision: ship group edit/delete with the documented group-member-attested trust
+model** rather than block the group half on an external library change. AC-AUTH-2's group clause is
+amended accordingly; a BACKLOG finding (`marmot-ts-0-5-1-drops`) tracks the upstream fix (surface
+the sender leaf, verify `rumor.pubkey === senderCredentialPubkey` in `applicationRumorDispatcher`
+for all kinds — which also closes the pre-existing kind-9/kind-7 impersonation hole); and MV-3 is
+downgraded to a conditional/known-limitation check. A `getGroupMembers` membership check was
+considered and rejected: it does not stop a member impersonating another *member* (the actual
+threat) and would add a false sense of security.
+
+### 2026-07-07 — AC-DEL-8 scoped to best-effort (product decision, during S4 review)
+The S4 review found AC-DEL-8's "e-tag **every** prior replacement id" is structurally unmet:
+Few's in-place storage (§7, no revision history) retains no prior replacement ids, and adding a
+per-slot id chain would reopen the hardened S3 seam and thread through both transports solely to
+improve a **non-Few** degradation path that no automated gate verifies. **Product-owner decision:
+cross-client support is not a current priority; optimize for Few-side implementation simplicity.**
+AC-DEL-8 (and D14) are therefore scoped to "the original id plus any prior replacement ids the
+sender still retains" — for a Few sender, the original id alone. Consequence: a message edited
+more than once then deleted may leave superseded replacement copies visible on a non-Few NIP-17
+client. This sits within the already-authorized best-effort/unverified non-Few envelope (§4.8,
+AC-INTEROP-2); Few clients are unaffected (they reconcile by the original id alone). The
+`priorReplacementIds = []` in the wire builders is correct-by-design under this decision.
+
+### 2026-07-07 — S3 review resolutions (reconciliation crash-safety)
+Resolved during the S3 (reconciliation core) dual-model review:
+- **Delete markers are cap-bounded, NOT TTL-expired (§2.8 / AC-ORDER-4)** — the earlier "same
+  cap/TTL as the pending buffer" wording was imprecise. A marker's purpose is durable
+  suppression; TTL-expiring it would resurrect a retracted message. Markers are evicted only
+  under cap pressure. The *pending buffer* keeps its cap **and** TTL (its entries are unresolved
+  signals, not yet durable effects); only the post-expiry *marker set* is cap-only.
+- **Reconciliation is self-healing (§2.8 / AC-ORDER-4)** — a pending signal or delete-marker
+  whose target row already exists is applied to that row directly (deferred authorization is
+  satisfiable from the row's own author). This converts a missed `resolvePendingSignalsForSlot`
+  call or a crash between append and resolve from a *permanent* divergence into eventual
+  consistency on the next signal or thread-open sweep. It also downgrades the S4/S5
+  resolve-after-append call from load-bearing to an optimization (still required for prompt
+  application, but no longer the sole path to correctness).
+- **Poisoned-clock residual (AC-ORDER-3)** — order-independence is guaranteed for well-formed,
+  sanely-clocked signals. Under an adversarial/broken *author* device emitting distinct
+  far-future revs, the ingest rev-cap (`wallSeconds + MAX_REV_SKEW`) can map them onto
+  processing-time order, a bounded best-effort divergence in that regime only (AC-AUTH-2 still
+  prevents cross-user abuse). Documented as an accepted residual — a fully deterministic clock
+  is impossible with self-reported timestamps.
+
+### 2026-07-07 — pre-implementation resolutions (continued)
+- **AC tag rename `I18N` → `INTL`** — the two internationalization ACs were renamed
+  `AC-I18N-1/2` → `AC-INTL-1/2`. Purely mechanical: the story schema's AC-ID pattern permits
+  only alphabetic tags, and `I18N` contains a digit. No behavioral change; the `i18n.ts`
+  filename and all prose references are unaffected.

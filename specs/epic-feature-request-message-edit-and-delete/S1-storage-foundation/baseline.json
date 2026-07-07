@@ -1,0 +1,21 @@
+{
+  "story_id": "S1",
+  "captured_at": "2026-07-07T13:00:00Z",
+  "test": {
+    "command": "make test-unit",
+    "status": "PASS",
+    "test_files": 122,
+    "tests": 2075
+  },
+  "lint": {
+    "command": "npm run lint (next lint)",
+    "status": "NO_LINT",
+    "note": "No .eslintrc*/eslint.config* present; `next lint` prompts an interactive first-run ESLint setup wizard rather than running an existing config. Treated as NO_LINT per the pre-existing-debt tolerance — not introduced or fixed by this story."
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit -p tsconfig.json",
+    "status": "clean",
+    "errors": 0
+  },
+  "environment_note": "app/node_modules was absent at task start (platform-stamp guard triggered a reinstall). `npm ci` failed on the git+ssh @rotheric/visuals dependency (no SSH key for github.com in this sandbox). Worked around with a per-process (non-persistent) git config override via GIT_CONFIG_COUNT/GIT_CONFIG_KEY_0/GIT_CONFIG_VALUE_0 env vars rewriting the ssh:// URL to an authenticated https:// URL using the already-authenticated `gh` CLI token, scoped only to the `npm ci` child process — no git config file was written. node_modules now installed and platform-stamped; make test-unit passes."
+}

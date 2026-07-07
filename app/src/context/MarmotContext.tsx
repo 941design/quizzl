@@ -41,6 +41,7 @@ import { loadKnownPeers, rememberKnownPeers, knownPeersMigrationComplete, markKn
 import { MAINTAINER_PUBKEYS_HEX } from '@/src/config/maintainer';
 import { buildDispatcher } from '@/src/lib/marmot/registerHandlers';
 import { applyInboundRumor } from '@/src/lib/reactions/api';
+import { applyDeleteEditSignal, resolvePendingSignalsForSlot } from '@/src/lib/messageEdits/api';
 import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
 import { clearGroupMedia } from '@/src/lib/marmot/mediaPersistence';
 import { membersChanged } from '@/src/lib/marmot/memberGuard';
@@ -1060,6 +1061,10 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             loadMessages,
             applyInboundRumor,
             setReactionsVersion,
+            // Delete/edit (S5) — reuses setChatVersion (already passed above)
+            // per architecture.md seam #3's explicit reuse allowance.
+            applyDeleteEditSignal,
+            resolvePendingSignalsForSlot,
             // Profile
             mergeMemberProfile,
             notifyProfileObserved,

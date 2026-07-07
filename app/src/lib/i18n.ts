@@ -214,6 +214,7 @@ type Copy = {
     chatLoading: string;
     chatEmpty: string;
     chatPlaceholder: string;
+    chatSend: string;
     chatNewMessages: string;
     chatJustNow: string;
     chatMinutesAgo: (minutes: number) => string;
@@ -228,6 +229,23 @@ type Copy = {
     imageDownload: string;
     imageTooLarge: string;
     imageRemove: string;
+    /**
+     * Message edit/delete (epic-feature-request-message-edit-and-delete, S6).
+     * Neutral copy only — no "erased"/"deleted for everyone" language and no
+     * claim that a non-Few client honors delete/edit as a guarantee
+     * (AC-INTEROP-1, AC-INTEROP-2).
+     */
+    msgEditAction: string;
+    msgDeleteAction: string;
+    msgEditingBadge: string;
+    msgEditSave: string;
+    msgEditEmptyHint: string;
+    msgDeleteConfirmPrompt: string;
+    msgDeleteConfirmButton: string;
+    msgEditedMarker: string;
+    listPreviewPhoto: string;
+    listPreviewEmpty: string;
+    listPreviewStructured: string;
     pendingInvitations: {
       heading: string;
       acceptBtn: string;
@@ -683,6 +701,7 @@ const copy: Record<LanguageCode, Copy> = {
       chatLoading: 'Loading messages...',
       chatEmpty: 'No messages yet. Say hello!',
       chatPlaceholder: 'Type a message...',
+      chatSend: 'Send message',
       chatNewMessages: 'New messages',
       chatJustNow: 'just now',
       chatMinutesAgo: (minutes: number) => `${minutes}m ago`,
@@ -697,6 +716,17 @@ const copy: Record<LanguageCode, Copy> = {
       imageDownload: 'Download',
       imageTooLarge: 'Image is too large',
       imageRemove: 'Remove image',
+      msgEditAction: 'Edit',
+      msgDeleteAction: 'Delete',
+      msgEditingBadge: 'Editing message',
+      msgEditSave: 'Save edit',
+      msgEditEmptyHint: "A message can't be empty — delete it instead.",
+      msgDeleteConfirmPrompt: 'Delete this message?',
+      msgDeleteConfirmButton: 'Yes, delete',
+      msgEditedMarker: '(edited)',
+      listPreviewPhoto: 'Photo',
+      listPreviewEmpty: 'No messages yet',
+      listPreviewStructured: 'New activity',
       pendingInvitations: {
         heading: 'Pending Invitations',
         acceptBtn: 'Accept',
@@ -1139,6 +1169,7 @@ const copy: Record<LanguageCode, Copy> = {
       chatLoading: 'Nachrichten werden geladen...',
       chatEmpty: 'Noch keine Nachrichten. Sag Hallo!',
       chatPlaceholder: 'Nachricht eingeben...',
+      chatSend: 'Nachricht senden',
       chatNewMessages: 'Neue Nachrichten',
       chatJustNow: 'gerade eben',
       chatMinutesAgo: (minutes: number) => `vor ${minutes} Min.`,
@@ -1153,6 +1184,17 @@ const copy: Record<LanguageCode, Copy> = {
       imageDownload: 'Herunterladen',
       imageTooLarge: 'Bild ist zu groß',
       imageRemove: 'Bild entfernen',
+      msgEditAction: 'Bearbeiten',
+      msgDeleteAction: 'Löschen',
+      msgEditingBadge: 'Nachricht wird bearbeitet',
+      msgEditSave: 'Änderung speichern',
+      msgEditEmptyHint: 'Eine Nachricht darf nicht leer sein — lösche sie stattdessen.',
+      msgDeleteConfirmPrompt: 'Diese Nachricht löschen?',
+      msgDeleteConfirmButton: 'Ja, löschen',
+      msgEditedMarker: '(bearbeitet)',
+      listPreviewPhoto: 'Foto',
+      listPreviewEmpty: 'Noch keine Nachrichten',
+      listPreviewStructured: 'Neue Aktivität',
       pendingInvitations: {
         heading: 'Ausstehende Einladungen',
         acceptBtn: 'Annehmen',

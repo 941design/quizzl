@@ -1,0 +1,142 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "modules_touched": [
+    "Wire builders"
+  ],
+  "remediation_rounds": 1,
+  "files_created": [
+    "app/src/lib/messageEdits/rumor.ts",
+    "app/tests/unit/messageEdits/rumor.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/messageEdits/rumor.ts",
+    "app/tests/unit/messageEdits/rumor.test.ts"
+  ],
+  "implementation_summary": {
+    "delete_edit_rumor_kind": "Exported DELETE_EDIT_RUMOR_KIND = 5 constant, mirroring reactions/rumor.ts's REACTION_KIND=7 module-local pattern but exported per this story's explicit instruction (S3/S4/S5 all need it to classify inbound/outbound kind-5 rumors).",
+    "build_delete_rumor": "buildDeleteRumor(originalId, priorReplacementIds[], targetKind, rev, selfPrivKeyHex) -> unmarked kind-5. Tags: [\"e\",originalId], one [\"e\",id] per prior replacement (AC-DEL-8), [\"k\",String(targetKind)]. created_at = rev directly (a delete's own created_at IS its rev). Never emits the [\"e\",...,\"\",\"edit\"] marker (AC-DEL-7 substrate).",
+    "build_edit_replacement_rumor": "buildEditReplacementRumor(originalId, originalCreatedAt, content, targetKind, rev, selfPrivKeyHex) -> kind-14 (targetKind=14) or kind-9 (targetKind=9). Wire created_at FIELD (seconds) is pinned to originalCreatedAt (the caller-supplied FIRST message's created_at across the whole edit chain, AC-EDIT-4/AC-EDIT-6) and is never derived from rev. rev rides separately as [\"rev\",String(rev)] alongside [\"e\",originalId,\"\",\"edit\"].",
+    "build_edit_marked_companion_kind5": "buildEditMarkedCompanionKind5(originalId, priorReplacementIds[], targetKind, rev, selfPrivKeyHex) -> marked kind-5 for non-Few degradation only. Same e-tag chain as buildDeleteRumor (original + every prior replacement, plus k-tag) with an appended [\"e\",originalId,\"\",\"edit\"] marker \u2014 the original id therefore appears both bare and marked, which is intentional (see design_decisions).",
+    "clamp_rev": "clampRev(wallClockSeconds, lastKnownRevForSlot) -> max(safeWall, safeLast+1), where safeWall/safeLast are floor-substituted (1 / 0 respectively) for any non-finite or out-of-range input BEFORE the max is taken \u2014 guarantees a return value that is always finite and >= 1, matching the S1 storage clobber-guard's 'rev>=1 == real signal' convention exactly (D16, AC-ORDER-5).",
+    "shared_id_discipline": "All three rumor-returning builders funnel through a private finalizeRumor(kind, content, tags, created_at, selfPrivKeyHex) helper that derives pubkey via getPublicKey and computes the canonical id via getEventHash before returning \u2014 mirrors reactions/rumor.ts's build-once-canonical-id discipline so the optimistic local id equals what the transport (sealAndWrap for DM, sendRumorSafe for group) will eventually publish, as long as the same privkey/content/tags/created_at/kind are used downstream.",
+    "input_guards": "Each builder throws synchronously on structurally invalid input (empty originalId/content, non-string priorReplacementIds entries, targetKind outside {9,14}, non-finite/negative originalCreatedAt, rev < 1 or non-finite, empty selfPrivKeyHex) \u2014 mirrors buildReactionRumor's own throw-on-invalid-input style."
+  },
+  "design_decisions": [
+    {
+      "decision": "Added a trailing selfPrivKeyHex: string parameter to buildDeleteRumor, buildEditReplacementRumor, and buildEditMarkedCompanionKind5, beyond what the frozen DeleteEditRumor seam type in stories.json#seams literally lists.",
+      "rationale": "UnsignedRumor.pubkey (app/src/lib/directMessages.ts:25-32) is a mandatory field, and getEventHash's canonical NIP-01 id serialization includes it \u2014 the listed seam shorthand (originalId/priorReplacementIds/targetKind/rev, or originalId/originalCreatedAt/content/targetKind/rev) has no parameter that can supply it, so as literally written the contract cannot produce a valid UnsignedRumor. This is a genuine gap in the frozen seam shorthand, not a naming/placement choice. Resolved by direct precedent already in the codebase: reactions/rumor.ts's buildReactionRumor takes exactly this parameter, and BOTH existing call sites \u2014 DM's publishDirectReaction (directMessages.ts:404) and group's ChatStoreContext.sendReaction (ChatStoreContext.tsx:364) \u2014 already pass their privateKeyHex to it. In other words, the single-builder-shared-by-both-transports pattern this story was told to mirror already solves this exact problem the same way. Both S4 and S5 already hold a privateKeyHex/pubkey in scope at their respective call sites (S4: directMessages.ts functions already take privateKeyHex as a parameter; S5: ChatStoreContext already threads privateKeyHex through to sendReaction), so the addition imposes no new plumbing burden downstream. Documented in architecture.json#deviations_from_frozen_seam_shorthand and flagged for downstream confirmation via post-impl questions VQ-S2-012 and VQ-S2-014.",
+      "scope_note": "Not a scope violation \u2014 no new module boundary is crossed; the parameter is purely additive to a pure function's own signature. Behavior-neutral for the product: no UI or user-facing change, only an internal function-call shape."
+    },
+    {
+      "decision": "Typed targetKind as 9 | 14 (never 5) on all three rumor-returning builders, though stories.json#seams literally types buildDeleteRumor's targetKind as 5|9|14 and buildEditMarkedCompanionKind5's as a bare 5.",
+      "rationale": "targetKind denotes the kind of the CHAT MESSAGE being deleted/edited (14 DM / 9 group) \u2014 it becomes the [\"k\", String(targetKind)] tag value per this story's own instruction text ('14 for DM, 9 for group'). It is never the signal's own kind, which is already fixed via DELETE_EDIT_RUMOR_KIND. The literal 5 entries in the seam JSON are treated as a copy/paste artifact (also inconsistent with buildEditReplacementRumor's own narrower 9|14 typing in the same seam JSON). Flagged as post-impl question VQ-S2-013.",
+      "scope_note": "Tightens a type at implementation; behavior-neutral (S4/S5 already only ever pass 9 or 14)."
+    },
+    {
+      "decision": "buildEditMarkedCompanionKind5's tag array intentionally contains the original id twice: once bare ([\"e\",originalId], part of the AC-DEL-8 hide-chain shared with buildDeleteRumor) and once marked ([\"e\",originalId,\"\",\"edit\"], the AC-DEL-7 discriminator).",
+      "rationale": "The story instructions specify the companion carries 'the same e-tag chain as the delete builder ... PLUS [\"e\", originalId, \"\", \"edit\"]' \u2014 i.e. additive, not a replacement of the bare tag. Flagged for S3's classification logic in post-impl question VQ-S2-015.",
+      "scope_note": "No scope impact \u2014 wire-shape-only decision within this story's own builder."
+    },
+    {
+      "decision": "kind-5 rumors (delete and companion) are built with content: '' (no content/reason parameter exposed).",
+      "rationale": "Neither the story's parameter list nor any AC calls for a delete/edit reason string; NIP-09 treats kind-5 content as an optional free-text reason, and no caller-facing use case for it exists in this epic. Kept out rather than speculatively added."
+    }
+  ],
+  "tests": {
+    "framework": "vitest",
+    "new_file": "app/tests/unit/messageEdits/rumor.test.ts",
+    "new_tests": 67,
+    "coverage": [
+      "DELETE_EDIT_RUMOR_KIND is 5",
+      "buildDeleteRumor: kind, unmarked (no edit-tag), e-tags original with zero priors, e-tags original + every prior replacement id (AC-DEL-8) with tag-count assertion, k-tag for DM (14) and group (9), created_at===rev, no sig field, valid pubkey",
+      "buildDeleteRumor: id matches independently-recomputed getEventHash; determinism (same inputs -> same id); varying priorReplacementIds/rev/originalId each change tags and id (anti-stub coverage per VQ-S2-001)",
+      "buildDeleteRumor input guards: empty originalId, empty-string entry in priorReplacementIds, invalid targetKind, rev<1, non-finite rev (NaN/Infinity), empty selfPrivKeyHex",
+      "buildEditReplacementRumor: kind 14/9, content is new text, wire created_at equals ORIGINAL created_at not rev (AC-EDIT-4), edit anchor tag present, separate rev tag matches passed rev, no bare (unmarked) e-tag present, id matches recomputed getEventHash, determinism, varying content/rev each change id while created_at stays pinned",
+      "buildEditReplacementRumor AC-EDIT-6: 3-edit chain test asserting every replacement e-tags/pins to the FIRST message's id/created_at, explicitly asserting NON-reference to the immediately-prior edit's id",
+      "buildEditReplacementRumor input guards: empty originalId, empty content, negative/non-finite originalCreatedAt, invalid targetKind, rev<1",
+      "buildEditMarkedCompanionKind5: kind 5, edit marker tag present, full e-tag chain (original+priors) plus marker (4-tag-count assertion for 2 priors), k-tag for DM/group, tag-shape and id differ from the unmarked delete for identical inputs, id matches recomputed getEventHash, determinism",
+      "buildEditMarkedCompanionKind5 input guards: empty originalId, rev<1, invalid targetKind",
+      "clampRev: table-driven it.each across ordinary-forward-tick, equal-clock, stale-clock, future-skewed-clock, no-prior-rev, and floor-to-1 cases; monotonic-per-slot sequence test (5-call chain, each result feeds the next lastKnownRevForSlot, strictly increasing); non-finite/negative-input guard table (11 malformed-input cases: zero/negative/NaN/Infinity/-Infinity on either argument) each asserting finite and >=1"
+    ]
+  },
+  "test_counts": {
+    "baseline_files": 123,
+    "baseline_tests": 2113,
+    "final_files": 124,
+    "final_tests": 2197
+  },
+  "mocks_introduced": [],
+  "gates": {
+    "test_command": "make test-unit",
+    "test_status": "PASS (124 files, 2197 tests; rumor.test.ts alone: 67 -> 84 tests)",
+    "typecheck_command": "npx tsc --noEmit (from app/)",
+    "typecheck_status": "clean (0 errors, unchanged from baseline)",
+    "lint_status": "NO_LINT (unchanged from baseline \u2014 no eslint config present in this project)"
+  },
+  "verification_json": {
+    "pre_impl_questions": 11,
+    "post_impl_questions_appended": 4,
+    "note": "Pre-impl questions VQ-S2-001..011 left untouched per the immutability rule. Appended VQ-S2-012 (selfPrivKeyHex parameter addition and whether it's the only way to satisfy UnsignedRumor.pubkey given the frozen seam), VQ-S2-013 (targetKind:9|14 vs the seam JSON's literal 5 entries), VQ-S2-014 (clampRev's floor-before-max guard never producing <1/non-finite, tied to S1's clobber-guard dependency), VQ-S2-015 (buildEditMarkedCompanionKind5's intentional duplicate original e-tag, bare+marked, and whether S3's classifier tolerates it)."
+  },
+  "escalations": [],
+  "remediation_history": [
+    {
+      "round": 1,
+      "mode": "gate-remediation",
+      "trigger": "Two independent model reviews found defense-in-depth gaps in the Wire builders module (all below the ship-blocking floor, closed before S4/S6 call these builders).",
+      "findings_addressed": [
+        {
+          "severity": "sev4",
+          "finding": "Ms-vs-seconds hazard in buildEditReplacementRumor: originalCreatedAt only checked finite && >=0, so a caller passing ChatMessage.createdAt (milliseconds) or an unfloored /1000 (fractional) would produce a wire created_at ~1000x in the future or a NIP-01-illegal fractional value, pinned across the whole edit chain.",
+          "fix": "originalCreatedAt now requires Number.isInteger(...) and must be below a new MAX_PLAUSIBLE_UNIX_SECONDS=100_000_000_000 ceiling; a value at/above the ceiling throws a clear 'looks like milliseconds, expected Unix seconds' error."
+        },
+        {
+          "severity": "sev3",
+          "finding": "assertRealRev (and thus the rev parameter of all three builders) only required finite && >=1, so a caller bypassing clampRev (e.g. unfloored Date.now()/1000) could put a fractional created_at / [\"rev\", \"...5\"] tag on the wire \u2014 both NIP-01 violations.",
+          "fix": "assertRealRev now requires Number.isInteger(rev) && rev >= 1. clampRev itself is unaffected (already integer-returning); only the direct-rev bypass path is tightened."
+        },
+        {
+          "severity": "sev3/testing",
+          "finding": "clampRev test gaps: no fractional-input cases with pinned exact integer results, no Number.isInteger assertion in the malformed-input table, no pinned exact values proving strictly-greater (not just >=1) semantics under malformed input.",
+          "fix": "Added fractional wallClockSeconds/lastKnownRevForSlot cases with pinned exact integer expectations; added Number.isInteger assertion to the malformed-input table; added a dedicated describe block pinning exact results for NaN/negative wall or last against a well-formed counterpart (e.g. clampRev(NaN, 100) === 101)."
+        },
+        {
+          "severity": "sev2/testing",
+          "finding": "Existing tests used toContainEqual + counts, so a stray extra tag (including one leaking key material) would pass undetected.",
+          "fix": "Added one expect(rumor.tags).toEqual([...exact ordered array...]) test per builder (buildDeleteRumor, buildEditReplacementRumor, buildEditMarkedCompanionKind5) pinning the exact wire tag shape and order."
+        },
+        {
+          "severity": "sev1",
+          "finding": "priorReplacementIds was not deduplicated and originalId was not excluded from it, so overlapping ids yielded duplicate e-tags and changed the canonical id for semantically identical input.",
+          "fix": "Added a shared dedupeIdsKeepFirst(originalId, priorReplacementIds) helper (Set-based, originalId first) used by both buildDeleteRumor and buildEditMarkedCompanionKind5's bare e-tag chain. The companion's intentional bare+marked originalId duplication (its own separate, story-instructed appended marker tag) is untouched. Added dedup tests for both builders, including an id-equivalence assertion against the pre-deduplicated input."
+        }
+      ],
+      "not_changed_per_brief": [
+        "buildEditMarkedCompanionKind5's bare + marked originalId duplication (deliberate, carried to S3 as a marker-first classifier obligation, tracked separately)",
+        "hexToBytes private copy (precedent-consistent with reactions/rumor.ts)"
+      ],
+      "files_touched": [
+        "app/src/lib/messageEdits/rumor.ts",
+        "app/tests/unit/messageEdits/rumor.test.ts"
+      ],
+      "gates": {
+        "test_command": "make test-unit",
+        "test_status": "PASS (124 files, 2197 tests)",
+        "typecheck_status": "clean (0 errors)"
+      }
+    }
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The cross-story seam contract frozen in stories.json#seams (DeleteEditRumor) omits any parameter for the sender's key material, even though the return type (UnsignedRumor) mandates a `pubkey` field that getEventHash's canonical id computation depends on. As literally specified, the seam cannot produce a valid rumor. I resolved this by adding a trailing selfPrivKeyHex parameter, using the exact same resolution the codebase already applies to an analogous problem (reactions/rumor.ts's buildReactionRumor, called identically by both DM and group transports today) \u2014 but a downstream story author trusting the seam JSON verbatim would have hit the same wall. The seam JSON also has a likely copy/paste artifact (targetKind typed as bare `5` in two of the four listed signatures) that a naive implementation would have propagated as an over-permissive type.",
+    "surprised_by": "The story-planner's stories.json#seams shorthand is treated as the authoritative, frozen cross-story contract per this agent's own instructions, yet in this case it was incomplete in a way only visible by cross-checking the actual UnsignedRumor type definition and the existing reactions/rumor.ts precedent \u2014 the seam JSON alone did not surface the gap.",
+    "scope": "meta",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-07T11:35:00Z"
+}

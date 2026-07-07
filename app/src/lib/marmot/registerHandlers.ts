@@ -5,12 +5,14 @@ import type { ApplicationRumor } from './applicationRumorDispatcher';
 import type { MemberProfile, ProfileAvatar } from '@/src/types';
 import type { Poll, PollVote } from '@/src/lib/marmot/pollPersistence';
 import type { ProfileRequestPayload } from '@/src/lib/marmot/profileRequestSync';
+import type { ChangeResult, InboundDeleteEditRumor, MessageEditsThreadKey } from '@/src/lib/messageEdits/api';
 import { createChatHandler } from './handlers/chatHandler';
 import { createReactionHandler } from './handlers/reactionHandler';
 import { createProfileHandler } from './handlers/profileHandler';
 import { createProfileRequestHandler } from './handlers/profileRequestHandler';
 import { createPollOpenHandler, createPollVoteHandler, createPollCloseHandler } from './handlers/pollHandler';
 import { createLeaveIntentHandler } from './handlers/leaveHandler';
+import { createDeleteEditHandler } from './handlers/deleteEditHandler';
 
 // Composition root — all application rumor handlers registered here.
 export interface HandlerDeps {
@@ -22,6 +24,12 @@ export interface HandlerDeps {
   loadMessages: (groupId: string) => Promise<{ messages: ChatMessage[]; refetchIds: string[] }>;
   applyInboundRumor: (thread: ReactionThreadKey, rumor: ApplicationRumor) => Promise<unknown>;
   setReactionsVersion: (updater: (v: number) => number) => void;
+  // Delete/edit handler deps (S5). resolvePendingSignalsForSlot is consumed by
+  // chatHandler.ts's resolve-after-append wiring (S3's required calling
+  // convention); applyDeleteEditSignal is consumed by deleteEditHandler.ts
+  // (kind-5) and chatHandler.ts's edit-marked-kind-9 dispatch-routing branch.
+  applyDeleteEditSignal: (thread: MessageEditsThreadKey, rumor: InboundDeleteEditRumor) => Promise<ChangeResult>;
+  resolvePendingSignalsForSlot: (thread: MessageEditsThreadKey, slotId: string, originalAuthorPubkeyHex: string) => Promise<ChangeResult>;
   // Profile handler deps
   mergeMemberProfile: (groupId: string, profile: MemberProfile) => Promise<boolean>;
   notifyProfileObserved: (args: { groupId: string; targetPubkey: string; observedUpdatedAt: string }) => void;
@@ -66,11 +74,17 @@ export function buildDispatcher(deps: HandlerDeps): Dispatcher {
       appendMessage: deps.appendMessage,
       incrementUnread: deps.incrementUnread,
       setChatVersion: deps.setChatVersion,
+      applyDeleteEditSignal: deps.applyDeleteEditSignal,
+      resolvePendingSignalsForSlot: deps.resolvePendingSignalsForSlot,
     }),
     createReactionHandler({
       loadMessages: deps.loadMessages,
       applyInboundRumor: deps.applyInboundRumor,
       setReactionsVersion: deps.setReactionsVersion,
+    }),
+    createDeleteEditHandler({
+      applyDeleteEditSignal: deps.applyDeleteEditSignal,
+      setChatVersion: deps.setChatVersion,
     }),
     createProfileHandler({
       mergeMemberProfile: deps.mergeMemberProfile,

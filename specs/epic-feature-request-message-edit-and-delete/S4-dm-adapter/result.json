@@ -1,0 +1,197 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "modules_touched": [
+    "DM adapter"
+  ],
+  "remediation_rounds": 2,
+  "files_created": [
+    "app/tests/unit/directMessages/dmMessageEdits.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/directMessages.ts",
+    "app/src/components/contacts/ContactChat.tsx",
+    "app/src/lib/messageEdits/rumor.ts"
+  ],
+  "implementation_summary": {
+    "publish_direct_delete": "New publishDirectDelete(params) in directMessages.ts. Builds an unmarked kind-5 via S2's buildDeleteRumor (priorReplacementIds always []: this app's storage mutates an edited slot's row in place rather than tracking a chain of past replacement rumor ids \u2014 flagged VQ-S4-011), rev via S2's clampRev(nowSeconds, targetMessage.rev ?? 0). Seals+wraps via the existing sealAndWrap, publishes, and ONLY ON SUCCESS durably persists the tombstone via S3's applyDeleteEditSignal. A failed publish throws before any durable write.",
+    "publish_direct_edit": "New publishDirectEdit(params) in directMessages.ts. Builds the replacement via S2's buildEditReplacementRumor with originalCreatedAtSeconds = Math.floor(targetMessage.createdAt / 1000) (ms-to-seconds, S2 caller contract) and targetMessage.id as the anchor (AC-EDIT-6: storage never mutates ChatMessage.createdAt/id on an edit patch, so the row's own id/createdAt is always correct to re-pass on a repeated edit). Publishes the replacement FIRST, durably applies it via applyDeleteEditSignal on success, then attempts the companion kind-5 in a try/catch that swallows (logs, never throws) a failed/absent companion (AC-EDIT-8). A failed REPLACEMENT publish throws before any durable write and before the companion is attempted.",
+    "durable_write_timing_deviation": "DELIBERATE DEVIATION from the story description's shorthand ('optimistically applies locally before publish'): the durable call to S3's applyDeleteEditSignal is deferred until AFTER publish succeeds, not before. Verified that S3's applyToKnownSlotCore (messageEdits/api.ts:624-634) unconditionally sets edited:true on any edit-shaped patch, and un-tombstoning is only expressible through an edit-shaped patch \u2014 so an eager pre-publish durable apply followed by a synthetic 'undo' signal on failure cannot restore a never-before-edited row's edited flag to false, corrupting it on the COMMON failure case (a first edit attempt, or a delete of a never-edited message, that fails to publish). Deferring the durable write to success eliminates this bug entirely (the durable write never happens if publish fails, so there is nothing to undo). React-state-level optimism (immediate view change, see handleDeleteMessage/handleEditMessage) still happens before publish, satisfying AC-DEL-2/AC-EDIT-8's literal wording, which speaks to view/content observability, not IDB write timing. Flagged VQ-S4-010 for confirmation.",
+    "action_handlers": "New handleDeleteMessage(messageId): Promise<void> and handleEditMessage(messageId, newContent): Promise<void> in ContactChat.tsx \u2014 the DM half of the MessageActionHandlers seam consumed by S6. Each snapshots the target row, applies the optimistic React-state change immediately (filter-out for delete; content+edited patch in place for edit), calls the matching publishDirectDelete/publishDirectEdit, and on failure restores the exact snapshot into state and rethrows. Not yet wired into <ChatBox> (S6-owned prop interface); exposed via a new window.__fewDmMessageEdits dev bridge (NODE_ENV-guarded) mirroring the existing __fewDmReactions bridge, so S7 has a ready e2e hook without S4 touching ChatBox.tsx.",
+    "inbound_kind5_dispatch": "New branches in both the historical gift-wrap loop and the live gift-wrap handler: a kind-5 rumor (DELETE_EDIT_RUMOR_KIND) is routed unconditionally to a new applyInboundDeleteEditSignal helper (no knownMessageIdsRef gate, unlike kind-7 \u2014 S3's applyDeleteEditSignal itself buffers unknown targets, AC-ORDER-1). A kind-14 rumor carrying the edit marker tag (checked via a new isEditMarkedReplacement helper, mirroring S3's own marker-first classification as a dispatch-routing check) is also routed there instead of the plain-original append path. applyInboundDeleteEditSignal calls applyDeleteEditSignal and mirrors the outcome into React state: removes the row on 'delete', re-reads and patches content on 'edit'.",
+    "resolve_after_append_wiring": "New resolveFreshOriginal helper, called from ingestEvent (kind-4 legacy path, both historical and live) and inline at both plain-kind-14-original append sites (historical loop, live handler): after appendMessage, calls resolvePendingSignalsForSlot(dmThread, msg.id, msg.senderPubkey) BEFORE any render/state update, satisfying the S3 carry-forward calling convention and AC-ORDER-4's 'MUST NOT render' a to-be-deleted original. Returns null (skip render) on a 'delete' outcome, the freshly re-read row on an 'edit' outcome, or the original msg unchanged otherwise. appendMessage does not report insert-vs-no-op, so the call is unconditional; resolvePendingSignalsForSlot is itself idempotent, making a redundant call on a re-delivered original a safe no-op. sendMessage/sendImageMessage (the DM's own outbound composition) are deliberately NOT wired to this \u2014 the ledger obligation explicitly scopes the requirement to 'inbound DM paths', and a freshly-generated own-message id cannot plausibly have a pre-existing pending signal.",
+    "thread_open_sweep": "Added a fire-and-forget resolvePendingSignalsForSlot(dmThread, '', '') call on thread mount, piggybacking on resolvePendingSignalsForSlot's documented 'no row found -> still run the general sweep, return noop' branch to trigger the lazy TTL sweep on thread-open per the ledger obligation, since a real row id is always a 64-char hex rumor id and can never equal the empty-string sentinel. Flagged VQ-S4-012 for whether S3 should expose a dedicated sweep-trigger export instead.",
+    "auth_passthrough": "AC-AUTH-2 (DM half): no new authentication logic was written in S4 \u2014 unwrapAndOpen's existing real-key seal binding (directMessages.ts) already authenticates rumor.pubkey before it ever reaches applyDeleteEditSignal/resolvePendingSignalsForSlot, and S4 simply passes that authenticated value through (msg.senderPubkey for resolves, rumor.pubkey implicitly for applyDeleteEditSignal, which reads it off the rumor object directly). Verified via two new integration tests using real seal/unwrap round trips."
+  },
+  "cross_cutting_decision": {
+    "topic": "DM delete/edit failure-UX: toast (matching the existing DM reaction precedent) vs throw-only (matching the group transport)",
+    "decision": "Throw-only. handleDeleteMessage/handleEditMessage roll back React state and rethrow; no toast is shown.",
+    "rationale": "Toasting a delete/edit failure requires new user-facing copy strings. AC-INTL-1 (new strings need en+de entries in i18n.ts, consumed via useCopy()) and AC-INTL-2 (no hardcoded user-visible strings in components) are both owned by S6, not S4. S4 authoring a toast here would force a choice between violating AC-INTL-2 (hardcoding English text) or reaching into S6's owned i18n.ts file outside S4's dependencies_allowed. Deferring to S6 \u2014 which already owns the action-menu/confirmation UI this handler will be wired into \u2014 keeps the new copy authored once, alongside the other new delete/edit strings S6 is adding anyway, rather than S4 pre-empting part of that work in isolation. Flagged VQ-S4-014 for confirmation that this is the correct scope boundary."
+  },
+  "tests": {
+    "framework": "vitest",
+    "new_file": "app/tests/unit/directMessages/dmMessageEdits.test.ts",
+    "new_tests": 19,
+    "coverage": [
+      "publishDirectDelete: durable tombstone via applyDeleteEditSignal only after successful publish",
+      "publishDirectDelete: published event is a kind-1059 wrap carrying an unmarked kind-5 (AC-DEL-4/AC-DEL-7)",
+      "publishDirectDelete: rejected publish throws and persists nothing \u2014 row remains visible/untombstoned",
+      "publishDirectEdit: replacement published before companion (wrap-kind order + unwrapped rumor-kind order)",
+      "publishDirectEdit: companion carries the edit marker tag",
+      "publishDirectEdit: failed companion does not throw and does not delete/rollback the already-successful edit",
+      "publishDirectEdit: failed replacement publish throws, persists nothing, companion never attempted (call count assertion)",
+      "publishDirectEdit: ms-to-seconds created_at conversion on the wire replacement (S2 caller contract)",
+      "AC-EDIT-6: a second edit of an already-edited row still pins wire created_at to the ORIGINAL createdAt and the anchor e-tag to the original id, proving storage's immutable createdAt/id makes the chain-anchor correct by construction",
+      "inbound dispatch routing (re-derived isEditMarkedReplacement predicate): edit-marked kind-14 routed, plain kind-14 not routed, no-tags rumor not misclassified",
+      "AC-ORDER-1: a real gift-wrapped delete for a never-seen id is buffered (pending), not discarded, no phantom row created",
+      "resolve-after-append wiring: a buffered delete resolves to a tombstone once its target is appended, signaling 'delete' so the caller skips rendering",
+      "AC-AUTH-2 (DM half): a gift-wrapped delete sealed by a mismatched author is discarded; sealed by the row's real author is applied \u2014 both via real seal/unwrap round trips",
+      "DM view-optimistic array model: handleDeleteMessage's filter-then-restore and handleEditMessage's map-then-restore transforms, asserted against real array/object equality, not a mock-spy check"
+    ]
+  },
+  "test_counts": {
+    "baseline": 2286,
+    "final": 2316
+  },
+  "mocks": [],
+  "verification_json": {
+    "pre_impl_questions": 9,
+    "post_impl_questions_appended": 5,
+    "note": "Pre-impl questions VQ-S4-001..009 left untouched per the immutability rule. Appended VQ-S4-010 (durable-write-timing deviation from the story description's shorthand), VQ-S4-011 (empty priorReplacementIds \u2014 no local storage of a replacement-id chain), VQ-S4-012 (thread-open sweep implemented via resolvePendingSignalsForSlot's no-op branch rather than a dedicated export), VQ-S4-013 (malformed-id-refetch-path residual interaction with a buffered delete \u2014 CLOSED by remediation finding 7), VQ-S4-014 (toast-vs-throw scope-boundary confirmation \u2014 the 2026-07-07 spec amendment on AC-DEL-8/non-Few interop did not affect this decision)."
+  },
+  "gates": {
+    "test_command": "make test-unit",
+    "test_status": "PASS (126 files, 2316 tests)",
+    "typecheck_command": "npx tsc --noEmit -p tsconfig.json (from app/)",
+    "typecheck_status": "clean (0 errors, unchanged from baseline)",
+    "lint_status": "NO_LINT (unchanged from baseline \u2014 no eslint config present in this project)"
+  },
+  "escalations": [],
+  "remediation": [
+    {
+      "round": 1,
+      "mode": "gate-remediation",
+      "trigger": "Two independent model reviews (Opus + a second vendor) found real bugs in the primary delete-delivery path, several invisible to the round-0 test suite because those tests re-implemented ContactChat's transforms inline (shadow-init) rather than exercising the real code.",
+      "spec_amendment_applied": "2026-07-07: product owner decided non-Few interop is not a current priority. `priorReplacementIds = []` in publishDirectDelete/publishDirectEdit is confirmed CORRECT-by-design (no replacement-id chain tracking added). VQ-S4-011 stands closed as originally implemented.",
+      "findings_fixed": [
+        {
+          "id": 1,
+          "severity": 7,
+          "summary": "Historical cold-load batch render clobber: a same-batch kind-5 delete (or edit) that sorts AFTER its target inside the historical rumor loop tombstoned/updated storage, but the pre-signal ChatMessage OBJECT already pushed into remoteMessages/giftWrapMessages was stale (no tombstoned:true / stale content) and was upserted into React state unfiltered \u2014 a peer's sent-then-deleted message rendered for the whole session (AC-DEL-3, AC-ORDER-4).",
+          "fix": "Added `reconcileHistoricalBatch` (exported pure function, ContactChat.tsx): after the historical loop, re-reads loadMessages(threadId) once and substitutes storage's row for every id storage knows about, then filters tombstoned rows via filterVisibleMessages, before the final setMessages merge.",
+          "files": [
+            "app/src/components/contacts/ContactChat.tsx"
+          ]
+        },
+        {
+          "id": 2,
+          "severity": 6,
+          "summary": "Stale rev starves the D16 clamp on consecutive own edits: publishDirectDelete/publishDirectEdit computed rev from the caller-supplied React-state `targetMessage.rev`, which never learns a slot's new rev after an own edit (the optimistic state patch touches only content/edited). A second edit within the same wall-clock second could compute rev from `undefined ?? 0`, degenerating clampRev to bare wall-clock and losing the S3 equal-rev tie roughly half the time.",
+          "fix": "Added `resolveAuthoritativeRev` (directMessages.ts): re-reads loadMessages(directConversationId(peerPubkeyHex)) and uses the AUTHORITATIVE stored row's rev for clampRev, falling back to the caller's snapshot only if the row is absent. handleEditMessage's success path also re-reads storage and patches the returned row into React state (mirroring the inbound edit branch) so the NEXT action starts from a fresh row. Proved by a new test asserting a second consecutive edit's wire rev strictly exceeds the first's, even when both calls pass the same rev-less snapshot.",
+          "files": [
+            "app/src/lib/directMessages.ts",
+            "app/src/components/contacts/ContactChat.tsx"
+          ]
+        },
+        {
+          "id": 3,
+          "severity": "5+3",
+          "summary": "Render projection gaps: (a) the init seed (`setMessages(stored)`) was unfiltered \u2014 a tombstoned row rendered on reload; (b) the fire-and-forget thread-open self-heal sweep could tombstone a durably-present row without ever reconciling the stale React copy.",
+          "fix": "Init seed now `setMessages(filterVisibleMessages(stored))`. The thread-open sweep is now awaited internally (still fire-and-forget relative to init()), then re-reads storage and merges+filters into state. Same filterVisibleMessages pass applied at the finding-1 historical reconcile point.",
+          "files": [
+            "app/src/components/contacts/ContactChat.tsx"
+          ]
+        },
+        {
+          "id": 4,
+          "severity": 4,
+          "summary": "Persist-fail masquerades as publish-fail: if applyDeleteEditSignal threw AFTER a successful relay publish (e.g. IDB quota), the whole publish* helper threw, and the handler's catch rolled back React state \u2014 visually restoring a message the peer had already received the delete/edit signal for (permanent author-device divergence).",
+          "fix": "Wrapped the post-publish applyDeleteEditSignal call in publishDirectDelete/publishDirectEdit in its own try/catch that logs and swallows (never rethrows). Only a genuine publish failure now triggers the caller's rollback (AC-DEL-2).",
+          "files": [
+            "app/src/lib/directMessages.ts"
+          ]
+        },
+        {
+          "id": 5,
+          "severity": 4,
+          "summary": "Test suite re-implemented the SUT (shadow-init pattern) \u2014 the historical-batch merge and handler view-transforms were re-derived inline in the test file, structurally unable to catch findings 1/2.",
+          "fix": "Extracted `reconcileHistoricalBatch`, `applyOptimisticDeleteView`, `rollbackOptimisticDeleteView`, `applyOptimisticEditView`, `rollbackOptimisticEditView` as exported pure functions on ContactChat.tsx (this repo's hooks-via-pure-function-extraction convention) and wired handleDeleteMessage/handleEditMessage to call them. Added table-driven tests importing these real functions with `[original, delete]` and `[original, replacementA, replacementB]`-shaped batches, plus the rev-strictly-increasing repeated-edit test for finding 2. No fast-check, matching project convention.",
+          "files": [
+            "app/src/components/contacts/ContactChat.tsx",
+            "app/tests/unit/directMessages/dmMessageEdits.test.ts"
+          ]
+        },
+        {
+          "id": 6,
+          "severity": 3,
+          "summary": "No own-message auth guard at the handler seam \u2014 handleDeleteMessage/handleEditMessage acted on any messageId found in local state; a bypass at a future call site (dev bridge, S6 wiring bug) could forge an action against a peer's message.",
+          "fix": "Added a fail-closed guard (`snapshot.senderPubkey.toLowerCase() !== pubkeyHex.toLowerCase() -> return`) at the top of both handlers, before any optimistic state change, matching AC-AUTH-2's posture.",
+          "files": [
+            "app/src/components/contacts/ContactChat.tsx"
+          ]
+        },
+        {
+          "id": 7,
+          "severity": 3,
+          "summary": "The malformed-id gift-wrap refetch branch pushed the canonical row straight into `replacements` without going through appendMessage/resolveFreshOriginal, so it never entered storage and a buffered delete/edit for that id could neither suppress the render nor ever be applied by the self-heal sweep.",
+          "fix": "That branch now calls appendMessage(threadId, canonical) and routes the row through resolveFreshOriginal before pushing to `replacements`, mirroring every other append site. Closes VQ-S4-013.",
+          "files": [
+            "app/src/components/contacts/ContactChat.tsx"
+          ]
+        },
+        {
+          "id": 8,
+          "severity": 2,
+          "summary": "Forked marker predicate: ContactChat's local isEditMarkedReplacement checked only t[0]==='e' && t[3]==='edit', while S3's classifySignal also requires t[1] non-empty \u2014 a kind-14 with ['e','','','edit'] would be routed to S3 by ContactChat but then silently discarded there instead of falling through to the plain-original path.",
+          "fix": "Exported a canonical `hasEditMarkerTag(tags)` predicate from app/src/lib/messageEdits/rumor.ts with the SAME t[1]-non-empty validation as classifySignal. ContactChat.tsx's local isEditMarkedReplacement removed; both dispatch-routing call sites now use hasEditMarkerTag.",
+          "files": [
+            "app/src/lib/messageEdits/rumor.ts",
+            "app/src/components/contacts/ContactChat.tsx"
+          ]
+        },
+        {
+          "id": 9,
+          "severity": 2,
+          "summary": "The __fewDmMessageEdits dev bridge fired handleDeleteMessage/handleEditMessage with `void`, producing unhandled promise rejections since both handlers rethrow on failure.",
+          "fix": "Appended `.catch((e) => console.warn('[__fewDmMessageEdits]', e))` to both bridge wrappers.",
+          "files": [
+            "app/src/components/contacts/ContactChat.tsx"
+          ]
+        }
+      ],
+      "accepted_residual": "The sub-millisecond crash window between a successful publish and the durable applyDeleteEditSignal write is accepted, not fixed: it is author-device-only (the DM signal is gift-wrapped to the peer, never to self, so there is no inbound self-heal path), and the author can simply re-delete/re-edit to recover. Flagged for S7 \u2014 do not assume durability across a crash inside that window.",
+      "test_delta": "+4 tests (2305 -> 2309): 3 for reconcileHistoricalBatch (finding 1), 1 for the rev-strictly-increasing repeated-edit proof (finding 2). The pre-existing 2 'DM view-optimistic array model' tests were rewritten in place (same count, finding 5) to call the real exported applyOptimisticDeleteView/rollbackOptimisticDeleteView/applyOptimisticEditView/rollbackOptimisticEditView instead of re-deriving the array logic inline.",
+      "regression_check": "make test-unit: 126 files, 2309 tests, PASS. npx tsc --noEmit: clean, 0 errors."
+    },
+    {
+      "round": 2,
+      "mode": "gate-remediation",
+      "trigger": "sev7 finding: the live per-event inbound path (giftWrapSub/handleKind4Event) had the same render-clobber bug class as round-1 finding 1, but on the LIVE path rather than the historical cold-load batch.",
+      "findings_fixed": [
+        {
+          "id": 1,
+          "severity": 7,
+          "summary": "`resolveFreshOriginal`'s noop/discarded/pending fall-through returned the RAW inbound `msg` instead of storage truth. The live giftWrapSub subscribes with no `since` filter, so every resubscribe/reconnect re-delivers ALL stored gift-wraps, including the original of a since-deleted or since-edited message. Such a re-delivery resolves as `noop`/`discarded`/`pending` (the slot already carries its terminal state, so resolvePendingSignalsForSlot has nothing new to apply) \u2014 appendMessage itself no-ops (storage stays correct) but the old fall-through handed back the stale re-delivered `msg` object, and the caller's upsertMessages (which does not filter) rendered it: a deleted DM reappeared, or an edited DM reverted to its pre-edit content, on every reconnect (defeats AC-DEL-3/AC-EDIT-7). Both live call sites (handleGiftWrapEvent's kind-1059 path and handleKind4Event's legacy kind-4 path, via ingestEvent) share the single `resolveFreshOriginal` function, so one fix covers both.",
+          "fix": "resolveFreshOriginal's fall-through (anything other than 'delete') now re-reads storage via loadMessages and substitutes storage's row for msg's id \u2014 returning null if that row is tombstoned, the storage row otherwise, or the raw msg only if storage has no row at all (no phantom substitution), mirroring reconcileHistoricalBatch's round-1 fix for the historical-batch path. The decision logic was extracted into a new exported pure function, `resolveFreshOriginalFromStorage(msg, result, storageTruth)`, so it is directly testable without mounting React or mocking IDB/S3 async plumbing \u2014 resolveFreshOriginal itself is now a thin async wrapper that only owns the I/O (resolvePendingSignalsForSlot + loadMessages).",
+          "files": [
+            "app/src/components/contacts/ContactChat.tsx"
+          ]
+        }
+      ],
+      "test_delta": "+7 tests (2309 -> 2316): 5 unit tests directly against the new exported resolveFreshOriginalFromStorage (delete / noop+tombstoned / discarded+edited / pending+absent-row / edit outcomes), plus 2 integration-style regression tests exercising the real async live-path sequence (publishDirectDelete/publishDirectEdit -> re-appendMessage of the stale original -> resolvePendingSignalsForSlot -> resolveFreshOriginalFromStorage) proving (a) a re-delivered original of a tombstoned message does not re-enter the rendered set, and (b) a re-delivered original of an edited message renders the edited content, not the stale original.",
+      "regression_check": "make test-unit: 126 files, 2316 tests, PASS (2286 baseline for this story). npx tsc --noEmit -p tsconfig.json (from app/): clean, 0 errors."
+    }
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The story description's shorthand ('optimistically applies the tombstone/edit locally before publish and rolls back... if publish fails') reads as wanting a literal call-applyDeleteEditSignal-before-publish-then-undo-on-failure sequence. Working through S3's actual applyToKnownSlotCore implementation (messageEdits/api.ts:624-634) showed this is unsafe: an edit-shaped 'undo' signal is the ONLY way to un-tombstone or restore content through S3's public API, and it unconditionally sets edited:true \u2014 so a synthetic rollback signal would permanently mislabel a never-edited message as edited on the single most common failure path (a first edit, or a delete of an unedited message, failing to publish offline). This mirrors S2's and S3's own documented experience that the frozen/shorthand contract text undersells a real implementation constraint only visible by reading the actual consumed module's code, not just its seam description.",
+    "surprised_by": "storage's ChatMessage.createdAt/id fields are never touched by any edit patch (S1's updateMessageInPlace patch shape only ever carries content/edited/tombstoned/rev) \u2014 meaning AC-EDIT-6's 'always anchor to the first message's id/created_at' invariant holds for free from S4's side merely by re-reading the current row before a repeated edit, with no separate chain-tracking needed. Confirmed with a dedicated two-edit-in-a-row test rather than assumed.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-07T13:00:00Z"
+}

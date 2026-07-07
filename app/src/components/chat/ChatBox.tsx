@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import EmojiComposerPicker, { type EmojiComposerPickerHandle } from '@/src/components/chat/EmojiComposerPicker';
 import EmojiReactionPicker from '@/src/components/chat/EmojiReactionPicker';
 import ReactionBadgeRow from '@/src/components/chat/ReactionBadgeRow';
@@ -18,7 +18,14 @@ import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import { useChatStore } from '@/src/context/ChatStoreContext';
 import { truncateNpub, pubkeyToNpub } from '@/src/lib/nostrKeys';
 import { splitLinks } from '@/src/lib/linkify';
-import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
+import { filterVisibleMessages, type ChatMessage } from '@/src/lib/marmot/chatPersistence';
+import {
+  canEditMessage,
+  canShowMessageActions,
+  computeDeleteConfirmTransition,
+  isEditSubmitBlocked,
+  shouldShowEditedMarker,
+} from '@/src/lib/messageEdits/messageActionUi';
 import type { StructuredContent } from '@/src/lib/marmot/parseStructured';
 import { parseStructured, resolveCancellerDisplay } from '@/src/lib/marmot/parseStructured';
 import type { MemberProfile } from '@/src/types';
@@ -111,6 +118,26 @@ type ChatBoxProps = {
    * an image send would bypass the sealed feedback marker tags.
    */
   allowImageAttachments?: boolean;
+  /**
+   * S6 (epic-feature-request-message-edit-and-delete): the MessageActionHandlers
+   * seam. ContactChat (DM) and GroupChat (group, sourced from useChatStore())
+   * both supply these with an IDENTICAL signature, so ChatBox never needs to
+   * know which transport it is rendering for. Consumed exclusively through
+   * this seam — ChatBox never imports messageEdits/api.ts or
+   * messageEdits/rumor.ts directly.
+   */
+  handleDeleteMessage: (id: string) => Promise<void>;
+  handleEditMessage: (id: string, newContent: string) => Promise<void>;
+  /**
+   * Gate-remediation (S6, finding 1): whether the edit/delete action menu is
+   * offered at all. Defaults to true. The sealed feedback surface
+   * (ContactChat `source="feedback"`) passes false: its send paths carry no
+   * feedback marker tags, so an edit/delete would publish an unmarked
+   * kind-14/kind-5 into the maintainer's sealed channel. Mirrors the
+   * `allowImageAttachments`/`onReact`-omission precedent for that same
+   * surface — gate off, never thread markers through.
+   */
+  allowMessageActions?: boolean;
 };
 
 export default function ChatBox({
@@ -127,6 +154,9 @@ export default function ChatBox({
   reactionsByMessageId: reactionsByMessageIdProp,
   composerPlaceholder,
   allowImageAttachments = true,
+  handleDeleteMessage,
+  handleEditMessage,
+  allowMessageActions = true,
 }: ChatBoxProps) {
   const copy = useCopy();
   const { language } = useLanguage();
@@ -142,11 +172,20 @@ export default function ChatBox({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [imageSendFailed, setImageSendFailed] = useState(false);
   const [imageTooLarge, setImageTooLarge] = useState(false);
+  // S6: edit-mode composer state — the message currently being edited (null when composing new).
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+  // S6: AC-DEL-6 two-click confirm — the message id currently armed for delete confirmation.
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  // S6: belt-and-suspenders tombstone render-filter (closes the AC-DEL-3/AC-DEL-5 render
+  // half). S4/S5 already filter at their storage-set points; this is the shared backstop
+  // so NO surface can leak a tombstoned row into render, including on reload/remount.
+  const visibleMessages = useMemo(() => filterVisibleMessages(messages), [messages]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isNearBottomRef = useRef(true);
-  const prevMsgCountRef = useRef(messages.length);
+  const prevMsgCountRef = useRef(visibleMessages.length);
   const initializedRef = useRef(false);
   const prevPreviewUrl = useRef<string | null>(null);
   // Handle for the emoji picker so the keyboard shortcut can toggle it.
@@ -185,6 +224,21 @@ export default function ChatBox({
     setImageTooLarge(false);
   }, []);
 
+  // Gate-remediation (S6, finding 4): reset per-thread composer state whenever
+  // the active thread changes. ChatBox is not keyed by threadId, so without
+  // this a switch to a different group/contact while editing or with a
+  // delete confirmation armed would carry that state into the NEW thread — a
+  // subsequent Save/Delete would then act on the wrong thread's handler,
+  // silently no-op (the target id has no meaning there), while the composer
+  // already cleared/looked like it succeeded.
+  useEffect(() => {
+    setEditingMessage(null);
+    setPendingDeleteId(null);
+    setInputValue('');
+    removeAttachment();
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+  }, [threadId, removeAttachment]);
+
   useEffect(() => {
     if (!loading) {
       initializedRef.current = true;
@@ -195,7 +249,7 @@ export default function ChatBox({
   }, [loading]);
 
   useEffect(() => {
-    const newCount = messages.length;
+    const newCount = visibleMessages.length;
     const hasNew = newCount > prevMsgCountRef.current;
     prevMsgCountRef.current = newCount;
     if (!hasNew || !initializedRef.current) return;
@@ -207,7 +261,7 @@ export default function ChatBox({
     } else {
       setShowBadge(true);
     }
-  }, [messages]);
+  }, [visibleMessages]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -225,7 +279,32 @@ export default function ChatBox({
     setShowBadge(false);
   }, []);
 
+  // S6: edit-mode submit. AC-EDIT-5: empty/whitespace content is blocked (the
+  // Save button is disabled below AND a visible hint is shown — never a
+  // silent no-op). On failure, restore the editing state + content so the
+  // user doesn't lose their in-progress edit (handleEditMessage itself
+  // already rolled back the optimistic storage/view state).
+  const handleEditSubmit = useCallback(async () => {
+    if (!editingMessage) return;
+    if (isEditSubmitBlocked(inputValue)) return;
+    const id = editingMessage.id;
+    const content = inputValue;
+    setInputValue('');
+    setEditingMessage(null);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    try {
+      await handleEditMessage(id, content);
+    } catch {
+      setEditingMessage(editingMessage);
+      setInputValue(content);
+    }
+  }, [editingMessage, handleEditMessage, inputValue]);
+
   const handleSend = useCallback(async () => {
+    if (editingMessage) {
+      await handleEditSubmit();
+      return;
+    }
     if (attachedFile) {
       const caption = inputValue;
       setInputValue('');
@@ -255,7 +334,47 @@ export default function ChatBox({
     } catch {
       setInputValue(content);
     }
-  }, [attachedFile, inputValue, removeAttachment, sendImageMessage, sendMessage]);
+  }, [attachedFile, editingMessage, handleEditSubmit, inputValue, removeAttachment, sendImageMessage, sendMessage]);
+
+  // S6: enter edit mode for a message — pre-fills the composer with its
+  // current content (AC-EDIT-5's composer half). Clears any armed delete
+  // confirmation and any in-progress image attachment (edit is text-only).
+  const handleEditClick = useCallback((msg: ChatMessage) => {
+    setPendingDeleteId(null);
+    setEditingMessage(msg);
+    setInputValue(msg.content);
+    removeAttachment();
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [removeAttachment]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    setInputValue('');
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+  }, []);
+
+  // S6: AC-DEL-6 two-click confirm. First click arms the message; a second
+  // click on the SAME armed message confirms and fires handleDeleteMessage.
+  // handleDeleteMessage itself owns the optimistic-remove + rollback-on-
+  // publish-failure behavior (AC-DEL-2) — this handler just gates the call.
+  const handleDeleteClick = useCallback((messageId: string) => {
+    const { nextPendingId, shouldDelete } = computeDeleteConfirmTransition(pendingDeleteId, messageId);
+    setPendingDeleteId(nextPendingId);
+    if (shouldDelete) {
+      // Gate-remediation (S6, finding 5): deleting the message currently open
+      // in the edit composer must clear edit mode first — otherwise the edit
+      // banner stays up against a now-tombstoned slot and the next Save
+      // silently no-ops.
+      if (editingMessage?.id === messageId) {
+        handleCancelEdit();
+      }
+      void handleDeleteMessage(messageId).catch(() => {
+        // handleDeleteMessage already restores the optimistic view on failure;
+        // nothing further to do here (mirrors the reaction picker's onReact
+        // catch-and-swallow — the caller/store owns failure UX).
+      });
+    }
+  }, [editingMessage, handleCancelEdit, handleDeleteMessage, pendingDeleteId]);
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     const ta = textareaRef.current;
@@ -306,12 +425,19 @@ export default function ChatBox({
     // point — button, drag/drop, or paste — so image sends cannot bypass the
     // sealed feedback marker tags (spec §7).
     if (!allowImageAttachments) return;
+    // Gate-remediation (S6, finding 6): edit mode is text-only (AC-IMG-2's
+    // composer half) — a drop mid-edit must not attach an image the Save
+    // path silently ignores, only for it to ride out on the NEXT ordinary
+    // send.
+    if (editingMessage) return;
     const file = e.dataTransfer.files?.[0];
     if (file?.type.startsWith('image/')) attachFile(file);
-  }, [attachFile, allowImageAttachments]);
+  }, [attachFile, allowImageAttachments, editingMessage]);
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     if (!allowImageAttachments) return;
+    // Gate-remediation (S6, finding 6): see handleDrop's matching comment.
+    if (editingMessage) return;
     const item = Array.from(e.clipboardData.items).find(
       (i) => i.kind === 'file' && i.type.startsWith('image/'),
     );
@@ -319,7 +445,7 @@ export default function ChatBox({
       const file = item.getAsFile();
       if (file) attachFile(file);
     }
-  }, [attachFile, allowImageAttachments]);
+  }, [attachFile, allowImageAttachments, editingMessage]);
 
   function getDisplayName(senderPubkey: string): string {
     const profile = profileMap[senderPubkey];
@@ -410,8 +536,8 @@ export default function ChatBox({
         px={3}
         py={1.5}
         borderRadius="lg"
-        bg={msg.senderPubkey === pubkey ? 'brand.500' : 'surfaceMutedBg'}
-        color={msg.senderPubkey === pubkey ? 'white' : 'text'}
+        bg={msg.senderPubkey.toLowerCase() === pubkey.toLowerCase() ? 'brand.500' : 'surfaceMutedBg'}
+        color={msg.senderPubkey.toLowerCase() === pubkey.toLowerCase() ? 'white' : 'text'}
         fontSize="sm"
       >
         <Text whiteSpace="pre-wrap" wordBreak="break-word">
@@ -447,20 +573,24 @@ export default function ChatBox({
         py={3}
         data-testid="chat-scroll-container"
       >
-        {loading && messages.length === 0 ? (
+        {loading && visibleMessages.length === 0 ? (
           <Flex align="center" justify="center" py={8}>
             <Text fontSize="sm" color="textMuted">{copy.groups.chatLoading}</Text>
           </Flex>
-        ) : messages.length === 0 ? (
+        ) : visibleMessages.length === 0 ? (
           <Flex align="center" justify="center" py={8} data-testid="chat-empty-state">
             <Text fontSize="sm" color="textMuted">{copy.groups.chatEmpty}</Text>
           </Flex>
         ) : (
           <VStack spacing={0} align="stretch">
-            {messages.map((msg, i) => {
-              const prev = messages[i - 1];
+            {visibleMessages.map((msg, i) => {
+              const prev = visibleMessages[i - 1];
               const grouped = prev ? isGrouped(prev, msg) : false;
-              const isSelf = msg.senderPubkey === pubkey;
+              // Gate-remediation (S6, finding 8): case-insensitive compare, matching
+              // the epic's other seam guards (e.g. ContactChat's own-message auth
+              // checks), which all `.toLowerCase()` both sides before comparing.
+              const isSelf = msg.senderPubkey.toLowerCase() === pubkey.toLowerCase();
+              const showActions = canShowMessageActions(msg, pubkey, allowMessageActions);
               const displayName = getDisplayName(msg.senderPubkey);
               const avatarImage = profileMap[msg.senderPubkey]?.avatar?.imageUrl;
               const avatarInitial = getAvatarInitial(msg.senderPubkey);
@@ -507,7 +637,14 @@ export default function ChatBox({
                   )}
 
                   <Flex direction="column" maxW="75%" align={isSelf ? 'flex-end' : 'flex-start'}>
-                    {!grouped && (
+                    {/*
+                      AC-EDIT-3: the "(edited)" marker renders near the timestamp on both
+                      DM and group surfaces. Grouped (consecutive, same-sender) messages
+                      normally hide the name/timestamp row entirely — force it to render
+                      for an edited message so the marker always has a timestamp to sit
+                      next to, rather than dropping it silently.
+                    */}
+                    {(!grouped || shouldShowEditedMarker(msg)) && (
                       <Flex
                         gap={2}
                         mb="2px"
@@ -516,10 +653,19 @@ export default function ChatBox({
                         direction={isSelf ? 'row-reverse' : 'row'}
                         align="baseline"
                       >
-                        <Text fontWeight="medium" color="text">{displayName}</Text>
+                        {!grouped && <Text fontWeight="medium" color="text">{displayName}</Text>}
                         <Text title={new Date(msg.createdAt).toLocaleString()}>
                           {formatTimestamp(msg.createdAt, language, copy.groups.chatJustNow, copy.groups.chatMinutesAgo)}
                         </Text>
+                        {shouldShowEditedMarker(msg) && (
+                          <Text
+                            data-testid={`edited-marker-${msg.id}`}
+                            fontStyle="italic"
+                            color="textMuted"
+                          >
+                            {copy.groups.msgEditedMarker}
+                          </Text>
+                        )}
                       </Flex>
                     )}
 
@@ -578,6 +724,73 @@ export default function ChatBox({
                             aggregates={aggregates}
                             onReact={onReact}
                           />
+                        </Box>
+                      )}
+
+                      {/*
+                        S6: edit/delete action menu. AC-AUTH-1: own messages only —
+                        `showActions` is gated on `canShowMessageActions`, which never
+                        checks age/time (AC-TIME-1: no time-window gate anywhere here).
+                        AC-DEL-6: delete requires a second confirming click before
+                        handleDeleteMessage fires (computeDeleteConfirmTransition).
+                      */}
+                      {showActions && (
+                        <Box alignSelf="center" flexShrink={0}>
+                          {pendingDeleteId === msg.id ? (
+                            <Flex gap={1} align="center" data-testid={`action-delete-confirm-row-${msg.id}`}>
+                              <Text fontSize="xs" color="red.500" whiteSpace="nowrap">
+                                {copy.groups.msgDeleteConfirmPrompt}
+                              </Text>
+                              <IconButton
+                                data-testid={`action-delete-confirm-${msg.id}`}
+                                aria-label={copy.groups.msgDeleteConfirmButton}
+                                icon={<TrashIcon />}
+                                size="xs"
+                                variant="ghost"
+                                colorScheme="red"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(msg.id);
+                                }}
+                              />
+                              <CloseButton
+                                data-testid={`action-delete-cancel-${msg.id}`}
+                                size="sm"
+                                aria-label={copy.groups.cancel}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPendingDeleteId(null);
+                                }}
+                              />
+                            </Flex>
+                          ) : (
+                            <Flex gap={0.5} opacity={0} _groupHover={{ opacity: 1 }} _focusWithin={{ opacity: 1 }}>
+                              {canEditMessage(msg) && (
+                                <IconButton
+                                  data-testid={`action-edit-${msg.id}`}
+                                  aria-label={copy.groups.msgEditAction}
+                                  icon={<PencilIcon />}
+                                  size="xs"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditClick(msg);
+                                  }}
+                                />
+                              )}
+                              <IconButton
+                                data-testid={`action-delete-${msg.id}`}
+                                aria-label={copy.groups.msgDeleteAction}
+                                icon={<TrashIcon />}
+                                size="xs"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(msg.id);
+                                }}
+                              />
+                            </Flex>
+                          )}
                         </Box>
                       )}
                     </Flex>
@@ -680,8 +893,28 @@ export default function ChatBox({
           </Flex>
         )}
 
+        {/* S6: edit-mode banner (AC-EDIT-5) — visible whenever the composer is editing. */}
+        {editingMessage && (
+          <Flex px={2} pt={2} align="center" justify="space-between" gap={2} data-testid="chat-edit-banner">
+            <Text fontSize="xs" color="textMuted" fontStyle="italic">
+              {copy.groups.msgEditingBadge}
+            </Text>
+            <CloseButton
+              data-testid="chat-edit-cancel"
+              size="sm"
+              aria-label={copy.groups.cancel}
+              onClick={handleCancelEdit}
+            />
+          </Flex>
+        )}
+        {editingMessage && isEditSubmitBlocked(inputValue) && (
+          <Text data-testid="chat-edit-empty-hint" px={2} pt={1} fontSize="xs" color="red.500">
+            {copy.groups.msgEditEmptyHint}
+          </Text>
+        )}
+
         <Flex p={2} gap={2} align="flex-end">
-          {allowImageAttachments ? <ImageAttachmentButton onFileSelected={attachFile} /> : null}
+          {allowImageAttachments && !editingMessage ? <ImageAttachmentButton onFileSelected={attachFile} /> : null}
           <EmojiComposerPicker onSelect={handleEmojiSelect} handleRef={emojiPickerRef} textareaRef={textareaRef} />
           <Textarea
             ref={textareaRef}
@@ -703,11 +936,11 @@ export default function ChatBox({
           />
           <IconButton
             data-testid="chat-send-btn"
-            aria-label="Send message"
-            icon={<SendIcon />}
+            aria-label={editingMessage ? copy.groups.msgEditSave : copy.groups.chatSend}
+            icon={editingMessage ? <SaveIcon /> : <SendIcon />}
             size="sm"
             colorScheme="brand"
-            isDisabled={!inputValue.trim() && !attachedFile}
+            isDisabled={editingMessage ? isEditSubmitBlocked(inputValue) : !inputValue.trim() && !attachedFile}
             onClick={() => void handleSend()}
           />
         </Flex>
@@ -721,6 +954,35 @@ function SendIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="22" y1="2" x2="11" y2="13" />
       <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  );
+}
+
+function SaveIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
     </svg>
   );
 }

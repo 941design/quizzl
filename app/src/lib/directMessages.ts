@@ -440,6 +440,176 @@ export async function removeDirectReaction(params: {
   return { rumorId: rumor.id };
 }
 
+/**
+ * Publish a NIP-09-shaped kind-5 delete signal for a DM conversation via NIP-59 gift wrap.
+ *
+ * Seam S4 DM producer (epic-feature-request-message-edit-and-delete, AC-DEL-2).
+ *
+ * Builds an unmarked kind-5 rumor via S2's buildDeleteRumor (never reimplements tag
+ * building locally), seals it with sealAndWrap, and publishes via NDK. `priorReplacementIds`
+ * is always empty for a Few client: this app's storage mutates an edited slot's single
+ * row in place rather than persisting a chain of past replacement rumor ids, so there is
+ * no local history to e-tag beyond the original (AC-DEL-8's extra e-tags are a best-effort
+ * non-Few-interop enhancement, not required for a Few client's own reconciliation, which
+ * resolves a slot by its stable original id alone).
+ *
+ * On a successful publish, durably persists the tombstone via S3's applyDeleteEditSignal —
+ * deliberately AFTER publish confirms, not before. See this story's result.json for why:
+ * an eager pre-publish durable apply followed by a synthetic "undo" signal on failure
+ * cannot restore a never-before-edited row's `edited` flag (S3's applyToKnownSlotCore
+ * unconditionally sets `edited:true` on any edit-shaped patch, and un-tombstoning is only
+ * expressible through an edit-shaped patch) — deferring the durable write until publish
+ * succeeds means a failed publish never durably wrote anything, so the caller's rollback
+ * (ContactChat.handleDeleteMessage) is a pure, always-correct React-state revert.
+ *
+ * Does NOT touch React state — that is the caller's responsibility (ContactChat), exactly
+ * like publishDirectReaction leaves applyOptimistic/rollbackOptimistic to its caller.
+ */
+/**
+ * S4 gate-remediation (round-4, finding 2, sev6): re-reads the slot's authoritative
+ * rev from storage rather than trusting a caller-supplied `ChatMessage` snapshot.
+ *
+ * `targetMessage` in publishDirectDelete/publishDirectEdit is a React-state read
+ * (ContactChat's `messagesRef.current.find(...)`). React state only ever learns a
+ * slot's NEW rev via an explicit re-read-and-patch after a successful action; the
+ * optimistic patch applied before publish touches only content/edited, never rev.
+ * So a second own edit/delete of the same slot within the same wall-clock second
+ * would otherwise pass `targetMessage.rev ?? 0` (still 0/undefined) into clampRev,
+ * which degenerates to a bare wall-clock value — colliding with (or losing to,
+ * per the equal-rev tie rule) the first action's already-published rev roughly
+ * half the time. Re-reading storage here means the rev computation is correct
+ * regardless of whether any caller ever patches its own React state.
+ */
+async function resolveAuthoritativeRev(
+  peerPubkeyHex: string,
+  targetMessageId: string,
+  fallbackRev: number | undefined,
+): Promise<number> {
+  const { loadMessages } = await import('@/src/lib/marmot/chatPersistence');
+  const { messages } = await loadMessages(directConversationId(peerPubkeyHex));
+  const row = messages.find((m) => m.id === targetMessageId);
+  return row?.rev ?? fallbackRev ?? 0;
+}
+
+export async function publishDirectDelete(params: {
+  ndk: NDK;
+  privateKeyHex: string;
+  peerPubkeyHex: string;
+  targetMessage: import('@/src/lib/marmot/chatPersistence').ChatMessage;
+}): Promise<{ rumorId: string }> {
+  const { buildDeleteRumor, clampRev } = await import('@/src/lib/messageEdits/rumor');
+  const lastKnownRev = await resolveAuthoritativeRev(params.peerPubkeyHex, params.targetMessage.id, params.targetMessage.rev);
+  const rev = clampRev(Math.floor(Date.now() / 1000), lastKnownRev);
+  const rumor = buildDeleteRumor(
+    params.targetMessage.id,
+    [],
+    CHAT_MESSAGE_KIND,
+    rev,
+    params.privateKeyHex,
+  );
+  const wrap = await sealAndWrap(rumor, params.peerPubkeyHex, params.privateKeyHex);
+  const ndkEvent = new NDKEvent(params.ndk, wrap as any);
+  await ndkEvent.publish();
+
+  const { applyDeleteEditSignal } = await import('@/src/lib/messageEdits/api');
+  // S4 gate-remediation (finding 4, sev4): a durable-write failure AFTER a
+  // successful publish must not look like a publish failure to the caller — the
+  // DM signal is already gift-wrapped and sent to the peer at this point, so
+  // ContactChat.handleDeleteMessage's catch-and-rollback (which visually restores
+  // the message) would otherwise permanently diverge this device's view from the
+  // peer's. Swallow (log, never rethrow); only a genuine PUBLISH failure (above)
+  // should trigger rollback (AC-DEL-2).
+  try {
+    await applyDeleteEditSignal({ kind: 'dm', peerPubkeyHex: params.peerPubkeyHex }, rumor);
+  } catch {
+    logger.info('dm:delete-durable-apply-failed', { rumorId: rumor.id });
+  }
+
+  return { rumorId: rumor.id };
+}
+
+/**
+ * Publish an edit-marked replacement (+ best-effort companion kind-5) for a DM message
+ * via NIP-59 gift wrap.
+ *
+ * Seam S4 DM producer (AC-EDIT-8).
+ *
+ * Builds the replacement via S2's buildEditReplacementRumor, pinning `created_at` to
+ * `targetMessage.createdAt` converted from storage MILLISECONDS to wire Unix SECONDS
+ * (`Math.floor(createdAt / 1000)` — S2's caller contract; the builder throws if handed a
+ * ms-scale value). `targetMessage.id` doubles as the slot's stable original id across a
+ * repeated-edit chain (AC-EDIT-6): this app's storage mutates an edited row's content in
+ * place rather than inserting a new row per edit, so the row's own id never changes and
+ * is always the original — callers never need to track a separate "first message" id.
+ *
+ * AC-EDIT-8 ordering: the replacement is published FIRST and durably applied via S3's
+ * applyDeleteEditSignal on success (deferred-until-success for the same reason documented
+ * on publishDirectDelete above). Only then is the companion kind-5 attempted; a failed or
+ * thrown companion publish is swallowed (logged, not re-thrown) so an absent/failed
+ * companion can never delete the slot or roll back an already-successful edit — the
+ * replacement alone is a complete edit for a Few client. A failed REPLACEMENT publish
+ * throws before any durable write and before the companion is attempted, so the caller's
+ * rollback (ContactChat.handleEditMessage) is a pure React-state revert.
+ */
+export async function publishDirectEdit(params: {
+  ndk: NDK;
+  privateKeyHex: string;
+  peerPubkeyHex: string;
+  targetMessage: import('@/src/lib/marmot/chatPersistence').ChatMessage;
+  newContent: string;
+}): Promise<{ rumorId: string }> {
+  const { buildEditReplacementRumor, buildEditMarkedCompanionKind5, clampRev } = await import('@/src/lib/messageEdits/rumor');
+  // S4 gate-remediation (finding 2, sev6): see resolveAuthoritativeRev's doc comment
+  // above (publishDirectDelete) — same stale-React-snapshot hazard applies here.
+  const lastKnownRev = await resolveAuthoritativeRev(params.peerPubkeyHex, params.targetMessage.id, params.targetMessage.rev);
+  const rev = clampRev(Math.floor(Date.now() / 1000), lastKnownRev);
+  const originalCreatedAtSeconds = Math.floor(params.targetMessage.createdAt / 1000);
+
+  const replacement = buildEditReplacementRumor(
+    params.targetMessage.id,
+    originalCreatedAtSeconds,
+    params.newContent,
+    CHAT_MESSAGE_KIND,
+    rev,
+    params.privateKeyHex,
+  );
+
+  // AC-EDIT-8: replacement MUST publish before the companion. A failure here throws —
+  // no durable write has happened yet, so the caller's rollback is a pure state revert.
+  const replacementWrap = await sealAndWrap(replacement, params.peerPubkeyHex, params.privateKeyHex);
+  const replacementEvent = new NDKEvent(params.ndk, replacementWrap as any);
+  await replacementEvent.publish();
+
+  const { applyDeleteEditSignal } = await import('@/src/lib/messageEdits/api');
+  // S4 gate-remediation (finding 4, sev4): swallow a post-publish durable-write
+  // failure — see publishDirectDelete's matching comment above.
+  try {
+    await applyDeleteEditSignal({ kind: 'dm', peerPubkeyHex: params.peerPubkeyHex }, replacement);
+  } catch {
+    logger.info('dm:edit-durable-apply-failed', { rumorId: replacement.id });
+  }
+
+  // Best-effort companion kind-5 (non-Few degradation only, spec §2.4). AC-EDIT-8: a
+  // failed/absent companion MUST NOT delete the slot and MUST NOT roll back the edit
+  // that already succeeded above — swallow, never throw.
+  try {
+    const companion = buildEditMarkedCompanionKind5(
+      params.targetMessage.id,
+      [],
+      CHAT_MESSAGE_KIND,
+      rev,
+      params.privateKeyHex,
+    );
+    const companionWrap = await sealAndWrap(companion, params.peerPubkeyHex, params.privateKeyHex);
+    const companionEvent = new NDKEvent(params.ndk, companionWrap as any);
+    await companionEvent.publish();
+  } catch {
+    logger.info('dm:edit-companion-publish-failed', { rumorId: replacement.id });
+  }
+
+  return { rumorId: replacement.id };
+}
+
 function getDmConversationKey(privateKeyHex: string, peerPubkeyHex: string): Uint8Array {
   return nip44.v2.utils.getConversationKey(hexToBytes(privateKeyHex), peerPubkeyHex);
 }

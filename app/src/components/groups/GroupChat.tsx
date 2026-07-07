@@ -11,7 +11,7 @@ type GroupChatProps = {
 };
 
 export default function GroupChat({ threadId, pubkey, profileMap }: GroupChatProps) {
-  const { messages, sendMessage, sendImageMessage, sendReaction, loading } = useChatStore();
+  const { messages, sendMessage, sendImageMessage, sendReaction, loading, handleDeleteMessage, handleEditMessage } = useChatStore();
 
   // Stable ref so the bridge callback always calls the latest sendReaction
   const sendReactionRef = useRef(sendReaction);
@@ -67,6 +67,9 @@ export default function GroupChat({ threadId, pubkey, profileMap }: GroupChatPro
       sendImageMessage={sendImageMessage}
       onReact={handleReact}
       allowPollMessages
+      // S6: group half of the MessageActionHandlers seam (built by S5 in ChatStoreContext).
+      handleDeleteMessage={handleDeleteMessage}
+      handleEditMessage={handleEditMessage}
     />
   );
 }

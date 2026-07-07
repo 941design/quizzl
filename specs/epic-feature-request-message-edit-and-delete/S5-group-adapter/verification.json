@@ -1,0 +1,88 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-07T14:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S5-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `createDeleteEditHandler(deps)` in `app/src/lib/marmot/handlers/deleteEditHandler.ts` actually invoke `applyDeleteEditSignal` with the incoming kind-5 rumor and the MLS-authenticated pubkey, or could it be satisfied by a handler that always accepts the signal regardless of author match? Show a test with a forged-author rumor proving it is ignored, not just structurally routed."
+    },
+    {
+      "question_id": "VQ-S5-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `deleteEditHandler.ts` have zero imports from `app/src/context/`, receiving all dependencies via the injected `HandlerDeps` bag per the existing handler convention (mirroring `reactionHandler.ts`), and is it registered exactly once in `registerHandlers.ts` (no double-dispatch per the resolved dual-listener architecture note)?"
+    },
+    {
+      "question_id": "VQ-S5-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could Group adapter be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S5-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do unit tests cover the group gate site (mirroring `reactionHandler.ts:36-41` but for kind-5) with an unknown-target signal, asserting it is routed to the pending buffer rather than discarded, and does a version-bump test confirm `ChatStoreContext` re-reads after handler dispatch (via `setChatVersion`/`setEditsVersion`)?"
+    },
+    {
+      "question_id": "VQ-S5-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does S5 confine itself to the group transport (handler + send + AC-DEL-4/AC-AUTH-2 verification), treating S4's `publishDirectDelete` only as a read-only reference for the AC-DEL-4 cross-transport assertion (never importing/reusing its code), per its declared scope?"
+    },
+    {
+      "question_id": "VQ-S5-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Show the code and a test proving the handler extracts the MLS-authenticated INNER rumor pubkey — never the kind-445 wrapper's ephemeral author — and ignores a signal whose extracted pubkey does not match the original message's author, for BOTH an already-known target and a pending (not-yet-arrived) target evaluated at application time."
+    },
+    {
+      "question_id": "VQ-S5-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEL-4",
+      "question": "Show the code and a test proving the delete/edit signal is an author-signed inner kind-5 e-tagging the original id, delivered for groups as an MLS application rumor (never published as a relay-facing kind-5) — and, referencing S4's already-verified DM behavior, that neither transport ever surfaces a bare kind-5 to a relay."
+    },
+    {
+      "question_id": "VQ-S5-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTH-2",
+      "question": "Show a test proving a delete/edit signal from a pubkey other than the original message's author is ignored (not applied), tested against both an already-known target and a pending target, using the MLS-authenticated rumor pubkey (not the kind-445 wrapper author) as the compared value."
+    },
+    {
+      "question_id": "VQ-S5-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EDIT-8",
+      "question": "Does the group half of the `MessageActionHandlers` contract — `handleDeleteMessage(id):Promise<void>` and `handleEditMessage(id,newContent):Promise<void>` in `ChatStoreContext.tsx` — match these exact signatures, optimistically apply before `sendRumorSafe` resolves, and roll back on failure, so `ChatBox.tsx` (S6) can call the group and DM handlers interchangeably through one shared call site shape?"
+    },
+    {
+      "question_id": "VQ-S5-010",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Implementation discovered that `chatHandler.ts` (kind-9) needed a dispatch-routing fix beyond the story's literal file list: without checking `hasEditMarkerTag(rumor.tags)` BEFORE the plain-original append path, an inbound edit-marked kind-9 replacement would have been mis-appended by `chatHandler.ts` as a bogus new 'original' ChatMessage row (duplicate row under the replacement's own id) instead of being routed to `applyDeleteEditSignal` — breaking AC-EDIT-1 for groups entirely. Was this genuinely necessary (i.e., would group edit be broken without it), or was there an alternative dispatch path already routing edit-marked kind-9 rumors correctly that this analysis missed?"
+    },
+    {
+      "question_id": "VQ-S5-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "`chatHandler.ts` now also received the resolve-after-append wiring (`resolvePendingSignalsForSlot` called after every fresh-original `appendMessage`, sequenced before `setChatVersion`) — the S3 calling convention S4 already implemented for DM's append sites. Is `chatHandler.ts` in fact the group's ONLY inbound-original append site (i.e., no other code path calls `chatPersistence.appendMessage` for a group original that would also need this wiring — e.g. a historical/cold-load batch path analogous to `ContactChat.tsx`'s), or does group have an unwired second append site this story missed?"
+    },
+    {
+      "question_id": "VQ-S5-012",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "`reconcileMessagesWithStorage` re-reads and reconciles the ENTIRE per-thread message array in bulk on every `chatVersion` bump, rather than per-message like DM's `resolveFreshOriginalFromStorage`. Does this bulk approach correctly satisfy the 'sequenced after resolve' render discipline for ALL cases — including a slot that a `sweepExpiredForThreadKeyLocked` self-heal pass (triggered ambiently by an UNRELATED signal's `applyDeleteEditSignal`/`resolvePendingSignalsForSlot` call) resolves without any corresponding `setChatVersion` bump for that specific slot? Could such a slot remain stale in the group's rendered view until the next unrelated chat/edit/delete activity bumps `chatVersion`, and if so, is that an acceptable residual (mirroring S4's own accepted crash-window residual) or a gap this story should have closed?"
+    },
+    {
+      "question_id": "VQ-S5-013",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The AC-DEL-4 test asserting `ChatStoreContext.tsx` never imports NDK/relay-publish machinery is a source-text regex scan (`fs.readFileSync` + `not.toMatch`), not a runtime/type-level guarantee. Is this an adequate long-term enforcement given `dependencies_forbidden` in architecture.json documents the same constraint, or should this invariant instead be enforced via a lint rule / import-boundary check (out of this story's `NO_LINT` baseline) so a future edit cannot silently reintroduce an NDK import without a source-text test happening to be updated to catch it?"
+    }
+  ]
+}

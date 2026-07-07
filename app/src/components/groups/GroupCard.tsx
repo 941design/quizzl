@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   HStack,
@@ -11,6 +11,8 @@ import {
 import NextLink from 'next/link';
 import type { Group } from '@/src/types';
 import { useCopy } from '@/src/context/LanguageContext';
+import { loadMessages } from '@/src/lib/marmot/chatPersistence';
+import { formatThreadPreviewText } from '@/src/lib/messageEdits/messageActionUi';
 
 type GroupCardProps = {
   group: Group;
@@ -20,6 +22,32 @@ export default function GroupCard({ group }: GroupCardProps) {
   const copy = useCopy();
   const memberCount = group.memberPubkeys.length;
   const nearLimit = memberCount >= 45;
+
+  // S6 (epic-feature-request-message-edit-and-delete): AC-LIST-1/AC-LIST-2 —
+  // the group list preview reflects an edit to the thread's last message and
+  // falls back past a deleted last message (or to the empty state). Loaded
+  // once per mount (mirrors AC-LIST-1's DM-ingest-on-open relaxation: this
+  // list has no live chatVersion subscription, so the preview refreshes on
+  // next view of the groups list, not live while it's open).
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    loadMessages(group.id)
+      .then(({ messages }) => {
+        if (cancelled) return;
+        setPreviewText(formatThreadPreviewText(messages, {
+          emptyText: copy.groups.listPreviewEmpty,
+          photoText: copy.groups.listPreviewPhoto,
+          structuredText: copy.groups.listPreviewStructured,
+        }));
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewText(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [group.id, copy.groups.listPreviewEmpty, copy.groups.listPreviewPhoto, copy.groups.listPreviewStructured]);
 
   return (
     <LinkBox
@@ -57,6 +85,16 @@ export default function GroupCard({ group }: GroupCardProps) {
               </Text>
             )}
           </HStack>
+          {previewText !== null && (
+            <Text
+              fontSize="xs"
+              color="textMuted"
+              noOfLines={1}
+              data-testid={`group-card-preview-${group.id}`}
+            >
+              {previewText}
+            </Text>
+          )}
         </VStack>
       </HStack>
     </LinkBox>

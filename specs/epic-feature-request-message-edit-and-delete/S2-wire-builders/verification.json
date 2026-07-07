@@ -1,0 +1,105 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-07T14:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Do `buildDeleteRumor`, `buildEditReplacementRumor`, `buildEditMarkedCompanionKind5`, and `clampRev` in `app/src/lib/messageEdits/rumor.ts` compute their tag arrays and `created_at`/`rev` values from their actual arguments, or could any be satisfied by a stub returning a fixed/frozen rumor shape regardless of input? Show a test that varies `originalId`/`priorReplacementIds`/`rev` and asserts the output tags change accordingly."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `rumor.ts` mirror `reactions/rumor.ts`'s e/k reference-tag pattern and stay a pure, side-effect-free module (no persistence, no network, no context imports) as architecture.md's Wire builders row requires?"
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could Wire builders be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do rumor-builder tests use real `nostr-tools` crypto with the `webcrypto` polyfill (per architecture.md's testing constraint), and is `clampRev`'s monotonic-per-slot behavior asserted via table-driven `it.each` cases spanning wallClockSeconds less-than, equal-to, and greater-than the last-known rev — not a fast-check generator?"
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does S2 limit itself to building unsigned rumor objects (never publishing/sealing/wrapping, and never interpreting a received rumor), matching spec.md's separation between wire construction and transport, and staying inside its declared scope.excludes?"
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Are the four builder functions and `clampRev` pure (no hidden mutable module state, no internal `Date.now()` call except where the caller supplies `wallClockSeconds` explicitly), keeping them trivially unit-testable and free of the hidden coupling that made reactions' ordering logic hard to reason about?"
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EDIT-4",
+      "question": "Show the code and a passing test proving `buildEditReplacementRumor`'s output has wire `created_at` (seconds) equal to the ORIGINAL message's `created_at` (never the immediately-prior edit's, across a 3+ edit chain), tags including `[\"e\",originalId,\"\",\"edit\"]` and `[\"rev\",<seconds>]`, and that `buildEditMarkedCompanionKind5` is separately constructed for non-Few degradation."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EDIT-6",
+      "question": "Show a test with at least three sequential edits proving every replacement rumor still e-tags the FIRST message's id (the stable slot anchor), never the id of the immediately-prior edit."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEL-8",
+      "question": "Show the code and a passing test proving both `buildDeleteRumor` and `buildEditMarkedCompanionKind5` e-tag the original id AND every prior replacement id of the slot (not just the most recent one) when given a multi-edit history."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ORDER-5",
+      "question": "Show a table-driven test proving `clampRev(wallClockSeconds, lastKnownRevForSlot)` returns a value `>= lastKnownRevForSlot + 1` whenever `wallClockSeconds <= lastKnownRevForSlot`, and returns `wallClockSeconds` otherwise, across a monotonic sequence of calls for the same slot."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EDIT-4",
+      "question": "Does the `DeleteEditRumor` contract handed to S4 and S5 — `buildDeleteRumor(originalId,priorReplacementIds[],targetKind,rev)`, `buildEditReplacementRumor(originalId,originalCreatedAt,content,targetKind,rev)`, `buildEditMarkedCompanionKind5(originalId,priorReplacementIds[],targetKind,rev)`, `clampRev(wallClockSeconds,lastKnownRevForSlot)` — match the actual exported function signatures exactly (parameter order, types, return type `UnsignedRumor`), and do both consuming stories (S4 DM, S5 group) call them with this exact shape rather than a locally-reimplemented variant?"
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-EDIT-4",
+      "question": "`buildDeleteRumor`, `buildEditReplacementRumor`, and `buildEditMarkedCompanionKind5` each take a trailing `selfPrivKeyHex: string` parameter not present in the stories.json#seams `DeleteEditRumor` shorthand type (which lists only originalId/priorReplacementIds/originalCreatedAt/content/targetKind/rev). This was added because `UnsignedRumor.pubkey` is mandatory and `getEventHash`'s canonical id serialization requires it, and no other parameter supplies it; the addition mirrors `buildReactionRumor`'s own `selfPrivKeyHex` parameter, which both the DM (`publishDirectReaction`) and group (`ChatStoreContext.sendReaction`) call sites already pass to a single shared builder today (see `specs/.../S2-wire-builders/architecture.json#deviations_from_frozen_seam_shorthand`). Verify: (a) this is in fact the only way to satisfy `UnsignedRumor`'s mandatory `pubkey` field given the frozen seam's listed parameters, (b) S4 and S5 already hold a `privateKeyHex`/`pubkey` in scope at their call sites so this addition imposes no new plumbing burden, and (c) the deviation is documented clearly enough that S4/S5 will not be surprised by the extra argument."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "`targetKind` is typed `9 | 14` in the implementation (the target CHAT message's kind), while stories.json#seams literally types it `5|9|14` for `buildDeleteRumor` and `5` for `buildEditMarkedCompanionKind5`. Verify the `5` entries in the frozen seam shorthand are indeed a copy/paste artifact (targetKind denotes the kind of the message being deleted/edited — 14 DM / 9 group — never the kind-5 signal's own kind, which is already fixed via `DELETE_EDIT_RUMOR_KIND`), consistent with this story's own prose ('14 for DM, 9 for group') and with `buildEditReplacementRumor`'s already-narrower `9|14` typing in the same seam JSON."
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "ac_id": "AC-ORDER-5",
+      "question": "`clampRev`'s guard floors (`wallClockSeconds` -> 1 when non-finite/<1; `lastKnownRevForSlot` -> 0 when non-finite/negative) are applied BEFORE computing `Math.max`. Confirm no input combination (including `NaN`, `Infinity`, `-Infinity`, and negative values on either argument) can produce a return value that is `0`, negative, or non-finite — this is the exact condition the S1 storage clobber-guard (`chatPersistence.ts`, rev>=1 == 'real signal') depends on to distinguish a real edit/delete rev from a re-delivered original."
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEL-7",
+      "question": "`buildEditMarkedCompanionKind5`'s tag array contains the original id TWICE: once as a bare `[\"e\", originalId]` (part of the shared e-tag chain with `buildDeleteRumor`, for AC-DEL-8 non-Few hiding) and once as the marked `[\"e\", originalId, \"\", \"edit\"]` (the AC-DEL-7 discriminator). Confirm S3's inbound classification logic (unmarked kind-5 = delete; presence of ANY `e`-tag with a fourth element `\"edit\"` = edit-marked, discarded on receipt) correctly handles a kind-5 rumor that has both a bare and a marked `e`-tag referencing the same id, and is not tripped up by the duplicate."
+    }
+  ]
+}

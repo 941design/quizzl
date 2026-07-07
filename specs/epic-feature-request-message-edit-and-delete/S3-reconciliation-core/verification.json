@@ -1,0 +1,146 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-07T14:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does `applyDeleteEditSignal(thread,rumor)` in `app/src/lib/messageEdits/api.ts` perform real classification/ordering/pending-buffer logic against its arguments, or could it be satisfied by a stub that e.g. always applies the most-recently-received signal ('last write wins') and still pass a shallow test? Show a test where an out-of-order lower-rev signal arrives last and is correctly ignored, proving the rev-comparison is load-bearing, not decorative."
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `messageEdits/api.ts` implement rev-clock ordering, tie-breaks, the pending buffer, and materialize-on-expiry entirely within this module, calling only S1's `updateMessageInPlace`/`tombstoneMessage` for persistence — with no direct `idb-keyval` access, no transport-specific branching, and no logic duplicated into `ContactChat.tsx` or `deleteEditHandler.ts`?"
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Grep `app/src/lib/messageEdits/api.ts` for any import from `app/src/context/` or any React import (`react`, `useState`, `useEffect`, etc.) — confirm the file has zero such imports, since both a React component (`ContactChat.tsx`) and a non-React dispatcher handler (`deleteEditHandler.ts`) must call this module directly."
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could Reconciliation core be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/**/*.test.ts` include a table-driven `it.each` suite (mirroring `reactions/api-property.test.ts`) that feeds every permutation of {original, delete, edit-replacement} arrival order for a fixed final signal set and asserts identical final rendered state for all permutations (AC-ORDER-3), plus a separate idempotency suite reprocessing an identical signal twice (AC-STORE-2) — with no fast-check generator and no jsdom?"
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does S3 stay confined to classification/ordering/pending-buffer/apply logic, excluding rumor construction (S2), publish/optimistic-rollback (S4), and UI rendering (S6) as scope.excludes states, while implementing spec.md §2.4/§2.5/§2.8's ordering and pending-buffer rules exactly (not merely something ordering-shaped)?"
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is an edit-marked kind-5 discarded strictly at classification time — never entering the pending buffer, never touching stored state, and never producing a `ChangeResult` — verified by a test asserting storage is byte-identical before and after processing such a signal? And does the deferred-authorization design (holding a pending signal unauthenticated until its target arrives, per architecture.md's AC-AUTH-2 note) fail closed rather than open when the target never arrives?"
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEL-3",
+      "question": "Show a test proving that once a delete signal for a known target is processed, that target's row (and any reactions keyed to it) no longer appears in any storage read path used for rendering — a true removal from the render-facing view, not a visible placeholder."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEL-7",
+      "question": "Show a test proving a standalone unmarked kind-5 is classified and applied as a delete, while an edit-marked kind-5 is classified as discarded (not a delete, not an edit) — using two rumors that differ ONLY in the presence of the edit marker tag, so the classification branch itself is exercised."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EDIT-7",
+      "question": "Show a test proving that reactions stored/keyed against a slot's original id remain associated with that slot after `applyDeleteEditSignal` processes an edit-replacement for it — i.e., the slot id used for reaction lookup is unchanged pre/post edit."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STORE-1",
+      "question": "Show a test proving `applyDeleteEditSignal` is called with the identical function signature and produces the identical `ChangeResult` shape whether invoked from a simulated DM call site or a simulated group call site, for the same input rumor."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STORE-2",
+      "question": "Show a test proving that processing the exact same signal (identical id/rev/content) twice produces no additional storage mutation and no duplicate `ChangeResult` side effect on the second call."
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ORDER-1",
+      "question": "Show a test proving a delete/edit signal whose e-tagged target id has no matching stored slot is retained in the pending buffer (not discarded), and is applied once a matching original subsequently arrives."
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ORDER-2",
+      "question": "Show the named `PENDING_SIGNAL_CAP`/`PENDING_SIGNAL_TTL_MS` constants and a test proving: the buffer is keyed per unresolved target id (not per raw signal); inserting a second signal for the same target id with a lower rev than the already-buffered one is collapsed away (max-rev retained); and eviction under the cap removes the oldest target, not an arbitrary raw signal."
+    },
+    {
+      "question_id": "VQ-S3-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ORDER-3",
+      "question": "Show a table-driven test enumerating every arrival order of {original, delete, edit-replacement} for a fixed rev assignment, asserting identical final rendered state in all orders, plus dedicated tie-break tests: delete-vs-edit at equal rev resolves to delete, and edit-vs-edit at equal rev resolves to the higher replacement rumor id."
+    },
+    {
+      "question_id": "VQ-S3-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ORDER-4",
+      "question": "Show a test proving: (a) a pending delete whose target never arrives before TTL expiry persists a content-free tombstone marker keyed by the target id, such that a later-arriving original for that id is still suppressed; and (b) a pending edit-marked replacement whose original never arrives is materialized under its e-tagged original slot id, retaining `rev`, rendered WITHOUT the '(edited)' marker — with both branches' persisted markers bounded by the same cap/TTL as AC-ORDER-2."
+    },
+    {
+      "question_id": "VQ-S3-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STORE-1",
+      "question": "Does the `ChangeResult` contract handed to S4 and S5 — `{thread:{kind:'dm',peerPubkeyHex:string}|{kind:'group',groupId:string}, rumor:{id:string,pubkey:string,created_at:number,kind:5|9|14,tags:string[][],content:string}, returns:Promise<ChangeResult>}` — match `applyDeleteEditSignal`'s actual parameter and return types exactly, and is it demonstrated (not merely asserted in prose) that both the DM call site (S4) and the group call site (S5) invoke the identical exported function with this identical shape, satisfying AC-STORE-1's convergence requirement?"
+    },
+    {
+      "question_id": "VQ-S3-018",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-ORDER-1",
+      "question": "S3 defines a REQUIRED calling convention that is not itself enforceable by this module: whenever S4/S5 append a brand-new original chat-message row (chatPersistence.appendMessage actually inserted, not a dedup no-op), the caller MUST immediately call `resolvePendingSignalsForSlot(thread, row.id, row.senderPubkey)`, or any signal already buffered for that id (and any persisted delete-marker) never resolves. Nothing inside S1's appendMessage or S3's own module calls this automatically. Do S4's inbound DM branches and S5's deleteEditHandler.ts each call resolvePendingSignalsForSlot at every site that appends a fresh original (historical AND live ingest paths), and is there a test proving a signal buffered before the original arrives is actually resolved through the REAL S4/S5 call site, not just through this story's own direct test-harness calls to resolvePendingSignalsForSlot?"
+    },
+    {
+      "question_id": "VQ-S3-019",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ORDER-4",
+      "question": "The pending-buffer TTL sweep implemented here is LAZY: it only runs as a side effect of a call into applyDeleteEditSignal/resolvePendingSignalsForSlot for the SAME thread. A thread that receives no further inbound signal or resolve call after a pending entry's TTL elapses will never materialize that entry (no marker, no materialized edit) until something eventually touches that thread again. Is this acceptable given MV-4/AC-ORDER-4's expectation that expiry-materialization actually happens, or does a consuming story (S4/S5) need to proactively call a sweep (e.g. on thread-open, mirroring chatPersistence's own on-first-access self-heal pass) rather than relying on incidental future traffic?"
+    },
+    {
+      "question_id": "VQ-S3-020",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "ac_id": "AC-AUTH-2",
+      "question": "Materialize-on-expiry for the EDIT branch (a pending edit-marked replacement whose original never arrives) applies unconditionally, with no author-pubkey check possible — the target's true author is, by construction, never confirmed for a signal whose target never arrived within the buffer window, and because chatPersistence.appendMessage is insert-if-absent, a later-arriving real original can never retroactively overwrite the materialized row to correct a wrong author. The DELETE-marker branch is comparatively safer: resolvePendingSignalsForSlot retroactively authenticates a marker's stashed authorPubkeyHex against the real original's author once it arrives, dropping (not applying) a mismatched marker. Is this asymmetry — edit-materialize can never be retroactively authenticated, delete-marker can — an acceptable reading of spec §2.8's 'neither branch silently drops its effect' mandate, or does it warrant a narrower trust boundary (e.g. group-only, where MLS membership already bounds who could have sent the signal at all, vs. DM where the peer is the sole other party)?"
+    },
+    {
+      "question_id": "VQ-S3-021",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "All of this module's own auxiliary state (pending-signal buffer, delete-marker set, slot-meta bookkeeping) is serialized through a SINGLE module-global queue (not per-thread, unlike chatPersistence's appendQueues or reactions/api.ts's writeQueues), because those three IDB namespaces are each a single global key shared across every thread rather than a per-thread key. Is this an acceptable throughput tradeoff for S7's e2e load (concurrent DM + group signal traffic across multiple threads serializes globally through this module), or should a future revision shard these namespaces per-thread to restore cross-thread parallelism?"
+    }
+  ]
+}

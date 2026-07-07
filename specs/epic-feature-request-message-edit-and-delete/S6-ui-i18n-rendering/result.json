@@ -1,0 +1,133 @@
+{
+  "story_id": "S6",
+  "status": "done",
+  "modules_touched": [
+    "Rendering / UI",
+    "i18n"
+  ],
+  "remediation_rounds": 1,
+  "files_created": [
+    "app/src/lib/messageEdits/messageActionUi.ts",
+    "app/tests/unit/chat/messageActionUi.test.ts",
+    "app/tests/unit/messageEdits.i18n.test.ts"
+  ],
+  "files_modified": [
+    "app/src/components/chat/ChatBox.tsx",
+    "app/src/components/contacts/ContactChat.tsx",
+    "app/src/components/groups/GroupChat.tsx",
+    "app/src/components/groups/GroupCard.tsx",
+    "app/pages/contacts.tsx",
+    "app/src/lib/i18n.ts"
+  ],
+  "implementation_summary": {
+    "pure_ui_helpers": "New app/src/lib/messageEdits/messageActionUi.ts, mirroring reactions/reactionUiHelpers.ts's precedent: canShowMessageActions (AC-AUTH-1 own-message gate, no age comparison anywhere \u2014 AC-TIME-1), canEditMessage (AC-IMG-2: false iff attachments present), isEditSubmitBlocked (AC-EDIT-5: empty/whitespace content), shouldShowEditedMarker (AC-EDIT-3), computeDeleteConfirmTransition (AC-DEL-6 two-click confirm as a pure state transition), computeThreadPreviewMessage/formatThreadPreviewText (AC-LIST-1/AC-LIST-2 list-preview computation, filtered through S1's filterVisibleMessages).",
+    "chatbox_action_menu": "ChatBox.tsx: added handleDeleteMessage/handleEditMessage as required MessageActionHandlers-seam props (identical signature for DM and group, so ChatBox never needs to know which transport it's rendering). Added an edit/delete IconButton pair in the existing per-bubble hover action row (next to the reaction trigger), gated by canShowMessageActions/canEditMessage. Delete uses a two-click confirm (computeDeleteConfirmTransition) that replaces the hover-revealed buttons with an always-visible 'Delete this message?' + confirm/cancel row once armed.",
+    "edit_mode_composer": "ChatBox.tsx: new editingMessage state pre-fills the composer (handleEditClick), clears any armed delete-confirm and any in-progress image attachment (edit is text-only, AC-IMG-2's composer half). An edit-mode banner (msgEditingBadge + Cancel) renders above the textarea; the send button becomes Save (checkmark icon, msgEditSave aria-label) and is disabled + shows a visible msgEditEmptyHint (AC-EDIT-5: never a silent no-op) whenever the trimmed content is empty. handleSend branches to handleEditSubmit when editingMessage is set; a publish failure restores the editing state and content so the in-progress edit is not lost.",
+    "edited_marker": "AC-EDIT-3: an '(edited)' marker (msgEditedMarker, data-testid=edited-marker-<id>) renders next to the timestamp on the shared ChatBox for both DM and group surfaces. A GROUPED (consecutive, same-sender, normally timestamp-collapsed) edited message forces its timestamp row to render (name stays hidden) so the marker always has somewhere to sit \u2014 see design_decisions.",
+    "tombstone_render_backstop": "ChatBox.tsx now computes visibleMessages = filterVisibleMessages(messages) once (useMemo) and uses it everywhere messages was previously used for rendering (empty/loading checks, the message .map, and the new-message scroll-tracking effect) \u2014 the epic-mandated shared belt-and-suspenders backstop closing the AC-DEL-3/AC-DEL-5 render-half gap S1 explicitly left open (S4/S5 already filter at their own storage-set points; this is the third, transport-agnostic layer so no surface can leak a tombstoned row into render, including on reload/remount).",
+    "image_rules": "AC-IMG-2: canEditMessage(msg) gates the Edit button off entirely for any message with attachments \u2014 delete remains offered. AC-IMG-3: confirmed by inspection \u2014 the delete path is exclusively handleDeleteMessage (the MessageActionHandlers seam into S4/S5's tombstone-only implementations); no Blossom client import or DELETE call exists anywhere in ChatBox.tsx, ContactChat.tsx's wiring, or GroupChat.tsx's wiring.",
+    "list_preview": "AC-LIST-1/AC-LIST-2: built from scratch \u2014 see design_decisions for why this required more than 'modify existing logic'. GroupCard.tsx now loads a preview via loadMessages(group.id) on mount and renders it through formatThreadPreviewText. contacts.tsx gained a new ContactCardPreview subcomponent (per-card hooks require a subcomponent, not an inline effect inside the parent's .map()) that does the same via directConversationId(peerPubkeyHex) + loadMessages. Both are tombstone-aware (a deleted last message falls back to the previous surviving one, or the listPreviewEmpty string) and edit-aware (content is already updated in place by the reconciliation core, so no edit-specific branch is needed).",
+    "i18n": "10 new keys added to Copy.groups (msgEditAction, msgDeleteAction, msgEditingBadge, msgEditSave, msgEditEmptyHint, msgDeleteConfirmPrompt, msgDeleteConfirmButton, msgEditedMarker, listPreviewPhoto, listPreviewEmpty), en+de, all consumed via useCopy() \u2014 no hardcoded user-visible string was added to any component (AC-INTL-1/2). Placed in Copy.groups (not a new top-level namespace) per architecture.md's flagged 'either Copy.emoji-style flat or Copy.groups-style nested, pick one and be consistent' choice \u2014 every other chat-bubble string (chatPlaceholder, chatEmpty, imageRemove, etc.) already lives there. Cancel is reused from the pre-existing groups.cancel key rather than duplicated. Copy audit: no 'erased'/'deleted for everyone'/hard-guarantee language anywhere in the new strings (AC-INTEROP-1), and no copy claims a non-Few client honors delete/edit (AC-INTEROP-2) \u2014 enforced by a regex-pattern test in messageEdits.i18n.test.ts."
+  },
+  "gate_remediation_round_1": {
+    "trigger": "Two independent model reviews (Opus code-reviewer + Codex) found real cross-surface UI defects where the new edit/delete UI meets message populations the original story's pure-function tests never modeled.",
+    "findings_fixed": [
+      "sev7: ContactChat's sealed feedback surface (source='feedback') left edit/delete unconditionally wired in, so editing/deleting a feedback message would publish an unmarked kind-14/kind-5 into the maintainer's sealed channel (the reused-channel-gating trap already closed for images/reactions). Fixed with a new allowMessageActions prop on ChatBox (default true), threaded into canShowMessageActions as a third gate parameter, and ContactChat now passes allowMessageActions={source !== 'feedback'}.",
+      "sev6: formatThreadPreviewText returned preview.content verbatim for structured (poll_open/poll_close/invite_cancelled/leave_intent/call_notice) last messages, rendering raw JSON in GroupCard/ContactCardPreview. Fixed by routing preview content through parseStructured: image maps to photoText (unchanged), any other structured type maps to a new listPreviewStructured i18n key ('New activity' / 'Neue Aktivit\u00e4t'), plain text unchanged. ThreadPreviewStrings gained a required structuredText field; both call sites (GroupCard.tsx, contacts.tsx) updated.",
+      "sev5: canEditMessage only excluded attachment-bearing messages, so a self-authored structured announcement (poll_open, etc.) showed the Edit pencil and editing it would corrupt the announcement with raw JSON on Save. Fixed: canEditMessage now also returns false when parseStructured(content) is non-null, covering the image-structured-without-attachments edge case too.",
+      "sev4: ChatBox was not keyed/reset on threadId, so editingMessage/pendingDeleteId/inputValue/attachment state survived a thread switch, causing a subsequent Save to target the wrong thread's handler and silently no-op while the composer already looked cleared. Fixed with a useEffect keyed on threadId that resets all four pieces of composer state.",
+      "sev3: handleDeleteClick's confirm branch didn't clear editingMessage when the confirmed delete targeted the message currently being edited, stranding the edit banner against a tombstoned slot. Fixed: handleDeleteClick now calls handleCancelEdit() before firing handleDeleteMessage when editingMessage?.id === messageId.",
+      "sev3: handleDrop/handlePaste only checked allowImageAttachments, so pasting/dropping an image mid-edit attached it silently (ignored by Save, then rode out on the next ordinary send). Fixed: both now also gate on `if (editingMessage) return;`.",
+      "sev2: the send-button aria-label hardcoded 'Send message' in English regardless of language. Fixed: added copy.groups.chatSend (en 'Send message' / de 'Nachricht senden') and used it in the non-editing branch.",
+      "sev2: canShowMessageActions and ChatBox's isSelf/bubble-color checks compared pubkeys with strict ===, inconsistent with the epic's other seam guards which .toLowerCase() both sides. Fixed: canShowMessageActions, ChatBox's isSelf, and the message-bubble color logic all normalize with .toLowerCase() now."
+    ],
+    "files_touched_this_round": [
+      "app/src/lib/messageEdits/messageActionUi.ts",
+      "app/src/components/chat/ChatBox.tsx",
+      "app/src/components/contacts/ContactChat.tsx",
+      "app/src/lib/i18n.ts",
+      "app/src/components/groups/GroupCard.tsx",
+      "app/pages/contacts.tsx",
+      "app/tests/unit/chat/messageActionUi.test.ts",
+      "app/tests/unit/messageEdits.i18n.test.ts"
+    ],
+    "tests_added_this_round": 11,
+    "gates": {
+      "test_command": "make test-unit",
+      "test_status": "PASS (129 files, 2399 tests)",
+      "typecheck_command": "npx tsc --noEmit -p tsconfig.json (from app/)",
+      "typecheck_status": "clean (0 errors)"
+    }
+  },
+  "design_decisions": [
+    {
+      "decision": "AC-LIST-1/AC-LIST-2's conversation/group list preview was implemented as a NEW feature (pure computation + a mount-time async load per list card), not a modification of existing logic.",
+      "rationale": "architecture.md's module map lists 'list-preview fallback' under Rendering/UI as 'Modified', and exploration.json's chatbox_render finding never flagged its absence \u2014 but a thorough search before implementation (exploration.json full-text grep for 'preview', app/pages/contacts.tsx, app/src/components/groups/GroupCard.tsx, app/pages/groups.tsx) found NO prior message-preview UI anywhere in the app; the contacts and groups list pages showed only name/member-count, never a last-message snippet. This is a genuine architecture.md-vs-codebase mismatch, not an implementation detail. The list pages also have no live chatVersion/DM-ingest subscription, so the preview is refreshed on next mount of the list page rather than live while it stays open \u2014 the same relaxation AC-LIST-1's own text already grants for DM ('processed occurs on next open')."
+    },
+    {
+      "decision": "ChatBox's grouped-message collapse is overridden (timestamp row forced visible, name still hidden) specifically for an edited message, so the '(edited)' marker always has a timestamp to render next to.",
+      "rationale": "AC-EDIT-3 requires the marker 'near the timestamp', but the existing grouping behavior hides the entire name/timestamp row for consecutive same-sender messages. Silently dropping the marker for a grouped edited message would violate the AC; always un-collapsing every grouped message would be a larger, unrequested visual change. The minimal correct fix: un-collapse only the timestamp (not the sender name) exactly when shouldShowEditedMarker is true."
+    },
+    {
+      "decision": "handleDeleteMessage/handleEditMessage are REQUIRED (non-optional) ChatBox props, not optional with a store-fallback like reactionsByMessageId.",
+      "rationale": "Unlike reactionsByMessageId (which differs by surface: DM passes a prop, group falls back to the store), the MessageActionHandlers seam has an IDENTICAL signature for both transports (stories.json's seam contract). Both existing ChatBox consumers (ContactChat.tsx, GroupChat.tsx \u2014 confirmed the only two call sites in the app) already have the real handlers available (S4's local closures / S5's useChatStore()), so there is no legitimate caller that would need a default. Requiring the props keeps ChatBox from depending on useChatStore() for anything beyond the pre-existing reactionsByMessageId fallback, and makes VQ-S6-002's 'consumed exclusively through the seam, passed in from S4/S5' answer unambiguous."
+    }
+  ],
+  "tests": {
+    "framework": "vitest",
+    "new_files": [
+      "app/tests/unit/chat/messageActionUi.test.ts",
+      "app/tests/unit/messageEdits.i18n.test.ts"
+    ],
+    "new_tests": 28,
+    "coverage": [
+      "canShowMessageActions: own message true, other-author false, true regardless of message age (AC-TIME-1: no time gate)",
+      "canEditMessage: text true, image (attachments present) false",
+      "isEditSubmitBlocked: empty/whitespace blocked, real content allowed",
+      "shouldShowEditedMarker: absent/false/true",
+      "computeDeleteConfirmTransition: arm on first click, confirm on matching second click, re-arm (not stack) on a different message",
+      "computeThreadPreviewMessage: empty thread \u2192 null, all-tombstoned \u2192 null, unsorted input resolves the true latest by createdAt, edit reflected via in-place content, delete falls back to the previous surviving message",
+      "formatThreadPreviewText: empty-state text for no survivors, edited content passthrough, photo placeholder for attachment-bearing messages (not raw content), fallback past a deleted last message",
+      "i18n: every new en/de key asserted with its exact string value; regex sweep over all new/changed copy for 'erased'/'deleted for everyone'/hard-guarantee phrasing (AC-INTEROP-1/2)"
+    ]
+  },
+  "test_counts": {
+    "baseline": 2360,
+    "final": 2399
+  },
+  "mocks": [],
+  "gates": {
+    "test_command": "make test-unit",
+    "test_status": "PASS (129 files, 2399 tests)",
+    "typecheck_command": "npx tsc --noEmit -p tsconfig.json (from app/)",
+    "typecheck_status": "clean (0 errors, unchanged from baseline)",
+    "lint_status": "NO_LINT (unchanged from baseline \u2014 no eslint config present in this project)"
+  },
+  "verification_json": {
+    "pre_impl_questions": 19,
+    "post_impl_questions_appended": 4,
+    "note": "Pre-impl questions VQ-S6-001..019 left untouched per the immutability rule. Appended VQ-S6-020 (is a mount-time, not live, list-preview refresh an adequate reading of AC-LIST-1 given the list feature did not previously exist), VQ-S6-021 (does the list-preview surfaces' direct loadMessages/filterVisibleMessages import fall inside or outside VQ-S6-002's chatPersistence-primitive boundary rule), VQ-S6-022 (does forcing the grouped-message timestamp row for an edited message correctly avoid a false new-message impression without affecting un-edited grouping), VQ-S6-023 (is there a JSX-wiring verification gap between the pure-function unit tests and S7's narrow e2e AC ownership)."
+  },
+  "escalations": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "architecture.md's module map lists the conversation/group list preview (AC-LIST-1/AC-LIST-2) as 'Modified' under Rendering/UI, implying an existing feature to update. A thorough search \u2014 exploration.json (zero mentions of 'preview' anywhere in its full text), app/pages/contacts.tsx, app/src/components/groups/GroupCard.tsx, app/pages/groups.tsx \u2014 found no prior message-preview UI anywhere in the app; the list pages showed only name/member-count. This had to be designed and built from scratch (a new pure computation plus a new async per-card load wired into two previously untouched list surfaces), materially more scope than 'wire an existing fallback', and neither the story brief nor architecture.md flagged the gap in advance \u2014 it surfaced only after grepping the actual list-page components.",
+    "surprised_by": "No e2e coverage exists for 11 of this story's 13 owned ACs \u2014 S7 owns only AC-DEL-1/AC-EDIT-1. The project's no-jsdom/no-@testing-library convention means the actual JSX wiring inside ChatBox's render (which prop gates which button, which click handler is attached to which element) is unverifiable by any automated test in this project; it is provable only by pure-function unit tests of the underlying predicates plus manual code inspection, so a wiring mistake purely in JSX (e.g. an inverted condition) could in principle pass every gate this story runs. Flagged as VQ-S6-023 for the verification examiner rather than left silent.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "base:code-reviewer",
+        "note": "Gate-remediation round 1: flagged the feedback-surface edit/delete bypass (sev7, matches the epic's known reused-channel-gating trap already closed for images/reactions) and the case-sensitivity inconsistency (sev2) \u2014 both fixed."
+      },
+      {
+        "agent": "codex:review",
+        "note": "Gate-remediation round 1: independently flagged the raw-JSON list-preview leak for structured messages (sev6), the editable-structured-announcement affordance (sev5), the thread-switch stale-composer-state no-op (sev4), the delete-mid-edit stranded banner (sev3), the paste/drop-during-edit silent attach (sev3), and the hardcoded aria-label (sev2) \u2014 all fixed. Confirms VQ-S6-023's flagged risk: this project's no-jsdom convention means JSX wiring is unverifiable by automated tests, so a wiring mistake in the gated conditions was only catchable by review, not by the pure-function unit suite alone."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-07T15:15:00Z"
+}

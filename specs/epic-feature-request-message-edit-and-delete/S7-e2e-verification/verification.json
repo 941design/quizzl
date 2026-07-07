@@ -1,0 +1,89 @@
+{
+  "story_id": "S7",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-07T14:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S7-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Do the new Playwright specs drive delete/edit through the real app (a second `browser.newContext()` peer signed in as that peer, calling the app's own publish path or a `window.__few*` dev bridge wrapping it), or does any spec hand-sign a kind-5/kind-9/kind-14 and `WebSocket.send` it directly to strfry? Grep the new spec files for any raw `WebSocket` usage or manual event signing outside the dev-bridge helpers."
+    },
+    {
+      "question_id": "VQ-S7-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Are the new e2e specs placed and named consistently with `groups-dm-reactions.spec.ts`/`groups-reactions.spec.ts` (the templates named for this story), reusing existing peer-context and dev-bridge helpers rather than duplicating bespoke setup per spec file?"
+    },
+    {
+      "question_id": "VQ-S7-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Since 'e2e' extends architecture.md's suggested story boundaries rather than being a module-map row with a formal `dependencies_allowed` list, could this story's test files be deleted and rewritten without modifying any production file outside the dev-bridge/testid additions already introduced by S1-S6? Confirm no new production code beyond dev-bridge testids is introduced by S7, per its declared scope.excludes."
+    },
+    {
+      "question_id": "VQ-S7-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do assertions use `expect.poll` on new readiness testids (`edited-marker-<id>`, `msg-deleted-<id>`) rather than `waitForTimeout`, per the project's async-observer convention (see the AC-60 flaky-fixed-timeout precedent) — grep the new spec files for any `waitForTimeout` call."
+    },
+    {
+      "question_id": "VQ-S7-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Do the new specs cover exactly AC-DEL-1 (delete, text+image, DM+group) and AC-EDIT-1 (edit, text, DM+group) as declared, without attempting to automate MV-1..6 or the AC-INTEROP-2 non-Few interop check, which are explicitly human/manual per this story's scope.excludes?"
+    },
+    {
+      "question_id": "VQ-S7-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the full suite (`make test-e2e-all`, 48 tests) pass with these specs included, and is it confirmed that no existing test's behavior changed as a side effect of the new testids/dev-bridge additions from S1-S6?"
+    },
+    {
+      "question_id": "VQ-S7-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEL-1",
+      "question": "Show a passing e2e test where a user deletes an authored text message and, separately, an authored image message, in both a DM thread and a group thread — with the second peer's UI confirmed (via `expect.poll` on `msg-deleted-<id>`) to stop rendering it."
+    },
+    {
+      "question_id": "VQ-S7-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EDIT-1",
+      "question": "Show a passing e2e test where a user edits an authored text message in both a DM thread and a group thread, with the second peer's UI confirmed (via `expect.poll` on `edited-marker-<id>` and updated content) to show the in-place update."
+    },
+    {
+      "question_id": "VQ-S7-009",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "Production ChatBox.tsx (S6) never emits a literal `msg-deleted-<id>` testid: a tombstoned row is filtered out of `visibleMessages` entirely (AC-DEL-3: silent removal, no placeholder), so there is nothing to add a positive marker to. Both new spec files' `expectMessageGone(page, id)` helper instead asserts `[data-testid=\"msg-<id>\"]` count reaches 0 via `expect.poll`. Is this substitution faithful to AC-DEL-3's wording, or does it risk conflating 'never rendered' with 'stuck in a loading state that also has zero matching elements'? (Mitigation already present: every delete test first asserts the peer's bubble IS visible before deleting, so the poll-to-zero can only mean removal, not absence-from-never-arriving.)"
+    },
+    {
+      "question_id": "VQ-S7-010",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-ORDER-1",
+      "question": "The DM spec's ordering test ('AC-ORDER-1/AC-ORDER-3 proxy') does not control relay wire-delivery order directly — Playwright cannot dictate that order. It instead controls Bob's local ingest timing (navigating Bob off the `/contacts?id=<alice>` route so his `giftWrapSub` tears down before Alice sends+deletes, then having Bob open the thread for the first time afterward, so both signals are already resolvable on the relay at his first fetch). Is this an acceptable e2e proxy for AC-ORDER-1's 'signal arrives before target' outcome given the story's scope explicitly defers the true ordering guarantee to S3 (which already covers it with controlled-order unit tests), with MV-4 as the gating manual check for literal wire-order confirmation? Or should this test be re-labeled/removed to avoid implying stronger evidence than it provides?"
+    },
+    {
+      "question_id": "VQ-S7-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-AUTH-1",
+      "question": "Both new spec files assert AC-AUTH-1's negative case via `.not.toBeAttached()` (not `.not.toBeVisible()`) on `msg-edit-<id>`/`msg-delete-<id>` for a peer's message, relying on ChatBox's `{showActions && (...)}` JSX conditional never mounting the action-menu block at all for a non-own message (confirmed by reading ChatBox.tsx: `showActions` gates the whole `<Box>`, not just its opacity). For the OWN-message positive case, the buttons ARE attached but sit inside a `_groupHover` opacity-0-by-default wrapper — the tests `.hover()` the row first. Does this correctly distinguish 'never offered' (AC-AUTH-1, DOM-absent) from 'offered but visually collapsed until hover' (a UX/CSS concern, not an AC), or should the positive-case assertion be strengthened beyond `.toBeAttached()` (e.g. `.toBeVisible()` post-hover) to also prove the hover-reveal actually works?"
+    },
+    {
+      "question_id": "VQ-S7-012",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "S6's own retrospective (result.json, VQ-S6-023) flagged that this project's no-jsdom/no-@testing-library convention meant the JSX wiring inside ChatBox's render (which prop gates which button, which click handler attaches to which element) was unverifiable by any automated test — provable only by pure-function unit tests of the underlying predicates (canShowMessageActions, canEditMessage, etc.) plus manual code inspection, so a purely-JSX wiring mistake (e.g. an inverted conditional) could in principle pass every S1-S6 gate. Both new S7 spec files drive the actual UI (hover + click on real `msg-edit-<id>`/`msg-delete-<id>`/`msg-delete-confirm-<id>` DOM elements, not the `window.__few*` dev bridge) for the AC-AUTH-1, AC-DEL-6, AC-EDIT-5, and AC-IMG-2 confirmatory tests. Does this close VQ-S6-023's flagged gap for the core own-message action-menu flow, or does a residual JSX-wiring blind spot remain (e.g. untested prop-threading paths not exercised by any of the 16 new tests)?"
+    },
+    {
+      "question_id": "VQ-S7-013",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "question": "The story brief's suggested run commands (`make test-e2e-fast` for DM, `make test-e2e-groups` for group) do not match `app/playwright.config.ts`'s actual `testMatch`/`testIgnore` split, which routes ANY `dm-*.spec.ts` or `groups-*.spec.ts` file into the relay-required ('groups') mode — DM message edit/delete needs the walled-garden MLS group prerequisite (`createGroupAndInvite`) exactly like the pre-existing `dm-*`/`groups-dm-*` specs, so it cannot run in the non-relay fast bucket regardless of filename. Both new files were named `dm-message-edit-delete.spec.ts` / `groups-message-edit-delete.spec.ts` and run only via `E2E_GROUPS=1 node scripts/run-e2e.mjs ...` (Docker required). Independently re-run by the architect (not just the dev agent) with Docker available: 16/16 new tests green (1.1m), plus a regression check of the adjacent `groups-dm-reactions.spec.ts`/`groups-reactions.spec.ts` (14/14 green, 56.9s) to confirm no shared-testid interference. Is the story brief's fast/relay split assumption worth correcting in `stories.json`/architecture.md for future stories that reference this convention?"
+    }
+  ]
+}

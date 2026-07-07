@@ -14,14 +14,58 @@
 import { CHAT_MESSAGE_KIND } from '@/src/lib/marmot/chatPersistence';
 import type { ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import type { ApplicationRumor, DispatcherContext, RumorHandler } from '@/src/lib/marmot/applicationRumorDispatcher';
+import type { ChangeResult, InboundDeleteEditRumor, MessageEditsThreadKey } from '@/src/lib/messageEdits/api';
+import { hasEditMarkerTag } from '@/src/lib/messageEdits/rumor';
 
 export interface ChatHandlerDeps {
   appendMessage: (groupId: string, message: ChatMessage) => Promise<void>;
   incrementUnread: (groupId: string) => void;
   setChatVersion: (updater: (v: number) => number) => void;
+  /**
+   * S5 (epic-feature-request-message-edit-and-delete): a kind-9 rumor carrying
+   * the edit e-tag marker is a REPLACEMENT, not a plain original — it must be
+   * routed to S3's reconciliation core instead of being appended here as a
+   * bogus new "original" row (which would corrupt the store: a duplicate row
+   * under the replacement's own id, while the real target slot never updates).
+   */
+  applyDeleteEditSignal: (thread: MessageEditsThreadKey, rumor: InboundDeleteEditRumor) => Promise<ChangeResult>;
+  /**
+   * S5: required calling convention from S3 (messageEdits/api.ts module doc
+   * comment, carried into S4/S5 via ownership-ledger.json) — after every
+   * append of a brand-new original chat-message row, the caller MUST
+   * immediately call this so any buffered delete/edit signal or delete-marker
+   * for that id is resolved against the just-arrived original. Sequenced
+   * BEFORE the chatVersion bump, so ChatStoreContext's re-read reflects the
+   * resolved (possibly tombstoned/edited) state, not the raw just-appended row.
+   */
+  resolvePendingSignalsForSlot: (thread: MessageEditsThreadKey, slotId: string, originalAuthorPubkeyHex: string) => Promise<ChangeResult>;
 }
 
 async function handle(rumor: ApplicationRumor, ctx: DispatcherContext, deps: ChatHandlerDeps): Promise<void> {
+  const thread: MessageEditsThreadKey = { kind: 'group', groupId: ctx.groupId };
+
+  // S5 dispatch-routing check (mirrors ContactChat.tsx's isEditMarkedReplacement
+  // check for the DM kind-14 path, using S4's canonical hasEditMarkerTag so the
+  // two predicates can never drift apart — see messageEdits/rumor.ts). MUST run
+  // before any content/attachment parsing below: an edit-marked replacement's
+  // `content` is the NEW message text, not something chatHandler should ever
+  // append as an independent row.
+  if (hasEditMarkerTag(rumor.tags)) {
+    const result = await deps.applyDeleteEditSignal(thread, rumor as InboundDeleteEditRumor).catch((err: unknown) => {
+      console.warn('[dispatcher.9] applyDeleteEditSignal (edit-marked replacement) failed:', err);
+      return null;
+    });
+    // S5 gate-remediation (finding 5): bump unconditionally for ANY non-null
+    // ChangeResult — mirrors deleteEditHandler.ts's identical fix. The sweep
+    // inside applyDeleteEditSignal can self-heal/materialize OTHER slots'
+    // storage regardless of THIS rumor's own outcome; a spurious bump for a
+    // 'pending'/'discarded'/'noop' result is a cheap, idempotent re-read.
+    if (result) {
+      deps.setChatVersion((v) => v + 1);
+    }
+    return;
+  }
+
   const { parseImageMessageContent, extractAttachmentsByRole } = await import('@/src/lib/media/imageMessage');
   const parsed = parseImageMessageContent(typeof rumor.content === 'string' ? rumor.content : '');
   const attachments = (parsed?.type === 'image' && rumor.tags?.length)
@@ -39,6 +83,16 @@ async function handle(rumor: ApplicationRumor, ctx: DispatcherContext, deps: Cha
   };
 
   await deps.appendMessage(ctx.groupId, msg);
+
+  // S5: resolve-after-append (see ChatHandlerDeps.resolvePendingSignalsForSlot
+  // doc comment above). appendMessage is insert-if-absent with no signal for
+  // "actually inserted" vs "dedup no-op" — resolvePendingSignalsForSlot is
+  // itself idempotent, so calling it unconditionally on every kind-9 original
+  // (including a re-delivered one) is always safe.
+  await deps.resolvePendingSignalsForSlot(thread, msg.id, msg.senderPubkey).catch((err: unknown) => {
+    console.warn('[dispatcher.9] resolvePendingSignalsForSlot failed:', err);
+  });
+
   deps.setChatVersion((v) => v + 1);
 
   // Own-send guard: skip incrementUnread for messages sent by the local user.

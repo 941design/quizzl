@@ -1,0 +1,526 @@
+{
+  "epic_name": "feature-request-message-edit-and-delete",
+  "created_at": "2026-07-07T12:00:00Z",
+  "updated_at": "2026-07-07T15:45:00Z",
+  "total_stories": 7,
+  "dependency_notes": "Sequential, module-owned split per architecture.md 'Suggested story boundaries': storage (S1) and wire builders (S2) are independent leaves; reconciliation core (S3) depends on S1's storage seam; the DM adapter (S4) and group adapter (S5) each depend on S2 (wire builders) and S3 (reconciliation core) but not on each other's code (S5 additionally references S4's already-landed publishDirectDelete only to assert AC-DEL-4's cross-transport claim, not to reuse its code); UI/i18n/rendering (S6) depends on S4 and S5's action-handler seam; e2e (S7) depends on all six prior stories landing. Implementation is sequential per project convention (no parallel story implementation) \u2014 mock_dependencies/introduces_mocks are empty throughout because every consuming story can use the real, already-landed code of its dependencies rather than a temporary stand-in.",
+  "mock_resolution_plan": "No temporary mocks are introduced. Because implementation is strictly sequential (S1..S7), every story that depends on an earlier seam consumes the real landed code, not a mock \u2014 consistent with mocks-registry.json already being empty (all_resolved:true) at planning time.",
+  "seams": [
+    {
+      "data": "Delete/edit reconciliation outcome for a DM thread",
+      "source": {
+        "story": "S3",
+        "artifact": "app/src/lib/messageEdits/api.ts#applyDeleteEditSignal"
+      },
+      "intermediaries": [
+        {
+          "story": "S1",
+          "artifact": "app/src/lib/marmot/chatPersistence.ts#updateMessageInPlace / #tombstoneMessage"
+        }
+      ],
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/components/contacts/ContactChat.tsx inbound kind-5 branch"
+      },
+      "contract": {
+        "type_name": "ChangeResult",
+        "fields": [
+          {
+            "name": "thread",
+            "type": "{kind:'dm',peerPubkeyHex:string} | {kind:'group',groupId:string}"
+          },
+          {
+            "name": "rumor",
+            "type": "{id:string,pubkey:string,created_at:number,kind:5|9|14,tags:string[][],content:string}"
+          },
+          {
+            "name": "returns",
+            "type": "Promise<ChangeResult>"
+          }
+        ],
+        "invariants": [
+          "Order-independent: outcome depends only on the slot's highest-rev signal for any arrival order of {original, delete, edit-replacement} (AC-ORDER-3)",
+          "Idempotent: reprocessing an identical signal produces no further change (AC-STORE-2)",
+          "An edit-marked kind-5 is discarded on receipt and never mutates state (AC-DEL-7)",
+          "Called identically (same function, same argument shape) by both DM and group call sites (AC-STORE-1)"
+        ]
+      }
+    },
+    {
+      "data": "Delete/edit reconciliation outcome for a group thread",
+      "source": {
+        "story": "S3",
+        "artifact": "app/src/lib/messageEdits/api.ts#applyDeleteEditSignal"
+      },
+      "intermediaries": [
+        {
+          "story": "S1",
+          "artifact": "app/src/lib/marmot/chatPersistence.ts#updateMessageInPlace / #tombstoneMessage"
+        }
+      ],
+      "destination": {
+        "story": "S5",
+        "artifact": "app/src/lib/marmot/handlers/deleteEditHandler.ts"
+      },
+      "contract": {
+        "type_name": "ChangeResult",
+        "fields": [
+          {
+            "name": "thread",
+            "type": "{kind:'dm',peerPubkeyHex:string} | {kind:'group',groupId:string}"
+          },
+          {
+            "name": "rumor",
+            "type": "{id:string,pubkey:string,created_at:number,kind:5|9|14,tags:string[][],content:string}"
+          },
+          {
+            "name": "returns",
+            "type": "Promise<ChangeResult>"
+          }
+        ],
+        "invariants": [
+          "Order-independent: outcome depends only on the slot's highest-rev signal for any arrival order of {original, delete, edit-replacement} (AC-ORDER-3)",
+          "Idempotent: reprocessing an identical signal produces no further change (AC-STORE-2)",
+          "An edit-marked kind-5 is discarded on receipt and never mutates state (AC-DEL-7)",
+          "Called identically (same function, same argument shape) by both DM and group call sites (AC-STORE-1)"
+        ]
+      }
+    },
+    {
+      "data": "In-place message content mutation used to apply an edit or tombstone a slot",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/marmot/chatPersistence.ts#updateMessageInPlace / #tombstoneMessage"
+      },
+      "destination": {
+        "story": "S3",
+        "artifact": "app/src/lib/messageEdits/api.ts"
+      },
+      "contract": {
+        "type_name": "MessagePatch",
+        "fields": [
+          {
+            "name": "groupId",
+            "type": "string"
+          },
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "patch",
+            "type": "{tombstoned?:boolean, edited?:boolean, rev?:number, content?:string}"
+          }
+        ],
+        "invariants": [
+          "Never re-inserts or reorders the row \u2014 content updates happen in place (AC-EDIT-2)",
+          "Never clobbers a row already flagged edited or tombstoned when the incoming write carries rev=0 (the original message rumor) (AC-STORE-3)",
+          "tombstoneMessage never physically removes the row (AC-DEL-5); removeMessages is never called from this path"
+        ]
+      }
+    },
+    {
+      "data": "Delete/edit rumor wire objects (unmarked kind-5, edit-marked replacement, edit-marked companion kind-5)",
+      "source": {
+        "story": "S2",
+        "artifact": "app/src/lib/messageEdits/rumor.ts"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/lib/directMessages.ts#publishDirectDelete / #publishDirectEdit"
+      },
+      "contract": {
+        "type_name": "DeleteEditRumor",
+        "fields": [
+          {
+            "name": "buildDeleteRumor",
+            "type": "(originalId:string, priorReplacementIds:string[], targetKind:5|9|14, rev:number) => UnsignedRumor"
+          },
+          {
+            "name": "buildEditReplacementRumor",
+            "type": "(originalId:string, originalCreatedAt:number, content:string, targetKind:9|14, rev:number) => UnsignedRumor"
+          },
+          {
+            "name": "buildEditMarkedCompanionKind5",
+            "type": "(originalId:string, priorReplacementIds:string[], targetKind:5, rev:number) => UnsignedRumor"
+          },
+          {
+            "name": "clampRev",
+            "type": "(wallClockSeconds:number, lastKnownRevForSlot:number) => number"
+          }
+        ],
+        "invariants": [
+          "buildDeleteRumor never sets the edit marker tag (AC-DEL-7)",
+          "Both delete and edit-marked-companion builders e-tag the original id plus every prior replacement id (AC-DEL-8)",
+          "buildEditReplacementRumor always references the FIRST message's id/created_at across a repeated-edit chain, never the immediately-prior edit's (AC-EDIT-4, AC-EDIT-6)",
+          "clampRev(w, last) >= last + 1 whenever w <= last, and is monotonic per slot (AC-ORDER-5, D16)"
+        ]
+      }
+    },
+    {
+      "data": "Delete/edit rumor wire objects (unmarked kind-5, edit-marked replacement, edit-marked companion kind-5)",
+      "source": {
+        "story": "S2",
+        "artifact": "app/src/lib/messageEdits/rumor.ts"
+      },
+      "destination": {
+        "story": "S5",
+        "artifact": "app/src/context/ChatStoreContext.tsx group send + app/src/lib/marmot/handlers/deleteEditHandler.ts"
+      },
+      "contract": {
+        "type_name": "DeleteEditRumor",
+        "fields": [
+          {
+            "name": "buildDeleteRumor",
+            "type": "(originalId:string, priorReplacementIds:string[], targetKind:5|9|14, rev:number) => UnsignedRumor"
+          },
+          {
+            "name": "buildEditReplacementRumor",
+            "type": "(originalId:string, originalCreatedAt:number, content:string, targetKind:9|14, rev:number) => UnsignedRumor"
+          },
+          {
+            "name": "buildEditMarkedCompanionKind5",
+            "type": "(originalId:string, priorReplacementIds:string[], targetKind:5, rev:number) => UnsignedRumor"
+          },
+          {
+            "name": "clampRev",
+            "type": "(wallClockSeconds:number, lastKnownRevForSlot:number) => number"
+          }
+        ],
+        "invariants": [
+          "buildDeleteRumor never sets the edit marker tag (AC-DEL-7)",
+          "Both delete and edit-marked-companion builders e-tag the original id plus every prior replacement id (AC-DEL-8)",
+          "buildEditReplacementRumor always references the FIRST message's id/created_at across a repeated-edit chain, never the immediately-prior edit's (AC-EDIT-4, AC-EDIT-6)",
+          "clampRev(w, last) >= last + 1 whenever w <= last, and is monotonic per slot (AC-ORDER-5, D16)"
+        ]
+      }
+    },
+    {
+      "data": "DM own-message action handlers consumed by the shared action menu / composer",
+      "source": {
+        "story": "S4",
+        "artifact": "app/src/components/contacts/ContactChat.tsx#handleDeleteMessage / #handleEditMessage"
+      },
+      "destination": {
+        "story": "S6",
+        "artifact": "app/src/components/chat/ChatBox.tsx action menu + edit-mode composer (DM wiring)"
+      },
+      "contract": {
+        "type_name": "MessageActionHandlers",
+        "fields": [
+          {
+            "name": "handleDeleteMessage",
+            "type": "(id:string) => Promise<void>"
+          },
+          {
+            "name": "handleEditMessage",
+            "type": "(id:string, newContent:string) => Promise<void>"
+          }
+        ],
+        "invariants": [
+          "handleDeleteMessage optimistically removes the message before publish and rolls back to visible on publish failure (AC-DEL-2)",
+          "handleEditMessage publishes the replacement before its companion kind-5 and rolls back to the prior content on publish failure (AC-EDIT-8)"
+        ]
+      }
+    },
+    {
+      "data": "Group own-message action handlers consumed by the shared action menu / composer",
+      "source": {
+        "story": "S5",
+        "artifact": "app/src/context/ChatStoreContext.tsx#handleDeleteMessage / #handleEditMessage"
+      },
+      "destination": {
+        "story": "S6",
+        "artifact": "app/src/components/chat/ChatBox.tsx action menu + edit-mode composer (group wiring)"
+      },
+      "contract": {
+        "type_name": "MessageActionHandlers",
+        "fields": [
+          {
+            "name": "handleDeleteMessage",
+            "type": "(id:string) => Promise<void>"
+          },
+          {
+            "name": "handleEditMessage",
+            "type": "(id:string, newContent:string) => Promise<void>"
+          }
+        ],
+        "invariants": [
+          "handleDeleteMessage optimistically removes the message before publish and rolls back to visible on publish failure (AC-DEL-2)",
+          "handleEditMessage publishes the replacement before its companion kind-5 and rolls back to the prior content on publish failure (AC-EDIT-8)"
+        ]
+      }
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7"
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "storage-foundation",
+      "title": "Storage foundation \u2014 tombstone/edited/rev fields, update-in-place, clobber-guard",
+      "description": "Extend the ChatMessage row shape (app/src/lib/marmot/chatPersistence.ts:16-30) with tombstoned/edited/rev fields; add the update-in-place primitives (updateMessageInPlace, tombstoneMessage) that overwrite or tombstone an existing row WITHOUT re-inserting or reordering it \u2014 chatPersistence.appendMessage today is confirmed insert-if-absent (never overwrites), so this is new code, not a guard bolted onto existing overwrite behavior; add the AC-STORE-3 clobber-guard so a re-delivered original (rev=0) message rumor can never revert an already-edited or tombstoned slot; filter tombstoned rows out of any read path used for rendering. All writes route through the existing per-thread appendQueues (chatPersistence.ts:241) \u2014 no new queue is introduced.",
+      "acceptance_criteria": [
+        "AC-DEL-5",
+        "AC-STORE-3",
+        "AC-EDIT-2",
+        "AC-IMG-1"
+      ],
+      "scope": {
+        "includes": [
+          "Add tombstoned:boolean, edited:boolean, rev:number fields to ChatMessage",
+          "Add updateMessageInPlace(groupId,id,patch) \u2014 overwrites content/edited/rev without re-inserting or moving the row's stored position (AC-EDIT-2)",
+          "Add tombstoneMessage(groupId,id,rev) \u2014 flips tombstoned:true, retains the row physically, never calls removeMessages (AC-DEL-5)",
+          "Add the AC-STORE-3 clobber-guard: an incoming write carrying rev=0 (the original message rumor) MUST NOT overwrite a row already flagged edited or tombstoned",
+          "Filter tombstoned rows out of every storage read path used for rendering",
+          "Confirm image-shaped ChatMessage rows (attachments present) are tombstoned identically to text rows (AC-IMG-1)"
+        ],
+        "excludes": [
+          "Wire format / rumor construction (S2)",
+          "Interpreting an inbound signal or the pending buffer (S3)",
+          "Any UI rendering change (S6)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "Storage",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "notes": "Creates the storage-update-in-place seam (MessagePatch) consumed by S3. Do not reuse removeMessages \u2014 that path is reserved for the ADR-001/002 purge / self-heal path only."
+    },
+    {
+      "id": "S2",
+      "name": "wire-builders",
+      "title": "Wire builders \u2014 delete kind-5, edit replacement, edit-marked companion, rev clamp",
+      "description": "New app/src/lib/messageEdits/rumor.ts, mirroring reactions/rumor.ts's e/k reference-tag pattern. Three builders: (1) an unmarked kind-5 delete (e-tags the original id plus every prior replacement id; its own created_at is its rev); (2) an edit-marked replacement chat rumor (kind-14 DM / kind-9 group) whose wire created_at is pinned to the ORIGINAL message's created_at across the whole edit chain \u2014 never the prior edit's \u2014 and whose tags carry [\"e\",originalId,\"\",\"edit\"] plus [\"rev\",nowSeconds]; (3) an edit-marked companion kind-5 (same e-tag chain as the delete builder, plus the edit marker) for non-Few degradation only. Plus a pure rev-clamp helper: rev = max(wallClockSeconds, slot's last-known rev + 1), per-slot and monotonic (D16). Note ChatMessage.createdAt is milliseconds while the wire created_at field is seconds \u2014 the builders pin the seconds field.",
+      "acceptance_criteria": [
+        "AC-EDIT-4",
+        "AC-EDIT-6",
+        "AC-DEL-8",
+        "AC-ORDER-5"
+      ],
+      "scope": {
+        "includes": [
+          "buildDeleteRumor(originalId, priorReplacementIds[], targetKind, rev) \u2192 unmarked kind-5 that never carries the edit marker (AC-DEL-8, AC-DEL-7 substrate)",
+          "buildEditReplacementRumor(originalId, originalCreatedAt, content, targetKind, rev) \u2192 kind-14/9 with pinned created_at + edit e-tag + rev tag; always anchors to the FIRST message's id/created_at across a repeated-edit chain (AC-EDIT-4, AC-EDIT-6)",
+          "buildEditMarkedCompanionKind5(originalId, priorReplacementIds[], targetKind, rev) \u2192 marked kind-5 for non-Few degradation",
+          "clampRev(wallClockSeconds, lastKnownRevForSlot) \u2192 number, monotonic per slot (AC-ORDER-5, D16)"
+        ],
+        "excludes": [
+          "Actually publishing/sealing/wrapping the built rumor (S4/S5)",
+          "Interpreting a received rumor (S3)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "Wire builders",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "notes": "Creates the wire-builder seam (DeleteEditRumor) consumed by S4 and S5. Pure functions only \u2014 real nostr-tools crypto + webcrypto polyfill in tests, per project convention for rumor-builder tests."
+    },
+    {
+      "id": "S3",
+      "name": "reconciliation-core",
+      "title": "Reconciliation core \u2014 rev-clock ordering, pending buffer, tombstone/edit apply",
+      "description": "New app/src/lib/messageEdits/api.ts \u2014 React-free and context-free (imports only chatPersistence + pure helpers, never app/src/context/). Implements applyDeleteEditSignal(thread, rumor): Promise<ChangeResult>, the single reconciliation function both transports call unchanged (AC-STORE-1). Classifies an inbound rumor (unmarked kind-5 = delete; edit-marked replacement = edit; edit-marked kind-5 = discarded on receipt, AC-DEL-7); resolves the target slot by matching any e-tagged id against the slot's original id or any stored replacement id; orders competing signals by rev with delete-wins-ties and higher-replacement-id-wins-ties (AC-ORDER-3). Owns the pending buffer \u2014 named PENDING_SIGNAL_CAP + PENDING_SIGNAL_TTL_MS constants (modeled on pendingInvitations.ts's cap+per-key-collapse pattern, with a net-new TTL half), per-target-id keyed, max-rev collapse on insert, evict-oldest-target \u2014 with retain-and-apply for unknown targets (AC-ORDER-1) and materialize-on-expiry for both branches (AC-ORDER-4). Reprocessing an identical signal is idempotent (AC-STORE-2). Reactions keyed to a slot's original id survive an edit of that slot because the slot's id never changes across an edit (AC-EDIT-7).",
+      "acceptance_criteria": [
+        "AC-DEL-3",
+        "AC-DEL-7",
+        "AC-EDIT-7",
+        "AC-STORE-1",
+        "AC-STORE-2",
+        "AC-ORDER-1",
+        "AC-ORDER-2",
+        "AC-ORDER-3",
+        "AC-ORDER-4"
+      ],
+      "scope": {
+        "includes": [
+          "applyDeleteEditSignal(thread,rumor) \u2014 single shared reconciliation entrypoint called unchanged by DM and group (AC-STORE-1)",
+          "Signal classification: unmarked kind-5 = delete; edit-marked replacement = edit; edit-marked kind-5 discarded on receipt, never entering state or the pending buffer (AC-DEL-7)",
+          "Processing a delete signal for a known target stops it (and its reactions) from rendering \u2014 silent removal (AC-DEL-3)",
+          "rev-clock ordering with delete-wins and higher-replacement-id tie-breaks; order-independent for any arrival order of {original, delete, edit-replacement} (AC-ORDER-3)",
+          "Pending buffer: named PENDING_SIGNAL_CAP + PENDING_SIGNAL_TTL_MS constants, per-target-id keyed, max-rev collapse on insert, evict-oldest-target (AC-ORDER-2); retain (never discard) a signal whose target is unknown at receive time (AC-ORDER-1)",
+          "Materialize-on-expiry: pending delete \u2192 content-free tombstone marker keyed by target id (AC-ORDER-4 delete branch); pending edit-marked replacement \u2192 materialize under its e-tagged original slot id, rendered without the (edited) marker (AC-ORDER-4 edit branch)",
+          "Idempotent reprocessing of an identical signal \u2014 no duplicate side effects (AC-STORE-2)",
+          "Reactions keyed to a slot's original id remain associated across an edit of that slot (AC-EDIT-7)"
+        ],
+        "excludes": [
+          "Building the rumor wire objects (S2)",
+          "Extracting the authenticated pubkey per transport, and the AC-AUTH-2 compare-and-ignore test itself (S5 owns and verifies AC-AUTH-2 via the higher-risk group MLS-pubkey path)",
+          "Publishing / network send, and the optimistic-apply + rollback-on-publish-failure flow (S4)",
+          "Any UI rendering (S6)"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "owning_module": "Reconciliation core",
+      "creates_seam": true,
+      "consumes_seams": [
+        "MessagePatch"
+      ],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "notes": "Consumes the storage-update-in-place seam from S1. Creates the reconciliation seam (ChangeResult) consumed by S4 (DM) and S5 (Group). Implements the author-pubkey compare-and-ignore-on-mismatch mechanism as prerequisite infrastructure for AC-AUTH-2, which S5 formally owns and tests (deferred-to-application-time authorization: a pending signal is held unauthenticated until its target arrives)."
+    },
+    {
+      "id": "S4",
+      "name": "dm-adapter",
+      "title": "DM adapter \u2014 publish delete/edit, inbound kind-5 branch, optimistic/rollback",
+      "description": "publishDirectDelete/publishDirectEdit in app/src/lib/directMessages.ts (clone of publishDirectReaction/removeDirectReaction), building via S2's wire builders and sending via the existing sealAndWrap. Optimistically applies the tombstone/edit locally before publish and rolls back to the prior content/visible state if publish fails (AC-DEL-2). Publishes the edit replacement BEFORE its companion kind-5, so a failed or absent companion never produces a spurious delete and the replacement alone is a complete edit for a Few client (AC-EDIT-8). Inbound: a new kind-5 branch added to ContactChat.tsx's historical (L338-380) and live (L418-486) unwrap paths, alongside the existing kind-7 branch, both routed through S3's applyDeleteEditSignal \u2014 replacing the current silent-discard-on-unknown-target behavior at both DM gate sites (historical L352-362, live L447-463) with retain-and-apply.",
+      "acceptance_criteria": [
+        "AC-DEL-2",
+        "AC-EDIT-8"
+      ],
+      "scope": {
+        "includes": [
+          "publishDirectDelete/publishDirectEdit \u2014 build via S2, seal+wrap via existing sealAndWrap, optimistic-apply through S3's reconciliation core before publish, roll back to prior content/visibility on publish failure (AC-DEL-2)",
+          "Edit publish ordering: replacement rumor published before its companion kind-5; a failed/absent companion must not delete the slot; publish failure rolls back the optimistic edit (AC-EDIT-8)",
+          "Inbound kind-5 branch in ContactChat.tsx historical (L338-380) and live (L418-486) unwrap paths, both calling S3's applyDeleteEditSignal",
+          "Both DM gate sites (historical L352-362, live L447-463) route an unknown-target signal to the pending buffer, replacing the current silent-discard"
+        ],
+        "excludes": [
+          "Group transport (S5)",
+          "The reconciliation logic itself (S3, consumed unchanged)",
+          "UI action menu / composer edit-mode (S6)"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "owning_module": "DM adapter",
+      "creates_seam": true,
+      "consumes_seams": [
+        "ChangeResult",
+        "DeleteEditRumor"
+      ],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "notes": "Consumes the reconciliation seam and the wire-builder seam. Creates the DM half of the action-handler seam (MessageActionHandlers) consumed by S6. DM's existing reaction failure-UX precedent toasts on failure \u2014 make the same failure-UX choice explicit here (toast vs match group's throw-only) rather than silently diverging, per architecture.md's flagged cross-cutting decision."
+    },
+    {
+      "id": "S5",
+      "name": "group-adapter",
+      "title": "Group adapter \u2014 new kind-5 handler, group send, MLS-authenticated receive auth",
+      "description": "New app/src/lib/marmot/handlers/deleteEditHandler.ts (RumorHandler{kind:5}), registered in registerHandlers.ts and dispatched via applicationRumorDispatcher.ts; zero imports from app/src/context/, deps via the injected HandlerDeps bag per existing handler convention. Group send (delete/edit) added to ChatStoreContext.tsx using sendRumorSafe, mirroring sendMessage's optimistic + version-bump pattern (setChatVersion or a new setEditsVersion). This story also completes and verifies AC-DEL-4's full wire+transport contract across BOTH transports \u2014 DM's sealed+gift-wrapped delivery (via S4, already landed) and group's MLS-application-rumor delivery (this story) \u2014 asserting neither is ever published as a relay-facing kind-5. Implements AC-AUTH-2's receive-side authorization for groups by extracting the MLS-authenticated INNER rumor pubkey \u2014 never the kind-445 wrapper's ephemeral author (see prior learning kind-445-events-have-ephemeral-authors) \u2014 and ignoring any signal whose extracted pubkey does not match the original message's author, evaluated at application time for both pending and already-known targets.",
+      "acceptance_criteria": [
+        "AC-DEL-4",
+        "AC-AUTH-2"
+      ],
+      "scope": {
+        "includes": [
+          "createDeleteEditHandler(deps): RumorHandler{kind:5} \u2014 zero context/ imports, deps supplied via HandlerDeps",
+          "Register the handler in registerHandlers.ts; confirm single-dispatch (no double-dispatch, per the resolved dual-listener architecture note)",
+          "Group send: optimistic delete/edit via sendRumorSafe + a chatVersion/editsVersion bump to trigger ChatStoreContext re-read",
+          "Group gate site (mirroring reactionHandler.ts:36-41's discard, but for kind-5) routes an unknown-target signal to the pending buffer instead of discarding it",
+          "Verify AC-DEL-4's full wire+transport contract across both transports: DM sealed+gift-wrapped (via S4) and group MLS application rumor (this story); assert neither is ever published as a relay-facing kind-5",
+          "AC-AUTH-2 receive-side authorization: extract the MLS-authenticated inner rumor pubkey (never the kind-445 ephemeral wrapper author) and ignore a signal whose author does not match the original message's author, for both a pending (deferred-authorization) and an already-known target"
+        ],
+        "excludes": [
+          "DM transport itself (S4, consumed as already-built for the AC-DEL-4 cross-transport check)",
+          "The reconciliation compare-and-ignore logic itself (S3 implements it; this story supplies a correctly-authenticated pubkey into the rumor)",
+          "UI (S6)"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "owning_module": "Group adapter",
+      "creates_seam": true,
+      "consumes_seams": [
+        "ChangeResult",
+        "DeleteEditRumor"
+      ],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "notes": "Consumes the reconciliation seam and the wire-builder seam; also references S4's publishDirectDelete for the DM half of AC-DEL-4's cross-transport assertion (read-only reference, not shared code). Creates the group half of the action-handler seam (MessageActionHandlers) consumed by S6. Group's existing reaction failure-UX precedent only throws (no toast) \u2014 document whichever failure-UX choice is made here per architecture.md's flagged cross-cutting decision."
+    },
+    {
+      "id": "S6",
+      "name": "ui-i18n-rendering",
+      "title": "UI, i18n & rendering \u2014 action menu, edit-mode composer, edited marker, list preview",
+      "description": "ChatBox.tsx gains the edit/delete action menu in the existing per-bubble hover area, shown only on the current user's own messages (AC-AUTH-1) and never age-gated (AC-TIME-1), wired to S4's and S5's already-built handleDeleteMessage/handleEditMessage via the action-handler seam. Edit-mode composer (editingMessage/onEditSubmit) pre-fills the message text with a cancel action; sending empty content is disallowed and the user is directed to delete instead (AC-EDIT-5). Delete requires a confirmation step before the message is removed (AC-DEL-6). A subtle \"(edited)\" marker renders near the timestamp on both DM and group surfaces (AC-EDIT-3). No edit affordance is offered on image messages (AC-IMG-2); deleting an image never attempts to remove its Blossom blob (AC-IMG-3). The conversation/group list preview reflects new text once an edit of the last message has been processed (AC-LIST-1) and falls back to the previous surviving message, or the empty state, once the last message is deleted (AC-LIST-2). All new strings are added to i18n.ts with both en and de entries, consumed via useCopy(), never hardcoded (AC-INTL-1/2). Copy stays neutral throughout \u2014 never implies enforced/guaranteed deletion, never asserts that a non-Few client honors delete/edit as a guarantee (AC-INTEROP-1/2).",
+      "acceptance_criteria": [
+        "AC-TIME-1",
+        "AC-EDIT-3",
+        "AC-EDIT-5",
+        "AC-AUTH-1",
+        "AC-DEL-6",
+        "AC-LIST-1",
+        "AC-LIST-2",
+        "AC-IMG-2",
+        "AC-IMG-3",
+        "AC-INTL-1",
+        "AC-INTL-2",
+        "AC-INTEROP-1",
+        "AC-INTEROP-2"
+      ],
+      "scope": {
+        "includes": [
+          "ChatBox action menu: edit/delete on own messages only (AC-AUTH-1), never age-gated (AC-TIME-1)",
+          "Edit-mode composer: pre-filled text, cancel action, empty-submit disallowed and directed to delete instead (AC-EDIT-5)",
+          "Delete confirmation step before publish (AC-DEL-6)",
+          "'(edited)' marker rendered near the timestamp on both DM and group surfaces (AC-EDIT-3)",
+          "Image messages: no edit affordance offered (AC-IMG-2); delete path never calls a Blossom DELETE (AC-IMG-3)",
+          "Conversation/group list preview: reflects new text once an edit of the thread's last message is processed (AC-LIST-1); falls back to the previous surviving message or the empty state once the last message is deleted (AC-LIST-2)",
+          "i18n: en+de entries for every new string, consumed via useCopy(), none hardcoded in a component (AC-INTL-1, AC-INTL-2)",
+          "Copy audit: no 'erased'/'deleted for everyone' language; no assertion that a non-Few client honors delete/edit as a guarantee (AC-INTEROP-1, AC-INTEROP-2)",
+          "Wire filterVisibleMessages (tombstone render-filter) into the SHARED render path (ChatBox and/or each surface's message projection) so tombstoned rows never render on DM OR group, including on reload/remount (closes the AC-DEL-3/AC-DEL-5 render half; S1's loadMessages is deliberately raw). This ownership gap was surfaced in the S4 review \u2014 it was previously unclaimed by any story."
+        ],
+        "excludes": [
+          "Send/receive/optimistic mechanics (S3/S4/S5, consumed only via the action-handler seam)",
+          "e2e automation (S7)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "Rendering / UI",
+      "creates_seam": false,
+      "consumes_seams": [
+        "MessageActionHandlers"
+      ],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "notes": "Consumes both the DM and group halves of the action-handler seam from S4/S5. i18n additions (module 'i18n' in architecture.md's module map) are folded into this story per the lead's merge allowance rather than claimed as a separate owning_module."
+    },
+    {
+      "id": "S7",
+      "name": "e2e-verification",
+      "title": "E2E verification \u2014 DM/group delete and edit through the real app",
+      "description": "Playwright e2e coverage driving publishes through the app (a second browser.newContext() peer + a window.__few* dev bridge calling the real publish function \u2014 never hand-signed raw WebSocket), templated on groups-dm-reactions.spec.ts / groups-reactions.spec.ts. Confirms a user can delete an authored message (text and image) in both a DM and a group thread (AC-DEL-1), and can edit an authored text message in both a DM and a group thread (AC-EDIT-1) \u2014 end-to-end through the real UI, real publish, and real peer receipt. Assertions use expect.poll on new readiness testids (e.g. edited-marker-<id>, msg-deleted-<id>), never waitForTimeout. The definitive gate remains the full suite: make test / make test-e2e-all (48 tests).",
+      "acceptance_criteria": [
+        "AC-DEL-1",
+        "AC-EDIT-1"
+      ],
+      "scope": {
+        "includes": [
+          "DM delete e2e (text + image): a second Few peer stops rendering the message, asserted via msg-deleted-<id> (AC-DEL-1)",
+          "Group delete e2e (text + image): same assertion in a group thread (AC-DEL-1)",
+          "DM edit e2e (text): a second Few peer sees the in-place update + edited-marker-<id> (AC-EDIT-1)",
+          "Group edit e2e (text): same assertion in a group thread (AC-EDIT-1)"
+        ],
+        "excludes": [
+          "Manual validation items MV-1..6 and AC-INTEROP-2's non-Few interop check \u2014 human-validated, not an automated obligation of this story",
+          "New production code beyond dev-bridge testids already introduced by S1-S6"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "e2e",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "notes": "owning_module 'e2e' extends architecture.md's suggested-boundary list (item 7 of 'Suggested story boundaries') rather than a row in the module map table itself, which lists only Storage/Wire builders/Reconciliation core/DM adapter/Group adapter/Rendering-UI/i18n \u2014 flagged here for transparency. Ordering, reactions-survive-edit, and vanish-on-delete e2e coverage (mentioned in architecture.md's E2E bullet) is additional confirmatory coverage this story's tests provide beyond its 2 owned ACs; that behavior's AC ownership (AC-ORDER-1/2/3/4, AC-EDIT-7) stays with S3. MV-1..6 and AC-INTEROP-2 remain human/manual validation per the lead's explicit instruction \u2014 not assigned to any story."
+    }
+  ]
+}

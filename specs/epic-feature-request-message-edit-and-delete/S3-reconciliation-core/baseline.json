@@ -1,0 +1,20 @@
+{
+  "story_id": "S3",
+  "captured_at": "2026-07-07T14:23:48Z",
+  "test": {
+    "command": "make test-unit",
+    "status": "PASS",
+    "test_files": 124,
+    "tests": 2197
+  },
+  "lint": {
+    "command": "npm run lint (next lint)",
+    "status": "NO_LINT",
+    "note": "No .eslintrc*/eslint.config* present anywhere in the repo; `next lint` prompts an interactive first-run ESLint setup wizard rather than running an existing config. Treated as NO_LINT per the pre-existing-debt tolerance — not introduced or fixed by this story. Consistent with S1/S2's own baseline finding."
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit -p tsconfig.json",
+    "status": "clean",
+    "errors": 0
+  }
+}

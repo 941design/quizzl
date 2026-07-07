@@ -1,0 +1,82 @@
+{
+  "module_name": "Reconciliation core",
+  "purpose": "New app/src/lib/messageEdits/api.ts. React-free and context-free (imports only chatPersistence, S2's messageEdits/rumor.ts constant, idb-keyval, and pure helpers — never app/src/context/, never React). Implements applyDeleteEditSignal(thread, rumor), the single reconciliation entrypoint both the DM and group transports call unchanged (AC-STORE-1). Classifies an inbound rumor (unmarked kind-5 = delete; edit-marked kind-9/14 replacement = edit; edit-marked kind-5 = discarded on receipt, AC-DEL-7); resolves the target slot by matching any e-tagged id against a known ChatMessage row id; orders competing signals by rev with delete-wins-ties and higher-replacement-rumor-id-wins-ties (AC-ORDER-3); owns a bounded, per-target-id pending-signal buffer (PENDING_SIGNAL_CAP + PENDING_SIGNAL_TTL_MS) with max-rev collapse and evict-oldest-target (AC-ORDER-2), retain-and-apply for unknown targets (AC-ORDER-1), and materialize-on-expiry for both the delete and edit branches (AC-ORDER-4); caps an accepted signal's rev at ingest to wallClockSeconds + MAX_REV_SKEW_SECONDS (carry-forward S2 obligation); and exposes resolvePendingSignalsForSlot(thread, slotId, originalAuthorPubkeyHex) as the deferred-authorization hook S4/S5 call immediately after appending a brand-new original message row, so any signal buffered for that id (or a materialized delete-marker) is authenticated against the just-arrived original's real author and applied.",
+  "public_api": [
+    {
+      "name": "MessageEditsThreadKey",
+      "signature": "type MessageEditsThreadKey = { kind: 'dm'; peerPubkeyHex: string } | { kind: 'group'; groupId: string }",
+      "description": "Discriminated thread key, structurally identical to reactions/types.ts's ReactionThreadKey. Both the DM and group call sites construct one of these and pass it to applyDeleteEditSignal unchanged (AC-STORE-1)."
+    },
+    {
+      "name": "InboundDeleteEditRumor",
+      "signature": "interface InboundDeleteEditRumor { id: string; pubkey: string; created_at: number; kind: number; tags: string[][]; content: string }",
+      "description": "Structural rumor shape the reconciliation core accepts — matches the seam's {id,pubkey,created_at,kind:5|9|14,tags,content}. kind is typed as a plain number (not 5|9|14) so a malformed/unexpected wire value cannot be forced through TypeScript narrowing; classifySignal() defensively discards any kind outside {5,9,14}. pubkey MUST already be the authenticated author pubkey (DM: the seal's real-key signer; group: the MLS-authenticated INNER rumor pubkey, never the kind-445 wrapper's ephemeral author) — extracting that value correctly is S4/S5's job, not this module's."
+    },
+    {
+      "name": "ChangeResult",
+      "signature": "interface ChangeResult { thread: MessageEditsThreadKey; slotId: string | null; kind: 'delete' | 'edit' | 'pending' | 'discarded' | 'noop' }",
+      "description": "Return shape of applyDeleteEditSignal/resolvePendingSignalsForSlot. thread echoes the caller's input (byte-identical whether the caller is DM or group, satisfying AC-STORE-1's identical-shape requirement). slotId is the resolved/known slot id, or null when no slot could ever be identified (discarded signal, or a signal newly buffered as pending with no known target yet). kind: 'delete'/'edit' = a storage write was applied; 'pending' = buffered, unresolved; 'discarded' = classified as non-actionable (edit-marked kind-5) or authorization failed; 'noop' = a real signal was classified and a slot was known, but it lost the rev/tie-break comparison or was an exact-duplicate reprocess (AC-STORE-2)."
+    },
+    {
+      "name": "applyDeleteEditSignal",
+      "signature": "function applyDeleteEditSignal(thread: MessageEditsThreadKey, rumor: InboundDeleteEditRumor): Promise<ChangeResult>",
+      "description": "The frozen seam entrypoint (architecture.md seam #1). Both DM (S4, ContactChat.tsx inbound kind-5/edit-marked-chat-rumor branches) and group (S5, deleteEditHandler.ts) call this unchanged for every inbound kind-5 rumor AND every inbound kind-9/14 rumor that carries the edit e-tag marker (a plain, unmarked kind-9/14 original message is NOT a signal and must not be routed here — it goes through the existing chatPersistence.appendMessage ingest path, followed by resolvePendingSignalsForSlot). Serialized on a single module-global queue (this module's own concern; independent of chatPersistence's per-thread appendQueues) so concurrent inbound signals never race the pending-buffer/delete-marker/slot-meta auxiliary IDB reads it owns."
+    },
+    {
+      "name": "resolvePendingSignalsForSlot",
+      "signature": "function resolvePendingSignalsForSlot(thread: MessageEditsThreadKey, slotId: string, originalAuthorPubkeyHex: string): Promise<ChangeResult>",
+      "description": "The deferred-authorization hook (AC-AUTH-2 infrastructure; S5 supplies the authenticated pubkey and owns the AC-AUTH-2 test). REQUIRED CALLING CONVENTION for S4/S5: after appending any brand-new original chat-message row via chatPersistence.appendMessage (i.e. the append actually inserted a fresh row, not a dedup no-op), the caller MUST immediately call this function with that row's id and its author's authenticated pubkey. It checks, in order: (1) a persisted delete-marker for this (thread, slotId) — a prior pending delete that materialized on TTL expiry before the original ever arrived; (2) a pending signal buffered for this (thread, slotId). Whichever of those two (by rev, delete-wins-tie) is the effective winner is applied against the just-appended row via the same win-logic as a live signal; a pending signal is authenticated against originalAuthorPubkeyHex before being allowed to win (mismatch => dropped, never applied — fail-closed) — a delete-marker was already committed at expiry time without an authentication opportunity (the target was, by definition, never known); this module can only close that residual gap opportunistically here (see MARKER-AUTH note in code) by validating the marker's own stored authorPubkeyHex, not by inventing a check the marker never had. No-ops (kind:'noop') when the slot has neither a marker nor a pending entry."
+    },
+    {
+      "name": "PENDING_SIGNAL_CAP",
+      "signature": "const PENDING_SIGNAL_CAP = 256",
+      "description": "Global cap (across all threads) on the number of distinct pending-signal target-id entries, modeled directly on pendingInvitations.ts's GLOBAL_CAP=256. Also reused as the cap for the persisted delete-marker set (AC-ORDER-4's 'bounded by the same cap/TTL as the pending buffer')."
+    },
+    {
+      "name": "PENDING_SIGNAL_TTL_MS",
+      "signature": "const PENDING_SIGNAL_TTL_MS = 24 * 60 * 60 * 1000",
+      "description": "Net-new TTL constant (no precedent in this codebase — pendingInvitations.ts has cap-only, no TTL). 24 hours: long enough to cover a typical offline/app-closed gap between an author's delete/edit and the recipient's next successful sync, short enough to bound unresolved-buffer growth. Swept lazily (on next access for the same thread), mirroring chatPersistence's own on-access self-heal pass rather than a background timer — there is no setInterval precedent in this codebase to mirror instead."
+    },
+    {
+      "name": "MAX_REV_SKEW_SECONDS",
+      "signature": "const MAX_REV_SKEW_SECONDS = 6 * 60 * 60",
+      "description": "Ingest-time rev ceiling (S2 review carry-forward obligation): an accepted signal's rev is capped to Math.min(rawRev, nowSeconds + MAX_REV_SKEW_SECONDS) before it can ever be persisted or win a comparison, so a hostile/broken author device cannot poison a slot's rev to a huge finite value (clampRev's own float-precision saturation ceiling is 2^53) and make every future legitimate edit/delete from that author's own well-behaved devices lose on equal-rev ties. 6 hours is a generous clock-skew allowance while still rejecting an implausible far-future rev."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/messageEdits/api.ts (all pending-buffer / delete-marker / slot-meta helpers, classifySignal, signalBeats, applyToKnownSlot, sweepExpiredForThreadKeyLocked — not exported)"
+  ],
+  "owned_data": [
+    "few:messageEditsPendingSignals:v1 (IDB) — the AC-ORDER-1/2 pending-signal buffer, global cap + per-target-id max-rev collapse",
+    "few:messageEditsDeleteMarkers:v1 (IDB) — the AC-ORDER-4 persisted content-free delete-marker set, same cap",
+    "few:messageEditsSlotMeta:v1 (IDB) — private per-slot bookkeeping (last-applied rumor id / rev / signal kind) used ONLY for the AC-ORDER-3 equal-rev edit-vs-edit tie-break and AC-STORE-2 idempotency shortcut; not part of any seam, never read by another module"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/chatPersistence.ts (loadMessages, appendMessage, updateMessageInPlace, tombstoneMessage, type ChatMessage) — the S1 storage-update-in-place seam",
+    "app/src/lib/messageEdits/rumor.ts (DELETE_EDIT_RUMOR_KIND only, type-adjacent constant) — the S2 wire-builder seam",
+    "idb-keyval (get/set) — same third-party persistence primitive chatPersistence.ts and reactions/api.ts already import directly"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/*",
+    "react (any import)",
+    "app/src/components/*",
+    "app/src/lib/directMessages.ts (runtime import — directConversationId's dm: prefix convention is duplicated locally as a one-line pure helper instead, to avoid pulling directMessages.ts's NDK/blossom/nostr-tools dependency graph into a module that must stay usable from a non-React dispatcher handler)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/messageEdits/api.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S4", "S5"],
+    "seam_name": "Reconciliation seam (ChangeResult) — applyDeleteEditSignal",
+    "note": "applyDeleteEditSignal(thread, rumor): Promise<ChangeResult> is the frozen, transport-agnostic entrypoint stories.json#seams declares for both the DM (S4) and group (S5) adapters. resolvePendingSignalsForSlot is a companion export of this same seam (also consumed by both S4 and S5) implementing the deferred-authorization hook architecture.md calls out — it is not itself named in stories.json#seams' ChangeResult field list, but returns the identical ChangeResult shape and is required by both consumers to correctly resolve AC-ORDER-1/AC-ORDER-4 against a freshly-arrived original."
+  },
+  "additive_change": {
+    "file": "app/src/lib/storage.ts",
+    "what": "clearAccountScopedIdbData's task array gains one entry: import('@/src/lib/messageEdits/api').then(({ clearAllMessageEditsState }) => clearAllMessageEditsState()).",
+    "why": "This story introduces three new IDB namespaces (few:messageEditsPendingSignals:v1, few:messageEditsDeleteMarkers:v1, few:messageEditsSlotMeta:v1). Without wiring a clear into resetAllData's existing account-switch sweep, a pending delete/edit signal or delete-marker from a PREVIOUS identity would leak into a newly-switched-to identity's session — the exact class of bug clearAllReactions/clearAllMessages already exist to prevent for their own namespaces. This is additive (one array entry) and does not modify any other module's owned behavior."
+  }
+}

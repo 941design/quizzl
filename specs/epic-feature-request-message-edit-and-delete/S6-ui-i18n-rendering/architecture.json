@@ -1,0 +1,71 @@
+{
+  "module_name": "Rendering / UI",
+  "purpose": "Wires the DM (S4) and group (S5) MessageActionHandlers seam into the shared ChatBox.tsx renderer: an own-messages-only, never-age-gated edit/delete action menu (AC-AUTH-1, AC-TIME-1), an edit-mode composer with empty-submit blocking (AC-EDIT-5), a two-click delete confirmation (AC-DEL-6), an \"(edited)\" marker near the timestamp on both DM and group surfaces (AC-EDIT-3), image-message edit-hidden/delete-only affordances (AC-IMG-2, AC-IMG-3), and a shared belt-and-suspenders tombstone render-filter in ChatBox itself (closing the AC-DEL-3/AC-DEL-5 render-half gap S1 explicitly left open for this story). Also builds the conversation/group list preview (AC-LIST-1, AC-LIST-2) — a feature that did not exist anywhere in the codebase prior to this story (see design_decisions) — and folds in the epic's i18n module (all new copy in app/src/lib/i18n.ts, en+de, neutral wording per AC-INTEROP-1/2).",
+  "public_api": [
+    {
+      "name": "canShowMessageActions",
+      "signature": "(message: ChatMessage, currentUserPubkey: string) => boolean",
+      "description": "app/src/lib/messageEdits/messageActionUi.ts. AC-AUTH-1 own-message gate; AC-TIME-1: no age/time comparison exists in this function or anywhere else in the action-menu gating path."
+    },
+    {
+      "name": "canEditMessage",
+      "signature": "(message: ChatMessage) => boolean",
+      "description": "AC-IMG-2: false iff message.attachments is present — image-shaped messages never offer the edit affordance, delete-only."
+    },
+    {
+      "name": "isEditSubmitBlocked",
+      "signature": "(content: string) => boolean",
+      "description": "AC-EDIT-5: true for empty/whitespace-only content. Drives both the Save button's isDisabled and the visible 'delete instead' hint — never a silent no-op."
+    },
+    {
+      "name": "shouldShowEditedMarker",
+      "signature": "(message: ChatMessage) => boolean",
+      "description": "AC-EDIT-3: true iff message.edited === true."
+    },
+    {
+      "name": "computeDeleteConfirmTransition",
+      "signature": "(pendingDeleteId: string | null, clickedMessageId: string) => { nextPendingId: string | null; shouldDelete: boolean }",
+      "description": "AC-DEL-6: pure two-click confirm state transition. First click arms a message; a second click on the SAME armed message confirms; a click on a different message re-arms instead of stacking."
+    },
+    {
+      "name": "computeThreadPreviewMessage",
+      "signature": "(messages: ChatMessage[]) => ChatMessage | null",
+      "description": "AC-LIST-1/AC-LIST-2: resolves a thread's list-preview source message — the latest surviving (non-tombstoned) message by createdAt, or null (empty state). Filters through chatPersistence's filterVisibleMessages (S1's read-side tombstone filter), so a deleted last message automatically falls back to the previous surviving one; an edited last message is reflected because `content` is already updated in place (no edit-specific branch needed)."
+    },
+    {
+      "name": "formatThreadPreviewText",
+      "signature": "(messages: ChatMessage[], strings: { emptyText: string; photoText: string }) => string",
+      "description": "Formats the list-preview text: empty-state text when no surviving messages remain, a photo placeholder for an image-shaped last message, otherwise raw content. No i18n context dependency — caller supplies resolved copy strings (GroupCard.tsx, contacts.tsx's ContactCardPreview)."
+    }
+  ],
+  "private_files": [
+    "app/src/components/chat/ChatBox.tsx (editingMessage/pendingDeleteId are component-internal state; handleEditClick/handleCancelEdit/handleDeleteClick/handleEditSubmit are component-internal handlers — not exported)",
+    "app/pages/contacts.tsx (ContactCardPreview is a page-local subcomponent, not exported)"
+  ],
+  "owned_data": [
+    "ChatBox's editingMessage / pendingDeleteId component state (not persisted; UI-only)"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/chatPersistence.ts (ChatMessage, filterVisibleMessages, loadMessages) — read-only. filterVisibleMessages is imported directly into ChatBox.tsx as the epic-mandated shared render backstop (architecture.md's Rendering/UI row: 'tombstone filter in render'); this is the pure S1 read-filter, not a write/reconciliation primitive.",
+    "app/src/context/ChatStoreContext.tsx (useChatStore — already an existing ChatBox dependency for reactionsByMessageId; handleDeleteMessage/handleEditMessage are consumed by GroupChat.tsx via this hook and passed into ChatBox as props, not read by ChatBox itself)",
+    "app/src/lib/directMessages.ts (directConversationId) — contacts.tsx list-preview thread-id derivation, matching ContactChat.tsx's existing usage",
+    "app/src/context/LanguageContext.ts (useCopy, useLanguage) — existing dependency",
+    "app/src/lib/messageEdits/messageActionUi.ts — this story's own new pure-function module"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/messageEdits/api.ts (applyDeleteEditSignal, resolvePendingSignalsForSlot) — S3's reconciliation core; ChatBox/ContactChat/GroupChat/GroupCard/contacts.tsx consume delete/edit exclusively through the MessageActionHandlers seam (handleDeleteMessage/handleEditMessage), never call reconciliation directly",
+    "app/src/lib/messageEdits/rumor.ts (buildDeleteRumor, buildEditReplacementRumor, etc.) — S2's wire builders; never referenced from the rendering layer",
+    "chatPersistence.ts write primitives (updateMessageInPlace, tombstoneMessage, appendMessage) — this story only reads (loadMessages, filterVisibleMessages), never writes storage directly; all writes route through the MessageActionHandlers seam into S4/S5"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/chat/messageActionUi.test.ts",
+    "app/tests/unit/messageEdits.i18n.test.ts"
+  ],
+  "seam": {
+    "cross_story": false,
+    "note": "S6 is a pure consumer of the S4/S5 MessageActionHandlers seam and creates_seam:false per stories.json. It defines no new cross-story contract — S7 (e2e) drives the UI directly via data-testids and the existing window.__few* dev bridges (already built by S4/S5), not through any S6-authored function contract."
+  }
+}

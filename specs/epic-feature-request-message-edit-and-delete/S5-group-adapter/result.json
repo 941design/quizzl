@@ -1,0 +1,169 @@
+{
+  "story_id": "S5",
+  "status": "done",
+  "modules_touched": [
+    "Group adapter"
+  ],
+  "remediation_rounds": 1,
+  "files_created": [
+    "app/src/lib/marmot/handlers/deleteEditHandler.ts",
+    "app/tests/unit/marmot/groupMessageEdits.test.ts"
+  ],
+  "files_modified": [
+    "app/src/context/ChatStoreContext.tsx",
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/marmot/handlers/chatHandler.ts",
+    "app/src/lib/marmot/registerHandlers.ts",
+    "app/tests/unit/marmot/chatHandler.test.ts",
+    "app/tests/unit/marmot/registerHandlers.test.ts"
+  ],
+  "implementation_summary": {
+    "delete_edit_handler": "New app/src/lib/marmot/handlers/deleteEditHandler.ts \u2014 createDeleteEditHandler(deps): RumorHandler<5>. Zero app/src/context/ imports; deps (applyDeleteEditSignal, setChatVersion) arrive via the injected HandlerDeps bag. Routes EVERY inbound kind-5 rumor to S3's applyDeleteEditSignal unconditionally \u2014 deliberately NO known-target pre-gate (the opposite of reactionHandler.ts:36-41's discard gate), because S3 already implements retain-and-apply for an unknown target; adding a gate here would silently discard what S3 was built to retain. Bumps the reused setChatVersion setter only for 'delete'/'edit' outcomes (actual storage mutations), never for 'pending'/'discarded'/'noop'. rumor.pubkey is already the MLS-authenticated INNER rumor pubkey by construction (applicationRumorDispatcher.ts's deserializeApplicationData hands every handler the decrypted rumor, never the kind-445 wrapper's ephemeral author) \u2014 verified against chatHandler.ts's and reactionHandler.ts's identical existing reliance on rumor.pubkey, and proven with two real, distinct nostr-tools keypairs in tests.",
+    "chatHandler_dispatch_routing_fix": "MODIFIED app/src/lib/marmot/handlers/chatHandler.ts (necessary, not literally named in architecture.md's Group adapter row \u2014 see architecture.json's dependencies_allowed note). Discovered during implementation: an inbound edit-marked kind-9 replacement rumor has kind 9, so the applicationRumorDispatcher would route it ONLY to chatHandler.ts (the kind-9 handler) unless chatHandler.ts itself branches on the edit marker \u2014 there is no separate kind for a replacement. Without this fix, chatHandler.ts would append the replacement as a bogus new 'original' ChatMessage row (a duplicate row under the replacement's own id) while the real target slot never updates, breaking AC-EDIT-1 for groups entirely. Added a dispatch-routing check via S4's canonical hasEditMarkerTag (checked BEFORE any content/attachment parsing) that routes an edit-marked kind-9 to applyDeleteEditSignal instead \u2014 mirrors ContactChat.tsx's isEditMarkedReplacement check for the DM kind-14 path exactly.",
+    "resolve_after_append_wiring": "MODIFIED chatHandler.ts, same edit. After every appendMessage of a plain (non-edit-marked) original, chatHandler.ts now calls resolvePendingSignalsForSlot(thread, msg.id, msg.senderPubkey) \u2014 S3's required calling convention (messageEdits/api.ts module doc comment; Decider-conditioned S3's acceptance on this) \u2014 sequenced BEFORE the setChatVersion bump, so ChatStoreContext's re-read reflects the resolved (possibly tombstoned/edited) state. Called unconditionally (resolvePendingSignalsForSlot is idempotent; appendMessage gives no insert-vs-noop signal), matching S4's identical DM decision. A failure is swallowed (logged), never blocking the setChatVersion bump.",
+    "group_send": "New handleDeleteMessage/handleEditMessage in app/src/context/ChatStoreContext.tsx \u2014 the group half of the MessageActionHandlers seam, exposed via ChatStoreContextValue and a NODE_ENV-guarded window.__fewGroupMessageEdits dev bridge (mirrors S4's ContactChat.tsx bridge; ChatBox.tsx/GroupChat.tsx untouched, S6-owned). Both re-read chatPersistence for the slot's authoritative rev before clamping (resolveAuthoritativeGroupRev, mirroring S4's resolveAuthoritativeRev fix \u2014 React state's rev field is never patched by the optimistic view change these handlers apply before publish). handleDeleteMessage builds an unmarked kind-5 via S2's buildDeleteRumor(id, [], CHAT_MESSAGE_KIND, rev, privateKeyHex) and sends via the existing sendRumorSafe (group.sendApplicationRumor \u2014 MLS, never relay-facing; ChatStoreContext.tsx has zero NDK imports, AC-DEL-4). handleEditMessage publishes the replacement (buildEditReplacementRumor) BEFORE the companion kind-5 (AC-EDIT-8), each in its own swallowing try/catch after the replacement's own publish succeeds (a failed/absent companion never deletes the slot or rolls back the edit). Both defer the durable applyDeleteEditSignal write until AFTER publish success and swallow a persist-only failure (mirrors S4's documented deviation from a literal pre-publish-durable-apply reading of the story shorthand \u2014 an edit-shaped 'undo' signal is the only way to un-tombstone through S3's API and unconditionally sets edited:true, which would permanently mislabel a never-edited message on the common offline-failure path). priorReplacementIds is always [] (2026-07-07 product decision, cloned from S4). Own-message auth guard is fail-closed on both handlers. Failure-UX: throws, no toast \u2014 matches the EXISTING group reaction precedent (sendReaction) and S4's identical DM decision, documented in architecture.json's cross_cutting_decision.",
+    "render_substitution_fix": "New exported pure function reconcileMessagesWithStorage in ChatStoreContext.tsx, wired into BOTH the init-load effect and the chatVersion-triggered re-read effect (replacing their prior 'only ever adds new ids, never updates or removes an already-rendered one' bodies). Discovered during implementation: the pre-S5 effects would have meant a group edit/delete of an ALREADY-RENDERED message never visibly changed anything \u2014 the row already existed in `prev`, so it was excluded from the old `newFromStore` diff. The fix substitutes storage's row for any id already rendered (storage truth overrides a stale rendered copy \u2014 the same discipline S4's resolveFreshOriginalFromStorage enforces for DM, but expressed as a bulk reconcile since group re-reads the WHOLE per-thread array on every chatVersion bump rather than DM's incremental per-gift-wrap-event unwrap), filters tombstoned rows via chatPersistence.filterVisibleMessages, and re-sorts.",
+    "thread_open_sweep": "Added a fire-and-forget resolvePendingSignalsForSlot(thread, '', '') call in the init-load effect (mirrors S4's ContactChat.tsx mount-time sweep) so the lazy TTL sweep (messageEdits/api.ts) runs proactively on group open, not only incidentally on the next signal.",
+    "composition_root_wiring": "MODIFIED app/src/context/MarmotContext.tsx (5-line diff): one static import of applyDeleteEditSignal + resolvePendingSignalsForSlot from messageEdits/api.ts, passed into the existing buildDispatcher({...}) call alongside the existing applyInboundRumor wiring. Reuses the ALREADY-threaded setChatVersion state (architecture.md seam #3's explicit 'reuse setChatVersion, or add setEditsVersion' allowance) \u2014 no new MarmotContext state, no groups.tsx changes. MODIFIED registerHandlers.ts: extended HandlerDeps with applyDeleteEditSignal/resolvePendingSignalsForSlot, wired both into createChatHandler's deps slice, registered createDeleteEditHandler in the handlers array."
+  },
+  "ac_del_4_cross_transport_verification": "Verified across BOTH transports as required. DM half (S4, already landed): sealAndWrap + NDKEvent.publish() of a kind-1059 wrap carrying an unmarked inner kind-5 \u2014 verified by S4's own dmMessageEdits.test.ts (referenced, not re-tested). Group half (this story): a source-text scan of ChatStoreContext.tsx proves zero NDK/relay-publish imports exist in the file at all (structurally impossible to publish a relay-facing kind-5 from this path), plus a test proving the wire rumor built by buildDeleteRumor is kind 5 and is sent exclusively via a mocked group.sendApplicationRumor. Neither transport ever surfaces a bare kind-5 to a relay.",
+  "tests": {
+    "framework": "vitest",
+    "new_file": "app/tests/unit/marmot/groupMessageEdits.test.ts",
+    "new_tests": 28,
+    "expanded_files": {
+      "app/tests/unit/marmot/chatHandler.test.ts": "+5 tests (resolve-after-append ordering + swallowed-failure; edit-marked kind-9 routing to applyDeleteEditSignal not appendMessage; noop-outcome does not bump setChatVersion; plain kind-9 still takes the normal append path)",
+      "app/tests/unit/marmot/registerHandlers.test.ts": "+2 tests (createDeleteEditHandler called once with the correct deps slice; deleteEdit kind-5 case added to the reachability table) + chatHandler's expected-deps assertion updated for the two new fields"
+    },
+    "coverage": [
+      "createDeleteEditHandler routes every kind-5 unconditionally (no pre-gate); unknown-target retained/pending, not discarded",
+      "setChatVersion bumped only for delete/edit outcomes, never pending/discarded/noop",
+      "single-dispatch: a duplicate wire delivery of the same rumor id invokes handle() exactly once (existing applicationRumorDispatcher LRU dedup applied to kind-5)",
+      "AC-AUTH-2 (group, S5-owned): forged-author (mallory) delete discarded for a known target, honored for the real author (alice), using two real distinct nostr-tools keypairs; same pair repeated for a pending (deferred-auth) target via resolvePendingSignalsForSlot, fail-closed on mismatch",
+      "AC-DEL-4: source-text scan proving zero NDK/relay imports in ChatStoreContext.tsx; wire rumor kind === 5, sent only via mocked group.sendApplicationRumor",
+      "reconcileMessagesWithStorage: re-delivered tombstoned original does not render; re-delivered edited original renders edited content not stale original; brand-new id appended; already-tombstoned-in-storage row never renders even if never previously rendered; stable row left unchanged",
+      "four pure optimistic view-transform functions (delete apply/rollback, edit apply/rollback)",
+      "group delete/edit send orchestration re-derived (real S2 builders + real S3 applyDeleteEditSignal, mocked group.sendApplicationRumor): happy path view+storage+wire assertions; publish-failure rollback; AC-EDIT-8 replacement-before-companion ordering; failed companion does not roll back edit; failed replacement throws+rolls back+companion never attempted; AC-EDIT-6 anchor stability + strictly-increasing rev across a second edit",
+      "AC-DEL-7 substrate: delete wire payload carries no edit marker tag"
+    ]
+  },
+  "test_counts": {
+    "baseline_files": 126,
+    "baseline_tests": 2316,
+    "final_files": 127,
+    "final_tests": 2360
+  },
+  "mocks_introduced": [],
+  "gates": {
+    "test_command": "make test-unit",
+    "test_status": "PASS (127 files, 2360 tests)",
+    "typecheck_command": "npx tsc --noEmit -p tsconfig.json (from app/)",
+    "typecheck_status": "clean (0 errors, unchanged from baseline)",
+    "lint_status": "NO_LINT (unchanged from baseline \u2014 no eslint config present in this project)"
+  },
+  "remediation": {
+    "round": 1,
+    "mode": "gate-remediation",
+    "trigger": "Two independent model reviews found render/state-projection gaps against the original S5 landing, several the group twins of bugs already fixed on S4.",
+    "scope": [
+      "app/src/context/ChatStoreContext.tsx",
+      "app/src/lib/marmot/handlers/deleteEditHandler.ts",
+      "app/src/lib/marmot/handlers/chatHandler.ts",
+      "app/tests/unit/marmot/groupMessageEdits.test.ts",
+      "app/tests/unit/marmot/chatHandler.test.ts"
+    ],
+    "explicitly_out_of_scope": "The author-authorization mechanism (rumor.pubkey forwarding into S3, deleteEditHandler.ts's doc comment) was left untouched per the remediation brief \u2014 that trust model is under separate marmot-ts-level review; no 'MLS-authenticated' comment was added or strengthened.",
+    "findings": [
+      {
+        "id": 1,
+        "severity": 5,
+        "summary": "Thread-open sweep was fire-and-forget with no post-sweep re-read, so a self-heal/TTL materialization during the sweep stayed invisible until an unrelated chatVersion bump.",
+        "fix": "ChatStoreContext.tsx's init-load effect now awaits resolvePendingSignalsForSlot(thread,'',''), then loadMessages(groupId), then setMessages(reconcileMessagesWithStorage(...)) \u2014 guarded by the effect's `active` flag, mirroring S4's ContactChat.tsx mount-sweep fix.",
+        "test": "groupMessageEdits.test.ts, 'thread-open sweep (S5 gate-remediation, finding 1)' describe block (2 tests)."
+      },
+      {
+        "id": 2,
+        "severity": 4,
+        "summary": "handleDeleteMessage had no post-delete re-read tail (unlike handleEditMessage's self-correcting tail), so a chatVersion-bump race during the publish window could resurrect the optimistically-deleted row.",
+        "fix": "performGroupDeleteMessage re-applies applyOptimisticDeleteView(prev, messageId) once more after the durable apply settles.",
+        "test": "groupMessageEdits.test.ts, 'a chatVersion-bump race that re-adds the row DURING the publish window is corrected by the post-delete re-apply tail'."
+      },
+      {
+        "id": 3,
+        "severity": 4,
+        "summary": "The send-orchestration tests re-implemented the handler bodies (simulateGroupDelete/simulateGroupEdit), so the real ChatStoreContext closures \u2014 own-message guard, resolveAuthoritativeGroupRev wiring, the finding-2 tail \u2014 never executed in a unit test (the shadow-init blind spot already flagged on S4).",
+        "fix": "Extracted the group send-orchestration bodies into exported pure functions (performGroupDeleteMessage/performGroupEditMessage) taking a GroupSendDeps bag; ChatStoreContext's handleDeleteMessage/handleEditMessage are now thin wrappers. Tests call the REAL functions directly.",
+        "test": "groupMessageEdits.test.ts's whole 'group delete/edit send orchestration' describe block was rewritten to call performGroupDeleteMessage/performGroupEditMessage; added explicit own-message-guard and authoritative-rev-reread tests."
+      },
+      {
+        "id": 4,
+        "severity": 3,
+        "summary": "sendMessage/sendImageMessage appended fresh originals with no resolvePendingSignalsForSlot call, the only original-append sites in the codebase violating S3's mandated calling convention.",
+        "fix": "Both appendMessage calls now chain .then(() => resolvePendingSignalsForSlot({kind:'group',groupId}, id, pubkey).catch(()=>{})), independent of the existing appendMessage failure log.",
+        "test": "groupMessageEdits.test.ts, 'sendMessage / sendImageMessage resolve-after-append (S5 gate-remediation, finding 4)' describe block (1 structural source-scan test + 1 mechanism test)."
+      },
+      {
+        "id": 5,
+        "severity": 3,
+        "summary": "applyDeleteEditSignal's sweep can self-heal/materialize OTHER slots' storage, but deleteEditHandler.ts and chatHandler.ts's edit-marked branch only bumped chatVersion for delete/edit outcomes on THIS rumor, leaving other slots' mutations unrendered until an unrelated bump.",
+        "fix": "Both handlers now bump chatVersion unconditionally for any non-null ChangeResult (still skip the bump when applyDeleteEditSignal itself threw).",
+        "test": "groupMessageEdits.test.ts's discarded/noop setChatVersion tests updated to expect a bump; chatHandler.test.ts's matching noop test updated + a new null-result test added."
+      },
+      {
+        "id": 6,
+        "severity": 2,
+        "summary": "handleEditMessage's post-edit tail substituted the raw stored row unconditionally; a delete landing between publish and the re-read would substitute a tombstoned row into view.",
+        "fix": "performGroupEditMessage's tail now branches: tombstoned -> drop the row from view; otherwise -> substitute as before.",
+        "test": "groupMessageEdits.test.ts, 'a delete landing between the companion publish and the tail re-read drops the row from view instead of substituting a tombstoned row'."
+      },
+      {
+        "id": 7,
+        "severity": 2,
+        "summary": "Phantom unread badge: a re-delivered original of a since-tombstoned message (past the LRU window) dedup-no-ops in storage but still fires incrementUnread.",
+        "fix": "Not addressed this round \u2014 accepted as a documented pre-existing shape per the remediation brief's cheap-if-possible framing; the fix would require appendMessage to report insert-vs-dedup-noop plus a tombstoned check, a larger change than the brief's other findings. Left for a future round.",
+        "test": null
+      }
+    ],
+    "not_fixed": [
+      "Finding 7 (phantom unread badge) \u2014 deferred, see above."
+    ],
+    "tests_added_this_round": 9,
+    "test_files_touched": [
+      "app/tests/unit/marmot/groupMessageEdits.test.ts",
+      "app/tests/unit/marmot/chatHandler.test.ts"
+    ]
+  },
+  "verification_json": {
+    "pre_impl_questions": 9,
+    "post_impl_questions_appended": 4,
+    "note": "Pre-impl questions VQ-S5-001..009 left untouched per the immutability rule. Appended VQ-S5-010 (was the chatHandler.ts dispatch-routing fix genuinely necessary \u2014 yes, confirmed by tracing the dispatcher's kind-only routing), VQ-S5-011 (is chatHandler.ts really the group's ONLY inbound-original append site \u2014 no historical/cold-load batch path exists for group unlike DM's ContactChat.tsx), VQ-S5-012 (does the bulk reconcileMessagesWithStorage approach correctly handle a slot resolved by an AMBIENT self-heal sweep with no corresponding setChatVersion bump for that specific slot \u2014 flagged as a possible residual, same class as S4's accepted crash-window gap), VQ-S5-013 (is the AC-DEL-4 source-text-scan test an adequate long-term enforcement vs. a lint/import-boundary rule)."
+  },
+  "escalations": [],
+  "design_decisions": [
+    {
+      "decision": "chatHandler.ts and MarmotContext.tsx were modified even though architecture.md's literal 'Group adapter' module-map row names only ChatStoreContext.tsx + the new deleteEditHandler.ts.",
+      "rationale": "chatHandler.ts is the group's actual inbound-original append site \u2014 the functional analog of ContactChat.tsx's DM append sites, which S4 modified despite ContactChat.tsx predating the epic and not being 'new' code either. Without the edit-marker dispatch-routing fix, group AC-EDIT-1 would be structurally broken (every inbound edit would corrupt the store with a duplicate row). Without the resolve-after-append wiring, S3's Decider-conditioned acceptance requirement (resolvePendingSignalsForSlot called after every fresh-original append) would go unfulfilled for group. MarmotContext.tsx's 5-line addition is the unavoidable composition-root wiring the SAME pattern already required for reactionHandler.ts's applyInboundRumor dependency. Documented explicitly in architecture.json's dependencies_allowed with justification, per the Step 1.5 gate.",
+      "scope_note": "Not a scope leak: both files are read-modify-in-place additions strictly necessary to make the story's own owned behavior (group edit/delete) function correctly, mirroring S4's identical precedent of touching a pre-existing, not-literally-named file for the same functional reason."
+    },
+    {
+      "decision": "Reused the existing setChatVersion setter as the version-bump seam, rather than adding a new setEditsVersion state to MarmotContext.tsx.",
+      "rationale": "architecture.md seam #3 explicitly allows either choice ('reuse setChatVersion, or add setEditsVersion'). Reuse avoids touching MarmotContext.tsx's state declarations, the buildDispatcher deps object's setEditsVersion field, and groups.tsx's ChatStoreProvider prop list \u2014 the smallest correct footprint. The chatVersion-triggered re-read effect already exists and now does the correct thing (reconcileMessagesWithStorage) regardless of which specific event caused the bump."
+    },
+    {
+      "decision": "Own send (handleDeleteMessage/handleEditMessage) does NOT bump chatVersion or call resolvePendingSignalsForSlot \u2014 it directly mutates local React state via setMessages, mirroring sendMessage/sendReaction's existing own-send pattern.",
+      "rationale": "marmot-ts's #sentEventIds prevents an own-send from ever reaching the applicationMessage bus (chatHandler.ts's own doc comment), so an own delete/edit's kind-5/kind-9 signal never round-trips back through this device's dispatcher. The chatVersion/setEditsVersion bump in architecture.md's seam #3 description refers to the INBOUND (peer-originated) case only \u2014 deleteEditHandler.ts, not the send path. Confirmed against S4's identical precedent: DM's handleDeleteMessage/handleEditMessage also do not call resolvePendingSignalsForSlot (a freshly-generated own-message id cannot plausibly have a pre-existing pending signal)."
+    }
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "architecture.md's module map literally scopes 'Group adapter' to ChatStoreContext.tsx + the new deleteEditHandler.ts, but making group edit actually WORK required two non-obvious changes to chatHandler.ts (the edit-marker dispatch-routing check and the resolve-after-append wiring) that the story description's file list did not name. Both were discoverable only by tracing where a group inbound kind-9 rumor actually gets appended (chatHandler.ts, not anywhere in ChatStoreContext.tsx) and by re-deriving what 'route an edit-marked replacement to S3' means when the dispatcher routes purely by numeric kind with no marker-awareness of its own. This mirrors S4's own retro finding (the DM inbound append sites needed the identical wiring) but the group case required an extra inferential step: DM's append happens inline in ContactChat.tsx (a file already explicitly in S4's scope), while group's append happens in a SEPARATE, pre-existing handler file one level removed from ChatStoreContext.tsx, and connecting 'this story's git area' to 'that file needs this exact wiring' was not spelled out anywhere in the story brief or architecture.md.",
+    "surprised_by": "chatHandler.ts's plain kind-9 dispatch path has NO existing marker-awareness at all \u2014 every kind-9 rumor, including a would-be edit replacement, was unconditionally treated as a brand-new original message before this story. This means group edit (AC-EDIT-1) was not merely unimplemented prior to S5 \u2014 it was actively unsafe to attempt without this fix, since a naive S6-only UI wiring on top of S3/S4's landed work (skipping S5's chatHandler.ts fix) would have silently corrupted the message store with duplicate rows on every inbound peer edit.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-07T14:45:00Z"
+}

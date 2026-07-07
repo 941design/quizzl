@@ -1,0 +1,238 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "modules_touched": [
+    "Reconciliation core"
+  ],
+  "remediation_rounds": 3,
+  "files_created": [
+    "app/src/lib/messageEdits/api.ts",
+    "app/tests/unit/messageEdits/api.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/storage.ts",
+    "app/src/lib/marmot/chatPersistence.ts"
+  ],
+  "implementation_summary": {
+    "apply_delete_edit_signal": "New applyDeleteEditSignal(thread, rumor): Promise<ChangeResult> in app/src/lib/messageEdits/api.ts \u2014 the frozen seam entrypoint. Marker-first classification (any edit-marked e-tag on a kind-5 => discard unconditionally, checked BEFORE the bare-e-tag delete path, per the S2 review carry-forward obligation); a kind-9/14 rumor is only ever treated as a signal when it carries the edit e-tag marker (the replacement itself), never a plain original. Slot resolution checks every e-tagged candidate id against the currently-known ChatMessage rows, not just the first. Rev is sanitized (finite integer >= 1) then capped to nowSeconds + MAX_REV_SKEW_SECONDS at ingest before it can ever be persisted or win a comparison (S2 review carry-forward obligation #2).",
+    "tie_break_and_equal_rev_ordering": "Equal-rev ties resolve via a shared signalBeats() comparator: higher rev always wins; delete beats edit at equal rev; edit-vs-edit at equal rev is broken by the lexicographically higher replacement rumor id (D15). A winning edit patch ALWAYS carries an explicit tombstoned:false (S1 carry-forward obligation #1 \u2014 MessagePatch is merge-only) but can only win at equal rev when the prior state was NOT a delete, so an edit can never un-tombstone at equal rev, only strictly-greater rev (spec \u00a72.5).",
+    "slot_meta_aux_store": "New, module-private IDB namespace (few:messageEditsSlotMeta:v1) tracks, per (thread, slotId), the last-winning rumor id / rev / signal kind. This did not exist in any frozen S1/S2 contract \u2014 MessagePatch/ChatMessage carries no field for 'which rumor id most recently won here', yet the edit-vs-edit equal-rev tie-break (D15) requires comparing the INCOMING rumor id against exactly that. Implemented entirely inside this module's own boundary (no changes to chatPersistence.ts's schema) rather than extending S1's owned contract.",
+    "pending_buffer": "New few:messageEditsPendingSignals:v1 namespace: a signal whose target is unknown is buffered per-target-id, collapsing to the max-rev signal on insert (ties broken by the same signalBeats comparator), capped globally at PENDING_SIGNAL_CAP=256 (modeled on pendingInvitations.ts's GLOBAL_CAP), evicting the oldest target on overflow. An exact-duplicate reprocess (same rumorId + rev for the same target) is a pure no-op, no idb write.",
+    "delete_marker_and_materialize_on_expiry": "New few:messageEditsDeleteMarkers:v1 namespace, bounded by the same PENDING_SIGNAL_CAP. TTL sweep (PENDING_SIGNAL_TTL_MS=24h, swept lazily on next access for a thread, mirroring chatPersistence's own on-first-access self-heal pass rather than a background timer) materializes a pending delete into a content-free marker (no ChatMessage row) and a pending edit into a real ChatMessage row under its original slot id with edited:false \u2014 UNLESS an existing marker for the same id already has an equal-or-higher rev, in which case the edit-materialize is discarded and the marker stands; a strictly-higher-rev edit instead wins and removes the now-superseded marker.",
+    "resolve_pending_signals_for_slot": "New companion export resolvePendingSignalsForSlot(thread, slotId, originalAuthorPubkeyHex): Promise<ChangeResult> \u2014 the deferred-authorization hook (AC-AUTH-2 infrastructure). Required S4/S5 calling convention documented in the module doc comment: immediately after appending a brand-new original row, the caller must call this so any buffered signal or delete-marker is resolved against the just-arrived original. A pending signal is authenticated against originalAuthorPubkeyHex and dropped (never applied) on mismatch \u2014 fail-closed. A delete-marker's own stashed authorPubkeyHex is ALSO retroactively checked here (a strictly-better-than-nothing improvement over never checking at all), though this cannot be symmetric with edit-materialize, which can never be retroactively authenticated once a real row exists (appendMessage is insert-if-absent) \u2014 documented as an accepted, spec-mandated residual and surfaced as VQ-S3-020.",
+    "storage_hygiene_wiring": "Additive one-line wiring in app/src/lib/storage.ts's clearAccountScopedIdbData: added clearAllMessageEditsState() (new export) to the existing Promise.allSettled task array, alongside clearAllReactions/clearAllMessages, so a delete/edit signal buffered for a previous identity cannot leak into a newly-switched-to identity's session."
+  },
+  "tests": {
+    "framework": "vitest",
+    "new_file": "app/tests/unit/messageEdits/api.test.ts",
+    "new_tests": 44,
+    "coverage": [
+      "marker-first classification: unmarked kind-5 = delete, edit-marked kind-5 = discarded (byte-identical storage before/after), edit-marked kind-9/14 = edit, plain kind-9/14 = not a signal (AC-DEL-7)",
+      "integration test using S2's REAL buildDeleteRumor/buildEditMarkedCompanionKind5 output (real nostr-tools crypto) to prove wire-format fidelity between S2's builders and S3's classifier",
+      "AC-DEL-3: delete removes the target from filterVisibleMessages while the raw row is retained",
+      "AC-EDIT-7: slot id is unchanged before/after an edit (reaction-lookup stability)",
+      "AC-STORE-1: identical ChangeResult shape/behavior from a simulated DM vs group call site",
+      "AC-STORE-2: reprocessing an identical edit or delete rumor is a true no-op storage-wise (idb set() call count asserted zero on the second call)",
+      "AC-ORDER-1: an unknown-target delete/edit is retained and applied via resolvePendingSignalsForSlot once the original arrives; a mismatched-author pending signal is dropped fail-closed; a mismatched-author KNOWN-target signal is discarded immediately",
+      "AC-ORDER-2: named PENDING_SIGNAL_CAP/PENDING_SIGNAL_TTL_MS constants; per-target-id max-rev collapse in both insertion orders; eviction removes the oldest target under cap pressure (fake-timers, exactly PENDING_SIGNAL_CAP+1 targets)",
+      "AC-ORDER-3: table-driven it.each over all 6 arrival permutations of {original, delete, edit} converging to delete-wins (higher-rev delete) and separately to edit-wins (higher-rev edit); dedicated delete-vs-edit and edit-vs-edit equal-rev tie tests (incl. reversed-arrival-order re-convergence for the D15 tie); a stale lower-rev signal arriving LAST is proven ignored (rev comparison load-bearing, not decorative)",
+      "un-tombstone requires strictly-greater rev (S1 carry-forward obligation): equal rev stays tombstoned, strictly-greater rev un-tombstones with explicit tombstoned:false and becomes render-visible again",
+      "AC-ORDER-4: pending-delete TTL expiry persists a marker (no ChatMessage row created) that suppresses a later-arriving original; pending-edit TTL expiry materializes a real row without the edited flag; a marker vs. a later-expiring higher-rev pending edit for the same id \u2014 the edit wins and removes the marker",
+      "AC-ORDER-5 substrate: slot resolution matches a non-first e-tagged id, not just the first",
+      "rev-cap-at-ingest: a poisoned huge rev is clamped to nowSeconds+MAX_REV_SKEW_SECONDS rather than rejected or persisted as-is; the cap tracks wall-clock advancement rather than permanently pinning a slot's reachable rev ceiling",
+      "clearAllMessageEditsState: a previously-buffered pending signal no longer resolves after clearing"
+    ]
+  },
+  "test_counts": {
+    "baseline_files": 124,
+    "baseline_tests": 2197,
+    "final_files": 125,
+    "final_tests": 2286
+  },
+  "mocks_introduced": [],
+  "gates": {
+    "test_command": "make test-unit",
+    "test_status": "PASS (125 files, 2286 tests)",
+    "typecheck_command": "npx tsc --noEmit -p tsconfig.json",
+    "typecheck_status": "clean (0 errors, unchanged from baseline)",
+    "lint_status": "NO_LINT (unchanged from baseline \u2014 no eslint config present in this project)"
+  },
+  "verification_json": {
+    "pre_impl_questions": 17,
+    "post_impl_questions_appended": 4,
+    "note": "Pre-impl questions VQ-S3-001..017 left untouched per the immutability rule. Appended VQ-S3-018 (whether S4/S5 actually call resolvePendingSignalsForSlot at every fresh-append site, not just this story's own harness), VQ-S3-019 (the lazy-sweep-only TTL model needs a proactive thread-open sweep from S4/S5 to guarantee AC-ORDER-4 materializes without incidental future traffic), VQ-S3-020 (the edit-materialize-on-expiry vs. delete-marker authorization asymmetry \u2014 NOTE: partially superseded by remediation round 1's self-healing fix, see below), VQ-S3-021 (single global serialization queue as a throughput tradeoff for S7's e2e load)."
+  },
+  "escalations": [],
+  "remediation_history": [
+    {
+      "round": 1,
+      "trigger": "Two independent model reviews (gate-remediation mode) agreed the comparator/tie-break logic (signalBeats, D15, delete-wins-ties) was correct and order-independent, but found 8 defects in crash-safe IDB choreography and self-healing, several sev6-7.",
+      "findings_addressed": [
+        {
+          "id": 1,
+          "severity": 7,
+          "summary": "Reconciliation was not self-healing: a pending delete/edit whose target row appeared without resolvePendingSignalsForSlot re-firing (crash between append and resolve, or a restart where appendMessage's dedup no-op meant the resolve hook never ran) would TTL-expire into a marker (delete) or be silently skipped (edit) instead of being applied, causing PERMANENT divergence.",
+          "fix": "sweepExpiredForThreadKeyLocked now scans every pending entry for the thread on every applyDeleteEditSignal/resolvePendingSignalsForSlot call (not just past-TTL ones) and, when an entry's target already has a known row, applies it directly via the new applyToKnownSlotCore (with the same AC-AUTH-2 fail-closed author check resolvePendingSignalsForSlot already used). This converts every convention-miss/crash window into eventual consistency on the very next thread activity rather than waiting up to 24h for TTL. resolvePendingSignalsForSlot passes its own slotId as a new skipTargetId exclusion so its own dedicated candidate-vs-marker winner logic still runs unchanged for that slot (avoiding double-processing / return-value drift)."
+        },
+        {
+          "id": 2,
+          "severity": 6,
+          "summary": "sweepExpiredForThreadKeyLocked removed all expired entries from the pending buffer in one bulk write BEFORE persisting any of their effects \u2014 a crash mid-sweep silently dropped every not-yet-persisted expired signal.",
+          "fix": "Persist-then-remove, per entry: the new shared persistExpiredEntryEffect() is called and awaited BEFORE that entry (and its rumorId siblings) is removed from the buffer. All persisted effects are idempotent (upsertMarker keeps max rev; appendMessage is insert-if-absent; applyToKnownSlotCore no-ops on a re-seen rumorId via slot-meta), so a crash-redo on the next sweep is harmless."
+        },
+        {
+          "id": 3,
+          "severity": 6,
+          "summary": "The equal-rev un-tombstone guard derived priorWasDelete from slot-meta (meta.lastKind), a SEPARATE idb write from tombstoneMessage \u2014 a crash between the two writes left row.tombstoned=true but stale meta.lastKind='edit', letting a later equal-rev edit incorrectly un-tombstone.",
+          "fix": "applyToKnownSlotCore now derives priorWasDelete strictly from storage truth: `row.tombstoned === true` (atomic with row.rev, written by tombstoneMessage). Slot-meta is used only for the edit-vs-edit lastRumorId tie-break, which has no storage-truth equivalent."
+        },
+        {
+          "id": 4,
+          "severity": 5,
+          "summary": "insertOrCollapsePending deduped by (rumorId AND rev); MAX_REV_SKEW_SECONDS capping can map the SAME rumor's re-delivery to a different capped rev depending on when it's reprocessed, so a re-delivery missed the duplicate check and crept the buffered entry's rev upward.",
+          "fix": "Dedup by rumorId alone, regardless of rev \u2014 a re-delivery of the same rumor is now unconditionally a no-op. Added a code comment documenting the accepted residual: AC-ORDER-3 convergence under a poisoned/adversarial clock remains best-effort (not guaranteed) for DISTINCT far-future rumors from a hostile device, since a fully deterministic cap against a self-reported clock is not achievable."
+        },
+        {
+          "id": 5,
+          "severity": 5,
+          "summary": "evictOldestIfOverCap evicted strictly by oldest receivedAt with no regard for TTL \u2014 cap pressure from OTHER threads could silently drop a pending delete's marker (or edit materialization) that had already outlived its TTL.",
+          "fix": "New evictOldestPendingIfOverCap (pending-buffer-specific, not used for the marker set) checks each about-to-be-evicted entry: if it is already past TTL, its effect is persisted via persistExpiredEntryEffect before being dropped; only a still-unexpired entry is dropped bare (the cap doing its intended job)."
+        },
+        {
+          "id": 6,
+          "severity": 3,
+          "summary": "A delete rumor e-tags the original id plus every prior replacement id (D14), inserting one pending entry per id, all sharing one rumorId \u2014 resolvePendingSignalsForSlot only ever removed the entry for the slot being resolved, leaving sibling replacement-id entries to linger, TTL-expire, and become orphan markers occupying the 256-entry cap for ids nobody will ever look up.",
+          "fix": "New removePendingByRumorId() clears every pending entry sharing a rumorId, called from every successful-apply path (resolvePendingSignalsForSlot's candidate resolution, and the sweep's persist-then-remove step)."
+        },
+        {
+          "id": 7,
+          "severity": 4,
+          "summary": "Convergence was sampled (a handful of hand-picked orderings/tie tests) rather than proven across the full signal set, and two specific boundary cases (equal marker/edit rev; delete-vs-delete equal rev) were untested.",
+          "fix": "Added: (a) a table-driven it.each sweep over all 24 permutations of the 4-signal set {original, delete, editA, editB} at distinct revs, asserting one canonical final state across every arrival order; (b) a dedicated pending-buffer-subset + duplicate-re-delivery variant of the same 4-signal scenario; (c) marker.rev EXACTLY EQUAL to an expiring edit's rev (the >= boundary \u2014 marker stands, edit discarded); (d) delete-vs-delete at equal rev (candidate wins, freshest arrival). Table-driven / hand-rolled loops per project convention \u2014 no fast-check."
+        },
+        {
+          "id": 8,
+          "severity": 2,
+          "summary": "The 'groupIdFor must stay byte-identical to directConversationId' comment was hand-verified only, with no test enforcing it.",
+          "fix": "groupIdFor is now exported (test-only \u2014 documented in the module doc comment as not a seam) and a new test imports both it and directMessages.ts's directConversationId, asserting parity across several pubkey shapes."
+        }
+      ],
+      "not_changed": "The comparator/tie-break/signalBeats logic (higher-rev-wins; delete-wins-ties; D15 lexicographic edit-vs-edit tie-break) \u2014 both independent reviews confirmed it correct and order-independent; left untouched. Also added a code comment on the DeleteMarker interface documenting that markers are intentionally cap-bounded but NEVER TTL'd (durable suppression is the point of a marker; expiring one would silently un-suppress a retracted message) \u2014 reconciling spec \u00a72.8's 'same cap/TTL' wording, which the spec author is amending separately.",
+      "files_touched": [
+        "app/src/lib/messageEdits/api.ts",
+        "app/tests/unit/messageEdits/api.test.ts"
+      ],
+      "tests_added": 35,
+      "gates_after": {
+        "test_status": "PASS (125 files, 2276 tests)",
+        "typecheck_status": "clean (0 errors)"
+      }
+    },
+    {
+      "round": 2,
+      "trigger": "Two independent model reviews of round 1 agreed the comparator/tie-break logic was still correct, but found round 1's crash-safety fixes introduced two distinct PERMANENT delete-loss bugs (both sev7) plus two carried-forward hygiene findings (slot-meta unbounded growth; per-thread teardown orphaning aux state).",
+      "root_cause": "Round 1 left TWO divergent apply paths for a known row: resolvePendingSignalsForSlot (marker-aware \u2014 combines a pending entry with a coexisting delete-marker via signalBeats) and the eager self-heal sweep inside sweepExpiredForThreadKeyLocked/persistExpiredEntryEffect (marker-BLIND \u2014 applied a pending entry directly via applyToKnownSlotCore, never consulting the marker store). Any known-row resolution reached via ambient thread activity (not an explicit resolvePendingSignalsForSlot call) could silently disagree with the explicit-call outcome.",
+      "findings_addressed": [
+        {
+          "id": 1,
+          "severity": 7,
+          "summary": "Marker self-healing gap, two manifestations. (i) marker-only: a delete that TTL-expired to a marker(X) was never applied when X's original later arrived without an explicit resolve call \u2014 the sweep only ever scanned PENDING entries, never markers, so a marker with no pending sibling was invisible to ambient self-heal and the retracted message rendered forever. (ii) marker-vs-pending: marker(X,rev100) coexisting with a lower-rev pending edit(X,rev50) \u2014 the marker-blind sweep applied the edit directly, ignoring the higher-rev marker, so the edit won via the ambient sweep while an explicit resolvePendingSignalsForSlot(X) call would have correctly picked the delete \u2014 an AC-ORDER-3 path-dependence violation.",
+          "fix": "Extracted resolveKnownRowAgainstStores(threadKey, row, authorPubkeyHex) as the ONE marker-aware apply path for a known row: it looks up BOTH the pending entry and the delete-marker for (threadKey, row.id), builds a candidate from each (author-checked), picks the winner via the same signalBeats ordering applyToKnownSlotCore itself uses, applies it, and consumes both. resolvePendingSignalsForSlot and sweepExpiredForThreadKeyLocked's self-heal phase both call this shared function now \u2014 never a marker-aware path alongside a marker-blind one. The sweep's candidate-target-id set is now built from BOTH the pending buffer AND the marker store (previously pending-only), so a marker-only slot self-heals on ambient activity too."
+        },
+        {
+          "id": 2,
+          "severity": 7,
+          "summary": "rumorId cleanup crossed skipTargetId. A multi-e-tag delete of an edited message (D14) e-tags original id O plus prior replacement id P, buffering two pending entries sharing one rumorId. After TTL, when O's original arrived and resolvePendingSignalsForSlot(O) ran sweep(skipTargetId=O) FIRST (round-1 ordering): O's own entry was excluded from the sweep loop, but P's entry (no known row, past TTL) was processed by the sweep, and its persist-then-remove step called removePendingByRumorId(rumorId) \u2014 which filters by rumorId ALONE, with no skipTargetId awareness \u2014 deleting O's own sibling entry out from under it. resolve(O) then found no pending/marker for O and no-opped: the delete never applied to O, permanently.",
+          "fix": "Reordered resolvePendingSignalsForSlot: it now resolves slotId's OWN candidate-vs-marker winner via resolveKnownRowAgainstStores FIRST (consuming its own rumor-id sibling group, including P, as part of a successful resolution \u2014 finding 6's semantics), and only THEN runs the general sweepExpiredForThreadKeyLocked(threadKey, slotId) for the rest of the thread. By the time the general sweep could reach P, P no longer exists (already removed as O's sibling), so the race is structurally impossible rather than merely less likely."
+        },
+        {
+          "id": 3,
+          "severity": 2,
+          "summary": "Stale-snapshot orphan: sweepExpiredForThreadKeyLocked's loop iterated a snapshot captured once, but resolveKnownRowAgainstStores/removePendingByRumorId mutate the persisted array mid-loop (rumor-id sibling removal), so an already-removed sibling could be reprocessed as if still present.",
+          "fix": "sweepExpiredForThreadKeyLocked's phase 2 (materialize-on-expiry) now re-reads the pending array fresh (not phase 1's snapshot) and re-checks each entry's continued presence (by rumorId) immediately before persisting its effect, skipping it if already consumed as a sibling earlier in the same sweep call. Phase 1's self-heal loop likewise re-checks findPending/findMarker immediately before each resolveKnownRowAgainstStores call. Verified resolved as a byproduct of fixing findings 1+2's restructuring, per the review's own note that this was likely."
+        },
+        {
+          "id": 4,
+          "severity": 5,
+          "summary": "slot-meta (few:messageEditsSlotMeta:v1) had no cap or TTL, unlike its sibling pending-buffer and marker-set stores, and the new eager self-heal sweep now reads related state on every signal \u2014 an unbounded-growth path for a long-lived account.",
+          "fix": "Added lastTouchedAt to SlotMeta (last-write timestamp, consulted only for eviction ordering, never for any tie-break decision) and evictOldestSlotMetaIfOverCap (evict-oldest-by-lastTouchedAt under PENDING_SIGNAL_CAP pressure, mirroring the pending buffer's own evictOldestIfOverCap discipline). writeSlotMeta now stamps lastTouchedAt and applies the eviction on every write."
+        },
+        {
+          "id": 5,
+          "severity": 4,
+          "summary": "chatPersistence.clearMessages (group leave) and purgeStrangerDmThreads (stranger purge) removed ChatMessage rows but left this module's pending/marker/slot-meta entries for that thread orphaned \u2014 a privacy gap for purgeStrangerDmThreads specifically (a purged stranger's buffered delete would still apply if the stranger were ever re-added) and a growth-bound gap generally.",
+          "fix": "New export clearMessageEditsStateForThread(threadKey) in messageEdits/api.ts, prunes all three aux stores for a single thread. Wired into chatPersistence.ts's clearMessages (composed into its returned promise, failure logged and swallowed so it cannot block the group-leave purge) and purgeStrangerDmThreads (called per purged stranger key, reconstructing threadKey via key.slice('few:messages:'.length) \u2014 verified byte-identical to groupIdFor's dm: prefix convention, same directConversationId lowering already relied upon by the existing groupIdFor parity test). Both wire-ins use a dynamic import() to avoid a circular static import (messageEdits/api.ts already imports chatPersistence.ts), mirroring storage.ts's existing dynamic-import pattern for the same module."
+        }
+      ],
+      "not_changed": "The comparator/tie-break/signalBeats logic (higher-rev-wins; delete-wins-ties; D15 lexicographic edit-vs-edit tie-break) \u2014 both round-2 reviewers again confirmed it correct; left untouched. The cap-eviction path's own knownRow branch (evictOldestPendingIfOverCap -> persistExpiredEntryEffect) remains marker-blind by explicit scope (both reviewers' fix guidance named 'the sweep's known-row case' specifically) \u2014 routing it through the shared resolver would race evictOldestPendingIfOverCap's own bulk writePendingAll (computed from an in-memory snapshot) against the resolver's removePendingByRumorId write, reintroducing an already-removed entry; documented as a narrow residual in code (persistExpiredEntryEffect's doc comment) rather than fixed, since it requires a rarer compound precondition (own thread never swept AND simultaneously evicted by a DIFFERENT thread's cap pressure) than findings 1/2's general self-heal gap. Also confirmed and documented in code (SlotMeta's doc comment) the previously-flagged accepted residual: the D15 edit-vs-edit equal-rev tie-break still reads slot-meta's lastRumorId (no storage-row field exists for it), so a crash between updateMessageInPlace and writeSlotMeta can let a later equal-rev edit win/lose the tie incorrectly \u2014 a content-only divergence limited to an exact same-second two-device edit collision, milder than the delete/tombstone case (which storage truth already protects) and left as-is rather than extending S1's frozen contract.",
+      "files_touched": [
+        "app/src/lib/messageEdits/api.ts",
+        "app/tests/unit/messageEdits/api.test.ts",
+        "app/src/lib/marmot/chatPersistence.ts"
+      ],
+      "tests_added": 8,
+      "gates_after": {
+        "test_status": "PASS (125 files, 2284 tests)",
+        "typecheck_status": "clean (0 errors)"
+      }
+    },
+    {
+      "round": 3,
+      "trigger": "Two independent model reviews of round 2 both confirmed the comparator/tie-break logic still correct and both agreed the round-2 unification (resolveKnownRowAgainstStores) was the right shape, but found one genuine sev6 crash-ordering bug on that shared apply path, plus one sev4 cheap-hardening opportunity for the already-documented cap-eviction residual.",
+      "findings_addressed": [
+        {
+          "id": 1,
+          "severity": 6,
+          "summary": "resolveKnownRowAgainstStores (the round-2 shared marker-aware resolver) removed the consumed pending entry (removePendingByRumorId) and marker (removeMarker) BEFORE applyToKnownSlotCore performed the tombstone/update write. These are distinct IndexedDB commits; a crash between the removal commit and the tombstone commit left the pending entry AND marker gone but the row NOT yet tombstoned/updated. On restart the original re-delivers, appendMessage's dedup no-op means the resolve hook never re-fires, and the self-heal sweep finds nothing in either aux store \u2014 the delete/edit is PERMANENTLY lost (the message renders forever). This sits on the PRIMARY resolve path (resolvePendingSignalsForSlot -> resolveKnownRowAgainstStores) so every buffered-then-resolved delete/edit was exposed, not just an edge case.",
+          "fix": "Reordered resolveKnownRowAgainstStores to persist-then-remove: the winner is computed and applied via applyToKnownSlotCore FIRST (and awaited), and only AFTER that write settles are the consumed pending entry / marker removed. Crash-redo is idempotent \u2014 a re-resolve no-ops via the slot-meta lastRumorId match, and the still-present entries are then removed cleanly on the retry. The fail-closed author-mismatch case (winner is null because neither entry authenticates) has nothing to persist; both mismatched entries are still removed afterward so a stale/forged entry cannot linger. Re-verified against BOTH call sites that now go through this shared function (resolvePendingSignalsForSlot's primary path and the self-heal sweep's phase-1 path) \u2014 both are persist-then-remove. The comparator/signalBeats/tie-break logic was NOT touched."
+        },
+        {
+          "id": 2,
+          "severity": 4,
+          "summary": "The cap-eviction known-row branch (evictOldestPendingIfOverCap -> persistExpiredEntryEffect with a knownRow) applies a pending edit while ignoring a coexisting higher/equal-rev delete-marker for the same target. Both reviewers judged this an ACCEPTABLE self-healing transient (already documented as a residual in round 2 \u2014 the marker survives, the next sweep re-tombstones), not worth routing through the shared resolver (which would reintroduce the already-documented eviction-bulk-write vs resolver-remove race).",
+          "fix": "Cheap, read-only hardening only: before applying a pending EDIT in that known-row branch, check whether a delete-marker with rev >= the edit's rev exists for the same target; if so, skip the edit-apply and leave the marker standing untouched (no write to the marker \u2014 cannot race evictOldestPendingIfOverCap's own bulk write). If no such marker exists, the edit applies as before. A pending DELETE entry is unaffected. Documented in code as tightening the transient window without introducing a new write race, not a full fix."
+        }
+      ],
+      "not_changed": "The comparator/tie-break/signalBeats logic (higher-rev-wins; delete-wins-ties; D15 lexicographic edit-vs-edit tie-break) \u2014 both round-3 reviewers again confirmed it correct; left untouched, per explicit instruction. The accepted D15-equal-rev-crash residual (slot-meta lastRumorId as the only tie-break source, no storage-truth equivalent) and the poisoned/adversarial-clock rev-convergence residual remain documented and unchanged, per explicit instruction.",
+      "files_touched": [
+        "app/src/lib/messageEdits/api.ts",
+        "app/tests/unit/messageEdits/api.test.ts"
+      ],
+      "tests_added": 2,
+      "gates_after": {
+        "test_status": "PASS (125 files, 2286 tests)",
+        "typecheck_status": "clean (0 errors)"
+      }
+    }
+  ],
+  "design_decisions": [
+    {
+      "decision": "ChangeResult's actual shape ({thread, slotId, kind}) was invented by this story rather than lifted from stories.json#seams, whose 'ChangeResult' contract entry only lists thread/rumor/returns \u2014 a description of applyDeleteEditSignal's own call signature, not a real return-type definition.",
+      "rationale": "The seam JSON is self-referential (returns: Promise<ChangeResult> while never defining ChangeResult's fields) and cannot be implemented literally. slotId/kind were chosen to give S4/S5 exactly what they need to trigger a UI re-read (which slot changed, and whether the change was a real mutation vs. buffered/discarded/no-op) while keeping thread echoed back verbatim so AC-STORE-1's 'identical shape from either transport' claim is directly assertable in a test.",
+      "scope_note": "Not a scope violation \u2014 defining the return type of a seam this story itself creates is squarely S3's job; the gap is in the frozen seam JSON's own field list, flagged here for the epic's contract-authoring record (parallel to S2's own documented deviation from the same seams block)."
+    },
+    {
+      "decision": "The pending-signal buffer and delete-marker set are IDB-persisted (idb-keyval), not in-memory-only.",
+      "rationale": "architecture.md's module map explicitly calls the delete-marker set 'persisted'. An in-memory-only buffer would be silently lost on every page reload/app restart \u2014 an ordinary occurrence in this PWA \u2014 which would make AC-ORDER-1/AC-ORDER-4 non-functional for exactly the scenario they exist to cover (the app was closed when a peer's delete arrived first). Two new global IDB namespaces plus a private slot-meta namespace were added; all three are wired into storage.ts's account-switch hygiene sweep."
+    },
+    {
+      "decision": "A single module-global serialization queue guards all of this module's own auxiliary IDB state, rather than a per-thread queue keyed like chatPersistence's appendQueues.",
+      "rationale": "The three auxiliary namespaces (pending buffer, delete markers, slot meta) are each ONE global idb-keyval key shared across every thread, not a per-thread key \u2014 a per-thread queue would not prevent two different threads' concurrent calls from racing the same underlying array. A single global queue is the simplest correct answer for this module's expected call volume; flagged as VQ-S3-021 for S7's e2e-load consideration rather than pre-emptively building a two-tier sharded queue.",
+      "scope_note": "chatPersistence's OWN per-thread appendQueues remain untouched and still separately serialize the actual ChatMessage row writes this module calls into \u2014 this queue is an additional, outer layer around this module's own bookkeeping, not a replacement for S1's."
+    }
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The frozen ChangeResult seam in stories.json#seams describes applyDeleteEditSignal's call signature but never actually defines ChangeResult's fields (it lists 'thread'/'rumor'/'returns: Promise<ChangeResult>' \u2014 self-referential, not a return-type definition), so its real shape had to be designed from scratch against AC-STORE-1's 'identical shape' requirement. Separately, the D15 edit-vs-edit equal-rev tie-break requires comparing the incoming rumor id against whichever rumor id most recently won at a slot, but S1's frozen MessagePatch/ChatMessage contract carries no field for that \u2014 there was no way to implement this invariant by only calling S1's exported primitives, and extending S1's owned schema was out of this story's module boundary. Both gaps were resolved by inventing new, module-private state (ChangeResult's shape; a slot-meta IDB namespace) rather than touching another story's frozen contract, but a downstream story author trusting the seams JSON or S1's contract verbatim would have hit the same wall S2's own retro already flagged for a different field.",
+    "surprised_by": "AC-ORDER-4's two materialize-on-expiry branches turned out to have a real authorization asymmetry: a delete-marker can be retroactively authenticated once the real original finally arrives (its stashed author pubkey is compared then), but an edit that has already materialized as a real ChatMessage row can never be retroactively corrected, because chatPersistence.appendMessage is insert-if-absent and will never let the true original overwrite it. Spec \u00a72.8 mandates both branches persist their effect regardless, so this is an accepted, spec-authored tradeoff rather than a bug \u2014 documented and surfaced as VQ-S3-020 rather than silently absorbed.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-07T12:20:00Z",
+  "decider_verdict": "ACCEPT",
+  "decider_condition": "S4/S5 review MUST verify resolvePendingSignalsForSlot is called after each appendMessage of a fresh original, and render sequenced after resolve (ledger checkpoint)."
+}

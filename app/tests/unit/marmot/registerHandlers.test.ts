@@ -41,6 +41,7 @@ const KIND = {
   pollVote: 11,
   pollClose: 12,
   leave: 13,
+  deleteEdit: 5,
 } as const;
 
 vi.mock('@/src/lib/marmot/handlers/chatHandler', () => ({
@@ -48,6 +49,9 @@ vi.mock('@/src/lib/marmot/handlers/chatHandler', () => ({
 }));
 vi.mock('@/src/lib/marmot/handlers/reactionHandler', () => ({
   createReactionHandler: vi.fn((_deps) => ({ kind: KIND.reaction, handle: vi.fn() })),
+}));
+vi.mock('@/src/lib/marmot/handlers/deleteEditHandler', () => ({
+  createDeleteEditHandler: vi.fn((_deps) => ({ kind: KIND.deleteEdit, handle: vi.fn() })),
 }));
 vi.mock('@/src/lib/marmot/handlers/profileHandler', () => ({
   createProfileHandler: vi.fn((_deps) => ({ kind: KIND.profile, handle: vi.fn() })),
@@ -74,6 +78,7 @@ const { createPollOpenHandler, createPollVoteHandler, createPollCloseHandler } =
   '@/src/lib/marmot/handlers/pollHandler'
 );
 const { createLeaveIntentHandler } = await import('@/src/lib/marmot/handlers/leaveHandler');
+const { createDeleteEditHandler } = await import('@/src/lib/marmot/handlers/deleteEditHandler');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function makeDeps(overrides: Record<string, unknown> = {}) {
@@ -86,6 +91,9 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
     loadMessages: vi.fn(async () => ({ messages: [], refetchIds: [] })),
     applyInboundRumor: vi.fn(async () => undefined),
     setReactionsVersion: vi.fn(),
+    // delete/edit (S5)
+    applyDeleteEditSignal: vi.fn(async () => ({ thread: { kind: 'group', groupId: 'g' }, slotId: null, kind: 'noop' })),
+    resolvePendingSignalsForSlot: vi.fn(async () => ({ thread: { kind: 'group', groupId: 'g' }, slotId: null, kind: 'noop' })),
     // profile
     mergeMemberProfile: vi.fn(async () => true),
     notifyProfileObserved: vi.fn(),
@@ -152,6 +160,7 @@ describe('buildDispatcher — every handler factory is invoked with the correct 
     expect(createPollVoteHandler).toHaveBeenCalledTimes(1);
     expect(createPollCloseHandler).toHaveBeenCalledTimes(1);
     expect(createLeaveIntentHandler).toHaveBeenCalledTimes(1);
+    expect(createDeleteEditHandler).toHaveBeenCalledTimes(1);
   });
 
   it('routes the chat deps slice to createChatHandler', () => {
@@ -161,6 +170,8 @@ describe('buildDispatcher — every handler factory is invoked with the correct 
       appendMessage: deps.appendMessage,
       incrementUnread: deps.incrementUnread,
       setChatVersion: deps.setChatVersion,
+      applyDeleteEditSignal: deps.applyDeleteEditSignal,
+      resolvePendingSignalsForSlot: deps.resolvePendingSignalsForSlot,
     });
   });
 
@@ -171,6 +182,15 @@ describe('buildDispatcher — every handler factory is invoked with the correct 
       loadMessages: deps.loadMessages,
       applyInboundRumor: deps.applyInboundRumor,
       setReactionsVersion: deps.setReactionsVersion,
+    });
+  });
+
+  it('routes the delete/edit deps slice to createDeleteEditHandler (S5)', () => {
+    const deps = makeDeps();
+    buildDispatcher(deps);
+    expect(createDeleteEditHandler).toHaveBeenCalledWith({
+      applyDeleteEditSignal: deps.applyDeleteEditSignal,
+      setChatVersion: deps.setChatVersion,
     });
   });
 
@@ -238,6 +258,7 @@ describe('buildDispatcher — every registered handler is reachable through the 
     { name: 'pollVote', kind: KIND.pollVote, factory: () => createPollVoteHandler as never },
     { name: 'pollClose', kind: KIND.pollClose, factory: () => createPollCloseHandler as never },
     { name: 'leave', kind: KIND.leave, factory: () => createLeaveIntentHandler as never },
+    { name: 'deleteEdit', kind: KIND.deleteEdit, factory: () => createDeleteEditHandler as never },
   ];
 
   for (const { name, kind } of cases) {

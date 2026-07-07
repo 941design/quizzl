@@ -1,0 +1,46 @@
+{
+  "module_name": "e2e",
+  "purpose": "Playwright end-to-end coverage proving message delete (AC-DEL-1) and text edit (AC-EDIT-1) work through the real app in both DM and group threads, plus confirmatory coverage of the S6 UI gating (AC-AUTH-1, AC-DEL-6, AC-EDIT-3, AC-EDIT-5, AC-IMG-2) and S3's reconciliation behavior (AC-ORDER-1/3, AC-EDIT-7) that this story does not own but the epic's architecture.md 'E2E' bullet asks S7 to exercise as confirmatory coverage.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/e2e/dm-message-edit-delete.spec.ts",
+    "app/tests/e2e/groups-message-edit-delete.spec.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/tests/e2e/helpers/auth-helpers.ts",
+    "app/tests/e2e/helpers/clear-state.ts",
+    "app/tests/e2e/helpers/dismiss-error-overlay.ts",
+    "app/tests/e2e/helpers/group-setup.ts",
+    "app/tests/e2e/helpers/relay-query.ts",
+    "window.__fewDmMessageEdits (dev bridge, ContactChat.tsx, S4)",
+    "window.__fewGroupMessageEdits (dev bridge, ChatStoreContext.tsx, S5)",
+    "window.__fewDmReactions (dev bridge, ContactChat.tsx, pre-existing)",
+    "window.__fewReactions (dev bridge, GroupChat.tsx, pre-existing)",
+    "data-testid attributes already emitted by ChatBox.tsx (msg-<id>, edited-marker-<id>, msg-edit-<id>, msg-delete-<id>, msg-delete-confirm-<id>, msg-delete-confirm-row-<id>, msg-delete-cancel-<id>, chat-edit-banner, chat-edit-cancel, chat-edit-empty-hint, chat-input, chat-send-btn, image-attachment-button, image-preview-thumbnail, image-thumbnail)"
+  ],
+  "dependencies_forbidden": [
+    "Direct imports of app/src/lib/messageEdits/api.ts or rumor.ts from test files (bridges/UI only, per the project's e2e-through-the-app rule)",
+    "Raw WebSocket signing/publishing of kind-5/9/14/1059 events",
+    "New production modules outside test-only data-testid additions"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "AC-DEL-1: delete (text + image), DM and group",
+    "AC-EDIT-1: edit (text), DM and group",
+    "AC-AUTH-1 (confirmatory): action menu absent on peer message, present on own",
+    "AC-DEL-6 (confirmatory): two-click delete confirmation",
+    "AC-EDIT-3 (confirmatory): (edited) marker visible after edit",
+    "AC-EDIT-5 (confirmatory): empty edit blocked with hint",
+    "AC-IMG-2 (confirmatory): image message offers delete, no edit affordance",
+    "AC-ORDER-1/AC-ORDER-3 (confirmatory, owned by S3): delete-before-original ordering never resurrects the message",
+    "AC-EDIT-7 (confirmatory, owned by S3): reactions survive an edit",
+    "AC-DEL-3 (confirmatory, owned by S3): reactions vanish on delete"
+  ],
+  "seam": {
+    "cross_story": false
+  },
+  "notes": "No production module is created or owned by this story. architecture.md's module map does not list an 'e2e' row (stories.json S7 note flags this transparently, mirroring the suggested-boundary list item 7). No new dependencies_allowed edge is introduced beyond what S1-S6 already exposed (dev bridges + testids), so there is nothing here that requires Architect escalation against architecture.md's module map."
+}

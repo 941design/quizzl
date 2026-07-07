@@ -1,0 +1,14 @@
+{
+  "story_id": "S7",
+  "captured_at": "2026-07-07T20:00:00Z",
+  "test_command": "make test-unit",
+  "test_status": "PASS",
+  "test_counts": {
+    "files": 129,
+    "tests": 2399
+  },
+  "note": "Matches S6-ui-i18n-rendering/result.json's recorded final count (test_counts.final: 2399, 129 files) — the state of the repo immediately before S7 began. S7 is e2e-only (no unit-tested production code is touched), so the expectation is that make test-unit is unchanged after S7; confirmed post-implementation (see result.json gates: 129 files / 2399 tests, unchanged).",
+  "typecheck_command": "npx tsc --noEmit -p tsconfig.json (from app/)",
+  "typecheck_status": "clean",
+  "lint_status": "NO_LINT (no eslint config present in this project, unchanged since S1/S2/S3/S4/S5/S6)"
+}

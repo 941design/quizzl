@@ -1,0 +1,97 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-07T14:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Do `updateMessageInPlace(groupId,id,patch)` and `tombstoneMessage(groupId,id,rev)` in `app/src/lib/marmot/chatPersistence.ts` perform a real read-modify-write against the persisted row, or could either be satisfied by a stub that returns without touching stored state? Show a test proving the row's `content`/`tombstoned`/`edited`/`rev` fields are actually mutated in the persisted map, not just in an ephemeral local variable."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Do the new `tombstoned`/`edited`/`rev` fields and the update-in-place primitives live entirely inside `chatPersistence.ts` (the Storage module per architecture.md's module map), with no logic bleeding into `messageEdits/api.ts` or any transport adapter, and no other module reaching into `ChatMessage` row internals directly instead of calling the new primitives?"
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could Storage be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do `app/tests/unit/**/*.test.ts` cover `updateMessageInPlace`/`tombstoneMessage`/the clobber-guard with table-driven `it.each` cases (per `reactions/api-property.test.ts` convention, no fast-check/jsdom), including: append then update-in-place preserves row position; append then tombstone retains the row; a rev=0 original delivered after an edited/tombstoned row is rejected by the guard; and is `idb-keyval` mocked with a `Map` cleared in `beforeEach` alongside the module's in-memory cache?"
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the implementation stay within S1's declared scope (field additions + update-in-place + clobber-guard + tombstoned-row read-filtering) without reaching into wire-format construction (S2), inbound-signal interpretation or the pending buffer (S3), or any UI rendering change (S6) — and does it align with spec.md's intent that a delete is a field-flip tombstone, never a physical remove?"
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the AC-STORE-3 clobber-guard actually block a replayed/re-delivered original message rumor (rev=0) from resurrecting or reverting a row already flagged `edited` or `tombstoned` — demonstrated with a concrete before/after row-state assertion — rather than merely existing as an unreachable branch?"
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEL-5",
+      "question": "Show the code and a passing test proving `tombstoneMessage` sets `tombstoned:true` while leaving the row physically present in storage (never invoking `removeMessages`), and that a re-delivered original for that id cannot resurrect it — confirming the test is not a mock-spy that only asserts a function was called."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STORE-3",
+      "question": "Show the code and a passing test proving an incoming write carrying `rev=0` (the original message rumor) does not overwrite a row already flagged `edited` or `tombstoned` — using a real before/after row snapshot, not a mocked assertion that the guard function was merely invoked."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EDIT-2",
+      "question": "Show the code and a passing test proving `updateMessageInPlace` updates a row's `content`/`edited`/`rev` fields without re-inserting the row or changing its position in the stored per-thread list — asserting on the row's index/position before and after, not just its content."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-IMG-1",
+      "question": "Show the code and a passing test proving an image-shaped `ChatMessage` row (attachment fields populated) is tombstoned via the exact same `tombstoneMessage` path as a text row, with no image-specific branch that skips the flip or the read-filter."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EDIT-2",
+      "question": "Does the `MessagePatch` contract S1 hands to S3 — `{groupId:string, id:string, patch:{tombstoned?:boolean, edited?:boolean, rev?:number, content?:string}}` — match exactly what `updateMessageInPlace`/`tombstoneMessage` accept (every field name and optionality verified against the actual function signatures, not just the seam's prose description), and is it demonstrated that S3 can drive both the edit-patch and tombstone-patch branches through this exact shape?"
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "S1 deliberately did NOT filter tombstoned rows inside `loadMessages()` itself — it left `loadMessages` raw/unfiltered (mirroring `loadReactions`) and added a separate pure `filterVisibleMessages(messages)` helper instead, reasoning that non-render consumers (`relayBackup.ts`, `reactionHandler.ts`'s known-target check, and S3's future slot-resolution/idempotency logic) need the full row set including tombstoned rows. No render call site (`ChatStoreContext.tsx`, `ContactChat.tsx`) was wired to call `filterVisibleMessages` in this story, per the explicit UI-change exclusion. Is this split point correct, or does architecture.md's Storage row (\"filter tombstoned at read\") actually require `loadMessages` itself to filter, meaning a render call site is silently unfiltered until S3/S6 lands and AC-DEL-3 (owned by S3) is at risk of a gap in the interim?"
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STORE-3",
+      "question": "The clobber-guard implemented in `updateMessageInPlace` treats `patch.rev === undefined || patch.rev === 0` as \"this is a re-delivered original, not a real edit/delete signal,\" and only rejects the write when the existing row is already `tombstoned` or `edited`. This depends on S2's future `clampRev` helper guaranteeing every real edit/delete signal carries `rev >= 1` (real Unix seconds, per architecture.md's rev-clock constraint) so a legitimate edit/delete is never misidentified as an original re-delivery. Is that assumption documented/enforced strongly enough on the S2 side that a future regression in `clampRev` (e.g. returning 0 under some edge case) would be caught before it silently reactivates this guard against a legitimate signal?"
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "`tombstoneMessage(groupId, id, rev)` takes a bare `rev: number` rather than a `MessagePatch` — is this narrower signature (vs. accepting a full patch) confirmed sufficient for every way S3's reconciliation core will need to call it (e.g. does S3 ever need to tombstone AND set another field, such as clearing `edited`, in the same write), or could S3 need a variant that accepts additional patch fields alongside `tombstoned:true`?"
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-07T14:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Do `publishDirectDelete`/`publishDirectEdit` in `app/src/lib/directMessages.ts` perform a real optimistic-apply-then-publish-then-rollback-on-failure sequence, or could the rollback branch be a no-op that never actually restores the row? Show a test that forces the publish call to reject and asserts the row's content/visibility is restored to its pre-optimistic state."
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Do `publishDirectDelete`/`publishDirectEdit` build rumors exclusively via S2's `rumor.ts` builders and apply state exclusively via S3's `applyDeleteEditSignal`, with no reimplementation of tag-building or ordering logic locally in `directMessages.ts` or `ContactChat.tsx`?"
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could DM adapter be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do unit tests cover both the historical (`ContactChat.tsx` L338-380) and live (L418-486) inbound kind-5 branches with the idb-keyval Map mock and per-test cache clearing convention, including a case where the historical/live gate site (L352-362 / L447-463) receives an unknown-target signal and routes it to the pending buffer instead of discarding it?"
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does S4 confine itself to the DM transport (publish + inbound kind-5 branch + optimistic/rollback), excluding the group transport (S5), the reconciliation logic itself (consumed unchanged from S3), and the UI action menu/composer (S6), per its declared scope.excludes?"
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the inbound kind-5 signal's author verified via the seal's real-key signature (`unwrapAndOpen`) before being handed to `applyDeleteEditSignal`, and is there a test proving a signal whose sealed sender does not match the original message's author is not applied?"
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEL-2",
+      "question": "Show the code and a passing test proving a DM delete removes the message from the author's own view immediately (before the publish call resolves), and that a rejected publish restores the message to visible — with a real assertion on rendered/stored state, not a mock-spy check that a rollback function was called."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EDIT-8",
+      "question": "Show the code and a passing test proving `publishDirectEdit` publishes the replacement rumor before its companion kind-5 (assert call order), that a failed/absent companion kind-5 never causes the slot to be deleted, and that a publish failure rolls the optimistic edit back to the prior content."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEL-2",
+      "question": "Does the DM half of the `MessageActionHandlers` contract — `handleDeleteMessage(id):Promise<void>` and `handleEditMessage(id,newContent):Promise<void>` in `ContactChat.tsx` — match these exact signatures, and is it demonstrated that `ChatBox.tsx` (S6) can call them with only `id`/`newContent`, with no DM-specific parameter leaking into the shared action-menu call site?"
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-DEL-2",
+      "question": "The implementation deviates from the pre-impl-question framing (and the S4 story description's shorthand 'optimistically applies locally before publish') by deferring the DURABLE call to S3's applyDeleteEditSignal until AFTER publish succeeds, rather than calling it before publish and rolling back via a second signal on failure. Rationale documented in publishDirectDelete/publishDirectEdit's doc comments and result.json: S3's applyToKnownSlotCore (messageEdits/api.ts:624-634) unconditionally sets `edited:true` on any edit-shaped patch, and un-tombstoning is only expressible through an edit-shaped patch, so a synthetic 'undo' signal used to reverse an eager pre-publish apply cannot restore a never-before-edited row's `edited` flag to false — a real, provable data-corruption bug for the common case of a first edit attempt (or a delete of a never-edited message) that fails to publish. The React-state-level optimism (immediate view change before publish, verified by VQ-S4-007's test) still satisfies AC-DEL-2/AC-EDIT-8's literal wording ('removed from the author's view immediately', 'rolled back to the prior content') since those ACs speak to observable view/content state, not IDB write timing. Is this deviation and its rationale sound, or does the epic intend durable-write-before-publish as a hard requirement independent of the AC's literal wording?"
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEL-8",
+      "question": "publishDirectDelete/publishDirectEdit always pass an empty `priorReplacementIds` array to S2's buildDeleteRumor/buildEditMarkedCompanionKind5, because this app's storage (chatPersistence.updateMessageInPlace) mutates an edited slot's single row in place and never persists a chain of past replacement rumor ids — there is no local data source S4 could read to populate this parameter beyond the original id. AC-DEL-8 is owned by S2 (which tests the builder's handling of whatever ids it's given) and is explicitly framed as a non-Few-interop best-effort enhancement (D14), not required for a Few client's own reconciliation (which resolves a slot by its stable original id alone, unaffected by this). Is passing `[]` here an acceptable, permanent design point for a Few-only DM adapter, or does full AC-DEL-8 compliance require a future story to add prior-replacement-id tracking to storage?"
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The thread-open TTL-sweep trigger (ledger obligation: 'trigger a sweep on thread-open since the TTL sweep is lazy') is implemented by calling `resolvePendingSignalsForSlot(dmThread, '', '')` with an empty-string sentinel slotId that can never match a real row id — this piggybacks on resolvePendingSignalsForSlot's existing 'no row found -> still run the general sweep, return noop' branch (messageEdits/api.ts:1117-1123) rather than S3 exposing a dedicated `sweepThread(thread)` export. Is this an acceptable use of resolvePendingSignalsForSlot's documented no-op branch, or does the pending-buffer/delete-marker module need a dedicated, intention-revealing sweep-trigger export instead of relying on this incidental side effect?"
+    },
+    {
+      "question_id": "VQ-S4-013",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The malformed-id gift-wrap refetch path (ContactChat.tsx's `init()`, the block handling `refetchIds` from `loadMessages`) still funnels through `ingestEvent` for kind-4 refetches, so `resolveFreshOriginal` runs there too — but if the original message being refetched is ALSO the target of an already-buffered pending delete/edit, and `ingestEvent` returns null (delete outcome), the malformed row is never added to `replacements` and is therefore never dropped from storage (the malformed id stays in place, un-superseded, since `malformedIdsToDrop` is derived only from `replacements`). This is a narrow, pre-existing-adjacent residual (malformed ids are already a rare D9a/self-heal legacy case) that self-heals whenever a subsequent unrelated signal for the same thread runs a general sweep. Is this residual acceptable as documented, or does it need an explicit fix in this story?"
+    },
+    {
+      "question_id": "VQ-S4-014",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The cross-cutting failure-UX decision (architecture.md's flagged DM-toasts-vs-group-throws divergence) was resolved as: DM delete/edit failures throw only, matching the group transport, explicitly NOT matching the existing DM reaction precedent (which does toast) — because toasting would require new user-facing copy, and AC-INTL-1/AC-INTL-2 (new-string i18n requirements) are S6's owned ACs, not S4's. Is deferring the toast+copy to S6 (rather than S4 either toasting with a placeholder/hardcoded string, which would violate AC-INTL-2, or S4 authoring the i18n keys itself, which would reach into S6's scope) the correct scope boundary, or should S4 have authored the i18n keys itself to land a toast now?"
+    }
+  ]
+}

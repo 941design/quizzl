@@ -1,0 +1,54 @@
+{
+  "module_name": "DM adapter",
+  "purpose": "Modifies app/src/lib/directMessages.ts (adds publishDirectDelete/publishDirectEdit, cloning publishDirectReaction/removeDirectReaction's build+seal+wrap+publish shape, built via S2's wire builders) and app/src/components/contacts/ContactChat.tsx (adds handleDeleteMessage/handleEditMessage React-state orchestration; adds an inbound kind-5 branch to both the historical and live gift-wrap unwrap loops, routed through S3's applyDeleteEditSignal with retain-and-apply for unknown targets; wires resolvePendingSignalsForSlot after every DM inbound appendMessage-of-a-fresh-original call site, sequenced strictly before the corresponding render/state update). Creates the DM half of the MessageActionHandlers seam consumed by S6. Consumes the Reconciliation seam (ChangeResult / applyDeleteEditSignal / resolvePendingSignalsForSlot, S3) and the Wire-builder seam (DeleteEditRumor / buildDeleteRumor / buildEditReplacementRumor / buildEditMarkedCompanionKind5 / clampRev, S2) unchanged. Never calls chatPersistence.updateMessageInPlace/tombstoneMessage directly (S3-owned primitives) and never reimplements tag-building or rev tie-break logic locally.",
+  "public_api": [
+    {
+      "name": "publishDirectDelete",
+      "signature": "function publishDirectDelete(params: { ndk: NDK; privateKeyHex: string; peerPubkeyHex: string; targetMessage: ChatMessage }): Promise<{ rumorId: string }>",
+      "description": "Builds an unmarked kind-5 delete rumor via S2's buildDeleteRumor/clampRev (rev clamped against targetMessage.rev ?? 0), seals+wraps via the existing sealAndWrap, and publishes via NDK. On successful publish, durably persists the tombstone via S3's applyDeleteEditSignal (deferred to AFTER publish success — see design_decisions in result.json for why 'before publish' durable timing was rejected). A publish failure throws before any durable write occurs, so the caller's rollback (ContactChat.handleDeleteMessage) never needs to undo a partial IDB write."
+    },
+    {
+      "name": "publishDirectEdit",
+      "signature": "function publishDirectEdit(params: { ndk: NDK; privateKeyHex: string; peerPubkeyHex: string; targetMessage: ChatMessage; newContent: string }): Promise<{ rumorId: string }>",
+      "description": "Builds an edit-marked replacement rumor via S2's buildEditReplacementRumor (originalCreatedAt = Math.floor(targetMessage.createdAt / 1000) — ms-to-seconds conversion per S2's caller contract; targetMessage.id doubles as the slot's stable original id across a repeated-edit chain per AC-EDIT-6, since edits mutate the row in place and the row's id never changes). Publishes the replacement BEFORE the companion kind-5 (AC-EDIT-8). On replacement publish success, durably persists via applyDeleteEditSignal, then attempts the companion kind-5 publish; a failed/absent companion is swallowed (logged, not thrown) and never rolls back the already-successful edit. A failed REPLACEMENT publish throws before any durable write, so the companion is never attempted and the caller's rollback is a pure state revert."
+    },
+    {
+      "name": "handleDeleteMessage",
+      "signature": "(messageId: string) => Promise<void>",
+      "description": "ContactChat.tsx component-internal handler — the DM half of the MessageActionHandlers seam consumed by S6. Snapshots the target row, optimistically removes it from local React state (AC-DEL-2, immediate view removal), calls publishDirectDelete, and on failure restores the snapshot into state and rethrows (no toast — see result.json's failure-UX decision). Exposed to S6 for wiring into ChatBox's future action menu; also exposed via the window.__fewDmMessageEdits dev bridge (NODE_ENV !== 'production') for e2e (S7)."
+    },
+    {
+      "name": "handleEditMessage",
+      "signature": "(messageId: string, newContent: string) => Promise<void>",
+      "description": "ContactChat.tsx component-internal handler — the DM half of the MessageActionHandlers seam. Snapshots the target row, optimistically updates its content in place in local React state (AC-EDIT-2/AC-EDIT-8), calls publishDirectEdit, and on failure restores the snapshot and rethrows. Same exposure as handleDeleteMessage."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/directMessages.ts (publishDirectDelete/publishDirectEdit are the only new exports; no new private helpers beyond dynamic imports of messageEdits/rumor.ts and messageEdits/api.ts, mirroring the existing dynamic-import-of-reactions/rumor pattern already used by publishDirectReaction)",
+    "app/src/components/contacts/ContactChat.tsx (handleDeleteMessage/handleEditMessage, the new kind-5 inbound branches, and the window.__fewDmMessageEdits dev bridge are component-internal, not module exports)"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/messageEdits/rumor.ts (buildDeleteRumor, buildEditReplacementRumor, buildEditMarkedCompanionKind5, clampRev, DELETE_EDIT_RUMOR_KIND) — S2 wire-builder seam",
+    "app/src/lib/messageEdits/api.ts (applyDeleteEditSignal, resolvePendingSignalsForSlot, MessageEditsThreadKey, ChangeResult, InboundDeleteEditRumor) — S3 reconciliation seam",
+    "app/src/lib/marmot/chatPersistence.ts (loadMessages, appendMessage, ChatMessage, MessagePatch type) — read-only / existing DM adapter dependency; updateMessageInPlace/tombstoneMessage are explicitly NOT called (S3-exclusive per architecture.md's storage-write calling convention)",
+    "app/src/lib/directMessages.ts's own existing dependencies (nostr-tools, NDK, sealAndWrap, unwrapAndOpen, shouldIngestRumor, CHAT_MESSAGE_KIND) — unchanged"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/* beyond the existing MarmotContext/LanguageContext usage already present in ContactChat.tsx",
+    "Direct calls to chatPersistence.updateMessageInPlace / chatPersistence.tombstoneMessage from directMessages.ts or ContactChat.tsx (must always route through S3's applyDeleteEditSignal)",
+    "New i18n copy / toast strings (deferred to S6 per the documented failure-UX decision — see result.json)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/directMessages/dmMessageEdits.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S6"],
+    "seam_name": "MessageActionHandlers (DM half) — handleDeleteMessage/handleEditMessage",
+    "note": "S4 creates the DM half of the MessageActionHandlers seam architecture.md's 'Composer edit-mode seam (UI)' anticipates. handleDeleteMessage(id): Promise<void> and handleEditMessage(id, newContent): Promise<void> are the exact signatures S6's ChatBox action menu is expected to call, with no DM-specific parameter leaking into the shared call site (peerPubkeyHex/privateKeyHex are closed over inside ContactChat, not part of the handler signature). Not yet wired into <ChatBox> props (ChatBox.tsx's prop interface is S6-owned and does not yet declare onDeleteMessage/onEditMessage); wiring is explicitly left to S6."
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "module_name": "Storage",
+  "purpose": "Owns the ChatMessage row shape and all IDB read/write primitives for chat message persistence (app/src/lib/marmot/chatPersistence.ts). This story extends the row shape with tombstoned/edited/rev fields and adds update-in-place write primitives (updateMessageInPlace, tombstoneMessage) that S3 (reconciliation core) will call to apply delete/edit signals, plus the AC-STORE-3 clobber-guard and a pure render-filter helper.",
+  "public_api": [
+    {
+      "name": "ChatMessage",
+      "signature": "interface ChatMessage { id: string; content: string; senderPubkey: string; groupId: string; createdAt: number; attachments?: RoledAttachments; localMediaRefs?: string[]; tombstoned?: boolean; edited?: boolean; rev?: number; }",
+      "description": "Extended (additive/optional) with tombstoned, edited, rev. All existing construction sites remain valid without change."
+    },
+    {
+      "name": "MessagePatch",
+      "signature": "interface MessagePatch { tombstoned?: boolean; edited?: boolean; rev?: number; content?: string; }",
+      "description": "The storage-update-in-place seam contract handed to S3. rev absent or 0 is reserved to mean 'this write originates from an original message rumor, not a real edit/delete signal' — exactly the condition the AC-STORE-3 clobber-guard checks."
+    },
+    {
+      "name": "updateMessageInPlace",
+      "signature": "function updateMessageInPlace(groupId: string, id: string, patch: MessagePatch): Promise<void>",
+      "description": "Read-modify-write against the persisted row at its existing array index (never re-inserts, never reorders — AC-EDIT-2). No-ops if id is absent. Applies the AC-STORE-3 clobber-guard: rejects the write (no-op) when patch.rev is undefined/0 AND the existing row is already tombstoned or edited. Enqueues on the same per-thread appendQueues key (storageKey(groupId)) as appendMessage/removeMessages."
+    },
+    {
+      "name": "tombstoneMessage",
+      "signature": "function tombstoneMessage(groupId: string, id: string, rev: number): Promise<void>",
+      "description": "Thin wrapper over updateMessageInPlace({ tombstoned: true, rev }). Retains the row physically (AC-DEL-5); never calls removeMessages. Applies identically to text and image-shaped rows (AC-IMG-1) — no attachment-specific branch."
+    },
+    {
+      "name": "filterVisibleMessages",
+      "signature": "function filterVisibleMessages(messages: ChatMessage[]): ChatMessage[]",
+      "description": "Pure filter mirroring reactions/api.ts's `!r.removed` pattern in aggregateForMessage: strips tombstoned rows. loadMessages() itself stays raw/unfiltered (matches loadReactions' raw-read precedent) because non-render consumers (relayBackup.ts, reactionHandler.ts's known-target existence check, and S3's future slot-resolution/idempotency logic) need the full row set including tombstoned rows. Storage read paths that render a thread call filterVisibleMessages on the result; this story adds the primitive only — wiring it into ChatStoreContext.tsx/ContactChat.tsx render call sites is UI work reserved for S3/S6, per this story's explicit UI-change exclusion."
+    },
+    {
+      "name": "loadMessages",
+      "signature": "function loadMessages(groupId: string): Promise<{ messages: ChatMessage[]; refetchIds: string[] }>",
+      "description": "Unchanged (pre-existing). Continues to return the raw row set including tombstoned rows."
+    },
+    {
+      "name": "appendMessage",
+      "signature": "function appendMessage(groupId: string, message: ChatMessage): Promise<void>",
+      "description": "Unchanged behavior (pre-existing insert-if-absent, dedup-by-id). Documented as the AC-STORE-3 substrate for the append path: because it never overwrites an existing id, a re-delivered original message rumor structurally cannot clobber an already-edited/tombstoned row through this path."
+    },
+    {
+      "name": "removeMessages",
+      "signature": "function removeMessages(groupId: string, ids: readonly string[]): Promise<void>",
+      "description": "Unchanged (pre-existing hard delete). Reserved for the ADR-001/002 purge/self-heal path only; not called by tombstoneMessage."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "ChatMessage row shape (tombstoned/edited/rev fields)",
+    "few:messages:{groupId} IDB namespace",
+    "per-thread appendQueues write-serialization map"
+  ],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": [
+    "app/src/context/*",
+    "app/src/lib/messageEdits/* (does not exist yet; S1 must not create or import it)",
+    "app/src/components/*"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/chatPersistence-editDelete.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S3"],
+    "seam_name": "Storage update-in-place seam (MessagePatch)",
+    "note": "updateMessageInPlace/tombstoneMessage form the seam architecture.md lists as consumed by S3's reconciliation core (app/src/lib/messageEdits/api.ts). No other story consumes this seam directly."
+  }
+}

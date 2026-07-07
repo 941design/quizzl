@@ -1,0 +1,160 @@
+{
+  "story_id": "S6",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-07T14:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S6-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the edit-mode composer and action menu actually gate on `message.author === currentUserPubkey` and real message state (image vs text, tombstoned vs not), or could any of these UI conditions be hardcoded/frozen (e.g. always showing the menu, or a stub `isOwnMessage` returning `true`)? Show a test with a non-own message proving no action menu renders."
+    },
+    {
+      "question_id": "VQ-S6-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `ChatBox.tsx` consume delete/edit exclusively through the `MessageActionHandlers` seam (`handleDeleteMessage`/`handleEditMessage` passed in from S4/S5), with no direct import of `messageEdits/api.ts`, `messageEdits/rumor.ts`, or `chatPersistence.ts` primitives from the rendering layer?"
+    },
+    {
+      "question_id": "VQ-S6-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could Rendering / UI be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S6-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Are the new UI behaviors (own-message gating, empty-edit rejection, delete confirmation, '(edited)' marker, list-preview fallback, image edit-hidden) covered by tests that exercise exported pure-function logic (per the project's no-jsdom, no-renderHook convention of re-deriving predicates rather than mounting React), rather than being asserted only by manual inspection?"
+    },
+    {
+      "question_id": "VQ-S6-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does S6 confine itself to UI/i18n/rendering (excluding send/receive/optimistic mechanics, consumed only via the action-handler seam, and excluding e2e automation per S7), and does every new string route through `useCopy()` with no send/receive logic reimplemented in the component layer?"
+    },
+    {
+      "question_id": "VQ-S6-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Is the i18n addition placed consistently in one location (either `Copy.emoji`-style flat keys or `Copy.groups`-style nested keys, per architecture.md's flagged either-is-precedented choice) rather than split arbitrarily across both patterns for the same feature?"
+    },
+    {
+      "question_id": "VQ-S6-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TIME-1",
+      "question": "Show the code proving the action menu never checks the target message's timestamp/age before offering edit/delete — confirm no time-window/age-gate conditional exists anywhere in the affordance logic."
+    },
+    {
+      "question_id": "VQ-S6-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EDIT-3",
+      "question": "Show a test proving an edited message renders an '(edited)' marker near its timestamp on both the DM (`ContactChat`) and group chat surfaces, using the message's `edited` flag from storage."
+    },
+    {
+      "question_id": "VQ-S6-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-EDIT-5",
+      "question": "Show a test proving submitting the edit composer with empty/whitespace-only content is rejected client-side (never calls `handleEditMessage`) and the user is directed toward the delete action instead."
+    },
+    {
+      "question_id": "VQ-S6-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTH-1",
+      "question": "Show a test proving the edit/delete action menu renders only when the message's author matches the current user's pubkey, and does not render for any other message, including one from a group peer."
+    },
+    {
+      "question_id": "VQ-S6-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEL-6",
+      "question": "Show a test proving a delete action requires an explicit confirmation step (e.g. a confirm dialog / second click) before `handleDeleteMessage` is invoked — a single click alone must not delete."
+    },
+    {
+      "question_id": "VQ-S6-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LIST-1",
+      "question": "Show a test proving the conversation/group list preview text updates to the new content once an edit signal for that thread's last message has been processed (reading the same `edited`/`content` fields S1/S3 maintain)."
+    },
+    {
+      "question_id": "VQ-S6-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LIST-2",
+      "question": "Show a test proving the list preview falls back to the previous surviving (non-tombstoned) message, or the empty state if none remain, once the thread's last message is tombstoned."
+    },
+    {
+      "question_id": "VQ-S6-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-IMG-2",
+      "question": "Show a test proving no edit affordance (button/menu entry) is offered for a message row whose `ChatMessage` shape indicates an image/attachment, while the delete affordance remains offered."
+    },
+    {
+      "question_id": "VQ-S6-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-IMG-3",
+      "question": "Show the code and a test proving deleting an image message never issues a Blossom DELETE/removal call — only the local tombstone flip occurs — confirmed by asserting zero network delete calls in the test."
+    },
+    {
+      "question_id": "VQ-S6-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INTL-1",
+      "question": "Show `app/src/lib/i18n.ts` diffs proving every new user-facing string (edit/delete actions, editing state, cancel, delete confirmation, '(edited)') has both `en` and `de` entries, and show the component code proving each is consumed via `useCopy()`, not a literal string."
+    },
+    {
+      "question_id": "VQ-S6-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INTL-2",
+      "question": "Grep the changed component files for any new hardcoded user-visible string literal (JSX text, `alt`, `title`, `aria-label`) that bypasses `useCopy()` — confirm none exists."
+    },
+    {
+      "question_id": "VQ-S6-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INTEROP-1",
+      "question": "Grep all new/changed copy strings for 'erased', 'deleted for everyone', or any equivalent hard-guarantee phrasing — confirm none exists and that delete/edit copy reads as a neutral local action."
+    },
+    {
+      "question_id": "VQ-S6-019",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INTEROP-2",
+      "question": "Grep all new/changed copy touched by this story for a claim that a non-Few client honors delete/edit as a guarantee — confirm none exists, and that any interop-adjacent copy frames it as best-effort."
+    },
+    {
+      "question_id": "VQ-S6-020",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LIST-1",
+      "question": "Discovered during implementation: no conversation/group list preview (a last-message snippet on the contacts/groups list pages) existed ANYWHERE in the codebase prior to this story — architecture.md's module map listed it as 'Modified', but exploration.json contains zero mentions of 'preview' and neither app/pages/contacts.tsx nor app/src/components/groups/GroupCard.tsx rendered any message content before this change. This story built it from scratch: a pure computeThreadPreviewMessage/formatThreadPreviewText pair in messageActionUi.ts, wired into GroupCard.tsx and a new ContactCardPreview subcomponent in contacts.tsx via a mount-time loadMessages(threadId) call (no live chatVersion subscription on the list pages — the preview refreshes on next view, mirroring AC-LIST-1's own DM-ingest-on-open relaxation). Is a mount-time (not live) load an adequate reading of 'once an edit signal ... has been processed, that thread's list preview MUST reflect the new text', or does AC-LIST-1 require a live update while the list page stays open?"
+    },
+    {
+      "question_id": "VQ-S6-021",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "GroupCard.tsx and contacts.tsx's ContactCardPreview both import loadMessages directly from chatPersistence.ts (a read-only call, mirroring ContactChat.tsx's existing precedent) rather than going through a seam. Given VQ-S6-002 asks whether ChatBox consumes delete/edit exclusively through the MessageActionHandlers seam with no direct chatPersistence.ts primitive imports — does the list-preview surface's direct loadMessages/filterVisibleMessages usage (necessary since no MessageActionHandlers-shaped seam exists for 'read a thread's current messages') fall inside or outside that boundary rule's intent, and is it adequately distinguished in architecture.json's dependencies_allowed from a write/reconciliation-primitive import?"
+    },
+    {
+      "question_id": "VQ-S6-022",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "ac_id": "AC-EDIT-3",
+      "question": "To satisfy AC-EDIT-3 for a GROUPED (consecutive, same-sender, normally timestamp-collapsed) message, ChatBox.tsx's grouping condition was changed from `{!grouped && (...)}` to `{(!grouped || shouldShowEditedMarker(msg)) && (...)}`, forcing the name/timestamp row to render for an edited message even when grouped (name itself stays hidden; only the timestamp + marker show). Does this correctly avoid a false impression that an edited grouped message is a NEW message from a different sender, and does it leave the un-edited grouped-message collapse behavior (and any existing test/AC covering AC-47's grouping window) unaffected?"
+    },
+    {
+      "question_id": "VQ-S6-023",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "ChatBox.tsx's action-menu gating (canShowMessageActions, canEditMessage), edit-submit blocking (isEditSubmitBlocked), edited-marker (shouldShowEditedMarker), and delete-confirm transition (computeDeleteConfirmTransition) are all covered by pure-function unit tests in messageActionUi.test.ts, per project convention (no jsdom/@testing-library). The actual JSX wiring inside ChatBox.tsx's render (e.g. that showActions truly gates the rendered IconButtons, that handleDeleteClick truly calls the pure transition function before invoking handleDeleteMessage) is NOT independently exercised by any unit test — it is deferred entirely to S7's e2e coverage. Given S7's owned ACs are only AC-DEL-1/AC-EDIT-1 (not AC-AUTH-1, AC-DEL-6, AC-EDIT-3, AC-EDIT-5, AC-IMG-2 individually), is there a verification gap where a wiring mistake in ChatBox.tsx's JSX (e.g. showActions accidentally inverted, or the confirm click wired to the wrong handler) would pass both the unit suite and S7's e2e suite undetected?"
+    }
+  ]
+}

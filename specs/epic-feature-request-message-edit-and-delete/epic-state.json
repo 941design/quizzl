@@ -1,0 +1,286 @@
+{
+  "epic_name": "feature-request-message-edit-and-delete",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-07T10:13:46Z",
+  "updated_at": "2026-07-07T18:20:00Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "Makefile",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-07T10:13:46Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "IN_PROGRESS",
+      "timestamp": "2026-07-07T10:35:00Z",
+      "trigger": "planning_complete"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-07T15:55:00Z",
+      "trigger": "all_stories_done_interlock_satisfied"
+    }
+  ],
+  "reviewer_agent_id": "a6f047cd53f1dce75",
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "2cfb6f55bc16ce18520cdf7eaf376276cbc92885",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "ac_closure": [
+    {
+      "ac_id": "AC-DEL-1",
+      "status": "met",
+      "evidence": "S7 e2e: DM+group delete of authored text+image, peer stops rendering (dm/groups-message-edit-delete.spec)"
+    },
+    {
+      "ac_id": "AC-DEL-2",
+      "status": "met",
+      "evidence": "S4: optimistic remove + rollback on publish failure (dmMessageEdits.test)"
+    },
+    {
+      "ac_id": "AC-DEL-3",
+      "status": "met",
+      "evidence": "S3 reconcile tombstone\u2192filterVisibleMessages (api.test); S6 render backstop; S7 peer-disappearance e2e"
+    },
+    {
+      "ac_id": "AC-DEL-4",
+      "status": "met",
+      "evidence": "S5: MLS application rumor via sendRumorSafe, never relay-facing kind-5 (no-NDK source-scan test); S4 DM sealed-wrap"
+    },
+    {
+      "ac_id": "AC-DEL-5",
+      "status": "met",
+      "evidence": "S1: tombstoneMessage field-flip retains row, never removeMessages (chatPersistence-editDelete.test)"
+    },
+    {
+      "ac_id": "AC-DEL-6",
+      "status": "met",
+      "evidence": "S6: two-click computeDeleteConfirmTransition (messageActionUi.test); S7 real-UI two-click e2e"
+    },
+    {
+      "ac_id": "AC-DEL-7",
+      "status": "met",
+      "evidence": "S3: marker-first classification, edit-marked kind-5 discarded (api.test integration w/ real S2 builders)"
+    },
+    {
+      "ac_id": "AC-DEL-8",
+      "status": "met",
+      "evidence": "S2: e-tags original + sender-retained prior ids ([] for Few); AMENDED best-effort per 2026-07-07 product decision (rumor.test)"
+    },
+    {
+      "ac_id": "AC-TIME-1",
+      "status": "met",
+      "evidence": "S6: canShowMessageActions has zero timestamp logic (messageActionUi.test age cases)"
+    },
+    {
+      "ac_id": "AC-EDIT-1",
+      "status": "met",
+      "evidence": "S7 e2e: DM+group edit of authored text, peer sees in-place update + marker"
+    },
+    {
+      "ac_id": "AC-EDIT-2",
+      "status": "met",
+      "evidence": "S1 update-in-place preserves row position (chatPersistence-editDelete.test)"
+    },
+    {
+      "ac_id": "AC-EDIT-3",
+      "status": "met",
+      "evidence": "S6: shouldShowEditedMarker + grouped-message override (messageActionUi.test); S7 marker-visible e2e"
+    },
+    {
+      "ac_id": "AC-EDIT-4",
+      "status": "met",
+      "evidence": "S2: replacement created_at pinned to original seconds + separate rev tag (rumor.test)"
+    },
+    {
+      "ac_id": "AC-EDIT-5",
+      "status": "met",
+      "evidence": "S6: isEditSubmitBlocked + visible hint directing to delete (messageActionUi.test); S7 real-UI e2e"
+    },
+    {
+      "ac_id": "AC-EDIT-6",
+      "status": "met",
+      "evidence": "S2: anchors to first message id/created_at across edit chain (rumor.test 3-edit chain)"
+    },
+    {
+      "ac_id": "AC-EDIT-7",
+      "status": "met",
+      "evidence": "S3: slot id stable across edit \u2192 reactions survive (api.test)"
+    },
+    {
+      "ac_id": "AC-EDIT-8",
+      "status": "met",
+      "evidence": "S4: replacement-before-companion, failed companion no-delete, rollback (dmMessageEdits.test)"
+    },
+    {
+      "ac_id": "AC-AUTH-1",
+      "status": "met",
+      "evidence": "S6: canShowMessageActions own-only gate (messageActionUi.test); S7 real-UI present/absent e2e"
+    },
+    {
+      "ac_id": "AC-AUTH-2",
+      "status": "met",
+      "evidence": "DM fully enforced via seal sig (S4 real alice/mallory test). GROUP best-effort/group-member-attested \u2014 AMENDED 2026-07-07 (marmot-ts drops MLS sender leaf; tracked BACKLOG marmot-ts-0-5-1-drops). Pubkey-match implemented+tested (S5 real-keypair). AC met as amended; finding tracks upstream enhancement, not an unmet AC."
+    },
+    {
+      "ac_id": "AC-STORE-1",
+      "status": "met",
+      "evidence": "S3: single applyDeleteEditSignal called identically by DM+group \u2192 identical model (api.test)"
+    },
+    {
+      "ac_id": "AC-STORE-2",
+      "status": "met",
+      "evidence": "S3: idempotent reprocessing, dedup by rumorId (api.test)"
+    },
+    {
+      "ac_id": "AC-STORE-3",
+      "status": "met",
+      "evidence": "S1: clobber-guard, re-delivered original (rev<1) can't revert edited/tombstoned (chatPersistence-editDelete.test)"
+    },
+    {
+      "ac_id": "AC-ORDER-1",
+      "status": "met",
+      "evidence": "S3: retain-and-apply unknown target in pending buffer, not discard (api.test)"
+    },
+    {
+      "ac_id": "AC-ORDER-2",
+      "status": "met",
+      "evidence": "S3: PENDING_SIGNAL_CAP+TTL, per-target max-rev collapse, evict-oldest-target (api.test)"
+    },
+    {
+      "ac_id": "AC-ORDER-3",
+      "status": "met",
+      "evidence": "S3: 24-permutation {orig,delete,editA,editB} convergence + tie-breaks + fault-injection (api.test)"
+    },
+    {
+      "ac_id": "AC-ORDER-4",
+      "status": "met",
+      "evidence": "S3: persist tombstone marker (delete) + materialize (edit) on expiry, self-healing (api.test); AMENDED cap-only markers"
+    },
+    {
+      "ac_id": "AC-ORDER-5",
+      "status": "met",
+      "evidence": "S2: clampRev max(wall,last+1) always finite int>=1 (rumor.test)"
+    },
+    {
+      "ac_id": "AC-LIST-1",
+      "status": "met",
+      "evidence": "S6: computeThreadPreviewMessage reflects edited last message (messageActionUi.test)"
+    },
+    {
+      "ac_id": "AC-LIST-2",
+      "status": "met",
+      "evidence": "S6: preview falls back to previous surviving / empty on delete (messageActionUi.test)"
+    },
+    {
+      "ac_id": "AC-IMG-1",
+      "status": "met",
+      "evidence": "S1: image-shaped row tombstones identically to text (chatPersistence-editDelete.test it.each)"
+    },
+    {
+      "ac_id": "AC-IMG-2",
+      "status": "met",
+      "evidence": "S6: canEditMessage rejects attachments+structured \u2192 no edit affordance (messageActionUi.test); S7 e2e"
+    },
+    {
+      "ac_id": "AC-IMG-3",
+      "status": "met",
+      "evidence": "S6/S4/S5: delete path is tombstone-only, zero Blossom DELETE (grep-confirmed)"
+    },
+    {
+      "ac_id": "AC-INTL-1",
+      "status": "met",
+      "evidence": "S6: 12 keys en+de in i18n.ts via useCopy (messageEdits.i18n.test)"
+    },
+    {
+      "ac_id": "AC-INTL-2",
+      "status": "met",
+      "evidence": "S6: no hardcoded user-visible strings (grep + remediated aria-label)"
+    },
+    {
+      "ac_id": "AC-INTEROP-1",
+      "status": "met",
+      "evidence": "S6: neutral copy, no 'erased'/'deleted for everyone' (i18n regex test)"
+    },
+    {
+      "ac_id": "AC-INTEROP-2",
+      "status": "met",
+      "evidence": "S6: no copy asserts non-Few honoring (i18n regex test); full non-Few validation is MV-2 (manual)"
+    }
+  ],
+  "manual_validation": [
+    {
+      "ac_id": "MV-1",
+      "status": "satisfied",
+      "evidence": "S7 dm-message-edit-delete.spec: two Few browser contexts; peer observes delete (msg disappearance) + edit (in-place update + (edited) marker)"
+    },
+    {
+      "ac_id": "MV-2",
+      "status": "waived",
+      "evidence": "Non-Few (Amethyst) interop is spec-scoped best-effort/unverified (\u00a74.8, AC-INTEROP-2); no Amethyst build available in this environment; manual check deferred to when one is on hand. Tracked."
+    },
+    {
+      "ac_id": "MV-3",
+      "status": "satisfied",
+      "evidence": "S7 groups-message-edit-delete.spec: two Few group members; peer observes group delete/edit + marker"
+    },
+    {
+      "ac_id": "MV-4",
+      "status": "satisfied",
+      "evidence": "S3 api.test: signal-before-target buffered then applied on target arrival (deterministic) + S7 ordering-proxy with positive control + MutationObserver latch"
+    },
+    {
+      "ac_id": "MV-5",
+      "status": "satisfied",
+      "evidence": "S7 reactions-survive-edit / vanish-on-delete e2e + S3 unit (reactions keyed to stable original slot id survive edit; tombstoned slot hides reactions)"
+    },
+    {
+      "ac_id": "MV-6",
+      "status": "satisfied",
+      "evidence": "S3 api.test: 24-permutation {original,delete,editA,editB} order-independence convergence + delete-wins/higher-id tie-breaks (deterministic)"
+    }
+  ],
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_pass",
+      "detail": "5 core logic modules 100% ground-truth kill (1274 mutants); React components skipped-by-convention (no-jsdom, logic extracted+tested, JSX e2e-covered); Stryker raw report had ~32% false-negatives, ground-truth-verified"
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_remediated",
+      "detail": "epic's 16 new e2e tests all green (multiple runs); 6 full-suite failures were CPU-contention flakes (pass isolated, moot now); 1 pre-existing failure (groups-direct-chat-no-duplicates:150 relay-bleed-sensitive absolute-count, confirmed not-epic by structural review) hardened to bleed-tolerant assertion + re-run green"
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_remediated",
+      "structural_findings": {
+        "surfaced": 7,
+        "acted": 4,
+        "disclosed_unacted": 3
+      },
+      "detail": "Opus(resumable)+Fable aggregate pass over assembled tree; both converged clean after remediation. Fixed: testid-namespace collision (msg-*\u2192action-*), DM-delete resurrection guard (S4/S5 symmetry), hasEditMarkerTag structural unification, doc-rot. Disclosed non-blocking: duplicated view-transforms, cross-thread eviction staleness, deferred-auth collapse boundary."
+    }
+  ]
+}

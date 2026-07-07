@@ -7,7 +7,7 @@ import { useMarmot } from '@/src/context/MarmotContext';
 import { isAllowedDmSender } from '@/src/lib/walledGarden';
 import { loadKnownPeers } from '@/src/lib/knownPeers';
 import { createLogger } from '@/src/lib/logger';
-import { appendMessage, loadMessages, removeMessages, type ChatMessage } from '@/src/lib/marmot/chatPersistence';
+import { appendMessage, filterVisibleMessages, loadMessages, removeMessages, type ChatMessage } from '@/src/lib/marmot/chatPersistence';
 import { connectNdk, fetchEventsWithTimeout } from '@/src/lib/ndkClient';
 import {
   buildChatRumor,
@@ -18,6 +18,8 @@ import {
   DIRECT_MESSAGE_KIND,
   GIFT_WRAP_KIND,
   parseDirectPayload,
+  publishDirectDelete,
+  publishDirectEdit,
   publishDirectReaction,
   removeDirectReaction,
   sealAndWrap,
@@ -31,6 +33,13 @@ import { markDirectMessagesRead } from '@/src/lib/unreadStore';
 import { applyOptimistic, applyOptimisticRemoval, rollbackOptimistic, applyInboundRumor } from '@/src/lib/reactions/api';
 import type { Reaction } from '@/src/lib/reactions/types';
 import { useDirectReactions } from '@/src/hooks/useDirectReactions';
+import {
+  applyDeleteEditSignal,
+  resolvePendingSignalsForSlot,
+  type ChangeResult,
+  type InboundDeleteEditRumor,
+} from '@/src/lib/messageEdits/api';
+import { DELETE_EDIT_RUMOR_KIND, hasEditMarkerTag } from '@/src/lib/messageEdits/rumor';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useToast } from '@chakra-ui/react';
 
@@ -66,6 +75,98 @@ function toMessage(
 }
 
 const dmLogger = createLogger('dm');
+
+/**
+ * S4 gate-remediation (round-4, finding 1/5): pure post-loop reconcile step for the
+ * historical cold-load batch. `merged` is the batch of ChatMessage rows produced by
+ * the historical rumor loop (kind-4 + kind-1059, sorted by createdAt) BEFORE this
+ * reconcile; `storageTruth` is a fresh loadMessages() read taken AFTER the loop has
+ * finished writing every signal for this batch. A same-batch kind-5 delete/edit that
+ * sorts and applies AFTER its target inside the loop updates storage but not the row
+ * OBJECT already captured in `merged` — this is the single place that repairs that,
+ * by substituting storage's row for any id storage knows about and then dropping
+ * tombstoned rows. Exported and pure so it is testable directly, without mounting
+ * React (this repo's hooks-via-pure-function-extraction convention).
+ */
+export function reconcileHistoricalBatch(
+  merged: ChatMessage[],
+  storageTruth: ChatMessage[],
+): ChatMessage[] {
+  const storageById = new Map(storageTruth.map((m) => [m.id, m] as const));
+  const substituted = merged.map((m) => storageById.get(m.id) ?? m);
+  return filterVisibleMessages(substituted).sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/**
+ * S4 gate-remediation (finding 5): pure optimistic-delete view transform — the exact
+ * transform handleDeleteMessage applies before publish. Exported so tests exercise
+ * the real transform, not a re-derived copy.
+ */
+export function applyOptimisticDeleteView(view: ChatMessage[], messageId: string): ChatMessage[] {
+  return view.filter((m) => m.id !== messageId);
+}
+
+/**
+ * S4 gate-remediation (finding 5): pure delete-rollback view transform — restores
+ * `snapshot` into `view` at its sorted position, used on a failed publish.
+ */
+export function rollbackOptimisticDeleteView(view: ChatMessage[], snapshot: ChatMessage): ChatMessage[] {
+  return [...view, snapshot].sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/**
+ * S4 gate-remediation (finding 5): pure optimistic-edit view transform — patches
+ * `messageId`'s content/edited flag in place, position preserved (AC-EDIT-2).
+ */
+export function applyOptimisticEditView(view: ChatMessage[], messageId: string, newContent: string): ChatMessage[] {
+  return view.map((m) => (m.id === messageId ? { ...m, content: newContent, edited: true } : m));
+}
+
+/**
+ * S4 gate-remediation (finding 5): pure edit-rollback view transform — restores
+ * `snapshot` verbatim in place of `messageId`'s row, used on a failed publish.
+ */
+export function rollbackOptimisticEditView(view: ChatMessage[], messageId: string, snapshot: ChatMessage): ChatMessage[] {
+  return view.map((m) => (m.id === messageId ? snapshot : m));
+}
+
+/**
+ * S4 gate-remediation (round-2, live-path twin of the round-1 historical fix,
+ * `reconcileHistoricalBatch`'s sibling for the single-message live append path):
+ * pure post-append render decision for a freshly-appended original chat-message row.
+ *
+ * `result` is the outcome of S3's `resolvePendingSignalsForSlot` for `msg`'s slot;
+ * `storageTruth` is a `loadMessages()` read taken AFTER that resolve has settled
+ * (so it reflects any tombstone/edit the resolve just applied). Both live inbound
+ * paths (kind-1059 gift-wrap and legacy kind-4) route through this single decision
+ * point via `resolveFreshOriginal`.
+ *
+ * - `delete`: caller must not render the message at all → null.
+ * - anything else (`edit`, `noop`, `discarded`, `pending`): substitute storage's
+ *   row for `msg`'s id when storage knows it, falling further to null if that row
+ *   is tombstoned. This matters beyond the `edit` case because the live
+ *   giftWrapSub subscribes with no `since` filter — every resubscribe/reconnect
+ *   re-delivers ALL stored gift-wraps, including the original of a since-deleted
+ *   or since-edited message, which resolves as `noop`/`discarded`/`pending` (the
+ *   slot already carries its terminal state) yet must still not re-render the raw
+ *   stale `msg` object over storage truth.
+ * - a row absent from storage (never persisted, e.g. a same-tick race) falls back
+ *   to the raw `msg`, matching `reconcileHistoricalBatch`'s "no phantom
+ *   substitution" behavior.
+ *
+ * Exported and pure so it is testable directly, without mounting React or mocking
+ * IDB/S3 async plumbing (this repo's hooks-via-pure-function-extraction convention).
+ */
+export function resolveFreshOriginalFromStorage(
+  msg: ChatMessage,
+  result: ChangeResult,
+  storageTruth: ChatMessage[],
+): ChatMessage | null {
+  if (result.kind === 'delete') return null;
+  const stored = storageTruth.find((m) => m.id === msg.id);
+  if (stored?.tombstoned) return null;
+  return stored ?? msg;
+}
 
 export default function ContactChat({
   peerPubkeyHex,
@@ -122,6 +223,61 @@ export default function ContactChat({
     });
   }, []);
 
+  /**
+   * Story-04 (epic-feature-request-message-edit-and-delete, S4): required S3 calling
+   * convention — after appending a BRAND-NEW original chat-message row, immediately
+   * resolve any buffered delete/edit for that slot (resolvePendingSignalsForSlot),
+   * and sequence the render/state update AFTER that resolve completes, never between
+   * the append and the resolve (AC-ORDER-4 "MUST NOT render" a to-be-deleted original).
+   *
+   * appendMessage does not report whether it performed a fresh insert or a dedup
+   * no-op, so this is called unconditionally on every append; resolvePendingSignalsForSlot
+   * is itself idempotent (no-ops when nothing is pending/already resolved), so a
+   * redundant call on a re-delivered original is a safe, cheap no-op.
+   *
+   * Returns null when the resolved outcome is a delete (caller must not render the
+   * message at all), the up-to-date ChatMessage when an edit won (re-read from storage
+   * so the rendered content reflects the edit, not the stale just-appended original),
+   * or storage's row for that id otherwise (noop/discarded/pending outcome — see
+   * `resolveFreshOriginalFromStorage`'s docstring for why the live re-delivery case
+   * needs storage truth here too, not just for `edit`).
+   *
+   * Thin async wrapper around the exported pure decision function
+   * `resolveFreshOriginalFromStorage` — this function owns only the I/O
+   * (resolvePendingSignalsForSlot + loadMessages); the render decision itself is
+   * tested directly against the pure function.
+   */
+  const resolveFreshOriginal = useCallback(async (msg: ChatMessage): Promise<ChatMessage | null> => {
+    const result: ChangeResult = await resolvePendingSignalsForSlot(dmThread, msg.id, msg.senderPubkey);
+    const { messages: fresh } = await loadMessages(threadId);
+    return resolveFreshOriginalFromStorage(msg, result, fresh);
+  }, [dmThread, threadId]);
+
+  /**
+   * S4: inbound kind-5 (delete / edit-marked-companion) and edit-marked kind-14
+   * dispatch — routed through S3's applyDeleteEditSignal unconditionally (no
+   * knownMessageIdsRef gate: unlike the kind-7 reaction gate, S3 itself buffers an
+   * unknown-target signal — retain-and-apply, AC-ORDER-1). Mirrors the storage write
+   * with a local React-state update so the DM's own view reflects the outcome
+   * immediately (AC-DEL-3-adjacent: the row this component renders must not lag the
+   * row S3 just persisted) — re-reads the row from storage for an 'edit' outcome to
+   * pick up the new content, and drops the row from state outright for a 'delete'
+   * outcome (AC-ORDER-4 "MUST NOT render").
+   */
+  const applyInboundDeleteEditSignal = useCallback(async (rumor: InboundDeleteEditRumor): Promise<ChangeResult> => {
+    const result = await applyDeleteEditSignal(dmThread, rumor);
+    if (result.kind === 'delete' && result.slotId) {
+      const deletedId = result.slotId;
+      setMessages((prev) => prev.filter((m) => m.id !== deletedId));
+    } else if (result.kind === 'edit' && result.slotId) {
+      const editedId = result.slotId;
+      const { messages: fresh } = await loadMessages(threadId);
+      const updated = fresh.find((m) => m.id === editedId);
+      if (updated) setMessages((prev) => prev.map((m) => (m.id === editedId ? updated : m)));
+    }
+    return result;
+  }, [dmThread, threadId]);
+
   const ingestEvent = useCallback(async (
     event: { id: string; pubkey: string; content: string; created_at?: number },
   ): Promise<ChatMessage | null> => {
@@ -138,8 +294,9 @@ export default function ContactChat({
       attachments: decrypted.attachments,
     });
     await appendMessage(threadId, msg);
-    return msg;
-  }, [peerPubkeyHex, privateKeyHex, pubkeyHex, threadId]);
+    knownMessageIdsRef.current.add(msg.id);
+    return resolveFreshOriginal(msg);
+  }, [peerPubkeyHex, privateKeyHex, pubkeyHex, threadId, resolveFreshOriginal]);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,8 +312,53 @@ export default function ContactChat({
         const { messages: stored, refetchIds } = await loadMessages(threadId);
         if (!cancelled) {
           for (const msg of stored) knownMessageIdsRef.current.add(msg.id);
-          setMessages(stored);
+          // S4 gate-remediation (finding 3a): filter tombstoned rows out of the very
+          // first render — an unfiltered raw loadMessages() seed rendered a deleted
+          // message for the whole session until some later signal happened to touch
+          // this thread.
+          setMessages(filterVisibleMessages(stored));
         }
+
+        // S4 ledger obligation: the pending-buffer/delete-marker TTL sweep
+        // (messageEdits/api.ts) is lazy — it only runs when applyDeleteEditSignal or
+        // resolvePendingSignalsForSlot is next called for this thread. Without an
+        // explicit trigger, a pending delete whose target never arrives could sit
+        // past its TTL without materializing into a durable marker until some
+        // unrelated future signal happens to touch this thread. Trigger a sweep on
+        // thread-open by calling resolvePendingSignalsForSlot with a sentinel id that
+        // can never match a real row (a real row id is always a 64-char hex rumor id,
+        // never empty) — it resolves to a no-op for that id but still runs the
+        // general thread sweep as a side effect. Fire-and-forget relative to init():
+        // this is bookkeeping hygiene, not on the critical path for first render.
+        //
+        // S4 gate-remediation (finding 3b): the sweep can itself tombstone a durably
+        // present row (self-heal materializing an expired pending/marker), but the
+        // stale un-tombstoned React copy would otherwise stay visible for the rest of
+        // the session since nothing else re-reads storage afterward. Await the sweep,
+        // then re-read storage once and merge it into state (never a blind replace —
+        // an in-flight optimistic send not yet persisted must survive), filtering
+        // tombstoned rows on the way out.
+        void (async () => {
+          try {
+            await resolvePendingSignalsForSlot(dmThread, '', '');
+          } catch {
+            // Sweep bookkeeping failure — non-fatal, nothing to reconcile.
+            return;
+          }
+          if (cancelled) return;
+          try {
+            const { messages: freshAfterSweep } = await loadMessages(threadId);
+            if (cancelled) return;
+            for (const msg of freshAfterSweep) knownMessageIdsRef.current.add(msg.id);
+            setMessages((prev) => {
+              const byId = new Map(prev.map((m) => [m.id, m] as const));
+              for (const m of freshAfterSweep) byId.set(m.id, m);
+              return filterVisibleMessages(Array.from(byId.values())).sort((a, b) => a.createdAt - b.createdAt);
+            });
+          } catch {
+            // Best-effort reconciliation — a read failure here leaves state as-is.
+          }
+        })();
 
         // Story-04 (§3.4): coordinate refetch for non-canonical message ids.
         // loadMessages returns the malformed ids; we attempt a relay refetch
@@ -203,7 +405,16 @@ export default function ContactChat({
                       content: parsed.content,
                       attachments: parsed.attachments,
                     });
-                    replacements.push({ malformedId: evt.id, canonical });
+                    // S4 gate-remediation (finding 7): route through appendMessage +
+                    // resolveFreshOriginal like every other append site — pushing the
+                    // canonical row straight into `replacements` bypassed storage
+                    // entirely, so a buffered delete/edit for this id could neither
+                    // suppress the render nor ever be applied by the self-heal sweep
+                    // (a row that never entered storage can never be its target).
+                    await appendMessage(threadId, canonical);
+                    knownMessageIdsRef.current.add(canonical.id);
+                    const resolved = await resolveFreshOriginal(canonical);
+                    if (resolved) replacements.push({ malformedId: evt.id, canonical: resolved });
                   } catch {
                     // Refetch failed for this wrap — leave the malformed row in place.
                     continue;
@@ -349,6 +560,14 @@ export default function ContactChat({
             dmLogger.info('dm:walled-garden-drop', { pubkey: senderPeer.slice(0, 8), kind: rumor.kind });
             continue;
           }
+          if (rumor.kind === DELETE_EDIT_RUMOR_KIND) {
+            // S4: kind-5 delete/edit-companion signal. Unlike kind-7's
+            // discard-on-unknown-target gate below, S3's applyDeleteEditSignal itself
+            // buffers an unknown-target signal (retain-and-apply, AC-ORDER-1) — no
+            // knownMessageIdsRef gate, called unconditionally.
+            await applyInboundDeleteEditSignal(rumor);
+            continue;
+          }
           if (rumor.kind === 7) {
             // Kind-7 reaction/removal: apply in created_at order so that reactions
             // always land before their removals, giving applyInboundRumor the correct
@@ -359,6 +578,12 @@ export default function ContactChat({
             if (targetMessageId && knownMessageIdsRef.current.has(targetMessageId)) {
               await applyInboundRumor({ kind: 'dm', peerPubkeyHex }, rumor);
             }
+            continue;
+          }
+          if (rumor.kind === CHAT_MESSAGE_KIND && hasEditMarkerTag(rumor.tags)) {
+            // S4: edit-marked replacement — route through S3's reconciliation, not
+            // the plain-original ingest path below.
+            await applyInboundDeleteEditSignal(rumor);
             continue;
           }
           if (rumor.kind === CHAT_MESSAGE_KIND) {
@@ -375,16 +600,40 @@ export default function ContactChat({
             // Update knownMessageIdsRef immediately so that a kind-7 reaction
             // processed later in this same loop can find the message.
             knownMessageIdsRef.current.add(msg.id);
-            giftWrapMessages.push(msg);
+            // S4 (AC-ORDER-4): resolve any buffered signal for this fresh original
+            // BEFORE it is queued for render below.
+            const resolved = await resolveFreshOriginal(msg);
+            if (resolved) giftWrapMessages.push(resolved);
           }
         }
 
-        // Step 5 (§3.5): merge both result sets, sort by createdAt, call upsertMessages once.
-        // Sort is required so the rendered list is monotonic regardless of fetch order.
+        // Step 5 (§3.5): merge both result sets, sort by createdAt, reconcile against
+        // storage truth once, then set state.
+        //
+        // S4 gate-remediation (finding 1, sev7 — the primary offline-delete path): the
+        // historical loop above accumulates fresh ORIGINAL row objects into
+        // remoteMessages/giftWrapMessages as it walks the sorted rumor batch — but a
+        // same-batch kind-5 delete (which sorts AFTER its target) tombstones storage
+        // via applyInboundDeleteEditSignal without ever touching the original row
+        // OBJECT already pushed earlier in the loop. Upserting that stale object
+        // straight into state re-rendered a message the peer sent-then-deleted while
+        // this device was offline, for the rest of the session (same issue for a
+        // same-batch edit — stale pre-edit content rendered). reconcileHistoricalBatch
+        // is the single repair point: it re-substitutes storage's row for every id
+        // storage knows about, then filters tombstoned rows (finding 3, defense in
+        // depth alongside S6's shared ChatBox filter).
         if (!cancelled) {
-          upsertMessages(
-            [...remoteMessages, ...giftWrapMessages].sort((a, b) => a.createdAt - b.createdAt),
-          );
+          const merged = [...remoteMessages, ...giftWrapMessages].sort((a, b) => a.createdAt - b.createdAt);
+          const { messages: storageTruth } = await loadMessages(threadId);
+          const reconciled = reconcileHistoricalBatch(merged, storageTruth);
+          for (const msg of reconciled) knownMessageIdsRef.current.add(msg.id);
+          if (!cancelled) {
+            setMessages((prev) => {
+              const byId = new Map(prev.map((m) => [m.id, m] as const));
+              for (const m of reconciled) byId.set(m.id, m);
+              return filterVisibleMessages(Array.from(byId.values())).sort((a, b) => a.createdAt - b.createdAt);
+            });
+          }
         }
 
         // --- Legacy kind-4 live subscriptions (inbound only, forever per D9a) ---
@@ -443,6 +692,16 @@ export default function ContactChat({
                 return;
               }
 
+              // S4: kind-5 delete/edit-companion signal (epic-feature-request-message-
+              // edit-and-delete). Unlike kind-7's discard-on-unknown-target gate below,
+              // S3's applyDeleteEditSignal itself buffers an unknown-target signal
+              // (retain-and-apply, AC-ORDER-1) — no knownMessageIdsRef gate, called
+              // unconditionally.
+              if (rumor.kind === DELETE_EDIT_RUMOR_KIND) {
+                await applyInboundDeleteEditSignal(rumor);
+                return;
+              }
+
               // Story-07: kind-7 (reaction) inbound dispatch (AC-45, S4).
               if (rumor.kind === 7) {
                 // Dispatcher gate: only call applyInboundRumor if the target message is
@@ -465,6 +724,13 @@ export default function ContactChat({
               // Only process kind-14 (chat message) inner rumors below.
               if (rumor.kind !== CHAT_MESSAGE_KIND) return;
 
+              // S4: edit-marked replacement — route through S3's reconciliation, not
+              // the plain-original ingest path below.
+              if (hasEditMarkerTag(rumor.tags)) {
+                await applyInboundDeleteEditSignal(rumor);
+                return;
+              }
+
               // Parse the kind-14 payload (same JSON envelope as NIP-04 path)
               const parsed = parseDirectPayload(rumor.content);
               if (!parsed) return;
@@ -477,8 +743,13 @@ export default function ContactChat({
                 attachments: parsed.attachments,
               });
               await appendMessage(threadId, msg);
-              // Re-check cancelled after the async appendMessage to avoid stale state updates
-              if (!cancelled) upsertMessages([msg]);
+              knownMessageIdsRef.current.add(msg.id);
+              // S4 (AC-ORDER-4): resolve any buffered signal for this fresh original —
+              // sequenced BEFORE the render/state update below, never between the
+              // append above and this resolve.
+              const resolved = await resolveFreshOriginal(msg);
+              // Re-check cancelled after the async work to avoid stale state updates
+              if (!cancelled && resolved) upsertMessages([resolved]);
             } catch {
               // Silently ignore gift wraps we can't decrypt (e.g. from other conversations)
             }
@@ -500,7 +771,7 @@ export default function ContactChat({
       outgoingSub?.stop?.();
       giftWrapSub?.stop?.();
     };
-  }, [ingestEvent, peerPubkeyHex, privateKeyHex, pubkeyHex, threadId, upsertMessages]);
+  }, [applyInboundDeleteEditSignal, dmThread, ingestEvent, peerPubkeyHex, privateKeyHex, pubkeyHex, resolveFreshOriginal, threadId, upsertMessages]);
 
   // Mark the thread read whenever it is open and new messages land — the user
   // is actively viewing this chat, so any incoming DM is "seen" by definition.
@@ -670,6 +941,125 @@ export default function ContactChat({
     }
   }, [copy.emoji.couldntReact, dmThread, peerPubkeyHex, privateKeyHex, pubkeyHex, toast]);
 
+  /**
+   * S4 (epic-feature-request-message-edit-and-delete): DM delete handler — the DM
+   * half of the MessageActionHandlers seam consumed by S6 (ChatBox action menu).
+   * Signature intentionally exact: (messageId) => Promise<void>, no DM-specific
+   * parameter leaking into the shared call site (peerPubkeyHex/privateKeyHex are
+   * closed over here).
+   *
+   * AC-DEL-2: removes the target from local view IMMEDIATELY (before publish
+   * resolves) and restores it if publish fails. The durable IDB tombstone write
+   * happens inside publishDirectDelete only after publish succeeds (see that
+   * function's doc comment for why a pre-publish durable write + synthetic-undo
+   * rollback would corrupt the `edited` flag) — so a failed publish never leaves a
+   * durable side effect to undo; this handler's rollback is a pure, always-correct
+   * React-state revert.
+   *
+   * Failure-UX: throws, does not toast (see result.json's documented cross-cutting
+   * decision — matches the group transport's throw-only behavior; toasting would
+   * require new i18n copy, which is S6's scoped responsibility, not S4's).
+   */
+  const handleDeleteMessage = useCallback(async (messageId: string): Promise<void> => {
+    const snapshot = messagesRef.current.find((m) => m.id === messageId);
+    if (!snapshot) return;
+
+    // S4 gate-remediation (finding 6): own-message auth guard at the handler seam —
+    // handleDeleteMessage acts on any messageId found in local state, so a bypass at
+    // a future call site (dev bridge, S6 wiring bug) could otherwise forge a delete
+    // of a PEER's message. Fail-closed, matching AC-AUTH-2's posture. AC-AUTH-1
+    // affordance-hiding is S6's; this is the seam-level backstop.
+    if (snapshot.senderPubkey.toLowerCase() !== pubkeyHex.toLowerCase()) return;
+
+    setMessages((prev) => applyOptimisticDeleteView(prev, messageId));
+
+    try {
+      const ndk = await connectNdk(privateKeyHex);
+      await publishDirectDelete({ ndk, privateKeyHex, peerPubkeyHex, targetMessage: snapshot });
+      // A tombstoned slot is never the target of a further edit/delete action, so
+      // unlike handleEditMessage there is no "next action" rev to keep fresh here.
+      //
+      // Gate-remediation (mirrors S5's ChatStoreContext.performGroupDeleteMessage,
+      // finding 2): re-apply the optimistic delete view once more after publish
+      // settles. Without this, the live giftWrapSub (no `since` filter) can
+      // re-deliver the original rumor during the publish window; resolveFreshOriginal
+      // reads storage BEFORE publishDirectDelete's durable tombstone write lands,
+      // so upsertMessages re-adds the row — and the durable write landing after
+      // that race triggers no state fixup, leaving the "deleted" message
+      // resurrected and visible for the rest of the session.
+      setMessages((prev) => applyOptimisticDeleteView(prev, messageId));
+    } catch (err) {
+      // AC-DEL-2: restore the prior visible state on publish failure.
+      setMessages((prev) => rollbackOptimisticDeleteView(prev, snapshot));
+      throw err;
+    }
+  }, [peerPubkeyHex, privateKeyHex, pubkeyHex]);
+
+  /**
+   * S4: DM edit handler — the DM half of the MessageActionHandlers seam. Signature
+   * intentionally exact: (messageId, newContent) => Promise<void>.
+   *
+   * AC-EDIT-8: updates the target's content in place in local view IMMEDIATELY
+   * (before publish resolves) and rolls back to the prior content if the
+   * REPLACEMENT publish fails. A failed/absent companion kind-5 never reaches this
+   * catch block (publishDirectEdit swallows that failure internally) — see that
+   * function's doc comment.
+   */
+  const handleEditMessage = useCallback(async (messageId: string, newContent: string): Promise<void> => {
+    const snapshot = messagesRef.current.find((m) => m.id === messageId);
+    if (!snapshot) return;
+
+    // S4 gate-remediation (finding 6): own-message auth guard — see
+    // handleDeleteMessage's matching comment.
+    if (snapshot.senderPubkey.toLowerCase() !== pubkeyHex.toLowerCase()) return;
+
+    setMessages((prev) => applyOptimisticEditView(prev, messageId, newContent));
+
+    try {
+      const ndk = await connectNdk(privateKeyHex);
+      await publishDirectEdit({ ndk, privateKeyHex, peerPubkeyHex, targetMessage: snapshot, newContent });
+      // S4 gate-remediation (finding 2): re-read the authoritative row from storage
+      // and patch it into state — mirrors the inbound edit dispatch branch
+      // (applyInboundDeleteEditSignal) — so the state row carries the new rev/edited
+      // for the NEXT action on this slot. publishDirectEdit's own storage re-read
+      // (directMessages.ts) is the primary fix for rev CORRECTNESS regardless of
+      // React state; this keeps the visible row's other fields consistent too.
+      const { messages: fresh } = await loadMessages(threadId);
+      const updated = fresh.find((m) => m.id === messageId);
+      if (updated) setMessages((prev) => prev.map((m) => (m.id === messageId ? updated : m)));
+    } catch (err) {
+      // AC-EDIT-8: roll back to the prior content on publish failure.
+      setMessages((prev) => rollbackOptimisticEditView(prev, messageId, snapshot));
+      throw err;
+    }
+  }, [peerPubkeyHex, privateKeyHex, pubkeyHex, threadId]);
+
+  // S4: __fewDmMessageEdits dev bridge, mirroring __fewDmReactions below — gives S7
+  // (e2e) a ready hook onto handleDeleteMessage/handleEditMessage without S4 needing
+  // to touch ChatBox.tsx's prop interface (S6-owned). Guarded by NODE_ENV so it is
+  // tree-shaken in production builds.
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    const bridge = {
+      deleteMessage: (targetPeerPubkeyHex: string, messageId: string) => {
+        if (targetPeerPubkeyHex !== peerPubkeyHex) return;
+        // S4 gate-remediation (finding 9): both handlers rethrow on failure — an
+        // un-caught `.catch` here would surface as an unhandled promise rejection.
+        void handleDeleteMessage(messageId).catch((e) => console.warn('[__fewDmMessageEdits]', e));
+      },
+      editMessage: (targetPeerPubkeyHex: string, messageId: string, newContent: string) => {
+        if (targetPeerPubkeyHex !== peerPubkeyHex) return;
+        void handleEditMessage(messageId, newContent).catch((e) => console.warn('[__fewDmMessageEdits]', e));
+      },
+    };
+    (window as any).__fewDmMessageEdits = bridge;
+    return () => {
+      if ((window as any).__fewDmMessageEdits === bridge) {
+        delete (window as any).__fewDmMessageEdits;
+      }
+    };
+  }, [handleDeleteMessage, handleEditMessage, peerPubkeyHex]);
+
   // Story-07: __fewDmReactions dev bridge for E2E tests (AC-46, e2e-policy.md).
   // Guarded by NODE_ENV !== 'production' so it is tree-shaken in production builds.
   useEffect(() => {
@@ -713,6 +1103,15 @@ export default function ContactChat({
       reactionsByMessageId={reactionsByMessageId}
       composerPlaceholder={composerPlaceholder}
       allowImageAttachments={source !== 'feedback'}
+      // S6: DM half of the MessageActionHandlers seam (built by S4 above).
+      handleDeleteMessage={handleDeleteMessage}
+      handleEditMessage={handleEditMessage}
+      // Gate-remediation (S6, finding 1): the sealed feedback surface's send
+      // paths carry no feedback marker tags, so edit/delete must be gated
+      // off entirely there (mirrors allowImageAttachments/onReact above) —
+      // an edit/delete kind-14/kind-5 published from that surface would
+      // land in the maintainer's sealed channel unmarked.
+      allowMessageActions={source !== 'feedback'}
     />
   );
 }

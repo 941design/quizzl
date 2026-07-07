@@ -1,0 +1,20 @@
+{
+  "story_id": "S2",
+  "captured_at": "2026-07-07T14:30:00Z",
+  "test": {
+    "command": "make test-unit",
+    "status": "PASS",
+    "test_files": 123,
+    "tests": 2113
+  },
+  "lint": {
+    "command": "npx next lint (app/package.json 'lint' script)",
+    "status": "NO_LINT",
+    "note": "No .eslintrc*/eslint.config* present in app/; `next lint` prompts an interactive first-run ESLint setup wizard rather than running an existing config (confirmed identical to S1's finding). Treated as NO_LINT per the pre-existing-debt tolerance."
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit (from app/)",
+    "status": "clean",
+    "errors": 0
+  }
+}

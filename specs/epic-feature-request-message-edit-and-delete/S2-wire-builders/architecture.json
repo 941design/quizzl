@@ -1,0 +1,69 @@
+{
+  "module_name": "Wire builders",
+  "purpose": "New app/src/lib/messageEdits/rumor.ts. Pure, transport-agnostic builders for the three delete/edit signal shapes exchanged inside a DM gift wrap or an MLS group application rumor: an unmarked kind-5 delete, an edit-marked kind-14/9 replacement, and an edit-marked companion kind-5 for non-Few degradation. Plus a pure per-slot rev-clamp helper. Mirrors reactions/rumor.ts's e/k reference-tag pattern and its build-once-canonical-id discipline (getEventHash computed before return so the optimistic local id equals the eventual published id). No sealing/wrapping/publishing (S4/S5) and no inbound interpretation (S3) happen here.",
+  "public_api": [
+    {
+      "name": "DELETE_EDIT_RUMOR_KIND",
+      "signature": "const DELETE_EDIT_RUMOR_KIND = 5",
+      "description": "Named kind-5 constant, mirroring reactions/rumor.ts's REACTION_KIND=7 pattern but exported per this story's explicit instruction (S3/S4/S5 need it to classify inbound/outbound kind-5 rumors)."
+    },
+    {
+      "name": "buildDeleteRumor",
+      "signature": "function buildDeleteRumor(originalId: string, priorReplacementIds: string[], targetKind: 9 | 14, rev: number, selfPrivKeyHex: string): UnsignedRumor",
+      "description": "Unmarked kind-5 delete. Tags: [\"e\",originalId], one [\"e\",priorReplacementId] per prior replacement (AC-DEL-8), [\"k\",String(targetKind)]. created_at = rev (the delete's own created_at IS its rev). Never carries the [\"e\",...,\"\",\"edit\"] marker (AC-DEL-7 substrate). Throws on empty originalId, a non-string entry in priorReplacementIds, targetKind outside {9,14}, or rev < 1 / non-finite."
+    },
+    {
+      "name": "buildEditReplacementRumor",
+      "signature": "function buildEditReplacementRumor(originalId: string, originalCreatedAt: number, content: string, targetKind: 9 | 14, rev: number, selfPrivKeyHex: string): UnsignedRumor",
+      "description": "kind-14 (DM, targetKind=14) or kind-9 (group, targetKind=9) replacement. Wire created_at FIELD (seconds) = originalCreatedAt, pinned across the whole edit chain (caller always supplies the FIRST message's created_at, never the prior edit's — AC-EDIT-4/AC-EDIT-6). rev cannot double as the clock because created_at is pinned, so it rides separately as [\"rev\",String(rev)], plus [\"e\",originalId,\"\",\"edit\"]. Throws on empty content, empty originalId, non-finite/negative originalCreatedAt, targetKind outside {9,14}, or rev < 1 / non-finite."
+    },
+    {
+      "name": "buildEditMarkedCompanionKind5",
+      "signature": "function buildEditMarkedCompanionKind5(originalId: string, priorReplacementIds: string[], targetKind: 9 | 14, rev: number, selfPrivKeyHex: string): UnsignedRumor",
+      "description": "Marked kind-5 companion for non-Few degradation only. Same e-tag chain as buildDeleteRumor (original + every prior replacement id) plus [\"k\",String(targetKind)], PLUS an appended [\"e\",originalId,\"\",\"edit\"] marker tag distinguishing it from a real delete (AC-DEL-7). A Few client ignores this on receipt (S3). Same input guards as buildDeleteRumor."
+    },
+    {
+      "name": "clampRev",
+      "signature": "function clampRev(wallClockSeconds: number, lastKnownRevForSlot: number): number",
+      "description": "rev = max(wallClockSeconds, lastKnownRevForSlot + 1), per-slot monotonic (D16, AC-ORDER-5). Guards non-finite/negative inputs by substituting safe floors (wallClockSeconds -> 1, lastKnownRevForSlot -> 0) BEFORE the max, so the function can never return 0 or a non-finite value — a real signal's rev is always >= 1, matching the S1 clobber-guard's rev>=1 'real signal' convention."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/messageEdits/rumor.ts (hexToBytes local helper, buildRumor internal id-computation helper — not exported, mirrors reactions/rumor.ts's module-local hexToBytes)"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "nostr-tools/pure (getPublicKey, getEventHash)",
+    "@/src/lib/directMessages (type-only import of UnsignedRumor)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/*",
+    "app/src/components/*",
+    "idb-keyval / any persistence (chatPersistence.ts)",
+    "network/publish/seal/wrap calls (nostr-tools/nip59, NDK)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/messageEdits/rumor.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S4", "S5"]
+  },
+  "deviations_from_frozen_seam_shorthand": [
+    {
+      "field": "selfPrivKeyHex parameter",
+      "what": "Added selfPrivKeyHex: string as a final, additional parameter to buildDeleteRumor, buildEditReplacementRumor, and buildEditMarkedCompanionKind5 — not present in the DeleteEditRumor type listed in stories.json#seams.",
+      "why": "UnsignedRumor.pubkey is a mandatory field (app/src/lib/directMessages.ts:25-32) and getEventHash's canonical id serialization includes pubkey. No parameter in the stories.json shorthand supplies it, so as written the contract cannot produce a valid UnsignedRumor. Direct precedent: reactions/rumor.ts's buildReactionRumor takes selfPrivKeyHex and both call sites (DM publishDirectReaction AND group sendReaction in ChatStoreContext.tsx:364) already pass privateKeyHex to it — i.e. the existing single-builder-shared-by-both-transports pattern this story is told to mirror already resolves an identical gap this same way. Preserves build-once-canonical-id discipline: the id computed here will match what sealAndWrap (DM) later re-derives from the same privkey, and what group's MLS transport sends as-is.",
+      "impact_on_consumers": "S4 and S5 must pass their already-available privateKeyHex as the final argument. Both stories already hold this value in scope (S4: directMessages.ts functions already take privateKeyHex; S5: ChatStoreContext already threads privateKeyHex to sendReaction). Flagged as VQ-S2-011 post-impl answer."
+    },
+    {
+      "field": "targetKind type",
+      "what": "Implemented targetKind as 9 | 14 for all three rumor-returning builders. stories.json#seams' DeleteEditRumor type literally reads targetKind:5|9|14 for buildDeleteRumor and targetKind:5 for buildEditMarkedCompanionKind5.",
+      "why": "targetKind denotes the KIND OF THE TARGET CHAT MESSAGE being deleted/edited (14 DM, 9 group) — it becomes the [\"k\", String(targetKind)] tag value per this story's own spec text ('14 for DM, 9 for group'). It is never the signal's own kind (kind-5's own event kind is fixed by DELETE_EDIT_RUMOR_KIND, not by this parameter). The literal 5 in the seam JSON is a copy/paste artifact, not a real allowed value — a kind-5 signal cannot logically reference another kind-5 as its target under this feature's design.",
+      "impact_on_consumers": "None beyond a tighter compile-time type; S4/S5 pass 14 or 9 exactly as the shorthand's own prose already implied."
+    }
+  ]
+}

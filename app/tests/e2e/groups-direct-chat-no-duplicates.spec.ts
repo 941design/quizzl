@@ -143,9 +143,11 @@ test.describe.serial('Direct chat: no duplicate messages on send', () => {
     // The unique text must appear exactly once (no duplicate rendering).
     await expect(pageA.getByText(uniqueText)).toHaveCount(1);
 
-    // The TOTAL bubble count must have increased by exactly 1 (no phantom duplicates).
-    // We compare against the baseline rather than asserting absolute count = 1,
-    // because the relay may have historical messages from previous test runs.
+    // The TOTAL bubble count must have grown by EXACTLY one. [data-testid^="msg-"]
+    // matches ONLY message bubbles (data-testid={`msg-${msg.id}`}) — the S6 edit/
+    // delete action buttons live under a separate `action-` prefix specifically so
+    // they can never be swept into this selector. With that namespace invariant
+    // held, a single sent message can only ever add exactly one match.
     const bubbleCountAfterSend = await pageA.locator('[data-testid^="msg-"]').count();
     expect(bubbleCountAfterSend).toBe(baselineBubbleCount + 1);
 

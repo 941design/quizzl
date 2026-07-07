@@ -23,6 +23,7 @@ import {
   CHAT_MESSAGE_KIND,
   appendMessage,
   loadMessages,
+  filterVisibleMessages,
 } from '@/src/lib/marmot/chatPersistence';
 import type { ReactionAggregate } from '@/src/lib/reactions/api';
 import {
@@ -35,6 +36,17 @@ import {
 } from '@/src/lib/reactions/api';
 import { buildReactionRumor } from '@/src/lib/reactions/rumor';
 import type { Reaction } from '@/src/lib/reactions/types';
+import {
+  applyDeleteEditSignal,
+  resolvePendingSignalsForSlot,
+  type MessageEditsThreadKey,
+} from '@/src/lib/messageEdits/api';
+import {
+  buildDeleteRumor,
+  buildEditReplacementRumor,
+  buildEditMarkedCompanionKind5,
+  clampRev,
+} from '@/src/lib/messageEdits/rumor';
 
 type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
 
@@ -91,6 +103,248 @@ async function buildChatRumor(
   return rumor;
 }
 
+/**
+ * S5 (epic-feature-request-message-edit-and-delete): group render-substitution
+ * fix, foreseen in the S4 review (ownership-ledger.json S4 obligation).
+ *
+ * Before this story, both message-load effects below only ever ADDED ids from
+ * `stored` that were not already present in `prev` — an id already rendered
+ * was NEVER updated or removed, so a delete/edit of an ALREADY-RENDERED group
+ * message would never visibly change at all. This function is the single fix
+ * for both effects: for every id `prev` already renders, substitute storage's
+ * row (so a since-tombstoned/edited row's storage truth overrides the stale
+ * rendered copy); append any id storage knows about that isn't rendered yet;
+ * then filter the result through `filterVisibleMessages` (tombstoned rows
+ * never render, AC-DEL-3/AC-DEL-5's render half) and re-sort.
+ *
+ * Group inbound ingestion re-reads the WHOLE per-thread storage array on every
+ * chatVersion bump (unlike DM's incremental gift-wrap-event unwrap, which
+ * needed ContactChat.tsx's per-message `resolveFreshOriginalFromStorage`) —
+ * a single bulk reconcile is sufficient and correct here.
+ *
+ * Exported and pure so it is testable directly, without mounting React (this
+ * repo's hooks-via-pure-function-extraction convention).
+ */
+export function reconcileMessagesWithStorage(prev: ChatMessage[], stored: ChatMessage[]): ChatMessage[] {
+  const storedById = new Map(stored.map((m) => [m.id, m] as const));
+  const merged = prev.map((m) => storedById.get(m.id) ?? m);
+  const mergedIds = new Set(merged.map((m) => m.id));
+  const newFromStore = stored.filter((m) => !mergedIds.has(m.id));
+  return filterVisibleMessages([...merged, ...newFromStore]).sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/**
+ * S5 gate-remediation-precedent pure view transforms — mirrors
+ * ContactChat.tsx's identically-named DM functions (same `ChatMessage` type,
+ * same shape) so tests exercise the real transforms without mounting React.
+ */
+export function applyOptimisticDeleteView(view: ChatMessage[], messageId: string): ChatMessage[] {
+  return view.filter((m) => m.id !== messageId);
+}
+
+export function rollbackOptimisticDeleteView(view: ChatMessage[], snapshot: ChatMessage): ChatMessage[] {
+  return [...view, snapshot].sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export function applyOptimisticEditView(view: ChatMessage[], messageId: string, newContent: string): ChatMessage[] {
+  return view.map((m) => (m.id === messageId ? { ...m, content: newContent, edited: true } : m));
+}
+
+export function rollbackOptimisticEditView(view: ChatMessage[], messageId: string, snapshot: ChatMessage): ChatMessage[] {
+  return view.map((m) => (m.id === messageId ? snapshot : m));
+}
+
+/**
+ * S5 gate-remediation (finding 3): deps bag for the group send-orchestration
+ * pure functions below (`performGroupDeleteMessage` / `performGroupEditMessage`).
+ * Carries every side-effecting dependency the ChatStoreProvider closures
+ * would otherwise capture directly, so a unit test can inject a mocked
+ * `group` (fake `sendApplicationRumor`) and a plain-array-backed
+ * `setMessages` and exercise the REAL orchestration body — closing the
+ * shadow-init blind spot where a test re-implements a handler instead of
+ * calling it (flagged on S4, unmirrored on S5's original landing).
+ */
+export interface GroupSendDeps {
+  group: Pick<MarmotGroupType, 'sendApplicationRumor'>;
+  groupId: string;
+  privateKeyHex: string;
+  pubkey: string;
+  resolveAuthoritativeGroupRev: (targetMessageId: string, fallbackRev: number | undefined) => Promise<number>;
+  getSnapshot: () => ChatMessage | undefined;
+  setMessages: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
+}
+
+/**
+ * S5: group delete — the group half of the MessageActionHandlers seam.
+ * Mirrors sendMessage/sendReaction's optimistic-view + sendRumorSafe (MLS
+ * application rumor — group.sendApplicationRumor; ChatStoreContext.tsx has
+ * zero NDK/relay imports, so a relay-facing kind-5 is structurally
+ * impossible from this path, AC-DEL-4) + rollback pattern. Built via S2's
+ * buildDeleteRumor/clampRev; priorReplacementIds is always [] (2026-07-07
+ * product decision: non-Few interop is best-effort; a Few sender retains no
+ * prior replacement ids — do not track a chain, mirrors S4's identical
+ * decision for publishDirectDelete).
+ *
+ * Durable apply (S3's applyDeleteEditSignal) is deferred until AFTER
+ * publish success, and a persist-only failure there is swallowed rather
+ * than rolling back the view (mirrors S4's publishDirectDelete deviation:
+ * applyToKnownSlotCore's edit-shaped patch is the only way to un-tombstone,
+ * and unconditionally sets edited:true — a synthetic "undo" signal on a
+ * post-publish persist failure would permanently mislabel a never-edited
+ * message as edited on the common failure path). Only a genuine PUBLISH
+ * failure rolls back the optimistic view and rethrows.
+ *
+ * Failure-UX: throws, does not toast (see architecture.json's documented
+ * cross-cutting decision — matches the EXISTING group reaction precedent,
+ * sendReaction, which also only throws).
+ *
+ * Extracted (S5 gate-remediation, finding 3) from the ChatStoreProvider
+ * closure so it is directly testable — see `GroupSendDeps` above.
+ */
+export async function performGroupDeleteMessage(messageId: string, deps: GroupSendDeps): Promise<void> {
+  const { group, groupId, privateKeyHex, pubkey, resolveAuthoritativeGroupRev, getSnapshot, setMessages } = deps;
+  const snapshot = getSnapshot();
+  if (!snapshot) return;
+
+  // Own-message auth guard — fail-closed (mirrors S4's identical
+  // handler-seam backstop; AC-AUTH-1 affordance-hiding is S6's).
+  if (snapshot.senderPubkey.toLowerCase() !== pubkey.toLowerCase()) return;
+
+  setMessages((prev) => applyOptimisticDeleteView(prev, messageId));
+
+  try {
+    const lastKnownRev = await resolveAuthoritativeGroupRev(messageId, snapshot.rev);
+    const rev = clampRev(Math.floor(Date.now() / 1000), lastKnownRev);
+    const rumor = buildDeleteRumor(snapshot.id, [], CHAT_MESSAGE_KIND, rev, privateKeyHex);
+
+    await sendRumorSafe(
+      group as MarmotGroupType,
+      rumor as Parameters<MarmotGroupType['sendApplicationRumor']>[0],
+    );
+
+    const thread: MessageEditsThreadKey = { kind: 'group', groupId };
+    try {
+      await applyDeleteEditSignal(thread, rumor);
+    } catch (err) {
+      console.warn('[chat-store] delete durable apply failed (published ok):', err);
+    }
+
+    // S5 gate-remediation (finding 2): re-apply the optimistic delete view
+    // once more after the durable apply settles. Without this, a chatVersion
+    // bump landing during the publish window (triggered by unrelated thread
+    // activity) re-reads storage via reconcileMessagesWithStorage — whose
+    // "new-from-store" branch re-adds this row from its not-yet-tombstoned
+    // storage state — and the durable tombstone write above (which lands
+    // AFTER that race) triggers no re-render of its own, leaving the
+    // "deleted" message resurrected and visible indefinitely.
+    setMessages((prev) => applyOptimisticDeleteView(prev, messageId));
+  } catch (err) {
+    // AC-DEL-2: restore the prior visible state on publish failure.
+    setMessages((prev) => rollbackOptimisticDeleteView(prev, snapshot));
+    throw err;
+  }
+}
+
+/**
+ * S5: group edit — the group half of MessageActionHandlers. Same auth guard
+ * and authoritative-rev re-read as `performGroupDeleteMessage`. Builds the
+ * replacement via S2's buildEditReplacementRumor (originalCreatedAt =
+ * Math.floor(snapshot.createdAt / 1000) — ms-to-seconds; snapshot.id doubles
+ * as the stable slot anchor across a repeated-edit chain, AC-EDIT-6, since
+ * storage mutates content in place and the row's id/createdAt are never
+ * touched by an edit patch).
+ *
+ * AC-EDIT-8 ordering: replacement published BEFORE the companion kind-5.
+ * Durable apply on replacement-publish success (swallowed on failure, same
+ * reasoning as the delete path); companion kind-5 attempted afterward in its
+ * own swallowing try/catch (a failed/absent companion never deletes the slot
+ * or rolls back the already-successful edit — the replacement alone is a
+ * complete edit for a Few client, D13). A failed REPLACEMENT publish throws
+ * before any durable write and before the companion is attempted, so
+ * rollback is a pure view revert.
+ *
+ * Extracted (S5 gate-remediation, finding 3) from the ChatStoreProvider
+ * closure so it is directly testable — see `GroupSendDeps` above.
+ */
+export async function performGroupEditMessage(
+  messageId: string,
+  newContent: string,
+  deps: GroupSendDeps,
+): Promise<void> {
+  const { group, groupId, privateKeyHex, pubkey, resolveAuthoritativeGroupRev, getSnapshot, setMessages } = deps;
+  const snapshot = getSnapshot();
+  if (!snapshot) return;
+
+  if (snapshot.senderPubkey.toLowerCase() !== pubkey.toLowerCase()) return;
+
+  setMessages((prev) => applyOptimisticEditView(prev, messageId, newContent));
+
+  try {
+    const lastKnownRev = await resolveAuthoritativeGroupRev(messageId, snapshot.rev);
+    const rev = clampRev(Math.floor(Date.now() / 1000), lastKnownRev);
+    const originalCreatedAtSeconds = Math.floor(snapshot.createdAt / 1000);
+
+    const replacement = buildEditReplacementRumor(
+      snapshot.id,
+      originalCreatedAtSeconds,
+      newContent,
+      CHAT_MESSAGE_KIND,
+      rev,
+      privateKeyHex,
+    );
+
+    // AC-EDIT-8: replacement MUST publish before the companion. A failure
+    // here throws — no durable write has happened yet, so rollback below is
+    // a pure view revert.
+    await sendRumorSafe(
+      group as MarmotGroupType,
+      replacement as Parameters<MarmotGroupType['sendApplicationRumor']>[0],
+    );
+
+    const thread: MessageEditsThreadKey = { kind: 'group', groupId };
+    try {
+      await applyDeleteEditSignal(thread, replacement);
+    } catch (err) {
+      console.warn('[chat-store] edit durable apply failed (published ok):', err);
+    }
+
+    // Best-effort companion kind-5 (non-Few degradation only, spec §2.4).
+    // AC-EDIT-8: a failed/absent companion MUST NOT delete the slot and MUST
+    // NOT roll back the edit that already succeeded above.
+    try {
+      const companion = buildEditMarkedCompanionKind5(snapshot.id, [], CHAT_MESSAGE_KIND, rev, privateKeyHex);
+      await sendRumorSafe(
+        group as MarmotGroupType,
+        companion as Parameters<MarmotGroupType['sendApplicationRumor']>[0],
+      );
+    } catch (err) {
+      console.warn('[chat-store] edit companion publish failed:', err);
+    }
+
+    // Re-read the authoritative row so the NEXT action on this slot starts
+    // fresh (mirrors S4's ContactChat.handleEditMessage).
+    //
+    // S5 gate-remediation (finding 6): guard the substitution against a
+    // delete that lands between the publish above and this re-read (e.g.
+    // another device's kind-5 for the same slot). Substituting a tombstoned
+    // row verbatim would render a message its author just deleted — drop it
+    // from view instead of substituting.
+    const { messages: after } = await loadMessages(groupId);
+    const updated = after.find((m) => m.id === messageId);
+    if (updated) {
+      if (updated.tombstoned) {
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      } else {
+        setMessages((prev) => prev.map((m) => (m.id === messageId ? updated : m)));
+      }
+    }
+  } catch (err) {
+    // AC-EDIT-8: roll back to the prior content on publish failure.
+    setMessages((prev) => rollbackOptimisticEditView(prev, messageId, snapshot));
+    throw err;
+  }
+}
+
 interface ChatStoreContextValue {
   messages: ChatMessage[];
   sendMessage: (content: string) => Promise<void>;
@@ -100,6 +354,14 @@ interface ChatStoreContextValue {
   /** Story-06: aggregated reactions per message id. Consumed by ChatBox → story-08. AC-34. */
   reactionsByMessageId: Map<string, ReactionAggregate[]>;
   loading: boolean;
+  /**
+   * S5 (epic-feature-request-message-edit-and-delete): group half of the
+   * MessageActionHandlers seam consumed by S6's ChatBox action menu. Matches
+   * S4's DM-half signatures exactly — no group-specific parameter leaks into
+   * the shared call site (groupId/privateKeyHex are closed over here).
+   */
+  handleDeleteMessage: (messageId: string) => Promise<void>;
+  handleEditMessage: (messageId: string, newContent: string) => Promise<void>;
 }
 
 const NOOP_ASYNC_MSG = async () => {};
@@ -111,6 +373,8 @@ const ChatStoreContext = createContext<ChatStoreContextValue>({
   sendReaction: NOOP_ASYNC_MSG,
   reactionsByMessageId: new Map(),
   loading: false,
+  handleDeleteMessage: NOOP_ASYNC_MSG,
+  handleEditMessage: NOOP_ASYNC_MSG,
 });
 
 interface ChatStoreProviderProps {
@@ -210,11 +474,10 @@ export function ChatStoreProvider({
     loadMessages(groupId)
       .then(({ messages: stored }) => {
         if (!active) return;
-        setMessages((prev) => {
-          const prevIds = new Set(prev.map((m) => m.id));
-          const newFromStore = stored.filter((m) => !prevIds.has(m.id));
-          return [...newFromStore, ...prev].sort((a, b) => a.createdAt - b.createdAt);
-        });
+        // S5: reconcileMessagesWithStorage's filterVisibleMessages pass
+        // strips any already-tombstoned row on initial load (mirrors S4's
+        // init-seed fix for the DM surface).
+        setMessages((prev) => reconcileMessagesWithStorage(prev, stored));
       })
       .catch(() => {
         if (active) setMessages([]);
@@ -223,23 +486,62 @@ export function ChatStoreProvider({
         if (active) setLoading(false);
       });
 
+    // S5: thread-open sweep — the pending-signal/delete-marker TTL sweep
+    // (messageEdits/api.ts) is lazy (runs on next access for a thread), so a
+    // group open must proactively trigger it (mirrors S4's ContactChat.tsx
+    // mount-time sweep). The sentinel slotId '' can never collide with a real
+    // rumor id (always 64-char hex) — resolvePendingSignalsForSlot's own
+    // "no row found" branch still runs the general per-thread sweep.
+    //
+    // S5 gate-remediation (finding 1, sev5): the sweep's phase-1 self-heal
+    // can tombstone/edit a row that is ALREADY rendered (e.g. a buffered
+    // delete/edit for a slot whose original arrived without the standard
+    // resolve hook ever firing for it — see messageEdits/api.ts's
+    // sweepExpiredForThreadKeyLocked doc comment). The prior fire-and-forget
+    // call left that mutation invisible until the next UNRELATED chatVersion
+    // bump. Mirrors S4's ContactChat.tsx mount-sweep fix (finding 3b):
+    // await the sweep, then re-read storage once, then reconcile it into the
+    // rendered view — guarded by `active` so a fast unmount/thread-switch
+    // never applies a stale reconcile.
+    if (group) {
+      const thread: MessageEditsThreadKey = { kind: 'group', groupId };
+      void (async () => {
+        try {
+          await resolvePendingSignalsForSlot(thread, '', '');
+        } catch {
+          // Sweep bookkeeping failure — non-fatal, nothing to reconcile.
+          return;
+        }
+        if (!active) return;
+        try {
+          const { messages: freshAfterSweep } = await loadMessages(groupId);
+          if (!active) return;
+          setMessages((prev) => reconcileMessagesWithStorage(prev, freshAfterSweep));
+        } catch {
+          // Best-effort reconciliation — a read failure here leaves state as-is.
+        }
+      })();
+    }
+
     return () => {
       active = false;
     };
   }, [groupId, group]);
 
-  // Re-read from IDB when MarmotContext persists a new chat message.
-  // This handles messages that arrive via the Nostr subscription while
-  // ChatStoreContext may or may not have received the MarmotGroup event.
+  // Re-read from IDB when MarmotContext persists a new chat message, or when
+  // the S5 kind-5 handler / chatHandler's edit-marked-kind-9 branch reuses
+  // setChatVersion after applying a group delete/edit signal. This handles
+  // messages (and delete/edit signals) that arrive via the Nostr subscription
+  // while ChatStoreContext may or may not have received the MarmotGroup event.
   useEffect(() => {
     if (!groupId || chatVersion === undefined || chatVersion === 0) return;
     loadMessages(groupId).then(({ messages: stored }) => {
-      setMessages((prev) => {
-        const prevIds = new Set(prev.map((m) => m.id));
-        const newFromStore = stored.filter((m) => !prevIds.has(m.id));
-        if (newFromStore.length === 0) return prev;
-        return [...prev, ...newFromStore].sort((a, b) => a.createdAt - b.createdAt);
-      });
+      // S5: reconcileMessagesWithStorage substitutes storage's row for any id
+      // already rendered (so a since-tombstoned/edited row's storage truth
+      // wins over a stale rendered copy) and filters tombstoned rows out —
+      // see that function's doc comment for why the PRE-S5 "only ever add
+      // new ids" behavior meant a group edit/delete never visibly updated.
+      setMessages((prev) => reconcileMessagesWithStorage(prev, stored));
     }).catch(() => {});
   }, [groupId, chatVersion]);
 
@@ -265,9 +567,17 @@ export function ChatStoreProvider({
 
       try {
         await sendRumorSafe(group, rumor as Parameters<MarmotGroupType['sendApplicationRumor']>[0]);
-        appendMessage(groupId, optimistic).catch((err) => {
-          console.error('[chat-store] Failed to persist sent message:', err);
-        });
+        // S5 gate-remediation (finding 4): resolve-after-append calling
+        // convention (messageEdits/api.ts module doc comment) — a same-
+        // account other-device delete/edit for this SAME rumor id arriving
+        // between publish and this IDB commit would otherwise buffer as
+        // pending with no resolve hook ever firing on THIS device. Swallowed
+        // independently of the appendMessage failure log below.
+        appendMessage(groupId, optimistic)
+          .then(() => resolvePendingSignalsForSlot({ kind: 'group', groupId }, rumor.id, pubkey).catch(() => {}))
+          .catch((err) => {
+            console.error('[chat-store] Failed to persist sent message:', err);
+          });
       } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== rumor.id));
         throw err;
@@ -314,9 +624,13 @@ export function ChatStoreProvider({
           attachments: { full: fullAttachment, thumb: thumbAttachment },
           localMediaRefs: [fullAttachment.sha256, thumbAttachment.sha256],
         };
-        appendMessage(groupId, finalMsg).catch((err) => {
-          console.error('[chat-store] Failed to persist image message:', err);
-        });
+        // S5 gate-remediation (finding 4): resolve-after-append calling
+        // convention — see sendMessage's identical comment above.
+        appendMessage(groupId, finalMsg)
+          .then(() => resolvePendingSignalsForSlot({ kind: 'group', groupId }, finalMsg.id, pubkey).catch(() => {}))
+          .catch((err) => {
+            console.error('[chat-store] Failed to persist image message:', err);
+          });
         setMessages((prev) =>
           prev.map((m) => (m.id === tempId ? finalMsg : m)),
         );
@@ -422,8 +736,104 @@ export function ChatStoreProvider({
     [groupId, group, pubkey, privateKeyHex],
   );
 
+  /**
+   * S5 (epic-feature-request-message-edit-and-delete): re-reads chatPersistence
+   * for the slot's AUTHORITATIVE rev before clamping (mirrors S4's
+   * resolveAuthoritativeRev fix — React state's `rev` field is never patched
+   * by the optimistic view change these handlers apply before publish, so a
+   * second own edit/delete of the same slot within the same wall-clock second
+   * would otherwise compute rev from a stale/undefined snapshot and lose the
+   * D16/AC-ORDER-5 clamp roughly half the time).
+   */
+  const resolveAuthoritativeGroupRev = useCallback(
+    async (targetMessageId: string, fallbackRev: number | undefined): Promise<number> => {
+      const { messages: fresh } = await loadMessages(groupId!);
+      const row = fresh.find((m) => m.id === targetMessageId);
+      return row?.rev ?? fallbackRev ?? 0;
+    },
+    [groupId],
+  );
+
+  /**
+   * S5 gate-remediation (finding 3): thin wrapper delegating to the exported,
+   * directly-testable `performGroupDeleteMessage`. See that function's doc
+   * comment for the full behavior contract.
+   */
+  const handleDeleteMessage = useCallback(
+    async (messageId: string): Promise<void> => {
+      if (!groupId || !group || !privateKeyHex) return;
+      await performGroupDeleteMessage(messageId, {
+        group,
+        groupId,
+        privateKeyHex,
+        pubkey,
+        resolveAuthoritativeGroupRev,
+        getSnapshot: () => messagesRef.current.find((m) => m.id === messageId),
+        setMessages,
+      });
+    },
+    [groupId, group, privateKeyHex, pubkey, resolveAuthoritativeGroupRev],
+  );
+
+  /**
+   * S5 gate-remediation (finding 3): thin wrapper delegating to the exported,
+   * directly-testable `performGroupEditMessage`. See that function's doc
+   * comment for the full behavior contract.
+   */
+  const handleEditMessage = useCallback(
+    async (messageId: string, newContent: string): Promise<void> => {
+      if (!groupId || !group || !privateKeyHex) return;
+      await performGroupEditMessage(messageId, newContent, {
+        group,
+        groupId,
+        privateKeyHex,
+        pubkey,
+        resolveAuthoritativeGroupRev,
+        getSnapshot: () => messagesRef.current.find((m) => m.id === messageId),
+        setMessages,
+      });
+    },
+    [groupId, group, privateKeyHex, pubkey, resolveAuthoritativeGroupRev],
+  );
+
+  // S5: __fewGroupMessageEdits dev bridge, mirroring DM's __fewDmMessageEdits
+  // (ContactChat.tsx) and group's own __fewReactions (GroupChat.tsx) — gives
+  // S7 (e2e) a ready hook without S5 needing to touch ChatBox.tsx/GroupChat.tsx
+  // (both S6-owned). Guarded by NODE_ENV so it is tree-shaken in production.
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    if (!groupId) return;
+    const bridge = {
+      deleteMessage: (targetGroupId: string, messageId: string) => {
+        if (targetGroupId !== groupId) return;
+        void handleDeleteMessage(messageId).catch((e) => console.warn('[__fewGroupMessageEdits]', e));
+      },
+      editMessage: (targetGroupId: string, messageId: string, newContent: string) => {
+        if (targetGroupId !== groupId) return;
+        void handleEditMessage(messageId, newContent).catch((e) => console.warn('[__fewGroupMessageEdits]', e));
+      },
+    };
+    (window as any).__fewGroupMessageEdits = bridge;
+    return () => {
+      if ((window as any).__fewGroupMessageEdits === bridge) {
+        delete (window as any).__fewGroupMessageEdits;
+      }
+    };
+  }, [handleDeleteMessage, handleEditMessage, groupId]);
+
   return (
-    <ChatStoreContext.Provider value={{ messages, sendMessage, sendImageMessage, sendReaction, reactionsByMessageId, loading }}>
+    <ChatStoreContext.Provider
+      value={{
+        messages,
+        sendMessage,
+        sendImageMessage,
+        sendReaction,
+        reactionsByMessageId,
+        loading,
+        handleDeleteMessage,
+        handleEditMessage,
+      }}
+    >
       {children}
     </ChatStoreContext.Provider>
   );

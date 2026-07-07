@@ -1,0 +1,311 @@
+{
+  "epic": "feature-request-message-edit-and-delete",
+  "concepts": [
+    {
+      "id": "slot-keyed-by-original-id",
+      "name": "Conversation slot is keyed by the original message id (stable anchor across edits)",
+      "owning_module": "Reconciliation core",
+      "type": "invariant",
+      "added_by_story": "S3",
+      "reviewer_findings": []
+    },
+    {
+      "id": "rev-clock-ordering",
+      "name": "Revision ordering is driven solely by the rev clock (max-rev wins; delete-wins ties; higher replacement id breaks edit/edit ties; sender-clamped monotonic)",
+      "owning_module": "Reconciliation core",
+      "type": "invariant",
+      "added_by_story": "S3",
+      "reviewer_findings": [
+        {
+          "finding_type": "convention_drift",
+          "story_id": "S2",
+          "reported_at": "2026-07-07T11:20:00Z",
+          "resolved": true,
+          "description": "S3 OBLIGATION (from S2 review): (1) MARKER-FIRST kind-5 classification \u2014 the edit-marked companion carries BOTH a bare ['e',orig] and marked ['e',orig,'','edit']; S3 must classify on 'any edit-marked e-tag => discard companion; lone-unmarked kind-5 => delete', NEVER on the bare-tag presence, or every edit self-deletes its slot (inverse of AC-DEL-7). (2) CAP INCOMING REV AT INGEST \u2014 clampRev saturates at lastKnownRev>=2^53 (float precision); an author's hostile/broken device could poison a slot's stored rev to a huge finite value making all later edits equal-rev ties. S3 must cap an accepted signal's rev to wallSeconds + a max-skew constant before persisting."
+        }
+      ]
+    },
+    {
+      "id": "order-independent-reconciliation",
+      "name": "Reconciliation outcome is independent of arrival order for {original, delete, edit-replacement}",
+      "owning_module": "Reconciliation core",
+      "type": "invariant",
+      "added_by_story": "S3",
+      "reviewer_findings": []
+    },
+    {
+      "id": "pending-buffer-bound",
+      "name": "Pending-signal buffer is bounded by cap + TTL, keyed per target id, collapsing to max-rev; delete persists a marker on expiry, edit materializes in place",
+      "owning_module": "Reconciliation core",
+      "type": "validation_rule",
+      "added_by_story": "S3",
+      "reviewer_findings": []
+    },
+    {
+      "id": "apply-delete-edit-seam",
+      "name": "applyDeleteEditSignal(thread, rumor) \u2014 single React-free/context-free reconciliation entrypoint consumed by both transports",
+      "owning_module": "Reconciliation core",
+      "type": "public_contract",
+      "added_by_story": "S3",
+      "reviewer_findings": []
+    },
+    {
+      "id": "deferred-author-authorization",
+      "name": "Author-only authorization (AC-AUTH-2) evaluated at application time; pending signals held unauthenticated until target arrives",
+      "owning_module": "Reconciliation core",
+      "type": "validation_rule",
+      "added_by_story": "S3",
+      "reviewer_findings": [
+        {
+          "finding_type": "enforcement_gap",
+          "story_id": "S5",
+          "reported_at": "2026-07-07T14:30:00Z",
+          "resolved": false,
+          "description": "AC-AUTH-2 GROUP is best-effort only: marmot-ts 0.5.1 drops the MLS sender leaf for application messages so the inner rumor pubkey is group-member-attested, NOT identity-bound (verified vs ts-mls source). Product-owner adjudicated 2026-07-07: SHIP with documented trust (DMs secure via seal sig; MLS bars non-members; same posture as existing kind-9/kind-7). Tracked upstream: BACKLOG marmot-ts-0-5-1-drops. Not a blocker."
+        }
+      ]
+    },
+    {
+      "id": "tombstone-not-hard-delete",
+      "name": "User delete is a field flip (tombstoned:true) retaining the row; removeMessages hard-delete is reserved for the ADR-001/002 purge path",
+      "owning_module": "Storage",
+      "type": "invariant",
+      "added_by_story": "S1",
+      "reviewer_findings": []
+    },
+    {
+      "id": "original-no-clobber-guard",
+      "name": "A re-delivered original (no rev) must not clobber an edited/tombstoned slot (AC-STORE-3)",
+      "owning_module": "Storage",
+      "type": "validation_rule",
+      "added_by_story": "S1",
+      "reviewer_findings": []
+    },
+    {
+      "id": "storage-update-in-place-seam",
+      "name": "update-in-place / tombstone primitive on chatPersistence, enqueued on the per-thread appendQueues",
+      "owning_module": "Storage",
+      "type": "public_contract",
+      "added_by_story": "S1",
+      "reviewer_findings": []
+    },
+    {
+      "id": "wire-tag-shape",
+      "name": "Delete/edit rumor tag shapes: unmarked kind-5 = delete; edit-marked replacement + edit-marked companion kind-5; e-tags original + every prior replacement id; k tag = target kind",
+      "owning_module": "Wire builders",
+      "type": "naming_scheme",
+      "added_by_story": "S2",
+      "reviewer_findings": []
+    },
+    {
+      "id": "created-at-not-rev",
+      "name": "Edit replacement wire created_at (seconds) is pinned to the original and MUST NOT double as the rev clock",
+      "owning_module": "Wire builders",
+      "type": "invariant",
+      "added_by_story": "S2",
+      "reviewer_findings": []
+    },
+    {
+      "id": "handler-no-context-import",
+      "name": "Dispatcher handlers under lib/marmot/handlers/ import nothing from context/; deps arrive via HandlerDeps injection",
+      "owning_module": "Group adapter",
+      "type": "path_convention",
+      "added_by_story": null,
+      "reviewer_findings": []
+    },
+    {
+      "id": "single-composer-owner",
+      "name": "ChatBox is the single composer owner for DM and group; edit-mode composer seam defined once",
+      "owning_module": "Rendering / UI",
+      "type": "public_contract",
+      "added_by_story": "S6",
+      "reviewer_findings": []
+    },
+    {
+      "id": "neutral-delete-copy",
+      "name": "UI copy stays neutral \u2014 never implies enforced/guaranteed deletion or non-Few honoring (AC-INTEROP-1/2)",
+      "owning_module": "Rendering / UI",
+      "type": "validation_rule",
+      "added_by_story": "S6",
+      "reviewer_findings": []
+    }
+  ],
+  "stories": [
+    {
+      "story_id": "S1",
+      "surfaces_touched": [
+        "app/src/lib/marmot/chatPersistence.ts::updateMessageInPlace(new)",
+        "app/src/lib/marmot/chatPersistence.ts::tombstoneMessage(new)",
+        "app/src/lib/marmot/chatPersistence.ts::filterVisibleMessages(new)",
+        "app/src/lib/marmot/chatPersistence.ts::MessagePatch(new interface)",
+        "app/src/lib/marmot/chatPersistence.ts::ChatMessage(+tombstoned/edited/rev)",
+        "app/tests/unit/chatPersistence-editDelete.test.ts(new,23 tests)"
+      ],
+      "findings": [
+        {
+          "category": "contract_mismatch",
+          "description": "updateMessageInPlace is merge-not-replace: a patch omitting tombstoned/edited leaves those flags set. S3 MUST pass tombstoned:false explicitly when a higher-rev edit supersedes a lower-rev tombstone, or the winning edit stays hidden by filterVisibleMessages. Storage enforces no rev monotonicity \u2014 all rev ordering / delete-wins ties are S3's job. Carried into S3 brief + verification.",
+          "resolved": true
+        },
+        {
+          "category": "comment_rot",
+          "description": "filterVisibleMessages docstring pins reactions/api.ts:165 (line-pinned cross-file ref, rot risk). Unactioned (below sev-5 noise floor).",
+          "resolved": true
+        },
+        {
+          "category": "contract_mismatch",
+          "description": "S3 OBLIGATION (carried to S3 brief): storage provides an atomic strictly-older-rev FLOOR + real-signal clobber-guard; S3 owns equal-rev tie resolution (delete-wins; higher replacement-id). Flags are merge-only: S3 must send tombstoned:false EXPLICITLY to un-tombstone, and MUST NOT emit an un-tombstone patch at EQUAL rev (spec 2.5 requires strictly-exceeds; delete wins ties). filterVisibleMessages still not wired into render (deferred to S3/S6, VQ-S1-012).",
+          "resolved": false
+        }
+      ]
+    },
+    {
+      "story_id": "S2",
+      "surfaces_touched": [
+        "app/src/lib/messageEdits/rumor.ts::buildDeleteRumor(new)",
+        "app/src/lib/messageEdits/rumor.ts::buildEditReplacementRumor(new; created_at pinned+integer-guarded)",
+        "app/src/lib/messageEdits/rumor.ts::buildEditMarkedCompanionKind5(new; bare+marked original by design)",
+        "app/src/lib/messageEdits/rumor.ts::clampRev(new; always finite integer>=1)",
+        "app/src/lib/messageEdits/rumor.ts::DELETE_EDIT_RUMOR_KIND(=5)",
+        "app/tests/unit/messageEdits/rumor.test.ts(new,84 tests, real crypto)"
+      ],
+      "findings": [
+        {
+          "category": "contract_mismatch",
+          "description": "companion kind-5 emits originalId bare+marked (diverges from spec 2.4 literal list; behaviorally inert, documented+tested). Deferred to S3 as MARKER-FIRST classifier obligation; curator may reconcile spec 2.4 wording.",
+          "resolved": true
+        },
+        {
+          "category": "convention_drift",
+          "description": "ms-vs-seconds + fractional guards added (Number.isInteger + MAX_PLAUSIBLE_UNIX_SECONDS); assertRealRev integer-tightened; e-tag dedup added. All resolved in remediation round 1.",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "story_id": "S3",
+      "surfaces_touched": [
+        "app/src/lib/messageEdits/api.ts::applyDeleteEditSignal(new; ChangeResult seam)",
+        "app/src/lib/messageEdits/api.ts::resolveKnownRowAgainstStores(new; single marker-aware apply path, persist-then-remove)",
+        "app/src/lib/messageEdits/api.ts::classifySignal(marker-first)/signalBeats(rev-clock+D15)/sweepExpiredForThreadKeyLocked",
+        "app/src/lib/messageEdits/api.ts::resolvePendingSignalsForSlot(deferred-auth hook; resolves slotId rumor-group before sweep)",
+        "app/src/lib/messageEdits/api.ts::clearMessageEditsStateForThread(new; per-thread teardown)",
+        "app/src/lib/messageEdits/api.ts IDB: few:messageEditsPendingSignals/DeleteMarkers/SlotMeta:v1 (all capped)",
+        "app/src/lib/marmot/chatPersistence.ts::clearMessages+purgeStrangerDmThreads(additive teardown wire-in)",
+        "app/src/lib/storage.ts(additive: account-switch sweep)",
+        "app/tests/unit/messageEdits/api.test.ts(new, ~90 tests incl 24-perm order-independence + fault-injection crash tests)"
+      ],
+      "findings": [
+        {
+          "category": "guarantee_violated",
+          "description": "[3 remediation rounds, all RESOLVED] crash-window delete-loss class: (r1) permanent divergence on missed resolve, mid-sweep drop, stale-meta un-tombstone; (r2) marker self-heal gap + removePendingByRumorId crossing skipTargetId; (r3) remove-before-persist on shared resolver. All closed via self-healing marker-aware unification + persist-then-remove + storage-truth tie + rev-cap + hygiene caps/teardown. Comparator was correct throughout.",
+          "resolved": true
+        },
+        {
+          "category": "contract_mismatch",
+          "description": "ACCEPTED RESIDUALS (both reviewers, below threshold): (1) cap-eviction known-row branch marker-blind but self-healing (tightened w/ read-only marker-rev check; transient over-visibility corrected next sweep, no delete-loss, no write race); (2) edit-vs-edit D15 equal-rev tie reads slot-meta \u2014 content-only divergence on exact same-second two-device edit collision landing on a crash window (would require extending S1 frozen ChatMessage contract to close). Plus poisoned-clock AC-ORDER-3 best-effort residual (documented in spec).",
+          "resolved": false
+        }
+      ]
+    },
+    {
+      "story_id": "S4",
+      "surfaces_touched": [
+        "directMessages.ts::publishDirectDelete/publishDirectEdit (new; resolveAuthoritativeRev, replacement-before-companion, persist-fail swallowed)",
+        "ContactChat.tsx::resolveFreshOriginal/resolveFreshOriginalFromStorage/reconcileHistoricalBatch/applyOptimistic*View (new; storage-truth render)",
+        "ContactChat.tsx inbound kind-5 + edit-marked-kind-14 (historical+live), resolve-after-append, awaited thread-open sweep, own-msg auth guards, __fewDmMessageEdits bridge",
+        "messageEdits/rumor.ts::hasEditMarkerTag (new canonical marker predicate)",
+        "app/tests/unit/directMessages/dmMessageEdits.test.ts (new+expanded)"
+      ],
+      "findings": [
+        {
+          "category": "guarantee_violated",
+          "description": "[2 remediation rounds, RESOLVED] render-clobber on BOTH historical (reconcileHistoricalBatch) and live (resolveFreshOriginalFromStorage) paths \u2014 re-delivered original of a since-deleted/edited message re-rendered; stale-rev clamp starvation (resolveAuthoritativeRev); persist-fail masquerading as publish-fail (swallowed); shadow-init tests replaced with real pure-function tests; own-msg auth guards; forked marker predicate unified. All closed; both models converged clean.",
+          "resolved": true
+        },
+        {
+          "category": "contract_mismatch",
+          "description": "S5 OBLIGATION (carried): the group inbound MLS-application append path MUST mirror the same resolve-after-append + storage-substitution discipline (re-delivered kind-9 original of a since-deleted/edited group message would otherwise re-render). Group render flows through ChatStoreContext (not ContactChat), so resolveFreshOriginalFromStorage is not directly reusable \u2014 same obligation, different substitution point. Also: AC-DEL-8 priorReplacementIds=[] is correct-by-design (product decision: non-Few best-effort); S5 must clone [] too, NOT track a chain.",
+          "resolved": false
+        },
+        {
+          "category": "contract_mismatch",
+          "description": "ACCEPTED RESIDUAL: sub-ms crash window between successful publish and durable applyDeleteEditSignal (author-device-only; author re-action recovers; DM signal gift-wrapped to peer so no inbound self-heal). Flagged for S7 (don't assume durability across a crash in that window).",
+          "resolved": false
+        }
+      ]
+    },
+    {
+      "story_id": "S5",
+      "surfaces_touched": [
+        "deleteEditHandler.ts (new RumorHandler<5>, zero context imports, unconditional route to S3, honest auth comment)",
+        "chatHandler.ts (edit-marked kind-9 dispatch-routing + resolve-after-append + unconditional version-bump)",
+        "ChatStoreContext.tsx (performGroupDeleteMessage/performGroupEditMessage exported pure fns, reconcileMessagesWithStorage at all 3 storage-set points, awaited thread-open sweep, sendMessage/sendImageMessage resolve-after-append, __fewGroupMessageEdits bridge)",
+        "registerHandlers.ts / MarmotContext.tsx (composition wiring)",
+        "tests: groupMessageEdits/chatHandler/registerHandlers (+ real-path performGroup* tests)"
+      ],
+      "findings": [
+        {
+          "category": "guarantee_violated",
+          "description": "[1 remediation round, RESOLVED] group render/state gaps: thread-open sweep projection (S4-parity), optimistic-delete resurrection tail, shadow-init tests (extracted performGroup* pure fns), resolve-after-append convention drift on sendMessage/sendImageMessage, sweep-side-effects-on-other-slots (unconditional bump), post-edit tombstone drop. All closed; both models clean.",
+          "resolved": true
+        },
+        {
+          "category": "guarantee_violated",
+          "description": "ACCEPTED (product-adjudicated): AC-AUTH-2 GROUP is best-effort/group-member-attested \u2014 marmot-ts drops MLS sender leaf; inner pubkey not identity-bound. SHIP decision 2026-07-07; documented in AC-AUTH-2/MV-3/handler-comment; tracked BACKLOG marmot-ts-0-5-1-drops. DMs fully secure.",
+          "resolved": false
+        },
+        {
+          "category": "contract_mismatch",
+          "description": "ACCEPTED RESIDUAL: durable-write crash window (both transports) \u2014 crash between publish and durable apply leaves author-local state stale; recoverable by re-action. Flagged for S7.",
+          "resolved": false
+        }
+      ]
+    },
+    {
+      "story_id": "S6",
+      "surfaces_touched": [
+        "messageActionUi.ts (new pure fns: canShowMessageActions[+allowMessageActions,+toLowerCase]/canEditMessage[+parseStructured reject]/isEditSubmitBlocked/shouldShowEditedMarker/computeDeleteConfirmTransition/computeThreadPreviewMessage/formatThreadPreviewText[+structuredText])",
+        "ChatBox.tsx (action menu, edit composer, edited marker, two-click delete confirm, filterVisibleMessages backstop, allowMessageActions gate, threadId reset effect, delete-while-edit cancel, paste/drop edit-gate)",
+        "ContactChat.tsx/GroupChat.tsx (wire real handlers + allowMessageActions + threadId)",
+        "GroupCard.tsx/contacts.tsx (new from-scratch list-preview, structuredText)",
+        "i18n.ts (12 keys en+de incl chatSend, listPreviewStructured)",
+        "tests: messageActionUi.test.ts, messageEdits.i18n.test.ts"
+      ],
+      "findings": [
+        {
+          "category": "guarantee_violated",
+          "description": "[1 remediation round, RESOLVED] cross-surface UI bugs the pure-fn tests couldn't see: FEEDBACK-CHANNEL BYPASS (edit/delete published unmarked signals into the sealed feedback channel \u2014 matches project memory feedback_channel_reused_chat_gating; closed via allowMessageActions gate); Edit-on-structured-announcements (raw-JSON corruption; closed via canEditMessage parseStructured reject); raw-JSON list preview; edit-state-survives-thread-switch (silent data loss); delete-while-editing; paste/drop mid-edit; +2 i18n/case nits. All 13 owned ACs verified by JSX inspection by both models; converged clean.",
+          "resolved": true
+        },
+        {
+          "category": "comment_rot",
+          "description": "ACCEPTED RESIDUAL: list-preview refreshes on list-page mount, not live (the list feature didn't exist before; list pages carry no live subscription). AC-LIST-1's 'processed occurs on next open' relaxation covers this. VQ-S6-020.",
+          "resolved": false
+        }
+      ]
+    },
+    {
+      "story_id": "S7",
+      "surfaces_touched": [
+        "app/tests/e2e/dm-message-edit-delete.spec.ts (new, 9 tests, real UI + peer contexts)",
+        "app/tests/e2e/groups-message-edit-delete.spec.ts (new, 7 tests)"
+      ],
+      "findings": [
+        {
+          "category": "contract_mismatch",
+          "description": "[1 remediation round, RESOLVED] e2e hardening: ordering-proxy vacuous-pass closed via positive control message; sampled never-rendered replaced with gap-free MutationObserver latch (installed before nav); image-helper before-set guards; pre-edit content/marker assertions. 16/16 green on Docker harness (run 3x total across impl+remediation). Owned ACs AC-DEL-1/AC-EDIT-1 solidly covered; closes S6's VQ-S6-023 JSX-wiring gap via real-UI clicks. Both models converged clean.",
+          "resolved": true
+        },
+        {
+          "category": "comment_rot",
+          "description": "ACCEPTED: 3s waitForTimeout in the AC-ORDER e2e proxy retained (no relay-readiness marker exists) but documented + tied to AC-60 precedent; AC-ORDER-1/3 owned+deterministically tested by S3. Two 5s beforeAll setup waits template-inherited from groups-reactions.spec (setup-only, fail-visible). CONVENTION: delete-readiness = disappearance of msg-<id> (no tombstone placeholder testid, AC-DEL-3 silent removal) \u2014 a future delete-placeholder would invalidate expectMessageGone.",
+          "resolved": false
+        }
+      ]
+    }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "S7"
+  }
+}

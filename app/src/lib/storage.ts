@@ -150,6 +150,11 @@ async function clearAccountScopedIdbData(): Promise<void> {
     // Wipe both reaction namespaces (few:reactions:group:* and few:reactions:dm:*)
     // so reactions from one identity do not survive an account switch (AC-14, D11).
     import('@/src/lib/reactions/api').then(({ clearAllReactions }) => clearAllReactions()),
+    // Wipe the message-edits pending-signal buffer, delete-marker set, and
+    // slot-meta bookkeeping (epic-feature-request-message-edit-and-delete, S3)
+    // so a delete/edit signal buffered for a previous identity cannot leak
+    // into a newly-switched-to identity's session.
+    import('@/src/lib/messageEdits/api').then(({ clearAllMessageEditsState }) => clearAllMessageEditsState()),
   ];
   const results = await Promise.allSettled(tasks);
   for (const result of results) {

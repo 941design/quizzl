@@ -1,0 +1,40 @@
+{
+  "epic": "feature-request-message-edit-and-delete",
+  "explored_at": "2026-07-07T10:13:46Z",
+  "prior_learnings": [
+    {"id": "marmot-ts-commit-does-not-throw", "note": "marmot-ts commit() does not throw on same-epoch concurrent conflict — validates ADR-003 LWW; no protocol no-clobber."},
+    {"id": "kind-445-events-have-ephemeral-authors", "note": "kind-445 wrapper authors are ephemeral — group AC-AUTH-2 must verify the MLS-authenticated inner rumor pubkey, never the kind-445 author."},
+    {"id": "marmot-ts-self-leave-propose-single", "note": "multi-device leaf identity nuance (context for multi-device concurrency framing)."},
+    {"id": "mls-over-relay-playwright-e2e-must", "note": "e2e must gate on rendered readiness markers, not fixed timeouts."},
+    {"id": "e2e-global-setup-port-check-must", "note": "e2e global-setup port check before child spawns."},
+    {"id": "playwright-mcp-browser-tools-unusable-linux", "note": "use project Playwright, not Playwright-MCP browser tools on Linux ARM64."}
+  ],
+  "similar_features": {
+    "reactions_add_remove": {
+      "wire_builder": "app/src/lib/reactions/rumor.ts:42-109 (buildReactionRumor; e/k/p tags; canonical getEventHash id built once and reused for optimistic row + publish)",
+      "optimistic_rollback_reconcile": "app/src/lib/reactions/api.ts:213-280 (applyOptimistic, applyOptimisticRemoval=in-place flag flip, rollbackOptimistic guards eventId===''), api.ts:301-437 (applyInboundRumor = model for new reconciler; removed-wins order-independence at 402-410)",
+      "tombstone": "app/src/lib/reactions/types.ts:49 Reaction.removed; filtered at read in api.ts:165 aggregateForMessage; no physical delete anywhere",
+      "two_send_paths": "group sendReaction ChatStoreContext.tsx:351-423 vs DM handleReact ContactChat.tsx:598-671 — verbatim-duplicated optimistic/rollback; DM toasts on failure, group only throws",
+      "inbound_dispatch": "group reactionHandler.ts:36-41 (silent-discards unknown target BEFORE calling reconciler); DM inline in ContactChat.tsx historical 352-362 + live 447-463"
+    },
+    "image_messages": "share ChatMessage store (no separate table); distinguished by attachments/content shape (chatPersistence.ts:24-29). Tombstone flag covers images automatically. No Blossom DELETE call anywhere (AC-IMG-3 = documented limitation). image-sharing deferral: specs/epic-image-sharing/spec.md:~230"
+  },
+  "architecture": {
+    "dm_transport": "directMessages.ts: buildChatRumor:292-317 (unsigned kind-14, canonical id), sealAndWrap:171-190 (kind-13 seal + kind-1059 wrap, kind-agnostic — needs no change for kind-5), unwrapAndOpen:230-282 (authenticated unwrap, sender-binding + id check 265-274, returns rumor regardless of kind — callers branch on rumor.kind), publishDirectReaction/removeDirectReaction:391-441 (clone for publishDirectDelete/publishDirectEdit)",
+    "dm_ui": "ContactChat.tsx: no separate store; inbound live handleGiftWrapEvent:418-486 (kind-7 branch 447-463 gated on knownMessageIdsRef), historical 338-380 (kind-7 branch 352-362). New kind-5 branch sits between kind-7 and kind-14 in both, but routes unknown target to pending buffer not discard. handleReact:598-671 = optimistic/publish/rollback template. Edit-mode composer state does NOT exist yet.",
+    "group_transport": "ChatStoreContext.tsx: sendMessage:246-277, sendRumorSafe:51-66 (retry wrapper on unapplied-proposals — reuse), buildChatRumor:76-92 (LOCAL, distinct from DM's same-named fn). Sender action does NOT self-bump version; chatVersion/reactionsVersion bumped by dispatcher handlers and passed as props; ChatStoreContext re-reads IDB on prop change. New handler calls setChatVersion/new setEditsVersion.",
+    "group_dispatch": "applicationRumorDispatcher.ts: single group.on('applicationMessage'):106, per-group LRU dedup LRU_CAP=1000, sequential kind-keyed dispatch 96-103. RumorHandler{kind,handle(rumor,ctx)}; DispatcherContext{groupId,selfPubkeyHex,getActiveGroupId}. New createDeleteEditHandler(deps):RumorHandler{kind:5} registered in registerHandlers.ts:64-95 like createReactionHandler:70-74.",
+    "dual_listener_RESOLVED": "MEMORY architecture_marmot_dual_listener.md is STALE. welcomeSubscription.ts:263-268 documents the unified dispatcher is now the SOLE applicationMessage consumer; EpochResolver's onApplicationMessage is a no-op there; ChatStoreContext has NO group.on(...) call. A kind-5 handler registered once will NOT double-dispatch. (Retire/update the memory at wrap-up.)",
+    "storage": "chatPersistence.ts: ChatMessage:16-30 (id,content,senderPubkey,groupId,createdAt-ms,attachments?,localMediaRefs?), appendMessage:244-262 CONFIRMED insert-if-absent (never overwrites), removeMessages:269-286 hard delete = ADR-001/002 purge path (do NOT reuse for user delete), purgeStrangerDmThreads:335-384. Per-thread serialized appendQueues:241 (enqueue update-in-place on same key). DM key few:messages:dm:{peerHex} vs group few:messages:{groupId} — SEPARATE IDB keys, SAME ChatMessage type + machinery.",
+    "shared_reconciliation_seam": "new app/src/lib/messageEdits/ module; applyDeleteEditSignal(thread,rumor) analogous to reactions applyInboundRumor; thread-keyed {kind:'dm',peerPubkeyHex}|{kind:'group',groupId}; React-free/context-free; mutates chatPersistence via new update-in-place primitive; per-key write queue.",
+    "pending_buffer_bound": "NO existing cap+TTL constant. Cap precedents only: pendingInvitations.ts GLOBAL_CAP=256/PER_INVITER_CAP=8 (cap+per-key collapse+evict, no TTL), applicationRumorDispatcher LRU_CAP=1000, welcomeSubscription GROUP_SEEN_IDS_CAP=1000, callSignaling DEDUP_SET_MAX=500. DECISION: model cap on pendingInvitations.ts, add explicit new named TTL constant (TTL half has no precedent)."
+  },
+  "testing": {
+    "unit": "vitest, tests/unit/**/*.test.ts ONLY (.tsx excluded, no jsdom, no @testing-library). Mock idb-keyval with a Map; clear map AND module in-memory cache in beforeEach. Reaction reconcile tests: reactions/api.test.ts, api-property.test.ts (parametric loops, NOT fast-check). Rumor-builder tests: real nostr-tools crypto + webcrypto polyfill (rumor.test.ts). Non-exportable closures tested by re-deriving predicate inline (dmReactions.test.ts:264-315, groupReactions.test.ts:426-546).",
+    "property_convention": "NO fast-check (explicit non-dependency, themes/contrast.hexParsing.test.ts:3-6). Base plugin JS/TS skill defaults to fast-check — DO NOT follow it. Use table-driven it.each / hand-rolled parametric loops for AC-ORDER-3 order-independence and AC-STORE-2 idempotency.",
+    "e2e": "Playwright app/tests/e2e/. Non-relay bucket (10, next dev) + groups/relay bucket (38, docker strfry+blossom). Full gate make test / make test-e2e-all. Drive publishes THROUGH APP: second browser.newContext() peer + window.__few* dev bridge calling real publish (publishDirectMessage, publishDirectReaction, group sendApplicationRumor via sendRumorSafe). Assert via expect.poll on data-testid readiness markers, never waitForTimeout (AC-60 flaky-timeout precedent). Templates: groups-dm-reactions.spec.ts, groups-reactions.spec.ts.",
+    "makefile": "make test = test-unit + test-e2e-all(48). test-unit = vitest run. test-e2e-all = test-e2e-fast(10 non-relay) + test-e2e(38 groups/relay via docker). Subsets are dev aids only."
+  },
+  "i18n": "app/src/lib/i18n.ts Copy type + en/de objects (copy const at :458); useCopy()/useLanguage() from @/src/context/LanguageContext. Reaction strings in flat Copy.emoji:329-338/798-807; chat strings in Copy.groups (chat*/image*) used even by DM surface. New edit/delete keys: pick Copy.groups or a new flat namespace, be consistent. Dynamic strings = (arg)=>string. Never hardcode.",
+  "chatbox_render": "app/src/components/chat/ChatBox.tsx: message iter :460, isSelf=msg.senderPubkey===pubkey :463 (AC-AUTH-1 gate), sender/time row :509-524 ((edited) marker), per-bubble hover action area :560-583 (edit/delete actions), single composer owner for DM+group (needs editingMessage/onEditSubmit prop). Filter tombstoned rows out of render (mirror reaction removed)."
+}

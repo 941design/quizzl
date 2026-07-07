@@ -71,6 +71,12 @@ function makeDeps() {
     appendMessage: vi.fn(async () => {}),
     incrementUnread: vi.fn(),
     setChatVersion: vi.fn(),
+    // S5: resolve-after-append + edit-marked-kind-9 dispatch-routing deps.
+    // Default resolvePendingSignalsForSlot to a 'noop' ChangeResult (nothing
+    // buffered for the freshly-appended slot) — matches the no-signal-pending
+    // case every pre-S5 test in this file exercises.
+    applyDeleteEditSignal: vi.fn(async () => ({ thread: { kind: 'group' as const, groupId: GROUP_ID }, slotId: null, kind: 'discarded' as const })),
+    resolvePendingSignalsForSlot: vi.fn(async () => ({ thread: { kind: 'group' as const, groupId: GROUP_ID }, slotId: null, kind: 'noop' as const })),
   };
 }
 
@@ -203,5 +209,110 @@ describe('chatHandler', () => {
     await handler.handle(makeRumor({ id: 'r2' }), ctx);
 
     expect(deps.setChatVersion).toHaveBeenCalledTimes(2);
+  });
+
+  // ─── S5: resolve-after-append wiring ────────────────────────────────────
+
+  it('S5: resolvePendingSignalsForSlot is called after appendMessage, before setChatVersion, for a plain original', async () => {
+    const deps = makeDeps();
+    const callOrder: string[] = [];
+    deps.appendMessage.mockImplementation(async () => { callOrder.push('appendMessage'); });
+    deps.resolvePendingSignalsForSlot.mockImplementation(async () => {
+      callOrder.push('resolvePendingSignalsForSlot');
+      return { thread: { kind: 'group' as const, groupId: GROUP_ID }, slotId: null, kind: 'noop' as const };
+    });
+    deps.setChatVersion.mockImplementation(() => { callOrder.push('setChatVersion'); });
+
+    const handler = createChatHandler(deps);
+    const rumor = makeRumor({ id: 'orig-1' });
+    await handler.handle(rumor, makeCtx());
+
+    expect(deps.resolvePendingSignalsForSlot).toHaveBeenCalledOnce();
+    expect(deps.resolvePendingSignalsForSlot).toHaveBeenCalledWith(
+      { kind: 'group', groupId: GROUP_ID },
+      'orig-1',
+      PEER_PUBKEY,
+    );
+    expect(callOrder).toEqual(['appendMessage', 'resolvePendingSignalsForSlot', 'setChatVersion']);
+  });
+
+  it('S5: a resolvePendingSignalsForSlot failure is swallowed — setChatVersion still fires', async () => {
+    const deps = makeDeps();
+    deps.resolvePendingSignalsForSlot.mockRejectedValueOnce(new Error('boom'));
+    const handler = createChatHandler(deps);
+
+    await expect(handler.handle(makeRumor({ id: 'orig-2' }), makeCtx())).resolves.not.toThrow();
+    expect(deps.setChatVersion).toHaveBeenCalledOnce();
+  });
+
+  // ─── S5: edit-marked kind-9 dispatch-routing (mirrors ContactChat.tsx's DM check) ──
+
+  it('S5: an edit-marked kind-9 replacement is routed to applyDeleteEditSignal, NOT appendMessage', async () => {
+    const deps = makeDeps();
+    deps.applyDeleteEditSignal.mockResolvedValueOnce({
+      thread: { kind: 'group' as const, groupId: GROUP_ID },
+      slotId: 'orig-1',
+      kind: 'edit' as const,
+    });
+    const handler = createChatHandler(deps);
+    const replacement = makeRumor({
+      id: 'replacement-1',
+      content: 'edited text',
+      tags: [['e', 'orig-1', '', 'edit'], ['rev', '1000']],
+    });
+
+    await handler.handle(replacement, makeCtx());
+
+    expect(deps.applyDeleteEditSignal).toHaveBeenCalledOnce();
+    expect(deps.applyDeleteEditSignal).toHaveBeenCalledWith(
+      { kind: 'group', groupId: GROUP_ID },
+      replacement,
+    );
+    expect(deps.appendMessage).not.toHaveBeenCalled();
+    expect(deps.resolvePendingSignalsForSlot).not.toHaveBeenCalled();
+    expect(deps.setChatVersion).toHaveBeenCalledOnce();
+  });
+
+  it('S5 gate-remediation (finding 5): an edit-marked kind-9 that loses the tie (noop) STILL bumps setChatVersion — the sweep inside applyDeleteEditSignal can self-heal OTHER slots regardless of this rumor\'s own outcome', async () => {
+    const deps = makeDeps();
+    deps.applyDeleteEditSignal.mockResolvedValueOnce({
+      thread: { kind: 'group' as const, groupId: GROUP_ID },
+      slotId: 'orig-1',
+      kind: 'noop' as const,
+    });
+    const handler = createChatHandler(deps);
+    const replacement = makeRumor({
+      id: 'replacement-2',
+      tags: [['e', 'orig-1', '', 'edit'], ['rev', '1']],
+    });
+
+    await handler.handle(replacement, makeCtx());
+
+    expect(deps.setChatVersion).toHaveBeenCalledOnce();
+  });
+
+  it('S5 gate-remediation (finding 5): applyDeleteEditSignal throwing (null result) still does NOT bump setChatVersion — only a genuinely non-null ChangeResult bumps', async () => {
+    const deps = makeDeps();
+    deps.applyDeleteEditSignal.mockRejectedValueOnce(new Error('boom'));
+    const handler = createChatHandler(deps);
+    const replacement = makeRumor({
+      id: 'replacement-3',
+      tags: [['e', 'orig-1', '', 'edit'], ['rev', '1']],
+    });
+
+    await expect(handler.handle(replacement, makeCtx())).resolves.not.toThrow();
+
+    expect(deps.setChatVersion).not.toHaveBeenCalled();
+  });
+
+  it('S5: a PLAIN kind-9 (no edit marker) still takes the normal append path, not applyDeleteEditSignal', async () => {
+    const deps = makeDeps();
+    const handler = createChatHandler(deps);
+    const rumor = makeRumor({ id: 'plain-1', tags: [['e', 'unrelated']] });
+
+    await handler.handle(rumor, makeCtx());
+
+    expect(deps.applyDeleteEditSignal).not.toHaveBeenCalled();
+    expect(deps.appendMessage).toHaveBeenCalledOnce();
   });
 });

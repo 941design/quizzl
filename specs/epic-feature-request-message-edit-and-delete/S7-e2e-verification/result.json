@@ -1,0 +1,103 @@
+{
+  "story_id": "S7",
+  "status": "done",
+  "modules_touched": [
+    "e2e"
+  ],
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/tests/e2e/dm-message-edit-delete.spec.ts",
+    "app/tests/e2e/groups-message-edit-delete.spec.ts"
+  ],
+  "files_modified": [],
+  "implementation_summary": {
+    "scope_confirmation": "No production file was created or modified by this story. Every data-testid named in the story brief (msg-<id>, edited-marker-<id>, msg-edit-<id>, msg-delete-<id>, msg-delete-confirm-row-<id>, msg-delete-confirm-<id>, msg-delete-cancel-<id>, chat-edit-banner, chat-edit-cancel, chat-edit-empty-hint, chat-input, chat-send-btn, image-attachment-button, image-preview-thumbnail, image-thumbnail) already existed in app/src/components/chat/ChatBox.tsx from S6 \u2014 confirmed by direct read before delegating implementation, and independently confirmed again in review. The only production-adjacent finding is that ChatBox.tsx does NOT emit a literal msg-deleted-<id> testid: a tombstoned row is filtered out of visibleMessages entirely (AC-DEL-3: silent removal, no placeholder), so both spec files use the disappearance of msg-<id> (expect.poll to count 0) as the delete-readiness signal instead of adding a new testid for a marker that would contradict the 'no placeholder' requirement. See VQ-S7-009.",
+    "dm_coverage": "app/tests/e2e/dm-message-edit-delete.spec.ts (9 tests, test.describe.serial with a single Alice/Bob walled-garden DM setup in beforeAll via createGroupAndInvite, mirroring dm-self-heal.spec.ts / groups-dm-reactions.spec.ts). Covers AC-DEL-1 (text + image) with AC-DEL-3's cross-peer disappearance; AC-EDIT-1/AC-EDIT-2/AC-EDIT-3 (in-place update + edited marker, both sides); AC-AUTH-1 (action buttons not-attached on a peer's message, attached-after-hover on own); AC-DEL-6 (single click arms, does not delete; second/confirm click does); AC-EDIT-5 (empty edit blocked + hint + disabled Save, cancel restores original untouched); AC-IMG-2 (image message: delete attached, edit not attached); an S3-owned confirmatory test (reactions survive an edit, vanish on delete, via the pre-existing __fewDmReactions bridge for the reaction half only); and an S3-owned AC-ORDER-1/AC-ORDER-3 e2e proxy (documented in-code as a best-effort proxy \u2014 Playwright cannot dictate relay wire-delivery order; the test instead controls Bob's local ingest timing by moving him off the DM route before Alice sends+deletes, so both signals are already resolvable on his FIRST fetch of the thread, then sustains a poll asserting the message never renders).",
+    "group_coverage": "app/tests/e2e/groups-message-edit-delete.spec.ts (7 tests, test.describe.serial with a single group-create/invite/accept setup in beforeAll, mirroring groups-reactions.spec.ts's story-06 describe block). Covers the same AC-DEL-1 (text + image) / AC-EDIT-1/2/3 / AC-AUTH-1 / AC-DEL-6 / AC-EDIT-5 / AC-IMG-2 set, adapted to the group MLS flow. Per the brief's allowance ('you do not need to duplicate the ordering/reactions-survive confirmatory tests in BOTH files if time is tight'), the ordering and reactions-survive/vanish confirmatory tests were placed only in the DM file (judged more reliable to set up for that specific pair of assertions); AC-DEL-1 and AC-EDIT-1 themselves are covered in BOTH transports without exception, which is this story's actual owned scope.",
+    "ui_vs_bridge_choice": "All 16 new tests drive the real UI for the delete/edit action itself (hover -> msg-edit-<id>/msg-delete-<id> click -> confirm/save), not the window.__fewDmMessageEdits/__fewGroupMessageEdits dev bridge \u2014 this closes S6's own flagged gap (VQ-S6-023: JSX wiring for the action menu was previously unverifiable by any automated test, given this project's no-jsdom convention). The pre-existing __fewDmReactions/__fewReactions bridges are used only for the reaction HALF of the reactions-survive-edit confirmatory test, where the reaction picker UI itself is out of this story's scope.",
+    "run_command_correction": "The story brief assumed DM specs run via the non-relay make test-e2e-fast bucket. app/playwright.config.ts's actual testMatch/testIgnore split routes ANY dm-*.spec.ts or groups-*.spec.ts filename into the relay-required ('groups', E2E_GROUPS=1) mode \u2014 DM message edit/delete needs the same walled-garden MLS group prerequisite as the pre-existing dm-*/groups-dm-* specs, so it is not eligible for the fast bucket regardless of filename. Both new files are named accordingly and were run exclusively via `E2E_GROUPS=1 node scripts/run-e2e.mjs ...` against the Docker-based strfry+blossom-mock harness (make e2e-up / make e2e-down). See VQ-S7-013."
+  },
+  "tests": {
+    "framework": "playwright",
+    "new_files": [
+      "app/tests/e2e/dm-message-edit-delete.spec.ts",
+      "app/tests/e2e/groups-message-edit-delete.spec.ts"
+    ],
+    "new_tests": 16,
+    "coverage": [
+      "AC-DEL-1 (text + image), DM and group: authored message deleted via real UI, disappears for author AND peer (msg-<id> not attached)",
+      "AC-DEL-3: cross-peer silent removal \u2014 peer's bubble is confirmed visible before delete, then confirmed gone after",
+      "AC-EDIT-1/AC-EDIT-2/AC-EDIT-3, DM and group: authored text message edited via real UI, updates in place (same slot testid, old content gone, new content present) with edited-marker-<id> visible on both sides",
+      "AC-AUTH-1 (confirmatory), DM and group: action buttons not-attached on a peer's message, attached (post-hover) on the author's own",
+      "AC-DEL-6 (confirmatory), DM and group: single click arms the confirm row without deleting; only the confirm click deletes",
+      "AC-EDIT-5 (confirmatory), DM and group: whitespace-only edit content shows chat-edit-empty-hint and disables chat-send-btn; cancel restores the untouched original",
+      "AC-IMG-2 (confirmatory), DM and group: image message offers msg-delete-<id> but not msg-edit-<id>",
+      "S3-owned confirmatory (DM only): reactions survive a real-UI edit and vanish on a real-UI delete",
+      "S3-owned confirmatory (DM only): AC-ORDER-1/AC-ORDER-3 outcome proxy \u2014 a message deleted before the peer's first-ever thread open never renders for that peer, sustained poll over 8s"
+    ]
+  },
+  "test_counts": {
+    "baseline": 2399,
+    "final": 2399
+  },
+  "mocks": [],
+  "gates": {
+    "unit_test_command": "make test-unit",
+    "unit_test_status": "PASS (129 files, 2399 tests, unchanged from baseline \u2014 this story touches no unit-tested code path)",
+    "typecheck_command": "npx tsc --noEmit -p tsconfig.json (from app/)",
+    "typecheck_status": "clean (unchanged from baseline)",
+    "lint_status": "NO_LINT (unchanged from baseline \u2014 no eslint config present in this project)",
+    "e2e_new_specs": {
+      "command": "E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/dm-message-edit-delete.spec.ts tests/e2e/groups-message-edit-delete.spec.ts (after make e2e-up)",
+      "status": "PASS \u2014 16/16 (1.1m). Run twice: once by the implementing dev agent, once independently re-run by the architect with a fresh docker compose harness (both runs green, no flakes observed).",
+      "note": "Both files require the Docker-based strfry relay + blossom mock (E2E_GROUPS=1 mode) despite one being named 'dm-*' \u2014 see run_command_correction above and VQ-S7-013."
+    },
+    "e2e_regression_spot_check": {
+      "command": "E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-dm-reactions.spec.ts tests/e2e/groups-reactions.spec.ts",
+      "status": "PASS \u2014 14/14 (56.9s). Run by the architect after the new specs landed, to confirm the two new files and the S1-S6 testid/dev-bridge additions did not disturb the pre-existing reaction specs that share the same ChatBox testids and dev-bridge pattern.",
+      "note": "This is a targeted spot check, NOT the full 48-test e2e gate. make test-e2e-all (48 tests: 10 non-relay + 38 relay) remains the lead's responsibility per this story's scope.excludes and the project's E2E gate convention (CLAUDE.md)."
+    },
+    "e2e_full_suite": {
+      "status": "NOT RUN by this story \u2014 deliberately out of scope. Both required buckets (the new specs' bucket and the regression spot-check) were run and are green; the full 48-test make test-e2e-all gate is the lead's responsibility after this story lands, per the story brief ('the lead runs the full make test-e2e-all gate afterward') and CLAUDE.md's E2E gate section."
+    }
+  },
+  "verification_json": {
+    "pre_impl_questions": 8,
+    "post_impl_questions_appended": 5,
+    "note": "Pre-impl questions VQ-S7-001..008 left untouched per the immutability rule. Appended VQ-S7-009 (msg-deleted-<id> substitution via msg-<id> disappearance, given AC-DEL-3's no-placeholder requirement means no positive marker can legitimately exist), VQ-S7-010 (honesty of the AC-ORDER-1/AC-ORDER-3 e2e proxy given Playwright cannot control wire delivery order), VQ-S7-011 (toBeAttached vs toBeVisible for AC-AUTH-1's positive/negative cases given ChatBox's showActions-gates-the-whole-block vs _groupHover-opacity-toggle distinction), VQ-S7-012 (does this story's real-UI-driven testing close S6's own flagged VQ-S6-023 JSX-wiring gap), VQ-S7-013 (correcting the story brief's fast-bucket assumption against playwright.config.ts's actual dm-*/groups-* relay-mode testMatch, with independent re-run evidence)."
+  },
+  "escalations": [],
+  "gate_remediation": {
+    "trigger": "Two independent reviews confirmed S7's OWNED ACs (AC-DEL-1, AC-EDIT-1) solidly covered; findings were on the confirmatory ordering-proxy test and test-helper robustness. Test-code-only hardening, no production changes.",
+    "findings_addressed": [
+      "sev4 ordering-proxy vacuous-pass window: added a second NOT-deleted control message sent in the same window; after Bob's fresh mount, first assert the control message renders (positive proof this mount's ingest actually works), then run the deleted-id absence check \u2014 so a broken fresh-mount ingest or a send that never reached the relay now fails the test instead of passing vacuously.",
+      "sev3 sampled-absence guarantee: replaced the 500ms-interval sampling loop with a MutationObserver installed via page.addInitScript on Bob's next navigation, latching true the moment [data-testid=\"msg-<id>\"] for the deleted message ever attaches (childList + attribute observation on document.documentElement). expectMessageGone(pageB, id) now serves as the sustained-poll window and the latch is asserted false afterward \u2014 a gap-free never-attached guarantee instead of point-in-time sampling.",
+      "sev3 fixed 3s settle wait: kept (no clean pre-open relay-resolvability readiness marker exists in this codebase \u2014 confirmed by search), but rewrote the in-code comment to document the residual explicitly: scopes the e2e's claim to 'fresh-mount batch ingest converges to deleted', notes AC-ORDER-1/AC-ORDER-3 are owned and deterministically tested by S3, and ties the wait to the AC-60 relay-propagation-allowance precedent so a future flake is diagnosed against that precedent rather than re-litigated.",
+      "sev2 image helper before-set guard: sendDmImageAndGetMessageId (dm) and sendGroupImageAndGetId (group) now snapshot existing msg-* testids before send and assert the resolved id is NOT in that before-set, mirroring the text helpers (sendDmAndGetMessageId / sendGroupMessageAndGetId).",
+      "sev2 edit tests missing pre-edit assertions: both files' AC-EDIT-1/2/3 test now asserts, before editMessageViaUi runs, that both Alice's and Bob's bubbles contain the original content and that edited-marker-<id> is not attached on either side \u2014 completing the 'old content there, then replaced, marker appears' narrative within the test.",
+      "sev1 unused import: removed the unused dismissErrorOverlay import from dm-message-edit-delete.spec.ts (groups-message-edit-delete.spec.ts already uses it and was left unchanged)."
+    ],
+    "left_as_is": "The two waitForTimeout(5_000) calls in groups-message-edit-delete.spec.ts's beforeAll (KeyPackage/invite propagation) \u2014 inherited verbatim from groups-reactions.spec.ts's template; changing them would diverge from the sibling spec's setup pattern rather than fix a test-quality gap.",
+    "verification_run": {
+      "command": "make e2e-up && E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/dm-message-edit-delete.spec.ts tests/e2e/groups-message-edit-delete.spec.ts && make e2e-down",
+      "status": "PASS \u2014 16/16 (1.0m), Docker available, run after all six findings were addressed.",
+      "typecheck": "npx tsc --noEmit -p tsconfig.json (from app/) \u2014 clean, no new errors."
+    },
+    "files_modified": [
+      "app/tests/e2e/dm-message-edit-delete.spec.ts",
+      "app/tests/e2e/groups-message-edit-delete.spec.ts"
+    ]
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The story brief and stories.json assumed the DM e2e specs would run in the non-relay make test-e2e-fast bucket, but app/playwright.config.ts routes any dm-*/groups-* filename to the Docker/relay-required bucket \u2014 DM edit/delete also needs a walled-garden MLS group. Caught before wasted effort (both specs correctly need Docker), but the brief's fast-bucket assumption cost a diagnostic detour. Future e2e briefs should state that dm-*/groups-* both require the relay bucket.",
+    "surprised_by": "The story brief (and stories.json's own text) assumed DM specs are eligible for the non-relay make test-e2e-fast bucket. app/playwright.config.ts's testMatch/testIgnore split is by filename prefix only (dm-*.spec.ts / groups-*.spec.ts -> relay mode, everything else -> fast mode) and DM delete/edit needs the same walled-garden MLS group prerequisite the pre-existing dm-*/groups-dm-* specs already need, so no DM spec touching this feature can ever run in the fast bucket. This was caught before it caused a wasted run (both new files were correctly named and run via E2E_GROUPS=1 from the start), but is worth correcting in the epic's own docs for future reference \u2014 see VQ-S7-013.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-07T15:45:00Z"
+}

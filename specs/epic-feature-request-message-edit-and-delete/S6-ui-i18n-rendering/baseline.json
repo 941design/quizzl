@@ -1,0 +1,14 @@
+{
+  "story_id": "S6",
+  "captured_at": "2026-07-07T19:20:00Z",
+  "test_command": "make test-unit",
+  "test_status": "PASS",
+  "test_counts": {
+    "files": 127,
+    "tests": 2360
+  },
+  "note": "Matches S5-group-adapter/result.json's recorded final count (test_counts.final_tests: 2360, final_files: 127) — the state of the repo immediately before S6 began. Confirmed self-consistently: after S6's implementation, `make test-unit` reports 129 files / 2388 tests = 2360 + 28 (the two new test files this story adds: chat/messageActionUi.test.ts (25 tests) + messageEdits.i18n.test.ts (3 tests)); no pre-existing test file needed modification.",
+  "typecheck_command": "npx tsc --noEmit -p tsconfig.json (from app/)",
+  "typecheck_status": "clean",
+  "lint_status": "NO_LINT (no eslint config present in this project, unchanged since S1/S2/S3/S4/S5)"
+}
