@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   readSettings,
+  readStoredLanguage,
   writeSettings,
   readUserProfile,
   writeUserProfile,
@@ -48,6 +49,23 @@ describe('Settings', () => {
     const parsed = JSON.parse(store[STORAGE_KEYS.settings]);
     expect(parsed.theme).toBe('playful');
     expect(parsed.language).toBe('de');
+  });
+});
+
+describe('readStoredLanguage', () => {
+  it('returns undefined when no preference has been persisted', () => {
+    // So the caller can fall back to browser-language detection on a first visit.
+    expect(readStoredLanguage()).toBeUndefined();
+  });
+
+  it('returns undefined for legacy settings that predate the language field', () => {
+    store[STORAGE_KEYS.settings] = JSON.stringify({ mood: 'playful' });
+    expect(readStoredLanguage()).toBeUndefined();
+  });
+
+  it('returns the explicitly stored language', () => {
+    writeSettings({ theme: 'calm', language: 'de' });
+    expect(readStoredLanguage()).toBe('de');
   });
 });
 

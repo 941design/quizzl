@@ -470,12 +470,14 @@ type Copy = {
 };
 
 export function normalizeLanguage(input?: string | null): LanguageCode {
-  if (!input) return 'en';
+  // When no language can be detected, default to German.
+  if (!input) return 'de';
   return input.toLowerCase().startsWith('de') ? 'de' : 'en';
 }
 
 export function detectBrowserLanguage(): LanguageCode {
-  if (typeof navigator === 'undefined') return 'en';
+  // No navigator (e.g. SSR / static export) means no language to detect → German.
+  if (typeof navigator === 'undefined') return 'de';
   return normalizeLanguage(navigator.language);
 }
 

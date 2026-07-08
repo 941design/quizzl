@@ -1,4 +1,5 @@
 import type {
+  LanguageCode,
   Settings,
   UserProfile,
 } from '@/src/types';
@@ -66,6 +67,15 @@ export function readSettings(): Settings {
     ...(stored ?? {}),
     theme: storedTheme,
   };
+}
+
+// Returns the language the user has explicitly stored, or `undefined` when no
+// preference has been persisted yet. Unlike `readSettings().language`, this does
+// NOT fall back to a default — callers need to tell "unset" apart from a real
+// choice so browser-language detection can run on a first visit.
+export function readStoredLanguage(): LanguageCode | undefined {
+  const stored = readItem<Partial<Settings> | null>(STORAGE_KEYS.settings, null);
+  return stored?.language;
 }
 
 export function writeSettings(settings: Settings): void {

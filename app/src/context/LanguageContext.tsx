@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { LanguageCode } from '@/src/types';
-import { readSettings, writeSettings } from '@/src/lib/storage';
+import { readSettings, readStoredLanguage, writeSettings } from '@/src/lib/storage';
 import { detectBrowserLanguage, getCopy } from '@/src/lib/i18n';
 
 type LanguageContextValue = {
@@ -16,14 +16,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const settings = readSettings();
-    const resolvedLanguage = settings.language || detectBrowserLanguage();
+    const storedLanguage = readStoredLanguage();
+    const resolvedLanguage = storedLanguage ?? detectBrowserLanguage();
 
     setLanguageState(resolvedLanguage);
     setHydrated(true);
 
-    if (settings.language !== resolvedLanguage) {
-      writeSettings({ ...settings, language: resolvedLanguage });
+    if (storedLanguage !== resolvedLanguage) {
+      writeSettings({ ...readSettings(), language: resolvedLanguage });
     }
   }, []);
 
