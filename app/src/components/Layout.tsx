@@ -1,4 +1,4 @@
-import React, { useSyncExternalStore } from 'react';
+import React, { useSyncExternalStore, useState, useCallback } from 'react';
 import {
   Box,
   Flex,
@@ -51,8 +51,23 @@ export default function Layout({ children }: LayoutProps) {
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
   const { navStyle, surfaceStyle, bannerDecorStyle, contentPanelStyle } = useThemeStyles();
-  const { activeThemeDefinition } = useAppTheme();
-  const dynamicBanner = useDynamicBanner(activeThemeDefinition);
+  const { activeThemeDefinition, hydrated } = useAppTheme();
+  // Measure the banner box's rendered size the moment it mounts, so the dynamic
+  // banner SVG is generated at exactly that size (1:1) rather than an image
+  // stretched to fit. For the dynamic-banner theme the box covers the WHOLE
+  // header (see the full-cover override below), so this is the header's size.
+  // A ref callback (not a mount effect) is used so the measure fires when the
+  // box actually appears — i.e. AFTER `hydrated` gates it in below.
+  // Regenerate-on-load only: a later window resize is intentionally NOT
+  // remeasured (the banner then stretches until the next load).
+  const [bannerSize, setBannerSize] = useState<{ width: number; height: number } | undefined>(undefined);
+  const measureBanner = useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      const r = el.getBoundingClientRect();
+      setBannerSize({ width: Math.round(r.width), height: Math.round(r.height) });
+    }
+  }, []);
+  const dynamicBanner = useDynamicBanner(activeThemeDefinition, bannerSize);
   const activeBanner = dynamicBanner ?? bannerDecorStyle;
   // AC-A11Y-1/AC-A11Y-2 (S4): legibility scrim behind the nav logo. Gated on
   // the SAME declaration-based hasDynamicBanner semantic S3 established (see
@@ -103,10 +118,38 @@ export default function Layout({ children }: LayoutProps) {
         aria-label="Main navigation"
         {...navStyle}
       >
-        {activeBanner && (
+        {/* Gate on `hydrated`: until the saved theme is read from storage the
+            app renders the DEFAULT theme (calm), and rendering its banner here
+            would flash the wrong theme's art for a beat before the saved
+            theme's banner swaps in. Waiting for hydration means the first
+            banner shown is already the correct theme's. */}
+        {hydrated && activeBanner && (
           <Box
+            ref={measureBanner}
             data-testid="nav-banner-decor"
             {...activeBanner.boxProps}
+            {...(dynamicBanner?.hasDynamicBanner
+              ? // Dynamic-banner theme: the watercolor is the FULL HEADER
+                // background, not the small corner box the static themes use.
+                // Override the corner-box geometry to cover the whole nav, and
+                // composite with `mix-blend-mode: multiply` so the transparent
+                // SVG (no paper of its own) multiplies straight onto the real
+                // header background exactly once. The SVG is generated at this
+                // box's measured size (Layout measures it here), so it fills
+                // 1:1 with no stretch. Static-banner themes keep their corner
+                // box untouched (they don't enter this branch).
+                {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  w: '100%',
+                  h: '100%',
+                  transform: 'none',
+                  sx: { mixBlendMode: 'multiply' },
+                }
+              : {})}
             style={{ transition: 'background-image 0.3s ease-in-out', ...activeBanner.style }}
           />
         )}

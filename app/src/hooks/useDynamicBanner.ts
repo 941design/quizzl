@@ -267,8 +267,20 @@ export function resolveWorkerMessageOutcome(response: BannerWorkerResponse): str
  * separate mounts produce two independently-random SVGs (AC-UX-3), since
  * `DYNAMIC_GENERATORS.watercolor` itself varies its output per call.
  */
-export function useDynamicBanner(definition: AppThemeDefinition): ResolveDynamicBannerStyleReturn | null {
+/** Measured pixel size of the header box the dynamic banner fills (Layout.tsx). */
+export type BannerSize = { width: number; height: number };
+
+export function useDynamicBanner(
+  definition: AppThemeDefinition,
+  bannerSize?: BannerSize,
+): ResolveDynamicBannerStyleReturn | null {
   const [generatedSvg, setGeneratedSvg] = useState<string | null>(null);
+  // Distinguishes the two `generatedSvg === null` cases: `false` = generation
+  // still pending (show an empty banner, no static placeholder → no swap on
+  // load); `true` = generation genuinely failed (revert to the static
+  // fallback, AC-UX-3a). Without this the pending and failed states are
+  // indistinguishable and the static would flash before every dynamic banner.
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     // Reset first: a fresh definition/mount must never keep a stale
@@ -276,14 +288,22 @@ export function useDynamicBanner(definition: AppThemeDefinition): ResolveDynamic
     // attempt is in flight (AC-UX-3a's "no broken/blank banner" story
     // also covers a theme change that removes the dynamic declaration).
     setGeneratedSvg(null);
+    setFailed(false);
 
     const dynamicBanner = definition.treatments.dynamic?.banner;
     if (!dynamicBanner) return;
 
+    // Wait for the header box's measured size before generating, so the SVG is
+    // drawn at exactly the box size (1:1) instead of an image stretched to fit.
+    // Layout.tsx measures the box on mount and re-renders with the size,
+    // re-firing this effect. Until then the banner is blank (pending). Measured
+    // once per load — a later window resize does not regenerate (by design).
+    if (!(bannerSize && bannerSize.width > 0 && bannerSize.height > 0)) return;
+
     const params: BannerGenerationParams = {
       style: dynamicBanner.style,
       kind: 'banner',
-      render: dynamicBanner.render,
+      render: { ...dynamicBanner.render, width: bannerSize.width, height: bannerSize.height },
     };
 
     // `cancelled` guards against a stale worker/fallback result from a
@@ -295,7 +315,11 @@ export function useDynamicBanner(definition: AppThemeDefinition): ResolveDynamic
 
     const applyResult = (svg: string | null) => {
       if (cancelled) return;
-      setGeneratedSvg(svg);
+      // `null` here means a genuine generation failure (worker `ok:false` or a
+      // fallback throw) — mark failed so the static fallback shows. A non-null
+      // string is the generated art.
+      if (svg === null) setFailed(true);
+      else setGeneratedSvg(svg);
     };
 
     try {
@@ -329,7 +353,20 @@ export function useDynamicBanner(definition: AppThemeDefinition): ResolveDynamic
       cancelled = true;
       worker?.terminate();
     };
-  }, [definition]);
+    // Depend on the primitive dimensions, not the `bannerSize` object identity,
+    // so a fresh object with the same size does not re-fire generation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [definition, bannerSize?.width, bannerSize?.height]);
 
-  return resolveDynamicBannerStyle(definition, generatedSvg);
+  const resolved = resolveDynamicBannerStyle(definition, generatedSvg);
+  // Pending-window suppression: when this theme DECLARES a dynamic banner but
+  // generation has neither produced a result nor failed yet, blank the
+  // background-image so the box renders empty instead of the static
+  // placeholder. This removes the static→dynamic swap on load (the generated
+  // art is the FIRST banner the user sees). On genuine failure `failed` is
+  // true, so `resolved` (the static fallback) is returned unchanged — AC-UX-3a.
+  if (resolved && Boolean(definition.treatments.dynamic?.banner) && generatedSvg === null && !failed) {
+    return { ...resolved, style: { ...resolved.style, backgroundImage: 'none' } };
+  }
+  return resolved;
 }

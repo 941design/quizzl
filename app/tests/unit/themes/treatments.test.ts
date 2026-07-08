@@ -145,12 +145,17 @@ describe('themes/treatments/dynamicVisuals', () => {
     expect(() => DYNAMIC_GENERATORS.watercolor(STYLE, 'banner', { zones: 2, layerProb: 0 })).not.toThrow();
   });
 
-  it('the forced size/format envelope (96px tall, 420px nominal width per spec.md §6/ink-channel-log.md IQ6) is NOT overridable by a caller-supplied render knob (post-impl VQ-S2-014)', () => {
-    const withoutRender = DYNAMIC_GENERATORS.watercolor(STYLE, 'banner');
-    const withConflictingRender = DYNAMIC_GENERATORS.watercolor(STYLE, 'banner', { width: 50, height: 50, format: { width: 9999, height: 1 } });
+  it('width AND height are dynamic (full-header banner) — absent -> default 420x96, both measured dims honored, a lone dimension ignored, out-of-range falls back, a conflicting `format` ignored', () => {
     const dims = (svg: string) => svg.match(/viewBox="0 0 (\d+) (\d+)"/)?.slice(1, 3);
-    expect(dims(withoutRender)).toEqual(['420', '96']);
-    expect(dims(withConflictingRender)).toEqual(['420', '96']);
+    // No caller size -> default 420x96 (the frozen static fallback's own size).
+    expect(dims(DYNAMIC_GENERATORS.watercolor(STYLE, 'banner'))).toEqual(['420', '96']);
+    // Both measured dims honored exactly (e.g. a full-width header 1280x64);
+    // a conflicting `format` is ignored.
+    expect(dims(DYNAMIC_GENERATORS.watercolor(STYLE, 'banner', { width: 1280, height: 64, format: { width: 9, height: 9 } }))).toEqual(['1280', '64']);
+    // A lone dimension (width without height, or vice versa) is ignored -> default.
+    expect(dims(DYNAMIC_GENERATORS.watercolor(STYLE, 'banner', { width: 330 }))).toEqual(['420', '96']);
+    // Out-of-range (non-positive / above MAX_DIMENSION) falls back to default.
+    expect(dims(DYNAMIC_GENERATORS.watercolor(STYLE, 'banner', { width: 99999, height: 64 }))).toEqual(['420', '96']);
   });
 
   it('AC-UX-1: two successive calls with the same pinned style return DIFFERENT svg strings (genuine non-determinism, not just distinct object identity)', () => {
@@ -232,39 +237,44 @@ describe('S9 regression guard (AC-PERF-3): aquarelle lite-preset render knobs', 
   }
   const { style, render } = dynamicBanner;
 
-  // Loose enough to tolerate the engine's own continuous-parameter jitter
-  // (spreadH/spreadV/zoneSize/grain/bleed/accent/etc., all left unpinned by
-  // this preset) while still catching a real regression: measured empirically
-  // at 8.4-9.6 KB over 30 real draws (see manifest.ts header comment) — this
-  // outer band leaves comfortable margin on both sides of that measured
-  // range without approaching the ~6 KB undershoot or ~15 KB ceiling seen
-  // while tuning `smoothness`.
-  const MIN_BYTES = 6_000;
-  const MAX_BYTES = 15_360; // 15 KB ceiling per architecture.md's target
+  // The live full-header fill preset (zones:5 + halo:8) emits a DETERMINISTIC
+  // 20 <path> elements: zones*layers = 15 wash paths + one halo path per zone
+  // (5) = 20, zero <circle> (splatter:0). Measured empirically at 26.8-28.7 KB
+  // over 40 real draws at both the 420x96 default and a 1280-wide header; this
+  // band leaves comfortable margin for the engine's continuous-parameter
+  // jitter (spreadH/spreadV/zoneSize/grain/bleed/accent, all unpinned).
+  const DYN_PATHS = 20;
+  const DYN_MIN_BYTES = 20_000;
+  const DYN_MAX_BYTES = 34_000;
+  // The FROZEN static fallback is the legacy S8 zones:2 capture (6 paths,
+  // ~8.5 KB), intentionally NOT regenerated to the fuller live preset — it is
+  // preserved captured provenance. On a (rare) generation failure the header
+  // therefore shows the legacy sparse art stretched to full width.
+  const STATIC_PATHS = 6;
+  const STATIC_MIN_BYTES = 6_000;
+  const STATIC_MAX_BYTES = 15_360;
 
-  it('render knobs fix <path> count at exactly 6 (zones*layers) across repeated real draws, with zero <circle> elements', () => {
+  it('render knobs fix <path> count at exactly 20 (zones*layers + one halo path per zone) across repeated real draws, with zero <circle> elements', () => {
     for (let i = 0; i < 10; i++) {
       const svg = DYNAMIC_GENERATORS.watercolor(style, 'banner', render);
-      // exactly 6, not 6-or-9: pins darkening=1 against the undocumented duplicate-path-group
-      // branch — see manifest header for detail.
-      expect((svg.match(/<path /g) ?? []).length, `draw ${i}`).toBe(6);
+      expect((svg.match(/<path /g) ?? []).length, `draw ${i}`).toBe(DYN_PATHS);
       expect((svg.match(/<circle /g) ?? []).length, `draw ${i}`).toBe(0);
     }
   });
 
-  it('render knobs keep real output inside the tuned 6-15 KB size band across repeated real draws', () => {
+  it('render knobs keep real output inside the tuned ~20-34 KB size band across repeated real draws', () => {
     for (let i = 0; i < 10; i++) {
       const svg = DYNAMIC_GENERATORS.watercolor(style, 'banner', render);
-      expect(svg.length, `draw ${i}: ${svg.length} bytes`).toBeGreaterThanOrEqual(MIN_BYTES);
-      expect(svg.length, `draw ${i}: ${svg.length} bytes`).toBeLessThanOrEqual(MAX_BYTES);
+      expect(svg.length, `draw ${i}: ${svg.length} bytes`).toBeGreaterThanOrEqual(DYN_MIN_BYTES);
+      expect(svg.length, `draw ${i}: ${svg.length} bytes`).toBeLessThanOrEqual(DYN_MAX_BYTES);
     }
   });
 
-  it("aquarelle's frozen static treatments.banner fallback is structurally consistent with these render knobs (same path count, same size band) -- provenance (that the fallback was actually captured at these knobs) is established separately by the regenerate command documented in the manifest header comment, not by this assertion", () => {
+  it("aquarelle's frozen static treatments.banner fallback is the LEGACY zones:2 capture (6 paths, ~8.5 KB) — intentionally preserved and NOT regenerated to the fuller live preset, so it diverges from the dynamic knobs by design (the failure-only fallback shows the legacy art)", () => {
     const staticBanner = aquarelleManifest.treatments.banner;
-    expect((staticBanner.match(/<path /g) ?? []).length).toBe(6);
+    expect((staticBanner.match(/<path /g) ?? []).length).toBe(STATIC_PATHS);
     expect((staticBanner.match(/<circle /g) ?? []).length).toBe(0);
-    expect(staticBanner.length).toBeGreaterThanOrEqual(MIN_BYTES);
-    expect(staticBanner.length).toBeLessThanOrEqual(MAX_BYTES);
+    expect(staticBanner.length).toBeGreaterThanOrEqual(STATIC_MIN_BYTES);
+    expect(staticBanner.length).toBeLessThanOrEqual(STATIC_MAX_BYTES);
   });
 });

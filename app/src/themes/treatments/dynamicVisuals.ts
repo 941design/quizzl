@@ -81,18 +81,45 @@ type DynamicElement = NonNullable<DynamicTreatments['banner']>;
 export type StyleToken = DynamicElement['style'];
 
 /**
- * few.chat's fixed banner envelope (spec.md §6 / ink-channel-log.md IQ6):
- * height is always exactly 96 CSS px; width is pinned to the nominal target
- * (420px) within the 220-420px range `useThemeStyles.ts`'s `navBannerDecor()`
- * reserves via `clamp(220px, 33vw, 420px)`. The `watercolor` entry below
- * forces every call to this exact envelope — it is never influenced by a
- * caller's `render` knobs. `@rotheric/visuals`'s `Params.width`/`.height`
- * fields (when both present and valid) override its named `format` preset
- * lookup entirely (confirmed against the real package during S7), so
- * setting both here is sufficient to guarantee the exact envelope
- * regardless of any `format`/`width`/`height` a `render` knob might supply.
+ * few.chat's DEFAULT banner size (spec.md §6 / ink-channel-log.md IQ6): 420x96,
+ * used as the fallback when no caller size is supplied (the frozen static
+ * fallback's own dimensions).
+ *
+ * Both dimensions are now DYNAMIC (see `resolveBannerDims` below): the dynamic-
+ * banner theme (aquarelle) renders its watercolor as the FULL header
+ * background, so `useDynamicBanner`/Layout.tsx measure the header box's real
+ * width AND height and pass them through `render.width`/`render.height`, and
+ * the SVG is generated at exactly that size and shown 1:1 (no stretch). The
+ * previous 220-420px width clamp / fixed-96 height (the small corner-box
+ * "envelope") is GONE — a full-header banner is intentionally a much wider
+ * aspect than `@rotheric/visuals`'s verified 2.29:1-4.375:1 sweep range, so no
+ * aspect clamp is imposed here; only the engine's own MAX_DIMENSION guard
+ * (10000) applies. `@rotheric/visuals`'s `Params.width`/`.height` fields (when
+ * both present and valid) override its named `format` preset lookup entirely
+ * (confirmed against the real package during S7).
  */
 const BANNER_FORMAT = { width: 420, height: 96 } as const;
+/** The engine's own upper bound on a canvas dimension (Params.width/.height). */
+const MAX_DIMENSION = 10000;
+
+/**
+ * Resolve the SVG width/height from optional caller-supplied `render.width`
+ * and `render.height` (the header box's measured pixel size, threaded through
+ * by `useDynamicBanner` — Layout.tsx). BOTH must be finite, positive, and
+ * within `MAX_DIMENSION` to take effect (rounded); otherwise sizing falls back
+ * to `BANNER_FORMAT` (420x96). Both-or-neither mirrors the engine's own
+ * custom-size contract (a lone dimension is ignored).
+ */
+function resolveBannerDims(render?: Record<string, unknown>): { width: number; height: number } {
+  const w = render?.width;
+  const h = render?.height;
+  const valid = (v: unknown): v is number =>
+    typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= MAX_DIMENSION;
+  if (valid(w) && valid(h)) {
+    return { width: Math.round(w), height: Math.round(h) };
+  }
+  return { width: BANNER_FORMAT.width, height: BANNER_FORMAT.height };
+}
 
 // ---------------------------------------------------------------------------
 // DYNAMIC_GENERATORS — the public registry (architecture.md Seam Contracts:
@@ -111,14 +138,12 @@ const BANNER_FORMAT = { width: 420, height: 96 } as const;
  * into the real engine's params *before* the pinned `style` fields and the
  * forced envelope are applied, so a caller can tune composition but can
  * never override the pinned StyleToken identity (anchorHue/scheme/
- * saturation/lightness) or size (AC-STRUCT-3's stub test:
- * "forced size/format envelope is NOT overridable by a caller-supplied
- * render knob" — still holds against the real package because `style` and
- * `{ format, width, height }` are always assigned last, winning any
- * conflicting key `render` also sets). This does not extend to `Params`
- * fields StyleToken has no equivalent for: `render.baseColor` has no
- * `style.baseColor` counterpart to overwrite it, so it would survive the
- * assign and tint the paper fill.
+ * saturation/lightness). WIDTH and HEIGHT, however, are now caller-influenced
+ * on purpose: `render.width`/`render.height` (the header box's measured px
+ * size) set the SVG size via `resolveBannerDims`, so the full-header banner
+ * renders at exact size instead of a stretched fixed image. `render.baseColor`
+ * similarly survives (no `style.baseColor` counterpart) and tints/transparents
+ * the paper fill.
  *
  * Only `svg` is consumed from `renderSVG`'s `{ svg, id }` return contract —
  * `id` is a reproducibility handle few.chat has no use for (dynamicVisuals.ts
@@ -130,9 +155,11 @@ export const DYNAMIC_GENERATORS = {
     // `format: 'banner'` is a harmless, intentional fallback label — with
     // both `width` and `height` present, the package's own Params contract
     // has them override the named `format` preset lookup entirely, so this
-    // key is never actually consulted. Kept for readability/self-description
-    // of the envelope, not because it does anything.
-    Object.assign(p, render, style, { format: 'banner', width: BANNER_FORMAT.width, height: BANNER_FORMAT.height });
+    // key is never actually consulted. Kept for readability/self-description.
+    // `width`/`height` are resolved from optional `render.width`/`render.height`
+    // (the header box's measured size), defaulting to 420x96. Both are assigned
+    // LAST so they win any conflicting key `render`/`style` also set.
+    Object.assign(p, render, style, { format: 'banner', ...resolveBannerDims(render) });
     return renderSVG({ params: p }).svg;
   },
 } satisfies Record<string, (style: StyleToken, kind: 'banner', render?: Record<string, unknown>) => string>;
