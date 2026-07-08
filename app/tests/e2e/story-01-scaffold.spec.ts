@@ -48,4 +48,24 @@ test.describe('Story 01 - Project Scaffold and Routing', () => {
     await page.goto('/settings');
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   });
+
+  test('imprint footer is pinned to the bottom of the viewport on a short page', async ({ page }) => {
+    // A tall viewport guarantees the home page content is shorter than the
+    // screen, so a footer in normal flow would float up under the content.
+    // The sticky-footer layout must keep it at the very bottom instead.
+    await page.setViewportSize({ width: 1280, height: 1400 });
+    await page.goto('/');
+
+    const link = page.getByTestId('footer-imprint-link');
+    await expect(link).toBeVisible();
+
+    const footer = page.locator('footer');
+    const footerBox = await footer.boundingBox();
+    const viewportHeight = page.viewportSize()!.height;
+
+    // The footer's bottom edge sits within a couple of pixels of the viewport
+    // bottom — i.e. it is pinned, not floating just below short content.
+    expect(footerBox).not.toBeNull();
+    expect(footerBox!.y + footerBox!.height).toBeGreaterThan(viewportHeight - 2);
+  });
 });

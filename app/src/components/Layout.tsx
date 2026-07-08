@@ -84,7 +84,9 @@ export default function Layout({ children }: LayoutProps) {
   }, [groups, pubkeyHex, ready]);
 
   return (
-    <Box minH="100vh" bg="appBg">
+    // Flex column + a growing <main> pins the footer to the bottom of the
+    // viewport even when the page content is short (sticky-footer pattern).
+    <Box minH="100vh" bg="appBg" display="flex" flexDirection="column">
       <DirectMessageNotificationsWatcher />
       <IncomingCallWatcher />
       <IncomingCallModal />
@@ -376,14 +378,14 @@ export default function Layout({ children }: LayoutProps) {
       {contentPanelStyle ? (
         // Dark-background themes (e.g. minecraft) float content on a light
         // GUI panel so dark text tokens stay legible against the backdrop.
-        <Container maxW="container.xl" py={8} as="main">
+        <Container maxW="container.xl" py={8} as="main" flex="1">
           <Box data-testid="content-panel" {...contentPanelStyle} {...surfaceStyle}>
             <StorageWarning />
             {children}
           </Box>
         </Container>
       ) : (
-        <Container maxW="container.xl" py={8} as="main" {...surfaceStyle}>
+        <Container maxW="container.xl" py={8} as="main" flex="1" {...surfaceStyle}>
           <StorageWarning />
           {children}
         </Container>
