@@ -41,6 +41,26 @@ describe('parseStructured', () => {
     const result = parseStructured('{"type":"leave_intent"}');
     expect(result).toBeNull();
   });
+
+  it('returns group_renamed variant for valid input', () => {
+    const result = parseStructured('{"type":"group_renamed","name":"Book Club"}');
+    expect(result).toEqual({ type: 'group_renamed', name: 'Book Club' });
+  });
+
+  it('returns null for group_renamed missing name', () => {
+    const result = parseStructured('{"type":"group_renamed"}');
+    expect(result).toBeNull();
+  });
+
+  it('returns null for group_renamed empty name', () => {
+    const result = parseStructured('{"type":"group_renamed","name":""}');
+    expect(result).toBeNull();
+  });
+
+  it('returns null for group_renamed non-string name', () => {
+    const result = parseStructured('{"type":"group_renamed","name":42}');
+    expect(result).toBeNull();
+  });
 });
 
 describe('resolveCancellerDisplay — trust boundary', () => {

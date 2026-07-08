@@ -288,6 +288,8 @@ type MarmotContextValue = {
   declinePendingInvitation: (id: string) => Promise<void>;
   /** Grant admin status to a member. Idempotent; superset guard prevents demotion; retries once on epoch conflict. */
   grantAdmin: (groupId: string, pubkey: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Rename the group via an admin-only MLS metadata commit. Validates/​trims the name; no-op (changed:false) when unchanged. */
+  renameGroup: (groupId: string, name: string) => Promise<{ ok: boolean; error?: string; changed?: boolean }>;
   /** Synchronously returns hex pubkeys of members with a pending out-of-band leave event queued in pendingRemovalsRef. */
   getPendingRemovals: (groupId: string) => string[];
   /**
@@ -993,9 +995,22 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
           const mlsMembers = getGroupMembers(mlsGroup.state);
           const stored = groups.find((g) => g.id === group.id);
-          if (stored && membersChanged(stored.memberPubkeys, mlsMembers)) {
-            await persistGroup({ ...stored, memberPubkeys: mlsMembers });
-            await reloadGroups();
+          if (stored) {
+            // Sync BOTH membership and the group name from authoritative MLS state.
+            // The name may have changed while we were offline (an admin renamed the
+            // group); the overlay is the only thing the UI renders, so pull it here.
+            const mlsName = mlsGroup.groupData?.name;
+            const nameChanged =
+              typeof mlsName === 'string' && mlsName.length > 0 && mlsName !== stored.name;
+            const memberChange = membersChanged(stored.memberPubkeys, mlsMembers);
+            if (nameChanged || memberChange) {
+              await persistGroup({
+                ...stored,
+                ...(memberChange ? { memberPubkeys: mlsMembers } : {}),
+                ...(nameChanged ? { name: mlsName } : {}),
+              });
+              await reloadGroups();
+            }
           }
 
           const unsub = await subscribeToGroupMessages(
@@ -1010,9 +1025,24 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               // group metadata after any MLS commit, even when member count is unchanged.
               setGroupDataVersion((v) => v + 1);
               const stored = groups.find((g) => g.id === group.id);
-              if (stored && membersChanged(stored.memberPubkeys, currentMembers)) {
-                await persistGroup({ ...stored, memberPubkeys: currentMembers });
-                await reloadGroups();
+              if (stored) {
+                // Resync membership AND the group name from authoritative MLS
+                // metadata after any processed commit. A rename lands here for
+                // remote members: proposeUpdateMetadata({ name }) is silent on the
+                // timeline, so this is the path that makes a rename visible to
+                // everyone (the separate kind-9 notice is display-only).
+                const mlsName = mlsGroup.groupData?.name;
+                const nameChanged =
+                  typeof mlsName === 'string' && mlsName.length > 0 && mlsName !== stored.name;
+                const memberChange = membersChanged(stored.memberPubkeys, currentMembers);
+                if (nameChanged || memberChange) {
+                  await persistGroup({
+                    ...stored,
+                    ...(memberChange ? { memberPubkeys: currentMembers } : {}),
+                    ...(nameChanged ? { name: mlsName } : {}),
+                  });
+                  await reloadGroups();
+                }
               }
               // WORKAROUND: auto-commit unapplied proposals (e.g. leave
               // proposals) so all members can send application messages.
@@ -1527,6 +1557,38 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     [reloadGroups, markBackupDirty],
   );
 
+  // Rename a group. Pure impl in renameGroupImpl.ts; mirrors the grantAdmin
+  // boundary (dynamic import, Proposals injected). Updates the shared MLS
+  // metadata (admin-only commit) AND the local overlay for the acting admin.
+  // Remote members pick up the new name from the metadata resync in the
+  // commit-ingestion callback below.
+  const renameGroup = useCallback(
+    async (groupId: string, name: string): Promise<{ ok: boolean; error?: string; changed?: boolean }> => {
+      const client = clientRef.current;
+      if (!client) return { ok: false, error: 'Not initialized' };
+      try {
+        const { renameGroupImpl } = await import('@/src/lib/marmot/renameGroupImpl');
+        const { Proposals } = await import('@internet-privacy/marmot-ts');
+        return await renameGroupImpl(
+          {
+            getGroup: (id) => client.groups.get(id).catch(() => null),
+            Proposals,
+            getStoredGroup: (id) => groups.find((g) => g.id === id),
+            persistGroup,
+            reloadGroups,
+            markBackupDirty,
+          },
+          groupId,
+          name,
+        );
+      } catch (err) {
+        console.error('[Marmot] renameGroup failed:', err);
+        return { ok: false, error: err instanceof Error ? err.message : 'generic' };
+      }
+    },
+    [groups, reloadGroups, markBackupDirty],
+  );
+
   // S3: Synchronous accessor for pending-removal pubkeys. Reads pendingRemovalsRef
   // without triggering a re-render or side-effect (AC-REMOVE-1, architecture.md §pendingRemovalsRef).
   const getPendingRemovals = useCallback(
@@ -1662,6 +1724,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       acceptPendingInvitation,
       declinePendingInvitation,
       grantAdmin,
+      renameGroup,
       getPendingRemovals,
       republishDiscoverability,
       knownPeersRevision,
@@ -1696,6 +1759,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       acceptPendingInvitation,
       declinePendingInvitation,
       grantAdmin,
+      renameGroup,
       getPendingRemovals,
       republishDiscoverability,
       knownPeersRevision,
@@ -1741,6 +1805,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   acceptPendingInvitation: NOOP_ASYNC,
   declinePendingInvitation: NOOP_ASYNC,
   grantAdmin: async () => ({ ok: false, error: 'not_ready' }),
+  renameGroup: async () => ({ ok: false, error: 'not_ready' }),
   getPendingRemovals: () => [],
   republishDiscoverability: NOOP_ASYNC,
   knownPeersRevision: 0,

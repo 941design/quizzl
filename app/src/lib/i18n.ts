@@ -201,6 +201,12 @@ type Copy = {
     cancelInviteAnnouncementWarning: string;
     cancelledByAnnouncement: (member: string, canceller: string) => string;
     leftGroup: (member: string) => string;
+    renameGroupButton: string;
+    renameGroupSave: string;
+    renameGroupCancel: string;
+    renameGroupSuccess: string;
+    renameGroupError: string;
+    renamedGroupAnnouncement: (actor: string, name: string) => string;
     makeAdminButton: string;
     makeAdminTitle: string;
     makeAdminBody: string;
@@ -686,6 +692,12 @@ const copy: Record<LanguageCode, Copy> = {
       cancelInviteAnnouncementWarning: 'Invitation cancelled, but the group chat could not be notified',
       cancelledByAnnouncement: (member: string, canceller: string) => `${member} was uninvited by ${canceller}`,
       leftGroup: (member: string) => `${member} left the group`,
+      renameGroupButton: 'Rename group',
+      renameGroupSave: 'Save name',
+      renameGroupCancel: 'Cancel rename',
+      renameGroupSuccess: 'Group renamed',
+      renameGroupError: 'Failed to rename group. Please try again.',
+      renamedGroupAnnouncement: (actor: string, name: string) => `${actor} renamed the group to “${name}”`,
       makeAdminButton: 'Make Admin',
       makeAdminTitle: 'Make Admin?',
       makeAdminBody: 'This cannot be undone. Admins can invite members, accept join requests, cancel invitations, and grant admin to others.',
@@ -1155,6 +1167,12 @@ const copy: Record<LanguageCode, Copy> = {
       cancelInviteAnnouncementWarning: 'Einladung zurückgezogen, aber der Gruppenchat konnte nicht benachrichtigt werden',
       cancelledByAnnouncement: (member: string, canceller: string) => `${member} wurde von ${canceller} ausgeladen`,
       leftGroup: (member: string) => `${member} hat die Gruppe verlassen`,
+      renameGroupButton: 'Gruppe umbenennen',
+      renameGroupSave: 'Namen speichern',
+      renameGroupCancel: 'Umbenennen abbrechen',
+      renameGroupSuccess: 'Gruppe umbenannt',
+      renameGroupError: 'Gruppe konnte nicht umbenannt werden. Bitte erneut versuchen.',
+      renamedGroupAnnouncement: (actor: string, name: string) => `${actor} hat die Gruppe in „${name}“ umbenannt`,
       makeAdminButton: 'Als Admin festlegen',
       makeAdminTitle: 'Als Admin festlegen?',
       makeAdminBody: 'Das kann nicht rückgängig gemacht werden. Admins können Mitglieder einladen, Beitrittsanfragen bestätigen, Einladungen zurückziehen und anderen Admin-Rechte erteilen.',

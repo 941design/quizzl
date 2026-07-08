@@ -7,6 +7,7 @@ import {
   VStack,
   HStack,
   Button,
+  Input,
   Divider,
   Badge,
   Alert,
@@ -58,7 +59,7 @@ function ChatSendMessageCapture({ sendMessageRef }: { sendMessageRef: React.Muta
 
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
-  const { groups, ready, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation, requestProfilesIfStale, grantAdmin, getPendingRemovals } = useMarmot();
+  const { groups, ready, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation, requestProfilesIfStale, grantAdmin, renameGroup, getPendingRemovals } = useMarmot();
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const signer = useMemo(
     () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
@@ -149,6 +150,69 @@ function GroupDetailView({ id }: { id: string }) {
       });
     }
   }, [group, grantAdmin, toast, copy.groups]);
+
+  // Inline group-rename (admin-only). The pencil swaps the heading for an input;
+  // saving commits the new name to shared MLS metadata, then posts an in-chat
+  // notice via the same sendMessage-backed closure used for other announcements.
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [renaming, setRenaming] = useState(false);
+
+  const startRename = useCallback(() => {
+    if (!group) return;
+    setNameDraft(group.name);
+    setEditingName(true);
+  }, [group]);
+
+  const cancelRename = useCallback(() => {
+    setEditingName(false);
+  }, []);
+
+  const handleRename = useCallback(async () => {
+    if (!group) return;
+    const trimmed = nameDraft.trim();
+    // No-op: empty or unchanged relative to the displayed name — just close.
+    if (!trimmed || trimmed === group.name) {
+      setEditingName(false);
+      return;
+    }
+    setRenaming(true);
+    try {
+      const result = await renameGroup(group.id, trimmed);
+      if (result.ok) {
+        setEditingName(false);
+        if (result.changed) {
+          // Fire-and-forget in-chat notice (optimistically appended for the
+          // actor by sendMessage; remote members render it on receipt).
+          void sendAnnouncementRef.current?.(
+            JSON.stringify({ type: 'group_renamed', name: trimmed }),
+          );
+        }
+        toast({
+          title: copy.groups.renameGroupSuccess,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: copy.groups.renameGroupError,
+          status: 'error',
+          duration: 4000,
+          isClosable: true,
+        });
+      }
+    } catch {
+      toast({
+        title: copy.groups.renameGroupError,
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setRenaming(false);
+    }
+  }, [group, nameDraft, renameGroup, toast, copy.groups]);
 
   useEffect(() => {
     if (!ready) return;
@@ -259,9 +323,62 @@ function GroupDetailView({ id }: { id: string }) {
                 ← {copy.groups.navLabel}
               </Button>
             </NextLink>
-            <Heading as="h1" size="xl">
-              {group.name}
-            </Heading>
+            {editingName ? (
+              <HStack spacing={2} align="center">
+                <Input
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleRename();
+                    if (e.key === 'Escape') cancelRename();
+                  }}
+                  maxLength={64}
+                  size="lg"
+                  autoFocus
+                  bg="surfaceBg"
+                  maxW="360px"
+                  aria-label={copy.groups.createGroupNameLabel}
+                  data-testid="rename-group-input"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => void handleRename()}
+                  isLoading={renaming}
+                  isDisabled={!nameDraft.trim() || nameDraft.trim() === group.name}
+                  aria-label={copy.groups.renameGroupSave}
+                  data-testid="rename-group-save"
+                >
+                  ✓
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={cancelRename}
+                  isDisabled={renaming}
+                  aria-label={copy.groups.renameGroupCancel}
+                  data-testid="rename-group-cancel"
+                >
+                  ✕
+                </Button>
+              </HStack>
+            ) : (
+              <HStack spacing={1} align="center">
+                <Heading as="h1" size="xl">
+                  {group.name}
+                </Heading>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={startRename}
+                    aria-label={copy.groups.renameGroupButton}
+                    data-testid="rename-group-btn"
+                  >
+                    ✎
+                  </Button>
+                )}
+              </HStack>
+            )}
             <HStack mt={1} spacing={2}>
               <Badge colorScheme="brand" variant="subtle">
                 {copy.groups.memberCount(memberCount)}
