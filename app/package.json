@@ -55,6 +55,7 @@
     "fake-indexeddb": "^6.2.5",
     "typescript": "5.9.3",
     "vitest": "^4.0.18",
+    "wrangler": "4.108.0",
     "zod": "4.4.3"
   }
 }

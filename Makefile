@@ -22,7 +22,7 @@ PLAYWRIGHT_STAMP := $(PLAYWRIGHT_BROWSERS_PATH)/.installed_$(shell uname -s)-$(s
 -include .cloudflare
 export
 
-.PHONY: help test build test-unit test-coverage test-e2e test-e2e-all test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deploy deploy-check ensure-deps ensure-playwright
+.PHONY: help test build test-unit test-coverage test-e2e test-e2e-all test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deps deploy deploy-check ensure-deps ensure-playwright
 
 # Default target
 .DEFAULT_GOAL := help
@@ -71,6 +71,16 @@ install: clean ## Install dependencies (fresh for current OS/arch)
 	@touch $(PLATFORM_STAMP)
 	@echo "[make] Installed for $$(uname -s)-$$(uname -m)"
 
+## Reconcile package-lock.json after editing app/package.json dependencies.
+# `install`/`ensure-deps` use `npm ci`, which installs strictly from the lock and
+# FAILS when package.json has changed (e.g. a dependency was added). Run this once
+# after editing dependencies to update the lock and node_modules — never `npm
+# install` by hand. Stamps the platform so the next `make` doesn't force a reinstall.
+deps: ## Update lockfile + install after changing app/package.json dependencies
+	cd $(APP_DIR) && npm install
+	@touch $(PLATFORM_STAMP)
+	@echo "[make] Lockfile reconciled and deps installed for $$(uname -s)-$$(uname -m)"
+
 ## Remove node_modules and build artifacts to avoid cross-arch issues
 clean: ## Remove node_modules and build artifacts
 	rm -rf $(APP_DIR)/node_modules $(APP_DIR)/.next $(APP_DIR)/out test-results/
@@ -86,10 +96,18 @@ build: ensure-deps ## Build for production (static export)
 # banner/emoji/notification-bell) → groups/relay e2e. Folding test-e2e-fast in
 # closes the gap where a regression in the fast-suite story paths shipped without
 # any aggregate Make target catching it.
-test: test-unit test-e2e-fast test-e2e ## Run all tests (unit + fast e2e + groups/relay e2e)
+test: test-unit test-e2e-all ## Run all tests (unit + FULL e2e suite) — the definitive gate
 
-## Run both e2e modes back-to-back (fast non-relay + groups/relay), no unit
-test-e2e-all: test-e2e-fast test-e2e ## Run the full e2e suite (both modes)
+# ── E2E GATE ────────────────────────────────────────────────────────────────
+# `test-e2e-all` is THE definitive e2e gate: it runs the complete 48-test suite
+# (10 non-relay + 38 groups/relay). A feature or bug fix is not "e2e-verified"
+# unless this target (or `make test`) passes end to end.
+#
+# Everything below it — test-e2e-fast, test-e2e-groups, test-e2e-image-sharing,
+# or any filtered `run-e2e.mjs <pattern>` invocation — is a DEV-ITERATION AID
+# that runs a subset. A green subset is NOT an e2e pass. See CLAUDE.md "E2E gate".
+## Run the full e2e suite (both modes) — the definitive e2e gate
+test-e2e-all: test-e2e-fast test-e2e ## Run the FULL e2e suite (48 tests, both modes) — the e2e gate
 
 ## Run unit tests (Vitest)
 test-unit: ensure-deps ## Run unit tests (Vitest)
@@ -109,7 +127,9 @@ test-e2e: ensure-playwright ## Run all Playwright E2E tests (with relay)
 	cd $(APP_DIR) && E2E_GROUPS=1 node scripts/run-e2e.mjs
 
 ## Run fast Playwright E2E tests (without relay)
-test-e2e-fast: ensure-playwright ## Run fast Playwright E2E tests (without relay)
+test-e2e-fast: ensure-playwright ## PARTIAL dev aid: 10 non-relay tests — NOT the e2e gate (use test-e2e-all)
+	@case " $(MAKECMDGOALS) " in *" test "*|*test-e2e-all*) : ;; *) \
+	  printf '\033[33m⚠ Partial e2e run: 10 of 48 tests (non-relay only). This is NOT an e2e pass.\n  Definitive gate: make test-e2e-all (or make test)\033[0m\n' ;; esac
 	cd $(APP_DIR) && node scripts/run-e2e.mjs
 
 ## E2E groups infrastructure
@@ -151,7 +171,7 @@ deploy-check: ## Verify deployment prerequisites
 	@if [ -z "$(CLOUDFLARE_API_TOKEN)" ]; then echo "ERROR: CLOUDFLARE_API_TOKEN not set (create .cloudflare)"; exit 1; fi
 	@if [ ! -d $(LOCAL_DIST) ]; then echo "ERROR: Build output not found at $(LOCAL_DIST)/"; echo "Run 'make build' first"; exit 1; fi
 	@if [ ! -f $(LOCAL_DIST)/index.html ]; then echo "ERROR: index.html not found in $(LOCAL_DIST)/"; exit 1; fi
-	@if ! command -v npx >/dev/null 2>&1; then echo "ERROR: npx (Node.js) not installed"; exit 1; fi
+	@if [ ! -x $(APP_DIR)/node_modules/.bin/wrangler ]; then echo "ERROR: wrangler not installed (run 'make deps')"; exit 1; fi
 	@echo "All prerequisites satisfied."
 
 deploy: build deploy-check ## Deploy the app to production (Cloudflare Pages → few.chat)
@@ -159,7 +179,7 @@ deploy: build deploy-check ## Deploy the app to production (Cloudflare Pages →
 	# No positional output dir: wrangler.toml (pages_build_output_dir = app/out) is
 	# the source of truth, and dropping the arg is what makes wrangler also compile
 	# the repo-root functions/ dir and attach the R2 binding for /assets/*.
-	@npx --yes wrangler@latest pages deploy \
+	@$(APP_DIR)/node_modules/.bin/wrangler pages deploy \
 		--project-name=$(FEW_PROJECT) --branch=main --commit-dirty=true
 	@echo ""
 	@echo "Deployment complete!"
