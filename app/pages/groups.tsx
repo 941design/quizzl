@@ -37,7 +37,8 @@ import PendingRequestsSection from '@/src/components/groups/PendingRequestsSecti
 import PendingInvitations from '@/src/components/groups/PendingInvitations';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
 import GroupChat from '@/src/components/groups/GroupChat';
-import { GroupCallToolbar } from '@/src/components/calls/CallToolbar';
+// Voice/video calls temporarily disabled — icons commented out, feature code retained.
+// import { GroupCallToolbar } from '@/src/components/calls/CallToolbar';
 import { ChatStoreProvider, useChatStore } from '@/src/context/ChatStoreContext';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { PollStoreProvider } from '@/src/context/PollStoreContext';
@@ -453,6 +454,7 @@ function GroupDetailView({ id }: { id: string }) {
                 {copy.groups.chatHeading}
               </Heading>
               <HStack spacing={2}>
+                {/* Voice/video call icons temporarily disabled (feature code retained).
                 {pubkeyHex && (
                   <GroupCallToolbar
                     groupId={group.id}
@@ -460,6 +462,7 @@ function GroupDetailView({ id }: { id: string }) {
                     ownPubkeyHex={pubkeyHex}
                   />
                 )}
+                */}
                 <Button
                   size="xs"
                   variant="ghost"

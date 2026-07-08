@@ -50,7 +50,8 @@ async function remoteFrameWidth(page: Page): Promise<number> {
   });
 }
 
-test.describe.serial('Call: video frames flow both ways', () => {
+// Skipped: voice/video call UI icons are temporarily disabled (feature code retained).
+test.describe.serial.skip('Call: video frames flow both ways', () => {
   test.beforeAll(async () => {
     await computeTestKeypairs();
   });

@@ -26,7 +26,8 @@ import ThemeIcon from '@/src/components/ThemeIcon';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import ContactChat from '@/src/components/contacts/ContactChat';
 import AddContactModal from '@/src/components/contacts/AddContactModal';
-import { ContactCallToolbar } from '@/src/components/calls/CallToolbar';
+// Voice/video calls temporarily disabled — icons commented out, feature code retained.
+// import { ContactCallToolbar } from '@/src/components/calls/CallToolbar';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
@@ -340,7 +341,9 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
             </Text>
           </Box>
           <HStack spacing={2}>
+            {/* Voice/video call icons temporarily disabled (feature code retained).
             <ContactCallToolbar peerPubkeyHex={contact.pubkeyHex} />
+            */}
             <Button
               size="sm"
               variant="outline"
