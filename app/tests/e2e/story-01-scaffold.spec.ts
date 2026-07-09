@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Story 01 - Project Scaffold and Routing', () => {
   test('home page loads with correct title and navigation', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/few chat/i);
+    await expect(page).toHaveTitle(/few\.chat/i);
     await expect(page.getByRole('heading', { name: /Welcome to Few/i })).toBeVisible();
     const subheading = page.getByTestId('home-subheading');
     await expect(subheading).toBeVisible();

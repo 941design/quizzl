@@ -1,4 +1,4 @@
-# Architecture — Few Chat Domain Rebrand
+# Architecture — few.chat Domain Rebrand
 
 ## Paradigm
 

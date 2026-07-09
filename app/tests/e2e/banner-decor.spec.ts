@@ -215,7 +215,7 @@ test.describe('Nav banner decoration', () => {
     const scrim = page.getByTestId('nav-logo-scrim');
     await expect(scrim).toBeVisible();
 
-    const logoText = scrim.getByText('few chat', { exact: false });
+    const logoText = scrim.getByText('few.chat', { exact: false });
     await expect(logoText).toBeVisible();
   });
 

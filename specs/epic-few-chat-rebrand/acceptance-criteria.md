@@ -1,4 +1,4 @@
-# Few Chat Domain Rebrand & Migration — Acceptance Criteria
+# few.chat Domain Rebrand & Migration — Acceptance Criteria
 
 ## Known TAGs
 

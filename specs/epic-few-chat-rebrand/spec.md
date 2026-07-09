@@ -1,4 +1,4 @@
-# Few Chat Domain Rebrand & Migration
+# few.chat Domain Rebrand & Migration
 
 **Status:** Proposed
 **Author:** domain-move execution (2026-07-01)
