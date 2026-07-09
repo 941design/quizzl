@@ -97,9 +97,6 @@ type Copy = {
     showQr: string;
     qrModalTitle: string;
     qrGenerationError: string;
-    copyCardLink: string;
-    copiedCardLink: string;
-    shareCardError: string;
     backupHeading: string;
     backupDescription: string;
     generatePhrase: string;
@@ -319,6 +316,13 @@ type Copy = {
     backLabel: string;
     copyNpub: string;
     copiedNpub: string;
+    shareCardHeading: string;
+    shareCardDescription: string;
+    shareCardButton: string;
+    shareCardTitle: string;
+    copyCardLink: string;
+    copiedCardLink: string;
+    shareCardError: string;
     sendDm: string;
     archiveAction: string;
     unarchiveAction: string;
@@ -602,12 +606,9 @@ const copy: Record<LanguageCode, Copy> = {
       npubLabel: 'Your public key (npub)',
       copyNpub: 'Copy npub',
       copiedNpub: 'Copied!',
-      showQr: 'Share contact card',
-      qrModalTitle: 'Share Contact Card',
+      showQr: 'Show QR',
+      qrModalTitle: 'Npub QR Code',
       qrGenerationError: 'Failed to generate QR code.',
-      copyCardLink: 'Copy card link',
-      copiedCardLink: 'Copied!',
-      shareCardError: 'Failed to build the share card. Please try again.',
       backupHeading: 'Back Up Your Identity',
       backupDescription:
         'Generate a recovery phrase to restore your identity if you clear browser data.',
@@ -820,6 +821,14 @@ const copy: Record<LanguageCode, Copy> = {
       backLabel: 'Back',
       copyNpub: 'Copy',
       copiedNpub: 'Copied!',
+      shareCardHeading: 'Share your contact card',
+      shareCardDescription:
+        'Share a signed link that adds you by name — no relay, no public profile broadcast. Others open it or scan the QR to add you.',
+      shareCardButton: 'Share contact card',
+      shareCardTitle: 'Share Contact Card',
+      copyCardLink: 'Copy card link',
+      copiedCardLink: 'Copied!',
+      shareCardError: 'Failed to build the share card. Please try again.',
       sendDm: 'Send message',
       archiveAction: 'Hide contact',
       unarchiveAction: 'Unarchive contact',
@@ -1089,12 +1098,9 @@ const copy: Record<LanguageCode, Copy> = {
       npubLabel: 'Dein öffentlicher Schlüssel (npub)',
       copyNpub: 'npub kopieren',
       copiedNpub: 'Kopiert!',
-      showQr: 'Kontaktkarte teilen',
-      qrModalTitle: 'Kontaktkarte teilen',
+      showQr: 'QR zeigen',
+      qrModalTitle: 'Npub-QR-Code',
       qrGenerationError: 'QR-Code konnte nicht erstellt werden.',
-      copyCardLink: 'Kartenlink kopieren',
-      copiedCardLink: 'Kopiert!',
-      shareCardError: 'Kartenerstellung fehlgeschlagen. Bitte erneut versuchen.',
       backupHeading: 'Identität sichern',
       backupDescription:
         'Erstelle eine Wiederherstellungsphrase, um deine Identität bei gelöschten Browser-Daten zurückzugewinnen.',
@@ -1306,6 +1312,14 @@ const copy: Record<LanguageCode, Copy> = {
       backLabel: 'Zurück',
       copyNpub: 'Kopieren',
       copiedNpub: 'Kopiert!',
+      shareCardHeading: 'Kontaktkarte teilen',
+      shareCardDescription:
+        'Teile einen signierten Link, der dich mit Namen hinzufügt — kein Relay, keine öffentliche Profilübertragung. Andere öffnen ihn oder scannen den QR-Code, um dich hinzuzufügen.',
+      shareCardButton: 'Kontaktkarte teilen',
+      shareCardTitle: 'Kontaktkarte teilen',
+      copyCardLink: 'Kartenlink kopieren',
+      copiedCardLink: 'Kopiert!',
+      shareCardError: 'Kartenerstellung fehlgeschlagen. Bitte erneut versuchen.',
       sendDm: 'Nachricht senden',
       archiveAction: 'Kontakt ausblenden',
       unarchiveAction: 'Kontakt wieder einblenden',

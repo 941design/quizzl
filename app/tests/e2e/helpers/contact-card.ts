@@ -77,15 +77,15 @@ export async function newAnonymousContext(
 }
 
 /**
- * Drive the real Settings "Share contact card" action (S6, AC-UX-4) end to
- * end and return the resulting onboarding URL
- * (`https://few.chat/add#c=<payload>`) read from the DOM. `next dev` compiles
- * `/settings` on first visit, so this allows extra time for that.
+ * Drive the real Profile "Share contact card" action (AC-UX-4) end to end and
+ * return the resulting onboarding URL (`https://few.chat/add#c=<payload>`)
+ * read from the DOM. `next dev` compiles `/profile` on first visit, so this
+ * allows extra time for that.
  */
 export async function getShareCardLink(page: Page): Promise<string> {
-  await page.goto('/settings');
-  await expect(page.getByTestId('identity-npub-display')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('show-own-npub-qr-btn').click();
+  await page.goto('/profile');
+  await expect(page.getByTestId('profile-share-card-btn')).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId('profile-share-card-btn').click();
   await expect(page.getByTestId('npub-qr-modal-display')).toBeVisible();
   const valueEl = page.getByTestId('npub-qr-modal-value');
   await expect(valueEl).toBeVisible();

@@ -22,15 +22,18 @@
  *     success copy for the card-import confirmation/error path (asserted
  *     below too, since AC-INTL-1 names "import confirmation/errors" and S7's
  *     own /add page reuses these same keys — see pages/add.tsx).
- *   - S6 (share-contact-card):        identity.copyCardLink, copiedCardLink,
- *     shareCardError (new); identity.showQr, qrModalTitle (retexted from the
- *     old "Show QR code" bare-npub copy to the card-share wording).
+ *   - S6 (share-contact-card):        profile.shareCardHeading,
+ *     shareCardDescription, shareCardButton, shareCardTitle, copyCardLink,
+ *     copiedCardLink, shareCardError (all new; the share action lives on the
+ *     Profile page — the Settings page keeps a plain bare-npub QR, so
+ *     identity.showQr/qrModalTitle reverted to their pre-epic wording and are
+ *     no longer epic-owned keys).
  *   - S7 (add-onboarding-page):       add.pageTitle, add.heading,
  *     add.settingUp, add.noCard, add.goToContacts (all new).
  *
  * Every key below is referenced via `useCopy()` at its call site — see
- * app/pages/profile.tsx (settings.nicknameLimit), app/pages/settings.tsx /
- * NpubQrModal.tsx (identity.*), NpubQrScanner.tsx (groups.qrStartingCamera),
+ * app/pages/profile.tsx (settings.nicknameLimit, profile.shareCard*),
+ * NpubQrScanner.tsx (groups.qrStartingCamera),
  * AddContactModal.tsx (contacts.addContact*), and app/pages/add.tsx (add.*)
  * — none of these components hardcode the literal string.
  */
@@ -38,7 +41,7 @@ import { describe, it, expect } from 'vitest';
 import { getCopy } from '@/src/lib/i18n';
 
 type RequiredKey = {
-  section: 'settings' | 'identity' | 'groups' | 'contacts' | 'add';
+  section: 'settings' | 'identity' | 'groups' | 'contacts' | 'add' | 'profile';
   key: string;
   /** 'fn' keys take a sample arg when invoked to obtain the resulting string. */
   kind: 'string' | 'fn';
@@ -57,12 +60,16 @@ const REQUIRED_KEYS: RequiredKey[] = [
   { section: 'contacts', key: 'addContactErrorAlreadyExists', kind: 'string' },
   { section: 'contacts', key: 'addContactErrorGeneric', kind: 'string' },
 
-  // S6 — share contact card (new + retexted)
-  { section: 'identity', key: 'showQr', kind: 'string' },
-  { section: 'identity', key: 'qrModalTitle', kind: 'string' },
-  { section: 'identity', key: 'copyCardLink', kind: 'string' },
-  { section: 'identity', key: 'copiedCardLink', kind: 'string' },
-  { section: 'identity', key: 'shareCardError', kind: 'string' },
+  // S6 — share contact card (lives on the Profile page; Settings keeps a plain
+  // bare-npub QR, so identity.showQr/qrModalTitle reverted to their pre-epic
+  // wording and are no longer epic-owned keys).
+  { section: 'profile', key: 'shareCardHeading', kind: 'string' },
+  { section: 'profile', key: 'shareCardDescription', kind: 'string' },
+  { section: 'profile', key: 'shareCardButton', kind: 'string' },
+  { section: 'profile', key: 'shareCardTitle', kind: 'string' },
+  { section: 'profile', key: 'copyCardLink', kind: 'string' },
+  { section: 'profile', key: 'copiedCardLink', kind: 'string' },
+  { section: 'profile', key: 'shareCardError', kind: 'string' },
 
   // S7 — /add deep-link/onboarding page
   { section: 'add', key: 'pageTitle', kind: 'string' },
