@@ -1,0 +1,39 @@
+{
+  "module_name": "contactCardImport",
+  "purpose": "Storage-adapter over contactCache that turns a parsed contact-card profile (the ParseContactCardResult seam's `profile` field, produced by S1's parseContactCard) into a contactCache upsert via the existing writeContactEntry/readContactEntry, preserving any existing avatar and relying on writeContactEntry's own LWW comparison rather than reimplementing it. Also the story that asserts the epic's privacy-invariant ACs (AC-SEC-1/2) end-to-end.",
+  "purity_note": "Deliberately a NEW file (app/src/lib/contactCardImport.ts), separate from the pure contactCard.ts codec. architecture.md's module map lists contactCardImport as 'new or folded into contactCard' — folding it in would violate the same document's boundary rule that the pure card core 'MUST NOT import storage'. importCard needs contactCache (localStorage), so it is split into its own storage-adapter module that imports the pure codec's output shape but not contactCard.ts itself.",
+  "public_api": [
+    {
+      "name": "importCard",
+      "signature": "importCard(pubkeyHex: string, profile: { nickname: string; updatedAt: string }): ImportCardResult",
+      "description": "Upserts contactCache for pubkeyHex via writeContactEntry, with nickname = profile.nickname, updatedAt = profile.updatedAt (already ISO-8601 — this module does not re-derive from seconds, S1 owns that derivation), and avatar = readContactEntry(pubkeyHex)?.avatar ?? null (preserves any avatar populated by group profile sync; AC-CACHE-4). Delegates the LWW write decision entirely to writeContactEntry's existing updatedAt >= comparison (contactCache.ts:38) — never duplicates that comparison for the write path. Reports whether this call actually wrote (cached: true) or was a no-op because the existing entry's updatedAt was >= the incoming one (cached: false) by peeking the same predicate before calling writeContactEntry, purely to report the outcome; the write itself is fully owned by writeContactEntry."
+    },
+    {
+      "name": "ImportCardResult",
+      "signature": "type ImportCardResult = { pubkeyHex: string; cached: boolean }",
+      "description": "The S2->S4 and S2->S7 seam contract, frozen in stories.json's cross-story data-flow section and echoed by verification.json VQ-S2-007. `cached` genuinely reflects whether contactCache was written on this call (false for the LWW-loses and idempotent-replay cases)."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "@/src/lib/contactCache (writeContactEntry, readContactEntry, CachedContact type)"
+  ],
+  "dependencies_forbidden": [
+    "react",
+    "@/src/lib/contactCard (no import needed; this module consumes the ParseContactCardResult profile shape structurally, not by importing the codec)",
+    "@nostr-dev-kit/ndk",
+    "@/src/context/MarmotContext",
+    "any relay/network client"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/cards/contactCardImport.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S4", "S7"]
+  }
+}

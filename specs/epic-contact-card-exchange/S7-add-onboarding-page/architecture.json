@@ -1,0 +1,48 @@
+{
+  "module_name": "add page",
+  "purpose": "New static top-level page app/pages/add.tsx that reads a contact card from window.location.hash (fragment, never a query param -- DD 9), and drives two modes: (a) visitor with an existing local identity -> the add completes as soon as the hash is read; (b) visitor with no local identity yet -> the app's existing auto-generated identity (NostrIdentityContext; no bespoke onboarding wizard exists or is needed) becomes available, at which point the SAME retained hash is re-resolved and the add completes. The page owns no parsing or cache-write logic itself -- it extracts the #c= payload string and hands it to S4's processContactInput exactly once, which internally owns the single parseContactCard call (S1) and S2's importCard. Also the story that lands the epic-wide AC-INTL-1 i18n completeness check across S3-S7.",
+  "public_api": [
+    {
+      "name": "AddPage (default export, app/pages/add.tsx)",
+      "signature": "export default function AddPage(): JSX.Element",
+      "description": "The static page component itself -- not imported by any other module (Next.js page convention). Reads window.location.hash inside a useEffect only (never in the render body), guarded so processContactInput/parseContactCard fires at most once per page load even across React re-renders or StrictMode double-invoke."
+    },
+    {
+      "name": "readLocationHash",
+      "signature": "readLocationHash(win: { location?: { hash?: string } } | undefined): string",
+      "description": "SSR-safe hash reader in app/src/lib/addDeepLink.ts. Takes an injectable window-like object so both branches (window present / absent) are directly unit-testable without jsdom (VQ-S7-001) -- the undefined branch is what a static-export build-time prerender pass would see if it reached this code."
+    },
+    {
+      "name": "extractCardPayloadFromHash",
+      "signature": "extractCardPayloadFromHash(hash: string): string | null",
+      "description": "Pure: extracts the `c=` payload from a location hash fragment such as \"#c=<base64url>\". Returns null for an absent marker or empty payload -- callers treat that as 'no card' without ever parsing or waiting on identity hydration."
+    },
+    {
+      "name": "resolveAddDeepLink",
+      "signature": "resolveAddDeepLink(hash: string, hydrated: boolean, ownPubkeyHex: string | null | undefined): AddDeepLinkOutcome",
+      "description": "The page's hash-parse-then-mode-branch core (VQ-S7-004). Returns { state: 'no_card' } | { state: 'awaiting_identity' } | ({ state: 'complete' } & AddContactSubmissionResult). Calls processContactInput (S4, AddContactModal.tsx) -- and therefore parseContactCard (S1) -- exactly once, only once hydrated is true; never re-parses the raw hash a second time (VQ-S7-002, architecture.md DD 1's single decode seam)."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "@/src/components/contacts/AddContactModal (processContactInput -- the S4 add-contact-flow seam this story drives, per architecture.md's own guidance: 'call processContactInput(payload, ownPubkeyHex) ONCE')",
+    "@/src/context/NostrIdentityContext (useNostrIdentity -- hydrated, pubkeyHex; the app's existing auto-generated-identity hydration signal, no bespoke onboarding UI needed)",
+    "@/src/context/MarmotContext (useMarmot -- notifyKnownPeersChanged, mirroring AddContactModal.tsx's own post-add call)",
+    "@/src/context/LanguageContext (useCopy)",
+    "@/src/lib/addDeepLink (new S7 helper: readLocationHash, extractCardPayloadFromHash, resolveAddDeepLink)",
+    "@/src/lib/i18n (add.* + reused contacts.addContact* keys)"
+  ],
+  "dependencies_forbidden": [
+    "add.tsx or addDeepLink.ts calling parseContactCard or importCard directly -- the single decode seam is processContactInput's internal call, never re-implemented or re-invoked here (architecture.md DD 1)",
+    "reading the card from router.query, a `?c=` query string, or any value that would appear in the Cloudflare Pages request path or a server log (AC-SEC-1 / VQ-S7-006) -- window.location.hash only",
+    "a `[param].tsx` dynamic path segment (CLAUDE.md static-export constraint) -- pages/add.tsx is a static top-level page"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/cards/addDeepLink.test.ts",
+    "app/tests/unit/cards/addPage.i18n.test.ts"
+  ]
+}

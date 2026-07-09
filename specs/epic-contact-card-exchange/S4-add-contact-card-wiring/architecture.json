@@ -1,0 +1,52 @@
+{
+  "module_name": "AddContactModal",
+  "purpose": "Route BOTH the typed/pasted npub-or-card input and the QR-scanned input through the single parseContactCard decode seam, then call the existing addContactByNpub (contact/knownPeers seeding, unchanged) plus S2's importCard (nickname cache population) independently of the add outcome. Widens the shared QR-scan seam (qr.ts normaliseNpubPayload's card-aware sibling, consumed by NpubQrScanner -> NpubQrModal) to accept a card link/payload alongside a bare npub, as the seam's first consumer, so S5 (group invite) reuses it without rebuilding it.",
+  "public_api": [
+    {
+      "name": "processContactInput",
+      "signature": "processContactInput(input: string, ownPubkeyHex: string | null | undefined): AddContactSubmissionResult",
+      "description": "Exported pure function from AddContactModal.tsx (this repo's hooks-via-pure-function-extraction testing convention -- no jsdom). Calls parseContactCard(input) first; a { error } result is treated as an add-failure ('invalid_npub') and addContactByNpub is never invoked (AC-PARSE-4 / VQ-S4-006, no silent bare-pubkey downgrade). On a successful parse, re-encodes pubkeyHex to an npub via pubkeyToNpub and calls the UNCHANGED addContactByNpub(npub, ownPubkeyHex). Independently of whether addContactByNpub returns ok or already_exists, calls importCard(pubkeyHex, profile) when the parsed result carries a profile (AC-UX-6: cache write is independent of the add outcome); a 'self' or a parse-error outcome never calls importCard. Both AddContactModal.handleAdd (paste path) and the widened NpubQrModal onScan handler (scan path, after the user reviews the pre-filled input and submits) call this same function, which is what makes AC-UX-2's 'identical outcome' true by construction rather than by parallel re-implementation."
+    },
+    {
+      "name": "AddContactSubmissionResult",
+      "signature": "type AddContactSubmissionResult = { ok: true; pubkeyHex: string; reactivated: boolean; cachedNickname: boolean } | { ok: false; error: 'invalid_npub' | 'self' | 'already_exists' }",
+      "description": "Local result type mirroring contacts.ts's AddContactResult error union (reused verbatim, not redefined) plus a cachedNickname flag reporting importCard's own cached outcome."
+    },
+    {
+      "name": "normaliseScanPayload",
+      "signature": "normaliseScanPayload(value: string): string | null",
+      "description": "New sibling of qr.ts's existing normaliseNpubPayload (which is left untouched -- it is still used, unmodified, by MarmotContext.inviteByNpub, an S5 concern out of this story's scope). Strips an optional 'nostr:' URI prefix (the one QR-only convention parseContactCard has no reason to know about) and then delegates ALL decode/validity logic to parseContactCard(stripped) -- returns the normalised string unchanged when parseContactCard succeeds (bare npub OR card link OR raw card payload), null when it returns { error }. Never re-implements card-byte parsing (architecture.md DD 1 / VQ-S4-002)."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "@/src/lib/contactCard (parseContactCard -- the single decode seam, S1)",
+    "@/src/lib/contactCardImport (importCard, S2)",
+    "@/src/lib/contacts (addContactByNpub, unchanged, S1-era module)",
+    "@/src/lib/nostrKeys (pubkeyToNpub)",
+    "@/src/context/LanguageContext (useCopy)",
+    "@/src/context/NostrIdentityContext (useNostrIdentity)",
+    "@/src/context/MarmotContext (useMarmot, for notifyKnownPeersChanged)",
+    "@/src/components/groups/NpubQrButton",
+    "@/src/components/groups/NpubQrModal",
+    "@/src/components/groups/NpubQrScanner",
+    "@/src/lib/qr (normaliseNpubPayload unchanged, normaliseScanPayload new)"
+  ],
+  "dependencies_forbidden": [
+    "inline card-byte parsing (base64url decode / header parsing) anywhere outside contactCard.ts",
+    "direct localStorage/contactCache writes outside importCard/writeContactEntry",
+    "@nostr-dev-kit/ndk or any relay client (privacy invariant -- zero relay events on this path)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/cards/addContactCardWiring.test.ts",
+    "app/tests/unit/qr.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S5"]
+  }
+}

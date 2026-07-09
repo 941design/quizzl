@@ -1,0 +1,194 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-09T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is there any placeholder or short-circuit in the production encode/decode/parse/sign/verify path in contactCard.ts — e.g. a canned signature, a hardcoded verifyEvent-always-true branch, or a stubbed getEventHash — rather than real calls to nostr-tools/pure's generateSecretKey/getPublicKey/finalizeEvent/getEventHash/verifyEvent? Show the exact import lines and call sites, and confirm the only stubbing anywhere is test-side stubbing of a remote signer's `sign`, never of the crypto primitives themselves."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does contactCard.ts import only pure utilities — hexToBytes/bytesToHex/npubToPubkeyHex/pubkeyToNpub from nostrKeys.ts and functions from nostr-tools/pure — with zero imports of React, contactCache, NDK, or MarmotContext, per architecture.md's rule that the pure core module MUST NOT import those?"
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `contactCard` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/cards/contactCard.test.ts cover round-trip determinism (including JSON-escaped names and an unpaired-surrogate name), the tamper-and-reject cases (name byte altered, pubkey altered, sig produced by a different key), the strict-header rejection matrix (version>0, HAS_AVATAR set, reserved bits set), and the 32-UTF-8-byte codepoint-safe truncation boundary — each as a real unit test invoking the exported encodeCard/decodeCard/parseContactCard functions, not a test that reimplements the encode/decode logic inline to match whatever the component does?"
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the shipped contactCard.ts fulfill spec.md's 'Contact Card Format v1' section end-to-end, with no deviation between the documented byte layout / flag semantics and what encodeCard/decodeCard actually produce and accept?"
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Can a malformed or adversarial input — a truncated buffer, a name_len claiming more bytes than are present, or non-base64url garbage — cause parseContactCard or decodeCard to throw an uncaught exception, or to return a false-positive verified result, rather than a caught `{ error }` result?"
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PARSE-2",
+      "question": "Does parseContactCard's return value conform exactly to the declared ParseContactCardResult seam contract in every branch — `{ pubkeyHex: string }` for a bare npub with no profile field present at all, `{ pubkeyHex: string, profile: { nickname: string, updatedAt: string } }` for a valid card (updatedAt always an ISO-8601 string, never the raw created_at number or a numeric-seconds string), or `{ error: string }` for any failure — with no fourth shape ever returned and no field renamed? This is the single decode seam consumed by S2, S4, S5, and S7 — show the full return-type signature and a test asserting exhaustive membership across all three shapes."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-4",
+      "question": "Do encodeCard's payload output and buildShareUrl's shareUrl output conform exactly to the declared SignedCardPayload seam contract — payload as a base64url string (RFC 4648 §5, no padding) and shareUrl as `https://few.chat/add#c=<payload>` — with payload ≤ 180 characters and shareUrl ≤ 205 characters at the 32-byte name cap? Show the encodeCard + buildShareUrl production code and a test asserting both length bounds at the cap boundary; this is the seam S6 consumes for the share action."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-1",
+      "question": "Does encodeCard({ pubkeyHex, name }) followed by decodeCard yield the same pubkeyHex and name, with decoded version 0 and the SIGNED flag set? Show the production encode/decode code, the round-trip test exercising both functions against real byte buffers, and confirm the test is not a mock-spy proxy that stubs encodeCard or decodeCard rather than calling them."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-2",
+      "question": "Does the decoded card's byte layout match header(1) + pubkey(32) + created_at(4, uint32 BE) + name_len(1) + name(name_len) + sig(64) exactly, and is a payload whose length is inconsistent with name_len rejected as malformed? Show the layout-parsing production code, the test(s) asserting both the exact byte offsets and the malformed-length rejection against a real buffer, and confirm the test isn't a mock-spy proxy over the parser."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-3",
+      "question": "Does decodeCard reject a header whose version bits are > 0, whose HAS_AVATAR bit is set, or whose reserved flag bits are non-zero — rather than silently parsing it as v1? Show the strict-header-check production code, a parameterized test covering all three rejection conditions independently against real header bytes, and confirm the test is not a mock-spy proxy over the header check."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-4",
+      "question": "Does a signed card at the 32-UTF-8-byte name cap encode to a base64url payload of ≤ 180 characters, with the resulting onboarding URL ≤ 205 characters? Show the length-bound production math (fixed signed overhead + name), a boundary test at exactly the cap, and confirm the test measures the real encodeCard/buildShareUrl output rather than a precomputed expected string that never re-derives from the actual encoder."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-5",
+      "question": "Does the encoder truncate a name longer than 32 UTF-8 bytes on a codepoint boundary (never mid-character, never producing a broken multi-byte sequence) before signing? Show the truncation production code, a test using a multi-byte-character (e.g. emoji or umlaut) nickname that straddles the 32-byte boundary, and confirm the test asserts on the real encoder's output bytes, not a hand-truncated expected string that assumes the same bug the encoder might have."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-6",
+      "question": "Does encoding with the SIGNED flag unset (pubkey-only) then decoding yield `{ pubkeyHex }` with no profile field, and without requiring created_at, name, or sig to be present in the buffer? Show the unsigned-path production code, a round-trip test for the unsigned case, and confirm the test is not a mock-spy proxy that bypasses the real decodeCard branch logic."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SIG-1",
+      "question": "Does a freshly encoded signed card verify as a NIP-01 kind-0 event `{ pubkey, created_at, kind: 0, tags: [], content: CARD_CONTENT(name) }` via a real call to verifyEvent? Show the production event-reconstruction code, a test that signs and verifies a real card end-to-end, and confirm verifyEvent itself is not stubbed (only, at most, a remote signer's sign call may be stubbed in signer-mode tests elsewhere)."
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SIG-2",
+      "question": "Does altering a signed card's name bytes after signing cause verification to fail (and, at the decode/parse layer, produce an error result rather than a usable profile)? Show the tamper-and-reject test that flips bytes in a real encoded buffer (not a synthetic pre-built 'bad' object), following the profileSync.test.ts tamper pattern, and confirm it exercises the real verify path."
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SIG-3",
+      "question": "Does altering a signed card's pubkey bytes after signing cause verification to fail? Show the tamper-and-reject test that mutates the pubkey bytes of a real encoded buffer and asserts on the real decode/verify result, not a mocked verifyEvent return value."
+    },
+    {
+      "question_id": "VQ-S1-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SIG-4",
+      "question": "Does a card whose sig was produced by a key other than its stated pubkey fail verification? Show a test that signs with key A, substitutes pubkey B into the buffer (or vice versa), and asserts the real verify call rejects it — not a test that only asserts a mocked verifyEvent(false) return."
+    },
+    {
+      "question_id": "VQ-S1-019",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SIG-5",
+      "question": "Do encode and decode build CARD_CONTENT through one shared helper function (not two independently-written JSON-stringify call sites), and does the round-trip hold for names requiring JSON escaping (`\"`, `\\`), non-ASCII UTF-8 (German umlauts, emoji), and an unpaired surrogate (normalized or rejected at sign time, not silently mangled to U+FFFD)? Show the shared CARD_CONTENT helper's single definition, its two call sites, and the parameterized test covering all four name classes against the real encode/decode/sign/verify pipeline."
+    },
+    {
+      "question_id": "VQ-S1-020",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SIG-6",
+      "question": "Does verification attach a computed `id = getEventHash(event)` to the reconstructed kind-0 event before calling verifyEvent, and is there a test proving that an id-less reconstruction is NOT treated as verifiable (guarding against the always-false recipe where verifyEvent rejects every id-less event, which would make every card silently fail closed)? Show the id-attachment production line, and a test that deliberately omits id on one path and asserts the difference in outcome versus the id-attached path."
+    },
+    {
+      "question_id": "VQ-S1-021",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PARSE-1",
+      "question": "Given a bare valid npub1…, does parseContactCard return `{ pubkeyHex }` with the correctly decoded hex pubkey and no profile field at all (not `profile: undefined` masking as absent, but the key genuinely absent or the type asserting its absence)? Show the bare-npub branch production code, a test using a real npub string, and confirm the test is not a mock-spy proxy over npubToPubkeyHex."
+    },
+    {
+      "question_id": "VQ-S1-022",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PARSE-2",
+      "question": "Given a card link (…/add#c=<base64url>) with a valid signed card, does parseContactCard return `{ pubkeyHex, profile: { nickname, updatedAt } }` where nickname is the card name and updatedAt derives from created_at? Show the URL-fragment-extraction-then-decode production code, a test using a real signed card embedded in a real URL string, and confirm decodeCard/verifyEvent are genuinely invoked (not stubbed)."
+    },
+    {
+      "question_id": "VQ-S1-023",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PARSE-3",
+      "question": "Given a raw base64url card payload with no URL wrapper, does parseContactCard return the same `{ pubkeyHex, profile }` shape as for a card link? Show the raw-payload branch production code and a test that passes the bare payload string (no `…/add#c=` prefix) and asserts identical output to the card-link case, confirming both branches converge on the same decode logic rather than diverging implementations."
+    },
+    {
+      "question_id": "VQ-S1-024",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PARSE-4",
+      "question": "Given a signed card whose signature does not verify, does parseContactCard return an error result and never a usable pubkeyHex+profile pair — i.e. no silent downgrade to a bare-pubkey add? Show the failure-branch production code, a test using a tampered real card buffer, and confirm the test asserts the absence of a usable profile/pubkey pairing rather than only asserting an `error` key exists alongside a still-populated pubkeyHex."
+    },
+    {
+      "question_id": "VQ-S1-025",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PARSE-5",
+      "question": "Given input that is neither a valid npub nor a decodable card, does parseContactCard return an error result rather than throwing? Show the catch-all production branch, a test using garbage/empty/oversized input, and confirm the test calls the real parseContactCard inside a non-throwing assertion (e.g. expect(() => …).not.toThrow() plus a result-shape check), not a test that only checks a mocked function's declared return type."
+    },
+    {
+      "question_id": "VQ-S1-026",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "encodeCard validates its pubkeyHex argument with a 64-hex-character regex and throws before ever calling the signer or packing bytes (contactCard.ts assertPubkeyHex, called at the top of encodeCard) — a design choice added during implementation that is not itself named by any AC. Is this guard actually exercised by a real test (a malformed pubkeyHex passed to the real encodeCard, asserting the specific rejection), and does the throw happen strictly before signEvent is invoked (so a malformed caller input never reaches — or wastes — a remote NIP-46/07 signing round trip)?"
+    },
+    {
+      "question_id": "VQ-S1-027",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "encodeCard compares the signer's returned event.pubkey against the caller-supplied pubkeyHex and throws on mismatch (contactCard.ts encodeCard, after the signEvent call) — a defensive check added during implementation, not required by any single AC but relevant to how S6 will wire the active signer. Is there a real test proving this check fires (two distinct real keypairs, encodeCard called with one identity's pubkeyHex but the other's signer), and confirm the check does not mask a legitimate scenario — e.g. is there any signer mode in this codebase where the resolved pubkeyHex could legitimately differ from the signer's own key (multi-account, delegated signing), which this guard would incorrectly reject?"
+    },
+    {
+      "question_id": "VQ-S1-028",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "decodeCard's 'payload length inconsistent with name_len' branch (contactCard.ts:310-313) is exercised in the test suite only via a real encoded buffer with one byte added/removed (name_len=5, buffer off by exactly one byte). Is there a gap for a case where name_len itself is small (e.g. 0 or 1) but the trailing sig region is short by more than one byte, or where name_len is large-but-within-cap (e.g. 30) while the buffer was built for a different name_len — i.e. does the length check generalize correctly across the full name_len range, or was it validated at only one boundary value?"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-09T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the 32-UTF-8-byte cap enforcement at profile save a real byte-counting check (e.g. new TextEncoder().encode(value).length, or an equivalent genuine UTF-8 byte count), or a character-count / UTF-16-code-unit approximation that would under- or over-count multi-byte nicknames (German umlauts, emoji)?"
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the profile.tsx byte-cap check reuse a shared byte-length utility rather than re-deriving a second, possibly-divergent cap implementation — importing it from contactCard.ts if S1 exports one, or staying deliberately self-contained only if S1 exports none — per the Module Ownership rule against recreating logic another module owns?"
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `profile nickname cap` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Is there a unit test asserting the byte-cap validation at the boundary (31, 32, and 33 UTF-8 bytes, using a nickname containing a multi-byte character so the boundary is not accidentally aligned with a character count) that invokes the real validation function, rather than a test that reimplements byte counting inline to match whatever the component happens to do?"
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the profile-save validation actually block (or truncate) a save that exceeds 32 UTF-8 bytes end-to-end, matching spec.md's stated intent that post-cap nicknames never exceed 32 bytes — making S1's encoder-side truncation a migration backstop for legacy profiles, not the common path for newly-saved ones?"
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the byte-cap enforced at the actual save boundary (before the value is persisted, and before it could later be encoded into a signed card), rather than merely as an optional UI hint that can be bypassed via a fast form submit, IME composition/paste, or a programmatic state update that skips the input handler?"
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-7",
+      "question": "Does saving a nickname exceeding 32 UTF-8 bytes get prevented or truncated at the input, with a translated (en/de) message indicating the limit? Show the production validation code in profile.tsx, the corresponding en/de entries in app/src/lib/i18n.ts referenced via useCopy(), the test asserting the boundary behavior against the real validation function, and confirm the test drives the real component/validator rather than mocking it."
+    }
+  ]
+}

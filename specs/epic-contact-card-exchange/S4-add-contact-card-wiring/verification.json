@@ -1,0 +1,96 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-09T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does AddContactModal.handleAdd's card-population path genuinely call parseContactCard and importCard and act on their real return values, or does it short-circuit — e.g. a hardcoded nickname, or a branch that ignores parseContactCard's error result and still calls addContactByNpub as if the card had parsed?"
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does AddContactModal route every entry point — typed/pasted input AND QR-scanned input — through the single parseContactCard seam, with no inline card-byte parsing anywhere in AddContactModal.tsx, NpubQrScanner.tsx, or NpubQrModal.tsx, per architecture.md's DD 1 single-decode-seam rule?"
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `AddContactModal` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Are there tests for all four cases — paste-a-card-link add (nickname populated), QR-scan-a-card add (identical outcome to paste), bare-npub add (no nickname, fallback preserved), and already-existing-contact plus a newer card (nickname refreshed via importCard despite addContactByNpub returning already_exists) — each driving the real handleAdd/onScan handlers rather than mocking the card-handling branch of addContactByNpub itself?"
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the widened NpubQrScanner/NpubQrModal onScan contract (carrying the parsed { pubkeyHex, profile? } result, or an equivalent parse-at-call-site pattern) match spec.md's description of the shared scan seam that S5 later reuses without rebuilding it, with no behavioral difference between the Add Contact scanner path and the paste path?"
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is a scanned or pasted card whose signature fails verification (parseContactCard returns { error }) treated as an add-failure — never silently downgraded to a bare-pubkey add — at both the paste call site and the QR onScan call site?"
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-1",
+      "question": "Does pasting a card link (or raw card) into the Add Contact input and submitting add the contact (pubkey seeded into knownPeers and contacts, per the existing addContactByNpub behavior) and populate the contact's nickname from the card, so the new contact renders by name rather than a shortened npub? Show the production handleAdd code, the test exercising the real paste-then-submit flow, and confirm the test is not a mock-spy proxy over addContactByNpub/importCard."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-2",
+      "question": "Does scanning a card QR in the Add Contact scanner behave identically to pasting (routing through parseContactCard and producing the same add-plus-nickname outcome)? Show the onScan production code, a test exercising the real scan-to-add path, and confirm the test asserts on the same observable outcome as the paste-path test rather than merely asserting parseContactCard was called."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-5",
+      "question": "Does adding a contact via a bare npub (no card) still succeed with no nickname, preserving the existing no-profile fallback? Show a test that adds via a bare npub string and asserts the resulting contact has no nickname set, using the real addContactByNpub/parseContactCard path rather than a mocked bare-npub branch."
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-6",
+      "question": "Does importing a card whose pubkey is already an active contact (addContactByNpub returns already_exists) still refresh the cached nickname via importCard when the card's updatedAt is newer, even though no new contact entry is created? Show the production code path that calls importCard independently of the addContactByNpub outcome, a test seeding an existing contact then adding a newer card, and confirm the test asserts the nickname actually changed in contactCache rather than only asserting importCard was invoked."
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-2",
+      "question": "The implementation chose the 'raw scanned string + parse step at the call site' option from the two the story text sanctioned, rather than carrying a parsed { pubkeyHex, profile? } struct: NpubQrScanner validates the scan via the new normaliseScanPayload (qr.ts, delegating to parseContactCard) and calls onScan(value) with the normalised string; AddContactModal's onScan handler pre-fills npubInput with that string and closes the scanner, requiring the user to press the existing Add button (the same button/handler the paste path uses) to actually add the contact — it does not auto-submit on scan. Does this preserve the pre-existing UX contract (scan pre-fills, user reviews and submits) while still making AC-UX-2's 'identical outcome' true, and is there any spec signal that scanning was expected to auto-add without a manual submit step?"
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "processContactInput (AddContactModal.tsx) skips importCard entirely when addContactByNpub returns the 'self' error (scanning/pasting one's own card). Is this the correct behavior, or should a self-scan still be allowed to warm contactCache for the user's own pubkeyHex (e.g. if some other surface reads contactCache keyed by the local user's own pubkey)? No AC addresses this edge case directly."
+    },
+    {
+      "question_id": "VQ-S4-013",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The scan path calls parseContactCard twice for the same input — once inside normaliseScanPayload (NpubQrScanner's own validation, to decide the invalid-payload error message) and once inside processContactInput (at Add-button submit time). Both calls parse the exact same static string, so the double-parse is redundant but not incorrect. Is this acceptable duplication for a per-QR-scan-and-click-Add user action (no perf-sensitive loop), or should the seam be tightened (e.g. by having onScan carry the already-parsed result) before S5 (InviteMemberModal) and S6 add their own consumers of this same scan seam?"
+    },
+    {
+      "question_id": "VQ-S4-014",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "app/tests/unit/cards/addContactCardWiring.test.ts imports AddContactModal.tsx directly (via `await import(...)`) to reach the exported processContactInput pure function, following the ContactChat.tsx / dmMessageEdits.test.ts precedent, and mocks idb-keyval (Map-backed, since MarmotContext -> groupStorage.ts calls createStore() at module load) and ndkClient (getNdk/connectNdk stubs) so the import chain never touches IndexedDB or a relay. Does this test setup correctly avoid mounting React or touching the DOM (this repo's no-jsdom convention), and are there any other module-load-time side effects in AddContactModal.tsx's transitive import chain (via NostrIdentityContext, MarmotContext, or their further dependencies) that this mock set does not yet cover?"
+    }
+  ]
+}

@@ -13,9 +13,10 @@ test.describe.serial('Seed phrase recovery — profile and groups', () => {
   const GROUP_NAME = 'Recovery Test Group';
 
   test.beforeAll(async ({ browser }) => {
-    // Boot User A — inject profile via init script so that the auto-generated
-    // identity's publishIdentityToRelays picks up the nickname when publishing
-    // kind 0 metadata. The init script runs BEFORE page JS on every navigation.
+    // Boot User A — inject the profile nickname locally via init script (runs
+    // BEFORE page JS on every navigation). Note: the nickname stays LOCAL — it
+    // is never broadcast to a relay (privacy invariant; publishIdentityToRelays
+    // was removed), which is exactly what the restore test below verifies.
     contextA = await browser.newContext({ baseURL: BASE_URL });
     await suppressErrorOverlay(contextA);
     await contextA.addInitScript(({ nickname }) => {
@@ -34,7 +35,7 @@ test.describe.serial('Seed phrase recovery — profile and groups', () => {
     await contextA?.close();
   });
 
-  test('User A generates backup and publishes identity to relay', async () => {
+  test('User A generates a backup phrase', async () => {
     // Navigate to profile — verify profile is shown
     await pageA.goto('/profile/');
     await expect(pageA.getByTestId('profile-nickname-input')).toHaveValue(NICKNAME, { timeout: 10_000 });
@@ -57,7 +58,8 @@ test.describe.serial('Seed phrase recovery — profile and groups', () => {
     await pageA.getByTestId('backup-confirm-checkbox').check();
     await pageA.getByTestId('backup-done-btn').click();
 
-    // Wait for kind 0 to propagate (publishIdentityToRelays is fire-and-forget on init)
+    // Brief settle after backup confirmation (no relay publish happens — profile
+    // is never broadcast; this just lets the UI state settle).
     await pageA.waitForTimeout(5_000);
   });
 
@@ -79,7 +81,7 @@ test.describe.serial('Seed phrase recovery — profile and groups', () => {
     await pageA.waitForTimeout(3_000);
   });
 
-  test('Restore from seed recovers npub and profile', async ({ browser }) => {
+  test('Restore from seed recovers npub and groups; nickname is NOT relay-recovered (privacy invariant)', async ({ browser }) => {
     const freshContext = await browser.newContext({ baseURL: BASE_URL });
     await suppressErrorOverlay(freshContext);
     const freshPage = await freshContext.newPage();
@@ -95,22 +97,22 @@ test.describe.serial('Seed phrase recovery — profile and groups', () => {
       await freshPage.getByTestId('restore-phrase-input').fill(mnemonic);
       await freshPage.getByTestId('restore-identity-btn').click();
 
-      // Verify npub matches the original (on the settings page)
+      // Verify npub matches the original (identity is derived from the seed).
       await expect(freshPage.getByTestId('identity-npub-display')).toHaveText(originalNpub, { timeout: 30_000 });
 
-      // Verify the recovered profile is persisted in localStorage
-      // (profile-nickname-input is on /profile/, not /settings/ — check localStorage directly)
+      // Privacy invariant (CLAUDE.md + AC-SEC-2): the nickname was NEVER published
+      // to a public relay (publishIdentityToRelays was removed), so a fresh-device
+      // seed restore CANNOT recover it from the relay — the restore fetch finds no
+      // kind-0 metadata. This is the deliberate consequence of the profile being
+      // out-of-band only; the seed encodes the key, not the profile. Asserting the
+      // nickname is absent doubles as a broadcast-reintroduction guard: if a kind-0
+      // publish were reintroduced, the fetch would recover NICKNAME and this fails.
       const storedProfile = await freshPage.evaluate(() => {
         return JSON.parse(localStorage.getItem('lp_userProfile_v1') || '{}');
       });
-      expect(storedProfile.nickname).toBe(NICKNAME);
+      expect(storedProfile.nickname ?? '').not.toBe(NICKNAME);
 
-      // Navigate to profile page to verify the nickname from relay kind 0
-      // (profile/settings were separated: nickname is on /profile/, identity on /settings/)
-      await freshPage.goto('/profile/');
-      await expect(freshPage.getByTestId('profile-nickname-input')).toHaveValue(NICKNAME, { timeout: 30_000 });
-
-      // Navigate to groups page — should load without errors
+      // Navigate to groups page — should load without errors (identity/groups recovered).
       await freshPage.goto('/groups/');
       await expect(
         freshPage.getByTestId('groups-empty-state').or(freshPage.getByTestId('groups-list')),

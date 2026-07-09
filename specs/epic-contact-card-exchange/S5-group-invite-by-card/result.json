@@ -1,0 +1,68 @@
+{
+  "story_id": "S5",
+  "status": "done",
+  "files_created": [
+    "app/tests/unit/cards/inviteByCard.test.ts",
+    "specs/epic-contact-card-exchange/S5-group-invite-by-card/architecture.json",
+    "specs/epic-contact-card-exchange/S5-group-invite-by-card/baseline.json",
+    "specs/epic-contact-card-exchange/S5-group-invite-by-card/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/groups/InviteMemberModal.tsx",
+    "app/src/lib/contactCard.ts",
+    "app/tests/unit/cards/contactCard.test.ts",
+    "specs/epic-contact-card-exchange/S5-group-invite-by-card/verification.json"
+  ],
+  "tests_added": {
+    "unit": 11
+  },
+  "test_counts": {
+    "baseline": 2516,
+    "final": 2527
+  },
+  "review_findings": [
+    {
+      "source": "verification-examiner",
+      "severity": 4,
+      "status": "fixed",
+      "detail": "nostr:npub1… pasted into the invite input failed post-S5 (parseContactCard branched only on a literal npub1 prefix while the old normaliseNpubPayload path stripped the nostr: scheme). Fixed at the single decode seam: parseContactCard now strips an optional case-insensitive nostr: prefix, which also repairs S4's Add-Contact paste path. Added a regression test."
+    },
+    {
+      "source": "opus-reviewer",
+      "severity": 2,
+      "status": "fixed",
+      "detail": "onScan param named scannedNpub though it may now carry a card link/payload; renamed to scannedValue with a clarifying comment (matches AddContactModal)."
+    },
+    {
+      "source": "verification-examiner",
+      "severity": 3,
+      "status": "followup_backlog",
+      "detail": "AC-GRP-2 covered by a parity test (stub inviteByNpub mirroring the real KeyPackage rule) because no MarmotContext.inviteByNpub unit-test seam exists and MarmotContext is out of S5 scope. AC-GRP-2 judged MET; a real MarmotContext no_key_package unit test is a pre-existing gap → non-blocking backlog follow-up for the curator."
+    }
+  ],
+  "mocks": [
+    {
+      "name": "idb-keyval (Map-backed) in inviteByCard.test.ts",
+      "reason": "InviteMemberModal.tsx imports useMarmot from MarmotContext, whose transitive dependency groupStorage.ts calls idb-keyval's createStore() at module load time. Reuses the exact no-op-store pattern already established by dmMessageEdits.test.ts / addContactCardWiring.test.ts (S4) — not a new pattern.",
+      "resolution_story": null
+    },
+    {
+      "name": "@/src/lib/ndkClient (getNdk/connectNdk) in inviteByCard.test.ts",
+      "reason": "Same transitive-import concern as above; stubs the NDK entry points (reusing the S4 addContactCardWiring.test.ts pattern) so nothing in the import chain can attempt a real relay connection during the test run.",
+      "resolution_story": null
+    }
+  ],
+  "remediation_rounds": 0,
+  "modules_touched": ["group invite input"],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "AC-GRP-2's brief asked to verify the no_key_package failure mode 'using the real inviteByNpub path,' but the story's sole in-scope production file is InviteMemberModal.tsx and no pre-existing unit test exercises MarmotContext.inviteByNpub's KeyPackage-fetch branch at all (grep of app/tests/unit found nothing). MarmotContext.inviteByNpub is a useCallback closure inside the MarmotProvider component body, bound to refs (clientRef, groups, signerRef) populated by async init effects — there is no module-scope extraction of it comparable to fireAutoCommit, and adding one would mean editing MarmotContext.tsx, which is out of this story's file scope. Resolved by substituting a parity test: a stub inviteByNpub whose internal rule mirrors the real function's actual KeyPackage-presence check, invoked once with a bare npub and once with a card for the same pubkey, asserting identical call arguments and identical results. Documented as a deliberate, scope-respecting substitution in architecture.json's notes and in a new post-impl verification question (VQ-S5-009) rather than silently reinterpreting the AC.",
+    "surprised_by": "The InviteMemberModal.tsx production change ended up being additive-only and small enough (two exported functions, resolveInviteTarget/submitInvite, plus a three-line change to handleInvite's body) that it matched the S4 processContactInput extraction precedent almost exactly, including the same idb-keyval/ndkClient test-mocking shape — no design exploration was needed beyond confirming that precedent still applied here.",
+    "scope": "project_specific",
+    "outcome": "planning_only",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-09T18:16:00Z",
+  "files_created": [
+    "app/tests/unit/cards/addContactCardWiring.test.ts",
+    "specs/epic-contact-card-exchange/S4-add-contact-card-wiring/architecture.json",
+    "specs/epic-contact-card-exchange/S4-add-contact-card-wiring/baseline.json",
+    "specs/epic-contact-card-exchange/S4-add-contact-card-wiring/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/contacts/AddContactModal.tsx",
+    "app/src/lib/qr.ts",
+    "app/src/components/groups/NpubQrScanner.tsx",
+    "app/src/components/groups/NpubQrModal.tsx",
+    "app/src/lib/i18n.ts",
+    "app/src/lib/contactCard.ts",
+    "app/tests/unit/cards/contactCard.test.ts",
+    "specs/epic-contact-card-exchange/S4-add-contact-card-wiring/verification.json"
+  ],
+  "tests_added": {
+    "unit": 20
+  },
+  "test_counts": {
+    "baseline": 2496,
+    "final": 2516
+  },
+  "review_findings": [
+    {
+      "source": "codex",
+      "severity": 5,
+      "status": "fixed",
+      "detail": "parseContactCard branched on a lowercase 'npub1' prefix only, regressing uppercase NPUB1… (QR alphanumeric mode) that the old normaliseNpubPayload path accepted. Made npub detection case-insensitive in contactCard.ts + added an AC-PARSE-1 uppercase regression test."
+    },
+    {
+      "source": "opus+codex",
+      "severity": 5,
+      "status": "deferred_to_S5",
+      "detail": "The shared NpubQrScanner now accepts a card QR in the group-invite box, which inviteByNpub rejects as invalid_npub until S5 makes InviteMemberModal card-aware. Closed within this same delivery by S5; DD-8 safe (no cache write on the invite path)."
+    },
+    {
+      "source": "opus",
+      "severity": 2,
+      "status": "unactioned_note",
+      "detail": "processContactInput maps a signature-failure to the 'invalid_npub' copy — accurate as add-FAILURE (AC-PARSE-4) but the message conflates integrity failure with a malformed identifier. Product-copy nicety, non-blocking."
+    }
+  ],
+  "mocks": [
+    {
+      "name": "idb-keyval (Map-backed) in addContactCardWiring.test.ts",
+      "reason": "AddContactModal.tsx imports useMarmot from MarmotContext, whose transitive dependency groupStorage.ts calls idb-keyval's createStore() at module load time. Reusing the exact no-op-store pattern already established by dmMessageEdits.test.ts / groupStorage.test.ts (not a new pattern) so importing the component module for its exported pure function (processContactInput) doesn't touch real IndexedDB.",
+      "resolution_story": null
+    },
+    {
+      "name": "@/src/lib/ndkClient (getNdk/connectNdk) in addContactCardWiring.test.ts",
+      "reason": "Same transitive-import concern as above; stubs the NDK entry points (reusing the contactCardImport.test.ts pattern) so nothing in the import chain can attempt a real relay connection during the test run.",
+      "resolution_story": null
+    }
+  ],
+  "remediation_rounds": 0,
+  "modules_touched": ["AddContactModal"],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  }
+}

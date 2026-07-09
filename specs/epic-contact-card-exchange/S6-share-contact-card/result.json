@@ -1,0 +1,55 @@
+{
+  "story_id": "S6",
+  "status": "done",
+  "files_created": [
+    "app/src/lib/shareCard.ts",
+    "app/tests/unit/cards/shareCard.test.ts",
+    "specs/epic-contact-card-exchange/S6-share-contact-card/architecture.json",
+    "specs/epic-contact-card-exchange/S6-share-contact-card/baseline.json",
+    "specs/epic-contact-card-exchange/S6-share-contact-card/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/groups/NpubQrModal.tsx",
+    "app/pages/settings.tsx",
+    "app/src/lib/i18n.ts",
+    "specs/epic-contact-card-exchange/S6-share-contact-card/verification.json"
+  ],
+  "tests_added": {
+    "unit": 14
+  },
+  "test_counts": {
+    "baseline": 2527,
+    "final": 2541
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "review_findings": [
+    {
+      "source": "review",
+      "severity": 6,
+      "category": "impl_bug",
+      "status": "fixed",
+      "detail": "ShareCardCacheKey omitted pubkeyHex, comparing only { nickname, signerMode }. Because settings.tsx's shareCardCacheRef is a useRef that survives replaceIdentity's in-place setIdentity() (no page reload on restore), sharing as identity A (empty nickname, local signer) then restoring identity B (also empty nickname, local -- the common default) and reopening Share produced a cache HIT that silently served identity A's stale signed card (wrong pubkey, stale signature) for identity B, never re-signing. Fixed by adding pubkeyHex to ShareCardCacheKey and to shouldRebuildShareCard's comparison, and by having settings.tsx source pubkeyHex directly from useNostrIdentity() (context already exposes it) instead of deriving it from npub via npubToPubkeyHex at call time. Regression tests added to shareCard.test.ts at both the shouldRebuildShareCard predicate level and the getOwnShareCard orchestration level (the latter asserts the stubbed signer is re-invoked for the new identity and that the produced card encodes the new pubkey, with a real getEventHash/verifyEvent round trip)."
+    },
+    {
+      "source": "review",
+      "severity": 4,
+      "category": "comment_rot",
+      "status": "fixed",
+      "detail": "settings.tsx's identity-restore flow carried a comment asserting 'replaceIdentity publishes kind 0 with the current (empty) profile' as the reason profile-recovery fetch runs BEFORE replaceIdentity. This is false and contradicts the project's non-negotiable no-public-kind-0 privacy invariant -- replaceIdentity (NostrIdentityContext.tsx) explicitly does NOT broadcast kind-0 on restore. Comment-only fix: corrected the rationale to the real reason the ordering is kept (seed the recovered nickname locally before the identity switch takes effect, avoiding a UI flash of an empty profile) and made the privacy invariant explicit instead of contradicting it. No runtime behavior changed -- the fetch-before-replace ordering does not functionally depend on replaceIdentity's prior state (profile fetch uses its own connectNdk(restoredIdentity.privateKeyHex) instance), so nothing needed rewiring."
+    }
+  ],
+  "modules_touched": ["NpubQrModal / share"],
+  "escalation_history": [],
+  "implementation_decisions": [
+    "New pure helper module app/src/lib/shareCard.ts (permitted by the story brief) holds three exports: shouldRebuildShareCard (pure cache-staleness check), buildOwnShareCard (encodeCard -> buildShareUrl wrapper), and getOwnShareCard (the cache-driven orchestration entry point settings.tsx calls, taking a lazily-invoked getSignEvent so a cache HIT never touches the signer at all). This keeps the (nickname, signerMode) cache-key logic and the exact production path adapter-testable without React/jsdom, per the repo's 'hooks via exported pure-function extraction, no jsdom' testing convention.",
+    "Cache key = { nickname, signerMode } held in a settings.tsx useRef (ShareCardCacheEntry), never persisted, never holding signer/key material -- the signer is re-derived from activeEventSignerOverride.current ?? createPrivateKeySigner(privateKeyHex) only on a cache MISS, mirroring the existing IncomingCallWatcher.tsx precedent exactly.",
+    "settings.tsx opens the share modal (ownQrDisclosure.onOpen()) only AFTER getOwnShareCard resolves, rather than opening immediately and letting NpubQrModal render a stale/blank state -- NpubQrButton's isLoading={shareCardLoading} gives the user feedback during a slow NIP-46 round trip instead.",
+    "NpubQrModal widened with shareUrl/copyButtonLabel/copiedButtonLabel props: when shareUrl is present it takes priority over npub for the QR payload (ECC-L instead of ECC-M) and the displayed/copyable text, plus a translated Copy button (internal copied-state, navigator.clipboard). When shareUrl is omitted, display mode is unchanged from before except the standalone muted <Text>{npub}</Text> line was dropped in favour of a single Code block (settings.tsx confirmed via grep as the only display-mode caller; no e2e test asserts on the removed line).",
+    "Copy wording: identity.showQr/qrModalTitle retextured from 'Show QR'/'Npub QR Code' to 'Share contact card'/'Share Contact Card' (de: 'Kontaktkarte teilen') since the button now builds and shares a signed card, not a bare npub QR. New keys identity.copyCardLink, identity.copiedCardLink, identity.shareCardError added (en+de)."
+  ],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  }
+}

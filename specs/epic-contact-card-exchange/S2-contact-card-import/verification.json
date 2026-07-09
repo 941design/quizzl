@@ -1,0 +1,110 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-09T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is importCard's LWW/avatar-preservation logic real — genuinely comparing ISO updatedAt strings and reading the existing cache entry at call time — or does it short-circuit, e.g. always overwrite regardless of comparison, or hardcode avatar: null regardless of what readContactEntry actually returns?"
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does importCard call only the existing writeContactEntry/readContactEntry from contactCache.ts unmodified, per architecture.md's 'modified: reused' framing, without duplicating contactCache's LWW comparison logic locally inside contactCard.ts?"
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `contactCardImport` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/cards/contactCardImport.test.ts include a card-vs-existing-ISO-entry LWW test (not merely card-vs-card), a same-card-imported-twice idempotency test, and an avatar-preservation test for a name-only import — each invoking the real importCard together with the real writeContactEntry/readContactEntry, rather than a test double that reimplements the cache's comparison logic?"
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does importCard's behavior match spec.md's description of the cache-import adapter end-to-end — ISO updatedAt derivation from created_at * 1000, avatar preservation, and idempotency — with no divergence from the documented upsert semantics?"
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is there a regression test asserting that encoding/signing a card, and parsing/verifying/caching an imported card, emit zero relay events end-to-end, plus a repo-wide grep-based test guarding that publishIdentityToRelays (or any kind-0 metadata publish to a public relay) is not reintroduced anywhere in the codebase?"
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CACHE-1",
+      "question": "Does importCard's return value conform exactly to the declared ImportCardResult seam contract — `{ pubkeyHex: string, cached: boolean }` — with `cached` genuinely reflecting whether contactCache was actually written on this call (not a hardcoded true), consumed identically by S4's AddContactModal and S7's add-onboarding-page? Show the return-type signature and a test covering both a written and a not-written (idempotent no-op) case."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CACHE-1",
+      "question": "Does importing a valid signed card upsert contactCache for the card's pubkey with nickname = card name and updatedAt = new Date(created_at * 1000).toISOString(), via writeContactEntry? Show the production upsert code, a test asserting the exact ISO string format (not a raw-seconds string or a Date object), and confirm the test calls the real importCard/writeContactEntry rather than a mock-spy proxy."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CACHE-2",
+      "question": "Does LWW hold across sources — does importing a card whose created_at predates an existing entry's ISO updatedAt (e.g. an entry written by MLS profile sync, not by another card import) leave the newer cached nickname un-overwritten? Show the lexical ISO-string comparison production code, a test that seeds an ISO-string entry directly (not via a second card import) and then imports an older card, and confirm this guards specifically against a seconds-vs-ISO comparison bug."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CACHE-3",
+      "question": "Does importing the same card twice leave contactCache unchanged on the second import? Show a test that calls importCard twice with an identical card buffer and asserts the cache entry (nickname, avatar, updatedAt) is byte-for-byte identical after both calls, using the real writeContactEntry/readContactEntry."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CACHE-4",
+      "question": "Does importing a name-only card for a pubkey whose cached entry already has an avatar preserve that avatar, updating only the nickname (avatar = readContactEntry(pubkey)?.avatar ?? null)? Show the avatar-preservation production line, a test that seeds an entry with a real avatar value then imports a card, and confirm the test asserts the avatar is unchanged rather than merely absent-and-therefore-vacuously-equal."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-1",
+      "question": "Do card operations — encoding/signing a card for sharing, and parsing/verifying/caching an imported card — emit zero relay events? Show a test that spies on (or asserts the absence of any call to) the relay-publish path across a full encode-then-import cycle, confirming no publish call fires even indirectly through a shared NDK instance."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-2",
+      "question": "Does the repository contain no kind-0 metadata publish to public relays after this epic — i.e. is publishIdentityToRelays fully removed and is there a regression test (grep-based or import-based) that fails if it, or an equivalent broadcast call, is reintroduced anywhere in the codebase?"
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "importCard computes its `cached` return flag by peeking `!existing || existing.updatedAt < profile.updatedAt` BEFORE calling writeContactEntry, then calls writeContactEntry unconditionally and trusts that its internal `existing.updatedAt >= contact.updatedAt` gate makes the identical decision (contactCardImport.ts, contactCache.ts:38). This is a one-line mirror of writeContactEntry's own predicate, not a reimplementation of the write path, per VQ-S2-002's constraint. Is there any scenario where the two predicates could disagree — e.g. a caller mutating localStorage between the peek and the writeContactEntry call within the same synchronous call (there is none in this codebase, since importCard's body is synchronous and single-threaded) — that would make the reported `cached` value diverge from what was actually written?"
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "AC-SEC-1's regression test asserts the absence of `@nostr-dev-kit/ndk`, `.publish(`, and `wss?://`-shaped strings in the source text of contactCardImport.ts and contactCard.ts (a static source-scan, not a runtime spy), because no fake-relay/NDK-spy harness exists in this pure-unit-test environment. Given that contactCardImport.ts's only dependency is contactCache.ts (which itself has no relay/NDK import — confirmed by architecture.json's dependencies_forbidden list), is a source-scan of the two immediate files sufficient to guard AC-SEC-1, or does the transitive dependency graph (e.g. a future change to contactCache.ts that pulls in a relay client) require the scan to walk transitively rather than just the two named files?"
+    },
+    {
+      "question_id": "VQ-S2-016",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "AC-SEC-2's repo-wide test walks app/src/**/*.ts(x) via a hand-rolled recursive fs.readdirSync (not Node's fs.globSync, to avoid a Node-version dependency) looking for the literal string publishIdentityToRelays, and separately checks NostrIdentityContext.tsx for a bare `kind:\\s*0` pattern. Does the `kind:\\s*0` check in NostrIdentityContext.tsx have any risk of a false negative — e.g. could a reintroduced kind-0 publish be written with the key computed dynamically (`kind`) or via a spread/variable rather than the literal `kind: 0` object-literal shape — that this specific regex would miss, and would such a rewrite realistically evade a reviewer even if it evaded this regex?"
+    }
+  ]
+}

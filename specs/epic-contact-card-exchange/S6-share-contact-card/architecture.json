@@ -1,0 +1,48 @@
+{
+  "module_name": "NpubQrModal / share",
+  "purpose": "Widen the existing own-npub 'Share' QR surface (settings.tsx -> NpubQrModal display mode) so it shares the current user's SIGNED contact card as the full onboarding URL (ECC-L), not a bare npub (ECC-M). settings.tsx builds and signs the card via the active signer (encodeCard/buildShareUrl, the S1 seam), caches it keyed by (nickname, signerMode) so no remote NIP-46 round trip happens on a repeat modal open, and hands NpubQrModal only the resulting shareUrl string plus a copy action. NpubQrModal itself gains no signer/codec knowledge -- it stays a dumb QR/value renderer.",
+  "public_api": [
+    {
+      "name": "NpubQrModalProps (widened)",
+      "signature": "type NpubQrModalProps = { ...existing; shareUrl?: string; copyButtonLabel?: string; copiedButtonLabel?: string }",
+      "description": "display mode: when `shareUrl` is supplied it takes priority over `npub` for both the QR payload (errorCorrectionLevel 'L' instead of 'M') and the displayed/copyable text; a Copy button (translated via copyButtonLabel/copiedButtonLabel) renders under the QR only when shareUrl is present. When shareUrl is omitted the component falls back to the original bare-npub-at-ECC-M behaviour byte-for-byte (keeps the component generic for any future display-mode caller). scan mode is untouched."
+    },
+    {
+      "name": "shouldRebuildShareCard",
+      "signature": "shouldRebuildShareCard(cached: ShareCardCacheEntry | null, key: ShareCardCacheKey): boolean",
+      "description": "Pure cache-staleness check in app/src/lib/shareCard.ts. True when cached is null or its (nickname, signerMode) key differs from the supplied key. settings.tsx calls this before invoking a signer, so a repeat share-modal open with an unchanged nickname AND unchanged signerMode never re-signs (VQ-S6-001) while a nickname edit or a signer-mode switch (local -> NIP-46 etc.) correctly invalidates the cache (VQ-S6-006)."
+    },
+    {
+      "name": "buildOwnShareCard",
+      "signature": "buildOwnShareCard(pubkeyHex: string, profile: { nickname: string; createdAt: number }, signEvent: EventSigner['signEvent']): Promise<string>",
+      "description": "Thin wrapper in app/src/lib/shareCard.ts around S1's encodeCard + buildShareUrl (encodeCard(...).then(buildShareUrl)) -- adds no encoding logic of its own. Exists purely so (a) settings.tsx has one call instead of two, and (b) the adapter-mode unit tests (local-key / NIP-07-stub / NIP-46-stub) can exercise the exact production path outside React/jsdom."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "in-memory share-card cache (ShareCardCacheEntry: { key: { nickname, signerMode }, shareUrl }) held in a settings.tsx component ref; never persisted to storage, never holds private-key material -- the signer itself is re-derived from privateKeyHex/activeEventSignerOverride on each rebuild, per the existing IncomingCallWatcher precedent, rather than cached (VQ-S6-006)."
+  ],
+  "dependencies_allowed": [
+    "@/src/lib/contactCard (encodeCard, buildShareUrl -- the S1 share seam, consumed only via shareCard.ts, never re-implemented)",
+    "@/src/lib/shareCard (new S6 helper: shouldRebuildShareCard, buildOwnShareCard)",
+    "@/src/lib/marmot/signerAdapter (activeEventSignerOverride, createPrivateKeySigner, createNip46EventSigner, createNip07EventSigner -- adapters only, existing precedent)",
+    "@/src/lib/nostrKeys (npubToPubkeyHex)",
+    "@/src/context/NostrIdentityContext (useNostrIdentity -- npub, privateKeyHex, signerMode; SignerMode type)",
+    "@/src/context/ProfileContext (useProfile -- savedProfile.nickname)",
+    "@/src/context/LanguageContext (useCopy)",
+    "@/src/components/groups/NpubQrButton",
+    "@/src/components/groups/NpubQrModal",
+    "qrcode (npm, unchanged -- QR raster generation, now parameterised by ECC level)"
+  ],
+  "dependencies_forbidden": [
+    "NpubQrModal.tsx importing @/src/lib/contactCard, @/src/lib/shareCard, or @/src/lib/marmot/signerAdapter directly -- it must consume only the shareUrl prop (architecture hard boundary stated in the story)",
+    "@nostr-dev-kit/ndk or any relay client on the card-build path (AC-SEC-1 -- zero relay events from encodeCard/buildShareUrl)",
+    "persisting the share-card cache or any signer/private-key material to localStorage/idb-keyval"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/cards/shareCard.test.ts"
+  ]
+}

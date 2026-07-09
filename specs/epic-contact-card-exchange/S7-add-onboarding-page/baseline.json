@@ -1,0 +1,20 @@
+{
+  "story_id": "S7",
+  "captured_at": "2026-07-09T19:37:57Z",
+  "command": "npx vitest run tests/unit/",
+  "test_files": 137,
+  "tests_total": 2541,
+  "tests_passing": 2541,
+  "tests_failing": 0,
+  "lint": {
+    "command": "npx next lint",
+    "status": "NO_LINT",
+    "note": "No .eslintrc* present; `next lint` prompts an interactive first-time-setup wizard rather than running a check. Same tolerance recorded at S4/S5/S6 baseline."
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit -p .",
+    "status": "clean",
+    "note": "0 errors at baseline."
+  },
+  "note": "Captured after app/pages/add.tsx, app/src/lib/addDeepLink.ts, and the app/src/lib/i18n.ts additions were already written but before this story's own test files existed -- the test-count baseline (2541) is therefore unaffected by this story's additions (no new tests yet at capture time), and is the correct pre-story-tests figure for the Regression Prevention comparison in result.json."
+}

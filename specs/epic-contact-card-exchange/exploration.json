@@ -1,0 +1,48 @@
+{
+  "epic": "contact-card-exchange",
+  "generated_at": "2026-07-09T13:44:19Z",
+  "similar_features": {
+    "profile_over_mls": "app/src/lib/marmot/profileSync.ts — signed kind-0 (SignedProfileEvent) carried in MLS rumors; verifyEvent used at profileSync.ts:135. The card reuses the same signed-kind-0 idea but out-of-band, with a minimal card-specific content.",
+    "add_contact_by_npub": "app/src/lib/contacts.ts addContactByNpub:304 (validates npub, seeds knownPeers per ADR-005, writes lp_contacts_v1); UI app/src/components/contacts/AddContactModal.tsx handleAdd:59.",
+    "contact_cache": "app/src/lib/contactCache.ts writeContactEntry:33 (LWW by updatedAt, LEXICAL string compare at :38; also calls rememberContact:41 which CREATES a contacts entry — relevant to DD 8 group-invite no-cache), readContactEntry:47.",
+    "own_kind0_broadcast_removed": "app/src/context/NostrIdentityContext.tsx — publishIdentityToRelays removed (privacy invariant). Do not reintroduce."
+  },
+  "architecture": {
+    "entry_points_for_npub": [
+      "app/src/components/contacts/AddContactModal.tsx handleAdd:59 -> addContactByNpub",
+      "app/src/components/groups/NpubQrScanner.tsx onScan:(npub)=>void, validates via app/src/lib/qr.ts normaliseNpubPayload:3 (returns npub string or null)",
+      "app/src/components/groups/NpubQrModal.tsx onScan:32 (re-exposes scanner)",
+      "group invite: app/src/context/MarmotContext.tsx inviteByNpub:246 (re-normalises input internally ~1229-1235; stays npub-only, callers down-convert)",
+      "NEW: app/pages/add.tsx (deep-link/onboarding, reads window.location.hash)"
+    ],
+    "invite_keypackage": "inviteByNpub fetches invitee KeyPackage from relays; card carries no KeyPackage — group-add dependency unchanged (DD 8, AC-GRP-2).",
+    "signer": "app/src/lib/marmot/signerAdapter.ts createPrivateKeySigner:21, createNip46EventSigner:76, createNip07EventSigner:135 — all return EventSigner{getPublicKey, signEvent, nip44}. Card signing uses the active signer via activeEventSignerOverride.current ?? createPrivateKeySigner(privateKeyHex).",
+    "hash_routing_note": "NO existing page reads window.location.hash; all use router.query (groups/contacts/profile.tsx). The #c= fragment is a DELIBERATE privacy deviation (DD 9 — fragment never sent to Cloudflare). pages/add.tsx must be authored fresh with typeof window guards; not a blocker."
+  },
+  "testing_and_conventions": {
+    "framework": "Vitest; app/vitest.config.ts include tests/unit/**/*.test.ts; NO jsdom. Run: make test-unit (cd app && npx vitest run).",
+    "no_jsdom_rule": "Hooks tested via exported pure-function extraction (useThemeStyles pattern). No @testing-library. New card subdir: app/tests/unit/cards/*.test.ts.",
+    "crypto_test_pattern": "app/tests/unit/marmot/profileSync.test.ts: generateSecretKey/getPublicKey/finalizeEvent from nostr-tools/pure; bytesToHex from nostr-tools/utils; createPrivateKeySigner(skHex); serialiseProfileUpdate signs kind-0. Tamper: flip a sig hex nibble -> expect reject (profileSync.test.ts:111-122). verifyEvent is called INSIDE production code, not tests — tests sign real events and let the module verify.",
+    "id_discipline": "getEventHash computed once and stored; tests assert id === getEventHash(canonical fields) (reactions/rumor.test.ts:124, messageEdits/rumor.test.ts:138).",
+    "signer_mode_stub": "NO existing test stubs ndkSigner.sign for NIP-46/07. Shape to stub: blockUntilReady()->{pubkey}, sign(event)->sigHex string (NDK 3.0.3 returns sig string only — memory ndk_signer_api_quirks). Closest idiom: vi.mock nostr-tools/pure + flip return (callSignaling.test.ts:142,336).",
+    "i18n_test": "feedback.i18n.test.ts REQUIRED_KEYS-loop template: existence+parity for en/de AND de[key] !== en[key] (non-lazy) guard. getCopy(language) at i18n.ts:1436; contacts namespace at i18n.ts:267/756/1230. Add new keys to a namespace + a *.i18n.test.ts file.",
+    "qr": "GENERATE: qrcode lib, NpubQrModal.tsx:68 QRCode.toDataURL(value,{errorCorrectionLevel:'M',margin:2,width:320}) — value is raw npub. Card share must encode the onboarding URL at ECC-L. SCAN: qr-scanner lib; onScan:(npub:string)=>void; qr.ts normaliseNpubPayload trim->strip nostr:->validate->return string|null. qr.test.ts tests only normaliseNpubPayload (pure). Card needs a new parse fn alongside.",
+    "boy_scout": "NpubQrScanner.tsx:146 hardcodes 'Starting camera...' (untranslated) — fix when touching."
+  },
+  "reusable_utils": {
+    "base64url": "NONE exists — must add (pure, testable). No app/src/lib base64 helper anywhere.",
+    "hex_bytes": "Use exported hexToBytes/bytesToHex from @/src/lib/nostrKeys (nostrKeys.ts:59) OR nostr-tools/utils; do NOT add a 5th reimplementation.",
+    "nip19": "pubkeyToNpub/npubToPubkeyHex centralized in nostrKeys.ts:75 — reuse.",
+    "crypto": "nostr-tools/pure: generateSecretKey, getPublicKey, finalizeEvent, getEventHash, verifyEvent."
+  },
+  "adr_constraints": {
+    "ADR-005": "manually-added contacts seed knownPeers — addContactByNpub already does this; card add path inherits it.",
+    "ADR-003": "LWW for metadata — writeContactEntry LWW is the mechanism; card import derives ISO updatedAt from created_at.",
+    "ADR-002": "pull-only invitations — unchanged; card does not alter invite semantics."
+  },
+  "gaps_flagged": [
+    "hash-routing unprecedented (deliberate, DD 9)",
+    "no base64url helper (add new)",
+    "no NIP-46/07 signer-stub test precedent (author fresh per profileSync + callSignaling idioms)"
+  ]
+}

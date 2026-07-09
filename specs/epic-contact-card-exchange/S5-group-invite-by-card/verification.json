@@ -1,0 +1,76 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-09T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S5-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does InviteMemberModal's card-handling path genuinely discard the profile field from parseContactCard's result and never call writeContactEntry/importCard, or is there a leftover/conditional call path that would write to contactCache under some circumstance (e.g. a debug branch, or reuse of an AddContactModal helper that also caches)?"
+    },
+    {
+      "question_id": "VQ-S5-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does InviteMemberModal reuse the S4-established card-aware scan seam (NpubQrScanner / NpubQrModal onScan) without rebuilding a second QR-parsing path, and does inviteByNpub remain unchanged (npub/pubkey-only), with card-to-pubkey down-conversion happening only at the InviteMemberModal caller, per architecture.md's 'inviteByNpub stays npub/pubkey-only' rule?"
+    },
+    {
+      "question_id": "VQ-S5-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `group invite input` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S5-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Is there a test asserting that inviting via a card (both paste and QR-scan) results in zero contactCache writes and zero contacts/knownPeers entries created before the MLS commit lands, driving the real handleInvite/onScan code and asserting on real cache/contacts state, rather than asserting only that a mocked inviteByNpub was called with the right pubkey?"
+    },
+    {
+      "question_id": "VQ-S5-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the group-invite-by-card path match spec.md / DD 8's description that the invitee's name arrives via MLS profile sync after joining, with no precache shortcut or early contactCache write introduced by this story?"
+    },
+    {
+      "question_id": "VQ-S5-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the parsed card's profile field (nickname) provably discarded at both the paste and QR-scan call sites — never persisted, never leaked into a UI element that implies contact-cache state, and never passed into any function that would write contacts/knownPeers?"
+    },
+    {
+      "question_id": "VQ-S5-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GRP-1",
+      "question": "Does supplying a card (link, QR, or payload) to the group invite-by-npub input down-convert it to the card's pubkeyHex via parseContactCard and invite through the existing inviteByNpub path, while writing no card name to contactCache and creating no contacts/knownPeers entry for the invitee before the invite's MLS commit lands? Show the down-conversion production code, a test exercising a real card input through the real invite path, and confirm the test asserts the absence of any cache/contacts write rather than only the presence of the invite call."
+    },
+    {
+      "question_id": "VQ-S5-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GRP-2",
+      "question": "Does group-invite-by-card leave the KeyPackage dependency unchanged — does an invitee with no published KeyPackage fail exactly as invite-by-npub does today (the card does not substitute for a KeyPackage)? Show a test that supplies a valid card for a pubkey with no published KeyPackage and asserts the same failure mode as the existing bare-npub-no-KeyPackage case, using the real inviteByNpub path rather than a mocked failure."
+    },
+    {
+      "question_id": "VQ-S5-009",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-GRP-2",
+      "question": "VQ-S5-008 asked for the real inviteByNpub path; grepping app/tests/unit at implementation time found no pre-existing unit-test seam for MarmotContext.inviteByNpub's no_key_package branch, and MarmotContext.tsx is outside this story's file scope (sole production file in scope is InviteMemberModal.tsx). The implementation substitutes a PARITY test instead (app/tests/unit/cards/inviteByCard.test.ts, 'AC-GRP-2, parity test' describe block): a stub inviteByNpub whose internal rule mirrors MarmotContext.tsx's actual decision (KeyPackage-set membership -> no_key_package, same shape as its fetchEventsWithTimeout-empty-array check) is invoked once via submitInvite with a bare npub and once via submitInvite with a card for the same pubkey, asserting both calls produce an identical (groupId, npub) argument pair and an identical result. Is this parity substitution an acceptable reading of AC-GRP-2's intent given the file-scope constraint, or does AC-GRP-2 require a follow-up story/finding to add a real MarmotContext-level inviteByNpub no_key_package unit test (which would need to touch MarmotContext.tsx and is therefore out of S5's scope)?"
+    },
+    {
+      "question_id": "VQ-S5-010",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "resolveInviteTarget/submitInvite are exported from InviteMemberModal.tsx alongside the default component export, following the exact processContactInput (S4/AddContactModal.tsx) and fireAutoCommit (MarmotContext.tsx) precedent of exporting a pure/async core from an otherwise-component file for jsdom-free unit testing. Does this repo's convention treat that as the settled pattern for testable extraction from component files, or should InviteMemberModal.tsx's two new exports be flagged for a future move into a dedicated non-component module (e.g. alongside contactCard.ts) given group invite input's dependencies_forbidden already excludes it from owning contactCard/contactCardImport concerns?"
+    },
+    {
+      "question_id": "VQ-S5-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "handleInvite's onScan handler is untouched (still just setNpubInput(scannedNpub); setError(null); scanDisclosure.onClose()) — resolveInviteTarget/submitInvite run only at Submit-button/Enter time inside handleInvite, matching the story's 'single parse point' requirement. Is there any UX expectation (not covered by an AC) that a scanned card should surface its down-converted pubkey or discarded-name state to the user before they press Submit, or is silent pre-fill + parse-on-submit (identical to S4's AddContactModal scan UX) the correct precedent to follow here too?"
+    }
+  ]
+}

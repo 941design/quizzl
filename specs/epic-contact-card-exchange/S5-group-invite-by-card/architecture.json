@@ -1,0 +1,45 @@
+{
+  "module_name": "group invite input",
+  "purpose": "InviteMemberModal.handleInvite (paste path) and its QR-scan onScan (unchanged pre-fill) route npubInput through the single parseContactCard decode seam (S1) at submit time, down-convert a card's pubkeyHex back to an npub via pubkeyToNpub, discard any profile field, and call the UNCHANGED inviteByNpub(groupId, npub). Closes the S4-review-deferred gap where a card scanned/pasted into the invite box failed as invalid_npub because inviteByNpub only accepts a bare npub. Zero contactCache / contacts / knownPeers writes on this path (DD 8) -- the invitee's name arrives via MLS profile sync after joining, not via a precache shortcut.",
+  "public_api": [
+    {
+      "name": "resolveInviteTarget",
+      "signature": "resolveInviteTarget(input: string): { ok: true; npub: string } | { ok: false; error: 'invalid_npub' }",
+      "description": "Pure, synchronous, no side effects. Calls parseContactCard(input) -- the single decode seam (never re-implemented inline). On { error }, returns { ok: false, error: 'invalid_npub' } (no silent downgrade). On success (bare npub OR card, with or without a profile field), discards any `profile` field entirely and re-encodes `pubkeyHex` to canonical npub form via pubkeyToNpub. A bare npub round-trips through parseContactCard -> pubkeyToNpub(pubkeyHex) back to the same npub, so behavior for a bare-npub input is unchanged from today. Exported from InviteMemberModal.tsx per this repo's hooks-via-pure-function-extraction testing convention (no jsdom) -- same idiom as S4's processContactInput and the pre-existing fireAutoCommit (MarmotContext.tsx)."
+    },
+    {
+      "name": "submitInvite",
+      "signature": "submitInvite(input: string, groupId: string, inviteByNpub: (groupId: string, npub: string) => Promise<{ ok: boolean; error?: string }>): Promise<{ ok: boolean; error?: string }>",
+      "description": "The exported async orchestration core of handleInvite, minus React state. Calls resolveInviteTarget(input) first; on { ok: false }, returns that failure WITHOUT ever invoking inviteByNpub (so a signature-invalid card never reaches the invite/relay/MLS layer). On { ok: true, npub }, calls the caller-supplied inviteByNpub(groupId, npub) UNCHANGED and returns its result verbatim. inviteByNpub itself is never modified by this story -- it stays npub/pubkey-only per architecture.md; down-conversion happens ONLY here, at the caller. handleInvite (the component method) becomes a thin wrapper: `await submitInvite(npubInput.trim(), groupId, inviteByNpub)` followed by the existing setSuccess/setError/setNpubInput state transitions, unchanged in shape from today."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "@/src/lib/contactCard (parseContactCard -- the single decode seam, S1, read-only consumption)",
+    "@/src/lib/nostrKeys (pubkeyToNpub, existing)",
+    "@/src/context/MarmotContext (useMarmot -- inviteByNpub, UNCHANGED call signature)",
+    "@/src/context/LanguageContext (useCopy, existing)",
+    "@/src/components/groups/NpubQrButton (existing, unchanged)",
+    "@/src/components/groups/NpubQrModal (existing, unchanged -- onScan still just setNpubInput)"
+  ],
+  "dependencies_forbidden": [
+    "@/src/lib/contactCardImport (importCard) -- AC-GRP-1 hard constraint: never called on this path",
+    "@/src/lib/contactCache (writeContactEntry / readContactEntry) -- AC-GRP-1 hard constraint: never called on this path",
+    "@/src/lib/contacts (addContactByNpub) or @/src/lib/knownPeers -- no contacts/knownPeers entry created for the invitee before the MLS commit lands (DD 8)",
+    "inline card-byte parsing (base64url decode / header parsing) anywhere outside contactCard.ts -- single decode seam is parseContactCard",
+    "any modification to app/src/context/MarmotContext.tsx -- inviteByNpub stays npub/pubkey-only and out of this story's file scope"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/cards/inviteByCard.test.ts"
+  ],
+  "seam": {
+    "cross_story": false
+  },
+  "notes": {
+    "test_seam_decision": "No pre-existing unit-test seam exercises MarmotContext.inviteByNpub's no_key_package branch (grep of app/tests/unit confirmed none), and MarmotContext.tsx is outside this story's file scope (sole production file in scope is InviteMemberModal.tsx). AC-GRP-2 is therefore verified via a PARITY test: a stub inviteByNpub, whose internal logic mirrors the real function's actual decision rule (KeyPackage-set membership -> no_key_package, exactly as MarmotContext.tsx:1257-1259 does), is invoked once via submitInvite with a bare npub for a KeyPackage-less pubkey and once via submitInvite with a card for the SAME pubkey. The test asserts the stub receives an identical (groupId, npub) argument pair in both calls and returns an identical { ok: false, error: 'no_key_package' } result in both cases -- proving the down-conversion introduces zero behavioral divergence into the KeyPackage-dependency path, which is the exact content of AC-GRP-2. This is documented as a deliberate scope-respecting substitute, not a silent downgrade of the AC."
+  }
+}

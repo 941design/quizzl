@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { readUserProfile, writeUserProfile } from '@/src/lib/storage';
+import { capNickname } from '@/src/config/profile';
 import type { UserProfile } from '@/src/types';
 import { useBackup } from '@/src/context/BackupContext';
 
@@ -26,9 +27,14 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     setHydrated(true);
   }, []);
 
+  // Enforce the 32-UTF-8-byte nickname cap at the single save chokepoint, so
+  // every caller (profile edit, avatar select, identity-restore in settings)
+  // caps both the in-memory value (the source broadcast over MLS) and the
+  // persisted value — not just the profile-edit input. (AC-CARD-7)
   const saveProfile = useCallback((nextProfile: UserProfile) => {
-    setProfile(nextProfile);
-    writeUserProfile(nextProfile);
+    const capped = { ...nextProfile, nickname: capNickname(nextProfile.nickname).value };
+    setProfile(capped);
+    writeUserProfile(capped);
     markBackupDirty(true);
   }, [markBackupDirty]);
 

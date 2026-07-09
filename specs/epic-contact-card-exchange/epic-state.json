@@ -1,0 +1,248 @@
+{
+  "epic_name": "contact-card-exchange",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-09T13:44:19Z",
+  "updated_at": "2026-07-09T21:55:00Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md",
+    "app/src/context/NostrIdentityContext.tsx",
+    "specs/epic-add-contact-by-npub/spec.md",
+    "specs/epic-contact-card-exchange/acceptance-criteria.md",
+    "specs/epic-contact-card-exchange/spec.md"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-09T13:44:19Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "IN_PROGRESS",
+      "timestamp": "2026-07-09T13:52:00Z",
+      "trigger": "story_loop_start"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-09T21:35:00Z",
+      "trigger": "all_stories_done_gates_passed"
+    }
+  ],
+  "plugin_sha": "unknown",
+  "consumer_sha": "76e6879443a4905a63be0a392dc1a9c98b24564b",
+  "models": {
+    "lead": "opus",
+    "examiner": "opus",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "reviewer_agent_id": "aa8356fc3c7ada57f",
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_remediated",
+      "detail": "6 logic modules audited (score 0.80-1.0, real_gap_count 0); 3 test-quality gaps closed with 8 new tests; 7 UI/i18n files auto-skipped"
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_remediated",
+      "detail": "Full suite: non-relay bucket (incl. 4 new card specs: add/share/deeplink) + relay bucket 235 passed/6 skipped/0 failed. Remediated: 3 pre-existing call specs crashed collection on invalid test.describe.serial.skip API (fixed to test.describe.skip); 2 pre-existing stale tests asserted forbidden kind-0-to-relay behavior (inverted to privacy guards matching AC-SEC-2)."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_pass",
+      "detail": "Stage-1 Opus (resumable, whole-tree): CLEAN, 0 findings. Stage-2 Codex unavailable in env; user substituted Fable as independent second reviewer: clean-to-ship, 0 critical, no privacy leak on any path (invariant verified). 6 findings all sev<=3: qr.ts comment-rot fixed; signer-mismatch-share-UX (sev3) + signed-empty-name LWW edge (sev3) handed to curator as backlog follow-ups; hashchange + timer-cleanup recorded as Review notes.",
+      "structural_findings": {
+        "surfaced": 1,
+        "acted": 1,
+        "disclosed_unacted": 0
+      }
+    }
+  ],
+  "ac_closure": [
+    {
+      "ac_id": "AC-CARD-1",
+      "status": "met",
+      "evidence": "contactCard.test.ts round-trip"
+    },
+    {
+      "ac_id": "AC-CARD-2",
+      "status": "met",
+      "evidence": "contactCard.test.ts byte-layout"
+    },
+    {
+      "ac_id": "AC-CARD-3",
+      "status": "met",
+      "evidence": "contactCard.test.ts strict-header"
+    },
+    {
+      "ac_id": "AC-CARD-4",
+      "status": "met",
+      "evidence": "contactCard.test.ts length-bound"
+    },
+    {
+      "ac_id": "AC-CARD-5",
+      "status": "met",
+      "evidence": "contactCard.test.ts codepoint truncation"
+    },
+    {
+      "ac_id": "AC-CARD-6",
+      "status": "met",
+      "evidence": "contactCard/shareCard/inviteByCard unsigned card"
+    },
+    {
+      "ac_id": "AC-CARD-7",
+      "status": "met",
+      "evidence": "profileNicknameCap.test.ts"
+    },
+    {
+      "ac_id": "AC-SIG-1",
+      "status": "met",
+      "evidence": "contactCard.test.ts verifyEvent"
+    },
+    {
+      "ac_id": "AC-SIG-2",
+      "status": "met",
+      "evidence": "contactCard.test.ts tampered-name reject"
+    },
+    {
+      "ac_id": "AC-SIG-3",
+      "status": "met",
+      "evidence": "contactCard.test.ts tampered-pubkey reject"
+    },
+    {
+      "ac_id": "AC-SIG-4",
+      "status": "met",
+      "evidence": "contactCard.test.ts wrong-key reject"
+    },
+    {
+      "ac_id": "AC-SIG-5",
+      "status": "met",
+      "evidence": "contactCard.test.ts CARD_CONTENT shared+surrogate"
+    },
+    {
+      "ac_id": "AC-SIG-6",
+      "status": "met",
+      "evidence": "contactCard.test.ts id-attached-before-verify"
+    },
+    {
+      "ac_id": "AC-PARSE-1",
+      "status": "met",
+      "evidence": "contactCard.test.ts bare npub (+uppercase/nostr regressions)"
+    },
+    {
+      "ac_id": "AC-PARSE-2",
+      "status": "met",
+      "evidence": "contactCard.test.ts card link"
+    },
+    {
+      "ac_id": "AC-PARSE-3",
+      "status": "met",
+      "evidence": "contactCard.test.ts raw payload"
+    },
+    {
+      "ac_id": "AC-PARSE-4",
+      "status": "met",
+      "evidence": "contactCard + addContactCardWiring no-downgrade"
+    },
+    {
+      "ac_id": "AC-PARSE-5",
+      "status": "met",
+      "evidence": "contactCard.test.ts never-throws"
+    },
+    {
+      "ac_id": "AC-CACHE-1",
+      "status": "met",
+      "evidence": "contactCardImport.test.ts ISO updatedAt"
+    },
+    {
+      "ac_id": "AC-CACHE-2",
+      "status": "met",
+      "evidence": "contactCardImport.test.ts cross-source LWW"
+    },
+    {
+      "ac_id": "AC-CACHE-3",
+      "status": "met",
+      "evidence": "contactCardImport.test.ts idempotent"
+    },
+    {
+      "ac_id": "AC-CACHE-4",
+      "status": "met",
+      "evidence": "contactCardImport.test.ts avatar preserved"
+    },
+    {
+      "ac_id": "AC-UX-1",
+      "status": "met",
+      "evidence": "addContactCardWiring.test.ts + contact-card-add.spec.ts"
+    },
+    {
+      "ac_id": "AC-UX-2",
+      "status": "met",
+      "evidence": "addContactCardWiring.test.ts + contact-card-add.spec.ts"
+    },
+    {
+      "ac_id": "AC-UX-3",
+      "status": "met",
+      "evidence": "addDeepLink.test.ts + contact-card-deeplink.spec.ts"
+    },
+    {
+      "ac_id": "AC-UX-4",
+      "status": "met",
+      "evidence": "shareCard.test.ts (local/07/46 real verify) + contact-card-share.spec.ts"
+    },
+    {
+      "ac_id": "AC-UX-5",
+      "status": "met",
+      "evidence": "addContactCardWiring.test.ts bare-npub"
+    },
+    {
+      "ac_id": "AC-UX-6",
+      "status": "met",
+      "evidence": "addContactCardWiring.test.ts already_exists refresh"
+    },
+    {
+      "ac_id": "AC-UX-7",
+      "status": "met",
+      "evidence": "addDeepLink.test.ts + contact-card-deeplink.spec.ts onboarding"
+    },
+    {
+      "ac_id": "AC-GRP-1",
+      "status": "met",
+      "evidence": "inviteByCard.test.ts no-write DD8"
+    },
+    {
+      "ac_id": "AC-GRP-2",
+      "status": "met",
+      "evidence": "inviteByCard.test.ts KeyPackage parity"
+    },
+    {
+      "ac_id": "AC-SEC-1",
+      "status": "met",
+      "evidence": "contactCardImport.test.ts zero-relay + contact-card e2e"
+    },
+    {
+      "ac_id": "AC-SEC-2",
+      "status": "met",
+      "evidence": "S2 grep guard + groups-identity kind-0-never-published e2e"
+    },
+    {
+      "ac_id": "AC-INTL-1",
+      "status": "met",
+      "evidence": "addPage.i18n.test.ts en+de parity"
+    }
+  ],
+  "manual_validation": []
+}

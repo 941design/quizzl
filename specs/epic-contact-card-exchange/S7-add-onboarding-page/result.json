@@ -1,0 +1,55 @@
+{
+  "story_id": "S7",
+  "status": "done",
+  "completed_at": "2026-07-09T19:45:00Z",
+  "files_created": [
+    "app/pages/add.tsx",
+    "app/src/lib/addDeepLink.ts",
+    "app/tests/unit/cards/addDeepLink.test.ts",
+    "app/tests/unit/cards/addPage.i18n.test.ts",
+    "specs/epic-contact-card-exchange/S7-add-onboarding-page/architecture.json",
+    "specs/epic-contact-card-exchange/S7-add-onboarding-page/baseline.json",
+    "specs/epic-contact-card-exchange/S7-add-onboarding-page/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/i18n.ts",
+    "specs/epic-contact-card-exchange/S7-add-onboarding-page/verification.json"
+  ],
+  "tests_added": {
+    "unit": 22
+  },
+  "test_counts": {
+    "baseline": 2541,
+    "final": 2563
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": ["add page"],
+  "escalation_history": [],
+  "review_findings": [
+    {
+      "source": "opus-reviewer",
+      "severity": 3,
+      "status": "fixed",
+      "detail": "addPage.i18n.test.ts docstring overstated its REQUIRED_KEYS list as git-diff-derived / not-a-hand-fixed-list. Corrected the docstring to accurately describe it as a maintained enumeration (matching the repo's REQUIRED_KEYS precedent) with an explicit durability caveat. AC-INTL-1 satisfied for this epic; a fully-programmatic whole-i18n walk was rejected as it would fail on pre-existing out-of-scope en/de divergence. Durability gap → curator backlog follow-up."
+    },
+    {
+      "source": "examiner+codex",
+      "severity": 3,
+      "status": "accepted",
+      "detail": "AC-UX-7 card survival relies on the URL fragment staying stable during identity auto-generation (re-read on the hydrated effect pass) rather than an explicit captured-payload ref. Spec.md:193-194 sanctions 'the retained hash'; nothing mutates the fragment during generation, and settledRef prevents double-add. Judged YES by the examiner. Explicit-capture hardening is optional defense-in-depth → curator backlog follow-up."
+    }
+  ],
+  "implementation_decisions": [
+    "Confirmed the identity model against NostrIdentityContext.tsx:170-182 before designing AC-UX-7: the app auto-generates a keypair on first mount (no bespoke onboarding wizard exists or is needed). 'route into onboarding' is therefore implemented as waiting on useNostrIdentity().hydrated -- which flips true at exactly the moment the auto-generated (or restored) identity becomes available -- rather than building any new identity-creation UI.",
+    "New pure helper module app/src/lib/addDeepLink.ts holds three exports: readLocationHash (SSR-safe, injectable window-like param), extractCardPayloadFromHash (pure #c= fragment parser), and resolveAddDeepLink (the hash-parse-then-mode-branch core). resolveAddDeepLink never calls parseContactCard itself -- it extracts the #c= payload string and, only once hydrated is true, calls S4's processContactInput(payload, ownPubkeyHex) exactly once, which owns the single parseContactCard call internally (VQ-S7-002). This mirrors architecture.md's own stated guidance for this story verbatim.",
+    "pages/add.tsx reads window.location.hash only inside a useEffect (never in the render body), matching this repo's existing window-safety convention (DirectMessageNotificationsWatcher.tsx). A `settledRef` ref ensures processContactInput fires at most once per page load even across re-renders or StrictMode double-invoke: the effect keeps re-running harmlessly while hydrated is false (each call only extracts+checks the hash, no parse), and locks after the first non-'awaiting_identity' outcome.",
+    "readLocationHash takes an injectable window-like object rather than touching the global directly, so its 'window absent' branch (the case a static-export build-time prerender pass would hit if it reached this code) is directly unit-tested without jsdom, addressing VQ-S7-001's demand for a genuinely-tested false branch rather than a defensive check that never differs.",
+    "Success/error copy for a completed add reuses the pre-existing contacts.addContactSuccess / contacts.addContactError* keys (from the earlier 'add contact by npub' feature, already both-language-covered) instead of duplicating new add.* equivalents -- same outcome, same wording, one source of truth. New add.* keys (pageTitle, heading, settingUp, noCard, goToContacts) cover only the states genuinely unique to this page. Flagged as VQ-S7-011 for the examiner to confirm this reuse is the correct read of AC-INTL-1's 'strings added by this epic' wording.",
+    "addPage.i18n.test.ts's REQUIRED_KEYS list was derived from `git diff HEAD -- app/src/lib/i18n.ts` against this epic's working tree (not hand-guessed) to capture the exact set of keys S3/S4/S6/S7 actually added or retexted: settings.nicknameLimit (S3); groups.qrStartingCamera (S4 boy-scout fix) plus the reused contacts.addContact* keys; identity.copyCardLink/copiedCardLink/shareCardError (new) and identity.showQr/qrModalTitle (retexted) (S6); add.* (S7, this story)."
+  ],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run -- the story prompt already resolved the hardest design question (call processContactInput(payload, ownPubkeyHex) exactly once, driven by hydrated) and the identity-model question was answered directly and quickly by reading NostrIdentityContext.tsx (auto-generated identity, hydrated flag, no wizard needed). Single well-specified implementation pass, no escalation, no dev sub-agent delegation needed for these two small, tightly-coupled files -- see implementation_decisions for the design record."
+  }
+}

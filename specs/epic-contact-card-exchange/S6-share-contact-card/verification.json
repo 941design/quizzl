@@ -1,0 +1,80 @@
+{
+  "story_id": "S6",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-09T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S6-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the signed-card cache genuinely keyed by nickname and rebuilt only when the nickname changes, or does it silently rebuild — and round-trip to a remote NIP-46 signer — on every share-modal open regardless of whether the nickname actually changed?"
+    },
+    {
+      "question_id": "VQ-S6-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does settings.tsx build the card via encodeCard using activeEventSignerOverride.current ?? createPrivateKeySigner(privateKeyHex) (the existing signer-selection precedent), and does NpubQrModal's display mode consume only the SignedCardPayload seam (payload/shareUrl) produced by S1, without NpubQrModal.tsx itself invoking a signer or the codec directly?"
+    },
+    {
+      "question_id": "VQ-S6-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `NpubQrModal / share` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S6-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Are there adapter-level unit tests for card production in local-key, NIP-07 (stubbed sign), and NIP-46 (stubbed sign) modes, each asserting the produced card verifies via real getEventHash/verifyEvent (not a stubbed verify), following the vi.mock nostr-tools/pure pattern precedent (callSignaling.test.ts) for stubbing only the remote sign call, never the crypto primitives?"
+    },
+    {
+      "question_id": "VQ-S6-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the share action produce a QR encoding the full onboarding URL (https://few.chat/add#c=<payload>) at ECC-L instead of the bare npub at ECC-M, matching spec.md's stated share behavior, with the no-nickname-set case producing an unsigned card equivalent to sharing a bare npub?"
+    },
+    {
+      "question_id": "VQ-S6-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the share-card caching strategy avoid holding the user's private key material, or an unnecessary long-lived remote-signer reference, in component state beyond what createPrivateKeySigner/activeEventSignerOverride already require, and is the cache correctly invalidated on both a nickname change and a signer-mode change (e.g. switching from local key to NIP-46 mid-session)?"
+    },
+    {
+      "question_id": "VQ-S6-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-4",
+      "question": "Does the 'Share contact card' action produce a copy-able card link and a scannable QR encoding the full onboarding URL (not the bare payload), built from the current user's signed card via the active signer, verifying (AC-SIG-1) in local, NIP-07, and NIP-46 modes via adapter-level unit tests (real getEventHash, stubbed remote sign) plus a local-mode e2e, with the signed card cached and rebuilt only on nickname change? Show the production settings.tsx/NpubQrModal.tsx code, the three adapter-mode unit tests plus the e2e test reference, and confirm the unit tests assert real verification rather than stubbing verifyEvent itself."
+    },
+    {
+      "question_id": "VQ-S6-008",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "settings.tsx's handleOpenShareCard only calls ownQrDisclosure.onOpen() AFTER getOwnShareCard resolves (never opens the modal first and lets it render a stale/blank QR while the signer round-trip is pending). Does this correctly avoid the alternative of passing an undefined shareUrl into an already-open modal, and does the NpubQrButton's isLoading={shareCardLoading} give the user visible feedback during a slow NIP-46 round trip rather than an unexplained delay before the modal appears?"
+    },
+    {
+      "question_id": "VQ-S6-009",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The shareCard.test.ts case titled 'rejects a signer whose pubkey does not match the card subject' exercises encodeCard's pre-sign pubkey-mismatch guard, not decode-time verifyEvent rejection (a distinct failure mode from AC-SIG-3's post-sign tampering). Is this honestly scoped by its in-test comment, and does the epic's existing AC-SIG-2/AC-SIG-3 coverage in contactCard.test.ts (S1) already cover the decode-time tamper case, so this story does not need to duplicate it?"
+    },
+    {
+      "question_id": "VQ-S6-010",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "NpubQrModal's display mode dropped the standalone muted <Text>{npub}</Text> line (previously shown above the Code block) in favour of a single Code block driven by displayValue (shareUrl when present, else npub unchanged). Since settings.tsx is confirmed (via grep) to be the only display-mode caller and no e2e test asserts on the removed line, is this an acceptable minor visual simplification rather than a scope violation, and should a future display-mode caller with different UX needs get its own prop rather than reintroducing this line unconditionally?"
+    },
+    {
+      "question_id": "VQ-S6-011",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "question": "getOwnShareCard's lazy getSignEvent is only invoked after shouldRebuildShareCard returns true (verified by the 'sign called exactly once across two opens' unit test). Does this ordering hold in production settings.tsx too -- i.e. does handleOpenShareCard never resolve/construct a signer object before calling getOwnShareCard, so a cache hit in NIP-46 mode truly never touches signerAdapter at all (not even to construct an unused signer instance)?"
+    },
+    {
+      "question_id": "VQ-S6-012",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "Gate-remediation fix (review severity 6, impl_bug): ShareCardCacheKey now includes pubkeyHex alongside nickname/signerMode, and shouldRebuildShareCard compares all three. settings.tsx sources pubkeyHex directly from useNostrIdentity() rather than re-deriving it from npub. Does this close the mid-session identity-restore bug -- sharing as identity A then restoring identity B via replaceIdentity's in-place setIdentity() (no page reload) with the same (nickname, signerMode) as A -- for every restore path, including the mnemonic/seed-phrase restore flow and any future caller of replaceIdentity, or only for the specific reproduction scenario the regression tests exercise (empty-nickname/local-signer, and same-nonempty-nickname/local-signer)? Is there any restore path where the identity context's pubkeyHex getter could still observe the previous identity's value at the moment handleOpenShareCard reads it (a stale-closure risk distinct from the cache-key bug itself)?"
+    }
+  ]
+}

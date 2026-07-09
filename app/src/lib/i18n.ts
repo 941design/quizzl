@@ -56,6 +56,7 @@ type Copy = {
     nicknameDescription: string;
     nicknamePlaceholder: string;
     nicknameHelper: string;
+    nicknameLimit: (max: number) => string;
     avatarHeading: string;
     avatarDescription: string;
     chooseAvatar: string;
@@ -96,6 +97,9 @@ type Copy = {
     showQr: string;
     qrModalTitle: string;
     qrGenerationError: string;
+    copyCardLink: string;
+    copiedCardLink: string;
+    shareCardError: string;
     backupHeading: string;
     backupDescription: string;
     generatePhrase: string;
@@ -155,6 +159,7 @@ type Copy = {
     qrModalTitle: string;
     qrScannerTitle: string;
     qrScannerHint: string;
+    qrStartingCamera: string;
     qrInvalidPayload: string;
     cameraPermissionDenied: string;
     qrUnavailable: string;
@@ -295,6 +300,19 @@ type Copy = {
     addContactErrorSelf: string;
     addContactErrorAlreadyExists: string;
     addContactErrorGeneric: string;
+  };
+  /**
+   * `/add#c=…` static deep-link/onboarding page (epic: contact-card-exchange,
+   * story S7). The success/error copy for a completed add is intentionally
+   * reused from `contacts.addContactSuccess` / `contacts.addContactError*`
+   * rather than duplicated here — same outcome, same wording.
+   */
+  add: {
+    pageTitle: string;
+    heading: string;
+    settingUp: string;
+    noCard: string;
+    goToContacts: string;
   };
   profile: {
     pageTitle: string;
@@ -544,6 +562,7 @@ const copy: Record<LanguageCode, Copy> = {
       nicknameDescription: 'Choose a short nickname that feels like you.',
       nicknamePlaceholder: 'Rocket Reader',
       nicknameHelper: 'Use a nickname instead of your full real name.',
+      nicknameLimit: (max: number) => `Nickname reached the ${max}-character limit (accented letters and emoji count for more).`,
       avatarHeading: 'Avatar',
       avatarDescription: 'Pick an avatar for your profile.',
       chooseAvatar: 'Choose Avatar',
@@ -583,9 +602,12 @@ const copy: Record<LanguageCode, Copy> = {
       npubLabel: 'Your public key (npub)',
       copyNpub: 'Copy npub',
       copiedNpub: 'Copied!',
-      showQr: 'Show QR',
-      qrModalTitle: 'Npub QR Code',
+      showQr: 'Share contact card',
+      qrModalTitle: 'Share Contact Card',
       qrGenerationError: 'Failed to generate QR code.',
+      copyCardLink: 'Copy card link',
+      copiedCardLink: 'Copied!',
+      shareCardError: 'Failed to build the share card. Please try again.',
       backupHeading: 'Back Up Your Identity',
       backupDescription:
         'Generate a recovery phrase to restore your identity if you clear browser data.',
@@ -648,6 +670,7 @@ const copy: Record<LanguageCode, Copy> = {
       qrModalTitle: 'Npub QR Code',
       qrScannerTitle: 'Scan Npub QR Code',
       qrScannerHint: 'Point the camera at a QR code containing an npub.',
+      qrStartingCamera: 'Starting camera...',
       qrInvalidPayload: 'This QR code does not contain a valid npub.',
       cameraPermissionDenied: 'Camera permission was denied.',
       qrUnavailable: 'QR scanning is unavailable on this device or browser.',
@@ -784,6 +807,13 @@ const copy: Record<LanguageCode, Copy> = {
       addContactErrorSelf: "You can't add yourself as a contact.",
       addContactErrorAlreadyExists: 'This person is already in your contacts.',
       addContactErrorGeneric: "Couldn't add this contact. Please try again.",
+    },
+    add: {
+      pageTitle: 'Add Contact',
+      heading: 'Add Contact',
+      settingUp: 'Setting up your account…',
+      noCard: "This link doesn't include a contact card.",
+      goToContacts: 'Go to Contacts',
     },
     profile: {
       pageTitle: 'Profile',
@@ -1019,6 +1049,7 @@ const copy: Record<LanguageCode, Copy> = {
       nicknameDescription: 'Wähle einen kurzen Namen, der zu dir passt.',
       nicknamePlaceholder: 'Raketenleser',
       nicknameHelper: 'Nutze lieber einen Spitznamen als deinen vollen echten Namen.',
+      nicknameLimit: (max: number) => `Der Spitzname hat die Grenze von ${max} Zeichen erreicht (Umlaute und Emojis zählen mehr).`,
       avatarHeading: 'Avatar',
       avatarDescription: 'Waehle einen Avatar fuer dein Profil.',
       chooseAvatar: 'Avatar waehlen',
@@ -1058,9 +1089,12 @@ const copy: Record<LanguageCode, Copy> = {
       npubLabel: 'Dein öffentlicher Schlüssel (npub)',
       copyNpub: 'npub kopieren',
       copiedNpub: 'Kopiert!',
-      showQr: 'QR zeigen',
-      qrModalTitle: 'Npub-QR-Code',
+      showQr: 'Kontaktkarte teilen',
+      qrModalTitle: 'Kontaktkarte teilen',
       qrGenerationError: 'QR-Code konnte nicht erstellt werden.',
+      copyCardLink: 'Kartenlink kopieren',
+      copiedCardLink: 'Kopiert!',
+      shareCardError: 'Kartenerstellung fehlgeschlagen. Bitte erneut versuchen.',
       backupHeading: 'Identität sichern',
       backupDescription:
         'Erstelle eine Wiederherstellungsphrase, um deine Identität bei gelöschten Browser-Daten zurückzugewinnen.',
@@ -1123,6 +1157,7 @@ const copy: Record<LanguageCode, Copy> = {
       qrModalTitle: 'Npub-QR-Code',
       qrScannerTitle: 'Npub-QR-Code scannen',
       qrScannerHint: 'Richte die Kamera auf einen QR-Code mit einer npub.',
+      qrStartingCamera: 'Kamera wird gestartet...',
       qrInvalidPayload: 'Dieser QR-Code enthält keine gültige npub.',
       cameraPermissionDenied: 'Kamerazugriff wurde verweigert.',
       qrUnavailable: 'QR-Scan ist auf diesem Gerät oder Browser nicht verfügbar.',
@@ -1258,6 +1293,13 @@ const copy: Record<LanguageCode, Copy> = {
       addContactErrorSelf: 'Du kannst dich nicht selbst als Kontakt hinzufügen.',
       addContactErrorAlreadyExists: 'Diese Person ist bereits in deinen Kontakten.',
       addContactErrorGeneric: 'Der Kontakt konnte nicht hinzugefügt werden. Bitte versuche es erneut.',
+    },
+    add: {
+      pageTitle: 'Kontakt hinzufügen',
+      heading: 'Kontakt hinzufügen',
+      settingUp: 'Dein Konto wird eingerichtet …',
+      noCard: 'Dieser Link enthält keine Kontaktkarte.',
+      goToContacts: 'Zu den Kontakten',
     },
     profile: {
       pageTitle: 'Profil',

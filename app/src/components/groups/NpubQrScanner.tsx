@@ -1,13 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, AlertDescription, AlertIcon, Box, Spinner, Text, VStack } from '@chakra-ui/react';
-import { canUseCameraQrScanner, normaliseNpubPayload } from '@/src/lib/qr';
+import { canUseCameraQrScanner, normaliseScanPayload } from '@/src/lib/qr';
+import { useCopy } from '@/src/context/LanguageContext';
 
 type NpubQrScannerProps = {
   invalidPayloadMessage: string;
   permissionDeniedMessage: string;
   unavailableMessage: string;
   hint: string;
-  onScan: (npub: string) => void;
+  /**
+   * Called with the validated, normalised scan payload — a bare npub OR (epic:
+   * contact-card-exchange, story S4) a contact-card onboarding link / raw card
+   * payload. `normaliseScanPayload` (qr.ts) is what accepts the wider set of
+   * shapes; this callback still just carries a plain string, so callers parse it
+   * (via `parseContactCard`) when they need the decoded pubkey/profile.
+   */
+  onScan: (value: string) => void;
 };
 
 export default function NpubQrScanner({
@@ -17,6 +25,7 @@ export default function NpubQrScanner({
   hint,
   onScan,
 }: NpubQrScannerProps) {
+  const copy = useCopy();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerRef = useRef<{
     stop: () => void;
@@ -54,15 +63,15 @@ export default function NpubQrScanner({
           (result: { data: string }) => {
             if (handledRef.current) return;
 
-            const npub = normaliseNpubPayload(result.data);
-            if (!npub) {
+            const scannedValue = normaliseScanPayload(result.data);
+            if (!scannedValue) {
               setError(invalidPayloadMessage);
               return;
             }
 
             handledRef.current = true;
             scanner.stop();
-            onScan(npub);
+            onScan(scannedValue);
           },
           {
             onDecodeError: () => {},
@@ -143,7 +152,7 @@ export default function NpubQrScanner({
             justify="center"
           >
             <Spinner />
-            <Text fontSize="sm">Starting camera...</Text>
+            <Text fontSize="sm">{copy.groups.qrStartingCamera}</Text>
           </VStack>
         )}
       </Box>

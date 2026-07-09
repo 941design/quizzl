@@ -29,7 +29,6 @@ import {
   pubkeyToNpub,
   type StoredNostrIdentity,
 } from '@/src/lib/nostrKeys';
-import { readUserProfile } from '@/src/lib/storage';
 
 export type SignerMode = 'local' | 'nip46' | 'nip07';
 
@@ -249,12 +248,12 @@ export function NostrIdentityProvider({ children }: { children: React.ReactNode 
         }
       }
 
-      // Background: publish kind 0 + KeyPackages (non-blocking), only in local mode
-      if (effectiveMode === 'local') {
-        void publishIdentityToRelays(stored).catch((err) => {
-          console.warn('[NostrIdentity] Background publish failed:', err);
-        });
-      }
+      // Privacy invariant: the user's profile (kind-0 metadata) is NEVER
+      // broadcast to public relays. Profile data is exchanged only over
+      // addressed, encrypted channels (MLS group rumors, NIP-59 gift wraps,
+      // out-of-band contact cards). See CLAUDE.md "Privacy invariant".
+      // KeyPackages (MLS crypto key material, no personal data) are published
+      // separately in MarmotContext.
     }
 
     void init();
@@ -391,10 +390,7 @@ export function NostrIdentityProvider({ children }: { children: React.ReactNode 
       getNdk(newIdentity.privateKeyHex);
     }
     setIdentity(newIdentity);
-    // Re-publish kind 0 + KeyPackages for restored identity
-    void publishIdentityToRelays(newIdentity).catch((err) => {
-      console.warn('[NostrIdentity] Re-publish after restore failed:', err);
-    });
+    // Privacy invariant: no kind-0 profile broadcast on restore (see CLAUDE.md).
   }, []);
 
   const setSignerMode = useCallback((mode: SignerMode) => {
@@ -696,39 +692,4 @@ export function useNostrIdentity(): NostrIdentityContextValue {
   const context = useContext(NostrIdentityContext);
   // Return safe defaults when called outside provider (e.g., during dynamic load)
   return context ?? DEFAULT_CONTEXT;
-}
-
-// ---------------------------------------------------------------------------
-// Internal: background relay publishing
-// ---------------------------------------------------------------------------
-
-async function publishIdentityToRelays(stored: StoredNostrIdentity): Promise<void> {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const { connectNdk } = await import('@/src/lib/ndkClient');
-    const NDK = await import('@nostr-dev-kit/ndk');
-    const ndk = await connectNdk(stored.privateKeyHex);
-
-    // Publish kind 0 metadata
-    const profile = readUserProfile();
-    const metadataEvent = new NDK.NDKEvent(ndk, {
-      kind: 0,
-      content: JSON.stringify({
-        name: profile.nickname || 'Few User',
-        about: 'Chatting with Few',
-        client: 'few',
-      }),
-      tags: [],
-      created_at: Math.floor(Date.now() / 1000),
-    });
-
-    await metadataEvent.sign();
-    await metadataEvent.publish().catch((err) => {
-      console.warn('[NostrIdentity] kind 0 publish failed:', err);
-    });
-  } catch (err) {
-    console.warn('[NostrIdentity] publishIdentityToRelays failed:', err);
-    // Non-fatal — identity is still valid locally
-  }
 }

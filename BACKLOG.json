@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-07T19:53:32Z",
+  "updated_at": "2026-07-09T21:06:02Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -151,6 +151,11 @@
       "path": "specs/epic-feature-request-message-edit-and-delete/",
       "status": "DONE",
       "next_action": "completed 2026-07-07"
+    },
+    {
+      "path": "specs/epic-contact-card-exchange/",
+      "status": "DONE",
+      "next_action": "completed 2026-07-09"
     }
   ],
   "findings": [
@@ -205,6 +210,50 @@
       "behavior": "Group delete/edit authorizes on the self-asserted inner rumor pubkey (S3 pubkeysMatch vs target author); marmot-ts never verifies that pubkey against the sending MLS leaf, so a malicious member can forge another member's signal.",
       "approach": "Upstream: get marmot-ts/ts-mls to surface the authenticated sender leaf credential pubkey for application messages, then verify rumor.pubkey === senderCredentialPubkey in applicationRumorDispatcher for ALL kinds (also closes the pre-existing kind-9/kind-7 impersonation hole). Product decision 2026-07-07: ship group edit/delete with documented group-member-attested trust; this finding tracks the upstream fix.",
       "success_signal": "applicationRumorDispatcher rejects an application rumor whose inner pubkey != the MLS-authenticated sender leaf credential, proven by a forged-pubkey test"
+    },
+    {
+      "slug": "share-contact-card-permanently-fails-when",
+      "scope": "any",
+      "anchor": {
+        "path": "app/pages/settings.tsx",
+        "line": 396
+      },
+      "text": "Share contact card permanently fails when the active NIP-46 signer's pubkey differs from the local identity",
+      "created_at": "2026-07-09",
+      "motivation": "NostrIdentityContext.tsx:295 accepts a NIP-46 bunker whose reported pubkey differs from the local identity, logging only a console.warn (no hard block, by design for this epic slice). But encodeCard's signer-pubkey guard (contactCard.ts:272-273) throws whenever signed.pubkey !== pubkeyHex, and handleOpenShareCard (settings.tsx:374-402) catches that throw and always shows the generic copy.identity.shareCardError. In that identity-mismatch state, 'Share contact card' can never succeed no matter how many times the user retries, and the error copy gives no indication why or what to do.",
+      "behavior": "handleOpenShareCard calls getOwnShareCard with pubkeyHex: identityPubkeyHex (the local identity's pubkey) but getSignEvent may resolve to a NIP-46 signer whose actual signing key differs. encodeCard's guard (correctly, for privacy/integrity) refuses to sign a card claiming a pubkey the active signer cannot back, and throws. The UI has no distinct code path for this case -- it lands in the same catch as any other share failure and shows a generic retry-implying message.",
+      "approach": "Either (a) surface a distinct, actionable error when the guard-mismatch throw is caught (e.g. a message naming the signer/identity mismatch instead of a generic retry message), or (b) tighten NostrIdentityContext's accept-with-warning behavior at connect time so a mismatched bunker is rejected before it becomes the active signer, closing the gap at the source instead of downstream at share time.",
+      "success_signal": "Mismatched-bunker state either cannot become active, or Share failure copy names the mismatch instead of a generic error.",
+      "kind": "spec-gap"
+    },
+    {
+      "slug": "decodecard-accepts-signed-name-len-0",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/lib/contactCard.ts",
+        "line": 343
+      },
+      "text": "decodeCard accepts a signed name_len=0 card that encodeCard never emits, opening an LWW empty-name clobber path",
+      "created_at": "2026-07-09",
+      "motivation": "encodeCard only sets the SIGNED flag (and only emits created_at/name_len/sig) when the user has a nickname (DD 10: 'No nickname -> share an unsigned card'), so the encoder path never itself produces a signed card with name_len=0. But decodeCard's structural check at line 343 only rejects nameLen > MAX_NAME_BYTES -- it accepts nameLen === 0 on a signed card as long as the signature verifies. A hand-crafted (or future non-Few client's) self-signed empty-name card with a newer created_at than an existing cache entry would pass verification and, per AC-CACHE-2's LWW rule, overwrite an existing cached nickname with the empty string via importCard -- a legitimately-signed card silently blanking a name the recipient had already cached from a richer source (e.g. MLS profile sync).",
+      "behavior": "decodeCard treats a signed, correctly-verifying, empty-name (name_len=0) card as a fully valid v1 signed card and returns profile: { nickname: '', updatedAt }. Nothing in the encode/decode/parse/cache pipeline currently distinguishes 'signed empty name, meant to clear the cached name' from 'signed empty name, an encoder/decoder-disagreement edge case nobody meant to produce'.",
+      "approach": "Pick one of two explicit resolutions: (1) decodeCard rejects name_len=0 on a signed card as malformed, restoring encoder/decoder symmetry; or (2) keep it valid but document it as an intentional 'clear my cached name' affordance and add an AC + test asserting the LWW-clobber-to-empty behavior is desired, not accidental.",
+      "success_signal": "encodeCard and decodeCard agree on whether a signed empty-name card is valid, backed by a test for the chosen behavior.",
+      "kind": "spec-gap"
+    },
+    {
+      "slug": "ac-intl-1-i18n-parity-contact",
+      "scope": "any",
+      "anchor": {
+        "path": "app/tests/unit/cards/addPage.i18n.test.ts"
+      },
+      "text": "AC-INTL-1 i18n parity for contact-card-exchange relies on a hand-maintained key list that won't catch future en-only additions",
+      "created_at": "2026-07-09",
+      "motivation": "addPage.i18n.test.ts satisfies AC-INTL-1 for this epic (S3-S7) via a REQUIRED_KEYS array reconciled by hand against 'git diff HEAD -- app/src/lib/i18n.ts' for this epic's working tree -- the same REQUIRED_KEYS discipline other *.i18n.test.ts suites use. A repo-wide programmatic parity walk was deliberately rejected during S7 (opus-reviewer + verification-examiner) because it would fail on pre-existing, out-of-epic en/de divergence elsewhere in i18n.ts. The tradeoff was accepted for this epic but the durability gap is real: a future epic that adds an en-only key and forgets to extend some REQUIRED_KEYS list gets no automated signal.",
+      "behavior": "i18n parity across the whole app is enforced only by however many per-epic *.i18n.test.ts suites happen to exist, each with its own manually maintained REQUIRED_KEYS array; there is no single mechanism that would catch a newly-added en-only string key anywhere in app/src/lib/i18n.ts.",
+      "approach": "Design a repo-wide i18n parity test that asserts en/de key-set equality for app/src/lib/i18n.ts's Copy type as a whole, while allowlisting (or fixing) the pre-existing divergence that currently blocks that approach, so future epics get automatic coverage instead of needing their own hand-maintained REQUIRED_KEYS list.",
+      "success_signal": "A single i18n parity test covers the whole Copy type (or an explicit allowlist of pre-existing gaps), and a new en-only key fails it automatically.",
+      "kind": "spec-gap"
     }
   ],
   "archive": [

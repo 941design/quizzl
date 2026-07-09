@@ -53,7 +53,7 @@ async function bootUser(
 }
 
 // Skipped: voice/video call UI icons are temporarily disabled (feature code retained).
-test.describe.serial.skip('Call: ring and decline', () => {
+test.describe.skip('Call: ring and decline', () => {
   test.beforeAll(async () => {
     await computeTestKeypairs();
   });

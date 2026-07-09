@@ -1,0 +1,19 @@
+{
+  "story_id": "S6",
+  "captured_at": "2026-07-09T19:02:42Z",
+  "command": "make test-unit",
+  "test_files": 136,
+  "tests_total": 2527,
+  "tests_passing": 2527,
+  "tests_failing": 0,
+  "lint": {
+    "command": "npx next lint",
+    "status": "NO_LINT",
+    "note": "No .eslintrc* present; `next lint` prompts an interactive first-time-setup wizard rather than running a check. Same tolerance applied at S4/S5 baseline."
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit -p .",
+    "status": "clean",
+    "note": "0 errors at baseline."
+  }
+}

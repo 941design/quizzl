@@ -37,6 +37,7 @@ import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import NpubQrButton from '@/src/components/groups/NpubQrButton';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { truncateNpub, derivePublicKeyHex } from '@/src/lib/nostrKeys';
+import { getOwnShareCard, type ShareCardCacheEntry } from '@/src/lib/shareCard';
 import { useProfile } from '@/src/context/ProfileContext';
 import { STORAGE_KEYS, DEFAULT_RELAYS } from '@/src/types';
 import { MAINTAINER_ACTIVE_PUBKEY_HEX } from '@/src/config/maintainer';
@@ -75,6 +76,7 @@ export default function SettingsPage() {
   const copy = useCopy();
   const {
     npub,
+    pubkeyHex: identityPubkeyHex,
     privateKeyHex,
     seedHex,
     backedUp,
@@ -100,6 +102,19 @@ export default function SettingsPage() {
   const toast = useToast();
   const [npubCopied, setNpubCopied] = useState(false);
   const [wipeConfirmInput, setWipeConfirmInput] = useState('');
+
+  // --- Share contact card state (epic: contact-card-exchange, story S6) ---
+  // In-memory only (never persisted, never holds signer/key material — the
+  // signer itself is re-derived on each cache MISS via the existing
+  // activeEventSignerOverride ?? createPrivateKeySigner precedent, mirroring
+  // IncomingCallWatcher). Keyed by (nickname, signerMode) so a repeat modal
+  // open with an unchanged key reuses the cached card instead of re-signing
+  // (VQ-S6-001), while a nickname edit or a signer-mode switch invalidates it
+  // (VQ-S6-006).
+  const shareCardCacheRef = useRef<ShareCardCacheEntry | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareCardLoading, setShareCardLoading] = useState(false);
+  const [shareCardError, setShareCardError] = useState<string | null>(null);
 
   // --- Relay management state ---
   const [relayList, setRelayList] = useState<string[]>(() => getEffectiveRelays());
@@ -349,6 +364,43 @@ export default function SettingsPage() {
     }
   }, [npub]);
 
+  // AC-UX-4: build (or reuse) the current user's signed contact card and
+  // open the share modal with the resulting onboarding-URL shareUrl. Card
+  // production and caching are fully delegated to shareCard.ts's
+  // getOwnShareCard — this handler only supplies the signer-selection
+  // precedent (activeEventSignerOverride ?? createPrivateKeySigner) lazily,
+  // so a cache hit never touches the signer at all (no remote NIP-46 round
+  // trip on a repeat open).
+  const handleOpenShareCard = useCallback(async () => {
+    setShareCardError(null);
+    if (!npub || !privateKeyHex || !identityPubkeyHex) return;
+
+    setShareCardLoading(true);
+    try {
+      const result = await getOwnShareCard({
+        pubkeyHex: identityPubkeyHex,
+        nickname: savedProfile.nickname,
+        signerMode,
+        cache: shareCardCacheRef.current,
+        getSignEvent: async () => {
+          const { activeEventSignerOverride, createPrivateKeySigner } = await import(
+            '@/src/lib/marmot/signerAdapter'
+          );
+          const signer = activeEventSignerOverride.current ?? createPrivateKeySigner(privateKeyHex);
+          return signer.signEvent;
+        },
+      });
+      shareCardCacheRef.current = result.cache;
+      setShareUrl(result.shareUrl);
+      ownQrDisclosure.onOpen();
+    } catch (err) {
+      console.error('[Settings] Failed to build share card:', err);
+      setShareCardError(copy.identity.shareCardError);
+    } finally {
+      setShareCardLoading(false);
+    }
+  }, [npub, privateKeyHex, identityPubkeyHex, savedProfile.nickname, signerMode, copy.identity.shareCardError, ownQrDisclosure]);
+
   const handleGeneratePhrase = useCallback(async () => {
     if (!privateKeyHex) return;
     setBackupLoading(true);
@@ -404,8 +456,12 @@ export default function SettingsPage() {
 
       const restoredPubkey = await derivePublicKeyHex(restoredIdentity.privateKeyHex);
 
-      // Fetch profile from Nostr relays (kind 0) BEFORE replaceIdentity,
-      // because replaceIdentity publishes kind 0 with the current (empty) profile.
+      // Fetch profile from Nostr relays (kind 0) BEFORE replaceIdentity so a
+      // recovered nickname is already saved locally by the time the identity
+      // switch takes effect, avoiding a UI flash of an empty profile.
+      // (replaceIdentity does NOT publish kind 0 on restore — see the
+      // privacy invariant in NostrIdentityContext.tsx / CLAUDE.md: profile
+      // data is never broadcast to public relays.)
       try {
         const { connectNdk, fetchEventsWithTimeout } = await import('@/src/lib/ndkClient');
         const ndk = await connectNdk(restoredIdentity.privateKeyHex);
@@ -550,7 +606,8 @@ export default function SettingsPage() {
                     </Code>
                     <NpubQrButton
                       label={copy.identity.showQr}
-                      onClick={ownQrDisclosure.onOpen}
+                      onClick={() => void handleOpenShareCard()}
+                      isLoading={shareCardLoading}
                       data-testid="show-own-npub-qr-btn"
                     />
                     <Button
@@ -562,6 +619,12 @@ export default function SettingsPage() {
                       {npubCopied ? copy.identity.copiedNpub : copy.identity.copyNpub}
                     </Button>
                   </HStack>
+                  {shareCardError && (
+                    <Alert status="error" borderRadius="md" mt={2} size="sm" data-testid="share-card-error">
+                      <AlertIcon />
+                      <AlertDescription fontSize="sm">{shareCardError}</AlertDescription>
+                    </Alert>
+                  )}
                 </Box>
 
                 <NpubQrModal
@@ -570,6 +633,9 @@ export default function SettingsPage() {
                   title={copy.identity.qrModalTitle}
                   mode="display"
                   npub={npub}
+                  shareUrl={shareUrl ?? undefined}
+                  copyButtonLabel={copy.identity.copyCardLink}
+                  copiedButtonLabel={copy.identity.copiedCardLink}
                   qrErrorMessage={copy.identity.qrGenerationError}
                 />
 

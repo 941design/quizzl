@@ -1,0 +1,82 @@
+{
+  "story_id": "S7",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-09T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S7-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does pages/add.tsx's SSR-safe window.location.hash read use a genuine typeof window !== 'undefined' guard with a real prerender no-op path, or a check that never actually differs between build-time prerender and client runtime (i.e. is functionally always true and untested in its false branch)?"
+    },
+    {
+      "question_id": "VQ-S7-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does pages/add.tsx call parseContactCard exactly once per load from the extracted #c= fragment (never re-parsing the raw hash a second time later in the flow), and does it drive the existing S4 add-contact flow and S2 importCard rather than reimplementing add-contact or cache-import logic inline?"
+    },
+    {
+      "question_id": "VQ-S7-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `add page` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S7-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Is there a unit test exercising pages/add.tsx's hash-parse-then-mode-branch logic (existing-identity direct-add vs. no-identity onboarding-then-add) against the real parseContactCard and importCard, with the hash-extraction logic tested via exported pure-function extraction (per this repo's no-jsdom convention) rather than a test that reimplements the branching logic inline to match the component?"
+    },
+    {
+      "question_id": "VQ-S7-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does pages/add.tsx resolve correctly on both a fresh direct load and a page reload at /add#c=<valid card> — a static top-level page, not a dynamic path segment, per CLAUDE.md's static-export constraint — matching spec.md's description of the deep-link page?"
+    },
+    {
+      "question_id": "VQ-S7-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the card payload read exclusively from window.location.hash — never from router.query, a query string, or any value that would appear in a server log or in the Cloudflare Pages request path — in both onboarding mode and existing-identity mode, so the card is never transmitted to the hosting infrastructure?"
+    },
+    {
+      "question_id": "VQ-S7-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-3",
+      "question": "Does opening /add#c=<valid card> parse the card (read from window.location.hash) and drive the add-contact flow, as a static top-level page (pages/add.tsx) using a hash fragment rather than a ?c= query param, resolving correctly on both direct load and reload? Show the production hash-read/parse code, a test exercising both a fresh-load and a reload scenario, and confirm the test asserts on real parseContactCard output rather than a pre-parsed fixture substituted for the hash-reading step."
+    },
+    {
+      "question_id": "VQ-S7-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-7",
+      "question": "Does opening /add#c=<valid card> as a visitor with no local identity route into onboarding (identity creation) rather than erroring, and after an identity exists, complete the add of the card's contact — with the card surviving the onboarding step (held in memory or the retained hash) and never transmitted to the server throughout? Show the onboarding-then-add production flow, a test simulating the no-identity-then-identity-created sequence, and confirm the test asserts the card's profile data is actually applied post-onboarding rather than merely that onboarding UI rendered."
+    },
+    {
+      "question_id": "VQ-S7-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INTL-1",
+      "question": "Does every user-facing string added across S3-S7 (share action, import confirmation/errors, deep-link states, profile-cap limit message) have both en and de entries in app/src/lib/i18n.ts, referenced via useCopy() with no hardcoded literal left in any component? Show the epic-wide i18n completeness test (the REQUIRED_KEYS-loop pattern per feedback.i18n.test.ts) in app/tests/unit/cards/addPage.i18n.test.ts, and confirm it walks the actual set of keys used by S3-S7's components rather than a fixed list authored by hand that could silently miss a newly-added key."
+    },
+    {
+      "question_id": "VQ-S7-010",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "pages/add.tsx guards against a double invocation of processContactInput via a `settledRef` ref (set once the useEffect resolves a non-'awaiting_identity' outcome). Does this genuinely prevent a second processContactInput call across React re-renders triggered by hydrated/pubkeyHex changing again after 'complete' is reached (e.g. a signer-mode switch that changes pubkeyHex post-add), and is there a test demonstrating resolveAddDeepLink itself is safe to call multiple times with the same hash without double-adding (see the 'simulated reload' test in addDeepLink.test.ts, which models a fresh call rather than the ref-guarded repeated-call-within-one-mount case)?"
+    },
+    {
+      "question_id": "VQ-S7-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "add.tsx's success/error copy for a completed add reuses the pre-existing contacts.addContactSuccess / contacts.addContactError* keys (added before this epic, by the earlier 'add contact by npub' feature) rather than defining new add.* equivalents. Given AC-INTL-1's wording is 'every user-facing string added by this epic', is reusing an existing, already-both-language key for the SAME outcome (contact added / contact add failed) the correct call, or does the epic-wide completeness check need to independently verify these pre-existing keys are still both-language-covered (as addPage.i18n.test.ts now does) rather than assuming they are exempt from the epic's scope?"
+    },
+    {
+      "question_id": "VQ-S7-012",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "addDeepLink.test.ts's AC-UX-5 coverage constructs a hash of the form `#c=<bare npub>` (a card marker wrapping a bare npub string) to exercise resolveAddDeepLink's no-profile branch, but the production share/card-link flow (S1's buildShareUrl) only ever embeds a base64url CARD payload after `#c=`, never a raw npub. Is this test scenario actually reachable via any real /add link a user could receive, or does it only exercise parseContactCard's own npub-detection branch (already covered by S1's contactCard.test.ts) through an artificial hash shape — and if the latter, should AC-UX-5's /add-page-specific coverage instead be dropped or reframed as a defense-in-depth case rather than a claimed production scenario?"
+    }
+  ]
+}

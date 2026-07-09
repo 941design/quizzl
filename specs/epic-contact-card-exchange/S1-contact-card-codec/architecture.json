@@ -1,0 +1,78 @@
+{
+  "module_name": "contactCard",
+  "purpose": "Pure, side-effect-free codec for Contact Card Format v1: binary encode/decode, NIP-01 kind-0 signature construction and verification, base64url transport encoding, and the single canonical parseContactCard seam consumed by every npub entry point in the epic (AddContactModal, QR scanner, group invite, /add deep-link page).",
+  "public_api": [
+    {
+      "name": "CARD_CONTENT",
+      "signature": "CARD_CONTENT(name: string): string",
+      "description": "The one canonical signed-content builder = JSON.stringify({name}). Shared by encodeCard and decodeCard so signature construction and verification can never diverge (AC-SIG-5)."
+    },
+    {
+      "name": "encodeCard",
+      "signature": "encodeCard(pubkeyHex: string, profile: { nickname: string; createdAt: number }, signEvent: EventSigner['signEvent']): Promise<string>",
+      "description": "Builds and signs a kind-0 event for the card content, packs the binary layout, returns a base64url payload. Empty nickname emits an UNSIGNED (pubkey-only) card (AC-CARD-6). Non-empty nickname is UTF-8-round-trip-normalized then truncated to MAX_NAME_BYTES on a codepoint boundary before signing (AC-CARD-5, AC-SIG-5)."
+    },
+    {
+      "name": "buildShareUrl",
+      "signature": "buildShareUrl(payload: string): string",
+      "description": "Wraps a base64url card payload in the fixed onboarding URL https://few.chat/add#c=<payload> (DD 9 — hash fragment, never transmitted to the server). Consumed by S6's share action."
+    },
+    {
+      "name": "decodeCard",
+      "signature": "decodeCard(b64url: string): { version: 0; pubkeyHex: string; profile?: { nickname: string; createdAt: number } } | { error: string }",
+      "description": "Strict v1 parser: rejects version>0, HAS_AVATAR set, any reserved bit set, or a payload length inconsistent with name_len (AC-CARD-2/3). For signed cards, reconstructs the kind-0 event, computes id = getEventHash(event), attaches it, then calls verifyEvent (AC-SIG-6) before accepting. Never throws (VQ-S1-006)."
+    },
+    {
+      "name": "parseContactCard",
+      "signature": "parseContactCard(input: string): { pubkeyHex: string } | { pubkeyHex: string; profile: { nickname: string; updatedAt: string } } | { error: string }",
+      "description": "The single decode seam. Discriminates bare npub (via npubToPubkeyHex, no profile) vs a card link (extracts the #c= fragment) vs a raw base64url payload, then delegates to decodeCard. Maps decoded createdAt to an ISO-8601 updatedAt string for the contactCache LWW comparison consumed by S2/S4/S5/S7. Never throws (AC-PARSE-5)."
+    },
+    {
+      "name": "bytesToBase64Url",
+      "signature": "bytesToBase64Url(bytes: Uint8Array): string",
+      "description": "Pure base64url (RFC 4648 §5, no padding) encoder — no existing helper in the codebase, added per exploration.json gap."
+    },
+    {
+      "name": "base64UrlToBytes",
+      "signature": "base64UrlToBytes(input: string): Uint8Array | null",
+      "description": "Pure base64url decoder; returns null (never throws) for invalid-alphabet or invalid-length input."
+    },
+    {
+      "name": "MAX_NAME_BYTES",
+      "signature": "const MAX_NAME_BYTES: 32",
+      "description": "The 32-UTF-8-byte name cap (DD 11)."
+    },
+    {
+      "name": "SIGNED_CARD_FIXED_OVERHEAD_BYTES",
+      "signature": "const SIGNED_CARD_FIXED_OVERHEAD_BYTES: 102",
+      "description": "Fixed byte overhead of a signed card excluding the name (header+pubkey+created_at+name_len+sig), for AC-CARD-4 length-bound tests and future share-modal QR sizing."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "The Contact Card Format v1 binary layout and its base64url transport encoding — owned exclusively by this module; no other module packs or unpacks card bytes."
+  ],
+  "dependencies_allowed": [
+    "nostr-tools/pure (getEventHash, verifyEvent)",
+    "nostr-tools (type-only: Event, UnsignedEvent)",
+    "applesauce-core (type-only: EventSigner)",
+    "@/src/lib/nostrKeys (hexToBytes, bytesToHex, npubToPubkeyHex)"
+  ],
+  "dependencies_forbidden": [
+    "react",
+    "@/src/lib/contactCache",
+    "@/src/context/MarmotContext",
+    "@nostr-dev-kit/ndk",
+    "any relay/network client"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/cards/contactCard.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S2", "S4", "S5", "S6", "S7"]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "completed_at": "2026-07-09T17:40:00Z",
+  "files_created": [
+    "app/tests/unit/profileNicknameCap.test.ts"
+  ],
+  "files_modified": [
+    "app/pages/profile.tsx",
+    "app/src/config/profile.ts",
+    "app/src/lib/i18n.ts"
+  ],
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": ["profile nickname cap"],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "result.json reconstructed on resume; original crash-recovery artifacts (architecture.json, baseline.json, result.json) were absent though the story code landed and was marked done"
+  }
+}

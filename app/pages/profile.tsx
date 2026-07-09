@@ -29,7 +29,8 @@ import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
 import { addableGroupsForContact, archiveContact, eligibleGroupsForContact, getContact, unarchiveContact } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import { listThemes } from '@/src/lib/theme';
-import { PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
+import { capNickname, NICKNAME_MAX_BYTES } from '@/src/config/profile';
+import { utf8ByteLength } from '@/src/lib/contactCard';
 import type { ContactListItem } from '@/src/lib/contacts';
 import type { AppThemeName } from '@/src/lib/theme';
 import type { ProfileAvatar, UserProfile, LanguageCode } from '@/src/types';
@@ -78,6 +79,9 @@ function OwnProfileSection() {
   const { publishProfileUpdate } = useMarmot();
   const avatarDisclosure = useDisclosure();
   const [profile, setProfile] = useState<UserProfile>({ nickname: '', avatar: null });
+  // True when the last keystroke/paste was clamped to the byte cap, so we can
+  // surface a translated "limit reached" notice.
+  const [nicknameCapped, setNicknameCapped] = useState(false);
 
   // Tracks the nickname value as of the last broadcast so a blur that didn't
   // change the text doesn't re-broadcast a profile-update to every group.
@@ -107,7 +111,8 @@ function OwnProfileSection() {
   // text field is left (blur) and the value actually changed.
   const handleNicknameChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const nickname = event.target.value.slice(0, PROFILE_NICKNAME_MAX_LENGTH);
+      const { value: nickname, capped } = capNickname(event.target.value);
+      setNicknameCapped(capped);
       const next = { ...profile, nickname };
       setProfile(next);
       saveProfile(next);
@@ -159,7 +164,6 @@ function OwnProfileSection() {
                 onChange={handleNicknameChange}
                 onBlur={handleNicknameBlur}
                 placeholder={copy.settings.nicknamePlaceholder}
-                maxLength={PROFILE_NICKNAME_MAX_LENGTH}
                 bg="surfaceBg"
                 data-testid="profile-nickname-input"
               />
@@ -167,10 +171,19 @@ function OwnProfileSection() {
                 <Text fontSize="xs" color="textMuted">
                   {copy.settings.nicknameHelper}
                 </Text>
-                <Text fontSize="xs" color="textMuted">
-                  {profile.nickname.length}/{PROFILE_NICKNAME_MAX_LENGTH}
+                <Text
+                  fontSize="xs"
+                  color={nicknameCapped ? 'red.400' : 'textMuted'}
+                  data-testid="profile-nickname-bytecount"
+                >
+                  {utf8ByteLength(profile.nickname)}/{NICKNAME_MAX_BYTES}
                 </Text>
               </HStack>
+              {nicknameCapped && (
+                <Text fontSize="xs" color="red.400" mt={1} data-testid="profile-nickname-limit">
+                  {copy.settings.nicknameLimit(NICKNAME_MAX_BYTES)}
+                </Text>
+              )}
             </Box>
 
             <Box>

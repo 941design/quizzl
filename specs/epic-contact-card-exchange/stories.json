@@ -1,0 +1,520 @@
+{
+  "epic_name": "contact-card-exchange",
+  "created_at": "2026-07-09T14:00:00Z",
+  "updated_at": "2026-07-09T14:00:00Z",
+  "total_stories": 7,
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7"
+  ],
+  "dependency_notes": "Stories are implemented sequentially (per commands/feature.md non-goal on parallel story implementation), so no story mocks a later story's output — S2 onward call the real prior-story functions directly. Ordering follows the codec-before-consumers rule: S1 (pure codec: encode/decode/parse/sign/verify) is the foundation every later story imports. S2 (cache-import adapter) must land before any UI story writes to contactCache via a card. S3 (profile nickname cap) has no hard dependency on S1/S2 but is sequenced third as a small, independent, low-complexity increment before the heavier UI wiring. S4 (Add Contact wiring) builds the shared card-aware QR-scan seam (qr.ts / NpubQrScanner / NpubQrModal onScan contract) as its first consumer, which S5 (group invite) then reuses without rebuilding it — this is why S5 follows S4 rather than running in parallel. S6 (share action) only needs S1's encode/share-URL seam and could technically land earlier, but is sequenced after the scan-side stories since it touches the same NpubQrModal.tsx file in its 'display' mode and benefits from that file having stabilized. S7 (/add onboarding page) is last because it re-uses the add-contact flow (S4) and the cache-import seam (S2) end-to-end, and owns the final cross-epic i18n completeness check (AC-INTL-1) once all UI copy has been added by S3-S7.",
+  "mock_resolution_plan": "No temporary mocks introduced. Sequential implementation means each story consumes the real prior-story artifact (parseContactCard, importCard, encodeCard) rather than a stand-in; mocks-registry.json remains empty.",
+  "seams": [
+    {
+      "data": "npub/card decode result",
+      "source": {
+        "story": "S1",
+        "artifact": "parseContactCard(input)"
+      },
+      "destination": {
+        "story": "S2",
+        "artifact": "importCard(profile) input"
+      },
+      "contract": {
+        "type_name": "ParseContactCardResult",
+        "fields": [
+          {
+            "name": "pubkeyHex",
+            "type": "string"
+          },
+          {
+            "name": "profile",
+            "type": "{ nickname: string; updatedAt: string }",
+            "optional": true
+          },
+          {
+            "name": "error",
+            "type": "string",
+            "optional": true
+          }
+        ],
+        "invariants": [
+          "Given a bare valid npub, returns { pubkeyHex } with no profile field (AC-PARSE-1).",
+          "Given a card link (…/add#c=<b64url>) or a raw base64url card payload with a valid signed card, returns { pubkeyHex, profile: { nickname, updatedAt } } where updatedAt is an ISO-8601 string derived from created_at (AC-PARSE-2, AC-PARSE-3).",
+          "Given a signed card whose signature does not verify, returns { error } and never a usable pubkeyHex+profile pair — no silent downgrade to a bare-pubkey add (AC-PARSE-4).",
+          "Given input that is neither a valid npub nor a decodable card, returns { error } and never throws (AC-PARSE-5)."
+        ]
+      }
+    },
+    {
+      "data": "npub/card decode result",
+      "source": {
+        "story": "S1",
+        "artifact": "parseContactCard(input)"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "AddContactModal handleAdd / onScan"
+      },
+      "contract": {
+        "type_name": "ParseContactCardResult",
+        "fields": [
+          {
+            "name": "pubkeyHex",
+            "type": "string"
+          },
+          {
+            "name": "profile",
+            "type": "{ nickname: string; updatedAt: string }",
+            "optional": true
+          },
+          {
+            "name": "error",
+            "type": "string",
+            "optional": true
+          }
+        ],
+        "invariants": [
+          "Same contract as the S1→S2 seam; AddContactModal must treat an error result as add-failure, not as a bare-pubkey fallback (AC-PARSE-4)."
+        ]
+      }
+    },
+    {
+      "data": "npub/card decode result",
+      "source": {
+        "story": "S1",
+        "artifact": "parseContactCard(input)"
+      },
+      "destination": {
+        "story": "S5",
+        "artifact": "InviteMemberModal handleInvite / onScan"
+      },
+      "contract": {
+        "type_name": "ParseContactCardResult",
+        "fields": [
+          {
+            "name": "pubkeyHex",
+            "type": "string"
+          },
+          {
+            "name": "profile",
+            "type": "{ nickname: string; updatedAt: string }",
+            "optional": true
+          },
+          {
+            "name": "error",
+            "type": "string",
+            "optional": true
+          }
+        ],
+        "invariants": [
+          "InviteMemberModal uses only pubkeyHex from the result and MUST discard profile — group-invite-by-card never writes contactCache (DD 8, AC-GRP-1)."
+        ]
+      }
+    },
+    {
+      "data": "npub/card decode result",
+      "source": {
+        "story": "S1",
+        "artifact": "parseContactCard(input)"
+      },
+      "destination": {
+        "story": "S7",
+        "artifact": "pages/add.tsx onLoad"
+      },
+      "contract": {
+        "type_name": "ParseContactCardResult",
+        "fields": [
+          {
+            "name": "pubkeyHex",
+            "type": "string"
+          },
+          {
+            "name": "profile",
+            "type": "{ nickname: string; updatedAt: string }",
+            "optional": true
+          },
+          {
+            "name": "error",
+            "type": "string",
+            "optional": true
+          }
+        ],
+        "invariants": [
+          "pages/add.tsx reads window.location.hash, extracts #c=, and calls parseContactCard exactly once per load; the parsed result (not the raw hash) is what survives the onboarding step (AC-UX-7)."
+        ]
+      }
+    },
+    {
+      "data": "cache-import outcome",
+      "source": {
+        "story": "S2",
+        "artifact": "importCard(profile)"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "AddContactModal handleAdd"
+      },
+      "contract": {
+        "type_name": "ImportCardResult",
+        "fields": [
+          {
+            "name": "pubkeyHex",
+            "type": "string"
+          },
+          {
+            "name": "cached",
+            "type": "boolean"
+          }
+        ],
+        "invariants": [
+          "Upserts contactCache via writeContactEntry with nickname = card name and updatedAt = new Date(created_at * 1000).toISOString() (AC-CACHE-1).",
+          "LWW holds across sources: a card whose created_at predates an existing ISO updatedAt entry (e.g. from MLS profile sync) does not overwrite it (AC-CACHE-2).",
+          "Re-importing the same card twice is idempotent — the second import leaves contactCache unchanged (AC-CACHE-3).",
+          "Importing a name-only card for a pubkey with an existing cached avatar preserves that avatar; only nickname is updated (AC-CACHE-4)."
+        ]
+      }
+    },
+    {
+      "data": "cache-import outcome",
+      "source": {
+        "story": "S2",
+        "artifact": "importCard(profile)"
+      },
+      "destination": {
+        "story": "S7",
+        "artifact": "pages/add.tsx complete-the-add step"
+      },
+      "contract": {
+        "type_name": "ImportCardResult",
+        "fields": [
+          {
+            "name": "pubkeyHex",
+            "type": "string"
+          },
+          {
+            "name": "cached",
+            "type": "boolean"
+          }
+        ],
+        "invariants": [
+          "Same contract as the S2→S4 seam; the onboarding-then-add path calls importCard only after a local identity exists (AC-UX-7)."
+        ]
+      }
+    },
+    {
+      "data": "signed card payload + share URL",
+      "source": {
+        "story": "S1",
+        "artifact": "encodeCard(pubkeyHex, { nickname, createdAt }, sign) / buildShareUrl(payload)"
+      },
+      "destination": {
+        "story": "S6",
+        "artifact": "NpubQrModal display mode / settings.tsx share action"
+      },
+      "contract": {
+        "type_name": "SignedCardPayload",
+        "fields": [
+          {
+            "name": "payload",
+            "type": "string (base64url card bytes, RFC 4648 §5, no padding)"
+          },
+          {
+            "name": "shareUrl",
+            "type": "string (https://few.chat/add#c=<payload>)"
+          }
+        ],
+        "invariants": [
+          "encodeCard output round-trips through decodeCard to the same pubkeyHex and name (AC-CARD-1).",
+          "A signed payload at the 32-UTF-8-byte name cap is ≤ 180 base64url characters, and shareUrl is ≤ 205 characters (AC-CARD-4).",
+          "The signature verifies via verifyEvent for a freshly encoded card in local, NIP-07, and NIP-46 signer modes (AC-SIG-1, AC-UX-4).",
+          "When the user has no nickname set, encodeCard produces an unsigned (SIGNED-unset) card equivalent to a bare npub (AC-CARD-6, DD 10)."
+        ]
+      }
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "contact-card-codec",
+      "title": "Contact card binary codec: encode, decode, parse, sign/verify",
+      "description": "New pure module app/src/lib/contactCard.ts implementing the v1 binary contact-card format: header (version+flags), pubkey, created_at, name_len, name, sig. Provides encodeCard (sign via the active EventSigner, reusing the canonical CARD_CONTENT builder), decodeCard, and parseContactCard (discriminates bare npub / card URL fragment / raw base64url payload). Verification reconstructs the NIP-01 kind-0 event, attaches a computed id via getEventHash, and calls verifyEvent. No React, no storage, no relay calls — matches the project's pure-function testing discipline (no jsdom).",
+      "acceptance_criteria": [
+        "AC-CARD-1",
+        "AC-CARD-2",
+        "AC-CARD-3",
+        "AC-CARD-4",
+        "AC-CARD-5",
+        "AC-CARD-6",
+        "AC-SIG-1",
+        "AC-SIG-2",
+        "AC-SIG-3",
+        "AC-SIG-4",
+        "AC-SIG-5",
+        "AC-SIG-6",
+        "AC-PARSE-1",
+        "AC-PARSE-2",
+        "AC-PARSE-3",
+        "AC-PARSE-4",
+        "AC-PARSE-5"
+      ],
+      "scope": {
+        "includes": [
+          "base64url encode/decode helper (RFC 4648 §5, no padding) — none exists in the repo, must add",
+          "v1 byte layout: header (1) + pubkey (32) + created_at (4, uint32 BE) + name_len (1) + name (name_len) + sig (64), present iff SIGNED",
+          "strict v1 header rejection: version bits > 0, HAS_AVATAR bit set, or any reserved flag bit set MUST reject",
+          "32-UTF-8-byte name cap enforced at encode with codepoint-boundary truncation (never mid-character)",
+          "canonical CARD_CONTENT(name) builder shared by encode and decode, including unpaired-surrogate normalization/rejection at sign time",
+          "signature construction/verification as a NIP-01 kind-0 event { pubkey, created_at, kind:0, tags:[], content: CARD_CONTENT(name) }, with id = getEventHash(event) attached before verifyEvent",
+          "parseContactCard(input): npub1… -> npubToPubkeyHex, no profile; URL (…/add#c=<b64url>) -> extract fragment then decode; else raw base64url payload",
+          "unsigned (pubkey-only) card handling: SIGNED unset decodes to { pubkeyHex } with no profile"
+        ],
+        "excludes": [
+          "writing to contactCache (owned by S2)",
+          "UI wiring at any entry point (owned by S3-S7)",
+          "share-URL construction beyond a pure buildShareUrl(payload) helper (share UI is S6)"
+        ]
+      },
+      "complexity": "high",
+      "owning_module": "contactCard",
+      "status": "done",
+      "lighter_path": false,
+      "creates_seam": true,
+      "consumes_seams": [],
+      "files": [
+        "app/src/lib/contactCard.ts",
+        "app/tests/unit/cards/contactCard.test.ts"
+      ],
+      "notes": "Reuse hexToBytes/bytesToHex from @/src/lib/nostrKeys and npubToPubkeyHex/pubkeyToNpub from nostrKeys.ts — do not add a 5th hex reimplementation. Crypto primitives (generateSecretKey, getPublicKey, finalizeEvent, getEventHash, verifyEvent) come from nostr-tools/pure, matching the profileSync.ts:17 and signerAdapter.ts:98 precedent. Test file follows the profileSync.test.ts tamper-and-reject pattern (flip a sig hex nibble -> expect reject) plus new cases for the strict-header and surrogate-normalization ACs."
+    },
+    {
+      "id": "S2",
+      "name": "contact-card-import",
+      "title": "Card-to-cache import adapter (LWW, avatar preservation, idempotency)",
+      "description": "Adapter over the existing contactCache that turns a parsed card profile into a contactCache upsert: importCard(pubkeyHex, profile) computes the ISO-8601 updatedAt from the card's created_at and calls writeContactEntry, preserving any existing avatar. Also the story that asserts the privacy-invariant ACs for the encode/parse/cache path as a whole.",
+      "acceptance_criteria": [
+        "AC-CACHE-1",
+        "AC-CACHE-2",
+        "AC-CACHE-3",
+        "AC-CACHE-4",
+        "AC-SEC-1",
+        "AC-SEC-2"
+      ],
+      "scope": {
+        "includes": [
+          "importCard(pubkeyHex, profile) upserting via writeContactEntry with nickname=card name, updatedAt=new Date(created_at*1000).toISOString()",
+          "avatar preservation: avatar = readContactEntry(pubkeyHex)?.avatar ?? null",
+          "cross-source LWW test: a card whose created_at predates an existing ISO updatedAt entry (e.g. one written by MLS profile sync) MUST NOT overwrite",
+          "idempotency test: importing the same card twice leaves contactCache unchanged",
+          "privacy-invariant regression test: encode/sign, parse/verify, and cache-import emit zero relay events, and the repository contains no kind-0 metadata publish to public relays (guards against publishIdentityToRelays being reintroduced)"
+        ],
+        "excludes": [
+          "the card codec itself (S1)",
+          "UI call sites (S3-S7)"
+        ]
+      },
+      "complexity": "medium",
+      "owning_module": "contactCardImport",
+      "status": "done",
+      "lighter_path": false,
+      "creates_seam": true,
+      "consumes_seams": [
+        "ParseContactCardResult"
+      ],
+      "files": [
+        "app/src/lib/contactCard.ts",
+        "app/tests/unit/cards/contactCardImport.test.ts"
+      ],
+      "notes": "AC-SEC-1's 'caching' clause and AC-SEC-2's repo-wide publish-removal guard are grouped here because this is the story that completes the full encode->parse->cache pipeline and can assert 'no relay event' end-to-end in one integration-style unit test, plus a grep-based regression test for the removed publishIdentityToRelays call. writeContactEntry/readContactEntry are reused unmodified from contactCache.ts (contactCache.ts:33/47) — no code change needed there, per the architecture module map's 'modified: reused' framing."
+    },
+    {
+      "id": "S3",
+      "name": "profile-nickname-cap",
+      "title": "Enforce 32-UTF-8-byte nickname cap at profile save",
+      "description": "The nickname field on the profile-edit surface (app/pages/profile.tsx) enforces a 32-UTF-8-byte cap at save time (prevented or truncated at input), with a translated limit indication, so newly-saved nicknames never exceed the cap the card format assumes — making the encoder-side truncation in S1 a migration backstop rather than the common path.",
+      "acceptance_criteria": [
+        "AC-CARD-7"
+      ],
+      "scope": {
+        "includes": [
+          "byte-based (not character-count) validation of the nickname input against the 32-UTF-8-byte cap at profile save",
+          "translated (en/de) limit message shown when the cap would be exceeded",
+          "prevent-or-truncate behavior at the input, not a silent post-hoc truncation with no user feedback"
+        ],
+        "excludes": [
+          "card-encode-side truncation (already covered by AC-CARD-5 in S1)",
+          "any other profile field"
+        ]
+      },
+      "complexity": "low",
+      "owning_module": "profile nickname cap",
+      "status": "done",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [],
+      "files": [
+        "app/pages/profile.tsx",
+        "app/src/lib/i18n.ts"
+      ],
+      "notes": "Independent of the codec — sequenced third as a small, low-complexity increment. The byte-length check can share a helper with S1's UTF-8 byte counting if convenient, but MUST NOT re-derive its own competing cap logic (Module Ownership: don't recreate what another module owns) — import the byte-length utility from contactCard.ts if S1 exposes one, or keep this check self-contained if S1 does not export one."
+    },
+    {
+      "id": "S4",
+      "name": "add-contact-card-wiring",
+      "title": "Add Contact modal: paste and QR-scan a card, populate nickname on add",
+      "description": "AddContactModal routes both the typed/pasted input and the QR-scanned input through parseContactCard, then addContactByNpub as today plus importCard for the profile. Because the QR-scan path is shared plumbing (NpubQrScanner -> NpubQrModal onScan -> qr.ts normaliseNpubPayload), this story makes that shared scan seam card-aware for the first time; S5 (group invite) then reuses it without rebuilding it.",
+      "acceptance_criteria": [
+        "AC-UX-1",
+        "AC-UX-2",
+        "AC-UX-5",
+        "AC-UX-6"
+      ],
+      "scope": {
+        "includes": [
+          "AddContactModal.handleAdd routes npubInput through parseContactCard before addContactByNpub",
+          "on a valid card, addContactByNpub still seeds knownPeers/contacts as today, and importCard populates the nickname so the new contact renders by name",
+          "on a bare npub (no card), addContactByNpub succeeds with no nickname (fallback preserved)",
+          "already-existing contact + newer card: refresh cached nickname via importCard even when addContactByNpub returns already_exists (no new contact entry required)",
+          "qr.ts gains a card-aware parse function (sibling to normaliseNpubPayload, or normaliseNpubPayload extended) so NpubQrScanner accepts a card payload alongside a bare npub",
+          "NpubQrScanner / NpubQrModal onScan contract widened to carry the parsed { pubkeyHex, profile? } (or the raw scanned string plus a parse step at the call site) instead of assuming a bare npub string",
+          "AddContactModal's onScan handler for the Add Contact scanner behaves identically to the paste path (AC-UX-2)"
+        ],
+        "excludes": [
+          "group-invite scanning (S5, reuses this seam)",
+          "share/display-mode QR (S6)",
+          "the card codec and cache-import logic themselves (S1, S2)"
+        ]
+      },
+      "complexity": "medium",
+      "owning_module": "AddContactModal",
+      "status": "done",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "ParseContactCardResult",
+        "ImportCardResult"
+      ],
+      "files": [
+        "app/src/components/contacts/AddContactModal.tsx",
+        "app/src/lib/qr.ts",
+        "app/src/components/groups/NpubQrScanner.tsx",
+        "app/src/components/groups/NpubQrModal.tsx",
+        "app/src/lib/i18n.ts"
+      ],
+      "notes": "Widening the onScan contract touches NpubQrModal.tsx and NpubQrScanner.tsx, which are shared with InviteMemberModal (S5) and settings.tsx (S6). This story owns that shared widening because it is the first consumer; S5 depends on it landing first (story_order). Boy-scout note from exploration.json: NpubQrScanner.tsx:146 hardcodes an untranslated 'Starting camera...' string — fix in passing since this story already touches the file (CLAUDE.md code-hygiene rule)."
+    },
+    {
+      "id": "S5",
+      "name": "group-invite-by-card",
+      "title": "Group invite-by-npub input accepts a card, down-converts to pubkeyHex",
+      "description": "InviteMemberModal's npub input (paste and QR-scan, reusing the now-card-aware scan seam from S4) accepts a card link/QR/payload, down-converts it to pubkeyHex via parseContactCard, and calls the unchanged inviteByNpub. Per DD 8, this path MUST NOT write to contactCache or create a contacts/knownPeers entry before the invite's MLS commit lands — the invitee's name arrives via MLS profile sync after joining, as today.",
+      "acceptance_criteria": [
+        "AC-GRP-1",
+        "AC-GRP-2"
+      ],
+      "scope": {
+        "includes": [
+          "InviteMemberModal.handleInvite (and its QR-scan onScan) routes input through parseContactCard, discards any profile field, and passes only pubkeyHex-derived npub/hex to inviteByNpub",
+          "no contactCache write and no contacts/knownPeers entry created for the invitee from this path",
+          "KeyPackage dependency unchanged: an invitee with no published KeyPackage fails exactly as invite-by-npub does today"
+        ],
+        "excludes": [
+          "the shared scan-seam widening (already done in S4)",
+          "contactCache write semantics (owned by S2, and explicitly not invoked here)"
+        ]
+      },
+      "complexity": "medium",
+      "owning_module": "group invite input",
+      "status": "done",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "ParseContactCardResult"
+      ],
+      "files": [
+        "app/src/components/groups/InviteMemberModal.tsx"
+      ],
+      "notes": "inviteByNpub (MarmotContext.tsx:1223) stays npub/pubkey-only per DD 1/8 — down-conversion happens at this caller, not inside MarmotContext. Deliberately does not call importCard/writeContactEntry (see S2's contract) to avoid the purgeStrangerContacts race described in DD 8."
+    },
+    {
+      "id": "S6",
+      "name": "share-contact-card",
+      "title": "Share contact card: signed card as onboarding-URL link + QR",
+      "description": "The existing 'Share' / own-npub QR surface (settings.tsx + NpubQrModal display mode) is augmented to build and cache the current user's signed card (via encodeCard using the active signer: local key, NIP-07, or NIP-46) and encode it as the full onboarding URL https://few.chat/add#c=<b64url> at ECC-L, rather than the bare npub at ECC-M. The signed card is cached and only rebuilt when the nickname changes, so NIP-46 signing is not a round trip on every share-modal open. No nickname set -> unsigned card, equivalent to sharing a bare npub (DD 10).",
+      "acceptance_criteria": [
+        "AC-UX-4"
+      ],
+      "scope": {
+        "includes": [
+          "settings.tsx builds the signed card via encodeCard using activeEventSignerOverride.current ?? createPrivateKeySigner(privateKeyHex), caching the result keyed by nickname",
+          "NpubQrModal display mode encodes buildShareUrl(payload) (the full onboarding URL) instead of the bare npub, at ECC-L instead of ECC-M",
+          "adapter-level unit tests for card production in local, NIP-07 (stubbed sign), and NIP-46 (stubbed sign) modes, each asserting the produced card verifies via real getEventHash/verifyEvent",
+          "cache invalidation only on nickname change, not on every share-modal open"
+        ],
+        "excludes": [
+          "a local-mode e2e assertion of the full share flow (belongs to the epic's e2e step, not this story's unit-test scope)",
+          "scan-mode changes (S4/S5 own those)"
+        ]
+      },
+      "complexity": "medium",
+      "owning_module": "NpubQrModal / share",
+      "status": "done",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "SignedCardPayload"
+      ],
+      "files": [
+        "app/src/components/groups/NpubQrModal.tsx",
+        "app/pages/settings.tsx",
+        "app/src/lib/i18n.ts"
+      ],
+      "notes": "No existing test stub for NIP-46/07 signer signing — author fresh, shaping the stub as blockUntilReady()->{pubkey}, sign(event)->sigHex string (NDK 3.0.3 returns sig string only), following the closest existing idiom (callSignaling.test.ts:142,336 vi.mock nostr-tools/pure pattern) per exploration.json's gaps_flagged note."
+    },
+    {
+      "id": "S7",
+      "name": "add-onboarding-page",
+      "title": "/add#c=… static onboarding/deep-link page",
+      "description": "New static top-level page app/pages/add.tsx reads the card from window.location.hash (fragment, not a query param — DD 9), parses it via parseContactCard, and drives two modes: (a) visitor with a local identity -> pre-filled add-contact flow; (b) visitor with no local identity -> onboarding (identity creation) first, holding the card in page state (or the retained hash) across the onboarding step, then completing the add. Also owns the epic-wide i18n completeness check once all new UI copy (S3-S7) exists.",
+      "acceptance_criteria": [
+        "AC-UX-3",
+        "AC-UX-7",
+        "AC-INTL-1"
+      ],
+      "scope": {
+        "includes": [
+          "new static page app/pages/add.tsx, SSR-safe (typeof window guards), resolves on direct load/reload",
+          "reads window.location.hash, extracts #c=, calls parseContactCard",
+          "mode (a): existing local identity -> drives the existing add-contact flow, pre-filled from the card",
+          "mode (b): no local identity -> onboarding/identity-creation UI, card held in memory/retained hash, completes the add once identity exists",
+          "the card is never transmitted to the server (fragment-only) in either mode",
+          "epic-wide i18n completeness test: every user-facing string added across S3-S7 has both en and de entries in app/src/lib/i18n.ts, referenced via useCopy() (REQUIRED_KEYS-loop pattern per feedback.i18n.test.ts)"
+        ],
+        "excludes": [
+          "the group-join deep link (pages/groups.tsx admin param / JoinRequestCard) — exempt from the one-parser rule, out of scope entirely (spec: 'Related changes' / Technical approach exemption)",
+          "the add-contact flow's own logic (reused from S4, not reimplemented here)"
+        ]
+      },
+      "complexity": "high",
+      "owning_module": "add page",
+      "status": "done",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "ParseContactCardResult",
+        "ImportCardResult"
+      ],
+      "files": [
+        "app/pages/add.tsx",
+        "app/src/lib/i18n.ts",
+        "app/tests/unit/cards/addPage.i18n.test.ts"
+      ],
+      "notes": "hash-based routing (window.location.hash) is unprecedented in this repo (all existing pages use router.query per exploration.json's hash_routing_note) — author fresh with typeof window guards; not a blocker, just no existing pattern to copy. AC-INTL-1 is assigned here (last-landing story) as the single comprehensive i18n-parity check across every string this epic added, rather than being split per-story, since the AC's own wording ('every user-facing string added by this epic') is inherently a whole-epic assertion and the schema has no multi-story AC ownership mechanism (see RETROSPECTIVE)."
+    }
+  ]
+}

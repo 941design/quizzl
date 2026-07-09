@@ -5,7 +5,7 @@ import type {
 } from '@/src/types';
 import { STORAGE_KEYS } from '@/src/types';
 import { DEFAULT_THEME_NAME, normalizeThemeName } from '@/src/lib/theme';
-import { AVATAR_BROWSER_CONFIG, PROFILE_NICKNAME_MAX_LENGTH } from '@/src/config/profile';
+import { AVATAR_BROWSER_CONFIG, capNickname } from '@/src/config/profile';
 
 // ============================
 // localStorage availability check
@@ -90,8 +90,11 @@ export function writeSettings(settings: Settings): void {
 // ============================
 
 function normalizeUserProfile(raw: Partial<UserProfile> | null | undefined): UserProfile {
+  // Byte-cap (not char-slice) so a restored/legacy profile carrying a
+  // multi-byte nickname over the card's 32-UTF-8-byte budget is contained at
+  // the persistence boundary too, matching the save-time cap. (AC-CARD-7)
   const nickname = typeof raw?.nickname === 'string'
-    ? raw.nickname.trim().slice(0, PROFILE_NICKNAME_MAX_LENGTH)
+    ? capNickname(raw.nickname.trim()).value
     : '';
 
   // Canonical shape carries only imageUrl. Legacy profiles (and restored legacy

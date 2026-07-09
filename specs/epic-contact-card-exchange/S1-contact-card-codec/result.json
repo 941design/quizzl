@@ -1,0 +1,35 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "completed_at": "2026-07-09T16:19:00Z",
+  "files_created": [
+    "app/src/lib/contactCard.ts",
+    "app/tests/unit/cards/contactCard.test.ts",
+    "specs/epic-contact-card-exchange/S1-contact-card-codec/architecture.json",
+    "specs/epic-contact-card-exchange/S1-contact-card-codec/baseline.json",
+    "specs/epic-contact-card-exchange/S1-contact-card-codec/result.json"
+  ],
+  "files_modified": [
+    "specs/epic-contact-card-exchange/S1-contact-card-codec/verification.json"
+  ],
+  "tests_added": {
+    "unit": 40
+  },
+  "test_counts": {
+    "baseline": 2429,
+    "final": 2469
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": ["contactCard"],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The spec/architecture/verification.json trio for this story was unusually complete (exact byte offsets, exact flag bits, the AC-SIG-6 id-attachment recipe already spelled out with the file:line precedent in signerAdapter.ts) — implementation was close to mechanical translation. The only real friction was self-inflicted tooling noise: while iterating on one test (the name_len=0/30 length-check generalization test), an Edit call's replacement text landed in the file with a literal space character silently turned into a NUL byte (`'\\x00'.repeat(0)` instead of `' '.repeat(0)`), which then made subsequent exact-string Edit matches fail with no diagnostic beyond \"string not found\" — diagnosing it required dumping the file through Python with repr() to see the actual bytes. Not clearly a harness bug (may have been an artifact of how a single-space string literal moved through this tool call), but worth a note since it cost a few minutes of confused re-matching before the repr() dump made the corruption visible.",
+    "scope": "meta",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

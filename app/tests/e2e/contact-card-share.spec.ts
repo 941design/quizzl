@@ -1,0 +1,53 @@
+/**
+ * E2E: Share contact card — AC-UX-4 (epic: contact-card-exchange, story S6).
+ *
+ * "The 'Share contact card' action MUST produce a copy-able card link and a
+ * scannable QR. The QR MUST encode the full onboarding URL
+ * (https://few.chat/add#c=<b64url>) ... Card production MUST verify ...
+ * asserted via adapter-level unit tests ... plus a local-mode e2e." — this
+ * is that local-mode e2e. Drives the real Settings page with the local
+ * signer (no NIP-07/NIP-46 — those are adapter-level unit-test territory
+ * per the AC, since the Playwright rig has no bunker/extension).
+ *
+ * No relay traffic — card production is entirely out-of-band (AC-SEC-1), so
+ * this spec runs in the non-relay bucket (`make test-e2e-fast`).
+ */
+import { test, expect } from '@playwright/test';
+import { USER_A, computeTestKeypairs } from './helpers/auth-helpers';
+import { bootIdentity } from './helpers/contact-card';
+
+test.describe('Share contact card (AC-UX-4)', () => {
+  test.beforeAll(async () => {
+    await computeTestKeypairs();
+  });
+
+  test('produces a copy-able card link and a scannable QR encoding the full onboarding URL', async ({ browser }) => {
+    const { context, page } = await bootIdentity(browser, USER_A, 'Shariah', { grantClipboard: true });
+
+    await page.goto('/settings');
+    await expect(page.getByTestId('identity-npub-display')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('show-own-npub-qr-btn').click();
+
+    await expect(page.getByTestId('npub-qr-modal-display')).toBeVisible();
+    // NpubQrModal encodes `shareUrl` (the full onboarding URL) at ECC-L
+    // whenever a shareUrl is supplied, instead of the bare-npub/ECC-M
+    // fallback — see its `eccLevel = shareUrl ? 'L' : 'M'`. Rendering the QR
+    // image at all confirms QRCode.toDataURL accepted the produced value.
+    await expect(page.getByTestId('npub-qr-image')).toBeVisible();
+
+    const valueEl = page.getByTestId('npub-qr-modal-value');
+    await expect(valueEl).toBeVisible();
+    const cardLink = (await valueEl.textContent())?.trim() ?? '';
+    // Full onboarding URL, not the bare payload (AC-UX-4).
+    expect(cardLink).toMatch(/^https:\/\/few\.chat\/add#c=[A-Za-z0-9_-]+$/);
+
+    // The Copy button actually writes the link to the clipboard — read it
+    // back via the Clipboard API rather than trusting only the UI label.
+    await page.getByTestId('npub-qr-modal-copy-btn').click();
+    await expect(page.getByTestId('npub-qr-modal-copy-btn')).toHaveText('Copied!');
+    const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clipboardText).toBe(cardLink);
+
+    await context.close();
+  });
+});
