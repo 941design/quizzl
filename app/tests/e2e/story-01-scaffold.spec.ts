@@ -7,7 +7,7 @@ test.describe('Story 01 - Project Scaffold and Routing', () => {
     await expect(page.getByRole('heading', { name: /Welcome to Few/i })).toBeVisible();
     const subheading = page.getByTestId('home-subheading');
     await expect(subheading).toBeVisible();
-    await expect(subheading.getByRole('listitem')).toHaveCount(4);
+    await expect(subheading.getByRole('listitem')).toHaveCount(5);
     await expect(subheading).toContainText(/no email address required/i);
     await expect(subheading).toContainText(/no phone number needed/i);
     await expect(page.getByTestId('home-contacts-btn')).toBeVisible();
