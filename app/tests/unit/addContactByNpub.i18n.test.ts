@@ -1,18 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { getCopy } from '@/src/lib/i18n';
 
-describe('addContactByNpub i18n keys', () => {
-  it('English copy has all required keys with exact values', () => {
+/**
+ * The manual "Add Contact by npub" modal was removed (the npub abstraction
+ * confused new users). Contacts are now added only indirectly — via a shared
+ * group, an inbound DM, or opening a contact-card link. The addContact*
+ * SUCCESS/ERROR copy is retained because the surviving card-link add path
+ * (the `/add` deep-link page) still surfaces it; the modal-only labels
+ * (button/title/input/help/submit/cancel) were deleted along with the modal.
+ */
+describe('addContact i18n keys (card-link add path)', () => {
+  it('English copy has the retained add-result keys and npub-free list copy', () => {
     const en = getCopy('en');
-    expect(en.contacts.addContactBtn).toBe('Add Contact');
-    expect(en.contacts.addContactTitle).toBe('Add Contact by Npub');
-    expect(en.contacts.addContactNpubLabel).toBe("Contact's npub");
-    expect(en.contacts.addContactNpubPlaceholder).toBe('npub1...');
-    expect(en.contacts.addContactHelp).toBe(
-      "Enter or scan someone's npub to add them as a contact — no shared group needed."
-    );
-    expect(en.contacts.addContactSubmit).toBe('Add Contact');
-    expect(en.contacts.addContactCancel).toBe('Cancel');
     expect(en.contacts.addContactSuccess).toBe('Contact added');
     expect(en.contacts.addContactErrorInvalidNpub).toBe(
       "That doesn't look like a valid npub. Please check and try again."
@@ -21,25 +20,19 @@ describe('addContactByNpub i18n keys', () => {
     expect(en.contacts.addContactErrorAlreadyExists).toBe('This person is already in your contacts.');
     expect(en.contacts.addContactErrorGeneric).toBe("Couldn't add this contact. Please try again.");
 
+    // The list copy no longer teaches the npub concept.
     expect(en.contacts.description).toBe(
-      'People from your shared groups stay here so you can keep chatting directly. You can also add someone directly by their npub.'
+      'People from your shared groups stay here so you can keep chatting directly. You can also add someone by opening a contact card they share with you.'
     );
     expect(en.contacts.emptyBody).toBe(
-      'Join a group with someone, or add their npub directly, and they will appear here.'
+      'Join a group with someone, or open a contact card link they share with you, and they will appear here.'
     );
+    expect(en.contacts.description).not.toMatch(/npub/i);
+    expect(en.contacts.emptyBody).not.toMatch(/npub/i);
   });
 
-  it('German copy has all required keys with exact values', () => {
+  it('German copy has the retained add-result keys and npub-free list copy', () => {
     const de = getCopy('de');
-    expect(de.contacts.addContactBtn).toBe('Kontakt hinzufügen');
-    expect(de.contacts.addContactTitle).toBe('Kontakt per Npub hinzufügen');
-    expect(de.contacts.addContactNpubLabel).toBe('Npub der Person');
-    expect(de.contacts.addContactNpubPlaceholder).toBe('npub1...');
-    expect(de.contacts.addContactHelp).toBe(
-      'Gib den Npub einer Person ein oder scanne ihn, um sie als Kontakt hinzuzufügen – eine gemeinsame Gruppe ist nicht nötig.'
-    );
-    expect(de.contacts.addContactSubmit).toBe('Kontakt hinzufügen');
-    expect(de.contacts.addContactCancel).toBe('Abbrechen');
     expect(de.contacts.addContactSuccess).toBe('Kontakt hinzugefügt');
     expect(de.contacts.addContactErrorInvalidNpub).toBe(
       'Das sieht nicht nach einem gültigen Npub aus. Bitte überprüfe die Eingabe.'
@@ -51,10 +44,12 @@ describe('addContactByNpub i18n keys', () => {
     );
 
     expect(de.contacts.description).toBe(
-      'Personen aus gemeinsamen Gruppen bleiben hier erhalten, damit du direkt weiterschreiben kannst. Du kannst auch direkt jemanden über den Npub hinzufügen.'
+      'Personen aus gemeinsamen Gruppen bleiben hier erhalten, damit du direkt weiterschreiben kannst. Du kannst auch jemanden hinzufügen, indem du eine Kontaktkarte öffnest, die er dir teilt.'
     );
     expect(de.contacts.emptyBody).toBe(
-      'Tritt einer Gruppe mit anderen Personen bei oder füge direkt einen Npub hinzu, dann erscheinen sie hier.'
+      'Tritt einer Gruppe mit anderen Personen bei oder öffne eine Kontaktkarte, die dir jemand teilt, dann erscheinen sie hier.'
     );
+    expect(de.contacts.description).not.toMatch(/npub/i);
+    expect(de.contacts.emptyBody).not.toMatch(/npub/i);
   });
 });

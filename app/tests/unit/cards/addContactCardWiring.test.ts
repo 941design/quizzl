@@ -59,10 +59,10 @@ const { readContactEntry, writeContactEntry } = await import('@/src/lib/contactC
 const { pubkeyToNpub } = await import('@/src/lib/nostrKeys');
 const { getCopy } = await import('@/src/lib/i18n');
 const { normaliseScanPayload } = await import('@/src/lib/qr');
-// S4: pure core extracted from AddContactModal.tsx (this repo's convention — see
-// ContactChat.tsx / dmMessageEdits.test.ts precedent). Importing the component
-// module does not mount React or touch the DOM.
-const { processContactInput } = await import('@/src/components/contacts/AddContactModal');
+// S4: pure add-contact core, now a standalone React-free lib module
+// (processContactInput.ts) after the manual "add by npub" modal was removed.
+// The card-link add path (/add deep link) still routes through this function.
+const { processContactInput } = await import('@/src/lib/processContactInput');
 
 function makeIdentity() {
   const sk = generateSecretKey();

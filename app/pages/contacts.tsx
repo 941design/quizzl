@@ -19,13 +19,11 @@ import {
   Radio,
   RadioGroup,
   Text,
-  useDisclosure,
   VStack,
 } from '@chakra-ui/react';
 import ThemeIcon from '@/src/components/ThemeIcon';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import ContactChat from '@/src/components/contacts/ContactChat';
-import AddContactModal from '@/src/components/contacts/AddContactModal';
 // Voice/video calls temporarily disabled — icons commented out, feature code retained.
 // import { ContactCallToolbar } from '@/src/components/calls/CallToolbar';
 import { useCopy } from '@/src/context/LanguageContext';
@@ -95,7 +93,6 @@ function ContactListView() {
   const [showHidden, setShowHidden] = useState(false);
   // Revision counter forces a re-read of localStorage after rememberContactsFromGroups runs.
   const [contactsRevision, setContactsRevision] = useState(0);
-  const addContactDisclosure = useDisclosure();
 
   // Keep the contacts list in sync with current group membership.
   // Layout.tsx also calls rememberContactsFromGroups, but its useEffect may not
@@ -131,21 +128,12 @@ function ContactListView() {
         <title>{`${copy.contacts.pageTitle} - ${copy.appName}`}</title>
       </Head>
       <Box data-testid="contacts-page">
-        <Flex mb={6} justify="space-between" align="start" gap={3} wrap="wrap">
-          <Box>
-            <Heading as="h1" size="xl" mb={2}>
-              {copy.contacts.heading}
-            </Heading>
-            <Text color="textMuted">{copy.contacts.description}</Text>
-          </Box>
-          <Button
-            data-testid="add-contact-btn"
-            onClick={addContactDisclosure.onOpen}
-            flexShrink={0}
-          >
-            {copy.contacts.addContactBtn}
-          </Button>
-        </Flex>
+        <Box mb={6}>
+          <Heading as="h1" size="xl" mb={2}>
+            {copy.contacts.heading}
+          </Heading>
+          <Text color="textMuted">{copy.contacts.description}</Text>
+        </Box>
 
         {!hasAnyContacts ? (
           <Alert
@@ -257,12 +245,6 @@ function ContactListView() {
           </Box>
         ) : null}
       </Box>
-
-      <AddContactModal
-        isOpen={addContactDisclosure.isOpen}
-        onClose={addContactDisclosure.onClose}
-        onSuccess={() => setContactsRevision((r) => r + 1)}
-      />
     </>
   );
 }

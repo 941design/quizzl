@@ -4,14 +4,14 @@
  *
  * Kept as a plain function module — importable and unit-testable with no
  * jsdom, per this repo's hooks-via-pure-function-extraction convention (see
- * `processContactInput` in AddContactModal.tsx / dmMessageEdits.test.ts) — so
- * the page's hash-read -> mode-branch -> add logic is exercised directly by
+ * `processContactInput` in processContactInput.ts / dmMessageEdits.test.ts) —
+ * so the page's hash-read -> mode-branch -> add logic is exercised directly by
  * tests, not reimplemented inline in a way that could silently diverge from
  * production (VQ-S7-004).
  *
  * Single-parse discipline (VQ-S7-002, architecture.md DD 1): the ONLY
  * `parseContactCard` call for a `/add` page load happens inside
- * `processContactInput` (owned by S4, AddContactModal.tsx). `resolveAddDeepLink`
+ * `processContactInput` (processContactInput.ts). `resolveAddDeepLink`
  * below never parses the raw hash itself — it extracts the `#c=` payload
  * string and, once a local identity is hydrated, hands that string to
  * `processContactInput` exactly once. It never re-parses the hash a second
@@ -21,7 +21,7 @@
 import {
   processContactInput,
   type AddContactSubmissionResult,
-} from '@/src/components/contacts/AddContactModal';
+} from '@/src/lib/processContactInput';
 
 /** Marker used to locate the embedded card payload inside `window.location.hash` (DD 9 — fragment, never a query param, so the card is never sent to the server). */
 const CARD_HASH_MARKER = '#c=';

@@ -1,5 +1,22 @@
 # Manually Add Contact by npub
 
+> **Status (2026-07-10): Manual npub-entry UI REMOVED.** The npub abstraction
+> confused new users, so the "Add Contact" button and its `AddContactModal`
+> (typed-npub input + in-app QR scanner) were removed from the Contacts page.
+> A new trust relationship now begins only two ways: sharing an MLS group, or
+> opening a contact-card link (`/add#c=…`, see `epic-contact-card-exchange`) —
+> both seed `knownPeers`. An inbound DM is not an admission path: the walled
+> garden (`isAllowedDmSender`, `app/src/lib/walledGarden.ts`) drops any DM from
+> a sender not already allowed by one of those two, so it only ever surfaces a
+> contact the user already shares a (past or present) group with or added by
+> card — never a stranger.
+> The underlying `addContactByNpub` function and the `knownPeers`-seeding trust
+> model (Design Decision 1) are **retained** — the contact-card link path still
+> routes through them (via `processContactInput` in
+> `app/src/lib/processContactInput.ts`). Only the manual-entry surface and its
+> modal-only i18n keys were deleted. The "In Scope" UI items below are
+> historical.
+
 ## Problem
 
 There is no way to add a contact today unless you already share a group with them (contacts are populated exclusively from group membership, or from inbound DMs — which are themselves only accepted from people you share a group with). A user who has someone's npub from outside the app — a business card, a website, a QR code shared over another channel — has no way to start a conversation with them until they are first added to a shared group.
@@ -30,7 +47,7 @@ Add an "Add Contact" action, reachable from the Contacts page, that lets a user 
 ## Design Decisions
 
 1. **Manually-added contacts are trusted immediately (seeded into `knownPeers`)** — Without this, a user could send a DM to a manually-added contact, but that contact's replies would be silently dropped by `isAllowedDmSender` (`app/src/lib/walledGarden.ts:53`) because the walled garden only allows senders who share a group or are already in `knownPeers`. The whole point of this feature is a working two-way contact, so the explicit "I am manually adding this person" action is treated as an equivalent trust signal to prior group co-membership (the existing basis for `knownPeers`, per ADR-002). Uses the existing `rememberKnownPeers()` (`app/src/lib/knownPeers.ts:100`), which is already append-only and side-effect-safe.
-2. **No new profile-lookup mechanism** — Building a kind-0 metadata fetch for an arbitrary pubkey with no shared group is a materially larger, separate piece of work (nothing in the app fetches profile data outside a shared group today; the existing profile-discovery epic is in-group-only). Deferred; contact displays by shortened npub in the meantime, same as any contact `contactCache` hasn't resolved yet.
+2. **No new profile-lookup mechanism** — Building a kind-0 metadata fetch for an arbitrary pubkey with no shared group is a materially larger, separate piece of work (nothing in the app fetches profile data outside a shared group today; the existing profile-discovery epic is in-group-only). Deferred; contact displays by shortened npub in the meantime, same as any contact `contactCache` hasn't resolved yet. **[SUPERSEDED by `epic-contact-card-exchange`]** — this deferral is reversed there, but *not* via the relay kind-0 fetch ruled out here (which would violate the "never broadcast profile info" invariant in `CLAUDE.md`); instead via out-of-band signed contact cards.
 3. **Re-adding an already-archived contact unarchives it** — If the entered npub matches a contact that already exists but is archived (previously hidden), `addContactByNpub` calls the existing `unarchiveContact` and refreshes `lastSeenAt` rather than surfacing a duplicate error. This reuses existing behavior (`app/src/lib/contacts.ts:125`) instead of introducing a new state.
 4. **Duplicate/self rejections are validation errors, not silent no-ops** — An already-active contact or the user's own npub produce a distinct, visible error (`already_exists`, `self`) so the user understands why nothing happened, consistent with `InviteMemberModal`'s error-code pattern.
 5. **UI modeled directly on `InviteMemberModal`** — Same npub `Input` + `NpubQrButton`/`NpubQrModal` + typed-error-code pattern (`app/src/components/groups/InviteMemberModal.tsx:34`), for consistency and to avoid inventing a new interaction pattern for what is functionally the same "enter or scan an npub" action.
