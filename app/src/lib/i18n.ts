@@ -54,15 +54,11 @@ type Copy = {
     profileDescription: string;
     nicknameHeading: string;
     nicknameDescription: string;
-    nicknamePlaceholder: string;
     nicknameHelper: string;
     nicknameLimit: (max: number) => string;
     avatarHeading: string;
     avatarDescription: string;
-    chooseAvatar: string;
     changeAvatar: string;
-    removeAvatar: string;
-    noAvatarSelected: string;
     avatarModalTitle: string;
     avatarModalDescription: string;
     avatarSubjectLabel: string;
@@ -515,7 +511,7 @@ const copy: Record<LanguageCode, Copy> = {
       },
       languageLabel: 'Language',
       mobileMenuLabel: 'Toggle navigation menu',
-      profileNamePlaceholder: 'Set your name',
+      profileNamePlaceholder: 'You',
       notificationsLabel: 'Notifications',
       noNotifications: 'No new messages',
       unreadMessages: (count: number) => count === 1 ? '1 new message' : `${count} new messages`,
@@ -564,15 +560,11 @@ const copy: Record<LanguageCode, Copy> = {
       profileDescription: 'Pick a nickname, an avatar, and a few fun badges.',
       nicknameHeading: 'Nickname',
       nicknameDescription: 'Choose a short nickname that feels like you.',
-      nicknamePlaceholder: 'Rocket Reader',
       nicknameHelper: 'Use a nickname instead of your full real name.',
       nicknameLimit: (max: number) => `Nickname reached the ${max}-character limit (accented letters and emoji count for more).`,
       avatarHeading: 'Avatar',
       avatarDescription: 'Pick an avatar for your profile.',
-      chooseAvatar: 'Choose Avatar',
       changeAvatar: 'Change Avatar',
-      removeAvatar: 'Remove Avatar',
-      noAvatarSelected: 'No avatar picked yet.',
       avatarModalTitle: 'Choose Your Avatar',
       avatarModalDescription: 'Pick a fruit, add accessories if you want, and choose a favorite.',
       avatarSubjectLabel: 'Fruit friend',
@@ -1007,7 +999,7 @@ const copy: Record<LanguageCode, Copy> = {
       },
       languageLabel: 'Sprache',
       mobileMenuLabel: 'Navigationsmenü umschalten',
-      profileNamePlaceholder: 'Name festlegen',
+      profileNamePlaceholder: 'Du',
       notificationsLabel: 'Benachrichtigungen',
       noNotifications: 'Keine neuen Nachrichten',
       unreadMessages: (count: number) => count === 1 ? '1 neue Nachricht' : `${count} neue Nachrichten`,
@@ -1056,15 +1048,11 @@ const copy: Record<LanguageCode, Copy> = {
       profileDescription: 'Wähle einen Spitznamen, einen Avatar und ein paar lustige Badges.',
       nicknameHeading: 'Spitzname',
       nicknameDescription: 'Wähle einen kurzen Namen, der zu dir passt.',
-      nicknamePlaceholder: 'Raketenleser',
       nicknameHelper: 'Nutze lieber einen Spitznamen als deinen vollen echten Namen.',
       nicknameLimit: (max: number) => `Der Spitzname hat die Grenze von ${max} Zeichen erreicht (Umlaute und Emojis zählen mehr).`,
       avatarHeading: 'Avatar',
       avatarDescription: 'Waehle einen Avatar fuer dein Profil.',
-      chooseAvatar: 'Avatar waehlen',
       changeAvatar: 'Avatar aendern',
-      removeAvatar: 'Avatar entfernen',
-      noAvatarSelected: 'Noch kein Avatar ausgewaehlt.',
       avatarModalTitle: 'Waehle deinen Avatar',
       avatarModalDescription: 'Suche dir eine Frucht aus, fuege Accessoires hinzu und nimm deinen Favoriten.',
       avatarSubjectLabel: 'Fruchtfreund',

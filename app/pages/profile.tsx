@@ -171,16 +171,13 @@ function OwnProfileSection() {
     }
   }, [profile, broadcastProfile]);
 
-  // Avatar is a selection: persist locally and broadcast immediately.
-  function applyAvatar(avatar: ProfileAvatar | null) {
+  // Avatar is a selection: persist locally and broadcast immediately. A profile
+  // always has an avatar — there is no "remove" path, only "replace".
+  function handleAvatarSelect(avatar: ProfileAvatar) {
     const next = { ...profile, avatar };
     setProfile(next);
     saveProfile(next);
     broadcastProfile(next);
-  }
-
-  function handleAvatarSelect(avatar: ProfileAvatar) {
-    applyAvatar(avatar);
     avatarDisclosure.onClose();
   }
 
@@ -208,7 +205,6 @@ function OwnProfileSection() {
                 value={profile.nickname}
                 onChange={handleNicknameChange}
                 onBlur={handleNicknameBlur}
-                placeholder={copy.settings.nicknamePlaceholder}
                 bg="surfaceBg"
                 data-testid="profile-nickname-input"
               />
@@ -252,6 +248,10 @@ function OwnProfileSection() {
                   borderColor="borderSubtle"
                   bg="surfaceMutedBg"
                 >
+                  {/* A profile always carries an avatar (seeded on hydration),
+                      so the image is the only state. The empty box only shows
+                      for the brief pre-hydration frame before the saved
+                      profile loads. */}
                   {profile.avatar ? (
                     <Image
                       src={profile.avatar.imageUrl}
@@ -263,32 +263,15 @@ function OwnProfileSection() {
                       borderRadius="lg"
                     />
                   ) : (
-                    <Box
-                      aspectRatio={1}
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                      borderRadius="lg"
-                      bg="surfaceBg"
-                      color="textMuted"
-                      textAlign="center"
-                      px={4}
-                    >
-                      <Text fontSize="sm">{copy.settings.noAvatarSelected}</Text>
-                    </Box>
+                    <Box aspectRatio={1} borderRadius="lg" bg="surfaceBg" />
                   )}
                 </Box>
 
                 <VStack align="stretch" spacing={3} flex={1}>
                   <HStack spacing={3} flexWrap="wrap">
                     <Button onClick={avatarDisclosure.onOpen} data-testid="choose-avatar-btn">
-                      {profile.avatar ? copy.settings.changeAvatar : copy.settings.chooseAvatar}
+                      {copy.settings.changeAvatar}
                     </Button>
-                    {profile.avatar && (
-                      <Button variant="outline" onClick={() => applyAvatar(null)}>
-                        {copy.settings.removeAvatar}
-                      </Button>
-                    )}
                   </HStack>
                 </VStack>
               </HStack>

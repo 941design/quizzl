@@ -5,7 +5,7 @@ import { clearAppState } from './helpers/clear-state';
 /** Truncated npub format: "npub1abcdef0...12345678" */
 const TRUNCATED_NPUB_PATTERN = /^npub1[a-z0-9]+\.\.\.[a-z0-9]+$/;
 
-test.describe('Profile display name — prefer nickname, prompt to set name', () => {
+test.describe('Profile display name — prefer nickname, default "You" placeholder', () => {
   test.beforeAll(async () => {
     await computeTestKeypairs();
   });
@@ -15,7 +15,7 @@ test.describe('Profile display name — prefer nickname, prompt to set name', ()
     await clearAppState(page);
   });
 
-  test('header prompts to set a name (no npub) when no nickname is set', async ({ page }) => {
+  test('header shows the "You" placeholder (never the npub) when no nickname is set', async ({ page }) => {
     await injectIdentity(page, USER_A);
     await page.reload();
     await page.waitForLoadState('networkidle');
@@ -24,8 +24,9 @@ test.describe('Profile display name — prefer nickname, prompt to set name', ()
       .getByTestId('header-profile-chip')
       .getByTestId('profile-display-name');
     await expect(displayName).toBeVisible();
-    // Fresh user: a pulsing call-to-action, never the meaningless npub.
-    await expect(displayName).toHaveAttribute('data-placeholder', 'true');
+    // Fresh user (English locale): the localized "You" placeholder, never the
+    // meaningless npub.
+    await expect(displayName).toHaveText('You');
     await expect(displayName).not.toHaveText(TRUNCATED_NPUB_PATTERN);
   });
 

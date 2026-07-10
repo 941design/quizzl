@@ -5,48 +5,31 @@ import {
   Image,
   Text,
   VStack,
-  usePrefersReducedMotion,
 } from '@chakra-ui/react';
-import { keyframes } from '@emotion/react';
 import type { UserProfile } from '@/src/types';
-
-const attentionPulse = keyframes`
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-`;
 
 type ProfileSummaryProps = {
   profile: UserProfile;
+  /**
+   * Shown as the display name when the profile has no nickname. For the signed-in
+   * user this is the localized "You"/"Du" placeholder; for a contact it is the
+   * truncated npub.
+   */
   fallbackName: string;
   size?: 'sm' | 'md';
-  /**
-   * When true, this summary represents the signed-in user who has not yet set a
-   * display name. Renders a neutral avatar and a slowly pulsing call-to-action
-   * (using `fallbackName`) to draw attention to setting the profile name. The
-   * npub is never shown in this state — it is meaningless to a fresh user.
-   */
-  promptForName?: boolean;
 };
 
 export default function ProfileSummary({
   profile,
   fallbackName,
   size = 'md',
-  promptForName = false,
 }: ProfileSummaryProps) {
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const hasName = Boolean(profile.nickname);
-  const isPlaceholder = promptForName && !hasName;
   const displayName = profile.nickname || fallbackName;
   const avatarSize = size === 'sm' ? '44px' : '64px';
   const nameSize = size === 'sm' ? 'sm' : 'lg';
-  const pulseAnimation =
-    isPlaceholder && !prefersReducedMotion
-      ? `${attentionPulse} 2.2s ease-in-out infinite`
-      : undefined;
 
   return (
-    <HStack spacing={size === 'sm' ? 2 : 4} align="center" animation={pulseAnimation}>
+    <HStack spacing={size === 'sm' ? 2 : 4} align="center">
       <Box
         w={avatarSize}
         h={avatarSize}
@@ -71,7 +54,7 @@ export default function ProfileSummary({
           />
         ) : (
           <Text fontWeight="bold" color="textMuted" fontSize={size === 'sm' ? 'sm' : 'lg'}>
-            {isPlaceholder ? '?' : displayName.slice(0, 1).toUpperCase()}
+            {displayName.slice(0, 1).toUpperCase()}
           </Text>
         )}
       </Box>
@@ -81,8 +64,6 @@ export default function ProfileSummary({
           <Text
             fontWeight="bold"
             fontSize={nameSize}
-            color={isPlaceholder ? 'textMuted' : undefined}
-            data-placeholder={isPlaceholder ? 'true' : undefined}
             data-testid="profile-display-name"
           >
             {displayName}

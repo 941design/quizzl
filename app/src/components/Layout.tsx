@@ -41,12 +41,8 @@ type LayoutProps = {
 
 export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
-  const { profile, hydrated: profileHydrated } = useProfile();
+  const { profile } = useProfile();
   const { pubkeyHex, backedUp } = useNostrIdentity();
-  // Fresh user (no display name yet): nudge toward setting a name instead of
-  // surfacing the meaningless npub. Gated on hydration so a returning user
-  // never flashes the prompt before their saved profile loads.
-  const promptForName = profileHydrated && !profile.nickname;
   const { groups, ready } = useMarmot();
   const copy = useCopy();
   const { isOpen, onToggle } = useDisclosure();
@@ -245,7 +241,6 @@ export default function Layout({ children }: LayoutProps) {
                     <ProfileSummary
                       profile={profile}
                       fallbackName={copy.layout.profileNamePlaceholder}
-                      promptForName={promptForName}
                       size="sm"
                     />
                   </Box>
@@ -359,7 +354,6 @@ export default function Layout({ children }: LayoutProps) {
                     <ProfileSummary
                       profile={profile}
                       fallbackName={copy.layout.profileNamePlaceholder}
-                      promptForName={promptForName}
                       size="sm"
                     />
                   </Link>
