@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateThemeContrast, wcagRatio, WCAG_AA_THRESHOLD } from '@/src/themes/contrast';
-import { calmManifestFixture, minecraftManifestFixture } from './fixtures';
+import { lightManifestFixture, darkContentSurfaceManifestFixture } from './fixtures';
 
 describe('themes/contrast: wcagRatio', () => {
   it('computes the maximum ratio (21:1) for black on white', () => {
@@ -15,34 +15,33 @@ describe('themes/contrast: wcagRatio', () => {
     expect(wcagRatio('#123456', '#fedcba')).toBeCloseTo(wcagRatio('#fedcba', '#123456'), 10);
   });
 
-  it('computes the documented calm textStrong/surfaceBg ratio range', () => {
-    // architecture.md Implementation Constraint 1 doesn't pin an exact value
-    // for this specific pair, but asserts the empirical minimum margin
-    // across the five themes is 4.78 (calm textMuted/surfaceMutedBg) — every
-    // other pair, including this one, is >= that floor.
-    const ratio = wcagRatio(calmManifestFixture.colors.textStrong, calmManifestFixture.colors.surfaceBg);
+  it('computes a textStrong/surfaceBg ratio at or above the WCAG AA floor for the light fixture', () => {
+    // The light fixture's textStrong/surfaceBg pair clears the WCAG AA
+    // threshold with margin — the same calibration the shipped light theme
+    // relies on.
+    const ratio = wcagRatio(lightManifestFixture.colors.textStrong, lightManifestFixture.colors.surfaceBg);
     expect(ratio).toBeGreaterThanOrEqual(WCAG_AA_THRESHOLD);
   });
 });
 
 describe('themes/contrast: evaluateThemeContrast', () => {
-  it('passes for the calm fixture (contentSurface falsy, appBg pairs included)', () => {
-    const result = evaluateThemeContrast(calmManifestFixture);
+  it('passes for the light fixture (contentSurface falsy, appBg pairs included)', () => {
+    const result = evaluateThemeContrast(lightManifestFixture);
     expect(result.pass).toBe(true);
     expect(result.failures).toEqual([]);
   });
 
-  it('passes for the minecraft fixture (contentSurface true, appBg pairs exempt)', () => {
-    const result = evaluateThemeContrast(minecraftManifestFixture);
+  it('passes for the dark contentSurface fixture (contentSurface true, appBg pairs exempt)', () => {
+    const result = evaluateThemeContrast(darkContentSurfaceManifestFixture);
     expect(result.pass).toBe(true);
     expect(result.failures).toEqual([]);
   });
 
   it('requires appBg pairs when contentSurface is falsy, and fails them for a dark-on-dark case', () => {
     const failing = {
-      ...calmManifestFixture,
+      ...lightManifestFixture,
       contentSurface: false,
-      colors: { ...calmManifestFixture.colors, appBg: calmManifestFixture.colors.textStrong },
+      colors: { ...lightManifestFixture.colors, appBg: lightManifestFixture.colors.textStrong },
     };
     const result = evaluateThemeContrast(failing);
     expect(result.pass).toBe(false);
@@ -51,9 +50,9 @@ describe('themes/contrast: evaluateThemeContrast', () => {
 
   it('exempts appBg pairs when contentSurface is true, even if appBg would otherwise fail', () => {
     const wouldFailAppBgButExempt = {
-      ...minecraftManifestFixture,
+      ...darkContentSurfaceManifestFixture,
       contentSurface: true,
-      colors: { ...minecraftManifestFixture.colors, appBg: minecraftManifestFixture.colors.textStrong },
+      colors: { ...darkContentSurfaceManifestFixture.colors, appBg: darkContentSurfaceManifestFixture.colors.textStrong },
     };
     const result = evaluateThemeContrast(wouldFailAppBgButExempt);
     expect(result.failures.some((f) => f.surfaceToken === 'appBg')).toBe(false);
@@ -61,8 +60,8 @@ describe('themes/contrast: evaluateThemeContrast', () => {
 
   it('reports the failing (text, surface) pair and its ratio', () => {
     const failing = {
-      ...calmManifestFixture,
-      colors: { ...calmManifestFixture.colors, surfaceBg: calmManifestFixture.colors.textStrong },
+      ...lightManifestFixture,
+      colors: { ...lightManifestFixture.colors, surfaceBg: lightManifestFixture.colors.textStrong },
     };
     const result = evaluateThemeContrast(failing);
     const failure = result.failures.find((f) => f.textToken === 'textStrong' && f.surfaceToken === 'surfaceBg');
@@ -72,8 +71,8 @@ describe('themes/contrast: evaluateThemeContrast', () => {
 
   it('checks status pairs (success/warning/danger text vs their own bg) regardless of contentSurface', () => {
     const failing = {
-      ...calmManifestFixture,
-      colors: { ...calmManifestFixture.colors, dangerBg: calmManifestFixture.colors.dangerText },
+      ...lightManifestFixture,
+      colors: { ...lightManifestFixture.colors, dangerBg: lightManifestFixture.colors.dangerText },
     };
     const result = evaluateThemeContrast(failing);
     expect(result.failures.some((f) => f.textToken === 'dangerText' && f.surfaceToken === 'dangerBg')).toBe(true);
@@ -81,8 +80,8 @@ describe('themes/contrast: evaluateThemeContrast', () => {
 
   it('fails loud (does not silently pass) when a color token is a named CSS color instead of hex', () => {
     const nonHex = {
-      ...calmManifestFixture,
-      colors: { ...calmManifestFixture.colors, surfaceBg: 'rebeccapurple' },
+      ...lightManifestFixture,
+      colors: { ...lightManifestFixture.colors, surfaceBg: 'rebeccapurple' },
     };
     const result = evaluateThemeContrast(nonHex);
     expect(result.pass).toBe(false);
@@ -94,8 +93,8 @@ describe('themes/contrast: evaluateThemeContrast', () => {
 
   it('fails loud (does not silently pass) when a color token is an rgb()-form value instead of hex', () => {
     const nonHex = {
-      ...calmManifestFixture,
-      colors: { ...calmManifestFixture.colors, dangerBg: 'rgb(0,0,0)' },
+      ...lightManifestFixture,
+      colors: { ...lightManifestFixture.colors, dangerBg: 'rgb(0,0,0)' },
     };
     const result = evaluateThemeContrast(nonHex);
     expect(result.pass).toBe(false);

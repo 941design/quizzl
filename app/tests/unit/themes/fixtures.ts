@@ -1,16 +1,18 @@
-// Shared ThemeManifest fixtures for app/src/themes/* unit tests.
-// Color values are copied verbatim from app/src/lib/theme.ts's pre-refactor
-// `calmTheme`/`minecraftTheme` inputs so contrast expectations line up with
-// the documented empirical calibration in architecture.md Implementation
-// Constraint 1 (calm passes every pair; minecraft passes all surface/status
-// pairs but fails `appBg`, which is why it sets `contentSurface: true`).
+// Shared ThemeManifest fixtures for app/src/themes/* unit tests. These are
+// synthetic scaffolding manifests used to exercise the theme-module machinery
+// (schema validation, contrast evaluation, Chakra build) independently of the
+// shipped themes:
+//   - lightManifestFixture: a light theme that passes every contrast pair.
+//   - darkContentSurfaceManifestFixture: a dark theme that passes all
+//     surface/status pairs but fails `appBg`, which is why it sets
+//     `contentSurface: true` (exercising the appBg-exemption path).
 import type { ThemeManifest } from '@/src/themes/schema';
 
-export const calmManifestFixture: ThemeManifest = {
-  id: 'calm',
+export const lightManifestFixture: ThemeManifest = {
+  id: 'lightfixture',
   order: 1,
-  label: { en: 'Calm', de: 'Ruhig' },
-  description: { en: 'A calm theme', de: 'Ein ruhiges Thema' },
+  label: { en: 'Light Fixture', de: 'Helles Fixture' },
+  description: { en: 'A light test fixture', de: 'Ein helles Test-Fixture' },
   previewColorScheme: 'brand',
   colorScheme: 'light',
   colors: {
@@ -103,15 +105,15 @@ export const calmManifestFixture: ThemeManifest = {
     nav: 'flat',
     surface: 'none',
     iconSet: 'line',
-    banner: '<svg>calm</svg>',
+    banner: '<svg>light</svg>',
   },
 };
 
-export const minecraftManifestFixture: ThemeManifest = {
-  id: 'minecraft',
+export const darkContentSurfaceManifestFixture: ThemeManifest = {
+  id: 'darkfixture',
   order: 4,
-  label: { en: 'Minecraft', de: 'Minecraft' },
-  description: { en: 'A blocky theme', de: 'Ein blockiges Thema' },
+  label: { en: 'Dark Fixture', de: 'Dunkles Fixture' },
+  description: { en: 'A dark contentSurface test fixture', de: 'Ein dunkles contentSurface-Test-Fixture' },
   previewColorScheme: 'brand',
   colorScheme: 'dark',
   colors: {
@@ -218,7 +220,7 @@ export const minecraftManifestFixture: ThemeManifest = {
     nav: 'pixelBevel',
     surface: 'grid',
     iconSet: 'pixel',
-    banner: '<svg>minecraft</svg>',
+    banner: '<svg>dark</svg>',
     contentPanel: 'panel',
   },
   contentSurface: true,

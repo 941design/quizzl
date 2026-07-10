@@ -35,7 +35,7 @@ export { APP_THEMES };
  */
 export type AppThemeDefinition = ThemeManifest;
 
-export const DEFAULT_THEME_NAME: AppThemeName = 'calm';
+export const DEFAULT_THEME_NAME: AppThemeName = 'aquarelle';
 
 export function isAppThemeName(value: string): value is AppThemeName {
   return value in APP_THEMES;

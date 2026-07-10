@@ -1,21 +1,23 @@
 // app/tests/unit/components/ThemeIcon.test.ts
 //
-// S4 (AC-UX-2 / AC11): `getThemeIconId()` resolves via
+// (AC-UX-2 / AC11): `getThemeIconId()` resolves via
 // `manifest.treatments.iconSet` against `treatments/iconSets.ts`
 // (`resolveIconId`) — locks it against a FROZEN, independently hardcoded
 // pre-refactor `ICON_MAP` expectation (never derived from `ICON_SETS`
-// itself, which would make this a tautology). Parameterized across every
-// currently-mapped icon name and all five themes' `iconSet` (line/filled/
-// pixel), per VQ-S4-008.
+// itself, which would make this a tautology). aquarelle uses the `line`
+// icon set; the `filled` and `pixel` sets (still part of the treatment
+// catalog) are exercised directly so all three sets stay covered.
 import { describe, expect, it } from 'vitest';
 import { getThemeIconId } from '@/src/components/ThemeIcon';
 import { APP_THEMES } from '@/src/lib/theme';
 import type { AppThemeName } from '@/src/lib/theme';
+import type { IconSetName } from '@/src/themes/treatments/iconSets';
 
-const THEME_IDS: AppThemeName[] = ['calm', 'playful', 'lego', 'minecraft', 'flower'];
+const THEME_IDS: AppThemeName[] = ['aquarelle'];
 
-// FROZEN pre-refactor ICON_MAP (ThemeIcon.tsx, pre-S4), independently
-// hand-copied — keyed by icon name -> old sub-key (pixel/toy/default).
+// FROZEN pre-refactor ICON_MAP (ThemeIcon.tsx), independently hand-copied —
+// keyed by icon name -> old sub-key (pixel/toy/default), which map to the
+// current iconSet names pixel/filled/line respectively.
 const FROZEN_ICON_MAP: Record<string, { pixel: string; toy: string; default: string }> = {
   heart: { pixel: 'pixelarticons:heart', toy: 'ph:heart-fill', default: 'ph:heart-bold' },
   check: { pixel: 'pixelarticons:check', toy: 'ph:check-circle-fill', default: 'ph:check-circle-bold' },
@@ -33,38 +35,44 @@ const FROZEN_ICON_MAP: Record<string, { pixel: string; toy: string; default: str
 
 const ICON_NAMES = Object.keys(FROZEN_ICON_MAP);
 
-// The pre-refactor visualStyle each theme resolved to (frozen — same
-// mapping the deleted compatBridge.test.ts pinned), used only to select
-// which FROZEN_ICON_MAP sub-key each theme's expectation reads.
-const OLD_VISUAL_STYLE_SUBKEY: Record<AppThemeName, 'pixel' | 'toy' | 'default'> = {
-  calm: 'default',
-  playful: 'default',
-  lego: 'toy',
-  minecraft: 'pixel',
-  flower: 'default',
+// The current iconSet name -> the FROZEN_ICON_MAP sub-key it reads.
+const SET_TO_SUBKEY: Record<IconSetName, 'pixel' | 'toy' | 'default'> = {
+  line: 'default',
+  filled: 'toy',
+  pixel: 'pixel',
 };
 
 describe('getThemeIconId (AC-UX-2 / AC11): resolves via manifest.treatments.iconSet', () => {
   for (const themeId of THEME_IDS) {
     describe(`theme: ${themeId} (iconSet: ${APP_THEMES[themeId].treatments.iconSet})`, () => {
       it.each(ICON_NAMES)('%s resolves to the same iconify id as the pre-refactor ICON_MAP', (iconName) => {
-        const expected = FROZEN_ICON_MAP[iconName][OLD_VISUAL_STYLE_SUBKEY[themeId]];
-        const actual = getThemeIconId(iconName, APP_THEMES[themeId].treatments.iconSet);
+        const iconSet = APP_THEMES[themeId].treatments.iconSet;
+        const expected = FROZEN_ICON_MAP[iconName][SET_TO_SUBKEY[iconSet]];
+        const actual = getThemeIconId(iconName, iconSet);
         expect(actual).toBe(expected);
       });
     });
   }
+
+  // aquarelle only uses `line`; exercise all three catalog sets directly so
+  // `filled` and `pixel` resolution stays covered.
+  describe.each(['line', 'filled', 'pixel'] as const)('icon set: %s', (iconSet) => {
+    it.each(ICON_NAMES)('%s resolves to the same iconify id as the pre-refactor ICON_MAP', (iconName) => {
+      const expected = FROZEN_ICON_MAP[iconName][SET_TO_SUBKEY[iconSet]];
+      expect(getThemeIconId(iconName, iconSet)).toBe(expected);
+    });
+  });
 
   it('returns an empty string for an unmapped icon name (pre-refactor: ThemeIcon renders nothing)', () => {
     expect(getThemeIconId('does-not-exist', 'line')).toBe('');
   });
 
   it('fails if a single iconSets.ts entry is mistyped (non-tautological: FROZEN map is independent of ICON_SETS)', () => {
-    // Directly proves the parameterized loop above has teeth: a
-    // deliberately-wrong expectation for one theme/icon pair must NOT match
+    // Directly proves the parameterized loops above have teeth: a
+    // deliberately-wrong expectation for one iconSet/icon pair must NOT match
     // the real resolver output.
     const wrongExpectation = 'ph:definitely-not-the-real-icon-id';
-    const actual = getThemeIconId('heart', APP_THEMES.lego.treatments.iconSet);
+    const actual = getThemeIconId('heart', 'filled');
     expect(actual).not.toBe(wrongExpectation);
     expect(actual).toBe('ph:heart-fill');
   });

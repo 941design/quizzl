@@ -11,58 +11,51 @@ test.describe('Story 08: Theme Settings', () => {
     });
   });
 
-  test('1. Settings page renders with theme buttons', async ({ page }) => {
+  test('1. Settings page renders the aquarelle theme button (the only shipped theme)', async ({ page }) => {
     await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
     const settingsPage = page.getByTestId('profile-page');
     await expect(settingsPage).toBeVisible();
 
-    // Available theme buttons should be visible
-    const calmBtn = page.getByTestId('theme-calm-btn');
-    const playfulBtn = page.getByTestId('theme-playful-btn');
-    const legoBtn = page.getByTestId('theme-lego-btn');
-    const minecraftBtn = page.getByTestId('theme-minecraft-btn');
-    const flowerBtn = page.getByTestId('theme-flower-btn');
-    await expect(calmBtn).toBeVisible();
-    await expect(playfulBtn).toBeVisible();
-    await expect(legoBtn).toBeVisible();
-    await expect(minecraftBtn).toBeVisible();
-    await expect(flowerBtn).toBeVisible();
+    // aquarelle is the only shipped theme; its button is present and the
+    // removed themes' buttons are gone.
+    await expect(page.getByTestId('theme-aquarelle-btn')).toBeVisible();
+    for (const removed of ['calm', 'playful', 'lego', 'minecraft', 'flower']) {
+      await expect(page.getByTestId(`theme-${removed}-btn`)).toHaveCount(0);
+    }
   });
 
-  test('2. Switching to playful theme persists in localStorage', async ({ page }) => {
+  test('2. Selecting the aquarelle theme persists in localStorage', async ({ page }) => {
     await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
-    // Click playful
-    await page.getByTestId('theme-playful-btn').click();
+    await page.getByTestId('theme-aquarelle-btn').click();
 
-    // Theme preview should update
+    // Theme preview should show the aquarelle theme
     const preview = page.getByTestId('theme-preview');
-    await expect(preview).toContainText('Playful');
+    await expect(preview).toContainText('Aquarelle');
 
     // Verify localStorage
     const stored = await page.evaluate(() => localStorage.getItem('lp_settings_v1'));
     expect(stored).toBeTruthy();
     const parsed = JSON.parse(stored!);
-    expect(parsed.theme).toBe('playful');
+    expect(parsed.theme).toBe('aquarelle');
   });
 
   test('3. Theme setting persists after page reload', async ({ page }) => {
     await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
-    // Switch to playful
-    await page.getByTestId('theme-playful-btn').click();
-    await expect(page.getByTestId('theme-preview')).toContainText('Playful');
+    await page.getByTestId('theme-aquarelle-btn').click();
+    await expect(page.getByTestId('theme-preview')).toContainText('Aquarelle');
 
     // Reload
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    // Should still show playful
-    await expect(page.getByTestId('theme-preview')).toContainText('Playful');
+    // Should still show aquarelle
+    await expect(page.getByTestId('theme-preview')).toContainText('Aquarelle');
   });
 
   // NOTE: The "Reset All Data" UI was removed from the Settings page because an
@@ -70,35 +63,32 @@ test.describe('Story 08: Theme Settings', () => {
   // state. The underlying resetAllData() logic is retained but currently unused;
   // its behavior is covered by app/tests/unit/storage.test.ts.
 
-  test('4. dark-background minecraft theme floats content on a light panel', async ({ page }) => {
-    // minecraft has a dark dirt appBg; without a light panel, page-level text
-    // (dark tokens) would be illegible against it. Assert the panel exists and
-    // is genuinely light so descriptions stay readable.
+  test('4. a deprecated/unknown stored theme name falls back to aquarelle without error', async ({ page }) => {
+    // A settings blob persisted before the old themes were removed must not
+    // break the app — it normalizes to aquarelle on read.
     await page.goto('/');
     await page.evaluate(() =>
       localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'minecraft', language: 'en' })),
     );
-    await page.goto('/');
+    await page.goto('/profile');
     await page.waitForLoadState('networkidle');
 
-    const panel = page.getByTestId('content-panel');
-    await expect(panel).toBeVisible();
-
-    const luminance = await panel.evaluate((el) => {
-      const bg = getComputedStyle(el).backgroundColor; // rgb(...) / rgba(...)
-      const [r, g, b] = bg.match(/\d+/g)!.map(Number);
-      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-    });
-    // A light "stone/parchment" panel — comfortably above mid-grey.
-    expect(luminance).toBeGreaterThan(0.7);
+    await expect(page.getByTestId('theme-preview')).toContainText('Aquarelle');
+    const stored = await page.evaluate(() => localStorage.getItem('lp_settings_v1'));
+    // Reading settings normalizes the deprecated name; once the picker writes,
+    // the persisted value is the valid aquarelle id.
+    await page.getByTestId('theme-aquarelle-btn').click();
+    const afterClick = await page.evaluate(() => JSON.parse(localStorage.getItem('lp_settings_v1')!));
+    expect(afterClick.theme).toBe('aquarelle');
+    expect(stored).toBeTruthy();
   });
 
-  test('5. light-background calm theme renders no content panel', async ({ page }) => {
+  test('5. the light aquarelle theme renders no content panel', async ({ page }) => {
     // Light themes paint content directly on a light appBg; the panel must not
     // appear, so the layout stays unchanged for them.
     await page.goto('/');
     await page.evaluate(() =>
-      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'calm', language: 'en' })),
+      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'aquarelle', language: 'en' })),
     );
     await page.goto('/');
     await page.waitForLoadState('networkidle');

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CARD_ELEVATION, BUTTON_ELEVATION, NAV_ELEVATION, CONTENT_PANEL_STYLES } from '@/src/themes/treatments/elevation';
 import { ICON_SETS, resolveIconId } from '@/src/themes/treatments/iconSets';
-import { SURFACE_PATTERNS, APP_BG_GRADIENTS } from '@/src/themes/treatments/patterns';
+import { SURFACE_PATTERNS } from '@/src/themes/treatments/patterns';
 import { DYNAMIC_GENERATORS, type StyleToken } from '@/src/themes/treatments/dynamicVisuals';
 import { manifest as aquarelleManifest } from '@/src/themes/aquarelle/manifest';
 
@@ -70,12 +70,6 @@ describe('themes/treatments/patterns', () => {
     expect(Object.keys(SURFACE_PATTERNS.grid).length).toBeGreaterThan(0);
     expect(Object.keys(SURFACE_PATTERNS.petals).length).toBeGreaterThan(0);
     expect(SURFACE_PATTERNS.studs).not.toEqual(SURFACE_PATTERNS.grid);
-  });
-
-  it('exposes the three pre-refactor appBg gradient strings verbatim', () => {
-    expect(APP_BG_GRADIENTS.lego).toContain('#ffd44c');
-    expect(APP_BG_GRADIENTS.minecraft).toContain('#6b4b2a');
-    expect(APP_BG_GRADIENTS.flower).toContain('#ffe7f1');
   });
 });
 

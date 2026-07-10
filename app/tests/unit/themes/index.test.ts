@@ -14,11 +14,11 @@ describe('themes/index (S1 pass-through)', () => {
   });
 
   it('preserves AC-STRUCT-5 call signatures/behavior through the pass-through', () => {
-    expect(themesIndex.isAppThemeName('calm')).toBe(true);
+    expect(themesIndex.isAppThemeName('aquarelle')).toBe(true);
     expect(themesIndex.isAppThemeName('not-a-theme')).toBe(false);
     expect(themesIndex.normalizeThemeName('bogus')).toBe(themesIndex.DEFAULT_THEME_NAME);
-    expect(themesIndex.getThemeDefinition('calm')).toBe(libTheme.APP_THEMES.calm);
-    expect(themesIndex.getChakraTheme('calm')).toBe(libTheme.getChakraTheme('calm'));
+    expect(themesIndex.getThemeDefinition('aquarelle')).toBe(libTheme.APP_THEMES.aquarelle);
+    expect(themesIndex.getChakraTheme('aquarelle')).toBe(libTheme.getChakraTheme('aquarelle'));
   });
 });
 
@@ -65,7 +65,7 @@ describe('themes/index (AC-UX-4 / AC15): normalizeThemeName / isAppThemeName / l
   });
 
   it('isThemeVisible is false for a status:hidden fixture (real-manifest spread with status overridden — proves the filter branch has teeth, since no real theme is hidden today)', () => {
-    const hiddenFixture = { ...themesIndex.APP_THEMES.calm, status: 'hidden' as const };
+    const hiddenFixture = { ...themesIndex.APP_THEMES.aquarelle, status: 'hidden' as const };
     expect(themesIndex.isThemeVisible(hiddenFixture)).toBe(false);
   });
 
@@ -84,30 +84,16 @@ describe('themes/index (AC-UX-4 / AC15): normalizeThemeName / isAppThemeName / l
     // Isolated fixture array (never mutates the real registry) exercising
     // the REAL isThemeVisible predicate the way listThemes() itself does.
     const fixtures = [
-      themesIndex.APP_THEMES.calm,
-      { ...themesIndex.APP_THEMES.playful, id: 'secret', status: 'hidden' as const },
+      themesIndex.APP_THEMES.aquarelle,
+      { ...themesIndex.APP_THEMES.aquarelle, id: 'secret', status: 'hidden' as const },
     ];
     const visibleOnly = fixtures.filter((t) => themesIndex.isThemeVisible(t));
-    expect(visibleOnly.map((t) => t.id)).toEqual(['calm']);
-    expect(fixtures.map((t) => t.id)).toEqual(['calm', 'secret']);
+    expect(visibleOnly.map((t) => t.id)).toEqual(['aquarelle']);
+    expect(fixtures.map((t) => t.id)).toEqual(['aquarelle', 'secret']);
   });
 
-  it('listThemes() against the real registry returns all six themes (none hidden), order-sorted', () => {
-    expect(themesIndex.listThemes().map((t) => t.id)).toEqual([
-      'calm',
-      'playful',
-      'lego',
-      'minecraft',
-      'flower',
-      'aquarelle',
-    ]);
-    expect(themesIndex.listThemes({ includeHidden: true }).map((t) => t.id)).toEqual([
-      'calm',
-      'playful',
-      'lego',
-      'minecraft',
-      'flower',
-      'aquarelle',
-    ]);
+  it('listThemes() against the real registry returns the sole aquarelle theme (none hidden)', () => {
+    expect(themesIndex.listThemes().map((t) => t.id)).toEqual(['aquarelle']);
+    expect(themesIndex.listThemes({ includeHidden: true }).map((t) => t.id)).toEqual(['aquarelle']);
   });
 });

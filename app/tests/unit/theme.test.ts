@@ -3,32 +3,21 @@ import { APP_THEMES, getChakraTheme } from '@/src/lib/theme';
 
 describe('theme definitions', () => {
   describe('contentSurface flag', () => {
-    it('minecraft floats content on a light surface panel', () => {
-      // minecraft is the only theme with a dark appBg; its text tokens are
-      // tuned for light surfaces, so page content must sit on a light panel.
-      expect(APP_THEMES.minecraft.contentSurface).toBe(true);
-    });
-
-    it('light-background themes do not request a content panel', () => {
-      // calm/playful/lego/flower all use a light appBg — page text reads
-      // directly on the background and a panel would be redundant.
-      expect(APP_THEMES.calm.contentSurface).toBeFalsy();
-      expect(APP_THEMES.playful.contentSurface).toBeFalsy();
-      expect(APP_THEMES.lego.contentSurface).toBeFalsy();
-      expect(APP_THEMES.flower.contentSurface).toBeFalsy();
+    it('the light aquarelle theme does not request a content panel', () => {
+      // aquarelle uses a light appBg — page text reads directly on the
+      // background and a content panel would be redundant. (The appBg-
+      // exemption path a dark contentSurface theme needs is covered by the
+      // dark fixture in themes/contrast.test.ts.)
+      expect(APP_THEMES.aquarelle.contentSurface).toBeFalsy();
     });
   });
 
-  describe('minecraft font sizing', () => {
-    it('uses an enlarged pixel-font scale for legibility', () => {
-      const { fontSizes } = getChakraTheme('minecraft') as {
-        fontSizes: Record<string, string>;
+  describe('aquarelle theme', () => {
+    it('builds a Chakra theme whose appBg semantic token matches the manifest', () => {
+      const { semanticTokens } = getChakraTheme('aquarelle') as {
+        semanticTokens: { colors: Record<string, string> };
       };
-      // The VT323/Press Start 2P scale was bumped ~12% over the original
-      // (md was '1rem'); guard the floor so it cannot silently shrink back.
-      expect(parseFloat(fontSizes.md)).toBeGreaterThanOrEqual(1.1);
-      expect(parseFloat(fontSizes.lg)).toBeGreaterThan(parseFloat(fontSizes.md));
-      expect(parseFloat(fontSizes['4xl'])).toBeGreaterThan(parseFloat(fontSizes.xl));
+      expect(semanticTokens.colors.appBg).toBe(APP_THEMES.aquarelle.colors.appBg);
     });
   });
 });

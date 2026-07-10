@@ -77,25 +77,25 @@ describe('theme label/description resolution (AC-UX-3): de falls back to en', ()
   }
 
   it('renders the manifest en label/description in English', () => {
-    const calm = APP_THEMES.calm;
-    expect(localizedThemeText(calm.label, 'en')).toBe(calm.label.en);
-    expect(localizedThemeText(calm.description, 'en')).toBe(calm.description.en);
+    const aquarelle = APP_THEMES.aquarelle;
+    expect(localizedThemeText(aquarelle.label, 'en')).toBe(aquarelle.label.en);
+    expect(localizedThemeText(aquarelle.description, 'en')).toBe(aquarelle.description.en);
   });
 
   it('renders the manifest de label/description in German when present', () => {
-    const calm = APP_THEMES.calm;
-    expect(calm.label.de).toBeTruthy(); // sanity: calm has a real de translation
-    expect(localizedThemeText(calm.label, 'de')).toBe(calm.label.de);
+    const aquarelle = APP_THEMES.aquarelle;
+    expect(aquarelle.label.de).toBeTruthy(); // sanity: aquarelle has a real de translation
+    expect(localizedThemeText(aquarelle.label, 'de')).toBe(aquarelle.label.de);
   });
 
-  it('falls back to en when de is absent (isolated fixture — none of the five real themes currently omits de, so this proves the fallback branch has teeth)', () => {
+  it('falls back to en when de is absent (isolated fixture — the aquarelle theme does not omit de, so this proves the fallback branch has teeth)', () => {
     const fixture = { en: 'English Only' };
     expect(localizedThemeText(fixture, 'de')).toBe('English Only');
   });
 
-  it('listThemes() returns all six real themes (none are status:hidden today) in order-sorted sequence', () => {
+  it('listThemes() returns the sole aquarelle theme (not status:hidden today)', () => {
     const ids = listThemes().map((t) => t.id);
-    expect(ids).toEqual(['calm', 'playful', 'lego', 'minecraft', 'flower', 'aquarelle']);
+    expect(ids).toEqual(['aquarelle']);
   });
 });
 

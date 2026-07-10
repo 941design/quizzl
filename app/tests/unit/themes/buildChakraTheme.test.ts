@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildThemeOverride, createScale, getChakraTheme } from '@/src/themes/buildChakraTheme';
 import type { ThemeManifest } from '@/src/themes/schema';
-import { calmManifestFixture, minecraftManifestFixture } from './fixtures';
+import { lightManifestFixture, darkContentSurfaceManifestFixture } from './fixtures';
 
 function containsFunction(value: unknown): boolean {
   if (typeof value === 'function') return true;
@@ -14,7 +14,7 @@ function containsFunction(value: unknown): boolean {
 
 describe('themes/buildChakraTheme: createScale', () => {
   it('expands a 10-value tuple into the step-keyed Record shape', () => {
-    const scale = createScale(calmManifestFixture.colors.brand);
+    const scale = createScale(lightManifestFixture.colors.brand);
     expect(scale).toEqual({
       50: '#e6f4f1',
       100: '#c0e3db',
@@ -32,21 +32,21 @@ describe('themes/buildChakraTheme: createScale', () => {
 
 describe('themes/buildChakraTheme: buildThemeOverride', () => {
   it('varies with its manifest argument (not a frozen constant)', () => {
-    const calmOverride = buildThemeOverride(calmManifestFixture);
-    const minecraftOverride = buildThemeOverride(minecraftManifestFixture);
-    expect(calmOverride.colors.brand).not.toEqual(minecraftOverride.colors.brand);
-    expect(calmOverride.semanticTokens.colors.appBg).toBe('#f3f7f8');
-    expect(minecraftOverride.semanticTokens.colors.appBg).toBe('#6b4b2a');
+    const lightOverride = buildThemeOverride(lightManifestFixture);
+    const darkOverride = buildThemeOverride(darkContentSurfaceManifestFixture);
+    expect(lightOverride.colors.brand).not.toEqual(darkOverride.colors.brand);
+    expect(lightOverride.semanticTokens.colors.appBg).toBe('#f3f7f8');
+    expect(darkOverride.semanticTokens.colors.appBg).toBe('#6b4b2a');
   });
 
   it('is deterministic across repeated calls with the same input', () => {
-    const first = buildThemeOverride(calmManifestFixture);
-    const second = buildThemeOverride(calmManifestFixture);
+    const first = buildThemeOverride(lightManifestFixture);
+    const second = buildThemeOverride(lightManifestFixture);
     expect(first).toEqual(second);
   });
 
   it('returns exactly the seam-contract fields', () => {
-    const override = buildThemeOverride(calmManifestFixture);
+    const override = buildThemeOverride(lightManifestFixture);
     expect(Object.keys(override).sort()).toEqual(
       ['colors', 'semanticTokens', 'fonts', 'fontSizes', 'radii', 'borderWidths', 'styles', 'config', 'components'].sort(),
     );
@@ -60,7 +60,7 @@ describe('themes/buildChakraTheme: buildThemeOverride', () => {
 
   it('forwards shape.borderWidths from the manifest onto the override (schema accepts it, transform must not drop it)', () => {
     const manifestWithBorderWidths: ThemeManifest = {
-      ...calmManifestFixture,
+      ...lightManifestFixture,
       shape: { borderWidths: { thin: '1px', thick: '4px' } },
     };
     const override = buildThemeOverride(manifestWithBorderWidths);
@@ -68,12 +68,12 @@ describe('themes/buildChakraTheme: buildThemeOverride', () => {
   });
 
   it('leaves borderWidths undefined when the manifest has no shape.borderWidths', () => {
-    const override = buildThemeOverride(calmManifestFixture);
+    const override = buildThemeOverride(lightManifestFixture);
     expect(override.borderWidths).toBeUndefined();
   });
 
   it('is function-free (a JSON.stringify round-trip preserves every key without throwing)', () => {
-    const override = buildThemeOverride(minecraftManifestFixture);
+    const override = buildThemeOverride(darkContentSurfaceManifestFixture);
     expect(containsFunction(override)).toBe(false);
     expect(() => JSON.stringify(override)).not.toThrow();
     const roundTripped = JSON.parse(JSON.stringify(override));
@@ -87,31 +87,31 @@ describe('themes/buildChakraTheme: buildThemeOverride', () => {
   });
 
   it('sets buttonColorScheme from the manifest, other components fixed to brand', () => {
-    const override = buildThemeOverride(calmManifestFixture);
+    const override = buildThemeOverride(lightManifestFixture);
     expect(override.components.Button.defaultProps).toEqual({ colorScheme: 'brand' });
     expect(override.components.Tabs.defaultProps).toEqual({ colorScheme: 'brand' });
   });
 
   it('only sets background* body styles when backgroundImage is present', () => {
-    const calmOverride = buildThemeOverride(calmManifestFixture);
-    expect(calmOverride.styles.global.body.backgroundImage).toBeUndefined();
-    expect(calmOverride.styles.global.body.backgroundAttachment).toBeUndefined();
+    const lightOverride = buildThemeOverride(lightManifestFixture);
+    expect(lightOverride.styles.global.body.backgroundImage).toBeUndefined();
+    expect(lightOverride.styles.global.body.backgroundAttachment).toBeUndefined();
 
-    const minecraftOverride = buildThemeOverride(minecraftManifestFixture);
-    expect(minecraftOverride.styles.global.body.backgroundImage).toBe(minecraftManifestFixture.colors.backgroundImage);
-    expect(minecraftOverride.styles.global.body.backgroundAttachment).toBe('fixed');
+    const darkOverride = buildThemeOverride(darkContentSurfaceManifestFixture);
+    expect(darkOverride.styles.global.body.backgroundImage).toBe(darkContentSurfaceManifestFixture.colors.backgroundImage);
+    expect(darkOverride.styles.global.body.backgroundAttachment).toBe('fixed');
   });
 });
 
 describe('themes/buildChakraTheme: getChakraTheme', () => {
   it('returns a referentially-stable value across repeated calls for the same manifest id', () => {
-    const first = getChakraTheme(calmManifestFixture);
-    const second = getChakraTheme(calmManifestFixture);
+    const first = getChakraTheme(lightManifestFixture);
+    const second = getChakraTheme(lightManifestFixture);
     expect(first).toBe(second);
   });
 
   it('full-extend guard: the merged theme still carries Chakra-default subtrees', () => {
-    const theme = getChakraTheme(minecraftManifestFixture);
+    const theme = getChakraTheme(darkContentSurfaceManifestFixture);
     // components.Button.variants is a Chakra-default subtree outside the
     // ALLOWLIST; its presence proves extendTheme() ran (not a bare override).
     expect(theme.components?.Button?.variants).toBeTypeOf('object');
@@ -119,7 +119,7 @@ describe('themes/buildChakraTheme: getChakraTheme', () => {
   });
 
   it('reflects the manifest colors in the extended theme', () => {
-    const theme = getChakraTheme(calmManifestFixture);
+    const theme = getChakraTheme(lightManifestFixture);
     expect(theme.colors.brand[500]).toBe('#2a9d8a');
   });
 });

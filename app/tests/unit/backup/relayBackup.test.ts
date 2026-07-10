@@ -190,12 +190,12 @@ describe('collectBackupPayload', () => {
 
   it('reads settings from localStorage', async () => {
     localStore[STORAGE_KEYS.settings] = JSON.stringify({
-      theme: 'playful',
+      theme: 'aquarelle',
       language: 'de',
     });
 
     const payload = await collectBackupPayload();
-    expect(payload.settings).toEqual({ theme: 'playful', language: 'de' });
+    expect(payload.settings).toEqual({ theme: 'aquarelle', language: 'de' });
   });
 
   it('reads userProfile from localStorage', async () => {
@@ -531,7 +531,7 @@ describe('fetchBackup', () => {
     const payload: BackupPayload = {
       version: 1,
       createdAt: 1700000000000,
-      settings: { theme: 'calm', language: 'en' },
+      settings: { theme: 'aquarelle', language: 'en' },
       userProfile: null,
       groups: [],
       groupStates: {},
@@ -555,7 +555,7 @@ describe('fetchBackup', () => {
 
     expect(result).not.toBeNull();
     expect(result!.version).toBe(1);
-    expect(result!.settings).toEqual({ theme: 'calm', language: 'en' });
+    expect(result!.settings).toEqual({ theme: 'aquarelle', language: 'en' });
     expect(signer.nip44.decrypt).toHaveBeenCalledWith('deadbeef', encryptedContent);
   });
 
@@ -563,7 +563,7 @@ describe('fetchBackup', () => {
     const oldPayload: BackupPayload = {
       version: 1,
       createdAt: 1700000000000,
-      settings: { theme: 'playful', language: 'de' },
+      settings: { theme: 'aquarelle', language: 'de' },
       userProfile: null,
       groups: [],
       groupStates: {},
@@ -572,7 +572,7 @@ describe('fetchBackup', () => {
     };
     const newPayload: BackupPayload = {
       ...oldPayload,
-      settings: { theme: 'calm', language: 'en' },
+      settings: { theme: 'aquarelle', language: 'en' },
       createdAt: 1700000001000,
     };
 
@@ -587,7 +587,7 @@ describe('fetchBackup', () => {
     const signer = makeMockSigner();
     const result = await fetchBackup(signer, 'deadbeef', mockNdk as never);
 
-    expect(result!.settings).toEqual({ theme: 'calm', language: 'en' });
+    expect(result!.settings).toEqual({ theme: 'aquarelle', language: 'en' });
   });
 
   it('throws on unsupported backup version', async () => {
@@ -686,7 +686,7 @@ describe('restoreFromBackup', () => {
     localStore[STORAGE_KEYS.signerMode] = 'nip07';
     localStore[STORAGE_KEYS.nostrIdentity] = JSON.stringify({ pubkeyHex: 'abc' });
 
-    await restoreFromBackup(makeEmptyPayload({ settings: { theme: 'calm' } }));
+    await restoreFromBackup(makeEmptyPayload({ settings: { theme: 'aquarelle' } }));
 
     expect(localStore[STORAGE_KEYS.contacts]).toBe(JSON.stringify({ pk1: { nickname: 'Bob' } }));
     expect(localStore[STORAGE_KEYS.relays]).toBe(JSON.stringify(['wss://my.relay']));
@@ -733,11 +733,11 @@ describe('restoreFromBackup', () => {
 
   it('rehydrates settings from payload', async () => {
     await restoreFromBackup(
-      makeEmptyPayload({ settings: { theme: 'playful', language: 'de' } }),
+      makeEmptyPayload({ settings: { theme: 'aquarelle', language: 'de' } }),
     );
 
     expect(JSON.parse(localStore[STORAGE_KEYS.settings])).toEqual({
-      theme: 'playful',
+      theme: 'aquarelle',
       language: 'de',
     });
   });
@@ -823,7 +823,7 @@ describe('restoreFromBackup', () => {
 
   it('round-trips: collect then restore produces equivalent state', async () => {
     // Set up state
-    localStore[STORAGE_KEYS.settings] = JSON.stringify({ theme: 'playful', language: 'de' });
+    localStore[STORAGE_KEYS.settings] = JSON.stringify({ theme: 'aquarelle', language: 'de' });
     await saveGroup({
       id: 'g1',
       name: 'Bio',
@@ -844,7 +844,7 @@ describe('restoreFromBackup', () => {
 
     // Verify
     expect(JSON.parse(localStore[STORAGE_KEYS.settings])).toEqual({
-      theme: 'playful',
+      theme: 'aquarelle',
       language: 'de',
     });
     const groups = await loadAllGroups();

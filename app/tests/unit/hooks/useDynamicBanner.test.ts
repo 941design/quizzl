@@ -48,15 +48,23 @@ const TREATMENTS_TEST_PATH = path.resolve(TEST_FILE_DIR, '../themes/treatments.t
 
 const STYLE_TOKEN: StyleToken = { anchorHue: 200, scheme: 'triadic', saturation: 60, lightness: 50 };
 
-/** A real theme manifest with no `treatments.dynamic` declared (calm — unmodified). */
-const STATIC_ONLY: AppThemeDefinition = APP_THEMES.calm;
+// aquarelle is the only shipped theme and it DOES declare a
+// `treatments.dynamic.banner`, so derive a static-only variant (its dynamic
+// declaration stripped) to exercise the no-dynamic path.
+const { dynamic: _aquarelleDynamic, ...AQUARELLE_TREATMENTS_STATIC } = APP_THEMES.aquarelle.treatments;
+
+/** A real theme manifest with no `treatments.dynamic` declared (aquarelle, dynamic stripped). */
+const STATIC_ONLY: AppThemeDefinition = {
+  ...APP_THEMES.aquarelle,
+  treatments: AQUARELLE_TREATMENTS_STATIC,
+};
 
 /** The same real manifest, with a `treatments.dynamic.banner` added (nothing else changed). */
 function withDynamicBanner(style: StyleToken = STYLE_TOKEN): AppThemeDefinition {
   return {
-    ...APP_THEMES.calm,
+    ...STATIC_ONLY,
     treatments: {
-      ...APP_THEMES.calm.treatments,
+      ...STATIC_ONLY.treatments,
       dynamic: {
         banner: { generator: 'watercolor', style },
       },
@@ -185,8 +193,8 @@ describe("AC-UX-3a: generation failure (generatedSvg: null) keeps/reverts to the
   // fixture is required to reach it at all.
   it('returns null (not a broken/partial object) when the static banner string is empty/whitespace-only, regardless of generatedSvg', () => {
     const emptyBannerDef: AppThemeDefinition = {
-      ...APP_THEMES.calm,
-      treatments: { ...APP_THEMES.calm.treatments, banner: '   ' },
+      ...STATIC_ONLY,
+      treatments: { ...STATIC_ONLY.treatments, banner: '   ' },
     };
     expect(computeThemeStyles(emptyBannerDef).bannerDecorStyle).toBeNull();
     expect(resolveDynamicBannerStyle(emptyBannerDef, null)).toBeNull();
@@ -213,15 +221,14 @@ describe('AC-PERF-1: reserved box dimensions are unchanged before/after the swap
 });
 
 describe('AC-A11Y-1: legibility scrim guarantees brand.500 logo text meets WCAG AA (>= 4.5:1), independent of any generated image', () => {
-  // Every existing theme's REAL brand.500 hex (colors.brand[5] — SCALE_STEPS
+  // Every shipped theme's REAL brand.500 hex (colors.brand[5] — SCALE_STEPS
   // in buildChakraTheme.ts: 50,100,...,900), read straight from APP_THEMES —
-  // not a hand-picked favorable example. brand.500 is theme-specific (each
-  // manifest declares its own colors.brand scale), so resolveScrimColor is
-  // exercised against every one of them, not just one.
+  // not a hand-picked favorable example. (aquarelle is the only shipped theme
+  // today; the arbitrary-values test below carries the breadth.)
   const realBrand500Values = Object.values(APP_THEMES).map((def) => def.colors.brand[5]);
 
-  it('every real theme has a distinct-enough brand.500 that this test is not vacuous', () => {
-    expect(realBrand500Values.length).toBeGreaterThanOrEqual(5);
+  it('every real theme has a distinct brand.500 that this test is not vacuous', () => {
+    expect(realBrand500Values.length).toBeGreaterThanOrEqual(1);
     expect(new Set(realBrand500Values).size).toBe(realBrand500Values.length);
   });
 
@@ -437,15 +444,22 @@ describe('AC-UX-4: static fallback renders when JS/dynamic generation is unavail
     expect(result!.style.backgroundImage).toBe(expectedDataUriFromRawBanner(def.treatments.banner));
   });
 
-  it('a different theme\'s no-JS fallback resolves to THAT theme\'s own static banner, not a shared/generic placeholder — proving the decode isn\'t coincidentally matching one fixture', () => {
-    const themeNames = Object.keys(APP_THEMES) as Array<keyof typeof APP_THEMES>;
-    expect(themeNames.length).toBeGreaterThanOrEqual(2);
-    const [nameA, nameB] = themeNames;
-    const resultA = resolveDynamicBannerStyle(APP_THEMES[nameA], null);
-    const resultB = resolveDynamicBannerStyle(APP_THEMES[nameB], null);
-    expect(resultA!.style.backgroundImage).toBe(expectedDataUriFromRawBanner(APP_THEMES[nameA].treatments.banner));
-    expect(resultB!.style.backgroundImage).toBe(expectedDataUriFromRawBanner(APP_THEMES[nameB].treatments.banner));
-    // Sanity: this only proves something if the two themes' static banners actually differ.
+  it('the no-JS fallback resolves to the manifest\'s OWN static banner, not a shared/generic placeholder — proving the decode isn\'t coincidentally matching one fixture (aquarelle vs a synthetic banner variant)', () => {
+    // With a single shipped theme, stand a synthetic second manifest (same
+    // theme, a different static banner) next to it to prove the decode tracks
+    // each manifest's own banner rather than echoing a shared constant.
+    const variant: AppThemeDefinition = {
+      ...APP_THEMES.aquarelle,
+      treatments: {
+        ...APP_THEMES.aquarelle.treatments,
+        banner: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96"><rect fill="#abcdef" width="1" height="1"/></svg>',
+      },
+    };
+    const resultA = resolveDynamicBannerStyle(APP_THEMES.aquarelle, null);
+    const resultB = resolveDynamicBannerStyle(variant, null);
+    expect(resultA!.style.backgroundImage).toBe(expectedDataUriFromRawBanner(APP_THEMES.aquarelle.treatments.banner));
+    expect(resultB!.style.backgroundImage).toBe(expectedDataUriFromRawBanner(variant.treatments.banner));
+    // Sanity: this only proves something if the two banners actually differ.
     expect(resultA!.style.backgroundImage).not.toBe(resultB!.style.backgroundImage);
   });
 });

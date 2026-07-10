@@ -1,7 +1,7 @@
 import { test, expect, type Locator } from '@playwright/test';
 import { manifest as aquarelleManifest } from '../../src/themes/aquarelle/manifest';
 
-const THEMES = ['calm', 'playful', 'lego', 'minecraft', 'flower', 'aquarelle'] as const;
+const THEMES = ['aquarelle'] as const;
 
 // Mirrors useDynamicBanner.ts's private encodeSvgDataUri / useThemeStyles.ts's
 // navBannerDecor transform byte-for-byte (whitespace-collapse + trim, then
@@ -100,7 +100,7 @@ test.describe('Nav banner decoration', () => {
     expect(parseInt(styles.left, 10)).toBeLessThanOrEqual(10);
   });
 
-  test('decoration does not overlap menu items', async ({ page }) => {
+  test('decoration is a non-interactive background layer that never blocks menu items', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
@@ -108,14 +108,19 @@ test.describe('Nav banner decoration', () => {
     const decorBox = await decor.boundingBox();
     expect(decorBox).not.toBeNull();
 
-    // Desktop nav links sit to the right; decoration should stay in the left portion
     const nav = page.locator('nav[aria-label="Main navigation"]');
     const navBox = await nav.boundingBox();
     expect(navBox).not.toBeNull();
 
-    // Decoration should occupy roughly one third of the nav width
-    expect(decorBox!.width).toBeGreaterThan(navBox!.width * 0.25);
-    expect(decorBox!.width).toBeLessThan(navBox!.width * 0.4);
+    // aquarelle (the default, and only, theme) declares a dynamic banner, so
+    // the decoration is the FULL-HEADER background layer (Layout's dynamic-
+    // banner override), not the small corner box the removed static themes
+    // used. It therefore spans the nav width — but it must be a purely
+    // decorative background: `pointer-events: none` so it never intercepts a
+    // menu click.
+    expect(decorBox!.width).toBeGreaterThan(navBox!.width * 0.9);
+    const pointerEvents = await decor.evaluate((el) => getComputedStyle(el).pointerEvents);
+    expect(pointerEvents).toBe('none');
   });
 
   for (const theme of THEMES) {
@@ -136,31 +141,6 @@ test.describe('Nav banner decoration', () => {
       expect(bgImage).toContain('data:image/svg+xml');
     });
   }
-
-  test('decoration SVG changes when theme is switched', async ({ page }) => {
-    // Start with calm
-    await page.goto('/');
-    await page.evaluate(() =>
-      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'calm', language: 'en' })),
-    );
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
-
-    const decor = page.getByTestId('nav-banner-decor');
-    const calmBg = await decor.evaluate((el) => getComputedStyle(el).backgroundImage);
-
-    // Switch to lego
-    await page.evaluate(() =>
-      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'lego', language: 'en' })),
-    );
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
-
-    const legoBg = await decor.evaluate((el) => getComputedStyle(el).backgroundImage);
-
-    // The two backgrounds must differ
-    expect(calmBg).not.toBe(legoBg);
-  });
 
   // Story S8 / MV-1, MV-2 (specs/epic-dynamic-theme-visuals/acceptance-criteria.md,
   // epic-state.json manual_validation ledger): `aquarelle` is the first theme to
@@ -219,7 +199,11 @@ test.describe('Nav banner decoration', () => {
     await expect(logoText).toBeVisible();
   });
 
-  test('MV-2: rapidly toggling live between aquarelle and a static-only theme never leaves a broken/blank banner or logs an uncaught error', async ({ page }) => {
+  test('MV-2: repeatedly re-selecting the aquarelle theme live never leaves a broken/blank banner or logs an uncaught error', async ({ page }) => {
+    // The old two-theme toggle race (aquarelle <-> a static-only theme) is no
+    // longer expressible now that aquarelle is the only shipped theme. This
+    // retains the fail-soft smoke check: live in-SPA re-selection via
+    // setTheme() must keep the banner valid and never throw.
     const pageErrors: string[] = [];
     page.on('pageerror', (err) => pageErrors.push(String(err)));
     const consoleErrors: string[] = [];
@@ -231,19 +215,11 @@ test.describe('Nav banner decoration', () => {
     await page.waitForLoadState('networkidle');
 
     const aquarelleBtn = page.getByTestId('theme-aquarelle-btn');
-    const calmBtn = page.getByTestId('theme-calm-btn');
     await expect(aquarelleBtn).toBeVisible();
-    await expect(calmBtn).toBeVisible();
 
-    // Live, in-SPA theme switches (setTheme() via React context, no page.goto
-    // reload) — the exact scenario MV-2 flags: a superseded useDynamicBanner
-    // effect run (theme change mid-generation) must never let a stale
-    // cancelled-flag'd result reach setGeneratedSvg via a leaked Worker.
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       await aquarelleBtn.click();
-      await calmBtn.click();
     }
-    await aquarelleBtn.click();
     await page.waitForLoadState('networkidle');
 
     const decor = page.getByTestId('nav-banner-decor');
@@ -262,11 +238,7 @@ test.describe('Nav banner decoration', () => {
     expect(pageErrors, `uncaught page errors: ${pageErrors.join('; ')}`).toHaveLength(0);
     // Filtered rather than a blanket zero-console.error assertion: unrelated
     // dev-server resource noise (e.g. a benign 404 on a source map or
-    // favicon) is not this test's concern and would make it flaky for
-    // reasons that have nothing to do with MV-2's actual guarantee. Broadened
-    // beyond the banner/worker vocabulary to also catch generic React/DOM
-    // lifecycle warnings from the same race (e.g. a state-update-on-
-    // unmounted-component warning names none of those terms) — uncaught
+    // favicon) is not this test's concern and would make it flaky. Uncaught
     // exceptions are still caught unfiltered via the pageerror handler above,
     // so this filter only needs to cover non-throwing console noise.
     const relevantConsoleErrors = consoleErrors.filter((text) =>

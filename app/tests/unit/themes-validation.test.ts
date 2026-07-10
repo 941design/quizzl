@@ -53,7 +53,7 @@ const TEST_FILE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(TEST_FILE_DIR, '..', '..'); // app/tests/unit -> app/
 const THEMES_DIR = path.join(APP_ROOT, 'src', 'themes');
 
-const THEME_IDS: AppThemeName[] = ['calm', 'playful', 'lego', 'minecraft', 'flower', 'aquarelle'];
+const THEME_IDS: AppThemeName[] = ['aquarelle'];
 
 // ===========================================================================
 // AC-VAL-2 (spec AC7): schema/id validation
@@ -115,12 +115,12 @@ describe('AC-VAL-2: schema/id validation', () => {
   });
 
   it('rejects an id with an uppercase letter (fails the ^[a-z][a-z0-9-]*$ regex)', () => {
-    const fixture = { ...REGISTRY_APP_THEMES.calm, id: 'Calm' };
+    const fixture = { ...REGISTRY_APP_THEMES.aquarelle, id: 'Calm' };
     expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
   });
 
   it('rejects an id with a leading digit (fails the ^[a-z][a-z0-9-]*$ regex)', () => {
-    const fixture = { ...REGISTRY_APP_THEMES.calm, id: '1calm' };
+    const fixture = { ...REGISTRY_APP_THEMES.aquarelle, id: '1calm' };
     expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
   });
 
@@ -128,7 +128,7 @@ describe('AC-VAL-2: schema/id validation', () => {
     // 'playful' is a perfectly valid id per the regex, but wrong for the
     // 'calm' folder — this is exactly the case the regex cannot catch and
     // the explicit id===folder assertion exists for.
-    const fixture = { ...REGISTRY_APP_THEMES.calm, id: 'playful' };
+    const fixture = { ...REGISTRY_APP_THEMES.aquarelle, id: 'playful' };
     const folder = 'calm';
     expect(() => ThemeManifestSchema.parse(fixture)).not.toThrow();
     expect(fixture.id === folder).toBe(false);
@@ -147,8 +147,8 @@ describe('AC-VAL-1: contrast gate (computed from real hex values only, never col
 
   it('a failing pair reports theme id + failing (text, surface) token pair + computed ratio', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
-      colors: { ...REGISTRY_APP_THEMES.calm.colors, textStrong: '#999999', surfaceBg: '#aaaaaa' },
+      ...REGISTRY_APP_THEMES.aquarelle,
+      colors: { ...REGISTRY_APP_THEMES.aquarelle.colors, textStrong: '#999999', surfaceBg: '#aaaaaa' },
     };
     const result = evaluateThemeContrast(fixture);
     expect(result.pass).toBe(false);
@@ -160,18 +160,18 @@ describe('AC-VAL-1: contrast gate (computed from real hex values only, never col
     // The shape contrast.ts already returns is exactly "theme id + pair +
     // ratio" — assert a caller can format a report that surfaces all three.
     const report = `theme "${fixture.id}": (${failure!.textToken}, ${failure!.surfaceToken}) ratio ${failure!.ratio.toFixed(2)} < ${WCAG_AA_THRESHOLD}`;
-    expect(report).toContain('calm');
+    expect(report).toContain('aquarelle');
     expect(report).toContain('textStrong');
     expect(report).toContain('surfaceBg');
   });
 
   it('never trusts colorScheme as a shortcut: colorScheme "light" with real low-contrast hex values still fails', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
+      ...REGISTRY_APP_THEMES.aquarelle,
       colorScheme: 'light' as const,
       // Near-white on white: passes no eyeball "light theme" assumption,
       // fails on the actual computed ratio.
-      colors: { ...REGISTRY_APP_THEMES.calm.colors, textStrong: '#f0f0f0', surfaceBg: '#ffffff' },
+      colors: { ...REGISTRY_APP_THEMES.aquarelle.colors, textStrong: '#f0f0f0', surfaceBg: '#ffffff' },
     };
     const result = evaluateThemeContrast(fixture);
     expect(result.pass).toBe(false);
@@ -179,8 +179,8 @@ describe('AC-VAL-1: contrast gate (computed from real hex values only, never col
 
   it('treats a non-hex named CSS color token as a gate FAILURE, never a silent pass (fail-loud contract)', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
-      colors: { ...REGISTRY_APP_THEMES.calm.colors, textStrong: 'red' },
+      ...REGISTRY_APP_THEMES.aquarelle,
+      colors: { ...REGISTRY_APP_THEMES.aquarelle.colors, textStrong: 'red' },
     };
     const result = evaluateThemeContrast(fixture);
     expect(result.pass).toBe(false);
@@ -191,8 +191,8 @@ describe('AC-VAL-1: contrast gate (computed from real hex values only, never col
 
   it('treats an rgb() color token as a gate FAILURE too (not just named colors)', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
-      colors: { ...REGISTRY_APP_THEMES.calm.colors, textStrong: 'rgb(0,0,0)' },
+      ...REGISTRY_APP_THEMES.aquarelle,
+      colors: { ...REGISTRY_APP_THEMES.aquarelle.colors, textStrong: 'rgb(0,0,0)' },
     };
     const result = evaluateThemeContrast(fixture);
     expect(result.pass).toBe(false);
@@ -244,26 +244,26 @@ describe('AC-VAL-4: order uniqueness', () => {
     return new Set(manifests.map((m) => m.order)).size === manifests.length;
   }
 
-  it('the six REAL manifests currently have unique order values (1..6, no duplicates)', () => {
+  it('the sole REAL manifest has a unique order value', () => {
     const manifests = THEME_IDS.map((id) => REGISTRY_APP_THEMES[id]);
     expect(hasUniqueOrders(manifests)).toBe(true);
-    expect(new Set(manifests.map((m) => m.order))).toEqual(new Set([1, 2, 3, 4, 5, 6]));
+    expect(new Set(manifests.map((m) => m.order))).toEqual(new Set([REGISTRY_APP_THEMES.aquarelle.order]));
   });
 
   it('flags two fixture manifests sharing the same order value as a uniqueness violation', () => {
     const fixtures = [
-      { ...REGISTRY_APP_THEMES.calm, order: 2 },
-      { ...REGISTRY_APP_THEMES.playful, order: 2 },
-      { ...REGISTRY_APP_THEMES.lego, order: 3 },
+      { ...REGISTRY_APP_THEMES.aquarelle, order: 2 },
+      { ...REGISTRY_APP_THEMES.aquarelle, order: 2 },
+      { ...REGISTRY_APP_THEMES.aquarelle, order: 3 },
     ];
     expect(hasUniqueOrders(fixtures)).toBe(false);
   });
 
   it('does not flag three fixture manifests with distinct order values', () => {
     const fixtures = [
-      { ...REGISTRY_APP_THEMES.calm, order: 10 },
-      { ...REGISTRY_APP_THEMES.playful, order: 11 },
-      { ...REGISTRY_APP_THEMES.lego, order: 12 },
+      { ...REGISTRY_APP_THEMES.aquarelle, order: 10 },
+      { ...REGISTRY_APP_THEMES.aquarelle, order: 11 },
+      { ...REGISTRY_APP_THEMES.aquarelle, order: 12 },
     ];
     expect(hasUniqueOrders(fixtures)).toBe(true);
   });
@@ -274,7 +274,7 @@ describe('AC-VAL-4: order uniqueness', () => {
 // ===========================================================================
 describe('AC-FONT-1: font-URL parity (hardened)', () => {
   const EXPECTED_HREF =
-    'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Serif+Display:ital@0;1&family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Nunito:wght@400;600;700;800&family=Press+Start+2P&family=VT323&display=swap';
+    'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap';
 
   it('buildFontLinkHref(THEME_FONTS) equals the committed Google Fonts URL byte-for-byte', () => {
     expect(buildFontLinkHref(THEME_FONTS)).toBe(EXPECTED_HREF);
@@ -743,8 +743,8 @@ describe('AC-BOUND-1 carried guarantee (enum-catalog-schema-treatment-sync): zod
 
   it('ThemeManifestSchema rejects an out-of-enum treatments.card value (non-tautological pin: exercises actual parse behavior, not just a restated literal array)', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
-      treatments: { ...REGISTRY_APP_THEMES.calm.treatments, card: 'not-a-real-elevation' },
+      ...REGISTRY_APP_THEMES.aquarelle,
+      treatments: { ...REGISTRY_APP_THEMES.aquarelle.treatments, card: 'not-a-real-elevation' },
     };
     expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
   });
@@ -814,15 +814,21 @@ const VALID_DYNAMIC_BANNER = {
 
 describe('AC-STRUCT-1: treatments.dynamic is optional and additive — a manifest without it validates and renders exactly as today', () => {
   it('a real manifest with no treatments.dynamic key parses successfully and treatments.dynamic is undefined', () => {
-    const parsed = ThemeManifestSchema.parse(REGISTRY_APP_THEMES.calm);
+    // aquarelle ships a treatments.dynamic.banner, so strip it to exercise
+    // the no-dynamic path (the only shipped theme declares one).
+    const { dynamic: _dynamic, ...treatmentsNoDynamic } = REGISTRY_APP_THEMES.aquarelle.treatments;
+    const parsed = ThemeManifestSchema.parse({
+      ...REGISTRY_APP_THEMES.aquarelle,
+      treatments: treatmentsNoDynamic,
+    });
     expect(parsed.treatments.dynamic).toBeUndefined();
   });
 
   it('a manifest with a valid treatments.dynamic.banner also parses successfully (additive, not merely absent-tolerant)', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
+      ...REGISTRY_APP_THEMES.aquarelle,
       treatments: {
-        ...REGISTRY_APP_THEMES.calm.treatments,
+        ...REGISTRY_APP_THEMES.aquarelle.treatments,
         dynamic: { banner: VALID_DYNAMIC_BANNER },
       },
     };
@@ -831,8 +837,8 @@ describe('AC-STRUCT-1: treatments.dynamic is optional and additive — a manifes
 
   it('a manifest with treatments.dynamic: {} (both banner/background absent) also parses successfully', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
-      treatments: { ...REGISTRY_APP_THEMES.calm.treatments, dynamic: {} },
+      ...REGISTRY_APP_THEMES.aquarelle,
+      treatments: { ...REGISTRY_APP_THEMES.aquarelle.treatments, dynamic: {} },
     };
     expect(() => ThemeManifestSchema.parse(fixture)).not.toThrow();
   });
@@ -841,9 +847,9 @@ describe('AC-STRUCT-1: treatments.dynamic is optional and additive — a manifes
 describe('AC-STRUCT-1: .strict() rejects unknown keys at every treatments.dynamic nesting level', () => {
   it('an unknown key on treatments.dynamic itself fails', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
+      ...REGISTRY_APP_THEMES.aquarelle,
       treatments: {
-        ...REGISTRY_APP_THEMES.calm.treatments,
+        ...REGISTRY_APP_THEMES.aquarelle.treatments,
         dynamic: { notARealKey: {} },
       },
     };
@@ -852,9 +858,9 @@ describe('AC-STRUCT-1: .strict() rejects unknown keys at every treatments.dynami
 
   it('an unknown key on treatments.dynamic.banner (the DynamicElement object) fails', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
+      ...REGISTRY_APP_THEMES.aquarelle,
       treatments: {
-        ...REGISTRY_APP_THEMES.calm.treatments,
+        ...REGISTRY_APP_THEMES.aquarelle.treatments,
         dynamic: { banner: { ...VALID_DYNAMIC_BANNER, foo: 'bar' } },
       },
     };
@@ -863,9 +869,9 @@ describe('AC-STRUCT-1: .strict() rejects unknown keys at every treatments.dynami
 
   it('an unknown key on treatments.dynamic.banner.style (the StyleToken object) fails', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
+      ...REGISTRY_APP_THEMES.aquarelle,
       treatments: {
-        ...REGISTRY_APP_THEMES.calm.treatments,
+        ...REGISTRY_APP_THEMES.aquarelle.treatments,
         dynamic: {
           banner: { ...VALID_DYNAMIC_BANNER, style: { ...VALID_DYNAMIC_BANNER.style, foo: 'bar' } },
         },
@@ -878,18 +884,18 @@ describe('AC-STRUCT-1: .strict() rejects unknown keys at every treatments.dynami
 describe('AC-STRUCT-2: treatments.banner stays required even when treatments.dynamic.banner is present', () => {
   it('deleting treatments.banner while treatments.dynamic.banner is present still fails validation', () => {
     const { banner: _banner, ...restTreatments } = {
-      ...REGISTRY_APP_THEMES.calm.treatments,
+      ...REGISTRY_APP_THEMES.aquarelle.treatments,
       dynamic: { banner: VALID_DYNAMIC_BANNER },
     };
-    const fixture = { ...REGISTRY_APP_THEMES.calm, treatments: restTreatments };
+    const fixture = { ...REGISTRY_APP_THEMES.aquarelle, treatments: restTreatments };
     expect(() => ThemeManifestSchema.parse(fixture)).toThrow();
   });
 
   it('sanity: the same fixture WITH treatments.banner present (the normal case) does not throw', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
+      ...REGISTRY_APP_THEMES.aquarelle,
       treatments: {
-        ...REGISTRY_APP_THEMES.calm.treatments,
+        ...REGISTRY_APP_THEMES.aquarelle.treatments,
         dynamic: { banner: VALID_DYNAMIC_BANNER },
       },
     };
@@ -900,9 +906,9 @@ describe('AC-STRUCT-2: treatments.banner stays required even when treatments.dyn
 describe('AC-VAL-1: an unknown generator value fails validation', () => {
   it('generator: "not-a-real-generator" fails', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
+      ...REGISTRY_APP_THEMES.aquarelle,
       treatments: {
-        ...REGISTRY_APP_THEMES.calm.treatments,
+        ...REGISTRY_APP_THEMES.aquarelle.treatments,
         dynamic: {
           banner: { ...VALID_DYNAMIC_BANNER, generator: 'not-a-real-generator' },
         },
@@ -913,9 +919,9 @@ describe('AC-VAL-1: an unknown generator value fails validation', () => {
 
   it('sanity: generator: "watercolor" (the one real catalog entry) does not throw', () => {
     const fixture = {
-      ...REGISTRY_APP_THEMES.calm,
+      ...REGISTRY_APP_THEMES.aquarelle,
       treatments: {
-        ...REGISTRY_APP_THEMES.calm.treatments,
+        ...REGISTRY_APP_THEMES.aquarelle.treatments,
         dynamic: { banner: VALID_DYNAMIC_BANNER },
       },
     };
@@ -949,9 +955,9 @@ describe('AC-VAL-1: an unknown generator value fails validation', () => {
 describe('AC-VAL-2: style token bounds violations fail validation', () => {
   function fixtureWithStyle(style: Record<string, unknown>) {
     return {
-      ...REGISTRY_APP_THEMES.calm,
+      ...REGISTRY_APP_THEMES.aquarelle,
       treatments: {
-        ...REGISTRY_APP_THEMES.calm.treatments,
+        ...REGISTRY_APP_THEMES.aquarelle.treatments,
         dynamic: {
           banner: { ...VALID_DYNAMIC_BANNER, style },
         },

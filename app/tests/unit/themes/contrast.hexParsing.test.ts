@@ -22,7 +22,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ThemeManifest } from '@/src/themes/schema';
 import { evaluateThemeContrast, wcagRatio } from '@/src/themes/contrast';
-import { calmManifestFixture } from './fixtures';
+import { lightManifestFixture } from './fixtures';
 
 // --- GAP 1: 3-digit shorthand is the doubled 6-digit form ------------------
 //
@@ -87,8 +87,8 @@ describe('themes/contrast: wcagRatio — a 3-digit hex is the doubled 6-digit he
 // `reason`) never counts as an "unparseable" failure.
 describe('themes/contrast: evaluateThemeContrast — hex parseability of a color token', () => {
   const withSurfaceBg = (value: string): ThemeManifest => ({
-    ...calmManifestFixture,
-    colors: { ...calmManifestFixture.colors, surfaceBg: value },
+    ...lightManifestFixture,
+    colors: { ...lightManifestFixture.colors, surfaceBg: value },
   });
 
   const hasUnparseableFailure = (result: ReturnType<typeof evaluateThemeContrast>) =>

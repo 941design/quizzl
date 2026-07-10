@@ -39,24 +39,3 @@ export const SURFACE_PATTERNS: Record<SurfacePatternName, BoxProps> = {
     backgroundPosition: '0 0',
   },
 };
-
-/**
- * The three pre-refactor per-theme `appBg` gradient strings (lego, minecraft,
- * flower — from app/src/lib/theme.ts's `legoThemeBackground` /
- * `minecraftThemeBackground` / `flowerThemeBackground`), copied verbatim.
- *
- * Manifests are pure data and may only import the `ThemeManifest` type
- * (architecture.md Boundary Rules: "manifests -> (nothing but the
- * ThemeManifest type)") — so a manifest's `colors.backgroundImage` cannot
- * literally `import` these constants; S2's manifests inline the same literal
- * string instead. These exports exist so this reference value has exactly
- * one authored home (documentation / future generator-tooling reuse), not as
- * a runtime dependency edge from any manifest.
- */
-export const APP_BG_GRADIENTS = {
-  lego: 'linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(180deg, #ffe36e 0%, #ffd44c 100%)',
-  minecraft:
-    'linear-gradient(180deg, rgba(255,255,255,0.03) 50%, rgba(0,0,0,0.03) 50%), linear-gradient(90deg, rgba(255,255,255,0.03) 50%, rgba(0,0,0,0.03) 50%), linear-gradient(180deg, #7aa35a 0%, #5a7a3d 18%, #6b4b2a 18%, #6b4b2a 100%)',
-  flower:
-    'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.55) 0 14px, transparent 15px), radial-gradient(circle at 80% 24%, rgba(255,255,255,0.45) 0 12px, transparent 13px), radial-gradient(circle at 30% 78%, rgba(255,255,255,0.4) 0 10px, transparent 11px), linear-gradient(180deg, #ffe7f1 0%, #ffd6e7 45%, #ffecc7 100%)',
-} as const;

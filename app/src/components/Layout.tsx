@@ -115,7 +115,7 @@ export default function Layout({ children }: LayoutProps) {
         {...navStyle}
       >
         {/* Gate on `hydrated`: until the saved theme is read from storage the
-            app renders the DEFAULT theme (calm), and rendering its banner here
+            app renders the DEFAULT theme (aquarelle), and rendering its banner here
             would flash the wrong theme's art for a beat before the saved
             theme's banner swaps in. Waiting for hydration means the first
             banner shown is already the correct theme's. */}

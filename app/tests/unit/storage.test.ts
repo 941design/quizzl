@@ -30,24 +30,35 @@ beforeEach(() => {
 describe('Settings', () => {
   it('returns default settings when nothing stored', () => {
     const settings = readSettings();
-    expect(settings).toEqual({ theme: 'calm', language: 'en' });
+    expect(settings).toEqual({ theme: 'aquarelle', language: 'en' });
   });
 
   it('writes and reads settings', () => {
-    writeSettings({ theme: 'playful', language: 'de' });
-    expect(readSettings()).toEqual({ theme: 'playful', language: 'de' });
+    writeSettings({ theme: 'aquarelle', language: 'de' });
+    expect(readSettings()).toEqual({ theme: 'aquarelle', language: 'de' });
   });
 
-  it('fills missing fields for legacy stored settings', () => {
+  it('normalizes a deprecated/unknown stored theme name to the default (aquarelle)', () => {
+    // The old themes (calm/playful/lego/minecraft/flower) were removed. A
+    // settings blob persisted before that removal must not error and must
+    // fall back to aquarelle — the legacy `mood` field is preserved verbatim.
+    store[STORAGE_KEYS.settings] = JSON.stringify({ theme: 'playful', language: 'de' });
+    expect(readSettings()).toEqual({ theme: 'aquarelle', language: 'de' });
+
+    store[STORAGE_KEYS.settings] = JSON.stringify({ theme: 'not-a-real-theme', language: 'en' });
+    expect(readSettings().theme).toBe('aquarelle');
+  });
+
+  it('fills missing fields for legacy stored settings (deprecated mood normalizes to aquarelle)', () => {
     store[STORAGE_KEYS.settings] = JSON.stringify({ mood: 'playful' });
-    expect(readSettings()).toEqual({ theme: 'playful', language: 'en', mood: 'playful' });
+    expect(readSettings()).toEqual({ theme: 'aquarelle', language: 'en', mood: 'playful' });
   });
 
   it('uses correct storage key', () => {
-    writeSettings({ theme: 'playful', language: 'de' });
+    writeSettings({ theme: 'aquarelle', language: 'de' });
     expect(store[STORAGE_KEYS.settings]).toBeDefined();
     const parsed = JSON.parse(store[STORAGE_KEYS.settings]);
-    expect(parsed.theme).toBe('playful');
+    expect(parsed.theme).toBe('aquarelle');
     expect(parsed.language).toBe('de');
   });
 });
@@ -64,7 +75,7 @@ describe('readStoredLanguage', () => {
   });
 
   it('returns the explicitly stored language', () => {
-    writeSettings({ theme: 'calm', language: 'de' });
+    writeSettings({ theme: 'aquarelle', language: 'de' });
     expect(readStoredLanguage()).toBe('de');
   });
 });
@@ -140,7 +151,7 @@ describe('UserProfile', () => {
 // wipes. These tests keep the retained logic covered for any future re-exposure.
 describe('resetAllData', () => {
   it('clears all lp_* keys', () => {
-    writeSettings({ theme: 'playful', language: 'de' });
+    writeSettings({ theme: 'aquarelle', language: 'de' });
     writeUserProfile({ nickname: 'Pineapple Pal', avatar: null });
 
     expect(store[STORAGE_KEYS.settings]).toBeDefined();
@@ -160,6 +171,6 @@ describe('resetAllData', () => {
 describe('corrupt data handling', () => {
   it('returns default when stored data is invalid JSON', () => {
     store[STORAGE_KEYS.settings] = 'not-json{{{';
-    expect(readSettings()).toEqual({ theme: 'calm', language: 'en' });
+    expect(readSettings()).toEqual({ theme: 'aquarelle', language: 'en' });
   });
 });

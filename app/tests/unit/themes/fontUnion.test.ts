@@ -1,24 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { buildFontLinkHref, buildThemeFonts, type FontLoad } from '@/src/themes/fontUnion';
-import { calmManifestFixture, minecraftManifestFixture } from './fixtures';
+import { lightManifestFixture, darkContentSurfaceManifestFixture } from './fixtures';
 
 describe('themes/fontUnion: buildThemeFonts', () => {
   it('unions fontLoad entries across manifests', () => {
-    const fonts = buildThemeFonts([calmManifestFixture, minecraftManifestFixture]);
+    const fonts = buildThemeFonts([lightManifestFixture, darkContentSurfaceManifestFixture]);
     const families = fonts.map((f) => f.family).sort();
     expect(families).toEqual(['Inter', 'Press Start 2P', 'VT323'].sort());
   });
 
   it('dedupes a family appearing in more than one manifest, merging weights', () => {
     const manifestA = {
-      ...calmManifestFixture,
+      ...lightManifestFixture,
       id: 'a',
-      typography: { ...calmManifestFixture.typography, fontLoad: [{ family: 'Shared', weights: [400] }] },
+      typography: { ...lightManifestFixture.typography, fontLoad: [{ family: 'Shared', weights: [400] }] },
     };
     const manifestB = {
-      ...calmManifestFixture,
+      ...lightManifestFixture,
       id: 'b',
-      typography: { ...calmManifestFixture.typography, fontLoad: [{ family: 'Shared', weights: [700] }] },
+      typography: { ...lightManifestFixture.typography, fontLoad: [{ family: 'Shared', weights: [700] }] },
     };
     const fonts = buildThemeFonts([manifestA, manifestB]);
     expect(fonts).toHaveLength(1);
@@ -28,14 +28,14 @@ describe('themes/fontUnion: buildThemeFonts', () => {
 
   it('ORs the ital flag across duplicate-family entries', () => {
     const manifestA = {
-      ...calmManifestFixture,
+      ...lightManifestFixture,
       id: 'a',
-      typography: { ...calmManifestFixture.typography, fontLoad: [{ family: 'Shared', ital: false }] },
+      typography: { ...lightManifestFixture.typography, fontLoad: [{ family: 'Shared', ital: false }] },
     };
     const manifestB = {
-      ...calmManifestFixture,
+      ...lightManifestFixture,
       id: 'b',
-      typography: { ...calmManifestFixture.typography, fontLoad: [{ family: 'Shared', ital: true }] },
+      typography: { ...lightManifestFixture.typography, fontLoad: [{ family: 'Shared', ital: true }] },
     };
     const fonts = buildThemeFonts([manifestA, manifestB]);
     expect(fonts[0].ital).toBe(true);

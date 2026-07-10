@@ -97,10 +97,9 @@ export function computeThemeStyles(definition: AppThemeDefinition): ThemeStyles 
   const surfaceStyle = mergeRawOverride(SURFACE_PATTERNS[treatments.surface], overrides?.surface);
   /**
    * Present only for themes that both set `contentSurface: true` AND
-   * declare a `treatments.contentPanel` (today: only minecraft) — mirrors
-   * the pre-refactor `activeThemeDefinition.contentSurface ? contentPanel(vs)
-   * : null` ternary, whose non-empty branch was itself gated on `vs ===
-   * 'pixel'` (minecraft's sole `contentSurface:true` theme).
+   * declare a `treatments.contentPanel`. No shipped theme currently does
+   * (aquarelle is light and needs no content panel), but the lookup stays
+   * general so a future dark, content-panel theme works with no code change.
    */
   const contentPanelStyle =
     contentSurface && treatments.contentPanel ? CONTENT_PANEL_STYLES[treatments.contentPanel] : null;

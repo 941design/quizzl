@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Settings, AppThemeName } from '@/src/types';
 import { readSettings, writeSettings } from '@/src/lib/storage';
-import { getChakraTheme, getThemeDefinition } from '@/src/lib/theme';
+import { getChakraTheme, getThemeDefinition, DEFAULT_THEME_NAME } from '@/src/lib/theme';
 
 type AppThemeContextValue = {
   themeName: AppThemeName;
@@ -12,7 +12,7 @@ type AppThemeContextValue = {
 const AppThemeContext = createContext<AppThemeContextValue | null>(null);
 
 export function AppThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeName, setThemeName] = useState<AppThemeName>('calm');
+  const [themeName, setThemeName] = useState<AppThemeName>(DEFAULT_THEME_NAME);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {

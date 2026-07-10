@@ -111,10 +111,9 @@ export const NAV_ELEVATION: Record<ElevationName, BoxProps> = {
 /**
  * The "GUI panel" content-surface treatment (a light panel floated above a
  * dark themed background so light-surface-tuned text tokens stay legible —
- * see architecture.md's `contentSurface` field and useThemeStyles.ts's old
- * `contentPanel()`, whose only non-empty case was `pixel`/minecraft). Only
- * one named variant exists today; more may be added as new themes need
- * distinct panel treatments.
+ * see architecture.md's `contentSurface` field). No shipped theme uses it
+ * today; one named variant exists and more may be added as new dark,
+ * content-panel themes need distinct panel treatments.
  */
 export type ContentPanelName = 'panel';
 
