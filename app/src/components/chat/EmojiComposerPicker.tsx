@@ -13,7 +13,7 @@ import {
 import { useCopy } from '@/src/context/LanguageContext';
 import { CURATED_EMOJI } from '@/src/lib/reactions/types';
 
-// Number of columns in the emoji grid (4 columns × 6 rows = 24 glyphs).
+// Number of columns in the emoji grid (4 columns × 9 rows = 36 glyphs).
 const GRID_COLS = 4;
 
 export type EmojiComposerPickerHandle = {

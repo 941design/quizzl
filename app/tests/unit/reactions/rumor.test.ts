@@ -376,7 +376,7 @@ describe('buildReactionRumor', () => {
     });
   });
 
-  // 8. Curated set sanity: all 24 glyphs produce a valid rumor
+  // 8. Curated set sanity: all curated glyphs produce a valid rumor
   describe('CURATED_EMOJI sanity', () => {
     it('builds a valid rumor for every glyph in CURATED_EMOJI without throwing', () => {
       for (const glyph of CURATED_EMOJI) {

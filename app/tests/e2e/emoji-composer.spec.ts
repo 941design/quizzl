@@ -15,7 +15,7 @@ import { suppressErrorOverlay } from './helpers/dismiss-error-overlay';
  *   AC-26: trigger button is visible with correct aria-label and data-testid
  *   AC-27: click trigger opens picker; Escape / outside-click close it
  *   AC-28: Ctrl+Shift+E keyboard shortcut toggles picker
- *   AC-29: picker grid has exactly 24 glyph buttons in 4 columns
+ *   AC-29: picker grid has exactly 36 glyph buttons in 4 columns
  *   AC-30: clicking a glyph inserts at cursor position
  *   AC-31: clicking a glyph with unfocused textarea appends
  *   AC-32: grid has role="grid"; gridcell children; Enter activates
@@ -100,7 +100,7 @@ test.describe('EmojiComposerPicker', () => {
     }
   });
 
-  test('picker renders exactly 24 glyph buttons in a role=grid container', async ({ browser }) => {
+  test('picker renders exactly 36 glyph buttons in a role=grid container', async ({ browser }) => {
     const { page, context } = await setupPage(browser);
     try {
       await page.goto(`/contacts?id=${PEER_PUBKEY}`);
@@ -109,9 +109,9 @@ test.describe('EmojiComposerPicker', () => {
       await page.getByTestId('emoji-composer-trigger').click();
       await expect(page.getByTestId('emoji-glyph-😀')).toBeVisible({ timeout: 5_000 });
 
-      // Count gridcell roles — should be exactly 24.
+      // Count gridcell roles — should be exactly 36.
       const cells = page.getByRole('gridcell');
-      await expect(cells).toHaveCount(24);
+      await expect(cells).toHaveCount(36);
 
       // Verify the grid container exists.
       await expect(page.getByRole('grid')).toBeVisible();

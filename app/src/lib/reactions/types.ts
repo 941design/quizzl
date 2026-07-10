@@ -50,21 +50,22 @@ export interface Reaction {
 }
 
 /**
- * Curated set of 24 Unicode emoji glyphs used by both the compose picker
+ * Curated set of 36 Unicode emoji glyphs used by both the compose picker
  * and the reaction picker (D3).
  *
- * Layout: 4 columns × 6 rows.
- * Categories: Faces (8), Gestures (6), Symbols (6), Objects (4).
+ * Count is a multiple of both grid widths (4-col compose, 6-col reaction) so
+ * neither picker has a ragged final row: compose renders 4 × 9, reaction 6 × 6.
+ * Categories: Faces (17), Gestures (6), Symbols (8), Objects (5).
  *
- * These are the glyphs from spec §1.1 default table. No NIP-30 shortcodes (D4).
+ * No NIP-30 shortcodes (D4).
  */
 export const CURATED_EMOJI: readonly string[] = [
-  // Faces (8)
-  '😀', '😂', '😊', '😢', '😍', '🥰', '😎', '🤔',
+  // Faces (17)
+  '😀', '😂', '🤣', '😊', '😉', '😅', '😢', '😭', '😍', '🥰', '🥺', '😎', '🤔', '😮', '🤯', '🥳', '😴',
   // Gestures (6)
   '👍', '👋', '🙏', '✌️', '👏', '💪',
-  // Symbols (6)
-  '❤️', '✨', '🔥', '💯', '✅', '❌',
-  // Objects (4)
-  '🎉', '💡', '📌', '🔔',
+  // Symbols (8)
+  '❤️', '✨', '🔥', '💯', '✅', '❌', '⭐', '👀',
+  // Objects (5)
+  '🎉', '💡', '📌', '🔔', '🚀',
 ] as const;

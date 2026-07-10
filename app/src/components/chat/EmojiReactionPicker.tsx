@@ -7,7 +7,7 @@
  *   AnimatePresence/lazy-unmount path proved racy in this trigger context
  *   (the picker stayed mounted ~50% of the time after onClose). The conditional
  *   render gives a deterministic mount/unmount tied to isOpen.
- * - 24-glyph grid from CURATED_EMOJI in a 6-column layout (more compact than compose
+ * - 36-glyph grid from CURATED_EMOJI in a 6-column layout (more compact than compose
  *   picker's 4-column layout, per spec §1.2 "more compact layout for reaction picker").
  * - Initial focus moves to the first glyph on open (lesson from story-05 round 1).
  * - data-testid namespace: reaction-picker-glyph-{emoji} (distinct from compose picker).
