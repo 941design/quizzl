@@ -112,19 +112,22 @@ test.describe.serial('Contacts and direct chat', () => {
 
     await pageA.goto('/contacts/');
     await expect(pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`)).toContainText('Bob');
-    await pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`).click();
-    await expect(pageA.getByTestId('contact-detail-page')).toBeVisible({ timeout: 30_000 });
-    await pageA.getByTestId('contact-detail-archive').click();
-    await expect(pageA.getByTestId('contact-archived-alert')).toBeVisible();
+    // Hiding a contact is driven from the Profile page (the direct-message page
+    // no longer carries a hide button). Hide Bob there, then confirm he drops out
+    // of the contacts list into the hidden filter.
+    await pageA.goto(`/profile/?pubkey=${USER_B.pubkeyHex}`);
+    await pageA.getByTestId('profile-archive').click();
     await pageA.goto('/contacts/');
     await expect(pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`)).toHaveCount(0);
     await expect(pageA.getByTestId('contacts-hidden-state')).toContainText('1');
     await pageA.getByTestId('contacts-filter-show-hidden').click();
     await expect(pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`)).toContainText('Bob');
+    // Unhide via the Profile page, then return to Bob's direct-message view.
+    await pageA.goto(`/profile/?pubkey=${USER_B.pubkeyHex}`);
+    await pageA.getByTestId('profile-archive').click();
+    await pageA.goto('/contacts/');
     await pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`).click();
     await expect(pageA.getByTestId('contact-detail-page')).toBeVisible({ timeout: 30_000 });
-    await pageA.getByTestId('contact-detail-unarchive').click();
-    await expect(pageA.getByTestId('contact-archived-alert')).toHaveCount(0);
     await expect(pageA.getByRole('heading', { name: 'Bob' })).toBeVisible();
 
     await pageB.goto('/contacts/');

@@ -32,7 +32,7 @@ import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useProfile } from '@/src/context/ProfileContext';
-import { archiveContact, commonGroups, getContact, listContacts, rememberContactsFromGroups, unarchiveContact } from '@/src/lib/contacts';
+import { commonGroups, getContact, listContacts, rememberContactsFromGroups } from '@/src/lib/contacts';
 import { isMaintainerPubkey } from '@/src/config/maintainer';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { directConversationId } from '@/src/lib/directMessages';
@@ -271,10 +271,9 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
   const copy = useCopy();
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const { profile: ownProfile } = useProfile();
-  const [version, setVersion] = useState(0);
   const contact = useMemo(
     () => getContact(contactPubkeyHex, pubkeyHex, { includeArchived: true }),
-    [contactPubkeyHex, pubkeyHex, version],
+    [contactPubkeyHex, pubkeyHex],
   );
   const signer = useMemo(
     () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
@@ -344,21 +343,6 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
             {/* Voice/video call icons temporarily disabled (feature code retained).
             <ContactCallToolbar peerPubkeyHex={contact.pubkeyHex} />
             */}
-            <Button
-              size="sm"
-              variant="outline"
-              data-testid={contact.isArchived ? 'contact-detail-unarchive' : 'contact-detail-archive'}
-              onClick={() => {
-                if (contact.isArchived) {
-                  unarchiveContact(contact.pubkeyHex);
-                } else {
-                  archiveContact(contact.pubkeyHex);
-                }
-                setVersion((current) => current + 1);
-              }}
-            >
-              {contact.isArchived ? copy.contacts.unarchiveAction : copy.contacts.archiveAction}
-            </Button>
           </HStack>
         </Flex>
         {contact.isArchived ? (

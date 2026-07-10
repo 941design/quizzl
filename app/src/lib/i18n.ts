@@ -279,8 +279,6 @@ type Copy = {
     showHiddenOption: (count: number) => string;
     hiddenOnlyBody: (count: number) => string;
     hiddenBadge: string;
-    archiveAction: string;
-    unarchiveAction: string;
     archivedDetailNotice: string;
     profileNameFallback: string;
     backToContacts: string;
@@ -791,8 +789,6 @@ const copy: Record<LanguageCode, Copy> = {
       showHiddenOption: (count: number) => count === 0 ? 'Show hidden contacts' : `Show hidden contacts (${count})`,
       hiddenOnlyBody: (count: number) => count === 1 ? '1 hidden contact is currently filtered out.' : `${count} hidden contacts are currently filtered out.`,
       hiddenBadge: 'Hidden',
-      archiveAction: 'Hide',
-      unarchiveAction: 'Unarchive',
       archivedDetailNotice: 'This contact is hidden from the default list view until you unarchive them.',
       profileNameFallback: 'Unnamed contact',
       backToContacts: 'Back to Contacts',
@@ -1283,8 +1279,6 @@ const copy: Record<LanguageCode, Copy> = {
       showHiddenOption: (count: number) => count === 0 ? 'Versteckte Kontakte anzeigen' : `Versteckte Kontakte anzeigen (${count})`,
       hiddenOnlyBody: (count: number) => count === 1 ? '1 versteckter Kontakt wird aktuell ausgeblendet.' : `${count} versteckte Kontakte werden aktuell ausgeblendet.`,
       hiddenBadge: 'Versteckt',
-      archiveAction: 'Ausblenden',
-      unarchiveAction: 'Wieder einblenden',
       archivedDetailNotice: 'Dieser Kontakt ist in der Standardliste ausgeblendet, bis du ihn wieder einblendest.',
       profileNameFallback: 'Kontakt ohne Namen',
       backToContacts: 'Zurück zu Kontakten',
