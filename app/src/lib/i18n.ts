@@ -34,6 +34,11 @@ type Copy = {
     vatHeading: string;
     vatLabel: string;
   };
+  info: {
+    pageTitle: string;
+    heading: string;
+    body: string;
+  };
   home: {
     title: string;
     description: string;
@@ -534,6 +539,11 @@ const copy: Record<LanguageCode, Copy> = {
       vatHeading: 'VAT ID',
       vatLabel: 'VAT identification number pursuant to § 27a of the German VAT Act',
     },
+    info: {
+      pageTitle: 'About',
+      heading: 'About few.chat',
+      body: 'few.chat is a private, end-to-end encrypted messenger. More information is coming soon.',
+    },
     home: {
       title: 'Welcome to few.chat',
       description:
@@ -1021,6 +1031,11 @@ const copy: Record<LanguageCode, Copy> = {
       registerNumberLabel: 'Registernummer',
       vatHeading: 'Umsatzsteuer-ID',
       vatLabel: 'Umsatzsteuer-Identifikationsnummer gemäß § 27a Umsatzsteuergesetz',
+    },
+    info: {
+      pageTitle: 'Info',
+      heading: 'Über few.chat',
+      body: 'few.chat ist ein privater, Ende-zu-Ende-verschlüsselter Messenger. Weitere Informationen folgen in Kürze.',
     },
     home: {
       title: 'Willkommen bei few.chat',

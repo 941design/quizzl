@@ -1,2 +1,6 @@
+# Only the landing page and the /info page are crawlable.
+# Groups, contacts, profile, settings and every other route are off-limits.
 User-agent: *
+Allow: /$
+Allow: /info
 Disallow: /
