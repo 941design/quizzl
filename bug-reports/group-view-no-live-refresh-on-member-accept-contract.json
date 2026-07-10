@@ -1,0 +1,47 @@
+{
+  "$schema": "bug-contract",
+  "bug_name": "group-view-no-live-refresh-on-member-accept",
+  "bug_report_file": "bug-reports/group-view-no-live-refresh-on-member-accept-report.md",
+  "created_at": "2026-07-10T19:00:00Z",
+  "allowed_change_scope": [
+    {
+      "file": "app/src/context/MarmotContext.tsx",
+      "scope": "The join-request rumor callback passed to startWelcomeSubscription (the 5th argument, around line 811). Add a setPendingRequests state append alongside the existing incrementJoinRequest call. No other function, callback, or state in this file may change."
+    },
+    {
+      "file": "app/tests/e2e/groups-join-request-live.spec.ts",
+      "scope": "New e2e spec file (does not previously exist). Reproduces the bug: admin stays on an already-open group detail page while a peer joins via invite link; asserts both the live bell update and the live pending-requests-section update."
+    }
+  ],
+  "constraints": [
+    "No refactoring of the dispatcher, the welcome-subscription module, or the join-request handler/storage layer.",
+    "No version-counter or new synchronization primitive — a plain setPendingRequests state append is the entire fix.",
+    "No changes to the working invite-by-npub / commit path (onMembersChanged and its consumers) — that path already refreshes live via the shared groups state and must remain untouched.",
+    "No protocol or relay-publish changes. No new public broadcast of any kind — this is purely in-app reactive state wiring (privacy invariant unaffected).",
+    "Fix must be idempotent under both event orderings: mount effect (loadPendingRequestsForGroup, IDB read) running before or after the live callback. Dedup by eventId.",
+    "Do not touch PendingRequestsSection.tsx, joinRequestHandler.ts, or joinRequestStorage.ts — the bug is purely that MarmotContext never forwards the already-persisted request into React state."
+  ],
+  "non_goals": [
+    "No refactor of the dual-listener architecture (MarmotContext + ChatStoreContext) described in specs/marmot-application-rumor-dispatch.md.",
+    "No change to how the notification bell counter works (incrementJoinRequest/decrementJoinRequest) — it already behaves correctly and is left untouched.",
+    "No attempt to also live-refresh other pending-request-adjacent surfaces (e.g. groups list badge count) beyond what the existing bell + section already cover.",
+    "No new e2e test infra, docker config, or helper file — reuse existing bootUser/createGroup/openGroupDetail patterns from groups-invite-link.spec.ts."
+  ],
+  "root_cause_reference": {
+    "file": "app/src/context/MarmotContext.tsx",
+    "callback_line_range_pre_fix": "811-815",
+    "state_declaration_line": 381,
+    "mount_only_effect": "app/src/components/groups/PendingRequestsSection.tsx:82-84",
+    "one_shot_reader": "app/src/context/MarmotContext.tsx:1415-1419 (loadPendingRequestsForGroup)",
+    "sibling_pattern_mirrored": "app/src/context/MarmotContext.tsx:1434-1437 and 1449-1452 (approveJoinRequest / denyJoinRequest setPendingRequests updates)"
+  },
+  "baseline": {
+    "total_unit_test_files": 141,
+    "total_unit_tests": 2507,
+    "passing_unit_tests": 2507,
+    "failing_unit_tests": [],
+    "test_command": "cd /Users/mrother/Projects/941design/quizzl && make test-unit",
+    "typecheck": "clean (npx tsc --noEmit, exit 0)",
+    "lint": "NO_LINT — no ESLint config exists in app/ (next lint prompts interactively to scaffold one; project has never configured it, pre-existing condition, out of scope for a surgical bug fix)"
+  }
+}

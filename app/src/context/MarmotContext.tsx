@@ -809,8 +809,21 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             console.info('[Marmot] Joined group from Welcome:', joinedGroup.name);
           },
           (request) => {
-            // A join request was received and persisted — increment bell counter.
+            // A join request was received and persisted — increment the bell
+            // counter AND update the live pendingRequests state so an
+            // already-open PendingRequestsSection re-renders without a
+            // navigate/reload. Both orderings converge with the mount-only
+            // IDB read in loadPendingRequestsForGroup: if that effect runs
+            // after this, it replaces from IDB (which already contains the
+            // persisted request — no loss); if this runs after mount, the
+            // append below shows it live. Dedup by eventId keeps either
+            // ordering idempotent.
             incrementJoinRequest(request.groupId);
+            setPendingRequests((prev) => {
+              const current = prev[request.groupId] ?? [];
+              if (current.some((r) => r.eventId === request.eventId)) return prev;
+              return { ...prev, [request.groupId]: [...current, request] };
+            });
             console.info('[Marmot] Join request received from:', request.pubkeyHex, 'for group:', request.groupId);
           },
           (groupId) => {

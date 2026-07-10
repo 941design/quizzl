@@ -1,0 +1,86 @@
+{
+  "bug_name": "group-view-no-live-refresh-on-member-accept",
+  "bug_report_file": "bug-reports/group-view-no-live-refresh-on-member-accept-report.md",
+  "created_at": "2026-07-10T17:04:50Z",
+  "updated_at": "2026-07-10T17:04:50Z",
+  "phase": "ACCEPTED",
+  "e2e_gate_accepted": {
+    "tests": [
+      "dm-feedback-channel.spec.ts:118",
+      "groups-image-sharing.spec.ts:133",
+      "groups-lazy-updates.spec.ts:124",
+      "groups-lazy-updates.spec.ts:164",
+      "groups-polls.spec.ts:176",
+      "groups-polls.spec.ts:412",
+      "groups-profile-reactive.spec.ts:206"
+    ],
+    "reason": "user-authorized: pre-existing shared-relay/shared-keypair contamination flakiness, reproduced independent of this change; this fix's own e2e test passes 3/3 in the full suite"
+  },
+  "complexity": "medium",
+  "verification_questions": [
+    {
+      "id": "Q1-REPRO",
+      "category": "TEST",
+      "question": "Does the new e2e reproduction test keep the admin on the already-open group detail page (no navigate/reload) between generating the invite link and asserting the pending-requests section, and does it fail before the fix for the right reason (section never appears live) and pass after?"
+    },
+    {
+      "id": "Q2-ROOTCAUSE",
+      "category": "SPEC",
+      "question": "Is the root cause correctly identified as the join-request callback (MarmotContext startWelcomeSubscription join-request handler) updating only the reactive bell store (incrementJoinRequest) and IDB, while never updating the MarmotContext.pendingRequests React state that PendingRequestsSection renders from a mount-only IDB read?"
+    },
+    {
+      "id": "Q3-BELL-CONTRAST",
+      "category": "TEST",
+      "question": "Does the reproduction assert the CONTRAST — bell/notification badge updates live (proving the event was received) while the open group view's pending-requests section does not — so the test actually distinguishes this bug from a general 'event never arrived' failure?"
+    },
+    {
+      "id": "Q4-MINIMAL",
+      "category": "QUALITY",
+      "question": "Is the fix minimal and scoped — updating pendingRequests state in the existing join-request callback (mirroring the approve/deny setPendingRequests pattern) with idempotent dedup — without broadening into unrelated listener/dispatcher refactors?"
+    },
+    {
+      "id": "Q5-REGRESSION",
+      "category": "TEST",
+      "question": "Do existing group e2e tests (groups-invite-link, groups-lazy-updates) still pass, and does the fix not double-count or duplicate rows when loadPendingRequestsForGroup (mount effect) and the live callback both run in either order?"
+    },
+    {
+      "id": "Q6-PRIVACY-ARCH",
+      "category": "ARCHITECTURE",
+      "question": "Does the fix respect the privacy invariant (no new public broadcast) and the static-export/query-param conventions, changing only in-app reactive state wiring with no protocol or relay-publish surface change?"
+    }
+  ],
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md"
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "7ba5a7c2be2df7384f9f56804c877ea1d6f88de3",
+  "models": {
+    "lead": "opus",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "e2e_gate_escalated": {
+    "our_spec": "groups-join-request-live.spec.ts 3/3 passed in the full suite (tests #101-103)",
+    "full_suite": "test-e2e-all RED: 7 failed / 19 did not run / 212+62 passed",
+    "failing_specs": [
+      "dm-feedback-channel.spec.ts:118",
+      "groups-image-sharing.spec.ts:133 (AC-61 lightbox)",
+      "groups-lazy-updates.spec.ts:124 (Bob name) + :164 (setup)",
+      "groups-polls.spec.ts:176 + :412",
+      "groups-profile-reactive.spec.ts:206 (nickname)"
+    ],
+    "baseline_probe": "5 failing spec files re-run on a freshly-wiped relay (fix present): 6 still failed / 35 passed — reproduces independent of full-suite load AND independent of this change",
+    "causation": "pre-existing cross-spec relay-contamination flakiness (shared USER_A/USER_B keys + single relay); none of the failing tests touch the invite-link join-request callback modified by this fix",
+    "reason": "definitive full-suite gate cannot be made green due to pre-existing flakiness; ship-over-red requires user authorization"
+  },
+  "baseline": null,
+  "fix": null,
+  "review_rounds": [],
+  "remediation_round": 0,
+  "phase_history": [
+    {"phase": "INITIALIZED", "timestamp": "2026-07-10T17:04:50Z", "trigger": "workflow_start"}
+  ]
+}
