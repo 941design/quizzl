@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-09T21:06:02Z",
+  "updated_at": "2026-07-10T20:00:55Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -254,6 +254,19 @@
       "approach": "Design a repo-wide i18n parity test that asserts en/de key-set equality for app/src/lib/i18n.ts's Copy type as a whole, while allowlisting (or fixing) the pre-existing divergence that currently blocks that approach, so future epics get automatic coverage instead of needing their own hand-maintained REQUIRED_KEYS list.",
       "success_signal": "A single i18n parity test covers the whole Copy type (or an explicit allowlist of pre-existing gaps), and a new en-only key fails it automatically.",
       "kind": "spec-gap"
+    },
+    {
+      "slug": "groups-e2e-suite-flaky-under-shared",
+      "scope": "any",
+      "anchor": {
+        "path": "app/tests/e2e/"
+      },
+      "text": "Groups e2e suite is flaky under shared-relay/shared-keypair cross-spec contamination",
+      "created_at": "2026-07-10",
+      "motivation": "The full e2e gate (make test-e2e-all) is the project's only definitive gate, but ~7 groups tests intermittently fail on cross-user relay-propagation assertions. Observed 2026-07-10: 7 failures in a full run AND 6 failures re-running just 5 of those spec files on a freshly-wiped relay — i.e. reproduces at low load, independent of any single feature change. This makes the gate unreliable and forces ship-over-red judgment calls.",
+      "behavior": "Specs reuse deterministic USER_A/USER_B keypairs against one shared strfry relay for the whole run; gift-wraps/pending-invitations from earlier specs contaminate later specs' queues, so propagation assertions (member profile name, poll announcement, image lightbox, nickname update, feedback reply) time out nondeterministically.",
+      "approach": "Options: per-spec unique ephemeral keypairs; or per-spec-file relay wipe; or baseline-then-delta assertions that tolerate stale queue entries (drain-by-eventId rather than .last()). Pick one and apply suite-wide.",
+      "success_signal": "make test-e2e-all is green across 3 consecutive runs with no per-spec quarantine"
     }
   ],
   "archive": [
