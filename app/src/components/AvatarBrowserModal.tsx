@@ -18,7 +18,7 @@ import {
 import avatarManifest from '@/src/data/avatarManifest.json';
 import { AVATAR_BROWSER_CONFIG } from '@/src/config/profile';
 import type { ProfileAvatar } from '@/src/types';
-import { useCopy } from '@/src/context/LanguageContext';
+import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 
 type AvatarBrowserModalProps = {
   isOpen: boolean;
@@ -55,7 +55,17 @@ export default function AvatarBrowserModal({
   initialAvatar,
 }: AvatarBrowserModalProps) {
   const copy = useCopy();
+  const { language } = useLanguage();
   const [selectedSubject, setSelectedSubject] = useState<string>(AVATAR_BROWSER_CONFIG.defaultSubject);
+
+  // Fruit labels are ordered alphabetically by their *localized* name, so the
+  // list re-sorts when the language changes (e.g. "Apple" vs "Ananas").
+  const sortedSubjects = useMemo(() => {
+    const label = (subject: string) => copy.settings.fruitNames[subject] ?? subject;
+    return [...manifest.subjects].sort((left, right) =>
+      label(left).localeCompare(label(right), language)
+    );
+  }, [copy, language]);
   const [visibleCount, setVisibleCount] = useState<number>(AVATAR_BROWSER_CONFIG.resultPageSize);
 
   useEffect(() => {
@@ -89,7 +99,7 @@ export default function AvatarBrowserModal({
             {/* Single-select fruit filter (radio behaviour): exactly one fruit is
                 active at a time, and clicking a label swaps the active fruit. */}
             <Wrap spacing={2}>
-              {manifest.subjects.map((subject) => (
+              {sortedSubjects.map((subject) => (
                 <WrapItem key={subject}>
                   <Button
                     size="sm"
