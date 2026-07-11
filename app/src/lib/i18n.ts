@@ -58,11 +58,9 @@ type Copy = {
     profileHeading: string;
     profileDescription: string;
     nicknameHeading: string;
-    nicknameDescription: string;
     nicknameHelper: string;
     nicknameLimit: (max: number) => string;
     avatarHeading: string;
-    avatarDescription: string;
     changeAvatar: string;
     avatarModalTitle: string;
     avatarModalDescription: string;
@@ -118,7 +116,6 @@ type Copy = {
   groups: {
     pageTitle: string;
     heading: string;
-    description: string;
     noGroups: string;
     noGroupsBody: string;
     createGroup: string;
@@ -269,7 +266,6 @@ type Copy = {
   contacts: {
     pageTitle: string;
     heading: string;
-    description: string;
     emptyTitle: string;
     emptyBody: string;
     listHeading: string;
@@ -553,20 +549,18 @@ const copy: Record<LanguageCode, Copy> = {
       groupsTitle: 'Groups',
       groupsSubtitle: 'Chat together in groups.',
       profileTitle: 'Profile',
-      profileSubtitle: 'Manage your nickname and avatar.',
+      profileSubtitle: 'Manage your name and avatar.',
     },
     settings: {
       pageTitle: 'Settings',
       heading: 'Settings',
       description: 'Manage your Nostr identity and key backup.',
       profileHeading: 'My Profile',
-      profileDescription: 'Pick a nickname, an avatar, and a few fun badges.',
-      nicknameHeading: 'Nickname',
-      nicknameDescription: 'Choose a short nickname that feels like you.',
-      nicknameHelper: 'Use a nickname instead of your full real name.',
-      nicknameLimit: (max: number) => `Nickname reached the ${max}-character limit (accented letters and emoji count for more).`,
+      profileDescription: 'Pick a name, an avatar, and a few fun badges.',
+      nicknameHeading: 'Name',
+      nicknameHelper: 'Use a short name instead of your full real name.',
+      nicknameLimit: (max: number) => `Name reached the ${max}-character limit (accented letters and emoji count for more).`,
       avatarHeading: 'Avatar',
-      avatarDescription: 'Pick an avatar for your profile.',
       changeAvatar: 'Change Avatar',
       avatarModalTitle: 'Choose Your Avatar',
       avatarModalDescription: 'Pick a fruit, add accessories if you want, and choose a favorite.',
@@ -627,7 +621,6 @@ const copy: Record<LanguageCode, Copy> = {
     groups: {
       pageTitle: 'Groups',
       heading: 'Groups',
-      description: 'Chat with friends and stay in touch as a group.',
       noGroups: 'You are not in any groups yet.',
       noGroupsBody: 'Create a group or wait for an invitation from a friend.',
       createGroup: 'Create Group',
@@ -774,7 +767,6 @@ const copy: Record<LanguageCode, Copy> = {
     contacts: {
       pageTitle: 'Contacts',
       heading: 'Contacts',
-      description: 'People from your shared groups stay here so you can keep chatting directly. You can also add someone by opening a contact card they share with you.',
       emptyTitle: 'No contacts yet',
       emptyBody: 'Join a group with someone, or open a contact card link they share with you, and they will appear here.',
       listHeading: 'All contacts',
@@ -1037,20 +1029,18 @@ const copy: Record<LanguageCode, Copy> = {
       groupsTitle: 'Gruppen',
       groupsSubtitle: 'Chattet gemeinsam in Gruppen.',
       profileTitle: 'Profil',
-      profileSubtitle: 'Verwalte deinen Spitznamen und Avatar.',
+      profileSubtitle: 'Verwalte deinen Namen und Avatar.',
     },
     settings: {
       pageTitle: 'Einstellungen',
       heading: 'Einstellungen',
       description: 'Verwalte deine Nostr-Identität und Schlüsselsicherung.',
       profileHeading: 'Mein Profil',
-      profileDescription: 'Wähle einen Spitznamen, einen Avatar und ein paar lustige Badges.',
-      nicknameHeading: 'Spitzname',
-      nicknameDescription: 'Wähle einen kurzen Namen, der zu dir passt.',
-      nicknameHelper: 'Nutze lieber einen Spitznamen als deinen vollen echten Namen.',
-      nicknameLimit: (max: number) => `Der Spitzname hat die Grenze von ${max} Zeichen erreicht (Umlaute und Emojis zählen mehr).`,
+      profileDescription: 'Wähle einen Namen, einen Avatar und ein paar lustige Badges.',
+      nicknameHeading: 'Name',
+      nicknameHelper: 'Nutze lieber einen kurzen Namen als deinen vollen echten Namen.',
+      nicknameLimit: (max: number) => `Der Name hat die Grenze von ${max} Zeichen erreicht (Umlaute und Emojis zählen mehr).`,
       avatarHeading: 'Avatar',
-      avatarDescription: 'Waehle einen Avatar fuer dein Profil.',
       changeAvatar: 'Avatar aendern',
       avatarModalTitle: 'Waehle deinen Avatar',
       avatarModalDescription: 'Suche dir eine Frucht aus, fuege Accessoires hinzu und nimm deinen Favoriten.',
@@ -1111,7 +1101,6 @@ const copy: Record<LanguageCode, Copy> = {
     groups: {
       pageTitle: 'Gruppen',
       heading: 'Gruppen',
-      description: 'Chatte mit Freunden und bleibt als Gruppe in Kontakt.',
       noGroups: 'Du bist noch in keiner Gruppe.',
       noGroupsBody: 'Erstelle eine Gruppe oder warte auf eine Einladung von einem Freund.',
       createGroup: 'Gruppe erstellen',
@@ -1257,7 +1246,6 @@ const copy: Record<LanguageCode, Copy> = {
     contacts: {
       pageTitle: 'Kontakte',
       heading: 'Kontakte',
-      description: 'Personen aus gemeinsamen Gruppen bleiben hier erhalten, damit du direkt weiterschreiben kannst. Du kannst auch jemanden hinzufügen, indem du eine Kontaktkarte öffnest, die er dir teilt.',
       emptyTitle: 'Noch keine Kontakte',
       emptyBody: 'Tritt einer Gruppe mit anderen Personen bei oder öffne eine Kontaktkarte, die dir jemand teilt, dann erscheinen sie hier.',
       listHeading: 'Alle Kontakte',

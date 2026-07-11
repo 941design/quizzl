@@ -180,12 +180,9 @@ function OwnProfileSection() {
 
           <VStack spacing={5} align="stretch">
             <Box>
-              <Heading as="h3" size="sm" mb={1}>
+              <Heading as="h2" size="md" mb={3}>
                 {copy.settings.nicknameHeading}
               </Heading>
-              <Text fontSize="sm" color="textMuted" mb={3}>
-                {copy.settings.nicknameDescription}
-              </Text>
               <Input
                 value={profile.nickname}
                 onChange={handleNicknameChange}
@@ -213,12 +210,9 @@ function OwnProfileSection() {
             </Box>
 
             <Box>
-              <Heading as="h3" size="sm" mb={1}>
+              <Heading as="h2" size="md" mb={3}>
                 {copy.settings.avatarHeading}
               </Heading>
-              <Text fontSize="sm" color="textMuted" mb={3}>
-                {copy.settings.avatarDescription}
-              </Text>
               <HStack
                 align={{ base: 'stretch', md: 'center' }}
                 spacing={4}

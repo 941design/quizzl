@@ -21,13 +21,9 @@ describe('addContact i18n keys (card-link add path)', () => {
     expect(en.contacts.addContactErrorGeneric).toBe("Couldn't add this contact. Please try again.");
 
     // The list copy no longer teaches the npub concept.
-    expect(en.contacts.description).toBe(
-      'People from your shared groups stay here so you can keep chatting directly. You can also add someone by opening a contact card they share with you.'
-    );
     expect(en.contacts.emptyBody).toBe(
       'Join a group with someone, or open a contact card link they share with you, and they will appear here.'
     );
-    expect(en.contacts.description).not.toMatch(/npub/i);
     expect(en.contacts.emptyBody).not.toMatch(/npub/i);
   });
 
@@ -43,13 +39,9 @@ describe('addContact i18n keys (card-link add path)', () => {
       'Der Kontakt konnte nicht hinzugefügt werden. Bitte versuche es erneut.'
     );
 
-    expect(de.contacts.description).toBe(
-      'Personen aus gemeinsamen Gruppen bleiben hier erhalten, damit du direkt weiterschreiben kannst. Du kannst auch jemanden hinzufügen, indem du eine Kontaktkarte öffnest, die er dir teilt.'
-    );
     expect(de.contacts.emptyBody).toBe(
       'Tritt einer Gruppe mit anderen Personen bei oder öffne eine Kontaktkarte, die dir jemand teilt, dann erscheinen sie hier.'
     );
-    expect(de.contacts.description).not.toMatch(/npub/i);
     expect(de.contacts.emptyBody).not.toMatch(/npub/i);
   });
 });

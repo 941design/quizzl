@@ -133,7 +133,6 @@ function ContactListView() {
           <Heading as="h1" size="xl" mb={2}>
             {copy.contacts.heading}
           </Heading>
-          <Text color="textMuted">{copy.contacts.description}</Text>
         </Box>
 
         {!hasAnyContacts ? (

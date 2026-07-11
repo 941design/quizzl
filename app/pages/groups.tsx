@@ -581,12 +581,9 @@ export default function GroupsPage() {
         )}
 
         <Box mb={6}>
-          <Heading as="h1" size="xl" mb={2}>
+          <Heading as="h1" size="xl" mb={4}>
             {copy.groups.heading}
           </Heading>
-          <Text color="textMuted" mb={4}>
-            {copy.groups.description}
-          </Text>
 
           {!unsupported && (
             <Button onClick={createDisclosure.onOpen} data-testid="create-group-btn">
