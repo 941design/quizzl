@@ -64,10 +64,9 @@ describe('settings.tsx theme picker source (AC-UX-3): reads manifest fields, not
     }
   });
 
-  it('still references the four retained theme-section i18n keys', () => {
+  it('still references the retained theme-section i18n keys', () => {
     expect(SETTINGS_SOURCE).toMatch(/copy\.settings\.themeHeading\b/);
     expect(SETTINGS_SOURCE).toMatch(/copy\.settings\.themeDescription\b/);
-    expect(SETTINGS_SOURCE).toMatch(/copy\.settings\.active\b/);
     expect(SETTINGS_SOURCE).toMatch(/copy\.settings\.currentTheme\b/);
   });
 });
@@ -108,11 +107,10 @@ describe('i18n.ts (AC-UX-3): the 10 per-theme keys are removed; the 4 retained k
     }
   });
 
-  it.each(['en', 'de'] as const)('%s: themeHeading/themeDescription/active/currentTeme remain and are non-empty', (lang) => {
+  it.each(['en', 'de'] as const)('%s: themeHeading/themeDescription/currentTheme remain and are non-empty', (lang) => {
     const settings = getCopy(lang).settings;
     expect(settings.themeHeading).toBeTruthy();
     expect(settings.themeDescription).toBeTruthy();
-    expect(settings.active).toBeTruthy();
     expect(settings.currentTheme).toBeTruthy();
   });
 

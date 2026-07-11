@@ -80,7 +80,6 @@ type Copy = {
     languageDescription: string;
     themeHeading: string;
     themeDescription: string;
-    active: string;
     currentTheme: string;
     cancel: string;
   };
@@ -585,7 +584,6 @@ const copy: Record<LanguageCode, Copy> = {
       languageDescription: 'Choose which language the app should use.',
       themeHeading: 'Theme',
       themeDescription: 'Choose the visual theme for the app.',
-      active: 'Active',
       currentTheme: 'Current theme',
       cancel: 'Cancel',
     },
@@ -1070,7 +1068,6 @@ const copy: Record<LanguageCode, Copy> = {
       languageDescription: 'Lege fest, in welcher Sprache die App angezeigt wird.',
       themeHeading: 'Design',
       themeDescription: 'Wähle das visuelle Design der App.',
-      active: 'Aktiv',
       currentTheme: 'Aktuelles Design',
       cancel: 'Abbrechen',
     },

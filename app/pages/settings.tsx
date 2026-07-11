@@ -559,14 +559,8 @@ export default function SettingsPage() {
                     onClick={() => setTheme(themeOption.id as AppThemeName)}
                     data-testid={`theme-${themeOption.id}-btn`}
                     size="lg"
-                    leftIcon={isActive ? <span>✓</span> : undefined}
                   >
                     {localizedThemeText(themeOption.label, language)}
-                    {isActive && (
-                      <Badge colorScheme={themeOption.previewColorScheme} ml={2} fontSize="xs">
-                        {copy.settings.active}
-                      </Badge>
-                    )}
                   </Button>
                 );
               })}
@@ -614,11 +608,6 @@ export default function SettingsPage() {
                   size="lg"
                 >
                   {copy.languageNames[option]}
-                  {language === option && (
-                    <Badge ml={2} fontSize="xs">
-                      {copy.settings.active}
-                    </Badge>
-                  )}
                 </Button>
               ))}
             </HStack>
