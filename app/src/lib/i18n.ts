@@ -61,7 +61,6 @@ type Copy = {
     avatarModalTitle: string;
     fruitNames: Record<string, string>;
     avatarNoResults: string;
-    showMoreAvatars: string;
     selectedAvatarAlt: string;
     avatarOptionAlt: string;
     languageHeading: string;
@@ -632,7 +631,6 @@ const copy: Record<LanguageCode, Copy> = {
         zucchini: 'Zucchini',
       },
       avatarNoResults: 'No avatars for this fruit yet. Try another.',
-      showMoreAvatars: 'Show More',
       selectedAvatarAlt: 'Selected avatar',
       avatarOptionAlt: 'Avatar option',
       languageHeading: 'Language',
@@ -1183,7 +1181,6 @@ const copy: Record<LanguageCode, Copy> = {
         zucchini: 'Zucchini',
       },
       avatarNoResults: 'Zu dieser Frucht gibt es noch keine Avatare. Versuche eine andere.',
-      showMoreAvatars: 'Mehr zeigen',
       selectedAvatarAlt: 'Ausgewaehlter Avatar',
       avatarOptionAlt: 'Avataroption',
       languageHeading: 'Sprache',

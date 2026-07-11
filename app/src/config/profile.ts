@@ -23,7 +23,6 @@ export function capNickname(raw: string): { value: string; capped: boolean } {
 }
 
 export const AVATAR_BROWSER_CONFIG = {
-  resultPageSize: 18,
   defaultSubject: 'strawberry',
   endpointBaseUrl: '//few.chat/assets',
 } as const;

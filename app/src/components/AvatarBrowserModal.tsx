@@ -66,27 +66,27 @@ export default function AvatarBrowserModal({
       label(left).localeCompare(label(right), language)
     );
   }, [copy, language]);
-  const [visibleCount, setVisibleCount] = useState<number>(AVATAR_BROWSER_CONFIG.resultPageSize);
+
+  // The fruit of the avatar currently in use, derived from its imageUrl — that
+  // fruit is pre-selected when the browser opens. Falls back to the default
+  // fruit when there is no current avatar (or it isn't in the catalog).
+  const currentAvatarSubject = useMemo(() => {
+    if (!initialAvatar) return AVATAR_BROWSER_CONFIG.defaultSubject;
+    const match = manifest.items.find((item) => item.imageUrl === initialAvatar.imageUrl);
+    return match?.subject ?? AVATAR_BROWSER_CONFIG.defaultSubject;
+  }, [initialAvatar]);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    setSelectedSubject(AVATAR_BROWSER_CONFIG.defaultSubject);
-    setVisibleCount(AVATAR_BROWSER_CONFIG.resultPageSize);
-  }, [isOpen]);
+    setSelectedSubject(currentAvatarSubject);
+  }, [isOpen, currentAvatarSubject]);
 
   const matchingAvatars = useMemo(() => {
     const filtered = manifest.items.filter((item) => item.subject === selectedSubject);
 
     return filtered.sort((left, right) => left.sortOrder - right.sortOrder);
   }, [selectedSubject]);
-
-  const visibleAvatars = matchingAvatars.slice(0, visibleCount);
-
-  function selectSubject(subject: string) {
-    setSelectedSubject(subject);
-    setVisibleCount(AVATAR_BROWSER_CONFIG.resultPageSize);
-  }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="6xl" scrollBehavior="inside">
@@ -104,7 +104,7 @@ export default function AvatarBrowserModal({
                   <Button
                     size="sm"
                     variant={selectedSubject === subject ? 'solid' : 'outline'}
-                    onClick={() => selectSubject(subject)}
+                    onClick={() => setSelectedSubject(subject)}
                   >
                     {copy.settings.fruitNames[subject] ?? subject}
                   </Button>
@@ -119,12 +119,11 @@ export default function AvatarBrowserModal({
               borderColor="borderSubtle"
               bg="surfaceMutedBg"
             >
-              {visibleAvatars.length === 0 ? (
+              {matchingAvatars.length === 0 ? (
                 <Text color="textMuted">{copy.settings.avatarNoResults}</Text>
               ) : (
-                <VStack spacing={4} align="stretch">
-                  <SimpleGrid columns={{ base: 2, md: 3, xl: 6 }} spacing={4}>
-                    {visibleAvatars.map((avatar) => (
+                <SimpleGrid columns={{ base: 2, md: 3, xl: 6 }} spacing={4}>
+                  {matchingAvatars.map((avatar) => (
                       <Box
                         key={avatar.id}
                         borderWidth="1px"
@@ -152,21 +151,8 @@ export default function AvatarBrowserModal({
                           />
                         </Box>
                       </Box>
-                    ))}
-                  </SimpleGrid>
-
-                  {matchingAvatars.length > visibleAvatars.length && (
-                    <Button
-                      alignSelf="center"
-                      variant="outline"
-                      onClick={() =>
-                        setVisibleCount((current) => current + AVATAR_BROWSER_CONFIG.resultPageSize)
-                      }
-                    >
-                      {copy.settings.showMoreAvatars}
-                    </Button>
-                  )}
-                </VStack>
+                  ))}
+                </SimpleGrid>
               )}
             </Box>
           </VStack>
