@@ -25,8 +25,9 @@ test.describe('Profile updates', () => {
     await page.getByTestId('choose-avatar-btn').click();
     await expect(page.getByTestId('avatar-browser-modal')).toBeVisible();
 
-    const firstAvatarSelect = page.locator('[data-testid^="select-avatar-"]').first();
-    await firstAvatarSelect.click();
+    // Clicking the card selects the avatar (there is no separate select button).
+    const firstAvatarCard = page.locator('[data-testid^="avatar-card-"]').first();
+    await firstAvatarCard.click();
 
     await expect(headerChip.getByTestId('profile-avatar-thumb').locator('img')).toBeVisible();
   });

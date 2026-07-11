@@ -1,18 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Badge,
   Box,
   Button,
-  HStack,
   Image,
   Modal,
   ModalBody,
   ModalCloseButton,
   ModalContent,
-  ModalFooter,
   ModalHeader,
   ModalOverlay,
-  Select,
   SimpleGrid,
   Text,
   VStack,
@@ -59,43 +55,27 @@ export default function AvatarBrowserModal({
   initialAvatar,
 }: AvatarBrowserModalProps) {
   const copy = useCopy();
-  const [selectedSubject, setSelectedSubject] = useState('');
-  const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>(AVATAR_BROWSER_CONFIG.defaultSubject);
   const [visibleCount, setVisibleCount] = useState<number>(AVATAR_BROWSER_CONFIG.resultPageSize);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    setSelectedSubject(AVATAR_BROWSER_CONFIG.defaultSubjects[0] ?? '');
-    setSelectedAccessories([]);
+    setSelectedSubject(AVATAR_BROWSER_CONFIG.defaultSubject);
     setVisibleCount(AVATAR_BROWSER_CONFIG.resultPageSize);
   }, [isOpen]);
 
   const matchingAvatars = useMemo(() => {
-    const filtered = manifest.items.filter((item) => {
-      if (selectedSubject && item.subject !== selectedSubject) {
-        return false;
-      }
-
-      if (selectedAccessories.length === 0) {
-        return true;
-      }
-
-      return selectedAccessories.some((accessory) => item.accessories.includes(accessory));
-    });
+    const filtered = manifest.items.filter((item) => item.subject === selectedSubject);
 
     return filtered.sort((left, right) => left.sortOrder - right.sortOrder);
-  }, [selectedAccessories, selectedSubject]);
+  }, [selectedSubject]);
 
   const visibleAvatars = matchingAvatars.slice(0, visibleCount);
 
-  function toggleAccessory(accessory: string) {
+  function selectSubject(subject: string) {
+    setSelectedSubject(subject);
     setVisibleCount(AVATAR_BROWSER_CONFIG.resultPageSize);
-    setSelectedAccessories((current) =>
-      current.includes(accessory)
-        ? current.filter((item) => item !== accessory)
-        : [...current, accessory]
-    );
   }
 
   return (
@@ -106,69 +86,21 @@ export default function AvatarBrowserModal({
         <ModalCloseButton />
         <ModalBody>
           <VStack spacing={6} align="stretch">
-            <Text color="textMuted">{copy.settings.avatarModalDescription}</Text>
-
-            <Box>
-              <Text fontWeight="semibold" mb={2}>
-                {copy.settings.avatarSubjectLabel}
-              </Text>
-              <HStack spacing={2} flexWrap="wrap" mb={3}>
-                {AVATAR_BROWSER_CONFIG.defaultSubjects.map((subject) => (
+            {/* Single-select fruit filter (radio behaviour): exactly one fruit is
+                active at a time, and clicking a label swaps the active fruit. */}
+            <Wrap spacing={2}>
+              {manifest.subjects.map((subject) => (
+                <WrapItem key={subject}>
                   <Button
-                    key={subject}
                     size="sm"
                     variant={selectedSubject === subject ? 'solid' : 'outline'}
-                    onClick={() => {
-                      setSelectedSubject(subject);
-                      setVisibleCount(AVATAR_BROWSER_CONFIG.resultPageSize);
-                    }}
+                    onClick={() => selectSubject(subject)}
                   >
-                    {subject}
+                    {copy.settings.fruitNames[subject] ?? subject}
                   </Button>
-                ))}
-              </HStack>
-              <Select
-                value={selectedSubject}
-                onChange={(event) => {
-                  setSelectedSubject(event.target.value);
-                  setVisibleCount(AVATAR_BROWSER_CONFIG.resultPageSize);
-                }}
-                bg="surfaceBg"
-              >
-                {manifest.subjects.map((subject) => (
-                  <option key={subject} value={subject}>
-                    {subject}
-                  </option>
-                ))}
-              </Select>
-            </Box>
-
-            <Box>
-              <HStack justify="space-between" align="baseline" mb={2}>
-                <Text fontWeight="semibold">{copy.settings.avatarAccessoryLabel}</Text>
-                {selectedAccessories.length > 0 && (
-                  <Button size="xs" variant="ghost" onClick={() => setSelectedAccessories([])}>
-                    {copy.settings.clearFilters}
-                  </Button>
-                )}
-              </HStack>
-              <Wrap spacing={2}>
-                {manifest.accessories.map((accessory) => {
-                  const isActive = selectedAccessories.includes(accessory);
-                  return (
-                    <WrapItem key={accessory}>
-                      <Button
-                        size="sm"
-                        variant={isActive ? 'solid' : 'outline'}
-                        onClick={() => toggleAccessory(accessory)}
-                      >
-                        {accessory}
-                      </Button>
-                    </WrapItem>
-                  );
-                })}
-              </Wrap>
-            </Box>
+                </WrapItem>
+              ))}
+            </Wrap>
 
             <Box
               p={4}
@@ -177,13 +109,6 @@ export default function AvatarBrowserModal({
               borderColor="borderSubtle"
               bg="surfaceMutedBg"
             >
-              <HStack justify="space-between" align="center" mb={4}>
-                <Text fontWeight="semibold">
-                  {copy.settings.avatarResults(matchingAvatars.length)}
-                </Text>
-                <Badge>{selectedSubject}</Badge>
-              </HStack>
-
               {visibleAvatars.length === 0 ? (
                 <Text color="textMuted">{copy.settings.avatarNoResults}</Text>
               ) : (
@@ -216,23 +141,6 @@ export default function AvatarBrowserModal({
                             loading="lazy"
                           />
                         </Box>
-                        <VStack align="stretch" spacing={3} p={3} pt={0}>
-                          <Text fontSize="xs" color="textMuted" noOfLines={2}>
-                            {avatar.accessories.length > 0
-                              ? avatar.accessories.join(', ')
-                              : copy.settings.avatarNoAccessories}
-                          </Text>
-                          <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelect({ imageUrl: avatar.imageUrl });
-                            }}
-                            data-testid={`select-avatar-${avatar.id}`}
-                          >
-                            {copy.settings.useThisAvatar}
-                          </Button>
-                        </VStack>
                       </Box>
                     ))}
                   </SimpleGrid>
@@ -253,11 +161,6 @@ export default function AvatarBrowserModal({
             </Box>
           </VStack>
         </ModalBody>
-        <ModalFooter>
-          <Button variant="ghost" onClick={onClose}>
-            {copy.settings.cancel}
-          </Button>
-        </ModalFooter>
       </ModalContent>
     </Modal>
   );
