@@ -9,72 +9,84 @@
 //
 // - "pixel" uses pixelarticons (MIT, 24x24 pixel art style)
 // - "filled" uses ph:*-fill (Phosphor filled, playful weight) — old "toy"
-// - "line" uses ph:*-bold (Phosphor bold, clean line style) — old "default"
+// - "line" uses lucide:* (Lucide, clean thin line style) — the only set any
+//   currently-registered theme (aquarelle) actually renders. Was Phosphor
+//   ph:*-bold before; swapped to Lucide for a lighter outline character.
 export type IconSetName = 'line' | 'filled' | 'pixel';
 
 export const ICON_SETS: Record<string, Record<IconSetName, string>> = {
   heart: {
-    line: 'ph:heart-bold',
+    line: 'lucide:heart',
     filled: 'ph:heart-fill',
     pixel: 'pixelarticons:heart',
   },
   check: {
-    line: 'ph:check-circle-bold',
+    line: 'lucide:circle-check',
     filled: 'ph:check-circle-fill',
     pixel: 'pixelarticons:check',
   },
   close: {
-    line: 'ph:x-circle-bold',
+    line: 'lucide:circle-x',
     filled: 'ph:x-circle-fill',
     pixel: 'pixelarticons:close',
   },
   home: {
-    line: 'ph:house-bold',
+    line: 'lucide:house',
     filled: 'ph:house-fill',
     pixel: 'pixelarticons:home',
   },
   settings: {
-    line: 'ph:gear-bold',
+    line: 'lucide:settings',
     filled: 'ph:gear-fill',
     pixel: 'pixelarticons:sliders',
   },
   clock: {
-    line: 'ph:clock-bold',
+    line: 'lucide:clock',
     filled: 'ph:clock-fill',
     pixel: 'pixelarticons:clock',
   },
   prev: {
-    line: 'ph:caret-left-bold',
+    line: 'lucide:chevron-left',
     filled: 'ph:caret-left-fill',
     pixel: 'pixelarticons:chevron-left',
   },
   next: {
-    line: 'ph:caret-right-bold',
+    line: 'lucide:chevron-right',
     filled: 'ph:caret-right-fill',
     pixel: 'pixelarticons:chevron-right',
   },
   bell: {
-    line: 'ph:bell-bold',
+    line: 'lucide:bell',
     filled: 'ph:bell-ringing-fill',
     pixel: 'pixelarticons:notification',
   },
   info: {
-    line: 'ph:info-bold',
+    line: 'lucide:info',
     filled: 'ph:info-fill',
     pixel: 'pixelarticons:info-box',
   },
   person: {
-    line: 'ph:user-circle-bold',
+    line: 'lucide:circle-user',
     filled: 'ph:user-circle-fill',
     pixel: 'pixelarticons:user',
   },
+  contacts: {
+    line: 'lucide:contact',
+    filled: 'ph:address-book-fill',
+    pixel: 'pixelarticons:contact',
+  },
+  groups: {
+    line: 'lucide:users',
+    filled: 'ph:users-three-fill',
+    pixel: 'pixelarticons:group',
+  },
   phone: {
-    line: 'ph:phone-bold',
+    line: 'lucide:phone',
     filled: 'ph:phone-fill',
     pixel: 'pixelarticons:phone',
   },
   video: {
-    line: 'ph:video-camera-bold',
+    line: 'lucide:video',
     filled: 'ph:video-camera-fill',
     pixel: 'pixelarticons:camera',
   },

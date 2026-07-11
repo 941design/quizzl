@@ -85,8 +85,8 @@ export default function Layout({ children }: LayoutProps) {
   const pendingInvitationCount = pendingInvitations.length;
 
   const navItems = [
-    { label: copy.layout.nav.contacts, href: '/contacts' },
-    { label: copy.layout.nav.groups, href: '/groups' },
+    { label: copy.layout.nav.contacts, href: '/contacts', icon: 'contacts' },
+    { label: copy.layout.nav.groups, href: '/groups', icon: 'groups' },
   ];
 
   React.useEffect(() => {
@@ -191,6 +191,7 @@ export default function Layout({ children }: LayoutProps) {
                     <Box as="li" key={item.href}>
                       <NextLink href={item.href} passHref legacyBehavior>
                         <Link
+                          aria-label={item.label}
                           fontWeight={isActive ? 'semibold' : 'normal'}
                           color={isActive ? 'brand.500' : 'textMuted'}
                           _hover={{ color: 'brand.500', textDecoration: 'none' }}
@@ -200,7 +201,7 @@ export default function Layout({ children }: LayoutProps) {
                           alignItems="center"
                           gap={1}
                         >
-                          {item.label}
+                          <ThemeIcon name={item.icon} size={20} aria-hidden />
                           {showBadge && (
                             <Box
                               as="span"
@@ -227,26 +228,6 @@ export default function Layout({ children }: LayoutProps) {
                   );
                 })}
               </HStack>
-              <NextLink href="/profile" passHref legacyBehavior>
-                <Link _hover={{ textDecoration: 'none' }}>
-                  <Box
-                    px={2}
-                    py={1}
-                    borderWidth="1px"
-                    borderRadius="full"
-                    borderColor="borderSubtle"
-                    bg="surfaceMutedBg"
-                    data-testid="header-profile-chip"
-                  >
-                    <ProfileSummary
-                      profile={profile}
-                      fallbackName={copy.layout.profileNamePlaceholder}
-                      size="sm"
-                    />
-                  </Box>
-                </Link>
-              </NextLink>
-              <NotificationBell />
               <NextLink href="/info" passHref legacyBehavior>
                 <Link
                   aria-label={copy.layout.nav.info}
@@ -295,6 +276,26 @@ export default function Layout({ children }: LayoutProps) {
                       data-testid="gear-backup-dot"
                     />
                   )}
+                </Link>
+              </NextLink>
+              <NotificationBell />
+              <NextLink href="/profile" passHref legacyBehavior>
+                <Link _hover={{ textDecoration: 'none' }}>
+                  <Box
+                    px={2}
+                    py={1}
+                    borderWidth="1px"
+                    borderRadius="full"
+                    borderColor="borderSubtle"
+                    bg="surfaceMutedBg"
+                    data-testid="header-profile-chip"
+                  >
+                    <ProfileSummary
+                      profile={profile}
+                      fallbackName={copy.layout.profileNamePlaceholder}
+                      size="sm"
+                    />
+                  </Box>
                 </Link>
               </NextLink>
             </HStack>
