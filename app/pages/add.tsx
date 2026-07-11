@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Head from 'next/head';
 import NextLink from 'next/link';
+import { useRouter } from 'next/router';
 import {
   Alert,
   AlertDescription,
@@ -39,9 +40,17 @@ import { readLocationHash, resolveAddDeepLink, type AddDeepLinkOutcome } from '@
  *       completes the add. The card is held only in the retained hash/page
  *       state across that wait; it is never transmitted to the server in
  *       either mode (AC-SEC-1).
+ *
+ * On a SUCCESSFUL add this page is not a visible stop: it `router.replace`s
+ * straight to `/contacts?id=<pubkeyHex>&added=1`, selecting the just-added
+ * contact and letting the contacts page render the green "Contact added"
+ * confirmation. `replace` (not `push`) keeps `/add` out of history, so it is
+ * omitted as an intermediary. Only the non-success outcomes (no card / parse
+ * or add error) remain rendered here, where there is no contact to navigate to.
  */
 export default function AddPage(): JSX.Element {
   const copy = useCopy();
+  const router = useRouter();
   const { hydrated, pubkeyHex } = useNostrIdentity();
   const { notifyKnownPeersChanged } = useMarmot();
   const [outcome, setOutcome] = useState<AddDeepLinkOutcome | null>(null);
@@ -68,9 +77,13 @@ export default function AddPage(): JSX.Element {
         // always-mounted watchers refresh their cached knownPeers ref
         // immediately instead of waiting for an unrelated change.
         notifyKnownPeersChanged();
+        // Success is not shown here: hand off to the contacts page with the
+        // new contact selected and let it render the green confirmation.
+        // `replace` keeps this /add hop out of history (AC: omit intermediary).
+        router.replace(`/contacts?id=${result.pubkeyHex}&added=1`);
       }
     }
-  }, [hydrated, pubkeyHex, notifyKnownPeersChanged]);
+  }, [hydrated, pubkeyHex, notifyKnownPeersChanged, router]);
 
   function getErrorMessage(errorCode: string | undefined): string {
     switch (errorCode) {
@@ -93,18 +106,21 @@ export default function AddPage(): JSX.Element {
         <Text color="textMuted">{copy.add.settingUp}</Text>
       </VStack>
     );
+  } else if (outcome.state === 'complete' && outcome.ok) {
+    // Add succeeded — the effect is navigating to /contacts?id=…&added=1.
+    // Show a brief redirecting state rather than a terminal success alert;
+    // the green confirmation is rendered on the contacts page.
+    body = (
+      <VStack spacing={4} py={10} data-testid="add-page-redirecting">
+        <Spinner />
+        <Text color="textMuted">{copy.add.redirecting}</Text>
+      </VStack>
+    );
   } else if (outcome.state === 'no_card') {
     body = (
       <Alert status="warning" borderRadius="md" data-testid="add-page-no-card">
         <AlertIcon />
         <AlertDescription>{copy.add.noCard}</AlertDescription>
-      </Alert>
-    );
-  } else if (outcome.ok) {
-    body = (
-      <Alert status="success" borderRadius="md" data-testid="add-page-success">
-        <AlertIcon />
-        <AlertDescription>{copy.contacts.addContactSuccess}</AlertDescription>
       </Alert>
     );
   } else {

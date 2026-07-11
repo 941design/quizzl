@@ -75,6 +75,7 @@ const REQUIRED_KEYS: RequiredKey[] = [
   { section: 'add', key: 'pageTitle', kind: 'string' },
   { section: 'add', key: 'heading', kind: 'string' },
   { section: 'add', key: 'settingUp', kind: 'string' },
+  { section: 'add', key: 'redirecting', kind: 'string' },
   { section: 'add', key: 'noCard', kind: 'string' },
   { section: 'add', key: 'goToContacts', kind: 'string' },
 ];
@@ -123,10 +124,12 @@ describe('epic contact-card-exchange — i18n completeness across S3-S7 (AC-INTL
     const de = getCopy('de');
     expect(en.add.pageTitle).toBe('Add Contact');
     expect(en.add.settingUp).toBe('Setting up your account…');
+    expect(en.add.redirecting).toBe('Opening your new contact…');
     expect(en.add.noCard).toBe("This link doesn't include a contact card.");
     expect(en.add.goToContacts).toBe('Go to Contacts');
     expect(de.add.pageTitle).toBe('Kontakt hinzufügen');
     expect(de.add.settingUp).toBe('Dein Konto wird eingerichtet …');
+    expect(de.add.redirecting).toBe('Dein neuer Kontakt wird geöffnet …');
     expect(de.add.noCard).toBe('Dieser Link enthält keine Kontaktkarte.');
     expect(de.add.goToContacts).toBe('Zu den Kontakten');
   });

@@ -254,6 +254,11 @@ function ContactListView() {
 
 function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
   const copy = useCopy();
+  const router = useRouter();
+  // `?added=1` is set by the /add deep-link page after a successful card add
+  // (it redirects here instead of showing its own success screen). Surface the
+  // green "Contact added" confirmation on this, the selected-contact view.
+  const justAdded = router.query.added === '1';
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const { profile: ownProfile } = useProfile();
   const contact = useMemo(
@@ -330,6 +335,12 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
             {CALLS_ENABLED && <ContactCallToolbar peerPubkeyHex={contact.pubkeyHex} />}
           </HStack>
         </Flex>
+        {justAdded ? (
+          <Alert status="success" borderRadius="md" mt={4} data-testid="contact-added-success">
+            <AlertIcon />
+            <AlertDescription>{copy.contacts.addContactSuccess}</AlertDescription>
+          </Alert>
+        ) : null}
         {contact.isArchived ? (
           <Alert status="info" borderRadius="md" mt={4} data-testid="contact-archived-alert">
             <AlertIcon />

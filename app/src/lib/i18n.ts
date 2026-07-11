@@ -275,14 +275,17 @@ type Copy = {
   };
   /**
    * `/add#c=…` static deep-link/onboarding page (epic: contact-card-exchange,
-   * story S7). The success/error copy for a completed add is intentionally
-   * reused from `contacts.addContactSuccess` / `contacts.addContactError*`
-   * rather than duplicated here — same outcome, same wording.
+   * story S7). A successful add is not shown here — the page redirects to the
+   * selected contact and the contacts page renders the green confirmation
+   * (`contacts.addContactSuccess`). The error copy for a failed add is
+   * intentionally reused from `contacts.addContactError*` rather than
+   * duplicated here — same outcome, same wording.
    */
   add: {
     pageTitle: string;
     heading: string;
     settingUp: string;
+    redirecting: string;
     noCard: string;
     goToContacts: string;
   };
@@ -812,6 +815,7 @@ const copy: Record<LanguageCode, Copy> = {
       pageTitle: 'Add Contact',
       heading: 'Add Contact',
       settingUp: 'Setting up your account…',
+      redirecting: 'Opening your new contact…',
       noCard: "This link doesn't include a contact card.",
       goToContacts: 'Go to Contacts',
     },
@@ -1327,6 +1331,7 @@ const copy: Record<LanguageCode, Copy> = {
       pageTitle: 'Kontakt hinzufügen',
       heading: 'Kontakt hinzufügen',
       settingUp: 'Dein Konto wird eingerichtet …',
+      redirecting: 'Dein neuer Kontakt wird geöffnet …',
       noCard: 'Dieser Link enthält keine Kontaktkarte.',
       goToContacts: 'Zu den Kontakten',
     },
