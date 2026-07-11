@@ -297,6 +297,7 @@ type Copy = {
     shareCardHeading: string;
     shareCardDescription: string;
     shareCardButton: string;
+    shareCardNeedsName: string;
     shareCardTitle: string;
     copyCardLink: string;
     copiedCardLink: string;
@@ -828,6 +829,7 @@ const copy: Record<LanguageCode, Copy> = {
       shareCardDescription:
         'Share a signed link that adds you by name — no relay, no public profile broadcast. Others open it or scan the QR to add you.',
       shareCardButton: 'Share contact card',
+      shareCardNeedsName: 'Set a name above before you can share your contact card.',
       shareCardTitle: 'Share Contact Card',
       copyCardLink: 'Copy card link',
       copiedCardLink: 'Copied!',
@@ -1344,6 +1346,7 @@ const copy: Record<LanguageCode, Copy> = {
       shareCardDescription:
         'Teile einen signierten Link, der dich mit Namen hinzufügt — kein Relay, keine öffentliche Profilübertragung. Andere öffnen ihn oder scannen den QR-Code, um dich hinzuzufügen.',
       shareCardButton: 'Kontaktkarte teilen',
+      shareCardNeedsName: 'Lege oben einen Namen fest, um deine Kontaktkarte teilen zu können.',
       shareCardTitle: 'Kontaktkarte teilen',
       copyCardLink: 'Kartenlink kopieren',
       copiedCardLink: 'Kopiert!',

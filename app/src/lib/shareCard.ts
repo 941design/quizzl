@@ -77,6 +77,24 @@ export function shouldRebuildShareCard(
   );
 }
 
+// ── Share eligibility ────────────────────────────────────────────────────
+
+/**
+ * True iff `nickname` is a shareable display name — i.e. non-empty after
+ * trimming surrounding whitespace.
+ *
+ * Product rule: a contact card may only be shared once the user has actually
+ * set a name. The Share action must never emit a bare-npub / unsigned card
+ * (encodeCard's AC-CARD-6 graceful degradation is a codec-level concern for
+ * the decode/import side, not something the Share surface produces). A
+ * whitespace-only nickname counts as unset. This is the single source of
+ * truth for that rule, shared by `getOwnShareCard`'s hard guard and the
+ * Profile page's disabled Share button.
+ */
+export function hasShareableName(nickname: string): boolean {
+  return nickname.trim().length > 0;
+}
+
 // ── Card production ──────────────────────────────────────────────────────
 
 /**
@@ -131,6 +149,15 @@ export type GetOwnShareCardResult = {
  * injected, so it is fully testable without React or a real signer.
  */
 export async function getOwnShareCard(params: GetOwnShareCardParams): Promise<GetOwnShareCardResult> {
+  // Product invariant: sharing requires a name. Refuse before touching the
+  // cache or a (possibly remote) signer so an empty/whitespace-only nickname
+  // can never produce or serve a bare-npub card from the Share action. The
+  // Profile UI disables the Share button on the same `hasShareableName` rule;
+  // this is the non-bypassable backstop.
+  if (!hasShareableName(params.nickname)) {
+    throw new Error('shareCard: refusing to share a contact card without a name');
+  }
+
   const key: ShareCardCacheKey = {
     nickname: params.nickname,
     signerMode: params.signerMode,

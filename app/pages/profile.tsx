@@ -25,7 +25,7 @@ import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useProfile } from '@/src/context/ProfileContext';
 import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
-import { getOwnShareCard, type ShareCardCacheEntry } from '@/src/lib/shareCard';
+import { getOwnShareCard, hasShareableName, type ShareCardCacheEntry } from '@/src/lib/shareCard';
 import { addableGroupsForContact, archiveContact, eligibleGroupsForContact, getContact, unarchiveContact } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import { capNickname, NICKNAME_MAX_BYTES } from '@/src/config/profile';
@@ -83,9 +83,15 @@ function OwnProfileSection() {
   const [shareCardLoading, setShareCardLoading] = useState(false);
   const [shareCardError, setShareCardError] = useState<string | null>(null);
 
+  // Sharing is only allowed once a name is set — a card must never go out as a
+  // bare npub. Mirrors the disabled Share button below and getOwnShareCard's
+  // own guard.
+  const canShareCard = hasShareableName(savedProfile.nickname);
+
   const handleShareCard = useCallback(async () => {
     setShareCardError(null);
     if (!npub || !privateKeyHex || !pubkeyHex) return;
+    if (!hasShareableName(savedProfile.nickname)) return;
 
     setShareCardLoading(true);
     try {
@@ -265,10 +271,17 @@ function OwnProfileSection() {
             colorScheme="brand"
             onClick={() => void handleShareCard()}
             isLoading={shareCardLoading}
+            isDisabled={!canShareCard}
             data-testid="profile-share-card-btn"
           >
             {copy.profile.shareCardButton}
           </Button>
+          {!canShareCard && (
+            <Alert status="warning" borderRadius="md" mt={3} data-testid="profile-share-card-needs-name">
+              <AlertIcon />
+              <AlertDescription fontSize="sm">{copy.profile.shareCardNeedsName}</AlertDescription>
+            </Alert>
+          )}
           {shareCardError && (
             <Alert status="error" borderRadius="md" mt={3} data-testid="profile-share-card-error">
               <AlertIcon />

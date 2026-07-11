@@ -54,6 +54,33 @@ test.describe('Share contact card (AC-UX-4)', () => {
     await context.close();
   });
 
+  test('Share is disabled until a name is set — no card can go out as a bare npub', async ({ browser }) => {
+    // Boot with NO nickname seeded.
+    const { context, page } = await bootIdentity(browser, USER_A);
+
+    await page.goto('/profile');
+    const shareBtn = page.getByTestId('profile-share-card-btn');
+    await expect(shareBtn).toBeVisible({ timeout: 15_000 });
+
+    // With no name set, the Share action is unavailable and an explanatory
+    // hint is shown instead.
+    await expect(shareBtn).toBeDisabled();
+    await expect(page.getByTestId('profile-share-card-needs-name')).toBeVisible();
+
+    // Setting a name enables sharing and clears the hint.
+    await page.getByTestId('profile-nickname-input').fill('Named Nadia');
+    await expect(shareBtn).toBeEnabled();
+    await expect(page.getByTestId('profile-share-card-needs-name')).toHaveCount(0);
+
+    // And the now-enabled action really produces a signed card link.
+    await shareBtn.click();
+    await expect(page.getByTestId('npub-qr-modal-display')).toBeVisible();
+    const cardLink = (await page.getByTestId('npub-qr-modal-value').textContent())?.trim() ?? '';
+    expect(cardLink).toMatch(/^https:\/\/few\.chat\/add#c=[A-Za-z0-9_-]+$/);
+
+    await context.close();
+  });
+
   test('Settings page keeps a plain bare-npub QR (not a card link)', async ({ browser }) => {
     const { context, page } = await bootIdentity(browser, USER_A, 'Shariah');
 

@@ -29,6 +29,7 @@ import {
   shouldRebuildShareCard,
   buildOwnShareCard,
   getOwnShareCard,
+  hasShareableName,
   type ShareCardCacheEntry,
 } from '@/src/lib/shareCard';
 
@@ -152,6 +153,11 @@ describe('buildOwnShareCard — adapter modes verify via real getEventHash/verif
     ).rejects.toThrow(/signer pubkey does not match/);
   });
 
+  // buildOwnShareCard is the low-level production PRIMITIVE and keeps its
+  // codec-level graceful degradation (AC-CARD-6): an empty nickname yields an
+  // unsigned pubkey-only card. The product rule "sharing requires a name" is
+  // enforced one layer up, at getOwnShareCard / the Profile UI — see the
+  // `hasShareableName` and getOwnShareCard-guard tests below.
   it('no nickname set -> unsigned card; round-trips to a pubkey-only parse result (AC-CARD-6)', async () => {
     const { skHex, pubkeyHex } = makeIdentity();
     const signer = createPrivateKeySigner(skHex);
@@ -164,6 +170,27 @@ describe('buildOwnShareCard — adapter modes verify via real getEventHash/verif
     expect(parsed.pubkeyHex).toBe(pubkeyHex);
     expect('profile' in parsed).toBe(false);
     expect(Object.keys(parsed)).toEqual(['pubkeyHex']);
+  });
+});
+
+// ── Sharing requires a name — the product rule the Share action enforces ────
+
+describe('hasShareableName', () => {
+  it('is false for an empty string', () => {
+    expect(hasShareableName('')).toBe(false);
+  });
+
+  it('is false for a whitespace-only nickname (a name of only spaces is not "set")', () => {
+    expect(hasShareableName('   ')).toBe(false);
+    expect(hasShareableName('\t\n ')).toBe(false);
+  });
+
+  it('is true for a non-empty name', () => {
+    expect(hasShareableName('Alice')).toBe(true);
+  });
+
+  it('is true for a name with surrounding whitespace but non-empty content', () => {
+    expect(hasShareableName('  Alice  ')).toBe(true);
   });
 });
 
@@ -228,6 +255,31 @@ describe('shouldRebuildShareCard', () => {
 });
 
 describe('getOwnShareCard — cache-driven orchestration', () => {
+  it('refuses to share with an empty nickname, without touching the signer', async () => {
+    const { pubkeyHex } = makeIdentity();
+    const getSignEvent = vi.fn(async () => {
+      throw new Error('signer must not be resolved when there is no name');
+    });
+
+    await expect(
+      getOwnShareCard({ pubkeyHex, nickname: '', signerMode: 'local', cache: null, getSignEvent }),
+    ).rejects.toThrow(/without a name/);
+    // The guard runs before any (possibly remote) signer round trip.
+    expect(getSignEvent).not.toHaveBeenCalled();
+  });
+
+  it('refuses to share with a whitespace-only nickname', async () => {
+    const { pubkeyHex } = makeIdentity();
+    const getSignEvent = vi.fn(async () => {
+      throw new Error('signer must not be resolved when the name is blank');
+    });
+
+    await expect(
+      getOwnShareCard({ pubkeyHex, nickname: '   ', signerMode: 'local', cache: null, getSignEvent }),
+    ).rejects.toThrow(/without a name/);
+    expect(getSignEvent).not.toHaveBeenCalled();
+  });
+
   it('rebuilds on the first open, then reuses the cache on a repeat open with an unchanged nickname (sign called exactly once)', async () => {
     const { skHex, pubkeyHex } = makeIdentity();
     const signer = createPrivateKeySigner(skHex);
