@@ -69,7 +69,7 @@ export default function HomePage() {
               ))}
             </UnorderedList>
           </VStack>
-          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} w="full">
+          <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={6} w="full">
             {tiles.map((tile) => (
               <LinkBox
                 key={tile.href}

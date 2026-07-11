@@ -33,7 +33,6 @@ type Copy = {
   info: {
     pageTitle: string;
     heading: string;
-    techToggle: string;
   };
   home: {
     title: string;
@@ -510,7 +509,6 @@ const copy: Record<LanguageCode, Copy> = {
     info: {
       pageTitle: 'How it works',
       heading: 'How few.chat works',
-      techToggle: 'Technical details',
     },
     home: {
       title: 'Welcome to few.chat',
@@ -1060,7 +1058,6 @@ const copy: Record<LanguageCode, Copy> = {
     info: {
       pageTitle: 'Wie es funktioniert',
       heading: 'Wie funktioniert few.chat?',
-      techToggle: 'Technische Details',
     },
     home: {
       title: 'Willkommen bei few.chat',
