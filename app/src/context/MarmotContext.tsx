@@ -973,6 +973,22 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   // (local → nip46 switch) after the identity context has set the override ref.
   }, [identityHydrated, privateKeyHex, pubkeyHex, signerMode, reloadGroups, updateDiscoverability]);
 
+  // Stable key over the SET of group ids. The subscription effect below must
+  // re-run only when a group is added or removed — NOT on every `groups`
+  // array-reference churn. `reloadGroups()` calls `setGroups(freshIdbArray)`
+  // (a new reference every time) and is invoked from `onMembersChanged`, which
+  // EpochResolver fires after *every* ingested MLS event. Depending the effect
+  // on the raw `groups` array therefore tore down and rebuilt every group's
+  // kind-445 subscription — each a sequential, 8s-timeout historical refetch —
+  // on every inbound message/reaction/poll/commit, stalling live propagation by
+  // N×8s under load. Keying on the id set (mirroring the `groups.length`
+  // dependency already used by the sweeps at the effects near lines 535/685)
+  // keeps live subscriptions intact through routine activity; the set only
+  // changes on a genuine join/leave. Group *data* changes (rename, membership)
+  // are still delivered live over the existing subscription and re-read via
+  // `groupsRef.current` in the callbacks below.
+  const groupSubscriptionKey = groups.map((g) => g.id).sort().join(',');
+
   // Subscribe to group messages for each group (for incoming application rumors)
   useEffect(() => {
     if (!ready || groups.length === 0) return;
@@ -1007,7 +1023,10 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           // is impossible after the MLS key schedule advances due to forward secrecy).
           const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
           const mlsMembers = getGroupMembers(mlsGroup.state);
-          const stored = groups.find((g) => g.id === group.id);
+          // groupsRef.current (kept in sync near line 398) rather than the
+          // closure `groups`, for consistency with the onMembersChanged callback
+          // below and to stay correct if this read ever moves off the subscribe path.
+          const stored = groupsRef.current.find((g) => g.id === group.id);
           if (stored) {
             // Sync BOTH membership and the group name from authoritative MLS state.
             // The name may have changed while we were offline (an admin renamed the
@@ -1037,7 +1056,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               // Always bump groupDataVersion so consumers (e.g. isAdmin) re-read
               // group metadata after any MLS commit, even when member count is unchanged.
               setGroupDataVersion((v) => v + 1);
-              const stored = groups.find((g) => g.id === group.id);
+              // Read via groupsRef (always current) rather than the effect's
+              // closure `groups`: this callback outlives its effect run, and the
+              // effect now re-runs only on id-set changes, so the closure would
+              // otherwise go stale across renames/membership updates.
+              const stored = groupsRef.current.find((g) => g.id === group.id);
               if (stored) {
                 // Resync membership AND the group name from authoritative MLS
                 // metadata after any processed commit. A rename lands here for
@@ -1189,7 +1212,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       }
       profilePublishedRef.current.clear();
     };
-  }, [ready, groups, pubkeyHex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed
+    // on the id SET (groupSubscriptionKey), not the `groups` array reference; see
+    // the comment above groupSubscriptionKey for why re-running on every churn
+    // regressed live propagation.
+  }, [ready, groupSubscriptionKey, pubkeyHex]);
 
   // Profile updates are published automatically via the onHistorySynced callback
   // (once per group, after historical events are ingested and the local epoch is
