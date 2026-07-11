@@ -615,13 +615,6 @@ export default function SettingsPage() {
 
           {/* Nostr Identity Section */}
           <Box>
-            <Heading as="h2" size="md" mb={1}>
-              {copy.identity.sectionHeading}
-            </Heading>
-            <Text fontSize="sm" color="textMuted" mb={4}>
-              {copy.identity.sectionDescription}
-            </Text>
-
             {identityHydrated && npub ? (
               <VStack align="stretch" spacing={5}>
                 {/* Backup Section — only shown in local signer mode */}

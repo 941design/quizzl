@@ -75,8 +75,6 @@ type Copy = {
     dismiss: string;
   };
   identity: {
-    sectionHeading: string;
-    sectionDescription: string;
     npubLabel: string;
     copyNpub: string;
     copiedNpub: string;
@@ -615,9 +613,6 @@ const copy: Record<LanguageCode, Copy> = {
       dismiss: 'Dismiss warning',
     },
     identity: {
-      sectionHeading: 'Nostr Identity',
-      sectionDescription:
-        'Your Few identity is used for groups and direct messages. It is stored in your browser.',
       npubLabel: 'Your public key (npub)',
       copyNpub: 'Copy npub',
       copiedNpub: 'Copied!',
@@ -1134,9 +1129,6 @@ const copy: Record<LanguageCode, Copy> = {
       dismiss: 'Warnung ausblenden',
     },
     identity: {
-      sectionHeading: 'Nostr-Identität',
-      sectionDescription:
-        'Deine Few-Identität wird für Gruppen und Direktnachrichten verwendet und ist in deinem Browser gespeichert.',
       npubLabel: 'Dein öffentlicher Schlüssel (npub)',
       copyNpub: 'npub kopieren',
       copiedNpub: 'Kopiert!',
