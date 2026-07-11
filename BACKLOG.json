@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-11T02:02:29Z",
+  "updated_at": "2026-07-11T09:12:22Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -267,34 +267,6 @@
       "behavior": "Specs reuse deterministic USER_A/USER_B keypairs against one shared strfry relay for the whole run; gift-wraps/pending-invitations from earlier specs contaminate later specs' queues, so propagation assertions (member profile name, poll announcement, image lightbox, nickname update, feedback reply) time out nondeterministically.",
       "approach": "Options: per-spec unique ephemeral keypairs; or per-spec-file relay wipe; or baseline-then-delta assertions that tolerate stale queue entries (drain-by-eventId rather than .last()). Pick one and apply suite-wide.",
       "success_signal": "make test-e2e-all is green across 3 consecutive runs with no per-spec quarantine"
-    },
-    {
-      "slug": "out-order-future-epoch-mls-rumor",
-      "scope": "any",
-      "anchor": {
-        "path": "app/src/lib/marmot/welcomeSubscription.ts",
-        "line": 210
-      },
-      "text": "Out-of-order future-epoch MLS rumor can be permanently dropped on resubscribe",
-      "created_at": "2026-07-11",
-      "motivation": "A chat/reaction/poll rumor that arrives before the commit that lets it decrypt is buffered in EpochResolver.futureBuffer and retried later. But the event id is marked seen in seenIdsByGroup/processedIds BEFORE ingestion. If a resubscribe tears the resolver down (dispose() clears futureBuffer) before the buffered rumor is retried, the historical refetch re-pulls the same event but processedIds.has() short-circuits it — so it is never re-ingested. Net: the rumor is dropped for the rest of the session, not just delayed. The resubscribe-storm fix (commit 15aa639) reduces trigger frequency but does not close this.",
-      "behavior": "Under resubscribe churn (or any resolver teardown) coincident with a future-epoch buffered rumor, that message/reaction/poll silently never appears until an unrelated event bumps the version counter — and may never appear at all.",
-      "approach": "Mark an event 'seen' only after successful ingestion (not merely hand-off), OR carry the futureBuffer across resolver instances, without reintroducing double-ingestion of historical replays (processedIds is deliberately shared for that). Needs its own scrutiny of the dedup contract.",
-      "success_signal": "A future-epoch rumor buffered across a resubscribe is still delivered after the enabling commit lands"
-    },
-    {
-      "slug": "groups-image-sharing-ac-61-lightbox",
-      "scope": "any",
-      "anchor": {
-        "path": "app/tests/e2e/groups-image-sharing.spec.ts",
-        "line": 133
-      },
-      "text": "groups-image-sharing AC-61 lightbox click fails consistently (image not click-stable)",
-      "created_at": "2026-07-11",
-      "motivation": "AC-61 (click image-thumbnail -> lightbox) failed in EVERY full/subset run observed (2026-07-10/11), unlike the rotating load-flakes — a consistent, deterministic failure. AC-60 (B receives the thumbnail, 90s budget) passes, so the image propagates; the CLICK on image-thumbnail times out waiting for the element to be visible+enabled+STABLE, i.e. the <img> is still loading (blossom fetch) or multiple thumbnails match. Distinct from the timeout-flakes; likely a real click-stability/selector bug or genuinely slow blossom-mock fetch.",
-      "behavior": "pageB.getByTestId('image-thumbnail').click() times out at 30s though the thumbnail is present; lightbox never opens in the test.",
-      "approach": "Wait for the thumbnail <img> to finish loading (naturalWidth>0 / load event) before clicking, and/or scope the selector to the newest message; investigate whether the receiving-side blob fetch+decode is the latency. Consider bumping this assertion like AC-60's 90s if it's genuinely fetch-bound.",
-      "success_signal": "AC-61 passes across 3 consecutive full-suite runs"
     }
   ],
   "archive": [
