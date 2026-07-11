@@ -7,6 +7,46 @@ const SEARCH_URL = `${FETCH_BASE_URL}/cgi/search`;
 const PAGE_SIZE = 500;
 const CONCURRENCY = 8;
 
+/**
+ * Fruit subjects intentionally kept out of the avatar catalog. Matched against
+ * each avatar's `var_subject` metadata (the English subject key). Any avatar
+ * whose subject is listed here is dropped during generation, so re-running this
+ * script never re-introduces a removed fruit. Keep in sync with the removed
+ * entries in `src/lib/i18n.ts` (`fruitNames`).
+ */
+const EXCLUDED_SUBJECTS = new Set([
+  'acai',
+  'acorn squash',
+  'artichoke',
+  'asparagus',
+  'breadfruit',
+  'brussels sprout',
+  'cabbage',
+  'cantaloupe',
+  'cauliflower',
+  'fennel',
+  'grape',
+  'honeydew',
+  'jackfruit',
+  'kumquat',
+  'leek',
+  'lychee',
+  'mangosteen',
+  'mulberry',
+  'nectarine',
+  'okra',
+  'olive',
+  'onion',
+  'orange',
+  'passion fruit',
+  'peach',
+  'persimmon',
+  'pumpkin',
+  'rambutan',
+  'spinach',
+  'walnut',
+]);
+
 async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) {
@@ -126,7 +166,15 @@ async function buildManifest() {
     CONCURRENCY
   );
 
-  const validItems = items.filter((item) => item !== null);
+  const fetchedItems = items.filter((item) => item !== null);
+  const validItems = fetchedItems.filter((item) => !EXCLUDED_SUBJECTS.has(item.subject));
+
+  const excludedCount = fetchedItems.length - validItems.length;
+  if (excludedCount > 0) {
+    console.log(
+      `Excluded ${excludedCount} avatar(s) across ${EXCLUDED_SUBJECTS.size} filtered subject(s)`
+    );
+  }
 
   const manifest = {
     generatedAt: new Date().toISOString(),
