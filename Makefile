@@ -99,15 +99,15 @@ build: ensure-deps ## Build for production (static export)
 test: test-unit test-e2e-all ## Run all tests (unit + FULL e2e suite) — the definitive gate
 
 # ── E2E GATE ────────────────────────────────────────────────────────────────
-# `test-e2e-all` is THE definitive e2e gate: it runs the complete 48-test suite
-# (10 non-relay + 38 groups/relay). A feature or bug fix is not "e2e-verified"
+# `test-e2e-all` is THE definitive e2e gate: it runs the complete 50-test suite
+# (12 non-relay + 38 groups/relay). A feature or bug fix is not "e2e-verified"
 # unless this target (or `make test`) passes end to end.
 #
 # Everything below it — test-e2e-fast, test-e2e-groups, test-e2e-image-sharing,
 # or any filtered `run-e2e.mjs <pattern>` invocation — is a DEV-ITERATION AID
 # that runs a subset. A green subset is NOT an e2e pass. See CLAUDE.md "E2E gate".
 ## Run the full e2e suite (both modes) — the definitive e2e gate
-test-e2e-all: test-e2e-fast test-e2e ## Run the FULL e2e suite (48 tests, both modes) — the e2e gate
+test-e2e-all: test-e2e-fast test-e2e ## Run the FULL e2e suite (50 tests, both modes) — the e2e gate
 
 ## Run unit tests (Vitest)
 test-unit: ensure-deps ## Run unit tests (Vitest)
@@ -127,9 +127,9 @@ test-e2e: ensure-playwright ## Run all Playwright E2E tests (with relay)
 	cd $(APP_DIR) && E2E_GROUPS=1 node scripts/run-e2e.mjs
 
 ## Run fast Playwright E2E tests (without relay)
-test-e2e-fast: ensure-playwright ## PARTIAL dev aid: 10 non-relay tests — NOT the e2e gate (use test-e2e-all)
+test-e2e-fast: ensure-playwright ## PARTIAL dev aid: 12 non-relay tests — NOT the e2e gate (use test-e2e-all)
 	@case " $(MAKECMDGOALS) " in *" test "*|*test-e2e-all*) : ;; *) \
-	  printf '\033[33m⚠ Partial e2e run: 10 of 48 tests (non-relay only). This is NOT an e2e pass.\n  Definitive gate: make test-e2e-all (or make test)\033[0m\n' ;; esac
+	  printf '\033[33m⚠ Partial e2e run: 12 of 50 tests (non-relay only). This is NOT an e2e pass.\n  Definitive gate: make test-e2e-all (or make test)\033[0m\n' ;; esac
 	cd $(APP_DIR) && node scripts/run-e2e.mjs
 
 ## E2E groups infrastructure

@@ -37,6 +37,12 @@ export default function HomePage() {
       subtitle: copy.home.profileSubtitle,
       testid: 'home-profile-btn',
     },
+    {
+      href: '/info',
+      title: copy.home.howTitle,
+      subtitle: copy.home.howSubtitle,
+      testid: 'home-info-btn',
+    },
   ];
 
   return (

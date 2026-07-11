@@ -247,6 +247,24 @@ export default function Layout({ children }: LayoutProps) {
                 </Link>
               </NextLink>
               <NotificationBell />
+              <NextLink href="/info" passHref legacyBehavior>
+                <Link
+                  aria-label={copy.layout.nav.info}
+                  display="inline-flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  w={10}
+                  h={10}
+                  borderRadius="md"
+                  position="relative"
+                  color={router.pathname === '/info' ? 'brand.500' : 'textMuted'}
+                  _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
+                  _focusVisible={{ boxShadow: 'outline' }}
+                  data-testid="header-info-link"
+                >
+                  <ThemeIcon name="info" size={20} aria-hidden />
+                </Link>
+              </NextLink>
               <NextLink href="/settings" passHref legacyBehavior>
                 <Link
                   aria-label={copy.layout.nav.settings}
@@ -284,6 +302,24 @@ export default function Layout({ children }: LayoutProps) {
             {/* Mobile actions */}
             <HStack spacing={1} display={{ base: 'flex', md: 'none' }}>
               <NotificationBell />
+              <NextLink href="/info" passHref legacyBehavior>
+                <Link
+                  aria-label={copy.layout.nav.info}
+                  display="inline-flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  w={10}
+                  h={10}
+                  borderRadius="md"
+                  position="relative"
+                  color={router.pathname === '/info' ? 'brand.500' : 'textMuted'}
+                  _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
+                  _focusVisible={{ boxShadow: 'outline' }}
+                  data-testid="mobile-header-info-link"
+                >
+                  <ThemeIcon name="info" size={20} aria-hidden />
+                </Link>
+              </NextLink>
               <NextLink href="/settings" passHref legacyBehavior>
                 <Link
                   aria-label={copy.layout.nav.settings}

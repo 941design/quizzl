@@ -28,6 +28,15 @@ const nextConfig = {
   swcMinify: false,
 
   webpack: (config) => {
+    // Import `.md` content files as raw strings (long-form page content lives in
+    // markdown, per CLAUDE.md's content/i18n split). `asset/source` yields the
+    // file's text as the module's default export — resolved at build time, so it
+    // works under `output: 'export'`.
+    config.module.rules.push({
+      test: /\.md$/,
+      type: 'asset/source',
+    });
+
     // For modules that crash SWC's optimizer, use a custom babel-loader rule
     // that handles only those specific packages.
     config.module.rules.push({

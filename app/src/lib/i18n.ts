@@ -8,6 +8,7 @@ type Copy = {
       contacts: string;
       groups: string;
       settings: string;
+      info: string;
     };
     languageLabel: string;
     mobileMenuLabel: string;
@@ -20,24 +21,19 @@ type Copy = {
     backupNeededLabel: string;
     imprintLink: string;
   };
+  // Legal facts live in src/config/imprint.ts; the human-readable labels and
+  // section text live in src/content/imprint.*.md. Only the page chrome below
+  // stays in i18n.
   imprint: {
     pageTitle: string;
     heading: string;
-    providerHeading: string;
-    representedByLabel: string;
-    contactHeading: string;
-    emailLabel: string;
-    phoneLabel: string;
-    registerHeading: string;
-    registerCourtLabel: string;
-    registerNumberLabel: string;
-    vatHeading: string;
-    vatLabel: string;
   };
+  // Long-form body lives in src/content/info.*.md; only the page chrome and the
+  // collapsible toggle label stay in i18n.
   info: {
     pageTitle: string;
     heading: string;
-    body: string;
+    techToggle: string;
   };
   home: {
     title: string;
@@ -50,6 +46,8 @@ type Copy = {
     groupsSubtitle: string;
     profileTitle: string;
     profileSubtitle: string;
+    howTitle: string;
+    howSubtitle: string;
   };
   settings: {
     pageTitle: string;
@@ -499,6 +497,7 @@ const copy: Record<LanguageCode, Copy> = {
         contacts: 'Contacts',
         groups: 'Groups',
         settings: 'Settings',
+        info: 'How few.chat works',
       },
       languageLabel: 'Language',
       mobileMenuLabel: 'Toggle navigation menu',
@@ -514,21 +513,11 @@ const copy: Record<LanguageCode, Copy> = {
     imprint: {
       pageTitle: 'Imprint',
       heading: 'Imprint',
-      providerHeading: 'Information pursuant to § 5 DDG',
-      representedByLabel: 'Represented by',
-      contactHeading: 'Contact',
-      emailLabel: 'Email',
-      phoneLabel: 'Phone',
-      registerHeading: 'Commercial register',
-      registerCourtLabel: 'Register court',
-      registerNumberLabel: 'Register number',
-      vatHeading: 'VAT ID',
-      vatLabel: 'VAT identification number pursuant to § 27a of the German VAT Act',
     },
     info: {
-      pageTitle: 'About',
-      heading: 'About few.chat',
-      body: 'few.chat is a private, end-to-end encrypted messenger. More information is coming soon.',
+      pageTitle: 'How it works',
+      heading: 'How few.chat works',
+      techToggle: 'Technical details',
     },
     home: {
       title: 'Welcome to few.chat',
@@ -548,6 +537,8 @@ const copy: Record<LanguageCode, Copy> = {
       groupsSubtitle: 'Chat together in groups.',
       profileTitle: 'Profile',
       profileSubtitle: 'Manage your name and avatar.',
+      howTitle: 'How few.chat works',
+      howSubtitle: 'A quick look at what makes it private.',
     },
     settings: {
       pageTitle: 'Settings',
@@ -977,6 +968,7 @@ const copy: Record<LanguageCode, Copy> = {
         contacts: 'Kontakte',
         groups: 'Gruppen',
         settings: 'Einstellungen',
+        info: 'Wie funktioniert few.chat?',
       },
       languageLabel: 'Sprache',
       mobileMenuLabel: 'Navigationsmenü umschalten',
@@ -992,21 +984,11 @@ const copy: Record<LanguageCode, Copy> = {
     imprint: {
       pageTitle: 'Impressum',
       heading: 'Impressum',
-      providerHeading: 'Angaben gemäß § 5 DDG',
-      representedByLabel: 'Vertreten durch',
-      contactHeading: 'Kontakt',
-      emailLabel: 'E-Mail',
-      phoneLabel: 'Telefon',
-      registerHeading: 'Registereintrag',
-      registerCourtLabel: 'Registergericht',
-      registerNumberLabel: 'Registernummer',
-      vatHeading: 'Umsatzsteuer-ID',
-      vatLabel: 'Umsatzsteuer-Identifikationsnummer gemäß § 27a Umsatzsteuergesetz',
     },
     info: {
-      pageTitle: 'Info',
-      heading: 'Über few.chat',
-      body: 'few.chat ist ein privater, Ende-zu-Ende-verschlüsselter Messenger. Weitere Informationen folgen in Kürze.',
+      pageTitle: 'Wie es funktioniert',
+      heading: 'Wie funktioniert few.chat?',
+      techToggle: 'Technische Details',
     },
     home: {
       title: 'Willkommen bei few.chat',
@@ -1026,6 +1008,8 @@ const copy: Record<LanguageCode, Copy> = {
       groupsSubtitle: 'Chattet gemeinsam in Gruppen.',
       profileTitle: 'Profil',
       profileSubtitle: 'Verwalte deinen Namen und Avatar.',
+      howTitle: 'Wie funktioniert few.chat?',
+      howSubtitle: 'Ein kurzer Blick darauf, was es privat macht.',
     },
     settings: {
       pageTitle: 'Einstellungen',

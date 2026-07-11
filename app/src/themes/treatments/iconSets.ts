@@ -58,6 +58,11 @@ export const ICON_SETS: Record<string, Record<IconSetName, string>> = {
     filled: 'ph:bell-ringing-fill',
     pixel: 'pixelarticons:notification',
   },
+  info: {
+    line: 'ph:info-bold',
+    filled: 'ph:info-fill',
+    pixel: 'pixelarticons:info-box',
+  },
   person: {
     line: 'ph:user-circle-bold',
     filled: 'ph:user-circle-fill',
