@@ -119,7 +119,18 @@ export class EpochResolver {
   // Public API
   // -----------------------------------------------------------------------
 
-  async ingestEvent(event: NostrEvent): Promise<void> {
+  /**
+   * Ingest a single event.
+   *
+   * Returns `{ buffered: true }` when the event could not be applied yet and was
+   * parked in the future-epoch buffer (it arrived before the commit/message that
+   * would let it decrypt). Callers use this to avoid permanently marking such an
+   * event "seen": if this resolver is later disposed, dispose() clears the
+   * buffer, and a fresh resolver's historical refetch must be allowed to
+   * re-ingest the event rather than skip it as a duplicate. Applied, skipped, or
+   * errored events return `{ buffered: false }` — they must stay deduped.
+   */
+  async ingestEvent(event: NostrEvent): Promise<{ buffered: boolean }> {
     // Acquire serialised lock
     const prevLock = this.lockChain;
     let releaseLock!: () => void;
@@ -129,8 +140,8 @@ export class EpochResolver {
 
     try {
       await prevLock;
-      if (this.disposed) return;
-      await this.processEvent(event);
+      if (this.disposed) return { buffered: false };
+      return await this.processEvent(event);
     } finally {
       releaseLock();
     }
@@ -150,7 +161,7 @@ export class EpochResolver {
   // Internal processing
   // -----------------------------------------------------------------------
 
-  private async processEvent(event: NostrEvent): Promise<void> {
+  private async processEvent(event: NostrEvent): Promise<{ buffered: boolean }> {
     // Snapshot state before first event per epoch (if no active snapshot)
     const currentEpoch = getEpoch(this.mlsGroup.state);
     if (!this.snapshot) {
@@ -159,8 +170,13 @@ export class EpochResolver {
 
     const results = this.mlsGroup.ingest([event]);
 
+    // True when this event landed in the future-epoch buffer (unreadable now).
+    // Surfaced to the caller so the seen-set dedup can be relaxed for it — see
+    // ingestEvent's contract.
+    let buffered = false;
+
     for await (const result of results) {
-      if (this.disposed) return;
+      if (this.disposed) return { buffered };
 
       if (result.kind === 'processed') {
         if (result.result.kind === 'applicationMessage') {
@@ -190,6 +206,7 @@ export class EpochResolver {
       } else if (result.kind === 'unreadable') {
         this.futureBuffer.push(event);
         this.capBuffer();
+        buffered = true;
       } else if (result.kind === 'skipped' && result.reason === 'past-epoch') {
         // A commit for a past epoch was skipped. If we have an active snapshot
         // with a recorded commit, this might be a competing commit that was
@@ -204,6 +221,8 @@ export class EpochResolver {
       const currentMembers = getGroupMembers(this.mlsGroup.state);
       this.callbacks.onMembersChanged(currentMembers);
     }
+
+    return { buffered };
   }
 
   private async handleCommit(event: NostrEvent): Promise<void> {

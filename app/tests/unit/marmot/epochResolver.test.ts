@@ -300,6 +300,30 @@ describe('EpochResolver — future buffer', () => {
     }
   });
 
+  it('reports buffered:true for an unreadable event and buffered:false for a processed one', async () => {
+    // Guards the seen-set un-marking in welcomeSubscription: only events that
+    // were parked in the future buffer may be un-deduped so a post-teardown
+    // refetch can retry them.
+    const rumor = makeRumor('applied-msg');
+    const group = makeMlsGroup({
+      initialEpoch: 1,
+      ingestPlan: [
+        // Call 1: unreadable → buffered
+        [{ kind: 'unreadable', event: makeEvent({ id: 'future-evt' }), errors: ['future epoch'] }],
+        // Call 2: processed application message → applied, not buffered
+        [{ kind: 'processed', result: { kind: 'applicationMessage', message: encodeRumor(rumor) }, event: makeEvent({ id: 'applied-evt' }) }],
+      ],
+    });
+    const cb = makeCallbacks();
+    const resolver = new EpochResolver(group as never, cb);
+
+    const unreadable = await resolver.ingestEvent(makeEvent({ id: 'future-evt' }));
+    expect(unreadable).toEqual({ buffered: true });
+
+    const applied = await resolver.ingestEvent(makeEvent({ id: 'applied-evt' }));
+    expect(applied).toEqual({ buffered: false });
+  });
+
   it('caps buffer at maxBufferSize, evicting oldest by created_at', async () => {
     const plan: Array<Array<{ kind: string; event: NostrEvent; errors?: unknown[] }>> = [];
     // Generate 5 unreadable events

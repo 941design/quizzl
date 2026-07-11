@@ -277,6 +277,9 @@ export async function subscribeToGroupMessages(
   async function ingestNdkEvent(ndkEvent: import('@nostr-dev-kit/ndk').NDKEvent): Promise<boolean> {
     const eventId = ndkEvent.id ?? '';
     if (!eventId || processedIds.has(eventId)) return false;
+    // Mark seen BEFORE ingest so an overlapping subscription instance does not
+    // double-ingest this event while it is in flight. If the resolver reports it
+    // was only buffered (future-epoch/unreadable), un-mark it below.
     markGroupSeen(processedIds, eventId);
 
     try {
@@ -290,7 +293,17 @@ export async function subscribeToGroupMessages(
         sig: ndkEvent.sig ?? '',
       };
 
-      await resolver.ingestEvent(nostrEvent);
+      const { buffered } = await resolver.ingestEvent(nostrEvent);
+      if (buffered) {
+        // The event could not be applied yet and sits in the resolver's
+        // future-epoch buffer. If this subscription instance is torn down before
+        // the enabling commit/message arrives, dispose() drops the buffer — and
+        // a permanently-seen id would stop a fresh instance's historical refetch
+        // from re-ingesting it, silently losing the rumor. Un-marking lets the
+        // refetch retry. Re-ingesting an already-applied event is idempotent
+        // (mlsGroup.ingest dedups by MLS epoch ordering), so this is safe.
+        processedIds.delete(eventId);
+      }
     } catch (err) {
       console.debug('[welcomeSubscription] Could not ingest group message:', err);
     }
