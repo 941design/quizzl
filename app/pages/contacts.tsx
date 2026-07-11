@@ -16,8 +16,6 @@ import {
   IconButton,
   LinkBox,
   LinkOverlay,
-  Radio,
-  RadioGroup,
   Text,
   VStack,
 } from '@chakra-ui/react';
@@ -229,19 +227,24 @@ function ContactListView() {
             <Text mb={2} fontWeight="medium">
               {copy.contacts.hiddenFilterLabel}
             </Text>
-            <RadioGroup
-              value={showHidden ? 'show' : 'hide'}
-              onChange={(value) => setShowHidden(value === 'show')}
-            >
-              <VStack align="start" spacing={2} data-testid="contacts-hidden-filter">
-                <Radio value="hide" data-testid="contacts-filter-hide-hidden">
-                  {copy.contacts.hideHiddenOption}
-                </Radio>
-                <Radio value="show" data-testid="contacts-filter-show-hidden">
-                  {copy.contacts.showHiddenOption(hiddenCount)}
-                </Radio>
-              </VStack>
-            </RadioGroup>
+            <HStack spacing={4} flexWrap="wrap" data-testid="contacts-hidden-filter">
+              <Button
+                variant={showHidden ? 'outline' : 'solid'}
+                onClick={() => setShowHidden(false)}
+                data-testid="contacts-filter-hide-hidden"
+                size="lg"
+              >
+                {copy.contacts.hideHiddenOption}
+              </Button>
+              <Button
+                variant={showHidden ? 'solid' : 'outline'}
+                onClick={() => setShowHidden(true)}
+                data-testid="contacts-filter-show-hidden"
+                size="lg"
+              >
+                {copy.contacts.showHiddenOption(hiddenCount)}
+              </Button>
+            </HStack>
           </Box>
         ) : null}
       </Box>

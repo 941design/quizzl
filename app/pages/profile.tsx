@@ -171,13 +171,6 @@ function OwnProfileSection() {
       <VStack spacing={6} align="stretch">
         {/* Nickname + Avatar */}
         <Box>
-          <Heading as="h2" size="md" mb={1}>
-            {copy.settings.profileHeading}
-          </Heading>
-          <Text fontSize="sm" color="textMuted" mb={4}>
-            {copy.settings.profileDescription}
-          </Text>
-
           <VStack spacing={5} align="stretch">
             <Box>
               <Heading as="h2" size="md" mb={3}>

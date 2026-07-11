@@ -55,8 +55,6 @@ type Copy = {
     pageTitle: string;
     heading: string;
     description: string;
-    profileHeading: string;
-    profileDescription: string;
     nicknameHeading: string;
     nicknameHelper: string;
     nicknameLimit: (max: number) => string;
@@ -555,8 +553,6 @@ const copy: Record<LanguageCode, Copy> = {
       pageTitle: 'Settings',
       heading: 'Settings',
       description: 'Manage your Nostr identity and key backup.',
-      profileHeading: 'My Profile',
-      profileDescription: 'Pick a name, an avatar, and a few fun badges.',
       nicknameHeading: 'Name',
       nicknameHelper: 'Use a short name instead of your full real name.',
       nicknameLimit: (max: number) => `Name reached the ${max}-character limit (accented letters and emoji count for more).`,
@@ -817,7 +813,7 @@ const copy: Record<LanguageCode, Copy> = {
       addToGroupSuccess: 'Contact added to the group.',
       addToGroupError: 'Could not add the contact to the group. Please try again.',
       ownHeading: 'My Profile',
-      ownDescription: 'Customize how you appear in Few.',
+      ownDescription: 'This is how others see you.',
       backupNeededHint: 'Your identity is not backed up yet. Go to Settings to back it up.',
     },
     polls: {
@@ -1035,8 +1031,6 @@ const copy: Record<LanguageCode, Copy> = {
       pageTitle: 'Einstellungen',
       heading: 'Einstellungen',
       description: 'Verwalte deine Nostr-Identität und Schlüsselsicherung.',
-      profileHeading: 'Mein Profil',
-      profileDescription: 'Wähle einen Namen, einen Avatar und ein paar lustige Badges.',
       nicknameHeading: 'Name',
       nicknameHelper: 'Nutze lieber einen kurzen Namen als deinen vollen echten Namen.',
       nicknameLimit: (max: number) => `Der Name hat die Grenze von ${max} Zeichen erreicht (Umlaute und Emojis zählen mehr).`,
@@ -1296,7 +1290,7 @@ const copy: Record<LanguageCode, Copy> = {
       addToGroupSuccess: 'Kontakt zur Gruppe hinzugefügt.',
       addToGroupError: 'Kontakt konnte nicht zur Gruppe hinzugefügt werden. Bitte versuche es erneut.',
       ownHeading: 'Mein Profil',
-      ownDescription: 'Passe an, wie du in Few erscheinst.',
+      ownDescription: 'So sehen dich andere.',
       backupNeededHint: 'Deine Identität ist noch nicht gesichert. Gehe zu Einstellungen, um sie zu sichern.',
     },
     polls: {
