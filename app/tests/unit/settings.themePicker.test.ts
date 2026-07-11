@@ -1,16 +1,17 @@
-// app/tests/unit/profile.themePicker.test.ts
+// app/tests/unit/settings.themePicker.test.ts
 //
-// S4 (AC-UX-3 / AC13): the `/profile` theme picker/preview reads
+// S4 (AC-UX-3 / AC13): the `/settings` theme picker/preview reads
 // `label`/`description` from each manifest's `{ en; de? }` fields (with `de`
 // falling back to `en`), sourced via `listThemes()` (§6.10 — excludes
 // `status:'hidden'`), rather than from `i18n.ts`'s per-theme keys. The
-// vitest environment has no DOM renderer / @testing-library/react (see
-// `memberListAdminUi.test.ts`'s header comment for the established
-// convention), so the "profile no longer reads from the removed keys" half
-// of VQ-S4-009 is verified by scanning `profile.tsx`'s source, mirroring
-// `themes-validation.test.ts`'s AC-STRUCT-2 source-scan pattern. The
-// "renders from manifest fields" half is verified by exercising the same
-// `localizedThemeText`-shaped fallback logic against real manifest data.
+// theme/language pickers moved from `/profile` to `/settings`, so this scan
+// targets `settings.tsx`. The vitest environment has no DOM renderer /
+// @testing-library/react (see `memberListAdminUi.test.ts`'s header comment
+// for the established convention), so the "settings no longer reads from the
+// removed keys" half of VQ-S4-009 is verified by scanning `settings.tsx`'s
+// source, mirroring `themes-validation.test.ts`'s AC-STRUCT-2 source-scan
+// pattern. The "renders from manifest fields" half is verified by exercising
+// the same `localizedThemeText`-shaped fallback logic against real manifest data.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +23,7 @@ import { listThemes, APP_THEMES } from '@/src/lib/theme';
 
 const TEST_FILE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(TEST_FILE_DIR, '..', '..'); // app/tests/unit -> app/
-const PROFILE_SOURCE = fs.readFileSync(path.join(APP_ROOT, 'pages', 'profile.tsx'), 'utf8');
+const SETTINGS_SOURCE = fs.readFileSync(path.join(APP_ROOT, 'pages', 'settings.tsx'), 'utf8');
 
 const REMOVED_KEYS = [
   'calm',
@@ -37,37 +38,37 @@ const REMOVED_KEYS = [
   'flowerDescription',
 ] as const;
 
-describe('profile.tsx theme picker source (AC-UX-3): reads manifest fields, not i18n.ts per-theme keys', () => {
+describe('settings.tsx theme picker source (AC-UX-3): reads manifest fields, not i18n.ts per-theme keys', () => {
   it('uses listThemes() for the picker, not Object.values(APP_THEMES)', () => {
-    expect(PROFILE_SOURCE).toMatch(/listThemes\(\s*\)/);
-    expect(PROFILE_SOURCE).not.toMatch(/Object\.values\(APP_THEMES\)/);
+    expect(SETTINGS_SOURCE).toMatch(/listThemes\(\s*\)/);
+    expect(SETTINGS_SOURCE).not.toMatch(/Object\.values\(APP_THEMES\)/);
   });
 
   it('has no reference to the removed compat fields labelKey/descriptionKey/backgroundImage-off-definition', () => {
-    expect(PROFILE_SOURCE).not.toMatch(/\.labelKey\b/);
-    expect(PROFILE_SOURCE).not.toMatch(/\.descriptionKey\b/);
+    expect(SETTINGS_SOURCE).not.toMatch(/\.labelKey\b/);
+    expect(SETTINGS_SOURCE).not.toMatch(/\.descriptionKey\b/);
     // The preview's backgroundImage now reads through colors.backgroundImage,
     // never the removed compat top-level field.
-    expect(PROFILE_SOURCE).not.toMatch(/activeThemeDefinition\.backgroundImage\b/);
-    expect(PROFILE_SOURCE).toMatch(/activeThemeDefinition\.colors\.backgroundImage\b/);
+    expect(SETTINGS_SOURCE).not.toMatch(/activeThemeDefinition\.backgroundImage\b/);
+    expect(SETTINGS_SOURCE).toMatch(/activeThemeDefinition\.colors\.backgroundImage\b/);
   });
 
   it('has no dangling copy.settings[<removed-key>]-style dynamic lookup for any removed key', () => {
     for (const key of REMOVED_KEYS) {
-      expect(PROFILE_SOURCE, `unexpected reference to removed i18n key "${key}"`).not.toMatch(
+      expect(SETTINGS_SOURCE, `unexpected reference to removed i18n key "${key}"`).not.toMatch(
         new RegExp(`copy\\.settings\\.${key}\\b`)
       );
-      expect(PROFILE_SOURCE, `unexpected reference to removed i18n key "${key}"`).not.toMatch(
+      expect(SETTINGS_SOURCE, `unexpected reference to removed i18n key "${key}"`).not.toMatch(
         new RegExp(`copy\\.settings\\[[^\\]]*${key}[^\\]]*\\]`)
       );
     }
   });
 
   it('still references the four retained theme-section i18n keys', () => {
-    expect(PROFILE_SOURCE).toMatch(/copy\.settings\.themeHeading\b/);
-    expect(PROFILE_SOURCE).toMatch(/copy\.settings\.themeDescription\b/);
-    expect(PROFILE_SOURCE).toMatch(/copy\.settings\.active\b/);
-    expect(PROFILE_SOURCE).toMatch(/copy\.settings\.currentTheme\b/);
+    expect(SETTINGS_SOURCE).toMatch(/copy\.settings\.themeHeading\b/);
+    expect(SETTINGS_SOURCE).toMatch(/copy\.settings\.themeDescription\b/);
+    expect(SETTINGS_SOURCE).toMatch(/copy\.settings\.active\b/);
+    expect(SETTINGS_SOURCE).toMatch(/copy\.settings\.currentTheme\b/);
   });
 });
 

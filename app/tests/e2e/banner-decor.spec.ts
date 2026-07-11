@@ -211,7 +211,7 @@ test.describe('Nav banner decoration', () => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
     });
 
-    await page.goto('/profile');
+    await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
     const aquarelleBtn = page.getByTestId('theme-aquarelle-btn');

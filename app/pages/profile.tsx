@@ -6,7 +6,6 @@ import {
   Alert,
   AlertDescription,
   AlertIcon,
-  Badge,
   Box,
   Button,
   Code,
@@ -20,31 +19,19 @@ import {
   VStack,
   useDisclosure,
 } from '@chakra-ui/react';
-import { useCopy, useLanguage } from '@/src/context/LanguageContext';
+import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useProfile } from '@/src/context/ProfileContext';
-import { useAppTheme } from '@/src/hooks/useMoodTheme';
 import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { getOwnShareCard, type ShareCardCacheEntry } from '@/src/lib/shareCard';
 import { addableGroupsForContact, archiveContact, eligibleGroupsForContact, getContact, unarchiveContact } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
-import { listThemes } from '@/src/lib/theme';
 import { capNickname, NICKNAME_MAX_BYTES } from '@/src/config/profile';
 import { utf8ByteLength } from '@/src/lib/contactCard';
 import type { ContactListItem } from '@/src/lib/contacts';
-import type { AppThemeName } from '@/src/lib/theme';
-import type { ProfileAvatar, UserProfile, LanguageCode } from '@/src/types';
-
-/**
- * Resolves a manifest's `{ en; de? }` localized-text field for the current
- * language, falling back to `en` when `de` is absent (AC-UX-3 / spec.md
- * Implementation Constraint 10 — "de falls back to en").
- */
-function localizedThemeText(text: { en: string; de?: string }, language: LanguageCode): string {
-  return language === 'de' ? text.de ?? text.en : text.en;
-}
+import type { ProfileAvatar, UserProfile } from '@/src/types';
 
 function AvatarDisplay({ avatar, displayName, size }: { avatar: ProfileAvatar | null; displayName: string; size: string }) {
   return (
@@ -76,8 +63,6 @@ function OwnProfileSection() {
   const copy = useCopy();
   const { backedUp, npub, pubkeyHex, privateKeyHex, signerMode } = useNostrIdentity();
   const { profile: savedProfile, hydrated, saveProfile } = useProfile();
-  const { language, setLanguage } = useLanguage();
-  const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
   const { publishProfileUpdate } = useMarmot();
   const avatarDisclosure = useDisclosure();
   const shareCardDisclosure = useDisclosure();
@@ -303,94 +288,6 @@ function OwnProfileSection() {
               <AlertDescription fontSize="sm">{shareCardError}</AlertDescription>
             </Alert>
           )}
-        </Box>
-
-        <Divider />
-
-        {/* Theme */}
-        <Box>
-          <Heading as="h2" size="md" mb={1}>
-            {copy.settings.themeHeading}
-          </Heading>
-          <Text fontSize="sm" color="textMuted" mb={4}>
-            {copy.settings.themeDescription}
-          </Text>
-
-          <HStack spacing={4} flexWrap="wrap">
-            {listThemes().map((themeOption) => {
-              const isActive = themeName === themeOption.id;
-              return (
-                <Button
-                  key={themeOption.id}
-                  variant={isActive ? 'solid' : 'outline'}
-                  colorScheme={themeOption.previewColorScheme}
-                  onClick={() => setTheme(themeOption.id as AppThemeName)}
-                  data-testid={`theme-${themeOption.id}-btn`}
-                  size="lg"
-                  leftIcon={isActive ? <span>✓</span> : undefined}
-                >
-                  {localizedThemeText(themeOption.label, language)}
-                  {isActive && (
-                    <Badge colorScheme={themeOption.previewColorScheme} ml={2} fontSize="xs">
-                      {copy.settings.active}
-                    </Badge>
-                  )}
-                </Button>
-              );
-            })}
-          </HStack>
-
-          <Box
-            mt={4}
-            p={3}
-            borderRadius="md"
-            bg="surfaceMutedBg"
-            borderWidth="1px"
-            borderColor="borderSubtle"
-            backgroundImage={activeThemeDefinition.colors.backgroundImage}
-            backgroundSize={activeThemeDefinition.colors.backgroundImage ? '120px 120px' : undefined}
-            data-testid="theme-preview"
-          >
-            <Text fontSize="sm" color="textMuted">
-              {copy.settings.currentTheme}:{' '}
-              <Text as="span" fontWeight="semibold" textTransform="capitalize">
-                {localizedThemeText(activeThemeDefinition.label, language)}
-              </Text>
-            </Text>
-            <Text fontSize="xs" color="textMuted" mt={1}>
-              {localizedThemeText(activeThemeDefinition.description, language)}
-            </Text>
-          </Box>
-        </Box>
-
-        <Divider />
-
-        {/* Language */}
-        <Box>
-          <Heading as="h2" size="md" mb={1}>
-            {copy.settings.languageHeading}
-          </Heading>
-          <Text fontSize="sm" color="textMuted" mb={4}>
-            {copy.settings.languageDescription}
-          </Text>
-
-          <HStack spacing={4} flexWrap="wrap">
-            {(['en', 'de'] as const).map((option) => (
-              <Button
-                key={option}
-                variant={language === option ? 'solid' : 'outline'}
-                onClick={() => setLanguage(option)}
-                size="lg"
-              >
-                {copy.languageNames[option]}
-                {language === option && (
-                  <Badge ml={2} fontSize="xs">
-                    {copy.settings.active}
-                  </Badge>
-                )}
-              </Button>
-            ))}
-          </HStack>
         </Box>
 
         {/* Backup hint — shown when the identity seed phrase hasn't been backed up */}

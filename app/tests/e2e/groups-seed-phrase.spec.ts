@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { clearAppState } from './helpers/clear-state';
+import { openAdvancedSettings } from './helpers/settings';
 
 test.describe('Seed Phrase Backup & Restore', () => {
   test.beforeEach(async ({ page }) => {
@@ -10,6 +11,7 @@ test.describe('Seed Phrase Backup & Restore', () => {
 
   test('Generate 12-word mnemonic', async ({ page }) => {
     await page.goto('/settings/');
+    await openAdvancedSettings(page);
     await expect(page.getByTestId('identity-npub-display')).toBeVisible({ timeout: 30_000 });
 
     // Click generate backup phrase
@@ -25,6 +27,7 @@ test.describe('Seed Phrase Backup & Restore', () => {
 
   test('Confirm backup flow', async ({ page }) => {
     await page.goto('/settings/');
+    await openAdvancedSettings(page);
     await expect(page.getByTestId('identity-npub-display')).toBeVisible({ timeout: 30_000 });
 
     await page.getByTestId('generate-backup-phrase-btn').click();
@@ -41,6 +44,7 @@ test.describe('Seed Phrase Backup & Restore', () => {
   test('Restore identity on fresh context', async ({ page, browser }) => {
     // First: generate identity and get the mnemonic
     await page.goto('/settings/');
+    await openAdvancedSettings(page);
     await expect(page.getByTestId('identity-npub-display')).toBeVisible({ timeout: 30_000 });
     const originalNpub = await page.getByTestId('identity-npub-display').textContent();
 
@@ -64,7 +68,9 @@ test.describe('Seed Phrase Backup & Restore', () => {
     await restoreInput.fill(mnemonic!.trim());
     await newPage.getByTestId('restore-identity-btn').click();
 
-    // Verify same npub — wait for the display to update to the restored identity
+    // Verify same npub — wait for the display to update to the restored identity.
+    // The npub lives under Advanced Settings, so expand that region first.
+    await openAdvancedSettings(newPage);
     await expect(newPage.getByTestId('identity-npub-display')).toHaveText(originalNpub!, { timeout: 30_000 });
 
     await newContext.close();

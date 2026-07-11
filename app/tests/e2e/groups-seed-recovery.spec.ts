@@ -1,6 +1,7 @@
 import { test, expect, BrowserContext, Page } from '@playwright/test';
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay, dismissErrorOverlay } from './helpers/dismiss-error-overlay';
+import { openAdvancedSettings } from './helpers/settings';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
@@ -42,6 +43,7 @@ test.describe.serial('Seed phrase recovery — profile and groups', () => {
 
     // Navigate to settings to verify identity and generate backup
     await pageA.goto('/settings/');
+    await openAdvancedSettings(pageA);
     await expect(pageA.getByTestId('identity-npub-display')).toBeVisible({ timeout: 30_000 });
     originalNpub = (await pageA.getByTestId('identity-npub-display').textContent()) ?? '';
 
@@ -88,6 +90,7 @@ test.describe.serial('Seed phrase recovery — profile and groups', () => {
 
     try {
       await freshPage.goto('/settings/');
+      await openAdvancedSettings(freshPage);
       await expect(freshPage.getByTestId('identity-npub-display')).toBeVisible({ timeout: 30_000 });
 
       // Wait for auto-generated identity to finish initializing (NDK connects to relay)

@@ -37,8 +37,9 @@ import PendingRequestsSection from '@/src/components/groups/PendingRequestsSecti
 import PendingInvitations from '@/src/components/groups/PendingInvitations';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
 import GroupChat from '@/src/components/groups/GroupChat';
-// Voice/video calls temporarily disabled — icons commented out, feature code retained.
-// import { GroupCallToolbar } from '@/src/components/calls/CallToolbar';
+// Voice/video calls are gated behind the CALLS_ENABLED feature toggle.
+import { GroupCallToolbar } from '@/src/components/calls/CallToolbar';
+import { CALLS_ENABLED } from '@/src/config/features';
 import { ChatStoreProvider, useChatStore } from '@/src/context/ChatStoreContext';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { PollStoreProvider } from '@/src/context/PollStoreContext';
@@ -454,15 +455,15 @@ function GroupDetailView({ id }: { id: string }) {
                 {copy.groups.chatHeading}
               </Heading>
               <HStack spacing={2}>
-                {/* Voice/video call icons temporarily disabled (feature code retained).
-                {pubkeyHex && (
+                {/* Voice/video call icons — rendered only while the call
+                    feature is enabled (CALLS_ENABLED); code retained when off. */}
+                {CALLS_ENABLED && pubkeyHex && (
                   <GroupCallToolbar
                     groupId={group.id}
                     memberPubkeys={group.memberPubkeys}
                     ownPubkeyHex={pubkeyHex}
                   />
                 )}
-                */}
                 <Button
                   size="xs"
                   variant="ghost"

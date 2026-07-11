@@ -24,8 +24,9 @@ import {
 import ThemeIcon from '@/src/components/ThemeIcon';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import ContactChat from '@/src/components/contacts/ContactChat';
-// Voice/video calls temporarily disabled — icons commented out, feature code retained.
-// import { ContactCallToolbar } from '@/src/components/calls/CallToolbar';
+// Voice/video calls are gated behind the CALLS_ENABLED feature toggle.
+import { ContactCallToolbar } from '@/src/components/calls/CallToolbar';
+import { CALLS_ENABLED } from '@/src/config/features';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
@@ -322,9 +323,9 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
             </Text>
           </Box>
           <HStack spacing={2}>
-            {/* Voice/video call icons temporarily disabled (feature code retained).
-            <ContactCallToolbar peerPubkeyHex={contact.pubkeyHex} />
-            */}
+            {/* Voice/video call icons — rendered only while the call feature
+                is enabled (CALLS_ENABLED); feature code retained when off. */}
+            {CALLS_ENABLED && <ContactCallToolbar peerPubkeyHex={contact.pubkeyHex} />}
           </HStack>
         </Flex>
         {contact.isArchived ? (

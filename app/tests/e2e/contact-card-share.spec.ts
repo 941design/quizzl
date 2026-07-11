@@ -17,6 +17,7 @@
 import { test, expect } from '@playwright/test';
 import { USER_A, computeTestKeypairs } from './helpers/auth-helpers';
 import { bootIdentity } from './helpers/contact-card';
+import { openAdvancedSettings } from './helpers/settings';
 
 test.describe('Share contact card (AC-UX-4)', () => {
   test.beforeAll(async () => {
@@ -57,6 +58,7 @@ test.describe('Share contact card (AC-UX-4)', () => {
     const { context, page } = await bootIdentity(browser, USER_A, 'Shariah');
 
     await page.goto('/settings');
+    await openAdvancedSettings(page);
     await expect(page.getByTestId('identity-npub-display')).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('show-own-npub-qr-btn').click();
 

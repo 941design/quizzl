@@ -32,14 +32,18 @@ import {
   Switch,
 } from '@chakra-ui/react';
 import Head from 'next/head';
-import { useCopy } from '@/src/context/LanguageContext';
+import { useCopy, useLanguage } from '@/src/context/LanguageContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
+import { useAppTheme } from '@/src/hooks/useMoodTheme';
+import { listThemes } from '@/src/lib/theme';
+import type { AppThemeName } from '@/src/lib/theme';
 import NpubQrButton from '@/src/components/groups/NpubQrButton';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { truncateNpub, derivePublicKeyHex } from '@/src/lib/nostrKeys';
 import { useProfile } from '@/src/context/ProfileContext';
-import { STORAGE_KEYS, DEFAULT_RELAYS } from '@/src/types';
+import { STORAGE_KEYS, DEFAULT_RELAYS, type LanguageCode } from '@/src/types';
 import { MAINTAINER_ACTIVE_PUBKEY_HEX } from '@/src/config/maintainer';
+import { CALLS_ENABLED } from '@/src/config/features';
 import { getEffectiveRelays, saveRelays, isValidRelayUrl } from '@/src/lib/relay';
 import { applyRelayChangesToPool, getNdk } from '@/src/lib/ndkClient';
 import { useMarmot } from '@/src/context/MarmotContext';
@@ -55,6 +59,15 @@ import {
 /** Sanitize a relay URL into a safe testid fragment */
 function relayTestId(url: string): string {
   return url.replace(/[^a-zA-Z0-9]/g, '-');
+}
+
+/**
+ * Resolves a theme manifest's `{ en; de? }` localized-text field for the
+ * current language, falling back to `en` when `de` is absent (AC-UX-3 /
+ * spec.md Implementation Constraint 10 — "de falls back to en").
+ */
+function localizedThemeText(text: { en: string; de?: string }, language: LanguageCode): string {
+  return language === 'de' ? text.de ?? text.en : text.en;
 }
 
 /** Map NDK relay status enum values to a display label category */
@@ -93,6 +106,8 @@ export default function SettingsPage() {
     disconnectNip07,
   } = useNostrIdentity();
   const { profile: savedProfile, saveProfile } = useProfile();
+  const { language, setLanguage } = useLanguage();
+  const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
   const { republishDiscoverability } = useMarmot();
   const ownQrDisclosure = useDisclosure();
   const advancedDisclosure = useDisclosure();
@@ -524,6 +539,91 @@ export default function SettingsPage() {
             </Box>
           ) : null}
 
+          {/* Theme Section */}
+          <Box>
+            <Heading as="h2" size="md" mb={1}>
+              {copy.settings.themeHeading}
+            </Heading>
+            <Text fontSize="sm" color="textMuted" mb={4}>
+              {copy.settings.themeDescription}
+            </Text>
+
+            <HStack spacing={4} flexWrap="wrap">
+              {listThemes().map((themeOption) => {
+                const isActive = themeName === themeOption.id;
+                return (
+                  <Button
+                    key={themeOption.id}
+                    variant={isActive ? 'solid' : 'outline'}
+                    colorScheme={themeOption.previewColorScheme}
+                    onClick={() => setTheme(themeOption.id as AppThemeName)}
+                    data-testid={`theme-${themeOption.id}-btn`}
+                    size="lg"
+                    leftIcon={isActive ? <span>✓</span> : undefined}
+                  >
+                    {localizedThemeText(themeOption.label, language)}
+                    {isActive && (
+                      <Badge colorScheme={themeOption.previewColorScheme} ml={2} fontSize="xs">
+                        {copy.settings.active}
+                      </Badge>
+                    )}
+                  </Button>
+                );
+              })}
+            </HStack>
+
+            <Box
+              mt={4}
+              p={3}
+              borderRadius="md"
+              bg="surfaceMutedBg"
+              borderWidth="1px"
+              borderColor="borderSubtle"
+              backgroundImage={activeThemeDefinition.colors.backgroundImage}
+              backgroundSize={activeThemeDefinition.colors.backgroundImage ? '120px 120px' : undefined}
+              data-testid="theme-preview"
+            >
+              <Text fontSize="sm" color="textMuted">
+                {copy.settings.currentTheme}:{' '}
+                <Text as="span" fontWeight="semibold" textTransform="capitalize">
+                  {localizedThemeText(activeThemeDefinition.label, language)}
+                </Text>
+              </Text>
+              <Text fontSize="xs" color="textMuted" mt={1}>
+                {localizedThemeText(activeThemeDefinition.description, language)}
+              </Text>
+            </Box>
+          </Box>
+
+          {/* Language Section */}
+          <Box>
+            <Heading as="h2" size="md" mb={1}>
+              {copy.settings.languageHeading}
+            </Heading>
+            <Text fontSize="sm" color="textMuted" mb={4}>
+              {copy.settings.languageDescription}
+            </Text>
+
+            <HStack spacing={4} flexWrap="wrap">
+              {(['en', 'de'] as const).map((option) => (
+                <Button
+                  key={option}
+                  variant={language === option ? 'solid' : 'outline'}
+                  onClick={() => setLanguage(option)}
+                  data-testid={`language-${option}-btn`}
+                  size="lg"
+                >
+                  {copy.languageNames[option]}
+                  {language === option && (
+                    <Badge ml={2} fontSize="xs">
+                      {copy.settings.active}
+                    </Badge>
+                  )}
+                </Button>
+              ))}
+            </HStack>
+          </Box>
+
           {/* Nostr Identity Section */}
           <Box>
             <Heading as="h2" size="md" mb={1}>
@@ -535,48 +635,6 @@ export default function SettingsPage() {
 
             {identityHydrated && npub ? (
               <VStack align="stretch" spacing={5}>
-                {/* npub display */}
-                <Box>
-                  <Text fontSize="sm" color="textMuted" mb={1}>
-                    {copy.identity.npubLabel}
-                  </Text>
-                  <HStack spacing={3} flexWrap="wrap">
-                    <Code
-                      fontSize="sm"
-                      px={3}
-                      py={2}
-                      borderRadius="md"
-                      bg="surfaceMutedBg"
-                      userSelect="all"
-                      data-testid="identity-npub-display"
-                    >
-                      {truncateNpub(npub)}
-                    </Code>
-                    <NpubQrButton
-                      label={copy.identity.showQr}
-                      onClick={ownQrDisclosure.onOpen}
-                      data-testid="show-own-npub-qr-btn"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleCopyNpub}
-                      data-testid="copy-npub-btn"
-                    >
-                      {npubCopied ? copy.identity.copiedNpub : copy.identity.copyNpub}
-                    </Button>
-                  </HStack>
-                </Box>
-
-                <NpubQrModal
-                  isOpen={ownQrDisclosure.isOpen}
-                  onClose={ownQrDisclosure.onClose}
-                  title={copy.identity.qrModalTitle}
-                  mode="display"
-                  npub={npub}
-                  qrErrorMessage={copy.identity.qrGenerationError}
-                />
-
                 {/* Backup Section — only shown in local signer mode */}
                 {isLocalMode && (
                   <Box>
@@ -718,6 +776,51 @@ export default function SettingsPage() {
             </HStack>
             <Collapse in={advancedDisclosure.isOpen} animateOpacity>
               <Box pt={4}>
+                {/* npub (public key) — a technical identity detail, shown here
+                    under Advanced. Backup/restore live in the Identity section. */}
+                {identityHydrated && npub && (
+                  <Box mb={6} pb={4} borderBottom="1px solid" borderColor="borderSubtle">
+                    <Text fontSize="sm" color="textMuted" mb={1}>
+                      {copy.identity.npubLabel}
+                    </Text>
+                    <HStack spacing={3} flexWrap="wrap">
+                      <Code
+                        fontSize="sm"
+                        px={3}
+                        py={2}
+                        borderRadius="md"
+                        bg="surfaceMutedBg"
+                        userSelect="all"
+                        data-testid="identity-npub-display"
+                      >
+                        {truncateNpub(npub)}
+                      </Code>
+                      <NpubQrButton
+                        label={copy.identity.showQr}
+                        onClick={ownQrDisclosure.onOpen}
+                        data-testid="show-own-npub-qr-btn"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCopyNpub}
+                        data-testid="copy-npub-btn"
+                      >
+                        {npubCopied ? copy.identity.copiedNpub : copy.identity.copyNpub}
+                      </Button>
+                    </HStack>
+
+                    <NpubQrModal
+                      isOpen={ownQrDisclosure.isOpen}
+                      onClose={ownQrDisclosure.onClose}
+                      title={copy.identity.qrModalTitle}
+                      mode="display"
+                      npub={npub}
+                      qrErrorMessage={copy.identity.qrGenerationError}
+                    />
+                  </Box>
+                )}
+
                 {/* Relay management */}
                 <Heading as="h3" size="sm" mb={3}>
                   {copy.advanced.relays.sectionTitle}
@@ -1110,7 +1213,10 @@ export default function SettingsPage() {
 
                 {/* Call connectivity (TURN relay + IP privacy) — advanced
                     networking knobs; calls work out of the box on the
-                    openrelayproject default, so this lives under Advanced. */}
+                    openrelayproject default, so this lives under Advanced.
+                    Hidden while the call feature is disabled (CALLS_ENABLED):
+                    the components are retained, just not rendered. */}
+                {CALLS_ENABLED && (
                 <Box
                   mt={6}
                   pt={4}
@@ -1189,6 +1295,7 @@ export default function SettingsPage() {
                     </Box>
                   </VStack>
                 </Box>
+                )}
 
                 {/* Danger Zone */}
                 <Box mt={6} pt={4} borderTop="1px solid" borderColor="red.200">

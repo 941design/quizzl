@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { clearAppState } from './helpers/clear-state';
 import { queryRelayForEvents } from './helpers/relay-query';
+import { openAdvancedSettings } from './helpers/settings';
 
 test.describe('Groups Identity', () => {
   test.beforeEach(async ({ page }) => {
@@ -13,6 +14,7 @@ test.describe('Groups Identity', () => {
     await page.goto('/');
     // Wait for identity to init, then navigate to settings
     await page.goto('/settings/');
+    await openAdvancedSettings(page);
     const npubDisplay = page.getByTestId('identity-npub-display');
     await expect(npubDisplay).toBeVisible({ timeout: 30_000 });
     const npubText = await npubDisplay.textContent();
@@ -30,6 +32,7 @@ test.describe('Groups Identity', () => {
     // Give identity init + any (forbidden) background publish ample time to fire.
     await page.waitForTimeout(5_000);
     await page.goto('/settings/');
+    await openAdvancedSettings(page);
     const npubDisplay = page.getByTestId('identity-npub-display');
     await expect(npubDisplay).toBeVisible({ timeout: 30_000 });
 
@@ -72,11 +75,13 @@ test.describe('Groups Identity', () => {
 
   test('Identity persists across reload', async ({ page }) => {
     await page.goto('/settings/');
+    await openAdvancedSettings(page);
     const npubDisplay = page.getByTestId('identity-npub-display');
     await expect(npubDisplay).toBeVisible({ timeout: 30_000 });
     const npubBefore = await npubDisplay.textContent();
 
     await page.reload();
+    await openAdvancedSettings(page);
     await expect(npubDisplay).toBeVisible({ timeout: 30_000 });
     const npubAfter = await npubDisplay.textContent();
 

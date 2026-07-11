@@ -12,10 +12,10 @@ test.describe('Story 08: Theme Settings', () => {
   });
 
   test('1. Settings page renders the aquarelle theme button (the only shipped theme)', async ({ page }) => {
-    await page.goto('/profile');
+    await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    const settingsPage = page.getByTestId('profile-page');
+    const settingsPage = page.getByTestId('settings-page');
     await expect(settingsPage).toBeVisible();
 
     // aquarelle is the only shipped theme; its button is present and the
@@ -27,7 +27,7 @@ test.describe('Story 08: Theme Settings', () => {
   });
 
   test('2. Selecting the aquarelle theme persists in localStorage', async ({ page }) => {
-    await page.goto('/profile');
+    await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
     await page.getByTestId('theme-aquarelle-btn').click();
@@ -44,7 +44,7 @@ test.describe('Story 08: Theme Settings', () => {
   });
 
   test('3. Theme setting persists after page reload', async ({ page }) => {
-    await page.goto('/profile');
+    await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
     await page.getByTestId('theme-aquarelle-btn').click();
@@ -70,7 +70,7 @@ test.describe('Story 08: Theme Settings', () => {
     await page.evaluate(() =>
       localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'minecraft', language: 'en' })),
     );
-    await page.goto('/profile');
+    await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByTestId('theme-preview')).toContainText('Aquarelle');
