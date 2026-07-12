@@ -13,6 +13,7 @@ import Head from 'next/head';
 import NextLink from 'next/link';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
+import HeroAccents from '@/src/components/HeroAccents';
 
 export default function HomePage() {
   const copy = useCopy();
@@ -52,8 +53,13 @@ export default function HomePage() {
         <meta name="description" content={copy.home.description} />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
-      <Box>
-        <VStack spacing={8} py={16}>
+      {/* Start-page hero over a few large themed watercolor accents (shared
+          with the theme-preview hero via HeroAccents). The wrapper is
+          position:relative + overflow:hidden so the accents bleed to the
+          edges and clip cleanly. */}
+      <Box position="relative" overflow="hidden" borderRadius="2xl" px={{ base: 4, md: 8 }}>
+        <HeroAccents />
+        <VStack spacing={8} py={16} position="relative" zIndex={1}>
           <Heading as="h1" size="2xl" textAlign="center">
             {copy.home.title}
           </Heading>

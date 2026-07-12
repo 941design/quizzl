@@ -31,28 +31,14 @@ import {
   VStack,
   Wrap,
 } from '@chakra-ui/react';
-import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import ThemeIcon from '@/src/components/ThemeIcon';
+import HeroAccents from '@/src/components/HeroAccents';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useAppTheme } from '@/src/hooks/useMoodTheme';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 import { listThemes } from '@/src/lib/theme';
-import { DYNAMIC_GENERATORS } from '@/src/themes/treatments/dynamicVisuals';
 import type { AppThemeName } from '@/src/types';
-
-/**
- * Wraps an SVG string as a CSS `url(...)` data-URI value. Base64 (not
- * percent-encoding) because a watercolor SVG contains raw `)`/`#`/`,`
- * (e.g. `filter: url(#edge-…)`) that break CSS `url()` parsing. SSR-safe.
- */
-function svgToDataUri(svg: string): string {
-  const base64 =
-    typeof window !== 'undefined'
-      ? window.btoa(unescape(encodeURIComponent(svg)))
-      : Buffer.from(svg, 'utf8').toString('base64');
-  return `url("data:image/svg+xml;base64,${base64}")`;
-}
 
 /** Small caption that names which token(s) a block is demonstrating. */
 function TokenLabel({ children }: { children: React.ReactNode }) {
@@ -109,38 +95,9 @@ export default function ThemePreviewPage() {
   }
 
   const copy = useCopy();
-  const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
+  const { themeName, setTheme } = useAppTheme();
   const { cardStyle, surfaceStyle, buttonStyle } = useThemeStyles();
 
-  // A FEW large soft themed watercolor blobs used as decorative accents around
-  // the start-page hero — NOT a full-cover wash. Only the theme's COLOUR
-  // identity (dyn.style) and a transparent base are pinned; zones and every
-  // shape parameter are left to the ink library's own randomizeParams() (zones
-  // 2-5, overlap/zoneSize/halo/splatter/grain/smoothness/…), so each blob
-  // differs in zone count and shape rather than looking locked to one preset.
-  // Regenerated whenever the active theme changes (client-only).
-  const [heroBlobs, setHeroBlobs] = useState<string[]>([]);
-  useEffect(() => {
-    const dyn = activeThemeDefinition.treatments.dynamic?.banner;
-    if (!dyn) {
-      setHeroBlobs([]);
-      return;
-    }
-    const transparentBase = `${activeThemeDefinition.colors.appBg}00`;
-    try {
-      setHeroBlobs(
-        [0, 1, 2].map(() =>
-          DYNAMIC_GENERATORS.watercolor(dyn.style, 'banner', {
-            baseColor: transparentBase, // soft accents, not an opaque square
-            width: 600,
-            height: 600,
-          }),
-        ),
-      );
-    } catch {
-      setHeroBlobs([]);
-    }
-  }, [themeName, activeThemeDefinition]);
   // buttonStyle is a BoxProps bag (elevation treatment); Chakra's Button typing
   // rejects a few DOM-handler keys (e.g. onToggle) from a raw BoxProps spread,
   // so funnel it through `sx` for the preview rather than spreading it.
@@ -200,80 +157,9 @@ export default function ThemePreviewPage() {
           px={{ base: 6, md: 12 }}
           py={{ base: 10, md: 16 }}
         >
-          {/* A few large soft themed blobs as decorative accents (not a full
-              wash). mix-blend multiply composites the transparent-base washes
-              onto appBg, exactly how the app header banner composites. Each is
-              set via the RAW DOM `style` — Chakra drops data-URI backgrounds. */}
-          {heroBlobs[0] && (
-            <Box
-              aria-hidden
-              position="absolute"
-              top="-26%"
-              left="-12%"
-              opacity={0.6}
-              w={{ base: '220px', md: '400px' }}
-              h={{ base: '220px', md: '400px' }}
-              pointerEvents="none"
-              style={{
-                backgroundImage: svgToDataUri(heroBlobs[0]),
-                backgroundSize: 'contain',
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'center',
-                mixBlendMode: 'multiply',
-                // Fade the square canvas edges to transparency so each accent
-                // reads as a soft organic blob rather than a tinted square.
-                maskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
-                WebkitMaskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
-              }}
-            />
-          )}
-          {heroBlobs[1] && (
-            <Box
-              aria-hidden
-              position="absolute"
-              bottom="-28%"
-              right="-12%"
-              opacity={0.6}
-              w={{ base: '280px', md: '500px' }}
-              h={{ base: '280px', md: '500px' }}
-              pointerEvents="none"
-              style={{
-                backgroundImage: svgToDataUri(heroBlobs[1]),
-                backgroundSize: 'contain',
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'center',
-                mixBlendMode: 'multiply',
-                // Fade the square canvas edges to transparency so each accent
-                // reads as a soft organic blob rather than a tinted square.
-                maskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
-                WebkitMaskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
-              }}
-            />
-          )}
-          {heroBlobs[2] && (
-            <Box
-              aria-hidden
-              position="absolute"
-              bottom="-24%"
-              left="-8%"
-              opacity={0.6}
-              display={{ base: 'none', md: 'block' }}
-              w="300px"
-              h="300px"
-              pointerEvents="none"
-              style={{
-                backgroundImage: svgToDataUri(heroBlobs[2]),
-                backgroundSize: 'contain',
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'center',
-                mixBlendMode: 'multiply',
-                // Fade the square canvas edges to transparency so each accent
-                // reads as a soft organic blob rather than a tinted square.
-                maskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
-                WebkitMaskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
-              }}
-            />
-          )}
+          {/* A few large soft themed watercolor blobs framing the section
+              (shared with the real start page — see HeroAccents). */}
+          <HeroAccents />
 
           <VStack position="relative" spacing={8} maxW="680px" mx="auto" textAlign="center">
             <VStack spacing={5}>
