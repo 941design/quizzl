@@ -3,7 +3,6 @@ import { CARD_ELEVATION, BUTTON_ELEVATION, NAV_ELEVATION, CONTENT_PANEL_STYLES }
 import { ICON_SETS, resolveIconId } from '@/src/themes/treatments/iconSets';
 import { SURFACE_PATTERNS } from '@/src/themes/treatments/patterns';
 import { DYNAMIC_GENERATORS, type StyleToken } from '@/src/themes/treatments/dynamicVisuals';
-import { manifest as aquarelleManifest } from '@/src/themes/aquarelle/manifest';
 
 describe('themes/treatments/elevation', () => {
   it('resolves every ElevationName to a BoxProps object for each surface map', () => {
@@ -204,71 +203,5 @@ describe('themes/treatments/dynamicVisuals', () => {
     const svg = DYNAMIC_GENERATORS.watercolor(STYLE, 'banner');
     expect(svg).toMatch(/^<svg[^>]*viewBox="0 0 \d+ \d+"[^>]*>/);
     expect(svg.trim().endsWith('</svg>')).toBe(true);
-  });
-});
-
-// S9 (dynamic-theme-visuals epic, Phase B): AC-PERF-3 regression guard
-// (VQ-S9-004). AC-PERF-3 itself ("on a low-end mobile profile, banner
-// generation + paint MUST stay within an agreed budget") is a real-device/
-// real-browser measurement concern, not something a jsdom-less unit test can
-// exercise directly — see specs/epic-dynamic-theme-visuals/
-// S9-performance-validation/result.json for that measurement's methodology
-// and honest limitations. This block is NARROWER and MECHANICAL: it reads
-// aquarelle's ACTUAL manifest-declared `render` lite-preset knobs (never a
-// hardcoded copy, so a future edit to the manifest is exactly what this
-// tests) and asserts real (non-mocked) `DYNAMIC_GENERATORS.watercolor` calls
-// at those knobs stay inside the tuned <path>-count/byte-size band. This is
-// a regression guard against the knob values silently drifting back toward
-// S8's original oversized/unbounded output — it does not substitute for the
-// real-device measurement itself.
-describe('S9 regression guard (AC-PERF-3): aquarelle lite-preset render knobs', () => {
-  const dynamicBanner = aquarelleManifest.treatments.dynamic?.banner;
-  // Fails loudly (not silently skips) if a future edit ever removes
-  // aquarelle's treatments.dynamic.banner declaration entirely — this guard
-  // has nothing to check without it.
-  if (!dynamicBanner) {
-    throw new Error('aquarelle manifest no longer declares treatments.dynamic.banner — this regression guard is stale');
-  }
-  const { style, render } = dynamicBanner;
-
-  // The live full-header fill preset (zones:5 + halo:8) emits a DETERMINISTIC
-  // 20 <path> elements: zones*layers = 15 wash paths + one halo path per zone
-  // (5) = 20, zero <circle> (splatter:0). Measured empirically at 26.8-28.7 KB
-  // over 40 real draws at both the 420x96 default and a 1280-wide header; this
-  // band leaves comfortable margin for the engine's continuous-parameter
-  // jitter (spreadH/spreadV/zoneSize/grain/bleed/accent, all unpinned).
-  const DYN_PATHS = 20;
-  const DYN_MIN_BYTES = 20_000;
-  const DYN_MAX_BYTES = 34_000;
-  // The FROZEN static fallback is the legacy S8 zones:2 capture (6 paths,
-  // ~8.5 KB), intentionally NOT regenerated to the fuller live preset — it is
-  // preserved captured provenance. On a (rare) generation failure the header
-  // therefore shows the legacy sparse art stretched to full width.
-  const STATIC_PATHS = 6;
-  const STATIC_MIN_BYTES = 6_000;
-  const STATIC_MAX_BYTES = 15_360;
-
-  it('render knobs fix <path> count at exactly 20 (zones*layers + one halo path per zone) across repeated real draws, with zero <circle> elements', () => {
-    for (let i = 0; i < 10; i++) {
-      const svg = DYNAMIC_GENERATORS.watercolor(style, 'banner', render);
-      expect((svg.match(/<path /g) ?? []).length, `draw ${i}`).toBe(DYN_PATHS);
-      expect((svg.match(/<circle /g) ?? []).length, `draw ${i}`).toBe(0);
-    }
-  });
-
-  it('render knobs keep real output inside the tuned ~20-34 KB size band across repeated real draws', () => {
-    for (let i = 0; i < 10; i++) {
-      const svg = DYNAMIC_GENERATORS.watercolor(style, 'banner', render);
-      expect(svg.length, `draw ${i}: ${svg.length} bytes`).toBeGreaterThanOrEqual(DYN_MIN_BYTES);
-      expect(svg.length, `draw ${i}: ${svg.length} bytes`).toBeLessThanOrEqual(DYN_MAX_BYTES);
-    }
-  });
-
-  it("aquarelle's frozen static treatments.banner fallback is the LEGACY zones:2 capture (6 paths, ~8.5 KB) — intentionally preserved and NOT regenerated to the fuller live preset, so it diverges from the dynamic knobs by design (the failure-only fallback shows the legacy art)", () => {
-    const staticBanner = aquarelleManifest.treatments.banner;
-    expect((staticBanner.match(/<path /g) ?? []).length).toBe(STATIC_PATHS);
-    expect((staticBanner.match(/<circle /g) ?? []).length).toBe(0);
-    expect(staticBanner.length).toBeGreaterThanOrEqual(STATIC_MIN_BYTES);
-    expect(staticBanner.length).toBeLessThanOrEqual(STATIC_MAX_BYTES);
   });
 });

@@ -1,14 +1,14 @@
 import { test, expect, type Locator } from '@playwright/test';
-import { manifest as aquarelleManifest } from '../../src/themes/aquarelle/manifest';
+import { manifest as springManifest } from '../../src/themes/spring/manifest';
 
-const THEMES = ['aquarelle'] as const;
+const THEMES = ['spring'] as const;
 
 // Mirrors useDynamicBanner.ts's private encodeSvgDataUri / useThemeStyles.ts's
 // navBannerDecor transform byte-for-byte (whitespace-collapse + trim, then
 // encodeURIComponent) so these tests can compute the EXACT CSS
-// `backgroundImage` value a real browser renders for aquarelle's frozen
+// `backgroundImage` value a real browser renders for spring's frozen
 // static fallback SVG (`treatments.banner` in
-// app/src/themes/aquarelle/manifest.ts), and reliably tell "still on the
+// app/src/themes/spring/manifest.ts), and reliably tell "still on the
 // static fallback" apart from "swapped to a freshly-generated SVG". A
 // substring/filter-id marker was rejected: the real generator draws its
 // filter-id suffix from a uniform [0, 9999) range, so over enough CI runs a
@@ -20,7 +20,7 @@ function encodeSvgDataUri(svg: string): string {
   return `url("data:image/svg+xml,${encodeURIComponent(collapsed)}")`;
 }
 
-const AQUARELLE_STATIC_BANNER_BG = encodeSvgDataUri(aquarelleManifest.treatments.banner);
+const AQUARELLE_STATIC_BANNER_BG = encodeSvgDataUri(springManifest.treatments.banner);
 
 async function readBannerBackgroundImage(decor: Locator): Promise<string> {
   return decor.evaluate((el) => getComputedStyle(el).backgroundImage);
@@ -112,7 +112,7 @@ test.describe('Nav banner decoration', () => {
     const navBox = await nav.boundingBox();
     expect(navBox).not.toBeNull();
 
-    // aquarelle (the default, and only, theme) declares a dynamic banner, so
+    // spring (the default, and only, theme) declares a dynamic banner, so
     // the decoration is the FULL-HEADER background layer (Layout's dynamic-
     // banner override), not the small corner box the removed static themes
     // used. It therefore spans the nav width — but it must be a purely
@@ -143,15 +143,15 @@ test.describe('Nav banner decoration', () => {
   }
 
   // Story S8 / MV-1, MV-2 (specs/epic-dynamic-theme-visuals/acceptance-criteria.md,
-  // epic-state.json manual_validation ledger): `aquarelle` is the first theme to
+  // epic-state.json manual_validation ledger): `spring` is the first theme to
   // declare `treatments.dynamic.banner`, so these are the first real-browser
   // assertions that the post-hydration swap and per-load non-determinism actually
   // reach the rendered DOM (not just the pure resolveDynamicBannerStyle decision
   // function this repo's jsdom-less unit suite exercises).
-  test('AC-UX-6/MV-1: aquarelle nav banner swaps to a freshly-generated SVG that differs across two separate page loads', async ({ page }) => {
+  test('AC-UX-6/MV-1: spring nav banner swaps to a freshly-generated SVG that differs across two separate page loads', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() =>
-      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'aquarelle', language: 'en' })),
+      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'spring', language: 'en' })),
     );
 
     await page.goto('/');
@@ -182,10 +182,10 @@ test.describe('Nav banner decoration', () => {
     expect(firstLoadBg).not.toBe(secondLoadBg);
   });
 
-  test('AC-A11Y-1/AC-UX-6: aquarelle nav logo scrim is present and legible against the real generated banner', async ({ page }) => {
+  test('AC-A11Y-1/AC-UX-6: spring nav logo scrim is present and legible against the real generated banner', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() =>
-      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'aquarelle', language: 'en' })),
+      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'spring', language: 'en' })),
     );
     await page.goto('/');
     await page.waitForLoadState('networkidle');
@@ -199,9 +199,9 @@ test.describe('Nav banner decoration', () => {
     await expect(logoText).toBeVisible();
   });
 
-  test('MV-2: repeatedly re-selecting the aquarelle theme live never leaves a broken/blank banner or logs an uncaught error', async ({ page }) => {
-    // The old two-theme toggle race (aquarelle <-> a static-only theme) is no
-    // longer expressible now that aquarelle is the only shipped theme. This
+  test('MV-2: repeatedly re-selecting the spring theme live never leaves a broken/blank banner or logs an uncaught error', async ({ page }) => {
+    // The old two-theme toggle race (spring <-> a static-only theme) is no
+    // longer expressible now that spring is the only shipped theme. This
     // retains the fail-soft smoke check: live in-SPA re-selection via
     // setTheme() must keep the banner valid and never throw.
     const pageErrors: string[] = [];
@@ -214,11 +214,11 @@ test.describe('Nav banner decoration', () => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    const aquarelleBtn = page.getByTestId('theme-aquarelle-btn');
-    await expect(aquarelleBtn).toBeVisible();
+    const springBtn = page.getByTestId('theme-spring-btn');
+    await expect(springBtn).toBeVisible();
 
     for (let i = 0; i < 5; i++) {
-      await aquarelleBtn.click();
+      await springBtn.click();
     }
     await page.waitForLoadState('networkidle');
 

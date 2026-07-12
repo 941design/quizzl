@@ -7,7 +7,7 @@
 // lookup path `useThemeStyles()` uses at runtime (`computeThemeStyles` takes
 // a real `AppThemeDefinition`, not a mock).
 //
-// aquarelle is the only shipped theme: its per-surface treatments are all
+// spring is the only shipped theme: its per-surface treatments are all
 // `softDrop`/`none` (which resolve to empty BoxProps) and it declares no
 // content panel, so every surface style is `{}` and `contentPanelStyle` is
 // null. The banner-decor split contract and the manifest-content check below
@@ -17,10 +17,15 @@ import { computeThemeStyles } from '@/src/hooks/useThemeStyles';
 import { APP_THEMES } from '@/src/lib/theme';
 import type { AppThemeName } from '@/src/lib/theme';
 
-const THEME_IDS: AppThemeName[] = ['aquarelle'];
+// Treatment->BoxProps resolution is theme-agnostic given identical treatment
+// values — every theme (spring + the 7 themes.json watercolors) declares
+// softDrop/none and no content panel, so spring is a sufficient
+// representative. Per-new-theme schema validation lives in
+// themes-validation.test.ts.
+const THEME_IDS: AppThemeName[] = ['spring'];
 
 // FROZEN expected per-surface BoxProps, hand-authored (never read back from
-// the treatments/* Records). aquarelle uses softDrop/none everywhere, which
+// the treatments/* Records). spring uses softDrop/none everywhere, which
 // map to empty BoxProps, and declares no content panel.
 const FROZEN: Record<
   AppThemeName,
@@ -32,7 +37,7 @@ const FROZEN: Record<
     contentPanel: Record<string, unknown> | null;
   }
 > = {
-  aquarelle: { card: {}, button: {}, nav: {}, surface: {}, contentPanel: null },
+  spring: { card: {}, button: {}, nav: {}, surface: {}, contentPanel: null },
 };
 
 describe('computeThemeStyles (AC-UX-1 / AC10): byte-identical per-theme BoxProps', () => {
@@ -53,7 +58,7 @@ describe('computeThemeStyles (AC-UX-1 / AC10): byte-identical per-theme BoxProps
     expect(result.surfaceStyle).toEqual(FROZEN[id].surface);
   });
 
-  it.each(THEME_IDS)('%s: contentPanelStyle matches the FROZEN value (null for the light aquarelle theme)', (id) => {
+  it.each(THEME_IDS)('%s: contentPanelStyle matches the FROZEN value (null for the light spring theme)', (id) => {
     const result = computeThemeStyles(APP_THEMES[id]);
     expect(result.contentPanelStyle).toEqual(FROZEN[id].contentPanel);
   });
@@ -62,15 +67,15 @@ describe('computeThemeStyles (AC-UX-1 / AC10): byte-identical per-theme BoxProps
     // Proves computeThemeStyles genuinely reads the manifest rather than
     // returning a constant — a raw override must flow into the output.
     const withOverride = {
-      ...APP_THEMES.aquarelle,
+      ...APP_THEMES.spring,
       treatments: {
-        ...APP_THEMES.aquarelle.treatments,
+        ...APP_THEMES.spring.treatments,
         overrides: { card: { borderWidth: '5px' } },
       },
     };
     const result = computeThemeStyles(withOverride);
     expect(result.cardStyle).toEqual({ borderWidth: '5px' });
-    expect(result.cardStyle).not.toEqual(computeThemeStyles(APP_THEMES.aquarelle).cardStyle);
+    expect(result.cardStyle).not.toEqual(computeThemeStyles(APP_THEMES.spring).cardStyle);
   });
 
   describe('bannerDecorStyle: boxProps/style split hard contract', () => {

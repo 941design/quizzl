@@ -48,14 +48,14 @@ const TREATMENTS_TEST_PATH = path.resolve(TEST_FILE_DIR, '../themes/treatments.t
 
 const STYLE_TOKEN: StyleToken = { anchorHue: 200, scheme: 'triadic', saturation: 60, lightness: 50 };
 
-// aquarelle is the only shipped theme and it DOES declare a
+// spring is the only shipped theme and it DOES declare a
 // `treatments.dynamic.banner`, so derive a static-only variant (its dynamic
 // declaration stripped) to exercise the no-dynamic path.
-const { dynamic: _aquarelleDynamic, ...AQUARELLE_TREATMENTS_STATIC } = APP_THEMES.aquarelle.treatments;
+const { dynamic: _springDynamic, ...AQUARELLE_TREATMENTS_STATIC } = APP_THEMES.spring.treatments;
 
-/** A real theme manifest with no `treatments.dynamic` declared (aquarelle, dynamic stripped). */
+/** A real theme manifest with no `treatments.dynamic` declared (spring, dynamic stripped). */
 const STATIC_ONLY: AppThemeDefinition = {
-  ...APP_THEMES.aquarelle,
+  ...APP_THEMES.spring,
   treatments: AQUARELLE_TREATMENTS_STATIC,
 };
 
@@ -223,7 +223,7 @@ describe('AC-PERF-1: reserved box dimensions are unchanged before/after the swap
 describe('AC-A11Y-1: legibility scrim guarantees brand.500 logo text meets WCAG AA (>= 4.5:1), independent of any generated image', () => {
   // Every shipped theme's REAL brand.500 hex (colors.brand[5] — SCALE_STEPS
   // in buildChakraTheme.ts: 50,100,...,900), read straight from APP_THEMES —
-  // not a hand-picked favorable example. (aquarelle is the only shipped theme
+  // not a hand-picked favorable example. (spring is the only shipped theme
   // today; the arbitrary-values test below carries the breadth.)
   const realBrand500Values = Object.values(APP_THEMES).map((def) => def.colors.brand[5]);
 
@@ -444,20 +444,20 @@ describe('AC-UX-4: static fallback renders when JS/dynamic generation is unavail
     expect(result!.style.backgroundImage).toBe(expectedDataUriFromRawBanner(def.treatments.banner));
   });
 
-  it('the no-JS fallback resolves to the manifest\'s OWN static banner, not a shared/generic placeholder — proving the decode isn\'t coincidentally matching one fixture (aquarelle vs a synthetic banner variant)', () => {
+  it('the no-JS fallback resolves to the manifest\'s OWN static banner, not a shared/generic placeholder — proving the decode isn\'t coincidentally matching one fixture (spring vs a synthetic banner variant)', () => {
     // With a single shipped theme, stand a synthetic second manifest (same
     // theme, a different static banner) next to it to prove the decode tracks
     // each manifest's own banner rather than echoing a shared constant.
     const variant: AppThemeDefinition = {
-      ...APP_THEMES.aquarelle,
+      ...APP_THEMES.spring,
       treatments: {
-        ...APP_THEMES.aquarelle.treatments,
+        ...APP_THEMES.spring.treatments,
         banner: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96"><rect fill="#abcdef" width="1" height="1"/></svg>',
       },
     };
-    const resultA = resolveDynamicBannerStyle(APP_THEMES.aquarelle, null);
+    const resultA = resolveDynamicBannerStyle(APP_THEMES.spring, null);
     const resultB = resolveDynamicBannerStyle(variant, null);
-    expect(resultA!.style.backgroundImage).toBe(expectedDataUriFromRawBanner(APP_THEMES.aquarelle.treatments.banner));
+    expect(resultA!.style.backgroundImage).toBe(expectedDataUriFromRawBanner(APP_THEMES.spring.treatments.banner));
     expect(resultB!.style.backgroundImage).toBe(expectedDataUriFromRawBanner(variant.treatments.banner));
     // Sanity: this only proves something if the two banners actually differ.
     expect(resultA!.style.backgroundImage).not.toBe(resultB!.style.backgroundImage);

@@ -11,28 +11,28 @@ test.describe('Story 08: Theme Settings', () => {
     });
   });
 
-  test('1. Settings page renders the aquarelle theme button (the only shipped theme)', async ({ page }) => {
+  test('1. Settings page renders the spring theme button (the only shipped theme)', async ({ page }) => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
     const settingsPage = page.getByTestId('settings-page');
     await expect(settingsPage).toBeVisible();
 
-    // aquarelle is the only shipped theme; its button is present and the
+    // spring is the only shipped theme; its button is present and the
     // removed themes' buttons are gone.
-    await expect(page.getByTestId('theme-aquarelle-btn')).toBeVisible();
-    for (const removed of ['calm', 'playful', 'lego', 'minecraft', 'flower']) {
+    await expect(page.getByTestId('theme-spring-btn')).toBeVisible();
+    for (const removed of ['calm', 'playful', 'lego', 'minecraft', 'flower', 'aquarelle']) {
       await expect(page.getByTestId(`theme-${removed}-btn`)).toHaveCount(0);
     }
   });
 
-  test('2. Selecting the aquarelle theme persists in localStorage', async ({ page }) => {
+  test('2. Selecting the spring theme persists in localStorage', async ({ page }) => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    await page.getByTestId('theme-aquarelle-btn').click();
+    await page.getByTestId('theme-spring-btn').click();
 
-    // Theme preview should show the aquarelle theme
+    // Theme preview should show the spring theme
     const preview = page.getByTestId('theme-preview');
     await expect(preview).toContainText('Aquarelle');
 
@@ -40,21 +40,21 @@ test.describe('Story 08: Theme Settings', () => {
     const stored = await page.evaluate(() => localStorage.getItem('lp_settings_v1'));
     expect(stored).toBeTruthy();
     const parsed = JSON.parse(stored!);
-    expect(parsed.theme).toBe('aquarelle');
+    expect(parsed.theme).toBe('spring');
   });
 
   test('3. Theme setting persists after page reload', async ({ page }) => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    await page.getByTestId('theme-aquarelle-btn').click();
+    await page.getByTestId('theme-spring-btn').click();
     await expect(page.getByTestId('theme-preview')).toContainText('Aquarelle');
 
     // Reload
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    // Should still show aquarelle
+    // Should still show spring
     await expect(page.getByTestId('theme-preview')).toContainText('Aquarelle');
   });
 
@@ -63,9 +63,9 @@ test.describe('Story 08: Theme Settings', () => {
   // state. The underlying resetAllData() logic is retained but currently unused;
   // its behavior is covered by app/tests/unit/storage.test.ts.
 
-  test('4. a deprecated/unknown stored theme name falls back to aquarelle without error', async ({ page }) => {
+  test('4. a deprecated/unknown stored theme name falls back to spring without error', async ({ page }) => {
     // A settings blob persisted before the old themes were removed must not
-    // break the app — it normalizes to aquarelle on read.
+    // break the app — it normalizes to spring on read.
     await page.goto('/');
     await page.evaluate(() =>
       localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'minecraft', language: 'en' })),
@@ -76,19 +76,19 @@ test.describe('Story 08: Theme Settings', () => {
     await expect(page.getByTestId('theme-preview')).toContainText('Aquarelle');
     const stored = await page.evaluate(() => localStorage.getItem('lp_settings_v1'));
     // Reading settings normalizes the deprecated name; once the picker writes,
-    // the persisted value is the valid aquarelle id.
-    await page.getByTestId('theme-aquarelle-btn').click();
+    // the persisted value is the valid spring id.
+    await page.getByTestId('theme-spring-btn').click();
     const afterClick = await page.evaluate(() => JSON.parse(localStorage.getItem('lp_settings_v1')!));
-    expect(afterClick.theme).toBe('aquarelle');
+    expect(afterClick.theme).toBe('spring');
     expect(stored).toBeTruthy();
   });
 
-  test('5. the light aquarelle theme renders no content panel', async ({ page }) => {
+  test('5. the light spring theme renders no content panel', async ({ page }) => {
     // Light themes paint content directly on a light appBg; the panel must not
     // appear, so the layout stays unchanged for them.
     await page.goto('/');
     await page.evaluate(() =>
-      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'aquarelle', language: 'en' })),
+      localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'spring', language: 'en' })),
     );
     await page.goto('/');
     await page.waitForLoadState('networkidle');

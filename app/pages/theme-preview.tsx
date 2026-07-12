@@ -26,15 +26,33 @@ import {
   Tag,
   Text,
   Textarea,
+  UnorderedList,
+  ListItem,
   VStack,
   Wrap,
 } from '@chakra-ui/react';
+import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import ThemeIcon from '@/src/components/ThemeIcon';
+import { useCopy } from '@/src/context/LanguageContext';
 import { useAppTheme } from '@/src/hooks/useMoodTheme';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 import { listThemes } from '@/src/lib/theme';
+import { DYNAMIC_GENERATORS } from '@/src/themes/treatments/dynamicVisuals';
 import type { AppThemeName } from '@/src/types';
+
+/**
+ * Wraps an SVG string as a CSS `url(...)` data-URI value. Base64 (not
+ * percent-encoding) because a watercolor SVG contains raw `)`/`#`/`,`
+ * (e.g. `filter: url(#edge-…)`) that break CSS `url()` parsing. SSR-safe.
+ */
+function svgToDataUri(svg: string): string {
+  const base64 =
+    typeof window !== 'undefined'
+      ? window.btoa(unescape(encodeURIComponent(svg)))
+      : Buffer.from(svg, 'utf8').toString('base64');
+  return `url("data:image/svg+xml;base64,${base64}")`;
+}
 
 /** Small caption that names which token(s) a block is demonstrating. */
 function TokenLabel({ children }: { children: React.ReactNode }) {
@@ -90,8 +108,39 @@ export default function ThemePreviewPage() {
     return null;
   }
 
-  const { themeName, setTheme } = useAppTheme();
+  const copy = useCopy();
+  const { themeName, setTheme, activeThemeDefinition } = useAppTheme();
   const { cardStyle, surfaceStyle, buttonStyle } = useThemeStyles();
+
+  // A FEW large soft themed watercolor blobs used as decorative accents around
+  // the start-page hero — NOT a full-cover wash. Only the theme's COLOUR
+  // identity (dyn.style) and a transparent base are pinned; zones and every
+  // shape parameter are left to the ink library's own randomizeParams() (zones
+  // 2-5, overlap/zoneSize/halo/splatter/grain/smoothness/…), so each blob
+  // differs in zone count and shape rather than looking locked to one preset.
+  // Regenerated whenever the active theme changes (client-only).
+  const [heroBlobs, setHeroBlobs] = useState<string[]>([]);
+  useEffect(() => {
+    const dyn = activeThemeDefinition.treatments.dynamic?.banner;
+    if (!dyn) {
+      setHeroBlobs([]);
+      return;
+    }
+    const transparentBase = `${activeThemeDefinition.colors.appBg}00`;
+    try {
+      setHeroBlobs(
+        [0, 1, 2].map(() =>
+          DYNAMIC_GENERATORS.watercolor(dyn.style, 'banner', {
+            baseColor: transparentBase, // soft accents, not an opaque square
+            width: 600,
+            height: 600,
+          }),
+        ),
+      );
+    } catch {
+      setHeroBlobs([]);
+    }
+  }, [themeName, activeThemeDefinition]);
   // buttonStyle is a BoxProps bag (elevation treatment); Chakra's Button typing
   // rejects a few DOM-handler keys (e.g. onToggle) from a raw BoxProps spread,
   // so funnel it through `sx` for the preview rather than spreading it.
@@ -106,7 +155,7 @@ export default function ThemePreviewPage() {
       </Head>
 
       <VStack align="stretch" spacing={12} py={8} maxW="1100px" mx="auto">
-        {/* ---- Theme switcher ---------------------------------------- */}
+        {/* ---- Theme switcher (the very first element) --------------- */}
         <Box>
           <Heading as="h1" size="lg" mb={1}>
             Theme preview
@@ -135,17 +184,156 @@ export default function ThemePreviewPage() {
           </Wrap>
         </Box>
 
+        {/* ---- Start-page preview (heading + sub-heading + 2 bullets + 2
+             cards) over a FEW large themed watercolor accents ---------- */}
+        <Box
+          as="section"
+          data-testid="theme-preview-hero"
+          position="relative"
+          overflow="hidden"
+          w="full"
+          bg="appBg"
+          minH={{ base: '460px', md: '520px' }}
+          borderRadius="2xl"
+          borderWidth="1px"
+          borderColor="borderSubtle"
+          px={{ base: 6, md: 12 }}
+          py={{ base: 10, md: 16 }}
+        >
+          {/* A few large soft themed blobs as decorative accents (not a full
+              wash). mix-blend multiply composites the transparent-base washes
+              onto appBg, exactly how the app header banner composites. Each is
+              set via the RAW DOM `style` — Chakra drops data-URI backgrounds. */}
+          {heroBlobs[0] && (
+            <Box
+              aria-hidden
+              position="absolute"
+              top="-26%"
+              left="-12%"
+              opacity={0.6}
+              w={{ base: '220px', md: '400px' }}
+              h={{ base: '220px', md: '400px' }}
+              pointerEvents="none"
+              style={{
+                backgroundImage: svgToDataUri(heroBlobs[0]),
+                backgroundSize: 'contain',
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'center',
+                mixBlendMode: 'multiply',
+                // Fade the square canvas edges to transparency so each accent
+                // reads as a soft organic blob rather than a tinted square.
+                maskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
+                WebkitMaskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
+              }}
+            />
+          )}
+          {heroBlobs[1] && (
+            <Box
+              aria-hidden
+              position="absolute"
+              bottom="-28%"
+              right="-12%"
+              opacity={0.6}
+              w={{ base: '280px', md: '500px' }}
+              h={{ base: '280px', md: '500px' }}
+              pointerEvents="none"
+              style={{
+                backgroundImage: svgToDataUri(heroBlobs[1]),
+                backgroundSize: 'contain',
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'center',
+                mixBlendMode: 'multiply',
+                // Fade the square canvas edges to transparency so each accent
+                // reads as a soft organic blob rather than a tinted square.
+                maskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
+                WebkitMaskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
+              }}
+            />
+          )}
+          {heroBlobs[2] && (
+            <Box
+              aria-hidden
+              position="absolute"
+              bottom="-24%"
+              left="-8%"
+              opacity={0.6}
+              display={{ base: 'none', md: 'block' }}
+              w="300px"
+              h="300px"
+              pointerEvents="none"
+              style={{
+                backgroundImage: svgToDataUri(heroBlobs[2]),
+                backgroundSize: 'contain',
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'center',
+                mixBlendMode: 'multiply',
+                // Fade the square canvas edges to transparency so each accent
+                // reads as a soft organic blob rather than a tinted square.
+                maskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
+                WebkitMaskImage: 'radial-gradient(circle at center, #000 42%, transparent 70%)',
+              }}
+            />
+          )}
+
+          <VStack position="relative" spacing={8} maxW="680px" mx="auto" textAlign="center">
+            <VStack spacing={5}>
+              <Heading as="h1" size="2xl">
+                {copy.home.title}
+              </Heading>
+              <VStack spacing={3}>
+                <Heading as="h2" size="lg">
+                  {copy.home.subheadingLead}
+                </Heading>
+                <UnorderedList spacing={2} textAlign="left">
+                  {/* Start page shows the full list; the preview shows just two. */}
+                  {copy.home.subheadingPoints.slice(0, 2).map((point) => (
+                    <ListItem key={point} color="textMuted" fontSize="lg">
+                      {point}
+                    </ListItem>
+                  ))}
+                </UnorderedList>
+              </VStack>
+            </VStack>
+            <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={5} w="full">
+              {[
+                { title: copy.home.contactsTitle, subtitle: copy.home.contactsSubtitle },
+                { title: copy.home.groupsTitle, subtitle: copy.home.groupsSubtitle },
+              ].map((tile) => (
+                <Box
+                  key={tile.title}
+                  as="article"
+                  p={6}
+                  bg="surfaceBg"
+                  borderRadius="xl"
+                  shadow="sm"
+                  borderWidth="1px"
+                  borderColor="borderSubtle"
+                  textAlign="left"
+                  {...cardStyle}
+                >
+                  <Heading as="h3" size="md" mb={2}>
+                    {tile.title}
+                  </Heading>
+                  <Text color="textMuted">{tile.subtitle}</Text>
+                </Box>
+              ))}
+            </SimpleGrid>
+          </VStack>
+        </Box>
+
         <Divider />
 
         {/* ---- Token map --------------------------------------------- */}
         <Section
           title="Background & surface tokens"
-          subtitle="The four backgrounds the app layers. This is where surfaceMutedBg lives."
+          subtitle="The backgrounds the app layers. This is where surfaceMutedBg lives."
         >
-          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
+          <SimpleGrid columns={{ base: 2, md: 3 }} spacing={4}>
             <Swatch token="appBg" note="Page canvas (behind everything)" />
             <Swatch token="surfaceBg" note="Cards, header, popovers" />
-            <Swatch token="surfaceRaisedBg" note="Raised surfaces / menus" />
+            {/* surfaceRaisedBg commented out — the token appears nowhere in the
+                app (no raised surface / menu is rendered anywhere). */}
+            {/* <Swatch token="surfaceRaisedBg" note="Raised surfaces / menus" /> */}
             <Swatch token="surfaceMutedBg" note="Hover + selected + muted panels" />
           </SimpleGrid>
         </Section>
@@ -293,6 +481,11 @@ export default function ThemePreviewPage() {
           </Box>
         </Section>
 
+        {/* COMMENTED OUT — not present anywhere in the app: there are no Menu
+            or Popover components (no notification popover / dropdown menu), and
+            the `surfaceRaisedBg` token + `surfaceStyle` treatment are otherwise
+            unused. Kept here (disabled) so it's ready if a raised surface is
+            introduced later.
         <Section
           title="Raised surface (popover / menu)"
           subtitle="Notification popover, dropdown menus — surfaceRaisedBg with muted hover rows."
@@ -321,10 +514,13 @@ export default function ThemePreviewPage() {
             <TokenLabel>bg = surfaceRaisedBg · hover row = surfaceMutedBg · surfaceStyle</TokenLabel>
           </Box>
         </Section>
+        */}
 
         <Section title="Buttons" subtitle="The theme's buttonColorScheme drives the default solid button in the app.">
           <VStack align="stretch" spacing={4}>
-            {(['brand', 'success', 'warning', 'danger'] as const).map((scheme) => (
+            {/* 'success' commented out — no colorScheme="success" button exists
+                anywhere in the app (green semantics use colorScheme="green"). */}
+            {(['brand', /* 'success', */ 'warning', 'danger'] as const).map((scheme) => (
               <Wrap key={scheme} spacing={3} align="center">
                 <Box w="70px">
                   <TokenLabel>{scheme}</TokenLabel>
@@ -346,17 +542,22 @@ export default function ThemePreviewPage() {
           </VStack>
         </Section>
 
-        <Section title="Badges & tags">
+        <Section title="Badges">
           <Wrap spacing={3}>
-            {(['brand', 'success', 'warning', 'danger', 'gray'] as const).map((c) => (
+            {/* 'success' commented out — no colorScheme="success" badge exists
+                anywhere in the app. */}
+            {(['brand', /* 'success', */ 'warning', 'danger', 'gray'] as const).map((c) => (
               <Badge key={c} colorScheme={c}>
                 {c}
               </Badge>
             ))}
+            {/* COMMENTED OUT — the Chakra <Tag> component is not used anywhere in
+                the app. Kept here (disabled) for future use.
             <Tag colorScheme="brand">Tag</Tag>
             <Tag colorScheme="brand" variant="solid">
               Solid tag
             </Tag>
+            */}
           </Wrap>
         </Section>
 

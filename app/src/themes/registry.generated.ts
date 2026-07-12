@@ -19,7 +19,13 @@
 // Boundary Rules: registry.generated -> manifests (static import), schema
 // (TYPE ONLY), fontUnion (`buildThemeFonts` value import). No edge to
 // buildChakraTheme.ts — the registry carries data only.
-import { manifest as aquarelleManifest } from './aquarelle/manifest';
+import { manifest as deepSeaManifest } from './deep-sea/manifest';
+import { manifest as forestManifest } from './forest/manifest';
+import { manifest as lagoonManifest } from './lagoon/manifest';
+import { manifest as lavenderManifest } from './lavender/manifest';
+import { manifest as limeManifest } from './lime/manifest';
+import { manifest as roseManifest } from './rose/manifest';
+import { manifest as springManifest } from './spring/manifest';
 import type { ThemeManifest } from './schema';
 import { buildThemeFonts, type FontLoad } from './fontUnion';
 
@@ -27,14 +33,20 @@ import { buildThemeFonts, type FontLoad } from './fontUnion';
  * The `AppThemeName` union, derived mechanically from the theme folder
  * names present under app/src/themes/ at generation time.
  */
-export type AppThemeName = 'aquarelle';
+export type AppThemeName = 'deep-sea' | 'forest' | 'lagoon' | 'lavender' | 'lime' | 'rose' | 'spring';
 
 /**
  * One entry per theme folder, in generator-scan (alphabetical folder-name)
  * order — NOT order-sorted; see `_sorted` below.
  */
 const _all: ThemeManifest[] = [
-  aquarelleManifest,
+  deepSeaManifest,
+  forestManifest,
+  lagoonManifest,
+  lavenderManifest,
+  limeManifest,
+  roseManifest,
+  springManifest,
 ];
 
 /**

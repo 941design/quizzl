@@ -77,25 +77,33 @@ describe('theme label/description resolution (AC-UX-3): de falls back to en', ()
   }
 
   it('renders the manifest en label/description in English', () => {
-    const aquarelle = APP_THEMES.aquarelle;
-    expect(localizedThemeText(aquarelle.label, 'en')).toBe(aquarelle.label.en);
-    expect(localizedThemeText(aquarelle.description, 'en')).toBe(aquarelle.description.en);
+    const spring = APP_THEMES.spring;
+    expect(localizedThemeText(spring.label, 'en')).toBe(spring.label.en);
+    expect(localizedThemeText(spring.description, 'en')).toBe(spring.description.en);
   });
 
   it('renders the manifest de label/description in German when present', () => {
-    const aquarelle = APP_THEMES.aquarelle;
-    expect(aquarelle.label.de).toBeTruthy(); // sanity: aquarelle has a real de translation
-    expect(localizedThemeText(aquarelle.label, 'de')).toBe(aquarelle.label.de);
+    const spring = APP_THEMES.spring;
+    expect(spring.label.de).toBeTruthy(); // sanity: spring has a real de translation
+    expect(localizedThemeText(spring.label, 'de')).toBe(spring.label.de);
   });
 
-  it('falls back to en when de is absent (isolated fixture — the aquarelle theme does not omit de, so this proves the fallback branch has teeth)', () => {
+  it('falls back to en when de is absent (isolated fixture — the spring theme does not omit de, so this proves the fallback branch has teeth)', () => {
     const fixture = { en: 'English Only' };
     expect(localizedThemeText(fixture, 'de')).toBe('English Only');
   });
 
-  it('listThemes() returns the sole aquarelle theme (not status:hidden today)', () => {
+  it('listThemes() returns all themes in ascending `order` (none status:hidden today)', () => {
     const ids = listThemes().map((t) => t.id);
-    expect(ids).toEqual(['aquarelle']);
+    expect(ids).toEqual([
+      'forest',
+      'lavender',
+      'deep-sea',
+      'spring',
+      'lime',
+      'rose',
+      'lagoon',
+    ]);
   });
 });
 

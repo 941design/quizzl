@@ -4,7 +4,7 @@
 // `manifest.treatments.iconSet` against `treatments/iconSets.ts`
 // (`resolveIconId`) — locks it against a FROZEN, independently hardcoded
 // pre-refactor `ICON_MAP` expectation (never derived from `ICON_SETS`
-// itself, which would make this a tautology). aquarelle uses the `line`
+// itself, which would make this a tautology). spring uses the `line`
 // icon set; the `filled` and `pixel` sets (still part of the treatment
 // catalog) are exercised directly so all three sets stay covered.
 import { describe, expect, it } from 'vitest';
@@ -13,7 +13,11 @@ import { APP_THEMES } from '@/src/lib/theme';
 import type { AppThemeName } from '@/src/lib/theme';
 import type { IconSetName } from '@/src/themes/treatments/iconSets';
 
-const THEME_IDS: AppThemeName[] = ['aquarelle'];
+// Icon resolution is theme-agnostic given identical `iconSet` values — every
+// theme (spring + the 7 themes.json watercolors) declares `iconSet: 'line'`,
+// so spring is a sufficient representative here. Schema-level validation of
+// each new theme's treatments lives in themes-validation.test.ts.
+const THEME_IDS: AppThemeName[] = ['spring'];
 
 // FROZEN pre-refactor ICON_MAP (ThemeIcon.tsx), independently hand-copied —
 // keyed by icon name -> old sub-key (pixel/toy/default), which map to the
@@ -54,7 +58,7 @@ describe('getThemeIconId (AC-UX-2 / AC11): resolves via manifest.treatments.icon
     });
   }
 
-  // aquarelle only uses `line`; exercise all three catalog sets directly so
+  // spring only uses `line`; exercise all three catalog sets directly so
   // `filled` and `pixel` resolution stays covered.
   describe.each(['line', 'filled', 'pixel'] as const)('icon set: %s', (iconSet) => {
     it.each(ICON_NAMES)('%s resolves to the same iconify id as the pre-refactor ICON_MAP', (iconName) => {

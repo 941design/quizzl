@@ -7,6 +7,7 @@ import {
   Text,
   VStack,
   HStack,
+  SimpleGrid,
   Button,
   Alert,
   AlertIcon,
@@ -37,6 +38,7 @@ import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useAppTheme } from '@/src/hooks/useMoodTheme';
 import { listThemes } from '@/src/lib/theme';
 import type { AppThemeName } from '@/src/lib/theme';
+import { DYNAMIC_GENERATORS } from '@/src/themes/treatments/dynamicVisuals';
 import NpubQrButton from '@/src/components/groups/NpubQrButton';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { truncateNpub, derivePublicKeyHex } from '@/src/lib/nostrKeys';
@@ -68,6 +70,47 @@ function relayTestId(url: string): string {
  */
 function localizedThemeText(text: { en: string; de?: string }, language: LanguageCode): string {
   return language === 'de' ? text.de ?? text.en : text.en;
+}
+
+/**
+ * Wraps a theme's static banner SVG string as a CSS `url(...)` value so each
+ * theme-picker card can render its own watercolor as the card background.
+ * `encodeURIComponent` (not base64) keeps it compact and human-diffable.
+ */
+function bannerBackgroundImage(svg: string): string {
+  // Base64 (not percent-encoding): a watercolor SVG contains raw `)`, `#` and
+  // `,` (e.g. `filter: url(#edge-…)`), which break CSS `url(...)` parsing and
+  // cause the browser to drop the entire background shorthand. Base64 yields
+  // only `[A-Za-z0-9+/=]`, so the data URI is always a valid `url()` token.
+  // SSR-safe: `btoa` in the browser, `Buffer` during Next's server render.
+  const base64 =
+    typeof window !== 'undefined'
+      ? window.btoa(unescape(encodeURIComponent(svg)))
+      : Buffer.from(svg, 'utf8').toString('base64');
+  return `url("data:image/svg+xml;base64,${base64}")`;
+}
+
+/**
+ * Generates a theme's watercolor freshly at CARD dimensions (client-only), so a
+ * picker card shows the same rich full-fidelity wash the live header does —
+ * rather than the theme's small 420x96 static fallback, whose washes cluster at
+ * the edges and leave a near-square card's centre empty. Falls back to the
+ * static banner (and ultimately `null`) if the theme declares no dynamic banner
+ * or generation throws. Runs through the `DYNAMIC_GENERATORS` seam (never the
+ * `@rotheric/visuals` package directly — AC-STRUCT-4).
+ */
+function generateCardBanner(theme: ReturnType<typeof listThemes>[number]): string | null {
+  const dyn = theme.treatments.dynamic?.banner;
+  if (!dyn) return null;
+  try {
+    return DYNAMIC_GENERATORS.watercolor(dyn.style, 'banner', {
+      ...dyn.render,
+      width: 360,
+      height: 220,
+    });
+  } catch {
+    return null;
+  }
 }
 
 /** Map NDK relay status enum values to a display label category */
@@ -115,6 +158,17 @@ export default function SettingsPage() {
   const toast = useToast();
   const [npubCopied, setNpubCopied] = useState(false);
   const [wipeConfirmInput, setWipeConfirmInput] = useState('');
+  // Per-theme card watercolors, generated once on the client (SSR/first paint
+  // uses each theme's static banner fallback, then upgrades to a fresh render).
+  const [cardBanners, setCardBanners] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    for (const theme of listThemes()) {
+      const svg = generateCardBanner(theme);
+      if (svg) next[theme.id] = svg;
+    }
+    setCardBanners(next);
+  }, []);
 
   // --- Relay management state ---
   const [relayList, setRelayList] = useState<string[]>(() => getEffectiveRelays());
@@ -548,23 +602,93 @@ export default function SettingsPage() {
               {copy.settings.themeDescription}
             </Text>
 
-            <HStack spacing={4} flexWrap="wrap">
+            <SimpleGrid columns={{ base: 2, md: 3 }} spacing={4}>
               {listThemes().map((themeOption) => {
                 const isActive = themeName === themeOption.id;
+                const c = themeOption.colors;
+                const brand500 = c.brand[5];
+                const cardRadius = themeOption.shape?.radii?.lg ?? '16px';
+                const cardSvg = cardBanners[themeOption.id] ?? themeOption.treatments.banner;
                 return (
-                  <Button
+                  <Box
+                    as="button"
+                    type="button"
                     key={themeOption.id}
-                    variant={isActive ? 'solid' : 'outline'}
-                    colorScheme={themeOption.previewColorScheme}
                     onClick={() => setTheme(themeOption.id as AppThemeName)}
                     data-testid={`theme-${themeOption.id}-btn`}
-                    size="lg"
+                    aria-pressed={isActive}
+                    textAlign="left"
+                    position="relative"
+                    overflow="hidden"
+                    minH="132px"
+                    borderRadius={cardRadius}
+                    // The colourful watercolour fills the whole card (theme
+                    // identity): the freshly-rendered wash multiplied over a
+                    // brand-hue gradient, so each theme reads as its own colour.
+                    // Set through the RAW DOM `style` attribute, NOT Chakra
+                    // background props: Chakra's style-prop pipeline silently
+                    // drops a data-URI `background-image` (documented in
+                    // useDynamicBanner.ts's hard-contract comment).
+                    style={{
+                      backgroundColor: c.appBg,
+                      backgroundImage: `${bannerBackgroundImage(cardSvg)}, linear-gradient(135deg, ${c.brand[3]}, ${c.brand[6]})`,
+                      backgroundSize: 'cover, cover',
+                      backgroundPosition: 'center, center',
+                      backgroundBlendMode: 'multiply, normal',
+                    }}
+                    borderWidth="2px"
+                    borderColor={isActive ? brand500 : c.borderSubtle}
+                    boxShadow={isActive ? `0 0 0 2px ${brand500}` : 'sm'}
+                    transition="transform 0.15s ease, box-shadow 0.15s ease"
+                    _hover={{ transform: 'translateY(-2px)', boxShadow: 'md' }}
+                    _focusVisible={{ outline: 'none', boxShadow: `0 0 0 3px ${brand500}` }}
                   >
-                    {localizedThemeText(themeOption.label, language)}
-                  </Button>
+                    {isActive && (
+                      <Badge
+                        position="absolute"
+                        top={2}
+                        right={2}
+                        bg={brand500}
+                        color={c.surfaceBg}
+                        borderRadius="full"
+                        px={2}
+                        fontSize="0.65rem"
+                        zIndex={1}
+                      >
+                        ✓
+                      </Badge>
+                    )}
+                    {/* Frosted footer: text sits on the theme's own surface
+                        colour so label/description keep gate-safe contrast
+                        regardless of the wash behind the card. */}
+                    <Box
+                      position="absolute"
+                      left={0}
+                      right={0}
+                      bottom={0}
+                      p={3}
+                      bg={c.surfaceBg}
+                      opacity={0.92}
+                      borderTopWidth="1px"
+                      borderColor={c.borderSubtle}
+                    >
+                      <Text
+                        fontFamily={themeOption.typography.fonts.heading}
+                        fontWeight="bold"
+                        fontSize="lg"
+                        lineHeight="1.1"
+                        color={c.textStrong}
+                      >
+                        {localizedThemeText(themeOption.label, language)}
+                      </Text>
+                      <Text fontSize="xs" color={c.textMuted} noOfLines={2} mt={1}>
+                        {localizedThemeText(themeOption.description, language)}
+                      </Text>
+                    </Box>
+                  </Box>
                 );
               })}
-            </HStack>
+            </SimpleGrid>
 
             <Box
               mt={4}
