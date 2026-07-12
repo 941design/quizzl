@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { generateSecretKey, getPublicKey, getEventHash, verifyEvent } from 'nostr-tools/pure';
-import { bytesToHex } from 'nostr-tools/utils';
+import { bytesToHex, hexToBytes } from 'nostr-tools/utils';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { pubkeyToNpub } from '@/src/lib/nostrKeys';
 import {
   CARD_CONTENT,
   encodeCard,
+  encodeCardV2,
   buildShareUrl,
   decodeCard,
   parseContactCard,
@@ -13,11 +14,14 @@ import {
   base64UrlToBytes,
   MAX_NAME_BYTES,
   SIGNED_CARD_FIXED_OVERHEAD_BYTES,
+  SIGNED_CARD_FIXED_OVERHEAD_BYTES_V2,
+  CARD_SIG_KIND_V2,
   utf8ByteLength,
   truncateUtf8,
 } from '@/src/lib/contactCard';
 
 const FIXED_CREATED_AT = 1735689600; // 2025-01-01T00:00:00Z
+const FIXED_EXPIRES_AT = FIXED_CREATED_AT + 1800; // 30 min later, per the pairing nonce lifecycle
 
 function makeIdentity() {
   const sk = generateSecretKey();
@@ -25,6 +29,13 @@ function makeIdentity() {
   const pubkeyHex = getPublicKey(sk);
   const signer = createPrivateKeySigner(skHex);
   return { skHex, pubkeyHex, signer };
+}
+
+/** A deterministic, valid 16-byte pairing nonce (32 hex chars). */
+function makeNonceHex(): string {
+  const bytes = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) bytes[i] = (i * 17 + 3) % 256;
+  return bytesToHex(bytes);
 }
 
 // ── base64url ──────────────────────────────────────────────────────────────
@@ -612,5 +623,412 @@ describe('AC-PARSE-5: neither npub nor decodable card', () => {
       const result = parseContactCard(garbage);
       expect('error' in result).toBe(true);
     }
+  });
+});
+
+// ── AC-CODEC-1 — v2 encode/decode round trip + exact wire layout ───────────
+
+describe('AC-CODEC-1: encodeCardV2/decodeCard round trip', () => {
+  it('round-trips pubkeyHex, name, nonce, and expiresAt unchanged, header byte 0x60, version 1', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = makeNonceHex();
+    const encoded = await encodeCardV2(
+      pubkeyHex,
+      { nickname: 'Alice', createdAt: FIXED_CREATED_AT },
+      nonceHex,
+      FIXED_EXPIRES_AT,
+      signer.signEvent,
+    );
+    expect(encoded.pubkeyHex).toBe(pubkeyHex);
+    expect(encoded.name).toBe('Alice');
+    expect(encoded.nonceHex).toBe(nonceHex);
+    expect(encoded.expiresAt).toBe(FIXED_EXPIRES_AT);
+
+    const decoded = decodeCard(encoded.cardB64Url);
+    expect('error' in decoded).toBe(false);
+    if ('error' in decoded) throw new Error('unreachable');
+    expect(decoded.version).toBe(1);
+    expect(decoded.pubkeyHex).toBe(pubkeyHex);
+    expect(decoded.profile).toBeDefined();
+    expect(decoded.profile!.nickname).toBe('Alice');
+    expect(decoded.profile!.createdAt).toBe(FIXED_CREATED_AT);
+    expect(decoded.pairing).toBeDefined();
+    expect(decoded.pairing!.nonce).toBe(nonceHex);
+    expect(decoded.pairing!.expiresAt).toBe(FIXED_EXPIRES_AT);
+  });
+
+  it('matches the v2 wire layout: header(0x60)+pubkey(32)+created_at(4,BE)+expires_at(4,BE)+nonce(16)+name_len(1)+name+sig(64)', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = makeNonceHex();
+    const encoded = await encodeCardV2(
+      pubkeyHex,
+      { nickname: 'Alice', createdAt: FIXED_CREATED_AT },
+      nonceHex,
+      FIXED_EXPIRES_AT,
+      signer.signEvent,
+    );
+    const bytes = base64UrlToBytes(encoded.cardB64Url)!;
+
+    expect(bytes[0]).toBe(0x60); // SIGNED flag, version bits 01, no reserved bits
+
+    expect(bytesToHex(bytes.slice(1, 33))).toBe(pubkeyHex);
+
+    const createdAtBytes = bytes.slice(33, 37);
+    const recoveredCreatedAt =
+      ((createdAtBytes[0] << 24) | (createdAtBytes[1] << 16) | (createdAtBytes[2] << 8) | createdAtBytes[3]) >>> 0;
+    expect(recoveredCreatedAt).toBe(FIXED_CREATED_AT);
+
+    const expiresAtBytes = bytes.slice(37, 41);
+    const recoveredExpiresAt =
+      ((expiresAtBytes[0] << 24) | (expiresAtBytes[1] << 16) | (expiresAtBytes[2] << 8) | expiresAtBytes[3]) >>> 0;
+    expect(recoveredExpiresAt).toBe(FIXED_EXPIRES_AT);
+
+    expect(bytesToHex(bytes.slice(41, 57))).toBe(nonceHex);
+
+    const nameLen = bytes[57];
+    expect(nameLen).toBe(5); // 'Alice'.length UTF-8 bytes
+    const name = new TextDecoder().decode(bytes.slice(58, 58 + nameLen));
+    expect(name).toBe('Alice');
+
+    expect(bytes.length).toBe(SIGNED_CARD_FIXED_OVERHEAD_BYTES_V2 + nameLen);
+    const sig = bytes.slice(58 + nameLen, 58 + nameLen + 64);
+    expect(sig.length).toBe(64);
+  });
+
+  // VQ-S1-017 (post-impl): pins buildV2SigPreimageEvent as a single shared
+  // preimage builder the way AC-SIG-5 pins CARD_CONTENT for v1 — a name with
+  // quotes/backslashes/umlauts/emoji would break JSON round-tripping or
+  // UTF-8 byte-counting if encode and decode ever forked into two
+  // independently-written content builders that drifted apart.
+  it.each([
+    ['ASCII with quotes and backslashes', 'She said "hi" \\o/'],
+    ['German umlauts', 'Müller Käse'],
+    ['emoji', '🎉 Party 🎈'],
+  ])('round-trips %s through the shared v2 preimage builder', async (_label, name) => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = makeNonceHex();
+    const encoded = await encodeCardV2(
+      pubkeyHex,
+      { nickname: name, createdAt: FIXED_CREATED_AT },
+      nonceHex,
+      FIXED_EXPIRES_AT,
+      signer.signEvent,
+    );
+    const decoded = decodeCard(encoded.cardB64Url);
+    expect('error' in decoded).toBe(false);
+    if ('error' in decoded) throw new Error('unreachable');
+    // Names here are all <=32 UTF-8 bytes, so no truncation should occur.
+    expect(decoded.profile!.nickname).toBe(name);
+    expect(decoded.pairing!.nonce).toBe(nonceHex);
+  });
+});
+
+// ── AC-CODEC-2 — tamper-and-reject: nonce, expires_at (independently) ──────
+
+describe('AC-CODEC-2: post-sign tampering of nonce or expires_at is rejected', () => {
+  it('flipping a byte inside the nonce field fails verification (never returns the original signed identity)', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = makeNonceHex();
+    const encoded = await encodeCardV2(
+      pubkeyHex,
+      { nickname: 'Alice', createdAt: FIXED_CREATED_AT },
+      nonceHex,
+      FIXED_EXPIRES_AT,
+      signer.signEvent,
+    );
+    const bytes = base64UrlToBytes(encoded.cardB64Url)!;
+    const mutated = new Uint8Array(bytes);
+    mutated[41] = mutated[41] ^ 0xff; // inside the nonce field (offset 41..57)
+    const decoded = decodeCard(bytesToBase64Url(mutated));
+    // An `{error}` result carries no pubkeyHex/profile/pairing at all, so this
+    // alone rules out the mutated payload resolving to the original identity.
+    expect('error' in decoded).toBe(true);
+  });
+
+  it('flipping a byte inside the expires_at field fails verification (never returns the original signed identity)', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = makeNonceHex();
+    const encoded = await encodeCardV2(
+      pubkeyHex,
+      { nickname: 'Alice', createdAt: FIXED_CREATED_AT },
+      nonceHex,
+      FIXED_EXPIRES_AT,
+      signer.signEvent,
+    );
+    const bytes = base64UrlToBytes(encoded.cardB64Url)!;
+    const mutated = new Uint8Array(bytes);
+    mutated[37] = mutated[37] ^ 0xff; // inside the expires_at field (offset 37..41)
+    const decoded = decodeCard(bytesToBase64Url(mutated));
+    expect('error' in decoded).toBe(true);
+  });
+
+  it('flipping a byte inside created_at (offset 33) fails verification — the v2 mirror of the v1 created_at tamper test', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = makeNonceHex();
+    const encoded = await encodeCardV2(
+      pubkeyHex,
+      { nickname: 'Alice', createdAt: FIXED_CREATED_AT },
+      nonceHex,
+      FIXED_EXPIRES_AT,
+      signer.signEvent,
+    );
+    const bytes = base64UrlToBytes(encoded.cardB64Url)!;
+    const mutated = new Uint8Array(bytes);
+    mutated[33] = mutated[33] ^ 0xff; // inside the created_at field (offset 33..37)
+    const decoded = decodeCard(bytesToBase64Url(mutated));
+    expect('error' in decoded).toBe(true);
+  });
+
+  // Boundary: Unix seconds >= 2^31 (year 2038+) set the high bit of the BE
+  // uint32; the decode must recover the value unsigned (>>> 0), not sign-extend.
+  it('round-trips created_at and expires_at above 0x80000000 (post-2038, high-bit set) unsigned-correct', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = makeNonceHex();
+    const highCreatedAt = 0xf0000000; // 4026531840 — well past 2038
+    const highExpiresAt = 0xf0000000 + 1800;
+    const encoded = await encodeCardV2(
+      pubkeyHex,
+      { nickname: 'Alice', createdAt: highCreatedAt },
+      nonceHex,
+      highExpiresAt,
+      signer.signEvent,
+    );
+    expect(encoded.expiresAt).toBe(highExpiresAt);
+    const decoded = decodeCard(encoded.cardB64Url);
+    expect('error' in decoded).toBe(false);
+    if ('error' in decoded) throw new Error('unreachable');
+    expect(decoded.profile!.createdAt).toBe(highCreatedAt);
+    expect(decoded.pairing!.expiresAt).toBe(highExpiresAt);
+  });
+});
+
+// ── AC-CODEC-3 — signature preimage kind is non-zero ────────────────────────
+
+describe('AC-CODEC-3: v2 signature preimage is never a publishable kind-0 event', () => {
+  it('CARD_SIG_KIND_V2 is a fixed, non-zero kind (asserted via the named export, not a re-typed literal)', () => {
+    expect(typeof CARD_SIG_KIND_V2).toBe('number');
+    expect(CARD_SIG_KIND_V2).not.toBe(0);
+  });
+
+  it('tampering the name bytes of a real v2 card (post-sign) fails verification, proving name is folded into the same non-zero-kind preimage as nonce/expires_at', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = makeNonceHex();
+    const encoded = await encodeCardV2(
+      pubkeyHex,
+      { nickname: 'Alice', createdAt: FIXED_CREATED_AT },
+      nonceHex,
+      FIXED_EXPIRES_AT,
+      signer.signEvent,
+    );
+    const bytes = base64UrlToBytes(encoded.cardB64Url)!;
+    const nameOffset = 58; // header+pubkey+created_at+expires_at+nonce+name_len
+    const mutated = new Uint8Array(bytes);
+    mutated[nameOffset] = mutated[nameOffset] ^ 0x02; // 'A' (0x41) -> 'C' (0x43), still ASCII
+    const decoded = decodeCard(bytesToBase64Url(mutated));
+    expect('error' in decoded).toBe(true);
+  });
+});
+
+// ── AC-CODEC-4 — strict rejection of unknown version / HAS_AVATAR / reserved bits ──
+
+describe('AC-CODEC-4: strict header rejection sweep (v1-shaped and v2-shaped payloads)', () => {
+  const headerMutations: Array<[string, (header: number) => number]> = [
+    ['version bits 10 (unrecognized future version)', (h) => (h & 0x3f) | 0x80],
+    ['version bits 11 (unrecognized future version)', (h) => (h & 0x3f) | 0xc0],
+    ['HAS_AVATAR bit set', (h) => h | 0x10],
+    ['reserved bit set', (h) => h | 0x01],
+  ];
+
+  it.each(headerMutations)(
+    'rejects a signed payload with %s on both a v1-shaped and a v2-shaped card',
+    async (_label, mutateHeader) => {
+      const { pubkeyHex, signer } = makeIdentity();
+
+      const v1Payload = await encodeCard(pubkeyHex, { nickname: 'Alice', createdAt: FIXED_CREATED_AT }, signer.signEvent);
+      const v1Bytes = base64UrlToBytes(v1Payload)!;
+      const v1Mutated = new Uint8Array(v1Bytes);
+      v1Mutated[0] = mutateHeader(v1Mutated[0]);
+      expect('error' in decodeCard(bytesToBase64Url(v1Mutated))).toBe(true);
+
+      const nonceHex = makeNonceHex();
+      const v2Encoded = await encodeCardV2(
+        pubkeyHex,
+        { nickname: 'Alice', createdAt: FIXED_CREATED_AT },
+        nonceHex,
+        FIXED_EXPIRES_AT,
+        signer.signEvent,
+      );
+      const v2Bytes = base64UrlToBytes(v2Encoded.cardB64Url)!;
+      const v2Mutated = new Uint8Array(v2Bytes);
+      v2Mutated[0] = mutateHeader(v2Mutated[0]);
+      expect('error' in decodeCard(bytesToBase64Url(v2Mutated))).toBe(true);
+    },
+  );
+
+  // A v2 card is always signed. A 33-byte buffer with version bits 01 and the
+  // SIGNED bit clear (header 0x40) is a malformed v2 card — the strict parser
+  // must reject it, NOT accept it as a bare-pubkey one-directional add.
+  // (Both Opus and Codex flagged this decode branch on S1 review.)
+  it('rejects a version-01 (v2) header with the SIGNED bit unset instead of decoding a bare pubkey', () => {
+    const { pubkeyHex } = makeIdentity();
+    const buf = new Uint8Array(33); // 1 header + 32 pubkey (v1/v2 unsigned length)
+    buf[0] = 0x40; // version bits 01, SIGNED clear, no HAS_AVATAR/reserved bits
+    buf.set(hexToBytes(pubkeyHex), 1);
+    const decoded = decodeCard(bytesToBase64Url(buf));
+    expect('error' in decoded).toBe(true);
+  });
+
+  // The v1 (version 00) unsigned card stays valid — the fix above must not
+  // regress the legitimate bare-pubkey v1 layout.
+  it('still accepts a valid v1 (version 00) unsigned card', () => {
+    const { pubkeyHex } = makeIdentity();
+    const buf = new Uint8Array(33);
+    buf[0] = 0x00; // version 00, unsigned
+    buf.set(hexToBytes(pubkeyHex), 1);
+    const decoded = decodeCard(bytesToBase64Url(buf));
+    expect('error' in decoded).toBe(false);
+    if ('error' in decoded) throw new Error('unreachable');
+    expect(decoded.version).toBe(0);
+    expect(decoded.pubkeyHex).toBe(pubkeyHex);
+    expect(decoded.pairing).toBeUndefined();
+  });
+});
+
+// ── AC-CODEC-5 — v1/npub parsing unaffected by the v2 addition ─────────────
+
+describe('AC-CODEC-5: v1/npub parsing is unaffected by the v2 codec addition', () => {
+  it('a freshly v1-encoded card via parseContactCard carries no pairing field at all', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const payload = await encodeCard(pubkeyHex, { nickname: 'Alice', createdAt: FIXED_CREATED_AT }, signer.signEvent);
+    const result = parseContactCard(payload);
+    expect('error' in result).toBe(false);
+    if ('error' in result) throw new Error('unreachable');
+    expect('pairing' in result).toBe(false);
+    expect(Object.keys(result).sort()).toEqual(['profile', 'pubkeyHex']);
+  });
+
+  it('a bare npub carries no pairing field', () => {
+    const { pubkeyHex } = makeIdentity();
+    const npub = pubkeyToNpub(pubkeyHex);
+    const result = parseContactCard(npub);
+    expect('error' in result).toBe(false);
+    if ('error' in result) throw new Error('unreachable');
+    expect('pairing' in result).toBe(false);
+  });
+
+  it('a nostr: URI-wrapped npub carries no pairing field', () => {
+    const { pubkeyHex } = makeIdentity();
+    const npub = pubkeyToNpub(pubkeyHex);
+    const result = parseContactCard(`nostr:${npub}`);
+    expect('error' in result).toBe(false);
+    if ('error' in result) throw new Error('unreachable');
+    expect('pairing' in result).toBe(false);
+  });
+});
+
+// ── AC-CODEC-6 — exact +20-byte delta at MAX_NAME_BYTES ─────────────────────
+
+describe('AC-CODEC-6: exact +20-byte delta between v1 and v2 signed cards at MAX_NAME_BYTES', () => {
+  it('a real v2 signed card at the 32-byte name cap is exactly 20 bytes longer than a real v1 signed card at the same cap', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const name32 = 'A'.repeat(MAX_NAME_BYTES);
+
+    const v1Payload = await encodeCard(pubkeyHex, { nickname: name32, createdAt: FIXED_CREATED_AT }, signer.signEvent);
+    const v1Bytes = base64UrlToBytes(v1Payload)!;
+
+    const nonceHex = makeNonceHex();
+    const v2Encoded = await encodeCardV2(
+      pubkeyHex,
+      { nickname: name32, createdAt: FIXED_CREATED_AT },
+      nonceHex,
+      FIXED_EXPIRES_AT,
+      signer.signEvent,
+    );
+    const v2Bytes = base64UrlToBytes(v2Encoded.cardB64Url)!;
+
+    // Both lengths are derived from REAL encoded/signed payloads (not constant
+    // arithmetic alone), so a wrong SIGNED_CARD_FIXED_OVERHEAD_BYTES_V2 or a
+    // packing bug that doesn't match its own constant would fail this.
+    expect(v2Bytes.length - v1Bytes.length).toBe(20);
+    expect(v1Bytes.length).toBe(SIGNED_CARD_FIXED_OVERHEAD_BYTES + MAX_NAME_BYTES);
+    expect(v2Bytes.length).toBe(SIGNED_CARD_FIXED_OVERHEAD_BYTES_V2 + MAX_NAME_BYTES);
+  });
+});
+
+// ── AC-PARSE (v2) — parseContactCard round trip carries the pairing field ──
+
+describe('AC-PARSE (v2): card link / raw payload round trip carries the pairing field', () => {
+  it('a v2 card link extracts the #c= fragment and returns { pubkeyHex, profile, pairing }', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = makeNonceHex();
+    const encoded = await encodeCardV2(
+      pubkeyHex,
+      { nickname: 'Alice', createdAt: FIXED_CREATED_AT },
+      nonceHex,
+      FIXED_EXPIRES_AT,
+      signer.signEvent,
+    );
+    const link = buildShareUrl(encoded.cardB64Url);
+    const result = parseContactCard(link);
+    expect('error' in result).toBe(false);
+    if ('error' in result || !('pairing' in result)) throw new Error('unreachable');
+    expect(result.pubkeyHex).toBe(pubkeyHex);
+    expect(result.profile.nickname).toBe('Alice');
+    expect(result.profile.updatedAt).toBe(new Date(FIXED_CREATED_AT * 1000).toISOString());
+    expect(result.pairing.nonce).toBe(nonceHex);
+    expect(result.pairing.expiresAt).toBe(FIXED_EXPIRES_AT);
+  });
+
+  it('a raw v2 base64url payload (no URL wrapper) yields the same result as the card-link form', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = makeNonceHex();
+    const encoded = await encodeCardV2(
+      pubkeyHex,
+      { nickname: 'Alice', createdAt: FIXED_CREATED_AT },
+      nonceHex,
+      FIXED_EXPIRES_AT,
+      signer.signEvent,
+    );
+    const link = buildShareUrl(encoded.cardB64Url);
+
+    const viaRaw = parseContactCard(encoded.cardB64Url);
+    const viaLink = parseContactCard(link);
+    expect(viaRaw).toEqual(viaLink);
+  });
+});
+
+// ── encodeCardV2 defensive guards (post-impl) ───────────────────────────────
+
+describe('encodeCardV2 defensive guards (post-impl)', () => {
+  it('rejects an empty nickname (post-truncation) — a v2 pairing card is always signed', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    await expect(
+      encodeCardV2(pubkeyHex, { nickname: '', createdAt: FIXED_CREATED_AT }, makeNonceHex(), FIXED_EXPIRES_AT, signer.signEvent),
+    ).rejects.toThrow(/non-empty nickname/);
+  });
+
+  // Note: a whitespace-only nickname is intentionally NOT special-cased at
+  // this codec layer — `hasShareableName` (app/src/lib/shareCard.ts, S2 scope)
+  // is the single source of truth for "whitespace-only counts as unset" and
+  // every real caller already gates on it before reaching encodeCardV2 (see
+  // this function's doc comment). This test pins that boundary explicitly so
+  // a future change doesn't silently duplicate (or diverge from) that rule.
+  it('does not itself reject a whitespace-only nickname — that gate belongs to callers via hasShareableName', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const result = await encodeCardV2(
+      pubkeyHex,
+      { nickname: '   ', createdAt: FIXED_CREATED_AT },
+      makeNonceHex(),
+      FIXED_EXPIRES_AT,
+      signer.signEvent,
+    );
+    expect(result.name).toBe('   ');
+  });
+
+  it('rejects a malformed nonceHex (not 32 hex chars)', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    await expect(
+      encodeCardV2(pubkeyHex, { nickname: 'Alice', createdAt: FIXED_CREATED_AT }, 'deadbeef', FIXED_EXPIRES_AT, signer.signEvent),
+    ).rejects.toThrow(/nonceHex/);
   });
 });

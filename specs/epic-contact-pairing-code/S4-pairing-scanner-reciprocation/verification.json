@@ -1,0 +1,117 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-11T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the named-scanner vs nameless-scanner branch in `processContactInput.ts`/`add.tsx` a real `hasShareableName` check against live profile state (not a hardcoded `true`/`false`, and not a check that is always true in dev/test builds and silently different in production)? Does `pendingIntent.ts`'s retry queue actually persist to idb-keyval `few-pairing-intents` and actually re-attempt `sendPairingAck` on the real `window 'online'` event and on real app mount (not a stub that logs 'would retry' without calling `sendPairingAck`, which would make AC-SCAN-3 look satisfied while doing nothing on reconnect)?"
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `pendingIntent.ts` follow architecture.md's boundary rule 7 (new idb-keyval stores use `few-*` naming, i.e. `few-pairing-intents`, not `lp_*`)? Per the story notes, does S4 call `pairingAck.sendPairingAck` only across the declared `PairingAckSend` seam and never modify `app/src/lib/pairing/pairingAck.ts` directly? Does the reused `app/pages/profile.tsx` query-flag redirect (`?pairing=1`) follow CLAUDE.md's static-export query-param-over-path-segment convention rather than introducing a new `[param].tsx` route?"
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `pendingIntent+scannerImport` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/pairing/pendingIntent.test.ts` (new) cover AC-SCAN-1 through AC-SCAN-8 with real idb-keyval persistence (fake-indexeddb), including the retry-on-`online`-event case (a real `window.dispatchEvent(new Event('online'))` or equivalent, not a direct function call bypassing the event listener) and both the in-window and past-window intent-resolution branches with a real/injected clock rather than a fixed always-in-window assumption? Do the extended `contactCardImport.test.ts`/`addContactCardWiring.test.ts` cover the named-scanner-immediate-echo and pairing-less/expired-fallback paths with real `ParsedPairingCard`-shaped fixtures produced by the actual S1 codec, not hand-constructed objects that could drift from the real decoder's shape?"
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the landed scanner reciprocation logic implement RD-7's named/nameless split as architecture.md describes — named scanner echoes now with no detour, nameless scanner persists intent and redirects to name setup before landing on the contact — with no third, unspecified branch (e.g. silently dropping the echo for a nameless scanner instead of persisting+redirecting)? Separately: architecture.md's 'scanner import' module-map row cites 'AC-PAIR-5 copy suppression', but the acceptance-criteria.md has no `AC-PAIR` tag — confirm this label refers to AC-SCAN-2's 'MUST NOT send any pairing-ack rumor' / no-error-surfaced behavior for the expired/pairing-less fallback, and that the implementer treated it as such rather than leaving a dangling reference unimplemented."
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the `pairing` field read off a scanned/imported card (`ParsedPairingCard.pairing`) treated as untrusted external input — i.e. does the scanner-side code validate `expiresAt` against the scanner's own clock before deciding to echo, rather than trusting an issuer-supplied `expiresAt` uncritically, and does a malformed or missing `pairing.nonce`/`pairing.expiresAt` degrade gracefully to the pairing-less one-directional path (AC-SCAN-2) rather than throwing an unhandled exception that could crash the import flow?"
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCAN-1",
+      "question": "Does a scanner (B) with a shareable name who opens a v2 code whose `expiresAt` has not yet passed (per B's own clock) cause exactly one gift-wrapped pairing-ack rumor to be sent, addressed to the issuer's pubkey? Provide (a) the immediate-echo call site invoking `sendPairingAck`, (b) a test asserting `sendPairingAck` is called exactly once (not zero, not twice) with the issuer's pubkey as argument, and (c) confirmation the test uses a real `hasShareableName === true` fixture rather than bypassing the named-scanner check entirely."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCAN-2",
+      "question": "Does a scanner who opens a v2 code whose `expiresAt` has already passed, or a v1/npub input carrying no `pairing` field, complete the one-directional add with the existing green confirmation and send no pairing-ack rumor? Provide (a) the two distinct branches (expired-v2, pairing-less), (b) two separate tests each asserting zero calls to `sendPairingAck`, and (c) confirmation both tests assert the existing (pre-epic) confirmation UI/return value is still produced unchanged, not just that no ack was sent."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCAN-3",
+      "question": "If the pairing-ack publish attempt fails (e.g. offline), is the pending echo persisted rather than dropped, and retried when a subsequent `online` event fires? Provide (a) the failure-capture code path in `pendingIntent.ts`/the call site, (b) a test that forces `sendPairingAck` to return `'queued-for-retry'` (or throw/reject), asserts a persisted entry exists afterward, then fires a real `online` event and asserts a retried `sendPairingAck` call, and (c) confirmation the retried call carries the same `issuerPubkey`/`nonce` as the original attempt (not a corrupted or re-derived value)."
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCAN-4",
+      "question": "Does the copy shown to the scanner immediately after a successful add-with-pairing communicate that reciprocation is in flight (e.g. 'they should see you shortly') and avoid any claim of a mutual/'connected' state? Provide (a) the i18n key wired at the post-add confirmation point (per this story's scope — S5 authors the copy text itself), (b) confirmation the wiring passes the pairing-in-flight variant specifically for the AC-SCAN-1 success path (not the generic pre-epic confirmation string), and (c) a test or manual check confirming no 'connected'/'paired' past-tense claim appears in the wired string key's usage."
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCAN-5",
+      "question": "Is a scanner for whom `hasShareableName` is false at the moment of opening a live v2 code routed to the name-setup screen before landing on the issuer's contact, with a pending pairing intent (`issuerPubkey`, `nonce`, card `expiresAt`) persisted? Provide (a) the redirect-trigger code path and the exact query-flag mechanism used against `app/pages/profile.tsx`, (b) a test asserting both the redirect occurs and the intent's three fields are correctly persisted with the values from the scanned card (not placeholder/default values), and (c) confirmation the scanner does not land on the issuer's contact before the redirect (ordering, not just eventual occurrence)."
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCAN-6",
+      "question": "When a scanner with a persisted pending pairing intent sets a name and `hasShareableName` becomes true while the current time is still at or before the intent's `expiresAt`, does the pairing-ack echo fire automatically with no further user action? Provide (a) the name-transition watcher/drain code path, (b) a test that persists an intent, flips `hasShareableName` to true within the window via a real name-save action, and asserts `sendPairingAck` is called automatically (not requiring a manual trigger), and (c) confirmation the fired echo uses the intent's original `issuerPubkey`/`nonce`, not a value re-derived from current state."
+    },
+    {
+      "question_id": "VQ-S4-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCAN-7",
+      "question": "When a scanner with a persisted pending pairing intent sets a name after the intent's `expiresAt` has already passed, is no pairing-ack sent and no error surfaced, with the add remaining one-directional? Provide (a) the past-window check inside the drain logic, (b) a test that persists an intent, advances a real/injected clock past `expiresAt`, then sets a name and asserts zero `sendPairingAck` calls and no thrown/unhandled error or error toast, and (c) confirmation the stale intent is cleaned up (not left to be silently retried again later in a way that could violate AC-SCAN-6/7's window semantics)."
+    },
+    {
+      "question_id": "VQ-S4-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCAN-8",
+      "question": "Is a scanner for whom `hasShareableName` is already true at the moment of opening a live v2 code NOT redirected to name setup, with the echo firing per AC-SCAN-1 with no name-setup detour? Provide (a) the branch condition guarding the redirect (confirm it is gated on `hasShareableName`, not on an unrelated flag), (b) a test asserting zero navigation/redirect calls for a named scanner opening a live code, and (c) confirmation this test is distinct from AC-SCAN-1's test (verifying absence of redirect specifically, not just presence of the echo)."
+    },
+    {
+      "question_id": "VQ-S4-015",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "This story added two files beyond stories.json's literal scope.includes list: `app/src/components/PendingPairingIntentWatcher.tsx` (+ its one-line mount in `Layout.tsx`) and `app/pages/contacts.tsx` (AC-SCAN-4 copy-key wiring). Is this justified — i.e. does architecture.md's 'pending intent' row's explicit 'drained on window online + on app mount' requirement genuinely have no other viable mount point given `pendingIntent.ts` itself must stay React-free (matching `nonceStore.ts`'s precedent and this story's own `dependencies_forbidden`), and does `add.tsx`'s own pre-existing docstring already establish `contacts.tsx` as the sole post-add confirmation surface? Or should this have been escalated as a scope amendment rather than decided unilaterally (architecture.json's `scope_decisions` block)?"
+    },
+    {
+      "question_id": "VQ-S4-016",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "`processContactInput.ts`'s `pairingEcho` candidate is computed ONLY on the `addResult.ok === true` branch, never on `already_exists` (architecture.json's second `scope_decisions` entry) — meaning a scanner who re-scans a live pairing code from someone already in their contacts (e.g. added earlier via a shared group) never reciprocates, even though the issuer-side ack handler would admit it idempotently (AC-ACK-3). Is this narrowing consistent with every AC-SCAN-1..8 acceptance criterion as literally written (none mention `already_exists`), and does pre-epic `add.tsx` genuinely treat `already_exists` as an error state with no `pubkeyHex` to redirect to (making a pairingEcho candidate unusable there without inventing new UX), or does this leave a real, silently-dropped reciprocation opportunity the ACs implicitly expected to be covered?"
+    },
+    {
+      "question_id": "VQ-S4-017",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "`pendingIntent.test.ts`'s AC-SCAN-3 retry coverage calls `drainPendingIntents` directly a second time to simulate the effect of a real `window 'online'` event, rather than dispatching a real DOM event against `PendingPairingIntentWatcher.tsx` (this repo has zero jsdom/@testing-library precedent for any watcher component — `useOnlineStatus`, `OfflineBanner`, and `DirectMessageNotificationsWatcher` are all likewise untested at the component/DOM-event level). Does this genuinely exercise the same code path the real `online` listener invokes (i.e. is `drain()` in the Watcher's effect body a verbatim, no-extra-logic call to `drainPendingIntents(buildCtx())`, so the test isn't silently skipping any dedup/gating logic that only lives inside the listener), or is there listener-level logic (e.g. an in-flight-drain guard) this gap could hide a bug in?"
+    }
+  ]
+}

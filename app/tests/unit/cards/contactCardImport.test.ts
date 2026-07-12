@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
 import { bytesToHex } from 'nostr-tools/utils';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
-import { encodeCard, parseContactCard } from '@/src/lib/contactCard';
+import { encodeCard, encodeCardV2, parseContactCard } from '@/src/lib/contactCard';
 import { importCard } from '@/src/lib/contactCardImport';
 import { readContactEntry, writeContactEntry } from '@/src/lib/contactCache';
 import { connectNdk, getNdk } from '@/src/lib/ndkClient';
@@ -49,6 +49,23 @@ async function buildAndParseCard(pubkeyHex: string, signer: ReturnType<typeof cr
     throw new Error('unreachable: expected a signed card with a profile');
   }
   return parsed as { pubkeyHex: string; profile: { nickname: string; updatedAt: string } };
+}
+
+/** v2 (pairing-card) analogue of buildAndParseCard (epic: contact-pairing-code, S4). */
+async function buildAndParsePairingCard(
+  pubkeyHex: string,
+  signer: ReturnType<typeof createPrivateKeySigner>,
+  nickname: string,
+  createdAt: number,
+  nonceHex: string,
+  expiresAt: number,
+) {
+  const encoded = await encodeCardV2(pubkeyHex, { nickname, createdAt }, nonceHex, expiresAt, signer.signEvent);
+  const parsed = parseContactCard(encoded.cardB64Url);
+  if ('error' in parsed || !('profile' in parsed)) {
+    throw new Error('unreachable: expected a signed v2 card with a profile');
+  }
+  return parsed as { pubkeyHex: string; profile: { nickname: string; updatedAt: string }; pairing?: { nonce: string; expiresAt: number } };
 }
 
 beforeEach(() => {
@@ -145,6 +162,43 @@ describe('AC-CACHE-4: importing a card never clobbers a previously-cached avatar
     const entry = readContactEntry(pubkeyHex);
     expect(entry!.nickname).toBe('New Name');
     expect(entry!.avatar).toEqual(avatar);
+  });
+});
+
+// ── epic: contact-pairing-code, story S4 — importCard is pairing-agnostic ──
+
+describe('importCard is unaffected by a v2 (pairing) card\'s extra `pairing` field', () => {
+  it('imports the profile half of a parsed v2 card identically to a v1 card (nickname, ISO updatedAt, cached: true)', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const createdAt = 1735689600;
+    const parsed = await buildAndParsePairingCard(pubkeyHex, signer, 'Nora', createdAt, 'aa'.repeat(16), createdAt + 1800);
+
+    // Sanity: the parse really did carry a pairing field (S1's ParsedPairingCard
+    // seam) — this test would be vacuous otherwise.
+    expect(parsed.pairing).toEqual({ nonce: 'aa'.repeat(16), expiresAt: createdAt + 1800 });
+
+    // importCard's own signature only ever takes `profile` — the pairing
+    // field is never passed to it and never influences the cache write.
+    const result = importCard(parsed.pubkeyHex, parsed.profile);
+
+    expect(result).toEqual({ pubkeyHex, cached: true });
+    const entry = readContactEntry(pubkeyHex);
+    expect(entry!.nickname).toBe('Nora');
+    expect(entry!.updatedAt).toBe(new Date(createdAt * 1000).toISOString());
+  });
+
+  it('LWW still holds for a v2 card\'s profile import (a newer non-card entry is not clobbered)', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const newerUpdatedAt = '2025-06-01T00:00:00.000Z';
+    writeContactEntry(pubkeyHex, { nickname: 'Synced Name', avatar: null, updatedAt: newerUpdatedAt });
+
+    const olderCreatedAt = 1704067200;
+    const parsed = await buildAndParsePairingCard(pubkeyHex, signer, 'Older Pairing Name', olderCreatedAt, 'bb'.repeat(16), olderCreatedAt + 1800);
+
+    const result = importCard(parsed.pubkeyHex, parsed.profile);
+
+    expect(result).toEqual({ pubkeyHex, cached: false });
+    expect(readContactEntry(pubkeyHex)!.nickname).toBe('Synced Name');
   });
 });
 

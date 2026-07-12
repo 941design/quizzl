@@ -1,0 +1,26 @@
+{
+  "captured_at": "2026-07-12T03:05:00Z",
+  "command": "npx vitest run (app/)",
+  "status": "PRE_EXISTING_FAILURES_UNRELATED_TO_STORY",
+  "capture_note": "Captured before any S6 file was created. S1-S5 are landed/committed-in-tree already, so this is a clean pre-story baseline for the unit suite. e2e is this story's own deliverable, so there is no pre-story e2e baseline to capture beyond confirming the definitive gate (make test-e2e-all) is the target this story's specs must eventually pass under.",
+  "test_files": { "passed": 146, "failed": 2, "total": 148 },
+  "tests": { "passed": 2630, "failed": 25, "total": 2655 },
+  "pre_existing_failures": {
+    "files": [
+      "app/tests/unit/components/ThemeIcon.test.ts",
+      "app/tests/unit/themes/treatments.test.ts"
+    ],
+    "reason": "Icon-set naming mismatch (lucide: vs ph:/pixelarticons: iconify ids) from an unrelated theme refactor — zero overlap with this epic's files. Identical debt already recorded as pre-existing across every S1-S5 baseline.json in this epic (e.g. S5-pairing-ui-i18n/baseline.json).",
+    "verified_pre_existing": true,
+    "decision": "Recorded, not blocking, per this epic's established precedent."
+  },
+  "lint": "NO_LINT",
+  "lint_detail": "next lint has no committed ESLint config in app/ (no .eslintrc*/eslint.config*); `npx next lint` prompts interactively for first-time setup with no way to run non-interactively. No usable lint gate exists for this project (matches every prior story's baseline in this epic).",
+  "typecheck": "clean",
+  "typecheck_detail": "npx tsc --noEmit exits 0 with zero diagnostics.",
+  "e2e_baseline": {
+    "docker_available": true,
+    "compose_config_valid": true,
+    "note": "Docker and docker compose are present in this environment (docker compose config validates docker-compose.e2e.yml). Whether the full make test-e2e-all run (12 non-relay + this story's new relay-bucket specs) can actually complete inside this sandbox's time/network constraints is verified at Regression Prevention time, not assumed here."
+  }
+}

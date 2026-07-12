@@ -1,0 +1,60 @@
+{
+  "created_at": "2026-07-11T21:00:52Z",
+  "focus_areas": ["codec-share-import", "admission-giftwrap-listeners", "onboarding-idb-tests-i18n"],
+  "codec_share_import": {
+    "contactCard.ts": {
+      "v1_header": "byte: bits7-6 version(v1=00), bit5 SIGNED, bit4 HAS_AVATAR(reserved0), bits3-0 reserved0. HEADER_UNSIGNED=0x00, HEADER_SIGNED=0x20.",
+      "constants": "MAX_NAME_BYTES=32, UNSIGNED_CARD_LEN=33, SIGNED_CARD_FIXED_OVERHEAD_BYTES=102 (1+32+4+1+64). CARD_LINK_URL_PREFIX='https://few.chat/add#c='.",
+      "signed_layout": "packSigned(205-222): header, pubkey(32), created_at(4 BE), name_len(1), name(var), sig(64).",
+      "encode": "encodeCard(240-280): empty name -> unsigned card. Signs via injected signEvent; packs signer-returned created_at/sig.",
+      "decode_strict": "decodeCard(302-387): rejects version!==0 (line310), HAS_AVATAR set (312), nonzero reserved (314). Version check @310 is the single gate; a v1 reader rejects v2 via same check (old-build reject requirement).",
+      "signature_weakness": "Preimage is {kind:0,created_at,tags:[],content:JSON.stringify({name})} -> a WELL-FORMED PUBLISHABLE kind-0 event. Launderable to public relay. RD-4 requires domain-separation + covering nonce+expiry.",
+      "purity": "pure bytes-in/out, injected signEvent. No React/storage/relay/NDK.",
+      "base64url": "hand-rolled RFC4648 §5, no padding; decode injective (canonical check).",
+      "parse_seam": "parseContactCard(402-455) single decode seam: nostr: prefix, bare npub (425-429 one-directional {pubkeyHex}), #c= link, raw payload. ParseContactCardResult is 3-variant union (391-394); needs a 4th nonce-bearing shape or optional field."
+    },
+    "shareCard.ts": {
+      "getOwnShareCard": "151-177: hard guard throws if !hasShareableName BEFORE cache/signer. hasShareableName(94-96)=nickname.trim().length>0.",
+      "cache_key": "ShareCardCacheKey(33-47)={nickname,signerMode,pubkeyHex}. shouldRebuildShareCard(68-78) pure compare. RD-2 requires adding active-nonce as 4th dimension.",
+      "buildShareUrl": "contactCard.ts 283-285. Sole caller profile.tsx handleShareCard(91-120)."
+    },
+    "share_ui": {
+      "NpubQrModal.tsx": "QR via dynamic import('qrcode'), toDataURL. eccLevel = shareUrl?'L':'M' (line94). v2 grows payload ~20B -> re-check density. Copy-link copies shareUrl verbatim (handleCopy 136-145).",
+      "affordance_copy": "i18n profile.shareCard* keys: type 292-304, en 828-833, de 1345-1350. shareCardDescription needs '30 minutes' update."
+    },
+    "scanner_import": {
+      "add.tsx": "62-86 useEffect, settledRef guards single-run. On success notifyKnownPeersChanged() then router.replace('/contacts?id=<hex>&added=1'). /add never a visible stop on success.",
+      "addDeepLink.ts": "resolveAddDeepLink(83-93): no_card | awaiting_identity(payload held as raw hash, NOT parsed early) | complete(calls processContactInput once). Single-parse discipline.",
+      "processContactInput.ts": "44-72: parseContactCard once; invalid -> {ok:false} no add. Success -> addContactByNpub; importCard runs when profile present + add ok/already_exists.",
+      "reciprocal_copy": "'they will need to add you too' copy DOES NOT EXIST today. One-directional add completes silently w/ green confirmation only. Entire piece incl. AC-PAIR-5 suppression is net-new."
+    }
+  },
+  "admission_giftwrap_listeners": {
+    "walledGarden.ts": "isAllowedDmSender(peerHex,groups,knownPeers,ownPubkeyHex):boolean (53-81) pure. 10 call sites. Pairing-ack path must NEVER call it (like joinRequestHandler); gated by nonce+sender-binding instead.",
+    "knownPeers.ts": "PURE localStorage key lp_knownPeers_v1, sync, lowercased. rememberKnownPeer/rememberKnownPeers/isKnownPeer/loadKnownPeers.",
+    "admission_ordering_ADR005": "contacts.ts 333-340: rememberKnownPeers([hex]) ALWAYS BEFORE rememberContact(hex). Load-bearing (ADR-005, doc @290-293) to avoid purge race. Ack handler MUST replicate. Call rememberContact WITHOUT isAllowed gate (nonce is the trust decision), like addContactByNpub.",
+    "directMessages.ts": {
+      "outbound": "sealAndWrap(171-190) nostr-tools/nip59 wrapEvent, ephemeral key, [p,recipient].",
+      "sender_binding": "unwrapAndOpen(230-282): verifyEvent(seal) @250, assert rumor.pubkey===seal.pubkey @262, getEventHash(rumor) @271-273. THIS is the sender-binding primitive to reuse. CHAT_MESSAGE_KIND=14 (line19).",
+      "publish_helper": "publishDirectMessage(365-374). Dev bridge window.__fewPublishDm in unreadStore.ts."
+    },
+    "HAZARD_two_unwraps": "welcomeSubscription.ts unwrapGiftWrap(39-67) does NOT assert rumor.pubkey===seal.pubkey (weak). Ack handler registered there MUST use directMessages.ts unwrapAndOpen (or replicate step2/4) for sender binding. Seam hazard.",
+    "listeners_CORRECTION": "SPEC IS STALE: not MarmotContext+ChatStoreContext. ChatStoreContext has ZERO kind-1059/giftwrap code (applicationRumorDispatcher unified it). Real kind-1059 consumers = THREE: welcomeSubscription.ts, ContactChat.tsx, directMessageNotifications.ts. All three FAIL-CLOSED on unrecognized rumor.kind -> ack auto-excluded from chat bubbles/bell PROVIDED new kind !collide with sentinels 444,21059,5,7,14.",
+    "subscription_home": "welcomeSubscription.ts subscribeToWelcomes (global, one NDK sub, #p:[pubkey], no author filter), wired MarmotContext.tsx:796. Dispatches on kind: 21059 join-request @118-136, else kind!==444 drops. Add pairing-ack branch here.",
+    "joinrequest_analog": "joinRequestSender.ts buildJoinRequestRumor(kind21059,{type,nonce,name})->buildGiftWrap->sendJoinRequest(raw WS to DEFAULT_RELAYS). joinRequestHandler.ts handleJoinRequest(56-94): getInviteLink(nonce) idb lookup, muted/member/dedup checks, NEVER isAllowedDmSender. Nonce store inviteLinkStorage.ts idb-keyval 'few-invite-links' keyed by nonce {nonce,groupId,createdAt,label?,muted}."
+  },
+  "onboarding_idb_tests_i18n": {
+    "onboarding_GAP": "NO onboarding->name-setup routing exists. Fresh /add visitor lands /contacts?id=&added=1 with EMPTY nickname, never signs. Nickname only set on /profile handleNicknameBlur->saveProfile (ProfileContext 52-58 single chokepoint). Deferred-echo (AC-PAIR-10) is NOT a small hook: needs a product decision on how a nameless scanner reaches name-set within window.",
+    "identity": "NostrIdentityContext init(141-172) auto-generates identity on first mount, hydrated flips true. resolveAddDeepLink gates on hydrated (awaiting_identity state, card survives in hash).",
+    "idb_pattern": "Two tiers: pure localStorage (knownPeers, pendingInvitations - MUST be pure, no idb/react) vs idb-keyval (profileRequestStorage.ts template: module-scope createStore('few-...'), composite string keys, small async CRUD, prefix bulk-clear). New nonce store + retry queue -> follow idb-keyval few:*/few-* convention (lp_* frozen).",
+    "retry_analog": "NO persist-outbound-intent-resend-on-reconnect pattern exists. useOnlineStatus hook exists (navigator.onLine) but only drives OfflineBanner. Wiring persist+retry to window 'online' event is net-new. Closest data analogs: pendingInvitations (capped localStorage queue), messageEdits/api.ts (capped+TTL idb array).",
+    "unit_tests": "app/tests/unit/**/*.test.ts, vitest, NO jsdom, NO @testing-library. Hooks tested via extracted pure functions. idb-keyval: Map-backed vi.mock OR fake-indexeddb/auto (integration, e.g. profileRequestStorage.integration.test.ts - precedent for nonce-store boundary math). Crypto tested pure w/ real nostr-tools (contactCard.test.ts). i18n tests: *.i18n.test.ts naming.",
+    "e2e": "app/tests/e2e/*.spec.ts. Buckets: non-relay 12 (next dev), relay 38 (Docker strfry+blossom), total 50 = test-e2e-all. Second-peer: bootIdentity/newAnonymousContext (contact-card.ts helpers). App-publish rule: drive real UI (getShareCardLink drives real Share button), never hand-sign. AC-PAIR-10 needs NEW step: drive /profile nickname input+blur after anonymous /add landing. Fast-expire: NO e2e precedent; better as fake-indexeddb unit test for boundary math + e2e injects short expires_at via page.evaluate direct-IDB-write (like dm-self-heal seedMalformedRow). Tally to update: Makefile:99-143 + CLAUDE.md E2E section.",
+    "i18n": "i18n.ts Copy type @3, en/de objects. add namespace type 284-291, en 815-822, de ~1332. useCopy() from LanguageContext. Dynamic: (count:number)=>string pattern (digest string per §5.1). Add key to Copy type + both en & de."
+  },
+  "explorer_agent_ids": {
+    "codec": "a09a384cefdf914c7",
+    "admission": "a44de382264076d96",
+    "onboarding": "a6f24e1242734ef8d"
+  }
+}

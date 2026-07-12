@@ -1,0 +1,53 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T00:10:00Z",
+  "remediation_rounds": 0,
+  "review_remediation": "During the lead-owned Stage-1/Stage-2 review, both the Opus reviewer (sev-2) and Codex (P2) flagged the unsigned-version-01 decode branch. Fixed in the lead review loop (before the examiner ran): a header with version bits 01 and the SIGNED bit clear is now a hard parse failure (contactCard.ts ~line 544, 'v2 card must be signed'), not a bare-pubkey decode — enforcing strict-parser discipline per AC-CODEC-4. Two tests added (reject unsigned-v2 header; v1 unsigned still valid). Also closed the Opus test-coverage finding (2038+ high-bit timestamp round-trip; v2 created_at tamper). Codec test file now 78 tests, all passing.",
+  "modules_touched": ["codec"],
+  "files_created": [],
+  "files_modified": [
+    "app/src/lib/contactCard.ts",
+    "app/tests/unit/cards/contactCard.test.ts"
+  ],
+  "implementation_summary": "Extended the existing pure contact-card codec (app/src/lib/contactCard.ts) in place with the v2 wire format: header version bits 01 (HEADER_SIGNED_V2 = 0x60), a 4-byte BE expires_at and a 16-byte nonce spliced between created_at and name_len (named constants PAIRING_EXPIRES_AT_LEN=4, PAIRING_NONCE_LEN=16; SIGNED_CARD_FIXED_OVERHEAD_BYTES_V2=122), and an RD-4 signature preimage built by the single shared buildV2SigPreimageEvent helper — a synthetic event with kind=CARD_SIG_KIND_V2 (20602, confirmed via grep to have zero in-repo collisions before landing) and content=JSON.stringify({v:2,h,exp,nonce,name}), so the exact preimage can never be republished as a well-formed kind-0 profile event (AC-CODEC-3). encodeCardV2 (new export) always produces a signed card, matching the EncodedCardV2 seam contract ({pubkeyHex, name, nonceHex, expiresAt, cardB64Url}); it throws on an empty (post-truncation) nickname since a v2 card without a name serves no pairing purpose and every real caller (S2's shareCard.ts) already gates on hasShareableName. decodeCard was extended in place (not forked) to branch on the header's 2-bit version field: 00 keeps the exact pre-existing v1 code path unchanged, 01 parses/verifies the v2 layout, and any other value (10/11) is a hard parse failure alongside the pre-existing HAS_AVATAR/reserved-bit checks (AC-CODEC-4) — this is the single strict-parser gate both versions share. DecodedCard gained pairing?: {nonce, expiresAt}, present iff version===1. ParseContactCardResult gained a 4th union variant carrying pairing; parseContactCard forwards it unchanged otherwise. An unsigned buffer with version bits 01 is a malformed v2 card (v2 is always signed) and is REJECTED as a hard parse failure by the strict parser (updated during lead review — see review_remediation; supersedes the original lenient interpretation flagged as VQ-S1-015). Delegated test-writing and independent verification to a base:dev agent (agentId af0cd1021e5ec9fa4), which added 25 new tests across 9 describe blocks covering all six ACs plus a v2 parseContactCard round-trip and encodeCardV2 defensive guards; it found zero implementation bugs on first run. I then closed one gap the dev agent's own report and my post-impl verification questions surfaced (VQ-S1-017: no test pinned buildV2SigPreimageEvent as v2's single-source-of-truth content builder the way AC-SIG-5 pins v1's CARD_CONTENT) by adding an it.each round-trip test over quoted/umlaut/emoji names.",
+  "tests": {
+    "baseline": { "test_files": 141, "tests": 2514, "passed": 2489, "failed": 25 },
+    "final": { "test_files": 141, "tests": 2536, "passed": 2511, "failed": 25 },
+    "delta": "+22 tests added, all passing; the 25 failing tests are unchanged pre-existing baseline debt (tests/unit/components/ThemeIcon.test.ts, tests/unit/themes/treatments.test.ts — Lucide/Phosphor icon-set mismatch from an unrelated prior commit, 5bc5a0b), not touched by or related to this story's scope.",
+    "new_tests_by_type": {
+      "unit_property_parameterized": "it.each sweeps: AC-CODEC-4 strict-header rejection (4 header mutations x v1-shaped + v2-shaped = 8 assertions in 4 test cases), AC-CODEC-1 non-ASCII round-trip (3 name classes)",
+      "unit_example": "round-trip, wire-layout byte inspection, tamper-and-reject (nonce, expires_at independently), preimage kind assertion, v1/npub regression, exact byte-length delta, parseContactCard v2 round-trip (link + raw), encodeCardV2 defensive guards (empty nickname, malformed nonceHex, whitespace-only pass-through documented as intentional)"
+    }
+  },
+  "lint": { "status": "NO_LINT", "note": "unchanged from baseline — no ESLint config in app/" },
+  "typecheck": { "command": "cd app && npx tsc --noEmit", "status": "clean", "errors": 0 },
+  "mocks_introduced": [],
+  "verification": {
+    "verification_json": "specs/epic-contact-pairing-code/S1-pairing-card-codec-v2/verification.json",
+    "pre_impl_questions": 14,
+    "post_impl_questions_appended": 3,
+    "note": "All 14 pre-impl (planner-authored) questions left untouched per the immutability rule. Appended VQ-S1-015 (unsigned-v2-header interpretation), VQ-S1-016 (throw-on-empty-nickname design holding up for S2), VQ-S1-017 (shared-preimage-builder coverage gap — closed within this story by adding the it.each non-ASCII round-trip test rather than left open, since it was cheap and directly actionable)."
+  },
+  "reviews": {
+    "stage1": "lead-owned (not run by this architect spawn, per FR-2)",
+    "stage2": "lead-owned (not run by this architect spawn)"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The exact v2 byte layout (field order: header, pubkey, created_at, expires_at, nonce, name_len, name, sig) and the 'always signed' invariant for v2 were not fully pinned down in acceptance-criteria.md or architecture.md — both describe the fields but the canonical ordering and the always-signed structural claim only appear in specs/contact-pairing-code-spec-request.md §4, a file not listed in the story's 'Read these first' pointer. I found it only by grepping the epic's specs/ directory once the AC/architecture read left the byte order ambiguous. A future S1-shaped story should list every spec-request/source-request doc alongside acceptance-criteria.md and architecture.md in its 'read first' list, not just the two derived documents.",
+    "surprised_by": "",
+    "scope": "meta",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "spawn_index": 1,
+        "note": "dev's return flagged the encodeCardV2 whitespace-only-nickname guard as ambiguous relative to the task prompt's phrasing ('empty/whitespace-only'), resolved by pinning the actual layering rule (hasShareableName owns whitespace-trimming, the codec only rejects true-empty) with an explicit comment and test rather than expanding the codec's own validation — absorbed directly into the implementation, no disagreement."
+      }
+    ],
+    "lead_clarifications": []
+  }
+}

@@ -51,7 +51,7 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, wri
 
 // ── Module imports (after mocks are set up) ────────────────────────────────
 
-const { encodeCard, parseContactCard, base64UrlToBytes, bytesToBase64Url, buildShareUrl } =
+const { encodeCard, encodeCardV2, parseContactCard, base64UrlToBytes, bytesToBase64Url, buildShareUrl } =
   await import('@/src/lib/contactCard');
 const { createPrivateKeySigner } = await import('@/src/lib/marmot/signerAdapter');
 const { readStoredContacts, addContactByNpub } = await import('@/src/lib/contacts');
@@ -79,6 +79,19 @@ async function buildSignedCardPayload(
   createdAt: number,
 ): Promise<string> {
   return encodeCard(pubkeyHex, { nickname, createdAt }, signer.signEvent);
+}
+
+/** Build a real, signed v2 pairing card (epic: contact-pairing-code, S4 tests). */
+async function buildSignedPairingCardPayload(
+  pubkeyHex: string,
+  signer: ReturnType<typeof createPrivateKeySigner>,
+  nickname: string,
+  createdAt: number,
+  nonceHex: string,
+  expiresAt: number,
+): Promise<string> {
+  const encoded = await encodeCardV2(pubkeyHex, { nickname, createdAt }, nonceHex, expiresAt, signer.signEvent);
+  return encoded.cardB64Url;
 }
 
 function tamperSignature(payload: string): string {
@@ -270,6 +283,132 @@ describe('processContactInput — unparseable input is rejected without throwing
   it('returns an invalid_npub failure for empty input', () => {
     const result = processContactInput('', null);
     expect(result).toEqual({ ok: false, error: 'invalid_npub' });
+  });
+});
+
+// ── pairingEcho — the ParsedPairingCard-derived echo candidate (epic: ───────
+// contact-pairing-code, story S4; AC-SCAN-1, AC-SCAN-2, AC-SCAN-8)
+
+describe('processContactInput — pairingEcho candidate computation', () => {
+  it('AC-SCAN-1/8: an unexpired v2 code yields a pairingEcho candidate carrying the scanned nonce/expiresAt/issuer', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = 'aa'.repeat(16);
+    const expiresAt = 1735689600 + 1800;
+    const payload = await buildSignedPairingCardPayload(pubkeyHex, signer, 'Ivy', 1735689600, nonceHex, expiresAt);
+
+    const result = processContactInput(payload, null, () => 1735689600 * 1000);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('unreachable');
+    expect(result.pairingEcho).toEqual({ issuerPubkeyHex: pubkeyHex, nonceHex, expiresAt });
+  });
+
+  it('AC-SCAN-6 boundary: a candidate is still produced at the exact expiresAt instant (inclusive)', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const nonceHex = 'bb'.repeat(16);
+    const expiresAt = 1735689600 + 1800;
+    const payload = await buildSignedPairingCardPayload(pubkeyHex, signer, 'Jack', 1735689600, nonceHex, expiresAt);
+
+    const result = processContactInput(payload, null, () => expiresAt * 1000);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('unreachable');
+    expect(result.pairingEcho).toEqual({ issuerPubkeyHex: pubkeyHex, nonceHex, expiresAt });
+  });
+
+  it('AC-SCAN-2: an EXPIRED v2 code (per the scanner\'s own clock) produces no pairingEcho candidate, yet the add still completes as a plain one-directional add', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const expiresAt = 1735689600 + 1800;
+    const payload = await buildSignedPairingCardPayload(pubkeyHex, signer, 'Kara', 1735689600, 'cc'.repeat(16), expiresAt);
+
+    // One second past expiresAt, per the scanner's clock.
+    const result = processContactInput(payload, null, () => (expiresAt + 1) * 1000);
+
+    expect(result).toEqual({ ok: true, pubkeyHex, reactivated: false, cachedNickname: true });
+    expect((result as { pairingEcho?: unknown }).pairingEcho).toBeUndefined();
+    expect(readContactEntry(pubkeyHex)?.nickname).toBe('Kara');
+  });
+
+  it('AC-SCAN-2: a v1 card (no pairing field at all) never carries a pairingEcho candidate', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const payload = await buildSignedCardPayload(pubkeyHex, signer, 'Liam', 1735689600);
+
+    const result = processContactInput(payload, null);
+
+    expect(result).toEqual({ ok: true, pubkeyHex, reactivated: false, cachedNickname: true });
+  });
+
+  it('AC-SCAN-2: a bare npub never carries a pairingEcho candidate', () => {
+    const pubkeyHex = 'e'.repeat(64);
+    const result = processContactInput(pubkeyToNpub(pubkeyHex), null);
+
+    expect(result).toEqual({ ok: true, pubkeyHex, reactivated: false, cachedNickname: false });
+  });
+
+  it('a self-scan of one\'s own v2 code never carries a pairingEcho candidate (the add itself is rejected first)', async () => {
+    const { pubkeyHex, signer } = makeIdentity();
+    const payload = await buildSignedPairingCardPayload(
+      pubkeyHex,
+      signer,
+      'Mona',
+      1735689600,
+      'dd'.repeat(16),
+      1735689600 + 1800,
+    );
+
+    const result = processContactInput(payload, pubkeyHex);
+
+    expect(result).toEqual({ ok: false, error: 'self' });
+  });
+
+  // ── Review-remediation (sev 5): a RETURNING scanner must still reciprocate ──
+
+  describe('a RETURNING scanner (already_exists) still reciprocates when the re-scanned code carries an unexpired pairing field', () => {
+    it('an unexpired v2 code re-scanned by an already-contact yields ok:false/already_exists WITH a pairingEcho candidate', async () => {
+      const { pubkeyHex, signer } = makeIdentity();
+      // Seed an active, already-known contact via the real addContactByNpub
+      // (mirrors the pre-existing AC-UX-6 seeding pattern above) — this is
+      // the "B added A one-directionally earlier" half of the scenario.
+      addContactByNpub(pubkeyToNpub(pubkeyHex), null);
+      expect(readStoredContacts()[pubkeyHex].archivedAt).toBeNull();
+
+      const nonceHex = 'ee'.repeat(16);
+      const expiresAt = 1735689600 + 1800;
+      const payload = await buildSignedPairingCardPayload(pubkeyHex, signer, 'Nina', 1735689600, nonceHex, expiresAt);
+
+      const result = processContactInput(payload, null, () => 1735689600 * 1000);
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error('unreachable');
+      expect(result.error).toBe('already_exists');
+      expect(result.pairingEcho).toEqual({ issuerPubkeyHex: pubkeyHex, nonceHex, expiresAt });
+      // AC-UX-6 is unaffected — the nickname refresh still happens on this branch.
+      expect(readContactEntry(pubkeyHex)?.nickname).toBe('Nina');
+    });
+
+    it('an EXPIRED v2 code re-scanned by an already-contact yields already_exists with NO pairingEcho candidate', async () => {
+      const { pubkeyHex, signer } = makeIdentity();
+      addContactByNpub(pubkeyToNpub(pubkeyHex), null);
+
+      const expiresAt = 1735689600 + 1800;
+      const payload = await buildSignedPairingCardPayload(pubkeyHex, signer, 'Oscar', 1735689600, 'ff'.repeat(16), expiresAt);
+
+      // One second past expiresAt, per the scanner's own clock.
+      const result = processContactInput(payload, null, () => (expiresAt + 1) * 1000);
+
+      expect(result).toEqual({ ok: false, error: 'already_exists' });
+      expect((result as { pairingEcho?: unknown }).pairingEcho).toBeUndefined();
+    });
+
+    it('a v1 (pairing-less) re-scan of an already-contact carries no pairingEcho candidate (unchanged pre-remediation behavior)', async () => {
+      const { pubkeyHex, signer } = makeIdentity();
+      addContactByNpub(pubkeyToNpub(pubkeyHex), null);
+
+      const payload = await buildSignedCardPayload(pubkeyHex, signer, 'Priya', 1735689600);
+      const result = processContactInput(payload, null);
+
+      expect(result).toEqual({ ok: false, error: 'already_exists' });
+    });
   });
 });
 

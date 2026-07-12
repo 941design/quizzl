@@ -1,0 +1,235 @@
+{
+  "epic": "contact-pairing-code",
+  "concepts": [
+    {
+      "id": "codec-signature-domain-separation",
+      "name": "v2 card signature is domain-separated, non-kind-0 (RD-4)",
+      "owning_module": "codec",
+      "type": "invariant",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "card-name-byte-cap",
+      "name": "UTF-8 name 32-byte cap + truncation (utf8ByteLength/truncateUtf8 exported by codec)",
+      "owning_module": "codec",
+      "type": "invariant",
+      "added_by_story": "S1",
+      "cross_story_watch": "S3 MUST reuse contactCard.ts exports utf8ByteLength/truncateUtf8 for its identity-only card name cap \u2014 do NOT re-implement (would create duplicated_invariant/multi_owner)."
+    },
+    {
+      "id": "nonce-admissibility-window",
+      "name": "Issued-nonce admissibility window (valid + 2h grace, RD-2)",
+      "owning_module": "nonceStore+shareCard",
+      "type": "invariant",
+      "added_by_story": "S2"
+    },
+    {
+      "id": "share-cache-key-includes-active-nonce",
+      "name": "Share-card cache key invalidates on active-nonce rotation",
+      "owning_module": "nonceStore+shareCard",
+      "type": "validation_rule",
+      "added_by_story": "S2"
+    },
+    {
+      "id": "ack-sender-binding",
+      "name": "Pairing-ack admission requires sender-binding (rumor.pubkey === seal.pubkey)",
+      "owning_module": "pairingAck",
+      "type": "invariant",
+      "added_by_story": "S3"
+    },
+    {
+      "id": "ack-kind-sentinel-isolation",
+      "name": "PAIRING_ACK_KIND must not collide with sentinels 444/21059/5/7/14",
+      "owning_module": "pairingAck",
+      "type": "invariant",
+      "added_by_story": "S3"
+    },
+    {
+      "id": "admission-ordering-adr-005",
+      "name": "Admission calls rememberKnownPeers before rememberContact (ADR-005)",
+      "owning_module": "pairingAck",
+      "type": "invariant",
+      "added_by_story": "S3"
+    },
+    {
+      "id": "pending-intent-in-window-fire",
+      "name": "Onboarding-deferred echo fires iff still within the intent's window",
+      "owning_module": "pendingIntent+scannerImport",
+      "type": "invariant",
+      "added_by_story": "S4"
+    },
+    {
+      "id": "scanner-graceful-expiry-fallback",
+      "name": "Expired or pairing-less input degrades to one-directional add, no error",
+      "owning_module": "pendingIntent+scannerImport",
+      "type": "validation_rule",
+      "added_by_story": "S4"
+    },
+    {
+      "id": "i18n-en-de-coverage",
+      "name": "Every new user-facing string has both en and de i18n.ts entries",
+      "owning_module": "ui-i18n",
+      "type": "validation_rule",
+      "added_by_story": "S5"
+    },
+    {
+      "id": "few-star-idb-store-naming",
+      "name": "New idb-keyval stores use the few-* naming convention (not frozen lp_*)",
+      "owning_module": "nonceStore+shareCard",
+      "type": "naming_scheme",
+      "added_by_story": "S2"
+    },
+    {
+      "id": "pairing-ack-send-contract",
+      "name": "PairingAckSend seam: scanner-triggered echo call contract",
+      "owning_module": "pairingAck",
+      "type": "public_contract",
+      "added_by_story": "S3"
+    }
+  ],
+  "stories": [
+    {
+      "story_id": "S1",
+      "surfaces_touched": [
+        "app/src/lib/contactCard.ts",
+        "app/tests/unit/cards/contactCard.test.ts"
+      ],
+      "concepts_implemented": [
+        "codec-signature-domain-separation",
+        "card-name-byte-cap"
+      ],
+      "public_contracts_added": [
+        "encodeCardV2 / EncodedCardV2",
+        "DecodedCard.pairing",
+        "ParseContactCardResult 4th (pairing-bearing) variant",
+        "CARD_SIG_KIND_V2"
+      ],
+      "notes": "v2 wire format spliced into the pure codec in place (not forked). Strict parser is the single shared version/HAS_AVATAR/reserved gate. Opus review: 3 findings all < sev 5; test-coverage finding (2038 high-bit + v2 created_at tamper) closed by lead."
+    },
+    {
+      "story_id": "S2",
+      "surfaces_touched": [
+        "app/src/lib/pairing/nonceStore.ts",
+        "app/src/lib/shareCard.ts",
+        "app/tests/unit/pairing/nonceStore.integration.test.ts",
+        "app/tests/unit/cards/shareCard.test.ts"
+      ],
+      "concepts_implemented": [
+        "nonce-admissibility-window",
+        "share-cache-key-includes-active-nonce",
+        "few-star-idb-store-naming"
+      ],
+      "public_contracts_added": [
+        "isNonceAdmissible(nonceHex, nowSec) \u2014 NonceAdmissibility seam (S3 consumes verbatim)",
+        "getOrMintActiveNonce / pruneExpiredNonces / getStoredNonce",
+        "buildOwnShareCardV2; getOwnShareCard now produces v2 (production path switched v1->v2)"
+      ],
+      "notes": "Seam grace math exact (nowSec<=expiresAt+7200) and read-only. idb createStore verified lazy (build-safe). Opus: 2 findings <sev5 \u2014 dead-code buildOwnShareCard v1 (doc-comment corrected, function retained as preexisting API), forward prune note carried to S3."
+    },
+    {
+      "story_id": "S3",
+      "surfaces_touched": [
+        "app/src/lib/pairing/pairingAck.ts",
+        "app/src/lib/marmot/welcomeSubscription.ts",
+        "app/src/context/MarmotContext.tsx",
+        "app/src/context/NostrIdentityContext.tsx (review-remediation: NIP-46 perm sign_event:20602)",
+        "app/tests/unit/pairing/pairingAck.test.ts",
+        "app/tests/unit/marmot/welcomeSubscription.test.ts",
+        "app/tests/unit/directMessageNotifications.test.ts"
+      ],
+      "concepts_implemented": [
+        "ack-sender-binding",
+        "ack-kind-sentinel-isolation",
+        "admission-ordering-adr-005",
+        "pairing-ack-send-contract"
+      ],
+      "public_contracts_added": [
+        "sendPairingAck / PairingAckSendResult (PairingAckSend seam)",
+        "handlePairingAck / HandlePairingAckResult",
+        "getPairingAckAdmissions (S5 digest read surface)",
+        "PAIRING_ACK_KIND (21060)"
+      ],
+      "notes": "SECURITY CORE. Opus: sender-binding+walled-garden+kind-isolation+privacy all verified sound, no circumvention. 2 non-security findings fixed (empty-name guard; malformed test assertion). Codex caught a real cross-cutting regression Opus missed: v1->v2 share switch broke NIP-46 bunker signing (perm list lacked sign_event:20602) \u2014 FIXED. NIP-46 perm list has no unit coverage (heavy React module, no-jsdom convention) \u2014 documented gap."
+    },
+    {
+      "story_id": "S4",
+      "surfaces_touched": [
+        "app/src/lib/pairing/pendingIntent.ts",
+        "app/src/lib/processContactInput.ts",
+        "app/pages/add.tsx",
+        "app/pages/profile.tsx",
+        "app/pages/contacts.tsx",
+        "app/src/components/PendingPairingIntentWatcher.tsx",
+        "app/src/components/Layout.tsx",
+        "app/src/lib/i18n.ts"
+      ],
+      "concepts_implemented": [
+        "pending-intent-in-window-fire",
+        "scanner-graceful-expiry-fallback"
+      ],
+      "public_contracts_consumed": [
+        "ParsedPairingCard (S1)",
+        "PairingAckSend/sendPairingAck (S3)",
+        "hasShareableName (S2/shareCard)"
+      ],
+      "notes": "Persist-before-redirect/attempt hold; retry re-queues. Review round-1: fixed already_exists echo-skip (sev5, returning scanner now reciprocates; spec amendment added) + concurrent double-drain (sev3, per-issuer in-flight lock). Examiner 0 NO, 3 PARTIAL (doc/scope notes, non-blocking)."
+    },
+    {
+      "story_id": "S5",
+      "surfaces_touched": [
+        "app/src/lib/i18n.ts",
+        "app/src/components/groups/NpubQrModal.tsx",
+        "app/pages/profile.tsx",
+        "app/pages/add.tsx",
+        "app/src/lib/processContactInput.ts",
+        "app/src/context/MarmotContext.tsx",
+        "app/src/lib/contactCard.ts (additive: UNSUPPORTED_VERSION_ERROR export)",
+        "app/src/lib/pairing/nonceStore.ts (additive: peekActiveNonce)"
+      ],
+      "concepts_implemented": [
+        "i18n-en-de-coverage"
+      ],
+      "public_contracts_added": [
+        "shouldShowValidityHint",
+        "countAdmissionsForActiveNonce/applyPairingAdmissionDigest/resolveAndApplyPairingAdmissionDigest",
+        "processContactInput error 'unsupported_version'",
+        "peekActiveNonce (nonceStore, read-only)",
+        "UNSUPPORTED_VERSION_ERROR (contactCard)"
+      ],
+      "notes": "UI/i18n + sanctioned S4 already_exists remediation. Review round-1: 3 findings fixed \u2014 already_exists regression test; digest peek-not-mint (structural: peek param type has no mint capability); error-constant extraction. Examiner 10/10 YES. MV-1 (QR phone-scan) is manual \u2014 QR-density computed (v2=version8/49x49 @ECC-L, scannable)."
+    },
+    {
+      "story_id": "S6",
+      "surfaces_touched": [
+        "app/tests/e2e/dm-pairing-single-scan-mutual.spec.ts",
+        "app/tests/e2e/dm-pairing-multi-use.spec.ts",
+        "app/tests/e2e/dm-pairing-expired-grace.spec.ts",
+        "app/tests/e2e/dm-pairing-unknown-nonce.spec.ts",
+        "app/tests/e2e/dm-pairing-sender-binding.spec.ts",
+        "app/tests/e2e/dm-pairing-onboarding-scanner.spec.ts",
+        "app/tests/e2e/helpers/pairing.ts",
+        "app/tests/e2e/helpers/forgedPairingAck.ts",
+        "app/tests/e2e/contact-card-deeplink.spec.ts",
+        "Makefile",
+        "CLAUDE.md"
+      ],
+      "concepts_implemented": [],
+      "public_contracts_added": [],
+      "notes": "6 relay-bucket e2e specs, ran GREEN against live Docker relay (individually + together). Publish-through-app rule held; one documented forgery exception (forgedPairingAck.ts) with self-check + positive control. AC-ADMIT-6 proven end-to-end. Fixed 2 real bugs (Next static-export trailing-slash URL regex x3, .or() strict-mode). Tally 50->56 / relay 38->44. Examiner 11/11 YES."
+    }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "S5",
+    "reviewer_agent_id": "a33f22c5e7a74f7b4",
+    "model_at": "2026-07-12T03:20:00Z",
+    "note": "S6 is e2e-only (no production module); pre-commit gate covers whole tree."
+  },
+  "watches": [
+    "[RESOLVED] pairing-mutual-completion-on-already-exists: fixed + now regression-tested at processContactInput level (S5 finding F1).",
+    "[DISCHARGED S5] i18n-en-de-coverage: all epic keys en+de, parity test present.",
+    "[DISCHARGED S5] digest-active-nonce-peek: digest now uses peekActiveNonce (no mint on ack receipt).",
+    "[CLOSED] card-name-byte-cap: no remaining story touches name bytes.",
+    "nip46-perms-untested: sign_event:20602 added; REQUIRED_PERMS still has no unit coverage (React module) \u2014 consider e2e/bunker coverage. Carry to S6/gates.",
+    "MV-1 QR-scannability: manual phone-camera check owed at epic-done gate; computed evidence v2=version8/49x49 ECC-L."
+  ]
+}

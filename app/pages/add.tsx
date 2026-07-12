@@ -16,7 +16,37 @@ import {
 import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
+import { useProfile } from '@/src/context/ProfileContext';
 import { readLocationHash, resolveAddDeepLink, type AddDeepLinkOutcome } from '@/src/lib/addDeepLink';
+import { attemptOrQueuePairingEcho, type PendingIntentSendContext } from '@/src/lib/pairing/pendingIntent';
+
+/**
+ * Builds the lazy NDK/signer-resolving send context `attemptOrQueuePairingEcho`
+ * needs (epic: contact-pairing-code, story S4). Module-level and pure over its
+ * params — shared by both call sites below (the fresh-add path and the
+ * review-remediated already_exists/returning-scanner path) so the
+ * `resolveSendDeps` closure is written once, not duplicated.
+ */
+function buildPendingIntentSendContext(
+  ownPubkeyHex: string,
+  ownPrivateKeyHex: string,
+  nickname: string,
+): PendingIntentSendContext {
+  return {
+    ownPubkeyHex,
+    ownPrivateKeyHex,
+    ownProfile: { nickname, createdAt: Math.floor(Date.now() / 1000) },
+    resolveSendDeps: async () => {
+      const [{ connectNdk }, { activeEventSignerOverride, createPrivateKeySigner }] = await Promise.all([
+        import('@/src/lib/ndkClient'),
+        import('@/src/lib/marmot/signerAdapter'),
+      ]);
+      const ndk = await connectNdk(ownPrivateKeyHex);
+      const signer = activeEventSignerOverride.current ?? createPrivateKeySigner(ownPrivateKeyHex);
+      return { ndk, signEvent: signer.signEvent };
+    },
+  };
+}
 
 /**
  * `/add` — static onboarding/deep-link page (epic: contact-card-exchange,
@@ -47,11 +77,22 @@ import { readLocationHash, resolveAddDeepLink, type AddDeepLinkOutcome } from '@
  * confirmation. `replace` (not `push`) keeps `/add` out of history, so it is
  * omitted as an intermediary. Only the non-success outcomes (no card / parse
  * or add error) remain rendered here, where there is no contact to navigate to.
+ *
+ * Epic: contact-pairing-code, story S4 (RD-7). When the scanned card carries
+ * an unexpired `pairing` field (`processContactInput`'s `pairingEcho`
+ * candidate), this page is also the scanner-side reciprocation trigger: a
+ * named scanner echoes immediately (AC-SCAN-1/8, still redirecting to
+ * `/contacts`, now carrying `&pairing=sent|pending` for the honesty-copy
+ * wiring on that page) and a nameless one is redirected to `/profile?pairing=1`
+ * instead (AC-SCAN-5) — the pending intent is durably persisted first
+ * (`pendingIntent.ts#attemptOrQueuePairingEcho`), so the redirect never risks
+ * losing the echo.
  */
 export default function AddPage(): JSX.Element {
   const copy = useCopy();
   const router = useRouter();
-  const { hydrated, pubkeyHex } = useNostrIdentity();
+  const { hydrated, pubkeyHex, privateKeyHex } = useNostrIdentity();
+  const { profile } = useProfile();
   const { notifyKnownPeersChanged } = useMarmot();
   const [outcome, setOutcome] = useState<AddDeepLinkOutcome | null>(null);
   // Guards processContactInput (and therefore parseContactCard, VQ-S7-002)
@@ -70,20 +111,86 @@ export default function AddPage(): JSX.Element {
     const hash = readLocationHash(typeof window === 'undefined' ? undefined : window);
     const result = resolveAddDeepLink(hash, hydrated, pubkeyHex);
     setOutcome(result);
-    if (result.state !== 'awaiting_identity') {
-      settledRef.current = true;
-      if (result.state === 'complete' && result.ok) {
-        // Mirrors AddContactModal.tsx's handleAdd — bump the revision so the
-        // always-mounted watchers refresh their cached knownPeers ref
-        // immediately instead of waiting for an unrelated change.
-        notifyKnownPeersChanged();
+    if (result.state === 'awaiting_identity') return;
+    settledRef.current = true;
+    if (result.state !== 'complete') return;
+
+    if (result.ok) {
+      // Mirrors AddContactModal.tsx's handleAdd — bump the revision so the
+      // always-mounted watchers refresh their cached knownPeers ref
+      // immediately instead of waiting for an unrelated change.
+      notifyKnownPeersChanged();
+
+      // Epic: contact-pairing-code, story S4 (RD-7). A v2 code with an
+      // unexpired pairing field carries a reciprocation candidate —
+      // `processContactInput`'s pure decision, computed above. Route it
+      // through the SAME persist-then-attempt core the retry queue uses
+      // (attemptOrQueuePairingEcho), so an interrupted send can never be
+      // lost (AC-SCAN-3): the intent is durably persisted before this
+      // effect ever awaits the network.
+      const pairingEcho = result.pairingEcho;
+      if (pairingEcho && pubkeyHex && privateKeyHex) {
+        const ctx = buildPendingIntentSendContext(pubkeyHex, privateKeyHex, profile.nickname);
+        void attemptOrQueuePairingEcho(pairingEcho, ctx)
+          .catch(() => 'queued-for-retry' as const)
+          .then((status) => {
+            if (status === 'deferred') {
+              // AC-SCAN-5: nameless scanner — route to name setup BEFORE
+              // landing on the issuer's contact. The intent is already
+              // durably persisted; the deferred echo fires automatically
+              // once a name is saved (profile.tsx's saveProfile
+              // chokepoint, AC-SCAN-6) or on a later online/mount drain.
+              router.replace(`/profile?pairing=1&issuer=${pairingEcho.issuerPubkeyHex}`);
+            } else if (status === 'expired') {
+              // The card's expiresAt lapsed in the moments between the
+              // synchronous parse and this async attempt (an extremely
+              // narrow race) — degrade exactly like AC-SCAN-2's plain
+              // expired-code path: no pairing query param, no honesty copy.
+              router.replace(`/contacts?id=${result.pubkeyHex}&added=1`);
+            } else {
+              // 'sent' | 'queued-for-retry' — the add itself already
+              // succeeded regardless of echo outcome; a failed send
+              // retries later (AC-SCAN-3) and never blocks this UX.
+              router.replace(
+                `/contacts?id=${result.pubkeyHex}&added=1&pairing=${status === 'sent' ? 'sent' : 'pending'}`,
+              );
+            }
+          });
+      } else {
         // Success is not shown here: hand off to the contacts page with the
         // new contact selected and let it render the green confirmation.
         // `replace` keeps this /add hop out of history (AC: omit intermediary).
         router.replace(`/contacts?id=${result.pubkeyHex}&added=1`);
       }
+      return;
     }
-  }, [hydrated, pubkeyHex, notifyKnownPeersChanged, router]);
+
+    // Review-remediation (sev 5): a RETURNING scanner — `already_exists`
+    // because the issuer was already a one-directional contact from before
+    // this epic (or from a shared group) — must still reciprocate when the
+    // live code they just scanned carries an unexpired pairing field.
+    // `result.pairingEcho` is only ever populated here for exactly that
+    // branch (processContactInput.ts). Fired in the BACKGROUND, deliberately
+    // WITHOUT touching this page's existing already_exists rendering below
+    // (the `getErrorMessage('already_exists')` alert stays exactly as it
+    // was pre-remediation) — the only visible change is a possible redirect
+    // to name setup for a nameless returning scanner, mirroring AC-SCAN-5
+    // exactly.
+    if (result.error === 'already_exists' && result.pairingEcho && pubkeyHex && privateKeyHex) {
+      const pairingEcho = result.pairingEcho;
+      const ctx = buildPendingIntentSendContext(pubkeyHex, privateKeyHex, profile.nickname);
+      void attemptOrQueuePairingEcho(pairingEcho, ctx)
+        .catch(() => 'queued-for-retry' as const)
+        .then((status) => {
+          if (status === 'deferred') {
+            router.replace(`/profile?pairing=1&issuer=${pairingEcho.issuerPubkeyHex}`);
+          }
+          // 'sent' | 'queued-for-retry' | 'expired' — no redirect, no UX
+          // change: the existing already_exists error alert (rendered below)
+          // is left completely untouched.
+        });
+    }
+  }, [hydrated, pubkeyHex, privateKeyHex, profile.nickname, notifyKnownPeersChanged, router]);
 
   function getErrorMessage(errorCode: string | undefined): string {
     switch (errorCode) {
@@ -93,6 +200,8 @@ export default function AddPage(): JSX.Element {
         return copy.contacts.addContactErrorSelf;
       case 'already_exists':
         return copy.contacts.addContactErrorAlreadyExists;
+      case 'unsupported_version':
+        return copy.contacts.addContactErrorUnsupportedVersion;
       default:
         return copy.contacts.addContactErrorGeneric;
     }

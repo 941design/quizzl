@@ -1,0 +1,167 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-11T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is `handlePairingAck`'s sender-binding check a real comparison against a cryptographically authenticated value (the `rumor.pubkey === seal.pubkey` assertion inside `directMessages.ts`'s `unwrapAndOpen`), not a tautological check that always passes (e.g. comparing a value to itself, or comparing the enclosed card's pubkey to a value derived from the same untrusted gift wrap rather than from the authenticated unwrap result)? Does `sendPairingAck` actually call the real `sealAndWrap`/relay-publish path (not a stubbed no-op that always resolves 'sent' regardless of network state), and does admission actually call the real `rememberKnownPeers`/`rememberContact` (not a frozen constant admission count)?"
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Is `app/src/lib/pairing/pairingAck.ts` the single owning module for build, send, subscribe, handle, and admit — per the story's consolidation rationale that 'admission' (knownPeers.ts/contacts.ts) is reused as-is with no new logic — i.e. does no new admission-decision logic leak into `contacts.ts`/`knownPeers.ts`, and does no ack-building/sending logic leak into `welcomeSubscription.ts` beyond subscription registration and dispatch? Does `MarmotContext.tsx`'s wiring mirror the existing `onJoinRequestReceived` pattern structurally (same registration shape), rather than introducing a bespoke subscription mechanism?"
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `pairingAck` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do the unit tests for `pairingAck.ts` cover AC-ACK-1..3, AC-ADMIT-1..5, AC-SEC-1..4, and AC-PRIV-1 with real construction of gift-wrap-shaped fixtures (real seal/rumor pubkey pairs, including a deliberately mismatched pair for the sender-binding negative case) rather than mock objects whose `.pubkey` fields are simply asserted equal by test setup? Is there a dedicated idempotency test that calls `handlePairingAck` twice for the same already-admitted sender and asserts no duplicate `rememberContact` call and no double-incremented admission count (AC-ACK-3), using a spy on the real `rememberContact`/`rememberKnownPeers` exports rather than a reimplementation of admission logic inside the test?"
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the landed pairing-ack protocol match RD-6 as finalized in architecture.md field-for-field — inner rumor `kind = PAIRING_ACK_KIND`, content `{ type: 'pairing-ack', nonce: <echoedNonceHex>, card: <b64url identity-only card> }`, gift-wrapped to the issuer's pubkey with an ephemeral sender key via `directMessages.ts`'s `sealAndWrap` — with no deviation (extra fields, different key names, or a differently-shaped envelope) that a strict consumer parsing exactly this shape would fail to read?"
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does `handlePairingAck` obtain the authenticated sender identity exclusively via `directMessages.ts`'s `unwrapAndOpen` (which asserts `rumor.pubkey === seal.pubkey`), and never via `welcomeSubscription.ts`'s local `unwrapGiftWrap`? For a gift wrap whose enclosed card names a pubkey different from the gift wrap's authenticated sender, does the handler admit only the authenticated sender's pubkey — never the enclosed card's named pubkey — with a test constructing exactly this mismatch (real seal.pubkey X, real enclosed-card pubkey Y, X != Y) and asserting Y is never passed to `rememberKnownPeers`/`rememberContact`?"
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is `PAIRING_ACK_KIND` (recommended 21060) confirmed via a repo-wide search, immediately before landing, to not collide with any of the sentinel kinds `444`/`21059`/`5`/`7`/`14`, nor any other in-repo kind constant? Does processing a received pairing-ack never itself construct or send a further pairing-ack (no ping-pong), verified by a test that calls `handlePairingAck` and asserts zero calls to `sendPairingAck`/`sealAndWrap` as a side effect? Does `ContactChat.tsx` and `directMessageNotifications.ts` remain unmodified by this story (per boundary rule 5, exclusion is automatic via fail-closed unknown-kind handling, not affirmative new exclusion code)?"
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ACK-1",
+      "question": "Does the `PairingAckSend` seam contract's exact shape hold in the landed `sendPairingAck` — conceptually returning/producing `{ issuerPubkeyHex: string (64 hex chars), echoedNonceHex: string (32 hex chars), result: 'sent' | 'queued-for-retry' }` with `result` constrained to exactly those two enum values — and does exactly one gift-wrapped pairing-ack get sent per successful call, addressed to `issuerPubkeyHex`, with no call ever publishing an unaddressed kind-0 (per the seam's stated invariants)? Provide the function's return-type declaration and a test asserting the enum is exhaustive (no third silent value like `'failed'` or `undefined`)."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ACK-1",
+      "question": "Does the built pairing-ack rumor have `kind = PAIRING_ACK_KIND` and content exactly `{type:'pairing-ack', nonce:<echoedNonceHex>, card:<b64url>}`, where `card`, decoded via the codec, yields an identity-only card (no `pairing`/nonce field) whose `pubkeyHex` equals the sender's own pubkey? Provide (a) the rumor-construction code, (b) a test that decodes the built `card` field back through the real codec and asserts both the absence of a `pairing` field and pubkey equality to the sender, and (c) confirmation the test does not hand-construct the expected card independently of the codec (which would hide a codec/ack mismatch)."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ACK-2",
+      "question": "Does processing a received pairing-ack rumor never itself construct or send a further pairing-ack — i.e. are the handler's only side effects `knownPeers`/contact admission, never an outbound ack? Provide (a) the full side-effect surface of `handlePairingAck` (every function it calls), (b) a test asserting zero invocations of `sendPairingAck`/`sealAndWrap` when `handlePairingAck` runs, and (c) confirmation this is checked via a real call-tracking spy on the actual exports, not an assumption based on reading the source."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ACK-3",
+      "question": "Is a second pairing-ack received from a sender pubkey already present in `knownPeers` from a prior admitted ack processed idempotently — no duplicate contact entry created, and the admission-digest count not incremented a second time for that sender? Provide (a) the idempotency-check code path, (b) a test that admits a sender once, then replays a second (possibly distinct-nonce) ack from the same authenticated sender and asserts both the contact list length and the digest count are unchanged, and (c) confirmation the digest-count source is the same one AC-UI-2's notification reads, not a parallel counter that could drift."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ADMIT-1",
+      "question": "On receipt of a pairing-ack whose echoed nonce is admissible and whose enclosed card signature verifies, does the handler call `rememberKnownPeers` for the authenticated sender's pubkey strictly before calling `rememberContact` for that pubkey (ADR-005 ordering)? Provide (a) the call-ordering code, (b) a test with call-order tracking (e.g. an ordered spy array) asserting `rememberKnownPeers` appears before `rememberContact` in the recorded sequence, and (c) confirmation this is asserted on call order, not merely that both were eventually called."
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ADMIT-2",
+      "question": "Does a pairing-ack whose echoed nonce is not present in the issuer's issued-nonce set, or is present but inadmissible per grace, produce no admission (`knownPeers`/contacts unchanged) and surface no error to the issuer? Provide (a) the nonce-check-then-abort code path, (b) two separate tests — unknown nonce, and expired-past-grace nonce — each asserting zero calls to `rememberKnownPeers`/`rememberContact` and no thrown/unhandled error, and (c) confirmation both tests call the real `isNonceAdmissible` (from S2) rather than mocking its return value, so a regression in S2's grace math would also be caught here."
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ADMIT-3",
+      "question": "Do two distinct authenticated senders, each echoing the same still-admissible nonce, both get independently admitted — with admitting the first sender not removing the nonce from the admissible set for the second? Provide (a) the multi-use-preserving code path (confirming `isNonceAdmissible`/the store is never mutated to consume the nonce on a successful admit), (b) a test that runs two `handlePairingAck` calls with distinct sender pubkeys and the same nonce, asserting both are admitted, and (c) confirmation the test checks `isNonceAdmissible` still returns true for that nonce after the first admission, not just that the second admission happened to succeed."
+    },
+    {
+      "question_id": "VQ-S3-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ADMIT-4",
+      "question": "Does the pairing-ack handler never call `isAllowedDmSender` when deciding admission, and do every other rumor-consumption call site's existing `isAllowedDmSender` gating remain unchanged (no accidental removal or weakening elsewhere while wiring this new path)? Provide (a) a repo-wide check confirming `pairingAck.ts` contains no `isAllowedDmSender` reference, and (b) a diff-scoped confirmation that no other file's `isAllowedDmSender` call site was touched by this story."
+    },
+    {
+      "question_id": "VQ-S3-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ADMIT-5",
+      "question": "After A admits B via a valid pairing-ack, does a DM subsequently sent by B to A get accepted by A's walled garden (`isAllowedDmSender` returns true for B), where the identical DM would have been rejected before admission? Provide (a) the admission-writes-to-knownPeers code path that `isAllowedDmSender` reads from, (b) a test that runs `isAllowedDmSender(B)` before and after a simulated admission and asserts the result flips from false to true, and (c) confirmation this exercises the real `isAllowedDmSender` from the walled-garden module, not a re-implementation."
+    },
+    {
+      "question_id": "VQ-S3-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-1",
+      "question": "For a pairing-ack gift wrap whose enclosed card names a pubkey different from the gift wrap's authenticated NIP-59 sender (`rumor.pubkey !== seal.pubkey`), does NO admission of the enclosed card's named pubkey occur — with only the authenticated sender's pubkey ever eligible for admission from that gift wrap? Provide (a) a test simulating exactly this harvested-third-party-card scenario (attacker replays a card copied from someone else's share, wrapped under the attacker's own gift-wrap identity), asserting the named-in-card pubkey is never admitted, and (b) confirmation the test's gift-wrap fixture has a genuinely different, independently-generated seal pubkey (not a value derived from the card itself)."
+    },
+    {
+      "question_id": "VQ-S3-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-2",
+      "question": "Does the pairing-ack handler derive the authenticated sender via a primitive that asserts `rumor.pubkey === seal.pubkey` (`directMessages.ts`'s `unwrapAndOpen`, or an equivalent replicating that exact check), and is there a static/structural check (e.g. an import-boundary test or explicit assertion in the test suite) confirming `pairingAck.ts` never imports or calls `welcomeSubscription.ts`'s local `unwrapGiftWrap`? Provide the specific import statement(s) `pairingAck.ts` uses for unwrapping."
+    },
+    {
+      "question_id": "VQ-S3-019",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-3",
+      "question": "Is `PAIRING_ACK_KIND` confirmed, by an explicit test or a documented pre-land grep, to not equal any of the existing sentinel kinds `444`, `21059`, `5`, `7`, or `14`? Provide the constant's final value and either a unit test asserting `PAIRING_ACK_KIND !== 444 && ... !== 14` for all five sentinels, or an equivalent compile-time/lint guard."
+    },
+    {
+      "question_id": "VQ-S3-020",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-4",
+      "question": "Does a received pairing-ack rumor (kind `PAIRING_ACK_KIND`) fail to render as a chat message in `ContactChat.tsx` and fail to trigger `directMessageNotifications.ts`'s notification bell, with only `welcomeSubscription.ts`'s pairing-ack branch performing positive handling of that kind? Provide (a) confirmation `ContactChat.tsx`/`directMessageNotifications.ts` were not modified by this story (they rely on existing fail-closed unknown-kind handling), and (b) an integration-level test or trace showing a dispatched `PAIRING_ACK_KIND` rumor produces no chat-render call and no notification-bell trigger."
+    },
+    {
+      "question_id": "VQ-S3-021",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PRIV-1",
+      "question": "Is there an explicit unit test asserting that no function reachable from `sendPairingAck`/`handlePairingAck` ever calls a relay-publish primitive with an unaddressed kind-0 event? Provide (a) the test's mechanism for detecting this (e.g. a spy on the relay-publish primitive asserting every captured call is either a kind-1059 gift wrap or absent), (b) confirmation the spy covers the full call graph reachable from both functions (not just the top-level function body), and (c) confirmation this is the epic-wide privacy invariant test called out in architecture.md's boundary rule 6, not a narrower story-local check."
+    },
+    {
+      "question_id": "VQ-S3-022",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "ac_id": "AC-SEC-1",
+      "question": "handlePairingAck's step-7 sender-binding comparison (`decoded.pubkeyHex.toLowerCase() !== rumor.pubkey.toLowerCase()`) reads `rumor.pubkey` from the value `unwrapAndOpen` RETURNED (the authenticated seal-bound pubkey), never from `giftWrapEvent.pubkey` directly (which is the outer ephemeral wrap key, not the sender). Confirm this by reading app/src/lib/pairing/pairingAck.ts lines ~260-318: does `giftWrapEvent.pubkey` appear anywhere in the sender-binding branch, or only `rumor.pubkey` (the destructured return of the `unwrapAndOpen` call on line ~270)? A regression that swapped these two would silently reopen the exact forgery vector unwrapAndOpen's own step 4 closes, while every existing test would still pass unless it specifically used a gift-wrap whose OUTER pubkey differs from the authenticated seal pubkey (which sealAndWrap always guarantees via its ephemeral key, so `pairingAck.test.ts`'s own fixtures could not distinguish the two by construction — this needs a direct source read, not a test-outcome check)."
+    },
+    {
+      "question_id": "VQ-S3-023",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "welcomeSubscription.ts's new pairing-ack branch marks `eventId` as seen in the SEEN_KEY localStorage array for every non-(unwrap-failed|wrong-kind) outcome, including 'malformed-content', 'nonce-inadmissible', 'card-invalid', and 'sender-mismatch'. Is this the right dedup scope — i.e., does marking a genuinely-malformed-or-attack gift-wrap event id as 'seen' cause any observable harm (e.g. could a legitimate retry of the SAME event id ever need to be reprocessed), given SEEN_KEY's only other consumer is the Welcome/join-request path which this branch never reaches for these outcomes? If a relay redelivers the identical malformed/attack event, is silently absorbing it on every replay (rather than logging/counting it) an acceptable observability tradeoff for a security-relevant drop path?"
+    },
+    {
+      "question_id": "VQ-S3-024",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-ACK-3",
+      "question": "getPairingAckAdmissions()'s in-memory Map resets on page reload while knownPeers.ts/contacts.ts remain persisted. Is there a test (or an explicit acknowledged gap) covering the cross-reload idempotency case — a sender already admitted in a PRIOR session (knownPeers already contains them) sends a fresh ack after reload: does handlePairingAck's step-8 check (which only consults the in-memory map, now empty) proceed to step 9 and call rememberKnownPeers/rememberContact again? Confirm these two calls remain safe no-ops in that scenario (per contacts.ts's documented 'existing non-archived contact left untouched' behavior) and that this is a deliberate, documented tradeoff (architecture.json/pairingAck.ts's own doc comment already states this), not an unnoticed gap — the digest count would be re-incremented once post-reload, which is cosmetic (S5-owned), not a correctness regression."
+    }
+  ]
+}

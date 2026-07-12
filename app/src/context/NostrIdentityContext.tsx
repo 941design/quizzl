@@ -44,6 +44,11 @@ const REQUIRED_PERMS = [
   'sign_event:445',
   'sign_event:1059',
   'sign_event:10051',
+  // CARD_SIG_KIND_V2 (contactCard.ts) — the synthetic kind the v2 pairing card
+  // signs over. Required or a permission-enforcing NIP-46 bunker rejects the
+  // Share contact card action (all shares are v2 pairing codes as of the
+  // contact-pairing-code epic).
+  'sign_event:20602',
   'sign_event:30051',
   'sign_event:30078',
   'sign_event:30443',

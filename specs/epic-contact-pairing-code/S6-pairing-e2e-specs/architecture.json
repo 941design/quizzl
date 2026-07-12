@@ -1,0 +1,65 @@
+{
+  "module_name": "e2e",
+  "purpose": "Six new relay-bucket Playwright specs proving the full pairing stack (S1-S5) works end to end against a real strfry relay, driven through the app's own UI/publish helpers rather than raw WebSocket, per CLAUDE.md's E2E rule. Owns AC-ADMIT-6 (single-scan, both-directions, no-second-scan) and exercises AC-PAIR-2/3/4, AC-PAIR-5/AC-SCAN-2, AC-PAIR-6/AC-ADMIT-2, AC-SEC-1/AC-PAIR-6b, AC-PAIR-10/AC-SCAN-5/6 as end-to-end scenarios only S1-S5 landed together can produce. Also retires the two v1-only assumptions in the pre-existing contact-card-exchange epic's contact-card-deeplink.spec.ts that this epic's 'always-v2-now' card-generation decision broke, and updates the Makefile/CLAUDE.md e2e tally.",
+  "public_api": [
+    {
+      "name": "extractV2PairingFields",
+      "signature": "function extractV2PairingFields(cardB64Url: string): { nonceHex: string; expiresAt: number } | null",
+      "description": "helpers/pairing.ts — pure byte-offset read of a v2 pairing card's nonce(16)/expires_at(4) fields directly off its base64url payload (Buffer.from(..., 'base64url')), per contactCard.ts's documented public wire-format layout (header(1)+pubkey(32)+created_at(4)+expires_at(4)+nonce(16)+...). No crypto, no signature verification, no re-implementation of decodeCard's decision logic — just reading two fixed-offset fields of a public wire format so a test can learn a real issuer's live nonce/expiry without importing app/src/lib/contactCard.ts across the test/production boundary. Returns null for a non-v2 (header version bits != 01) or too-short payload."
+    },
+    {
+      "name": "readKnownPeers / readContactPubkeys",
+      "signature": "function readKnownPeers(page: Page): Promise<string[]>; function readContactPubkeys(page: Page): Promise<string[]>",
+      "description": "helpers/pairing.ts — direct localStorage reads of lp_knownPeers_v1 (knownPeers.ts) and lp_contacts_v1 (contacts.ts / STORAGE_KEYS.contacts), used to assert admission state precisely (admitted vs not) independent of whether the React contacts-list UI has re-rendered — MarmotContext's onPairingAckReceived callback updates storage but deliberately does not bump ContactListView's re-render trigger (it only drives the S5 admission-digest toast), so a storage-level read is the reliable signal for 'was X admitted', complementary to the DOM-level chat assertions used for 'can X actually exchange a DM'."
+    },
+    {
+      "name": "seedPendingIntent / seedIssuerNonce",
+      "signature": "function seedPendingIntent(page: Page, intent: { issuerPubkey: string; nonce: string; expiresAt: number }): Promise<void>; function seedIssuerNonce(page: Page, record: { nonce: string; expiresAt: number }): Promise<void>",
+      "description": "helpers/pairing.ts — direct-IDB-write state injection (via the existing helpers/idb-record.ts#writeIdbRecord, itself idb-keyval-shape-compatible with pairing/pendingIntent.ts's `few-pairing-intents`/`intents` store and pairing/nonceStore.ts's `few-pairing-nonces`/`nonces` store) mirroring dm-self-heal.spec.ts's seedMalformedRow precedent: never a forged relay publish, only local state tampering the app's own real code then reads and acts on for real (a real drainPendingIntents call, a real isNonceAdmissible check). Used by the expired/past-grace-nonce and unknown-nonce scenarios so neither needs a signed-event forgery."
+    },
+    {
+      "name": "sendForgedPairingAck",
+      "signature": "async function sendForgedPairingAck(page: Page, params: { attackerPrivateKeyHex: string; attackerPubkeyHex: string; issuerPubkeyHex: string; echoedNonceHex: string; harvestedCardB64Url: string }): Promise<void>",
+      "description": "helpers/forgedPairingAck.ts — THE ONE sanctioned exception to CLAUDE.md's 'publish through the app' e2e rule (see file header for the full justification). Builds a gift-wrapped pairing-ack rumor with nostr-tools/nip59's own createRumor/wrapEvent (the exact library pairingAck.ts#sendPairingAck uses) so the wire shape is byte-identical to what a real client would produce and the seal signature is genuinely valid for attackerPrivateKeyHex's real identity (rumor.pubkey/seal.pubkey are the ATTACKER's own authenticated key, never spoofed) — the only adversarial element is the `card` field's content, which the caller supplies as a harvested THIRD PARTY's genuinely-signed card (obtained via the app's real Share action, never hand-crafted bytes). Publishes the resulting NDKEvent to the relay via a single raw WebSocket EVENT send inside page.evaluate (reusing helpers/relay-query.ts's established page-evaluated-WebSocket pattern, there for reads, here for one write) — used by exactly one spec (dm-pairing-sender-binding.spec.ts) to prove AC-SEC-1/AC-PAIR-6b end to end. No other spec in this story ever constructs a signed event outside the app."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/tests/e2e/dm-pairing-single-scan-mutual.spec.ts (new)",
+    "app/tests/e2e/dm-pairing-multi-use.spec.ts (new)",
+    "app/tests/e2e/dm-pairing-expired-grace.spec.ts (new)",
+    "app/tests/e2e/dm-pairing-unknown-nonce.spec.ts (new)",
+    "app/tests/e2e/dm-pairing-sender-binding.spec.ts (new)",
+    "app/tests/e2e/dm-pairing-onboarding-scanner.spec.ts (new)",
+    "app/tests/e2e/helpers/pairing.ts (new)",
+    "app/tests/e2e/helpers/forgedPairingAck.ts (new)",
+    "app/tests/e2e/contact-card-deeplink.spec.ts (extend — fix two now-broken v1-only assumptions)",
+    "app/tests/e2e/helpers/contact-card.ts, auth-helpers.ts, idb-record.ts, clear-state.ts, dismiss-error-overlay.ts, group-setup.ts, relay-query.ts (reuse, read-only — no signature changes)",
+    "nostr-tools/nip59, nostr-tools/pure (package imports, matching auth-helpers.ts's existing dynamic-import precedent)",
+    "Makefile (edit — relay-bucket + total test tallies)",
+    "CLAUDE.md (edit — E2E gate tally)"
+  ],
+  "dependencies_forbidden": [
+    "no import of any app/src/** production module from a test/helper file (all app behavior is driven through real page navigation/UI actions or, for the one sanctioned exception, through nostr-tools directly against the public wire-format contract already documented in contactCard.ts's file header) — this keeps the test/production boundary the same shape every other e2e helper already uses",
+    "no raw WebSocket EVENT (publish) call outside helpers/forgedPairingAck.ts, and no raw WebSocket call of any kind inside a *.spec.ts file body (existing relay-query.ts's raw WebSocket is read-only/query and predates this story; unchanged)",
+    "no edits to app/src/lib/pairing/*, app/src/lib/contactCard.ts, app/src/lib/shareCard.ts, app/pages/add.tsx, app/pages/profile.tsx, or any other S1-S5-owned production file — this story observes and drives that stack, it does not modify it"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/e2e/dm-pairing-single-scan-mutual.spec.ts",
+    "app/tests/e2e/dm-pairing-multi-use.spec.ts",
+    "app/tests/e2e/dm-pairing-expired-grace.spec.ts",
+    "app/tests/e2e/dm-pairing-unknown-nonce.spec.ts",
+    "app/tests/e2e/dm-pairing-sender-binding.spec.ts",
+    "app/tests/e2e/dm-pairing-onboarding-scanner.spec.ts",
+    "app/tests/e2e/contact-card-deeplink.spec.ts (2 existing tests, fixed)"
+  ],
+  "seam": {
+    "cross_story": false,
+    "consumed_by": [],
+    "note": "Terminal story of the epic — consumes S1-S5's rendered output, storage keys, and data-testids directly (no new typed seam declared), matching S5's own architecture.json note that S6 exercises rendered output/testids rather than a typed data contract."
+  }
+}

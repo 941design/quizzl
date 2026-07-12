@@ -14,8 +14,10 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { useToast } from '@chakra-ui/react';
 import type { Group, MemberProfile, UserProfile } from '@/src/types';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
+import { useCopy } from '@/src/context/LanguageContext';
 import {
   loadAllGroups,
   saveGroup as persistGroup,
@@ -57,9 +59,21 @@ async function startWelcomeSubscription(
   onGroupJoined: WelcomeReceivedCallback,
   onJoinRequestReceived?: import('@/src/lib/marmot/joinRequestHandler').JoinRequestReceivedCallback,
   groupMemberPubkeys?: (groupId: string) => string[],
+  ownPrivateKeyHex?: string,
+  onPairingAckReceived?: (result: { senderPubkeyHex: string }) => void,
 ): Promise<() => void> {
   const { subscribeToWelcomes } = await import('@/src/lib/marmot/welcomeSubscription');
-  return subscribeToWelcomes(pubkeyHex, marmotClient, ndk, signer, onGroupJoined, onJoinRequestReceived, groupMemberPubkeys);
+  return subscribeToWelcomes(
+    pubkeyHex,
+    marmotClient,
+    ndk,
+    signer,
+    onGroupJoined,
+    onJoinRequestReceived,
+    groupMemberPubkeys,
+    ownPrivateKeyHex,
+    onPairingAckReceived,
+  );
 }
 import { DEFAULT_RELAYS } from '@/src/types';
 import { getEffectiveRelays } from '@/src/lib/relay';
@@ -319,6 +333,94 @@ type MarmotContextValue = {
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
 
+/**
+ * S5 (epic: contact-pairing-code, AC-UI-2) — count the distinct senders in
+ * `admissions` (S3's `getPairingAckAdmissions()` map: senderPubkeyHex ->
+ * echoedNonceHex) whose echoed nonce equals `activeNonceHex`. Pure and
+ * exported (mirrors `fireAutoCommit` above) so this can be unit-tested
+ * directly without rendering `MarmotProvider` — no jsdom, no React needed.
+ * Read-only over its inputs; never mutates the map it is given.
+ */
+export function countAdmissionsForActiveNonce(
+  admissions: ReadonlyMap<string, string>,
+  activeNonceHex: string,
+): number {
+  let count = 0;
+  for (const echoedNonceHex of admissions.values()) {
+    if (echoedNonceHex === activeNonceHex) count += 1;
+  }
+  return count;
+}
+
+/**
+ * Minimal shape `applyPairingAdmissionDigest` needs from Chakra's `useToast()`
+ * return value — dispatch-injected (no direct `@chakra-ui/react` import at
+ * this function's call boundary) so the decision below is unit-testable with
+ * a plain fake, mirroring `fireAutoCommit`'s dependency-injection pattern.
+ */
+export type PairingDigestDispatch = {
+  isActive: (id: string) => boolean;
+  update: (id: string, options: { title: string; status: 'success'; duration: number; isClosable: boolean }) => void;
+  show: (options: { id: string; title: string; status: 'success'; duration: number; isClosable: boolean }) => void;
+};
+
+/**
+ * S5 (epic: contact-pairing-code, AC-UI-2) — the digest-notification decision
+ * core. Computes the distinct-sender count for `activeNonceHex` via
+ * `countAdmissionsForActiveNonce` and, ONLY once that count reaches 2, shows
+ * or updates a SINGLE toast identified by `toastId`: `dispatch.show` the
+ * first time the threshold is crossed for this nonce, `dispatch.update` on
+ * every subsequent admission for the SAME nonce — never a second, stacked
+ * toast (the "one digest notification, not one toast per admission"
+ * requirement). A count below 2 is a no-op: the single-admission case shows
+ * no notification of its own, matching the pre-existing (silent) behavior
+ * S3 left in place. Pure over its inputs plus the injected `dispatch` (no
+ * hidden module-scope state), exported so this can be unit-tested without
+ * rendering `MarmotProvider` or touching jsdom.
+ */
+export function applyPairingAdmissionDigest(
+  admissions: ReadonlyMap<string, string>,
+  activeNonceHex: string,
+  toastId: string,
+  formatTitle: (count: number) => string,
+  dispatch: PairingDigestDispatch,
+): void {
+  const count = countAdmissionsForActiveNonce(admissions, activeNonceHex);
+  if (count < 2) return;
+  const title = formatTitle(count);
+  if (dispatch.isActive(toastId)) {
+    dispatch.update(toastId, { title, status: 'success', duration: 4000, isClosable: true });
+  } else {
+    dispatch.show({ id: toastId, title, status: 'success', duration: 4000, isClosable: true });
+  }
+}
+
+/**
+ * Review-remediation (epic: contact-pairing-code, story S5, sev 3
+ * correctness finding) — the full "resolve the active nonce, then apply the
+ * digest decision" wiring, extracted as a pure/injected-effects function so
+ * this exact bug class is structurally prevented AND unit-testable: `peek`'s
+ * type signature (`() => { nonce: string } | null`) offers no mint
+ * capability at all, so there is no code path here that could accidentally
+ * call a minting primitive instead of a read-only one. If `peek()` returns
+ * `null` (no code shared this session, or the active nonce already expired
+ * with no subsequent mint/reload), this is a no-op — no dispatch call, no
+ * crash, and critically no attempt to mint a replacement just because an ack
+ * arrived. In production, `peek` is `nonceStore.ts#peekActiveNonce`; tests
+ * inject a plain fake with no persistence behind it at all.
+ */
+export function resolveAndApplyPairingAdmissionDigest(
+  admissions: ReadonlyMap<string, string>,
+  peek: () => { nonce: string } | null,
+  toastId: string,
+  formatTitle: (count: number) => string,
+  dispatch: PairingDigestDispatch,
+): void {
+  const active = peek();
+  if (!active) return;
+  applyPairingAdmissionDigest(admissions, active.nonce, toastId, formatTitle, dispatch);
+}
+
 /** Shape of a queued out-of-band leave event pending the 5-second debounce commit (S4). */
 interface PendingRemoval {
   groupId: string;
@@ -330,6 +432,14 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const { privateKeyHex, pubkeyHex, hydrated: identityHydrated, signerMode } = useNostrIdentity();
   const { profile: localProfile } = useProfile();
   const { markDirty: markBackupDirty } = useBackup();
+  // S5 (AC-UI-2): admission-digest notification. `toast` is used from inside
+  // the welcome-subscription callback (defined once inside init()'s useEffect
+  // closure), so `copy` is mirrored into a ref the same way `localProfile` is
+  // below — the callback must always read the CURRENT language, not whatever
+  // was active when init() last ran.
+  const toast = useToast();
+  const copy = useCopy();
+  const copyRef = useRef(copy);
   const [ready, setReady] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -393,6 +503,61 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localProfileRef.current = localProfile;
   }, [localProfile]);
+
+  // Keep copyRef in sync so the pairing-admission-digest callback (S5) always
+  // reads the current language rather than a stale closure.
+  useEffect(() => {
+    copyRef.current = copy;
+  }, [copy]);
+
+  // S5 (AC-UI-2): recompute the admission digest for the issuer's CURRENTLY-
+  // active nonce and show/update a SINGLE toast — never one toast per
+  // admission.
+  //
+  // Review-remediation (sev 3 correctness finding): this MUST use
+  // `peekActiveNonce()`, not `getOrMintActiveNonce()`. The latter mints a
+  // FRESH nonce (a store write + prune) whenever the in-memory pointer is
+  // absent or already expired — and a grace-window ack (admissible up to
+  // expiresAt + 2h, i.e. arriving 30-150 minutes after the nonce was minted)
+  // arrives well after the issuer's own 30-minute nonce has expired in the
+  // common case. Calling `getOrMintActiveNonce` here would therefore rotate
+  // the issuer's pairing nonce as a side effect of merely RECEIVING an ack,
+  // and the digest would then count admissions against the wrong (freshly-
+  // minted, zero-match) nonce. `peekActiveNonce()` only ever reads the
+  // existing in-memory pointer — never mints, persists, or prunes. If it
+  // returns `null` (no code shared this session, or the active nonce already
+  // expired without a subsequent mint/reload), the digest shows nothing:
+  // there is no well-defined "currently-active nonce" to count against.
+  // `getPairingAckAdmissions` (S3) is likewise read-only — this function
+  // never writes to either module, honoring the "read the signals they
+  // expose" boundary (does not modify pairingAck.ts).
+  const PAIRING_DIGEST_TOAST_ID = 'pairing-admission-digest';
+  const showPairingAdmissionDigest = useCallback(async () => {
+    try {
+      const [{ peekActiveNonce }, { getPairingAckAdmissions }] = await Promise.all([
+        import('@/src/lib/pairing/nonceStore'),
+        import('@/src/lib/pairing/pairingAck'),
+      ]);
+      resolveAndApplyPairingAdmissionDigest(
+        getPairingAckAdmissions(),
+        peekActiveNonce,
+        PAIRING_DIGEST_TOAST_ID,
+        (count) => copyRef.current.contacts.pairingAdmissionDigest(count),
+        { isActive: toast.isActive, update: toast.update, show: toast },
+      );
+    } catch (err) {
+      console.debug('[Marmot] pairing-admission-digest failed:', err);
+    }
+  }, [toast]);
+
+  // Ref indirection so the welcome-subscription callback (captured once
+  // inside init()'s useEffect closure, which does not re-run on every
+  // render) always invokes the CURRENT showPairingAdmissionDigest —
+  // mirrors localProfileRef/groupsRef's stale-closure guard above.
+  const showPairingAdmissionDigestRef = useRef(showPairingAdmissionDigest);
+  useEffect(() => {
+    showPairingAdmissionDigestRef.current = showPairingAdmissionDigest;
+  }, [showPairingAdmissionDigest]);
 
   // Keep groupsRef in sync so welcome subscription callbacks see current membership
   useEffect(() => {
@@ -831,6 +996,27 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             // Uses groupsRef to always read the latest groups state.
             const group = groupsRef.current.find((g) => g.id === groupId);
             return group?.memberPubkeys ?? [];
+          },
+          privateKeyHex ?? undefined,
+          (result) => {
+            console.info('[Marmot] Pairing-ack admitted from:', result.senderPubkeyHex);
+            // Issuer-side admission wrote the new peer to knownPeers (inside
+            // handlePairingAck). Bump knownPeersRevision so the always-mounted
+            // walled-garden watchers (DirectMessageNotificationsWatcher,
+            // IncomingCallWatcher, ContactChat) — which cache loadKnownPeers()
+            // in a ref refreshed only on [groups, knownPeersRevision] — pick up
+            // the freshly-paired peer immediately, WITHOUT a reload. Mirrors
+            // add.tsx's notifyKnownPeersChanged() on the scanner-side add.
+            // setKnownPeersRevision is a stable setter, safe to call from this
+            // long-lived subscription callback (no stale closure). Without this,
+            // the paired peer's first DMs/calls are silently dropped by the
+            // stale walled-garden cache for the rest of the session.
+            setKnownPeersRevision((n) => n + 1);
+            // S5 (AC-UI-2): recompute the active-nonce admission digest and
+            // show/update the single consolidated toast. Fire-and-forget —
+            // this must never block or fail the welcome subscription's own
+            // processing loop.
+            void showPairingAdmissionDigestRef.current();
           },
         ).then((unsub) => {
           if (cancelled) {

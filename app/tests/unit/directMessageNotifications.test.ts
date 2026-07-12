@@ -117,6 +117,7 @@ const { rememberContact } = await import('@/src/lib/contacts');
 // ── Import SUT after mocks ─────────────────────────────────────────────────────
 
 const { subscribeDirectMessageNotifications } = await import('@/src/lib/directMessageNotifications');
+const { PAIRING_ACK_KIND } = await import('@/src/lib/pairing/pairingAck');
 
 // ── Test suite ─────────────────────────────────────────────────────────────────
 
@@ -269,6 +270,29 @@ describe('subscribeDirectMessageNotifications', () => {
     )!;
 
     await emitEvent(kind1059Sub, { id: 'welcome-wrap', kind: 1059, pubkey: 'any-key' });
+
+    expect(rememberContact).not.toHaveBeenCalled();
+    expect(incrementDirectMessage).not.toHaveBeenCalled();
+  });
+
+  it('AC-SEC-4 (pairing-ack epic): a PAIRING_ACK_KIND rumor is silently skipped — no bell, no rememberContact, via the EXISTING kind!==CHAT_MESSAGE_KIND guard (proof test; directMessageNotifications.ts is not modified for this)', async () => {
+    vi.mocked(unwrapAndOpen).mockResolvedValue({
+      id: 'pairing-ack-rumor-id',
+      pubkey: PEER_PUB,
+      kind: PAIRING_ACK_KIND, // 21060 — not CHAT_MESSAGE_KIND (14)
+      content: JSON.stringify({ type: 'pairing-ack', nonce: 'ab'.repeat(16), card: 'irrelevant' }),
+      tags: [],
+      created_at: 1_700_000_000,
+    });
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
+
+    const kind1059Sub = ndk.subs.find(
+      (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
+    )!;
+
+    await emitEvent(kind1059Sub, { id: 'pairing-ack-wrap', kind: 1059, pubkey: 'any-key' });
 
     expect(rememberContact).not.toHaveBeenCalled();
     expect(incrementDirectMessage).not.toHaveBeenCalled();

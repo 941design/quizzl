@@ -1,0 +1,21 @@
+{
+  "captured_at": "2026-07-12T02:19:55Z",
+  "command": "make test-unit",
+  "status": "PRE_EXISTING_FAILURES_UNRELATED_TO_STORY",
+  "capture_note": "S1-S4 were already implemented and uncommitted in the working tree at the start of this story's session, and this story's brief went directly to implementation. This run was captured AFTER this story's production-code edits (i18n.ts, NpubQrModal.tsx, profile.tsx, processContactInput.ts, add.tsx, MarmotContext.tsx) but BEFORE any of its new/modified test files were added — the closest available approximation of a pre-story baseline, and sufficient to confirm zero regressions in the pre-existing suite. Flagged in this story's retrospective as pipeline friction (Step 0 should have run before any edit).",
+  "test_files": { "passed": 142, "failed": 2, "total": 144 },
+  "tests": { "passed": 2591, "failed": 25, "total": 2616 },
+  "pre_existing_failures": {
+    "files": [
+      "app/tests/unit/components/ThemeIcon.test.ts",
+      "app/tests/unit/themes/treatments.test.ts"
+    ],
+    "reason": "Same icon-set naming mismatch recorded as pre-existing across S1-S4's baseline.json files (e.g. specs/epic-contact-pairing-code/S4-pairing-scanner-reciprocation/baseline.json) — an unrelated theme refactor, zero overlap with this epic's files.",
+    "verified_pre_existing": true,
+    "decision": "Recorded, not blocking — identical debt already tolerated across S1-S4 of this epic through the same baseline."
+  },
+  "lint": "NO_LINT",
+  "lint_detail": "next lint has no committed ESLint config in app/ (no .eslintrc*/eslint.config*); running `npm run lint` interactively prompts for first-time setup. No usable lint gate exists for this project (confirmed again this story — killed the interactive prompt). Matches S3/S4's recorded NO_LINT baseline.",
+  "typecheck": "clean",
+  "typecheck_detail": "npx tsc --noEmit -p app/tsconfig.json exits 0 with zero diagnostics, both before and after this story's edits."
+}

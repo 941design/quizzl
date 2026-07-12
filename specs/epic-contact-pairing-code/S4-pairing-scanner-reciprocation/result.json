@@ -1,0 +1,75 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T02:00:00Z",
+  "files_created": [
+    "app/src/lib/pairing/pendingIntent.ts",
+    "app/src/components/PendingPairingIntentWatcher.tsx",
+    "app/tests/unit/pairing/pendingIntent.test.ts",
+    "specs/epic-contact-pairing-code/S4-pairing-scanner-reciprocation/architecture.json",
+    "specs/epic-contact-pairing-code/S4-pairing-scanner-reciprocation/baseline.json",
+    "specs/epic-contact-pairing-code/S4-pairing-scanner-reciprocation/result.json"
+  ],
+  "files_modified": [
+    "app/pages/add.tsx",
+    "app/pages/profile.tsx",
+    "app/pages/contacts.tsx",
+    "app/src/lib/processContactInput.ts",
+    "app/src/lib/i18n.ts",
+    "app/src/components/Layout.tsx",
+    "app/tests/unit/cards/addContactCardWiring.test.ts",
+    "app/tests/unit/cards/contactCardImport.test.ts",
+    "specs/epic-contact-pairing-code/S4-pairing-scanner-reciprocation/verification.json"
+  ],
+  "tests_added": {
+    "unit": 28,
+    "integration": 0
+  },
+  "test_counts": {
+    "baseline": 2588,
+    "final": 2616
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "modules_touched": [
+    "pendingIntent+scannerImport"
+  ],
+  "escalation_history": [],
+  "review_remediation": {
+    "reviewed_by": "lead-owned Opus review (Stage 1)",
+    "applied_at": "2026-07-12T02:05:00Z",
+    "findings_addressed": [
+      {
+        "severity": 5,
+        "category": "correctness",
+        "summary": "pairingEcho was computed only on the addResult.ok branch \u2014 a RETURNING scanner (already_exists, e.g. re-scanning a live code from someone already added via a shared group) never reciprocated, so the mutual channel this feature exists to create silently failed to complete for that path.",
+        "fix": "app/src/lib/processContactInput.ts: pairingEcho is now computed under the same `shouldImportProfile` gate (addResult.ok || addResult.error === 'already_exists') AC-UX-6's cache refresh already uses, still filtered by unexpired card expiresAt. app/pages/add.tsx: extracted a shared `buildPendingIntentSendContext` helper and fires `attemptOrQueuePairingEcho` in the background on the already_exists outcome, WITHOUT changing the pre-existing already_exists error-alert UI \u2014 no redirect for a named returning scanner, a nameless one still redirects to /profile?pairing=1 exactly as on the ok path.",
+        "tests_added": "3 new tests in app/tests/unit/cards/addContactCardWiring.test.ts (unexpired-pairing-card-yields-candidate-on-already_exists, expired-pairing-card-yields-no-candidate-on-already_exists, v1-card-on-already_exists-still-no-candidate)."
+      },
+      {
+        "severity": 3,
+        "category": "concurrency",
+        "summary": "profile.tsx's hasShareableName false->true flip effect and the always-mounted PendingPairingIntentWatcher's mount/online drain could both call drainPendingIntents for the same held intent at nearly the same time, each publishing its own gift wrap before either finished deleting the intent (harmless to correctness, S3's ack handler is sender-idempotent, but a redundant relay publish).",
+        "fix": "app/src/lib/pairing/pendingIntent.ts: added a per-issuer in-flight lock (module-level `inFlightByIssuer` Map) inside `processIntent` \u2014 a concurrent call for the same issuerPubkey now shares the first call's in-progress promise instead of starting its own `sendPairingAck`. Added test-only `_clearInFlightLocksForTests` export mirroring nonceStore.ts's reset-for-tests precedent.",
+        "tests_added": "2 new tests in app/tests/unit/pairing/pendingIntent.test.ts (two concurrent drainPendingIntents calls for the same intent publish exactly once; a sequential non-overlapping second drain is unaffected). Verified the first test actually catches the regression by temporarily bypassing the lock and confirming the test fails (2 publishes) before restoring the fix."
+      }
+    ],
+    "findings_no_action": [
+      {
+        "category": "i18n",
+        "summary": "Finding 3 (i18n) required no action \u2014 the two placeholder keys' en/de copy is intentionally final-wording-pending (S5 owns wording)."
+      }
+    ]
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Two design gaps had to be resolved without a spec pointer: (1) architecture.md requires the retry queue to be 'drained on window online + on app mount' but pendingIntent.ts must stay React-free (matching nonceStore.ts's precedent), and no file in stories.json's scope.includes provides a React mount point for that \u2014 I resolved it by adding a small watcher component (PendingPairingIntentWatcher.tsx, mirroring DirectMessageNotificationsWatcher.tsx's exact shape) plus its one-line Layout.tsx mount, both outside the literal scope.includes list, documented as a scope_decision in architecture.json rather than escalated (S3 set a comparable precedent touching NostrIdentityContext.tsx beyond its own scope.includes for a structurally-necessary reason). (2) verification.json's pre-authored VQ-S4-004 asks for a real `window.dispatchEvent('online')`-driven test, but this repo has zero jsdom/@testing-library precedent for ANY watcher component (useOnlineStatus, OfflineBanner, DirectMessageNotificationsWatcher are all untested at that level) \u2014 I tested the exact payload the listener invokes (drainPendingIntents) instead and documented the gap explicitly in both the test file header and a new post-impl question (VQ-S4-017) rather than silently declaring the AC covered.",
+    "surprised_by": "sendPairingAck (S3) already throws loudly on a nameless call as a backstop (ownership-ledger.json's sendPairingAck-name-gate watch) \u2014 this meant the primary hasShareableName gate in pendingIntent.ts's processIntent is redundant with S3's own defense-in-depth, which is reassuring (two independent layers) but also means a bug in my gate alone would not have been caught by S3's tests, only by mine.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

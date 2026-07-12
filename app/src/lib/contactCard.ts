@@ -1,14 +1,15 @@
 /**
- * contactCard.ts — Contact Card Format v1 (epic: contact-card-exchange, story S1).
+ * contactCard.ts — Contact Card Format v1 + v2 (epic: contact-card-exchange
+ * story S1; epic: contact-pairing-code story S1).
  *
  * A pure, side-effect-free codec: bytes in, bytes out, sign/verify via
  * nostr-tools. No React, no storage, no relay, no NDK, no MarmotContext.
- * This is the seam every other story in the epic consumes — see
- * specs/epic-contact-card-exchange/architecture.md "Seams".
+ * This is the seam every other story in either epic consumes — see
+ * specs/epic-contact-pairing-code/architecture.md "Seams".
  *
- * Wire format (see spec.md "Contact Card Format v1"):
+ * Wire format v1 (see spec.md "Contact Card Format v1"):
  *
- *   header (1 byte)     bits 7–6 = version (v1 = 0), bit 5 = SIGNED,
+ *   header (1 byte)     bits 7–6 = version (v1 = 00), bit 5 = SIGNED,
  *                        bit 4 = HAS_AVATAR (reserved, must be 0 in v1),
  *                        bits 3–0 reserved (must be 0).
  *   pubkey (32 bytes)    raw x-only secp256k1 public key.
@@ -19,11 +20,34 @@
  *   sig (64 bytes)       NIP-01 kind-0 event signature over
  *                        { pubkey, created_at, kind:0, tags:[], content: CARD_CONTENT(name) }.
  *
- * The whole buffer is base64url-encoded (RFC 4648 §5, no padding).
+ * Wire format v2 (see specs/contact-pairing-code-spec-request.md §4; RD-4 in
+ * specs/epic-contact-pairing-code/architecture.md). A v2 card is a v1 card
+ * with an expiry + pairing nonce spliced in between created_at and name_len,
+ * and a domain-separated (non-kind-0) signature preimage that binds every
+ * field so none can be resected across versions:
  *
- * v1 is a STRICT parser: any header outside { version=0, HAS_AVATAR=0,
- * reserved=0 } is rejected rather than tolerated, so a future avatar/
- * extended layout cannot be misparsed by a v1 reader (AC-CARD-3).
+ *   header (1 byte)      bits 7–6 = version (v2 = 01), bit 5 = SIGNED
+ *                         (always 1 — a v2 card is always signed, DD/RD-4),
+ *                         bit 4 = HAS_AVATAR (reserved, must be 0),
+ *                         bits 3–0 reserved (must be 0).
+ *   pubkey (32 bytes)     raw x-only secp256k1 public key.
+ *   created_at (4 bytes)  uint32 BE, Unix seconds (anchors the signature, as v1).
+ *   expires_at (4 bytes)  uint32 BE, Unix seconds — hard pairing validity edge.
+ *   nonce (16 bytes)      random pairing nonce (RD-2).
+ *   name_len (1 byte)     UTF-8 byte length of name (0–32).
+ *   name (name_len bytes) UTF-8 display name.
+ *   sig (64 bytes)        signature over a SYNTHETIC, non-zero-kind event
+ *                         (kind = CARD_SIG_KIND_V2, content =
+ *                         JSON.stringify({v:2,h,exp,nonce,name})) — never a
+ *                         publishable kind-0 profile event (RD-4, AC-CODEC-3).
+ *
+ * The whole buffer is base64url-encoded (RFC 4648 §5, no padding), for both
+ * versions.
+ *
+ * Both versions share one STRICT parser: any header whose version bits are
+ * neither 00 nor 01, or whose HAS_AVATAR/reserved bits are non-zero, is
+ * rejected rather than tolerated, so a future format cannot be misparsed by
+ * an older reader (AC-CARD-3 for v1; AC-CODEC-4 for v2).
  */
 
 import { getEventHash, verifyEvent } from 'nostr-tools/pure';
@@ -48,6 +72,42 @@ export const SIGNED_CARD_FIXED_OVERHEAD_BYTES = 1 + 32 + 4 + 1 + 64;
 const HEADER_UNSIGNED = 0x00;
 /** bit 5 set (0b00100000) — version bits 00, HAS_AVATAR 0, reserved 0000. */
 const HEADER_SIGNED = 0x20;
+
+/**
+ * bit 5 set + version bits 01 (0b01100000) — a v2 card is always signed
+ * (RD-4/DD: pairing requires a name, and hasShareableName already gates
+ * every caller of encodeCardV2), HAS_AVATAR 0, reserved 0000.
+ */
+const HEADER_SIGNED_V2 = 0x60;
+
+/** 4-byte big-endian expires_at field width, v2 only (RD-2). */
+const PAIRING_EXPIRES_AT_LEN = 4;
+/** 16-byte random pairing nonce field width, v2 only (RD-2). */
+const PAIRING_NONCE_LEN = 16;
+
+/**
+ * Fixed byte overhead of a v2 signed card excluding the name itself:
+ * v1's overhead (102) + expires_at(4) + nonce(16) = 122. The two new fields
+ * sit between created_at and name_len per the wire-format doc above.
+ * AC-CODEC-6 pins the resulting +20-byte delta at MAX_NAME_BYTES.
+ */
+export const SIGNED_CARD_FIXED_OVERHEAD_BYTES_V2 =
+  SIGNED_CARD_FIXED_OVERHEAD_BYTES + PAIRING_EXPIRES_AT_LEN + PAIRING_NONCE_LEN;
+
+/**
+ * The fixed, non-zero synthetic-event kind the v2 card signature is computed
+ * over (RD-4). MUST NOT be 0 (AC-CODEC-3), so the exact preimage can never be
+ * republished as a well-formed kind-0 profile-metadata event — closing the
+ * v1 laundering vector structurally rather than by convention.
+ *
+ * Confirmed no in-repo collision immediately before landing (2026-07-11):
+ * `grep -rn "20602" app/src app/tests` returns zero hits. The nearest
+ * neighboring in-repo kind sentinels are CALL_GIFT_WRAP_KIND=21059 and
+ * JOIN_REQUEST_KIND=21059 (ephemeral range 20000–29999); 20602 sits well
+ * clear of both, and this codec never publishes the synthetic event itself
+ * (it exists only as a signature preimage, never sent to a relay).
+ */
+export const CARD_SIG_KIND_V2 = 20602 as const;
 
 /** The onboarding deep-link page's origin + path (spec.md, DD 9 — fragment-only). */
 const CARD_LINK_URL_PREFIX = 'https://few.chat/add#c=';
@@ -195,6 +255,19 @@ function assertPubkeyHex(pubkeyHex: string): void {
   }
 }
 
+/** A pairing nonce is exactly 16 raw bytes, hex-encoded (RD-2). */
+function assertNonceHex(nonceHex: string): void {
+  if (!/^[0-9a-f]{32}$/i.test(nonceHex)) {
+    throw new Error('contactCard: nonceHex must be 32 hex characters (16 bytes)');
+  }
+}
+
+function assertUint32(value: number, label: string): void {
+  if (!Number.isInteger(value) || value < 0 || value > 0xffffffff) {
+    throw new Error(`contactCard: ${label} must be a uint32 Unix-seconds integer`);
+  }
+}
+
 function packUnsigned(pubkeyHex: string): Uint8Array {
   const buf = new Uint8Array(UNSIGNED_CARD_LEN);
   buf[0] = HEADER_UNSIGNED;
@@ -219,6 +292,75 @@ function packSigned(pubkeyHex: string, createdAt: number, name: string, sigHex: 
   offset += nameBytes.length;
   buf.set(sigBytes, offset);
   return buf;
+}
+
+/**
+ * v2 signed-layout packer — identical to `packSigned` except two new fixed
+ * fields (`expiresAt` BE uint32, `nonceHex` 16 raw bytes) are spliced in
+ * between `createdAt` and `nameLen`, per the v2 wire format doc above.
+ */
+function packSignedV2(
+  pubkeyHex: string,
+  createdAt: number,
+  expiresAt: number,
+  nonceHex: string,
+  name: string,
+  sigHex: string,
+): Uint8Array {
+  const nameBytes = new TextEncoder().encode(name);
+  const sigBytes = hexToBytes(sigHex);
+  const nonceBytes = hexToBytes(nonceHex);
+  const buf = new Uint8Array(SIGNED_CARD_FIXED_OVERHEAD_BYTES_V2 + nameBytes.length);
+  let offset = 0;
+  buf[offset++] = HEADER_SIGNED_V2;
+  buf.set(hexToBytes(pubkeyHex), offset);
+  offset += 32;
+  buf[offset++] = (createdAt >>> 24) & 0xff;
+  buf[offset++] = (createdAt >>> 16) & 0xff;
+  buf[offset++] = (createdAt >>> 8) & 0xff;
+  buf[offset++] = createdAt & 0xff;
+  buf[offset++] = (expiresAt >>> 24) & 0xff;
+  buf[offset++] = (expiresAt >>> 16) & 0xff;
+  buf[offset++] = (expiresAt >>> 8) & 0xff;
+  buf[offset++] = expiresAt & 0xff;
+  buf.set(nonceBytes, offset);
+  offset += PAIRING_NONCE_LEN;
+  buf[offset++] = nameBytes.length;
+  buf.set(nameBytes, offset);
+  offset += nameBytes.length;
+  buf.set(sigBytes, offset);
+  return buf;
+}
+
+/**
+ * The ONE canonical v2 signature-preimage builder (RD-4), shared by encode
+ * and decode — determinism here is exactly as load-bearing as CARD_CONTENT
+ * is for v1 (AC-SIG-5's v2 analogue). `headerByte`/`expiresAt`/`nonceHex`
+ * are folded into `content` (not just the event envelope) so mutating any
+ * one of them after signing is detectable without needing a bespoke
+ * per-field MAC — a single verifyEvent call covers all of them at once.
+ */
+function buildV2SigPreimageEvent(params: {
+  pubkeyHex: string;
+  createdAt: number;
+  headerByte: number;
+  expiresAt: number;
+  nonceHex: string;
+  name: string;
+}): UnsignedEvent {
+  return {
+    pubkey: params.pubkeyHex,
+    created_at: params.createdAt,
+    kind: CARD_SIG_KIND_V2,
+    tags: [],
+    content: JSON.stringify({
+      v: 2,
+      h: params.headerByte,
+      exp: params.expiresAt,
+      nonce: params.nonceHex,
+      name: params.name,
+    }),
+  };
 }
 
 // ── encodeCard ─────────────────────────────────────────────────────────────
@@ -284,15 +426,100 @@ export function buildShareUrl(payload: string): string {
   return `${CARD_LINK_URL_PREFIX}${payload}`;
 }
 
+// ── encodeCardV2 — pairing card (nonce + expiry, RD-4 signature) ───────────
+
+/**
+ * The `EncodedCardV2` seam contract (specs/epic-contact-pairing-code/
+ * stories.json) — consumed cross-story by S2's `shareCard.ts#getOwnShareCard`.
+ */
+export type EncodedCardV2 = {
+  pubkeyHex: string;
+  name: string;
+  nonceHex: string;
+  expiresAt: number;
+  cardB64Url: string;
+};
+
+/**
+ * Build and sign a v2 pairing card: identity (as `encodeCard`) plus an
+ * issuer-minted `nonceHex`/`expiresAt` (RD-2 — minted and persisted by the
+ * caller's nonce-lifecycle module, not this pure codec). Always produces a
+ * SIGNED card — a v2 card without a name serves no pairing purpose, and
+ * every real caller already gates on `hasShareableName` before reaching
+ * here, so an empty nickname is treated as a caller bug, not a silent
+ * unsigned fallback (unlike v1's `encodeCard`).
+ *
+ * The signature is computed over a synthetic, non-zero-kind event (RD-4,
+ * `buildV2SigPreimageEvent`) rather than a publishable kind-0 profile event,
+ * so the exact preimage can never be laundered onto a public relay
+ * (AC-CODEC-3). It binds header byte + created_at + pubkey + expiresAt +
+ * nonceHex + name — mutating any one of them after signing is detectable
+ * (AC-CODEC-2).
+ */
+export async function encodeCardV2(
+  pubkeyHex: string,
+  profile: { nickname: string; createdAt: number },
+  nonceHex: string,
+  expiresAt: number,
+  signEvent: EventSigner['signEvent'],
+): Promise<EncodedCardV2> {
+  assertPubkeyHex(pubkeyHex);
+  // Normalize to lowercase so packed bytes, the preimage, and the post-sign
+  // equality check below all agree in case (mirrors encodeCard).
+  pubkeyHex = pubkeyHex.toLowerCase();
+  assertNonceHex(nonceHex);
+  nonceHex = nonceHex.toLowerCase();
+  assertUint32(expiresAt, 'expiresAt');
+  assertUint32(profile.createdAt, 'createdAt');
+
+  const normalized = normalizeUtf8RoundTrip(profile.nickname);
+  const name = truncateUtf8(normalized, MAX_NAME_BYTES);
+  if (name.length === 0) {
+    throw new Error('contactCard: encodeCardV2 requires a non-empty nickname (a pairing card is always signed)');
+  }
+
+  const draft = buildV2SigPreimageEvent({
+    pubkeyHex,
+    createdAt: profile.createdAt,
+    headerByte: HEADER_SIGNED_V2,
+    expiresAt,
+    nonceHex,
+    name,
+  });
+  const signed = await signEvent(draft);
+  if (signed.pubkey !== pubkeyHex) {
+    throw new Error('contactCard: signer pubkey does not match the supplied pubkeyHex');
+  }
+  // Pack the SIGNED created_at (what the signature actually covers), not the
+  // input value, for the same reason encodeCard does (see its comment).
+  const cardB64Url = bytesToBase64Url(
+    packSignedV2(pubkeyHex, signed.created_at, expiresAt, nonceHex, name, signed.sig),
+  );
+  return { pubkeyHex, name, nonceHex, expiresAt, cardB64Url };
+}
+
 // ── decodeCard ─────────────────────────────────────────────────────────────
 
 export type DecodedCard = {
-  version: 0;
+  version: 0 | 1;
   pubkeyHex: string;
   profile?: { nickname: string; createdAt: number };
+  /** Present iff `version === 1` (a v2 card) — AC-CODEC-1. */
+  pairing?: { nonce: string; expiresAt: number };
 };
 
 export type DecodeCardResult = DecodedCard | { error: string };
+
+/**
+ * Review-remediation (epic: contact-pairing-code, story S5, sev 3 best-
+ * practices finding): the single source of truth for the "unrecognized
+ * header version" error string `decodeCard` returns below (AC-CODEC-4).
+ * Exported so `processContactInput.ts`'s AC-UI-3 friendly-copy mapping can
+ * import and compare against this constant instead of duplicating the
+ * literal — a reworded message here can never silently desync the two.
+ * Additive-only: the string value itself is unchanged from S1's original.
+ */
+export const UNSUPPORTED_VERSION_ERROR = 'contactCard: unsupported version';
 
 /**
  * Strictly parse and (for signed cards) verify a base64url card payload.
@@ -307,9 +534,12 @@ export function decodeCard(b64url: string): DecodeCardResult {
 
     const header = bytes[0];
     const version = (header >> 6) & 0x03;
-    if (version !== 0) return { error: 'contactCard: unsupported version' };
+    // AC-CODEC-4: only 00 (v1) and 01 (v2) are recognized; 10/11 are hard
+    // parse failures, not a best-effort partial decode — this is the ONE
+    // strict-parser gate both versions share (see file header doc).
+    if (version !== 0 && version !== 1) return { error: UNSUPPORTED_VERSION_ERROR };
     const hasAvatar = (header >> 4) & 0x01;
-    if (hasAvatar !== 0) return { error: 'contactCard: HAS_AVATAR is reserved and must be unset in v1' };
+    if (hasAvatar !== 0) return { error: 'contactCard: HAS_AVATAR is reserved and must be unset' };
     const reserved = header & 0x0f;
     if (reserved !== 0) return { error: 'contactCard: reserved header bits must be unset' };
     const signed = ((header >> 5) & 0x01) === 1;
@@ -317,10 +547,19 @@ export function decodeCard(b64url: string): DecodeCardResult {
     const pubkeyHex = bytesToHex(bytes.slice(1, UNSIGNED_CARD_LEN));
 
     if (!signed) {
+      // A v2 card is ALWAYS signed (spec §"Card format v2": header bit 5 SIGNED
+      // = 1 for v2). A version-01 header with the SIGNED bit clear is therefore
+      // a malformed v2 card — reject it under the strict-parser discipline
+      // (AC-CODEC-4) rather than silently accepting it as a bare-pubkey
+      // one-directional add. Only the v1 (version 00) unsigned layout is valid.
+      if (version === 1) {
+        return { error: 'contactCard: v2 card must be signed (SIGNED bit unset)' };
+      }
+      // v1 unsigned layout: header + bare pubkey, no version-specific fields.
       if (bytes.length !== UNSIGNED_CARD_LEN) {
         return { error: 'contactCard: unsigned payload has unexpected trailing bytes' };
       }
-      return { version: 0, pubkeyHex };
+      return { version: version as 0 | 1, pubkeyHex };
     }
 
     const HEADER_LEN = 1;
@@ -328,7 +567,9 @@ export function decodeCard(b64url: string): DecodeCardResult {
     const CREATED_AT_LEN = 4;
     const NAME_LEN_LEN = 1;
     const SIG_LEN = 64;
-    const minSignedLen = HEADER_LEN + PUBKEY_LEN + CREATED_AT_LEN + NAME_LEN_LEN;
+    // v2 splices expires_at(4) + nonce(16) between created_at and name_len.
+    const v2ExtraLen = version === 1 ? PAIRING_EXPIRES_AT_LEN + PAIRING_NONCE_LEN : 0;
+    const minSignedLen = HEADER_LEN + PUBKEY_LEN + CREATED_AT_LEN + v2ExtraLen + NAME_LEN_LEN;
     if (bytes.length < minSignedLen) {
       return { error: 'contactCard: signed payload truncated before name_len' };
     }
@@ -337,12 +578,23 @@ export function decodeCard(b64url: string): DecodeCardResult {
     const createdAt =
       ((bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0;
     offset += CREATED_AT_LEN;
+
+    let expiresAt = 0;
+    let nonceHex = '';
+    if (version === 1) {
+      expiresAt =
+        ((bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0;
+      offset += PAIRING_EXPIRES_AT_LEN;
+      nonceHex = bytesToHex(bytes.slice(offset, offset + PAIRING_NONCE_LEN));
+      offset += PAIRING_NONCE_LEN;
+    }
+
     const nameLen = bytes[offset];
     offset += NAME_LEN_LEN;
 
     if (nameLen > MAX_NAME_BYTES) return { error: 'contactCard: name_len exceeds the 32-byte cap' };
 
-    const expectedLen = HEADER_LEN + PUBKEY_LEN + CREATED_AT_LEN + NAME_LEN_LEN + nameLen + SIG_LEN;
+    const expectedLen = HEADER_LEN + PUBKEY_LEN + CREATED_AT_LEN + v2ExtraLen + NAME_LEN_LEN + nameLen + SIG_LEN;
     if (bytes.length !== expectedLen) {
       return { error: 'contactCard: payload length inconsistent with name_len' };
     }
@@ -359,16 +611,13 @@ export function decodeCard(b64url: string): DecodeCardResult {
       return { error: 'contactCard: name is not valid UTF-8' };
     }
 
-    const unsignedEvent: UnsignedEvent = {
-      pubkey: pubkeyHex,
-      created_at: createdAt,
-      kind: 0,
-      tags: [],
-      content: CARD_CONTENT(name),
-    };
-    // AC-SIG-6: verifyEvent rejects any event without a matching `id`, so the
-    // computed hash MUST be attached before calling it — an id-less
-    // reconstruction would fail closed for every card, valid or not.
+    // AC-SIG-6 / VQ-S1-006: verifyEvent rejects any event without a matching
+    // `id`, so the computed hash MUST be attached before calling it — an
+    // id-less reconstruction would fail closed for every card, valid or not.
+    const unsignedEvent: UnsignedEvent =
+      version === 1
+        ? buildV2SigPreimageEvent({ pubkeyHex, createdAt, headerByte: header, expiresAt, nonceHex, name })
+        : { pubkey: pubkeyHex, created_at: createdAt, kind: 0, tags: [], content: CARD_CONTENT(name) };
     const id = getEventHash(unsignedEvent);
     const fullEvent = { ...unsignedEvent, id, sig: sigHex } as NostrToolsEvent;
 
@@ -380,6 +629,9 @@ export function decodeCard(b64url: string): DecodeCardResult {
     }
     if (!verified) return { error: 'contactCard: signature verification failed' };
 
+    if (version === 1) {
+      return { version: 1, pubkeyHex, profile: { nickname: name, createdAt }, pairing: { nonce: nonceHex, expiresAt } };
+    }
     return { version: 0, pubkeyHex, profile: { nickname: name, createdAt } };
   } catch {
     return { error: 'contactCard: malformed payload' };
@@ -391,6 +643,17 @@ export function decodeCard(b64url: string): DecodeCardResult {
 export type ParseContactCardResult =
   | { pubkeyHex: string }
   | { pubkeyHex: string; profile: { nickname: string; updatedAt: string } }
+  | {
+      pubkeyHex: string;
+      profile: { nickname: string; updatedAt: string };
+      /**
+       * The `ParsedPairingCard` seam's nonce-bearing shape (specs/epic-
+       * contact-pairing-code/stories.json) — present iff the decoded card is
+       * v2 (AC-CODEC-1). Consumed cross-story by S4's
+       * `processContactInput.ts` to decide whether to echo a pairing-ack.
+       */
+      pairing: { nonce: string; expiresAt: number };
+    }
   | { error: string };
 
 /**
@@ -398,6 +661,10 @@ export type ParseContactCardResult =
  * (architecture.md DD 1). Accepts a bare npub, a card link
  * (`https://few.chat/add#c=<b64url>`), or a raw base64url card payload.
  * Never throws (AC-PARSE-5).
+ *
+ * A v1 card or bare npub/`nostr:` URI never carries a `pairing` field
+ * (AC-CODEC-5) — this routes to the pre-existing one-directional add, byte-
+ * identical to today's behavior.
  */
 export function parseContactCard(input: string): ParseContactCardResult {
   try {
@@ -442,13 +709,16 @@ export function parseContactCard(input: string): ParseContactCardResult {
       return { pubkeyHex: decoded.pubkeyHex };
     }
 
-    return {
-      pubkeyHex: decoded.pubkeyHex,
-      profile: {
-        nickname: decoded.profile.nickname,
-        updatedAt: new Date(decoded.profile.createdAt * 1000).toISOString(),
-      },
+    const profile = {
+      nickname: decoded.profile.nickname,
+      updatedAt: new Date(decoded.profile.createdAt * 1000).toISOString(),
     };
+
+    if (decoded.pairing) {
+      return { pubkeyHex: decoded.pubkeyHex, profile, pairing: decoded.pairing };
+    }
+
+    return { pubkeyHex: decoded.pubkeyHex, profile };
   } catch {
     return { error: 'contactCard: unparseable input' };
   }

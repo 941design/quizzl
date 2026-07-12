@@ -1,0 +1,20 @@
+{
+  "captured_at": "2026-07-12T00:50:00Z",
+  "command": "make test-unit",
+  "status": "PRE_EXISTING_FAILURES_UNRELATED_TO_STORY",
+  "test_files": { "passed": 140, "failed": 2, "total": 142 },
+  "tests": { "passed": 2539, "failed": 25, "total": 2564 },
+  "pre_existing_failures": {
+    "files": [
+      "app/tests/unit/components/ThemeIcon.test.ts",
+      "app/tests/unit/themes/treatments.test.ts"
+    ],
+    "reason": "Icon-set naming mismatch (expects 'ph:*'/'lucide:*' iconify ids) introduced by an unrelated theme refactor (commit 8fae18e 'refactor(themes): remove all themes except aquarelle', confirmed via git log — no uncommitted changes to these files or app/src/themes in this working tree). Zero overlap with the contact-pairing-code epic (no import of app/src/lib/pairing/*, contactCard.ts, directMessages.ts, or any file this story touches).",
+    "verified_pre_existing": true,
+    "decision": "Recorded, not blocking — mirrors this repo's documented tolerance for pre-existing chronic-red state (see e2e memory note e2e_full_gate_preexisting_flaky.md: judge a change by whether ITS OWN specs pass, not an unrelated red gate). S1 and S2 of this same epic landed as 'done' through this identical baseline, confirming the failure predates and is orthogonal to this epic."
+  },
+  "lint": "NO_LINT",
+  "lint_detail": "next lint has no committed ESLint config in app/ (no .eslintrc*); running it interactively prompts for first-time setup. No lint gate exists for this project.",
+  "typecheck": "clean",
+  "typecheck_detail": "npx tsc --noEmit -p app/tsconfig.json exits 0 with zero diagnostics."
+}

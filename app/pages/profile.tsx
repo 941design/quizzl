@@ -28,6 +28,7 @@ import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { getOwnShareCard, hasShareableName, type ShareCardCacheEntry } from '@/src/lib/shareCard';
 import { addableGroupsForContact, archiveContact, eligibleGroupsForContact, getContact, unarchiveContact } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
+import { drainPendingIntents, type PendingIntentSendContext } from '@/src/lib/pairing/pendingIntent';
 import { capNickname, NICKNAME_MAX_BYTES } from '@/src/config/profile';
 import { utf8ByteLength } from '@/src/lib/contactCard';
 import type { ContactListItem } from '@/src/lib/contacts';
@@ -61,6 +62,7 @@ function AvatarDisplay({ avatar, displayName, size }: { avatar: ProfileAvatar | 
 
 function OwnProfileSection() {
   const copy = useCopy();
+  const router = useRouter();
   const { backedUp, npub, pubkeyHex, privateKeyHex, signerMode } = useNostrIdentity();
   const { profile: savedProfile, hydrated, saveProfile } = useProfile();
   const { publishProfileUpdate } = useMarmot();
@@ -70,6 +72,54 @@ function OwnProfileSection() {
   // True when the last keystroke/paste was clamped to the byte cap, so we can
   // surface a translated "limit reached" notice.
   const [nicknameCapped, setNicknameCapped] = useState(false);
+
+  // --- Pairing name-setup redirect (epic: contact-pairing-code, story S4,
+  // RD-7/AC-SCAN-5) ---
+  // `/add.tsx` sends a nameless scanner here with `?pairing=1` after already
+  // durably persisting the pending intent — this flag only drives the
+  // contextual prompt below, never the drain trigger itself (a name set on
+  // ANY visit to this page must fire a held echo, not just one that arrived
+  // via this query flag).
+  const pairingNameSetupFlag = router.query.pairing === '1';
+
+  // AC-SCAN-6/7: the moment `hasShareableName` flips from false to true,
+  // attempt every persisted pending pairing intent once (drainPendingIntents
+  // silently drops any that are past their own window — AC-SCAN-7 — and
+  // leaves anything still nameless untouched). Edge-triggered on the
+  // false->true transition of the chokepoint's own output (`savedProfile`,
+  // from `useProfile().saveProfile`) so this never re-fires on every
+  // subsequent keystroke once a name is already set.
+  const prevHasShareableNameRef = useRef(hasShareableName(savedProfile.nickname));
+  useEffect(() => {
+    const hasNameNow = hasShareableName(savedProfile.nickname);
+    const justBecameShareable = !prevHasShareableNameRef.current && hasNameNow;
+    prevHasShareableNameRef.current = hasNameNow;
+    if (!justBecameShareable || !pubkeyHex || !privateKeyHex) return;
+
+    const ownPubkeyHex = pubkeyHex;
+    const ownPrivateKeyHex = privateKeyHex;
+    const ctx: PendingIntentSendContext = {
+      ownPubkeyHex,
+      ownPrivateKeyHex,
+      ownProfile: { nickname: savedProfile.nickname, createdAt: Math.floor(Date.now() / 1000) },
+      resolveSendDeps: async () => {
+        const [{ connectNdk }, { activeEventSignerOverride, createPrivateKeySigner }] = await Promise.all([
+          import('@/src/lib/ndkClient'),
+          import('@/src/lib/marmot/signerAdapter'),
+        ]);
+        const ndk = await connectNdk(ownPrivateKeyHex);
+        const signer = activeEventSignerOverride.current ?? createPrivateKeySigner(ownPrivateKeyHex);
+        return { ndk, signEvent: signer.signEvent };
+      },
+    };
+    void drainPendingIntents(ctx).catch(() => {
+      // drainPendingIntents already never throws (each intent's own send
+      // failure is caught and reported as 'queued-for-retry' internally) —
+      // this catch only guards against a truly unexpected rejection so a
+      // held intent's failure can never surface as an uncaught profile-page
+      // error.
+    });
+  }, [savedProfile.nickname, pubkeyHex, privateKeyHex]);
 
   // --- Share contact card (epic: contact-card-exchange) ---
   // In-memory only (never persisted, never holds signer/key material — the
@@ -175,6 +225,18 @@ function OwnProfileSection() {
   return (
     <>
       <VStack spacing={6} align="stretch">
+        {/* Pairing name-setup prompt (epic: contact-pairing-code, story S4, RD-7) —
+            shown only while a nameless scanner is still nameless after arriving
+            here via /add.tsx's ?pairing=1 redirect. The held echo already fires
+            automatically the moment a name is saved (effect above); this is
+            purely explanatory copy. */}
+        {pairingNameSetupFlag && !hasShareableName(savedProfile.nickname) && (
+          <Alert status="info" borderRadius="md" data-testid="profile-pairing-name-setup-prompt">
+            <AlertIcon />
+            <AlertDescription fontSize="sm">{copy.profile.pairingNameSetupPrompt}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Nickname + Avatar */}
         <Box>
           <VStack spacing={5} align="stretch">
@@ -325,6 +387,7 @@ function OwnProfileSection() {
         shareUrl={shareUrl ?? undefined}
         copyButtonLabel={copy.profile.copyCardLink}
         copiedButtonLabel={copy.profile.copiedCardLink}
+        validityHint={copy.profile.shareCardValidityHint}
         qrErrorMessage={copy.identity.qrGenerationError}
       />
     </>

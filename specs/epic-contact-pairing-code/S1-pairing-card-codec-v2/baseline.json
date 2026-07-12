@@ -1,0 +1,23 @@
+{
+  "story_id": "S1",
+  "captured_at": "2026-07-11T23:40:00Z",
+  "tests": {
+    "command": "make test-unit",
+    "test_files": 141,
+    "tests": 2514,
+    "passed": 2489,
+    "failed": 25,
+    "status": "PRE_EXISTING_FAILURES",
+    "note": "25 pre-existing failures across 2 files (tests/unit/components/ThemeIcon.test.ts, tests/unit/themes/treatments.test.ts), caused by the already-committed 'feat(nav): iconify contacts/groups links, reorder header, switch line set to Lucide' (commit 5bc5a0b) — the test fixtures still assert the old Phosphor ('ph:heart-bold') icon ids against the new Lucide ('lucide:heart') resolver output. Entirely unrelated to app/src/lib/contactCard.ts / the codec module; not touched by this story's scope. Treated as pre-existing baseline debt per Step 0's tolerance (not a BASELINE_BLOCKED) — verified unchanged (still exactly 25) after this story's implementation, so no regression was introduced or masked."
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "note": "No ESLint config file exists in app/ (no .eslintrc*/eslint.config*); `next lint` prompts interactively to scaffold one and cannot run non-interactively. Matches the tolerance and precedent recorded in specs/epic-add-contact-by-npub/S2-add-contact-ui/baseline.json."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit",
+    "status": "clean",
+    "errors": 0
+  }
+}

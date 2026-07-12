@@ -1,0 +1,79 @@
+{
+  "module_name": "pairingAck",
+  "purpose": "Full round-trip of the pairing-ack protocol on both the scanner (send) and issuer (receive/admit) sides: build and gift-wrap-send an ack rumor carrying the scanner's identity-only card and the echoed nonce; register the ack subscription; strictly unwrap, sender-bind, nonce-validate, and admit received acks. Single owning module per stories.json's consolidation rationale — 'admission' (knownPeers.ts/contacts.ts) is reused as-is, no new admission logic is introduced elsewhere.",
+  "public_api": [
+    {
+      "name": "PAIRING_ACK_KIND",
+      "signature": "export const PAIRING_ACK_KIND = 21060 as const",
+      "description": "Fixed non-zero rumor kind for a pairing-ack. Confirmed via repo-wide grep (2026-07-12) to collide with none of: 444, 21059 (JOIN_REQUEST_KIND/JOIN_REQUEST_RUMOR_KIND/CALL_GIFT_WRAP_KIND), 5, 7, 14 (CHAT_MESSAGE_KIND in directMessages.ts), 9 (a DIFFERENT CHAT_MESSAGE_KIND in chatPersistence.ts), 20602 (CARD_SIG_KIND_V2), or any other in-repo kind literal. AC-SEC-3."
+    },
+    {
+      "name": "sendPairingAck",
+      "signature": "async function sendPairingAck(params: SendPairingAckParams): Promise<PairingAckSendResult>",
+      "description": "Builds an identity-only card (via contactCard.ts#encodeCard — never encodeCardV2, so the enclosed card structurally carries no `pairing` field, AC-ACK-1), wraps it + the echoed nonce into a PAIRING_ACK_KIND rumor, gift-wraps it (directMessages.ts#sealAndWrap) addressed to issuerPubkeyHex with an ephemeral outer key, and publishes via NDK. Returns {issuerPubkeyHex, echoedNonceHex, result: 'sent'|'queued-for-retry'} — the PairingAckSend seam. Malformed issuerPubkeyHex/echoedNonceHex throw (caller bugs); any downstream failure (signer, network, relay publish) is caught and reported as 'queued-for-retry', never thrown. Never touches pendingIntent persistence (S4's job) and never publishes a kind-0 (AC-PRIV-1)."
+    },
+    {
+      "name": "handlePairingAck",
+      "signature": "async function handlePairingAck(giftWrapEvent: NostrEventLike, ownPrivateKeyHex: string, opts?: { nowSec?: number }): Promise<HandlePairingAckResult>",
+      "description": "Unwraps giftWrapEvent via directMessages.ts#unwrapAndOpen ONLY (never welcomeSubscription.ts's weak unwrapGiftWrap — AC-SEC-2). Returns a discriminated result rather than throwing for any expected outcome: unwrap-failed | wrong-kind (not a PAIRING_ACK_KIND rumor — both fall through so the caller can try the existing Welcome/join-request path) | malformed-content | nonce-inadmissible | card-invalid | sender-mismatch (AC-SEC-1: enclosed card pubkey != authenticated rumor.pubkey — the named pubkey is NEVER admitted) | already-admitted (AC-ACK-3 idempotent no-op) | admitted. On 'admitted': calls nonceStore.pruneExpiredNonces (AC-NONCE-6 second trigger), then rememberKnownPeers([senderHex]) strictly before rememberContact(senderHex) (ADR-005, AC-ADMIT-1), with NO isAllowedDmSender gate (AC-ADMIT-4). Never constructs or sends a further ack (AC-ACK-2 — no sendPairingAck/sealAndWrap call anywhere in this function's call graph)."
+    },
+    {
+      "name": "getPairingAckAdmissions",
+      "signature": "function getPairingAckAdmissions(): ReadonlyMap<string, string>",
+      "description": "Session-scoped, in-memory senderHex -> nonceHex map of every sender admitted via a pairing-ack so far this session — the single source of truth backing both AC-ACK-3's idempotency check and the admission-digest signal S5 consumes for AC-UI-2 ('N people paired'). S3 renders no UI itself; this is the exposed read surface. Resets on page reload (in-memory only) — rememberKnownPeers/rememberContact remain independently idempotent across reloads via their own persisted stores, so a reload never produces a duplicate contact, only a possible one-time re-count of the digest."
+    },
+    {
+      "name": "_resetPairingAckAdmissionsForTests",
+      "signature": "function _resetPairingAckAdmissionsForTests(): void",
+      "description": "Test-only reset of the in-memory admissions map, mirroring nonceStore.ts's _resetActiveNonceForTests precedent."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/pairing/pairingAck.ts"
+  ],
+  "owned_data": [
+    "in-memory session-scoped senderHex->nonceHex admissions map (getPairingAckAdmissions) — no persisted store of its own"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/contactCard.ts (encodeCard, decodeCard, utf8ByteLength/truncateUtf8 if needed)",
+    "app/src/lib/directMessages.ts (sealAndWrap, unwrapAndOpen, GIFT_WRAP_KIND)",
+    "app/src/lib/pairing/nonceStore.ts (isNonceAdmissible, pruneExpiredNonces)",
+    "app/src/lib/knownPeers.ts (rememberKnownPeers)",
+    "app/src/lib/contacts.ts (rememberContact)",
+    "@nostr-dev-kit/ndk (NDKEvent, NDK type)",
+    "nostr-tools/nip59 (createRumor)",
+    "app/src/lib/nostrKeys.ts (hexToBytes)",
+    "applesauce-core (EventSigner type)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/walledGarden.ts#isAllowedDmSender — AC-ADMIT-4, never called from this module",
+    "app/src/lib/marmot/welcomeSubscription.ts#unwrapGiftWrap — AC-SEC-2, the weak unwrap primitive",
+    "React / any app/src/context/* — this module is a stateless-adapter, not a UI layer"
+  ],
+  "external_ports": [
+    "NDK.publish() via NDKEvent — outbound gift-wrap publish (sendPairingAck)",
+    "NDK subscription dispatch — inbound gift-wrap delivery, wired via welcomeSubscription.ts (out of this module, in scope of this story)"
+  ],
+  "events_emitted": [
+    "PAIRING_ACK_KIND (21060) gift-wrapped rumor, addressed to issuerPubkeyHex"
+  ],
+  "events_consumed": [
+    "PAIRING_ACK_KIND (21060) gift-wrapped rumor, addressed to own pubkey, dispatched from welcomeSubscription.ts's kind-1059 subscription"
+  ],
+  "test_targets": [
+    "app/tests/unit/pairing/pairingAck.test.ts",
+    "app/tests/unit/marmot/welcomeSubscription.test.ts (extended: pairing-ack dispatch branch)"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S4"],
+    "note": "PairingAckSend (sendPairingAck) is defined here and consumed by S4's processContactInput.ts/pendingIntent.ts. NonceAdmissibility (isNonceAdmissible) is consumed here from S2, verbatim, no re-derivation of grace math."
+  },
+  "boundary_compliance": {
+    "rule_2_sender_binding": "handlePairingAck derives the authenticated sender exclusively via directMessages.ts#unwrapAndOpen (asserts rumor.pubkey===seal.pubkey internally); admits only that pubkey, gated additionally on decoded-card-pubkey===authenticated-sender equality.",
+    "rule_3_walled_garden_bypass": "handlePairingAck never imports or calls isAllowedDmSender; admission is gated solely by nonce-admissibility + sender-binding, matching joinRequestHandler.ts's precedent.",
+    "rule_4_admission_ordering": "rememberKnownPeers([senderHex]) called strictly before rememberContact(senderHex) on every successful admit path.",
+    "rule_5_kind_isolation": "PAIRING_ACK_KIND=21060 confirmed via grep to not collide with 444/21059/5/7/14 (nor 9, nor 20602). No new exclusion code added to ContactChat.tsx or directMessageNotifications.ts — automatic fail-closed on the unrecognized kind is relied on.",
+    "rule_6_privacy": "sendPairingAck/handlePairingAck never construct or publish a kind-0 event of any kind; the only outbound traffic is the kind-1059 gift wrap addressed to a single recipient. Explicit unit test asserts this over the full reachable call graph."
+  }
+}

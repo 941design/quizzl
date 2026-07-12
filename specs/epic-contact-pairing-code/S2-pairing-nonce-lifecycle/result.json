@@ -1,0 +1,64 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T00:25:00Z",
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "nonceStore+shareCard"
+  ],
+  "files_created": [
+    "app/src/lib/pairing/nonceStore.ts",
+    "app/tests/unit/pairing/nonceStore.integration.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/shareCard.ts",
+    "app/tests/unit/cards/shareCard.test.ts",
+    "specs/epic-contact-pairing-code/S2-pairing-nonce-lifecycle/verification.json"
+  ],
+  "implementation_summary": "New app/src/lib/pairing/nonceStore.ts owns the issuer-side pairing-nonce lifecycle (RD-2): idb-keyval store 'few-pairing-nonces' (architecture.md boundary rule 7's few-* convention) persists every issued { nonce, expiresAt } keyed by nonce value. getOrMintActiveNonce(nowSec) is the mint-or-reuse entry point: a module-scope in-memory pointer (activeNonce) is reused while unexpired (AC-NONCE-1), and is guaranteed null on the first call after any page reload (module reload clears JS memory) or once expired mid-session, both of which trigger a fresh mint + persist (AC-NONCE-2, AC-NONCE-3) \u2014 the nonce is never burned on use. Every mint also runs pruneExpiredNonces, deleting entries whose expiresAt + NONCE_GRACE_SEC (2h) has passed (AC-NONCE-6's mint-time trigger); pruneExpiredNonces is also exported standalone so S3's future ack-processing pass (out of this story's scope) can trigger the second AC-NONCE-6 prune moment. isNonceAdmissible(nonceHex, nowSec) is the NonceAdmissibility seam S3 will consume verbatim: read-only, defensive against malformed/never-issued input (returns false, never throws, never mutates/prunes), true iff nowSec <= storedExpiresAt + NONCE_GRACE_SEC (AC-NONCE-5, exact inclusive boundary). shareCard.ts was extended (not forked): ShareCardCacheKey gained a 4th nonceHex dimension (AC-NONCE-7); a new buildOwnShareCardV2 (parallel to the existing v1 buildOwnShareCard, kept untouched) calls contactCard's encodeCardV2; getOwnShareCard now resolves the active nonce on every call (via a new optional getActiveNonce param defaulting to nonceStore.getOrMintActiveNonce \u2014 optional specifically so the existing single caller, app/pages/profile.tsx, needed zero edits despite the production path switching from v1 to v2 cards), folds it into the cache key, and on a MISS signs a v2 pairing card instead of a v1 identity card. Delegated independent verification to a base:dev agent (agentId a4d5f20c63a26b387) against all 13 pre-impl VQ-S2 questions plus a hand-audit for grace-boundary off-by-ones, vitest module-singleton cross-file leakage (confirmed vitest's isolate:true gives each test FILE a fresh module registry \u2014 no leakage possible), getActiveNonce cache-hit side effects, and packed-nonceHex/cache-key consistency; it found zero implementation bugs and closed one test-coverage gap itself (pruneExpiredNonces's own boundary was only ever exercised one-second-past, never AT the exact expiresAt+7200 boundary \u2014 added a dedicated test pinning both sides of that boundary, since a hypothetical >= typo there would have silently broken AC-NONCE-5 without it).",
+  "tests": {
+    "baseline": {
+      "test_files": 141,
+      "tests": 2540,
+      "passed": 2515,
+      "failed": 25
+    },
+    "final": {
+      "test_files": 142,
+      "tests": 2564,
+      "passed": 2539,
+      "failed": 25
+    },
+    "delta": "+24 tests added (17 in new nonceStore.integration.test.ts, +7 net in shareCard.test.ts), all passing; the 25 failing tests are unchanged pre-existing baseline debt (tests/unit/components/ThemeIcon.test.ts, tests/unit/themes/treatments.test.ts \u2014 Lucide/Phosphor icon-set mismatch from unrelated prior commit 5bc5a0b, also unchanged in S1's baseline), not touched by or related to this story's scope.",
+    "new_tests_by_type": {
+      "unit_integration_fake_indexeddb": "nonceStore.integration.test.ts (17 tests): AC-NONCE-1 reuse, AC-NONCE-2 reload+old-nonce-survives, AC-NONCE-3 mid-session re-mint, AC-NONCE-4 raw-store persistence, AC-NONCE-5 boundary-exact admissibility (at/one-before/one-after grace boundary, never-issued, malformed input, read-only/no-side-effect, case-insensitive match), AC-NONCE-6 pruning (mint-time trigger, ack-processing-time trigger via direct pruneExpiredNonces call, selective/non-destructive, own boundary pin added by dev verification pass), mint-output shape, no-collision",
+      "unit_orchestration": "shareCard.test.ts extensions: shouldRebuildShareCard 4th-dimension rotation + inverse (AC-NONCE-7), buildOwnShareCardV2 round-trip via parseContactCard (asserts the new `pairing` field), a dedicated 'real nonce-store wiring' describe block re-driving AC-NONCE-1/2/3/7 through getOwnShareCard itself with the REAL default nonceStore (not the injected stub used by the other orchestration tests) to prove genuine production wiring, not just the pure comparator"
+    }
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "note": "unchanged from S1's baseline \u2014 no ESLint config in app/"
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit",
+    "status": "clean",
+    "errors": 0
+  },
+  "mocks_introduced": [],
+  "verification": {
+    "verification_json": "specs/epic-contact-pairing-code/S2-pairing-nonce-lifecycle/verification.json",
+    "pre_impl_questions": 13,
+    "post_impl_questions_appended": 3,
+    "note": "All 13 pre-impl (planner-authored) questions left untouched per the immutability rule; all 13 independently re-verified by the delegated dev agent against the landed code and held (see implementation_summary). Appended VQ-S2-014 (optional-injection design rationale for getOwnShareCard's getActiveNonce/now, and confirmation both the stub and real-default code paths are test-exercised), VQ-S2-015 (vitest module-singleton cross-file isolation \u2014 confirmed via vitest.config.ts's default isolate:true, no leakage possible), VQ-S2-016 (pruneExpiredNonces's own exact boundary \u2014 a real test-coverage gap the dev agent found and closed within this story rather than leaving open, since it was cheap and directly actionable)."
+  },
+  "reviews": {
+    "stage1": "lead-owned (not run by this architect spawn, per FR-2)",
+    "stage2": "lead-owned (not run by this architect spawn)"
+  },
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  },
+  "review_remediation": "Opus (resumable) converged: 2 findings <sev5. Finding1 (dead v1 buildOwnShareCard after v1->v2 switch): doc comment corrected by lead; function retained (preexisting exported API). Finding2 (forward-looking prune bound): carried to S3 watch. Per-story Codex deferred to final whole-tree pre-commit pass (lead cadence decision \u2014 S2 is not security-critical admission logic)."
+}

@@ -1,4 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import 'fake-indexeddb/auto';
+import { webcrypto } from 'node:crypto';
+
+// crypto.subtle polyfill (mirrors sealAndWrap.test.ts / pairingAck.test.ts) —
+// the pairing-ack dispatch tests below exercise real NIP-59 gift-wrap crypto
+// and real nonceStore.ts (idb-keyval, hence fake-indexeddb/auto above).
+if (!globalThis.crypto?.subtle) {
+  Object.defineProperty(globalThis, 'crypto', {
+    value: webcrypto,
+    writable: false,
+    configurable: true,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Module mocks for subscribeToGroupMessages tests. Hoisted by vitest, applied
@@ -49,6 +62,15 @@ vi.mock('@/src/lib/marmot/epochResolver', () => ({
 }));
 
 import { unwrapGiftWrap, subscribeToGroupMessages, subscribeToWelcomes } from '@/src/lib/marmot/welcomeSubscription';
+import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
+import { bytesToHex } from 'nostr-tools/utils';
+import { createRumor } from 'nostr-tools/nip59';
+import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
+import { encodeCard } from '@/src/lib/contactCard';
+import { sealAndWrap } from '@/src/lib/directMessages';
+import { hexToBytes } from '@/src/lib/nostrKeys';
+import { PAIRING_ACK_KIND, _resetPairingAckAdmissionsForTests, type PairingAckContent } from '@/src/lib/pairing/pairingAck';
+import { getOrMintActiveNonce, clearAllNonces, _resetActiveNonceForTests } from '@/src/lib/pairing/nonceStore';
 
 // ---------------------------------------------------------------------------
 // unwrapGiftWrap tests
@@ -559,6 +581,151 @@ describe('subscribeToWelcomes — receipt-handler integration', () => {
     expect(mockEnqueuePendingInvitation).not.toHaveBeenCalled();
     expect(mockMarmotClient.joinGroupFromWelcome).not.toHaveBeenCalled();
 
+    unsub();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// subscribeToWelcomes — pairing-ack dispatch (S3, additive wiring)
+//
+// Verifies subscribeToWelcomes's two new trailing, optional params
+// (ownPrivateKeyHex, onPairingAckReceived): a genuine PAIRING_ACK_KIND gift
+// wrap must be dispatched to pairingAck.ts#handlePairingAck, must NOT be
+// treated as a Welcome (enqueuePendingInvitation not called), and — on
+// admission — onPairingAckReceived must fire with the sender's pubkey.
+// Uses real NIP-59 crypto (sealAndWrap/createRumor) and the real
+// nonceStore/contactCard modules, exactly like pairingAck.test.ts, so this
+// is an authentic end-to-end wire-shape test rather than a mocked stand-in.
+// ---------------------------------------------------------------------------
+
+describe('subscribeToWelcomes — pairing-ack dispatch (S3)', () => {
+  let localStorageStore: Record<string, string> = {};
+
+  function makeIdentity() {
+    const priv = generateSecretKey();
+    const privHex = bytesToHex(priv);
+    const pubHex = getPublicKey(priv);
+    return { priv, privHex, pubHex, signer: createPrivateKeySigner(privHex) };
+  }
+
+  function makeNdkWithEventCapture() {
+    let capturedHandler: ((event: unknown) => Promise<void>) | null = null;
+    const mockSubInstance = {
+      on: vi.fn((eventName: string, handler: (event: unknown) => Promise<void>) => {
+        if (eventName === 'event') capturedHandler = handler;
+      }),
+      stop: vi.fn(),
+    };
+    const mockNdk = { subscribe: vi.fn(() => mockSubInstance) };
+    const fireEvent = async (ndkEvent: unknown) => {
+      if (!capturedHandler) throw new Error('Event handler not yet installed');
+      await capturedHandler(ndkEvent);
+    };
+    return { mockNdk, fireEvent };
+  }
+
+  beforeEach(async () => {
+    localStorageStore = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => localStorageStore[key] ?? null,
+      setItem: (key: string, value: string) => { localStorageStore[key] = value; },
+      removeItem: (key: string) => { delete localStorageStore[key]; },
+    });
+    mockEnqueuePendingInvitation.mockReset();
+    mockCountPendingInvitations.mockReset().mockReturnValue(1);
+    await clearAllNonces();
+    _resetActiveNonceForTests();
+    _resetPairingAckAdmissionsForTests();
+  });
+
+  it('a genuine PAIRING_ACK_KIND gift wrap is dispatched, NOT treated as a Welcome, and admits the sender via onPairingAckReceived', async () => {
+    const issuer = makeIdentity(); // the local app identity (recipient)
+    const scanner = makeIdentity(); // the pairing-ack sender
+
+    const minted = await getOrMintActiveNonce();
+    const card = await encodeCard(scanner.pubHex, { nickname: 'Bob', createdAt: Math.floor(Date.now() / 1000) }, scanner.signer.signEvent);
+    const content: PairingAckContent = { type: 'pairing-ack', nonce: minted.nonce, card };
+    const rumor = createRumor(
+      {
+        kind: PAIRING_ACK_KIND,
+        content: JSON.stringify(content),
+        tags: [['p', issuer.pubHex]],
+        created_at: Math.floor(Date.now() / 1000),
+        pubkey: scanner.pubHex,
+      },
+      hexToBytes(scanner.privHex),
+    );
+    const wrap = await sealAndWrap(rumor as never, issuer.pubHex, scanner.privHex);
+
+    const { mockNdk, fireEvent } = makeNdkWithEventCapture();
+    const mockMarmotClient = { joinGroupFromWelcome: vi.fn() };
+    const onPairingAckReceived = vi.fn();
+
+    const unsub = await subscribeToWelcomes(
+      issuer.pubHex,
+      mockMarmotClient as never,
+      mockNdk as never,
+      // The signer param is only used by the pre-existing unwrapGiftWrap path
+      // (Welcome/join-request) — the pairing-ack dispatch never touches it.
+      { nip44: { decrypt: vi.fn().mockRejectedValue(new Error('n/a')) } } as never,
+      vi.fn(), // onGroupJoined
+      undefined, // onJoinRequestReceived
+      undefined, // groupMemberPubkeys
+      issuer.privHex,
+      onPairingAckReceived,
+    );
+
+    await fireEvent(wrap);
+
+    // Not a Welcome — must never reach enqueuePendingInvitation.
+    expect(mockEnqueuePendingInvitation).not.toHaveBeenCalled();
+    expect(mockMarmotClient.joinGroupFromWelcome).not.toHaveBeenCalled();
+
+    // Admitted — onPairingAckReceived fires with the authenticated sender.
+    expect(onPairingAckReceived).toHaveBeenCalledTimes(1);
+    expect(onPairingAckReceived).toHaveBeenCalledWith({ senderPubkeyHex: scanner.pubHex });
+
+    unsub();
+  });
+
+  it('omitting the two new trailing params behaves exactly as before — no pairing-ack dispatch attempted', async () => {
+    const { mockNdk, fireEvent } = makeNdkWithEventCapture();
+
+    const rumor = {
+      id: 'rumor-abc-legacy',
+      pubkey: 'inviter-pubkey-hex',
+      created_at: 1700000001,
+      kind: 444,
+      tags: [['e', 'group-id']],
+      content: 'welcome-payload',
+      sig: '',
+    };
+    const seal = { pubkey: 'inviter-pubkey-hex', content: 'encrypted-rumor' };
+    const signer = {
+      nip44: {
+        decrypt: vi.fn()
+          .mockResolvedValueOnce(JSON.stringify(seal))
+          .mockResolvedValueOnce(JSON.stringify(rumor)),
+      },
+    };
+    const mockMarmotClient = { joinGroupFromWelcome: vi.fn() };
+
+    // Called with exactly the pre-S3 arity — no ownPrivateKeyHex, no callback.
+    const unsub = await subscribeToWelcomes(
+      'my-pubkey-hex',
+      mockMarmotClient as never,
+      mockNdk as never,
+      signer as never,
+      vi.fn(),
+    );
+
+    await fireEvent({
+      id: 'giftwrap-id-legacy-001',
+      pubkey: 'ephemeral-pubkey',
+      content: 'encrypted-seal',
+    });
+
+    expect(mockEnqueuePendingInvitation).toHaveBeenCalledTimes(1);
     unsub();
   });
 });

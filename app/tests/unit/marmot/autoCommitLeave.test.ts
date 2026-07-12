@@ -120,6 +120,18 @@ vi.mock('applesauce-core/helpers/event', () => ({
   getEventHash: vi.fn(() => 'fakehash'),
 }));
 
+// S5 (epic: contact-pairing-code, AC-UI-2) added two new module-scope imports
+// to MarmotContext.tsx (useToast, useCopy) for the admission-digest toast.
+// Neither is exercised by fireAutoCommit — bare stubs are enough to let the
+// module load in this jsdom-free test.
+vi.mock('@chakra-ui/react', () => ({
+  useToast: vi.fn(() => vi.fn()),
+}));
+
+vi.mock('@/src/context/LanguageContext', () => ({
+  useCopy: vi.fn(() => ({ contacts: { pairingAdmissionDigest: (n: number) => `${n} people paired with your code` } })),
+}));
+
 // Now import the exported fireAutoCommit function.
 const { fireAutoCommit } = await import('@/src/context/MarmotContext');
 

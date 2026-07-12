@@ -1,0 +1,91 @@
+{
+  "module_name": "pendingIntent+scannerImport",
+  "purpose": "Scanner-side reciprocation decision: on parsing a v2 pairing card (S1's ParsedPairingCard seam) with an unexpired pairing field, decide whether to echo now (named scanner, RD-7) or persist a pending intent and redirect to name setup (nameless scanner), then durably retry that intent until it either sends or falls out of its own window. Owns the *decision* of when to echo; S3's pairingAck.ts owns the *mechanics* of the echo itself (consumed only via the PairingAckSend seam, never edited).",
+  "public_api": [
+    {
+      "name": "attemptOrQueuePairingEcho",
+      "signature": "async function attemptOrQueuePairingEcho(candidate: PairingEchoCandidate, ctx: PendingIntentSendContext, now?: () => number): Promise<PendingIntentOutcome>",
+      "description": "Persist-then-attempt entry point for a freshly-scanned pairing candidate (app/pages/add.tsx). ALWAYS persists the intent to idb-keyval FIRST, then attempts a send iff a shareable name is already set. Returns 'sent' | 'queued-for-retry' | 'deferred' | 'expired' — 'deferred' is the caller's sole redirect-to-name-setup trigger (AC-SCAN-5)."
+    },
+    {
+      "name": "drainPendingIntents",
+      "signature": "async function drainPendingIntents(ctx: PendingIntentSendContext, now?: () => number): Promise<DrainPendingIntentsResult>",
+      "description": "Attempts every persisted pending intent once, via the same per-intent state machine attemptOrQueuePairingEcho uses. Called by PendingPairingIntentWatcher.tsx on window 'online' + app mount (AC-SCAN-3) and by profile.tsx's saveProfile-chokepoint effect the moment hasShareableName flips false->true (AC-SCAN-6/7). Review-remediation (sev 3): concurrent calls for the same issuer coalesce via a per-issuer in-flight lock, so an overlapping profile.tsx-flip-effect + Watcher-drain race publishes at most once per issuer."
+    },
+    {
+      "name": "_clearInFlightLocksForTests",
+      "signature": "function _clearInFlightLocksForTests(): void",
+      "description": "Test-only: clears the per-issuer in-flight-lock map, mirroring nonceStore.ts's `_resetActiveNonceForTests` precedent."
+    },
+    {
+      "name": "isIntentInWindow",
+      "signature": "function isIntentInWindow(intent: PendingPairingIntent, nowSec: number): boolean",
+      "description": "Pure boundary predicate: nowSec <= intent.expiresAt (inclusive), evaluated against the SCANNED CARD's own expiresAt, not the issuer-side 2h admission grace (nonceStore's concern, evaluated only on A's side)."
+    },
+    {
+      "name": "savePendingIntent / loadPendingIntents / getPendingIntent / deletePendingIntent / clearPendingIntentsForTests",
+      "signature": "idb-keyval CRUD over the few-pairing-intents store, keyed by issuerPubkey",
+      "description": "Store adapter, mirrors nonceStore.ts's idb-keyval-over-few-* precedent."
+    },
+    {
+      "name": "PairingEchoCandidate",
+      "signature": "type { issuerPubkeyHex: string; nonceHex: string; expiresAt: number }",
+      "description": "Also exported from processContactInput.ts (mirrored, not re-imported across the two modules, to keep processContactInput.ts free of any pairing/-adapter import — a pure decision-input value object, not a shared class)."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/pairing/pendingIntent.ts",
+    "app/src/components/PendingPairingIntentWatcher.tsx"
+  ],
+  "owned_data": [
+    "idb-keyval few-pairing-intents store: { issuerPubkey, nonce, expiresAt } keyed by issuerPubkey"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/pairing/pairingAck.ts (sendPairingAck only, via the declared PairingAckSend seam — never handlePairingAck, never any other export)",
+    "app/src/lib/shareCard.ts (hasShareableName)",
+    "app/src/lib/contactCard.ts (parseContactCard's ParsedPairingCard result shape, consumed by processContactInput.ts)",
+    "app/src/lib/contacts.ts (addContactByNpub, unchanged pre-epic call — processContactInput.ts)",
+    "app/src/lib/contactCardImport.ts (importCard, unchanged pre-epic call)",
+    "app/src/lib/nostrKeys.ts (pubkeyToNpub)",
+    "app/src/lib/logger.ts (createLogger)",
+    "idb-keyval",
+    "@nostr-dev-kit/ndk (type NDK only, in pendingIntent.ts's PendingIntentSendContext)",
+    "applesauce-core (type EventSigner only)",
+    "React + app/src/context/NostrIdentityContext, app/src/context/ProfileContext, app/src/context/MarmotContext — ONLY in the React call sites (add.tsx, profile.tsx, PendingPairingIntentWatcher.tsx), never in pendingIntent.ts or processContactInput.ts themselves"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/pairing/pairingAck.ts is READ via its public API only — this story never edits pairingAck.ts (S3's file, per stories.json's explicit note)",
+    "app/src/lib/pairing/nonceStore.ts — S4 has no direct dependency; the scanner never touches the issuer's nonce store, only the nonce VALUE echoed back through sendPairingAck's params",
+    "React / app/src/context/* inside pendingIntent.ts and processContactInput.ts — both stay stateless-adapter / pure-core modules, matching nonceStore.ts's and the original processContactInput.ts's precedent"
+  ],
+  "external_ports": [
+    "NDK.publish() via sendPairingAck (indirect, through the PairingAckSend seam) — outbound gift-wrap send",
+    "window 'online' event — PendingPairingIntentWatcher.tsx only"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/pairing/pendingIntent.test.ts (new)",
+    "app/tests/unit/cards/addContactCardWiring.test.ts (extended — pairingEcho computation)",
+    "app/tests/unit/cards/contactCardImport.test.ts (extended — importCard pairing-agnosticism)"
+  ],
+  "seam": {
+    "cross_story": false,
+    "consumed_by": [],
+    "note": "S4 is a pure consumer of S1's ParsedPairingCard and S3's PairingAckSend seams (both already frozen by their landed stories); S4 declares no new cross-story seam of its own — S5 (UI/i18n) consumes only the i18n KEYS this story wires (addContactPairingInFlight, pairingNameSetupPrompt), not a typed data contract, so it is not modeled as a seam per stories.json's seam list, which enumerates only the four typed data-contract seams (EncodedCardV2, ParsedPairingCard, NonceAdmissibility, PairingAckSend)."
+  },
+  "scope_decisions": [
+    {
+      "decision": "Added two files beyond stories.json's literal scope.includes list: app/src/components/PendingPairingIntentWatcher.tsx (new) and its Layout.tsx mount line, plus app/pages/contacts.tsx (post-add confirmation copy wiring, AC-SCAN-4).",
+      "rationale": "architecture.md's 'pending intent' module row explicitly requires the retry queue to be 'drained on window online + on app mount' (AC-SCAN-3) — this needs a React mount point with access to NostrIdentityContext/ProfileContext, which pendingIntent.ts itself cannot provide while staying a React-free stateless adapter (matching nonceStore.ts's precedent, and this story's own dependencies_forbidden). The Watcher mirrors DirectMessageNotificationsWatcher.tsx's exact shape (same repo, same pattern, zero new abstraction). contacts.tsx is where add.tsx's docstring already says the post-add confirmation renders (\"letting the contacts page render the green confirmation\") — the AC-SCAN-4 honesty-copy KEY has to be wired there or nowhere. Precedent: S3 similarly touched NostrIdentityContext.tsx beyond its own literal scope.includes for a comparable structurally-necessary reason (ownership-ledger.json)."
+    },
+    {
+      "decision": "SUPERSEDED by review-remediation (sev 5, lead-directed, applied 2026-07-12): pairingEcho candidacy is now gated on `addResult.ok || addResult.error === 'already_exists'` — the SAME `shouldImportProfile` gate AC-UX-6's cache refresh already uses — not `addResult.ok` alone.",
+      "rationale": "Original (now-reversed) reasoning: pre-epic add.tsx renders an ERROR alert (no redirect) for already_exists, so inventing new UX there seemed out of this story's literal AC wording. The lead's Opus review correctly identified this as a real correctness gap, not an unspecified edge case: a RETURNING scanner (B already has A as a one-directional contact, e.g. from a shared group) re-scanning A's live code is exactly the scenario RD-7's mutual-channel feature exists to serve, and silently dropping the echo there means the feature never completes for anyone who happens to already know the issuer. The lead closed this as the already-approved 'one scan -> mutual, silent auto-send' behavior applied to a branch the original implementation skipped, not a new product decision requiring escalation. Fix: processContactInput.ts computes pairingEcho on the already_exists branch too; add.tsx fires attemptOrQueuePairingEcho in the background on that outcome, WITHOUT altering the pre-existing already_exists error-alert UI (no redirect for a named scanner; a nameless one still redirects to name setup, mirroring AC-SCAN-5)."
+    },
+    {
+      "decision": "Review-remediation (sev 3, concurrency, applied 2026-07-12): added a per-issuer in-flight lock (`inFlightByIssuer` Map) inside pendingIntent.ts's `processIntent`.",
+      "rationale": "profile.tsx's hasShareableName false->true flip effect and the always-mounted PendingPairingIntentWatcher's mount/online drain can both fire drainPendingIntents for the same freshly-named scanner at nearly the same time, each loading the same not-yet-deleted intent and each independently calling sendPairingAck before either finishes deleting it — harmless to correctness (S3's ack handler is sender-idempotent, AC-ACK-3) but a redundant relay publish on every deferred-then-named pairing. A second concurrent processIntent call for the same issuerPubkey now shares the first call's in-progress promise instead of starting its own send. Verified by temporarily reverting the lock and confirming the new concurrency test fails (2 publishes instead of 1) before re-applying."
+    }
+  ]
+}

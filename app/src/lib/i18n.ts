@@ -268,10 +268,35 @@ type Copy = {
     // addContact* success/error copy is retained for the /add contact-card
     // deep-link page (the manual "add by npub" modal was removed).
     addContactSuccess: string;
+    /**
+     * Epic: contact-pairing-code, story S4/AC-SCAN-4 — shown instead of
+     * `addContactSuccess` when the add carried a pairing-ack echo (`?pairing=
+     * sent|pending`, see contacts.tsx). MUST communicate reciprocation is in
+     * flight, MUST NOT claim a mutual/"connected" state (no ack-of-ack
+     * exists). Placeholder text wired by S4; final copy owned by S5.
+     */
+    addContactPairingInFlight: string;
     addContactErrorInvalidNpub: string;
     addContactErrorSelf: string;
     addContactErrorAlreadyExists: string;
     addContactErrorGeneric: string;
+    /**
+     * Epic: contact-pairing-code, story S5 (AC-UI-3, RD-5) — shown instead of
+     * `addContactErrorInvalidNpub` when the import specifically failed
+     * because the card's header encodes a version this build's codec does
+     * not recognize (`contactCard.ts#decodeCard`'s AC-CODEC-4 rejection,
+     * surfaced via `processContactInput.ts`'s `unsupported_version` error
+     * code). MUST read as "your app is out of date", not "your input is
+     * wrong" — the two are different problems with different fixes.
+     */
+    addContactErrorUnsupportedVersion: string;
+    /**
+     * Epic: contact-pairing-code, story S5 (AC-UI-2) — the single digest
+     * notification shown when 2+ distinct senders have echoed a pairing-ack
+     * for the issuer's currently-active nonce, replacing one toast per
+     * admission. `count` is always >= 2 at the call site.
+     */
+    pairingAdmissionDigest: (count: number) => string;
   };
   /**
    * `/add#c=…` static deep-link/onboarding page (epic: contact-card-exchange,
@@ -315,6 +340,22 @@ type Copy = {
     ownHeading: string;
     ownDescription: string;
     backupNeededHint: string;
+    /**
+     * Epic: contact-pairing-code, story S4/RD-7 — shown on `/profile?pairing=1`,
+     * the name-setup redirect a nameless scanner lands on after opening a live
+     * pairing code (AC-SCAN-5). Placeholder text wired by S4; final copy owned
+     * by S5 (stories.json: "the scanner-side honesty-copy and name-setup-
+     * redirect-prompt strings that S4 wires by key").
+     */
+    pairingNameSetupPrompt: string;
+    /**
+     * Epic: contact-pairing-code, story S5 (AC-UI-1) — shown inside
+     * `NpubQrModal.tsx` under the QR/code block whenever a share card
+     * (`shareUrl`-encoded) is rendered, so the ~30-minute validity window is
+     * legible even from a screenshot of just the modal, not only from the
+     * profile page's surrounding description text.
+     */
+    shareCardValidityHint: string;
   };
   polls: {
     heading: (count: number) => string;
@@ -807,10 +848,13 @@ const copy: Record<LanguageCode, Copy> = {
       contactNotFound: 'Contact not found.',
       commonGroups: (names: string[]) => `Groups: ${names.join(', ')}`,
       addContactSuccess: 'Contact added',
+      addContactPairingInFlight: 'Contact added — they should see you shortly.',
       addContactErrorInvalidNpub: "That doesn't look like a valid npub. Please check and try again.",
       addContactErrorSelf: "You can't add yourself as a contact.",
       addContactErrorAlreadyExists: 'This person is already in your contacts.',
       addContactErrorGeneric: "Couldn't add this contact. Please try again.",
+      addContactErrorUnsupportedVersion: 'This contact card needs a newer version of the app. Please update and try again.',
+      pairingAdmissionDigest: (count: number) => `${count} people paired with your code`,
     },
     add: {
       pageTitle: 'Add Contact',
@@ -827,7 +871,8 @@ const copy: Record<LanguageCode, Copy> = {
       copiedNpub: 'Copied!',
       shareCardHeading: 'Share your contact card',
       shareCardDescription:
-        'Share a signed link that adds you by name — no relay, no public profile broadcast. Others open it or scan the QR to add you.',
+        'Share a signed link that adds you by name — no relay, no public profile broadcast. It stays valid for about 30 minutes, so share it while you can both be online. Others open it or scan the QR to add you.',
+      shareCardValidityHint: 'This code works for about 30 minutes.',
       shareCardButton: 'Share contact card',
       shareCardNeedsName: 'Set a name above before you can share your contact card.',
       shareCardTitle: 'Share Contact Card',
@@ -847,6 +892,7 @@ const copy: Record<LanguageCode, Copy> = {
       ownHeading: 'My Profile',
       ownDescription: 'This is how others see you.',
       backupNeededHint: 'Your identity is not backed up yet. Go to Settings to back it up.',
+      pairingNameSetupPrompt: 'Set a name so they know you added them back.',
     },
     polls: {
       heading: (count: number) => count > 0 ? `Polls (${count})` : 'Polls',
@@ -1324,10 +1370,13 @@ const copy: Record<LanguageCode, Copy> = {
       contactNotFound: 'Kontakt nicht gefunden.',
       commonGroups: (names: string[]) => `Gruppen: ${names.join(', ')}`,
       addContactSuccess: 'Kontakt hinzugefügt',
+      addContactPairingInFlight: 'Kontakt hinzugefügt — du solltest in Kürze bei ihnen erscheinen.',
       addContactErrorInvalidNpub: 'Das sieht nicht nach einem gültigen Npub aus. Bitte überprüfe die Eingabe.',
       addContactErrorSelf: 'Du kannst dich nicht selbst als Kontakt hinzufügen.',
       addContactErrorAlreadyExists: 'Diese Person ist bereits in deinen Kontakten.',
       addContactErrorGeneric: 'Der Kontakt konnte nicht hinzugefügt werden. Bitte versuche es erneut.',
+      addContactErrorUnsupportedVersion: 'Diese Kontaktkarte benötigt eine neuere Version der App. Bitte aktualisiere die App und versuche es erneut.',
+      pairingAdmissionDigest: (count: number) => `${count} Personen haben sich über deinen Code verbunden`,
     },
     add: {
       pageTitle: 'Kontakt hinzufügen',
@@ -1344,7 +1393,8 @@ const copy: Record<LanguageCode, Copy> = {
       copiedNpub: 'Kopiert!',
       shareCardHeading: 'Kontaktkarte teilen',
       shareCardDescription:
-        'Teile einen signierten Link, der dich mit Namen hinzufügt — kein Relay, keine öffentliche Profilübertragung. Andere öffnen ihn oder scannen den QR-Code, um dich hinzuzufügen.',
+        'Teile einen signierten Link, der dich mit Namen hinzufügt — kein Relay, keine öffentliche Profilübertragung. Er ist etwa 30 Minuten lang gültig, teile ihn also, während ihr beide online sein könnt. Andere öffnen ihn oder scannen den QR-Code, um dich hinzuzufügen.',
+      shareCardValidityHint: 'Dieser Code funktioniert etwa 30 Minuten lang.',
       shareCardButton: 'Kontaktkarte teilen',
       shareCardNeedsName: 'Lege oben einen Namen fest, um deine Kontaktkarte teilen zu können.',
       shareCardTitle: 'Kontaktkarte teilen',
@@ -1364,6 +1414,7 @@ const copy: Record<LanguageCode, Copy> = {
       ownHeading: 'Mein Profil',
       ownDescription: 'So sehen dich andere.',
       backupNeededHint: 'Deine Identität ist noch nicht gesichert. Gehe zu Einstellungen, um sie zu sichern.',
+      pairingNameSetupPrompt: 'Lege einen Namen fest, damit sie wissen, dass du sie zurück hinzugefügt hast.',
     },
     polls: {
       heading: (count: number) => count > 0 ? `Umfragen (${count})` : 'Umfragen',

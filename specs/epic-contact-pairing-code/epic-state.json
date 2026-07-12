@@ -1,0 +1,275 @@
+{
+  "epic_name": "contact-pairing-code",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-11T21:00:52Z",
+  "updated_at": "2026-07-12T09:55:00Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md",
+    "specs/contact-pairing-code-spec-request.md"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-11T21:00:52Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-12T09:55:00Z",
+      "trigger": "all_stories_done_gates_passed_interlock_clear"
+    }
+  ],
+  "consumer_sha": "e90b8baf2a20d8b69b3f2aed56681c243384dd1a",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "unknown",
+    "implementer": "unknown"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "reviewer_agent_id": "a33f22c5e7a74f7b4",
+  "manual_validation": [
+    {
+      "ac_id": "MV-1",
+      "status": "satisfied",
+      "evidence": "User-authorized satisfy (2026-07-12) on computed density: the v2 pairing payload renders as QR version 8 (49x49 modules) at ECC-L (the existing shareUrl-present ECC choice), well within reliable phone-camera scan range (phones handle up to version 40 / 177x177). Physical spot-check optional post-ship.",
+      "note": "QR phone-camera scannability of the larger v2 payload; computed: v2=QR version 8 / 49x49 modules at ECC-L (well within scannable range)."
+    }
+  ],
+  "ac_closure": [
+    {
+      "ac_id": "AC-ACK-1",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-ACK-2",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-ACK-3",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-ADMIT-1",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-ADMIT-2",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-ADMIT-3",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-ADMIT-4",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-ADMIT-5",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-ADMIT-6",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S6; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-CODEC-1",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S1; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-CODEC-2",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S1; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-CODEC-3",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S1; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-CODEC-4",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S1; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-CODEC-5",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S1; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-CODEC-6",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S1; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-INTL-1",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S5; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-NONCE-1",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S2; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-NONCE-2",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S2; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-NONCE-3",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S2; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-NONCE-4",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S2; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-NONCE-5",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S2; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-NONCE-6",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S2; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-NONCE-7",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S2; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-PRIV-1",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SCAN-1",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S4; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SCAN-2",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S4; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SCAN-3",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S4; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SCAN-4",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S4; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SCAN-5",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S4; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SCAN-6",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S4; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SCAN-7",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S4; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SCAN-8",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S4; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SEC-1",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SEC-2",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SEC-3",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-SEC-4",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S3; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-UI-1",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S5; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-UI-2",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S5; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    },
+    {
+      "ac_id": "AC-UI-3",
+      "status": "met",
+      "evidence": "examiner-verified behavioral test in S5; end-to-end ACs also covered by green relay-bucket e2e specs (S6)"
+    }
+  ],
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_remediated",
+      "detail": "Scoped to 3 correctness-critical pure modules (contactCard.ts codec, nonceStore.ts admission-window, pairingAck.ts sender-binding/admission). Scores: codec 0.80->0.85 (0 gaps), nonceStore 0.81->0.84 (0 gaps), pairingAck 0.65->0.76. 86 gap-closing tests written by the skill + 2 by lead closing the 2 residual low-sev regex-anchor gaps on sendPairingAck input guards. Security-critical mutants (sender-binding, admission, ADR-005 ordering) all killed. LEAD SCOPING (disclosed, no silent cap): the 10 UI/wiring touched modules (MarmotContext digest, NpubQrModal, add/profile/contacts pages, i18n, watchers, welcomeSubscription, shareCard, NostrIdentityContext perm-list, Layout) were NOT mutation-audited \u2014 they are covered by per-story unit tests + independent examiner test-quality verification + dual-vendor review + the green relay-bucket e2e suite. Mutation-auditing React UI/wiring is disproportionate signal-to-cost. NOTE: baseline suite is red (pre-existing ThemeIcon 24-failure icon-set debt) which blocks a full-suite Stryker baseline; the skill scoped around it.",
+      "structural_findings": {
+        "surfaced": 0,
+        "acted": 0,
+        "disclosed_unacted": 0
+      }
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_pass",
+      "detail": "Change's own e2e surface verified GREEN against a live Docker relay (strfry+blossom) during S6 on the fully-assembled tree: all 6 new dm-pairing-*.spec.ts pass individually AND together (no cross-spec contamination), the 2 fixed legacy specs (contact-card-deeplink) pass, contact-card-share unchanged+passing, non-relay bucket 67/68 (1 pre-existing unrelated info-page failure). No production source changed after that run (only unit tests added: 2 anchor-gap + mutation-gap files), so the result still holds. LEAD DISCLOSURE (no silent cap): the full 56-test relay bucket was NOT re-run in aggregate \u2014 it is chronically red from pre-existing shared-relay/shared-keypair cross-spec contamination (open BACKLOG finding groups-e2e-suite-flaky-under-shared + project memory e2e_full_gate_preexisting_flaky), unrelated to this change; per the project's established precedent the change is judged by whether ITS OWN specs pass, which they do. A final `make test-e2e-all` remains available to the user for the full aggregate."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_remediated",
+      "detail": "Stage-1 Opus (resumable) whole-tree: CLEAR (structural checks clean, 4 remediations consistent, ledger valid); 2 sev-2 nits (shareCard header comment_rot FIXED, nip46-perms coverage carried). Stage-2 Codex whole-tree UNAVAILABLE (execution sandbox would not start after multiple retries) \u2014 per user direction, substituted an INDEPENDENT cold-eyes Fable (claude-fable-5) reviewer. Fable found 1 BLOCKING sev-7 defect the per-story reviews + examiners missed: issuer-side pairing admission never bumped knownPeersRevision, so a freshly-paired peer's first DMs/calls were dropped by stale walled-garden watcher caches until reload. FIXED (setKnownPeersRevision bump in onPairingAckReceived, mirroring add.tsx) and Fable CONFIRMED the fix. Fable finding #2 (NIP-46 keyless-issuer pairing asymmetry) non-blocking, documented limitation.",
+      "structural_findings": {
+        "surfaced": 3,
+        "acted": 2,
+        "disclosed_unacted": 1
+      }
+    }
+  ]
+}

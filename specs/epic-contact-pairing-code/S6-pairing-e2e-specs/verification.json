@@ -1,0 +1,75 @@
+{
+  "story_id": "S6",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-11T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S6-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Do the six new/updated specs contain real assertions against observed app state (DOM visibility, relay-delivered content, admitted-contact lists) rather than vacuous assertions (`expect(true).toBe(true)`, asserting only that a function 'did not throw', or `test.skip`/`test.fixme` left in place)? Is the expired-code fixture a genuine short `expires_at` injected via `page.evaluate` direct-IDB-write (a real state mutation the app then reads), not a mocked clock or a stubbed `isNonceAdmissible` that would pass regardless of whether the real expiry math in S2 is correct?"
+    },
+    {
+      "question_id": "VQ-S6-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Are all six specs placed in the relay bucket under `app/tests/e2e/` (not the non-relay/fast bucket), consistent with their dependency on strfry + real gift-wrap delivery? Does every A/B action route through the app's own publish helpers via a second real `browser.newContext()` peer, with zero hand-signed events sent by raw `WebSocket.send` to the relay (per CLAUDE.md's E2E rule and this story's explicit scope), including the expired-code scenario which uses direct-IDB-write injection rather than a hand-signed short-lived event?"
+    },
+    {
+      "question_id": "VQ-S6-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `e2e` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S6-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does the full relay-bucket suite (`make test-e2e-groups` or equivalent) pass with all six new/updated specs included, run via the `base:e2e-testing` sequential-with-fail-first discipline rather than a filtered subset? Have `contact-card-deeplink.spec.ts` and `contact-card-share.spec.ts` been reviewed for v1-only assertions this epic supersedes, with either an update or an explicit documented reason for retiring/retaining each, rather than leaving stale v1-only expectations that could mask a v2 regression?"
+    },
+    {
+      "question_id": "VQ-S6-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Do the six scenarios collectively exercise the full pairing flow as architecture.md and the spec describe it end to end — single-scan mutual pairing, multi-use within window, expired-code graceful fallback, unknown-nonce ignored, sender-binding rejection, and onboarding scanner deferred echo — with no scenario silently reduced to a weaker assertion (e.g. 'unknown-nonce ignored' only checking no crash occurred, rather than checking no admission occurred and no error surfaced, per AC-ADMIT-2)?"
+    },
+    {
+      "question_id": "VQ-S6-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the sender-binding scenario construct a genuine attacker scenario — a third-party card harvested from one real browser context and gift-wrap-sent to A from a different real browser context's identity — and assert the named-in-card pubkey is never admitted (AC-SEC-1 end to end), using real app-driven gift-wrap sends for both the legitimate and the attacking peer (never a hand-signed forged event via raw WebSocket, which this story's scope explicitly excludes even for the attack simulation)? Does the expired-code scenario's direct-IDB-write injection modify only the locally-stored `expires_at`/nonce state (never publishing a forged relay event), preserving the 'app cannot itself produce this' exception's narrow scope from CLAUDE.md's E2E rule?"
+    },
+    {
+      "question_id": "VQ-S6-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ADMIT-6",
+      "question": "After a single scan (B opens A's code) with successful mutual admission, can A send a DM to B and can B send a DM to A, both without either party performing a second scan? Provide (a) the single-scan-mutual e2e spec's full flow (A shows code once, B scans once, both directions of DM exchange attempted), (b) confirmation the spec asserts actual DM delivery/visibility in both directions (not just that `isAllowedDmSender` returns true, which would be a weaker unit-level proxy for the real end-to-end claim), and (c) confirmation no code path in the spec performs a second scan, second code display, or manual re-add on either side."
+    },
+    {
+      "question_id": "VQ-S6-008",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "All six new specs were actually executed against a live strfry relay (individually AND together in one run, per result.json), not just typechecked. Two real, previously-undetected bugs surfaced only by running them: (1) a Next.js static-export trailing-slash URL shape (`/profile/?pairing=1…`, not `/profile?pairing=1…`) that a naive `toHaveURL` regex misses, present in three separate places (contact-card-deeplink.spec.ts x2, dm-pairing-onboarding-scanner.spec.ts x1); (2) a Playwright strict-mode violation from `.or()`-combining two testids where one (`contacts-empty-state`) is nested INSIDE the other (`contacts-page`) rather than mutually exclusive, in dm-pairing-unknown-nonce.spec.ts. Were all instances of each bug class found and fixed (not just the first one encountered), and were the fixes re-verified by an actual re-run rather than only a visual diff?"
+    },
+    {
+      "question_id": "VQ-S6-009",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The six specs were split across three authors (architect: dm-pairing-single-scan-mutual.spec.ts + dm-pairing-sender-binding.spec.ts + both helper files; two base:dev spawns: the remaining four specs). Do all six nonetheless share one consistent set of conventions — `waitForAdmission`/`readKnownPeers`/`readContactPubkeys` from helpers/pairing.ts used identically, `test.afterEach` context-cleanup pattern, `computeTestKeypairs()` called once per file in `beforeAll`, identical `chat-input`/`chat-send-btn`/`msg-*` DM-assertion idiom where used — with no drift introduced by parallel authorship, verified by an actual side-by-side read rather than assumed from the shared prompt brief?"
+    },
+    {
+      "question_id": "VQ-S6-010",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "ac_id": "AC-SEC-1",
+      "question": "`sendForgedPairingAck` (helpers/forgedPairingAck.ts) self-checks that `getPublicKey(attackerPrivateKeyHex)` matches the caller-supplied `attackerPubkeyHex` before publishing, throwing if not — guaranteeing the fixture can never accidentally forge the AUTHENTICATED sender identity, only the enclosed card's claimed identity. Did this guard rail ever actually need to fire during development (i.e. was it exercised), and does dm-pairing-sender-binding.spec.ts's positive-control step (B's own subsequent REAL scan, asserted to admit B) definitively rule out 'the relay/subscription pipe was silently dead the whole time' as an alternative explanation for the earlier non-admission — including a final re-check that C (the attacker) remains un-admitted even AFTER that positive control proves the pipe live?"
+    },
+    {
+      "question_id": "VQ-S6-011",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The Makefile/CLAUDE.md e2e tally was incremented by exactly +6 (38->44 relay, 50->56 total) per this story's brief, preserving the pre-existing documented convention. An actual count of raw `test(`/`test.only(`/`test.skip(` blocks in the relay bucket (before this story's additions) is 237, not 38 -- and 62 in the non-relay bucket, not 12 -- meaning the documented tally has been stale relative to ground truth for a long time, predating this story by many prior features. Was incrementing the existing (already-stale) convention by the literal delta this story introduces the correct, scope-preserving move (consistent with 'fix small adjacent issues, don't expand into refactors'), rather than either silently reconciling the whole tally to ground truth (an unrelated, unbounded scope expansion) or leaving the tally untouched (which would have been the actual regression this story's brief explicitly asked to avoid)?"
+    }
+  ]
+}

@@ -25,6 +25,7 @@ import {
   listPendingInvitations,
 } from '@/src/lib/pendingInvitations';
 import type { PendingInvitation } from '@/src/lib/pendingInvitations';
+import { handlePairingAck } from '@/src/lib/pairing/pairingAck';
 import { createLogger } from '@/src/lib/logger';
 
 const logger = createLogger('welcomeSubscription');
@@ -78,6 +79,8 @@ export async function subscribeToWelcomes(
   onGroupJoined: WelcomeReceivedCallback,
   onJoinRequestReceived?: JoinRequestReceivedCallback,
   groupMemberPubkeys?: (groupId: string) => string[],
+  ownPrivateKeyHex?: string,
+  onPairingAckReceived?: (result: { senderPubkeyHex: string }) => void,
 ): Promise<() => void> {
   // Subscribe to kind 1059, NOT kind 444. marmot-ts wraps the kind 444 Welcome
   // rumor in a NIP-59 gift wrap (kind 1059) before publishing. The inner rumor
@@ -106,6 +109,49 @@ export async function subscribeToWelcomes(
       const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') as string[];
       if (seen.includes(eventId)) return;
     } catch { /* ignore parse errors */ }
+
+    // Pairing-ack dispatch (S3, additive). Uses directMessages.ts's STRICT
+    // unwrapAndOpen internally (AC-SEC-2) — a completely separate unwrap
+    // path from unwrapGiftWrap below. Only attempted when the caller passed
+    // an ownPrivateKeyHex; existing call sites that omit the new trailing
+    // params are unaffected. Any error here is swallowed and falls through
+    // to the existing Welcome/join-request path unchanged, so a pairing-ack
+    // processing bug can never break the pre-existing flow.
+    if (ownPrivateKeyHex) {
+      try {
+        const pairingResult = await handlePairingAck(
+          {
+            id: ndkEvent.id,
+            pubkey: ndkEvent.pubkey ?? '',
+            content: ndkEvent.content ?? '',
+            created_at: ndkEvent.created_at,
+            kind: ndkEvent.kind,
+            tags: ndkEvent.tags,
+          },
+          ownPrivateKeyHex,
+        );
+        if (pairingResult.status !== 'unwrap-failed' && pairingResult.status !== 'wrong-kind') {
+          // This WAS a pairing-ack (of some outcome) — mark processed and
+          // stop here; it must never fall through to unwrapGiftWrap/Welcome
+          // dispatch below.
+          try {
+            const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') as string[];
+            if (!seen.includes(eventId)) {
+              seen.push(eventId);
+              localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+            }
+          } catch { /* ignore */ }
+          if (pairingResult.status === 'admitted' || pairingResult.status === 'already-admitted') {
+            onPairingAckReceived?.({ senderPubkeyHex: pairingResult.senderPubkeyHex });
+          }
+          return;
+        }
+        // 'unwrap-failed' or 'wrong-kind' — might still be a real Welcome/
+        // join-request; fall through to the existing dispatch below.
+      } catch (err) {
+        console.debug('[welcomeSubscription] pairing-ack dispatch failed, falling through:', err);
+      }
+    }
 
     try {
       // Unwrap NIP-59: gift wrap → seal → rumor (kind 444)

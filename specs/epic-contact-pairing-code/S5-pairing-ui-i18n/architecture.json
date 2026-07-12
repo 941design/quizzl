@@ -1,0 +1,82 @@
+{
+  "module_name": "ui-i18n",
+  "purpose": "Render/wire the epic's user-facing surface and finalize all its copy: a '~30 minutes' validity affordance on the share modal (AC-UI-1), a consolidated 'N people paired with your code' admission-digest notification replacing one-toast-per-admission (AC-UI-2), friendly 'update your app' copy for an unrecognized card header version on import (AC-UI-3), and en+de coverage for every new/placeholder string this epic introduced (AC-INTL-1). Owns MV-1 (QR-density re-check for the larger v2 payload). Consumes S1's decodeCard error signal and S3's getPairingAckAdmissions read-only, and S2's nonceStore state via a peek-only accessor. Review-remediation (round 1) added two additive, export-only touches to contactCard.ts (S1) and nonceStore.ts (S2) — no existing export's behavior changed in either file; see result.json's review_remediation block.",
+  "public_api": [
+    {
+      "name": "shouldShowValidityHint",
+      "signature": "function shouldShowValidityHint(shareUrl: string | undefined, validityHint: string | undefined): boolean",
+      "description": "NpubQrModal.tsx (AC-UI-1) — pure render-gate predicate for the ~30-minute validity hint: true iff a shareUrl-encoded card AND a translated hint string are both present, so the hint only ever appears on an actual pairing share card, never on a bare-npub or group-invite QR. Exported so the gate is unit-tested directly (no DOM renderer in this repo's vitest setup — mirrors MemberList.tsx's computeShowMakeAdmin precedent)."
+    },
+    {
+      "name": "countAdmissionsForActiveNonce",
+      "signature": "function countAdmissionsForActiveNonce(admissions: ReadonlyMap<string, string>, activeNonceHex: string): number",
+      "description": "MarmotContext.tsx (AC-UI-2) — pure count of distinct senders in S3's getPairingAckAdmissions() map whose echoed nonce equals the issuer's currently-active nonce. Read-only over its inputs."
+    },
+    {
+      "name": "applyPairingAdmissionDigest",
+      "signature": "function applyPairingAdmissionDigest(admissions: ReadonlyMap<string, string>, activeNonceHex: string, toastId: string, formatTitle: (count: number) => string, dispatch: PairingDigestDispatch): void",
+      "description": "MarmotContext.tsx (AC-UI-2) — the digest decision+dispatch core. No-ops below a 2-distinct-sender threshold; shows one toast the first time the threshold is crossed for a given nonce and updates that SAME toast (never a second, stacked one) on every later admission for the same nonce. Dispatch-injected (PairingDigestDispatch: isActive/update/show) so it is unit-testable without rendering MarmotProvider or importing @chakra-ui/react's real useToast."
+    },
+    {
+      "name": "resolveAndApplyPairingAdmissionDigest",
+      "signature": "function resolveAndApplyPairingAdmissionDigest(admissions: ReadonlyMap<string, string>, peek: () => { nonce: string } | null, toastId: string, formatTitle: (count: number) => string, dispatch: PairingDigestDispatch): void",
+      "description": "MarmotContext.tsx (AC-UI-2, review-remediation round 1) — resolves the active nonce via the injected `peek` accessor (production: nonceStore.ts's peekActiveNonce) and delegates to applyPairingAdmissionDigest; a no-op when `peek()` returns null. `peek`'s type offers no mint capability, so this function structurally cannot rotate the issuer's nonce as a side effect of an inbound ack — the fix for the sev-3 correctness finding where the prior wiring called getOrMintActiveNonce (a minting primitive) instead."
+    },
+    {
+      "name": "AddContactSubmissionResult (widened)",
+      "signature": "processContactInput.ts's ok:false variant's error union gains 'unsupported_version'",
+      "description": "AC-UI-3 — distinguishes 'the codec rejected an unrecognized header version' (S1's decodeCard, AC-CODEC-4) from every other parse failure, by importing and matching contactCard.ts's exported UNSUPPORTED_VERSION_ERROR constant (review-remediation round 1 — was a duplicated inline literal at initial landing) at the one place that previously discarded the error. No decision logic changed — genuinely-invalid input (bad signature, garbage bytes) still maps to 'invalid_npub' exactly as before."
+    },
+    {
+      "name": "peekActiveNonce (additive, nonceStore.ts)",
+      "signature": "function peekActiveNonce(): StoredNonce | null",
+      "description": "Review-remediation round 1, additive export on S2's nonceStore.ts. Genuinely read-only accessor for the in-memory active-nonce pointer — never mints, persists, or prunes, unlike getOrMintActiveNonce. Added specifically so the admission-digest read path cannot accidentally rotate the issuer's nonce merely by checking what it currently is."
+    },
+    {
+      "name": "UNSUPPORTED_VERSION_ERROR (additive, contactCard.ts)",
+      "signature": "export const UNSUPPORTED_VERSION_ERROR = 'contactCard: unsupported version';",
+      "description": "Review-remediation round 1, additive export on S1's contactCard.ts. Single source of truth for the AC-CODEC-4 unrecognized-version error string, now used both at decodeCard's own return site and by processContactInput.ts's AC-UI-3 mapping — a reworded message can no longer silently desync the two."
+    },
+    {
+      "name": "i18n.ts Copy additions",
+      "signature": "contacts.addContactErrorUnsupportedVersion: string; contacts.pairingAdmissionDigest: (count: number) => string; profile.shareCardValidityHint: string",
+      "description": "New en+de Copy type/object entries (AC-INTL-1). profile.shareCardDescription (pre-existing key) was retexted in both languages to also mention the ~30-minute window. profile.pairingNameSetupPrompt and contacts.addContactPairingInFlight (S4 placeholders) were reviewed and left as-is — their wording already reads correctly against this epic's voice; see result.json for the finalization note."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/i18n.ts (extend — Copy type + en/de objects)",
+    "app/src/components/groups/NpubQrModal.tsx (extend — new validityHint prop, generic value-renderer contract preserved)",
+    "app/pages/profile.tsx (extend — passes shareCardValidityHint into NpubQrModal)",
+    "app/pages/add.tsx (extend — new getErrorMessage case for unsupported_version)",
+    "app/src/lib/processContactInput.ts (extend — reads parseContactCard's existing error string, adds one new error code to an existing union; never re-implements or duplicates codec/decision logic)",
+    "app/src/context/MarmotContext.tsx (extend — admission-digest toast wiring in the pre-existing onPairingAckReceived callback)",
+    "app/src/lib/pairing/nonceStore.ts (read-only via the new peekActiveNonce accessor, added additively by this story's review-remediation round 1 — never getOrMintActiveNonce, which mints)",
+    "app/src/lib/pairing/pairingAck.ts (read-only: getPairingAckAdmissions, S3's declared S5-consumption read surface)",
+    "app/src/lib/contactCard.ts (read-only: the new UNSUPPORTED_VERSION_ERROR constant, added additively by this story's review-remediation round 1)",
+    "@chakra-ui/react (useToast — new to MarmotContext.tsx; already used elsewhere, e.g. ContactChat.tsx, GenerateInviteLinkModal.tsx)",
+    "app/src/context/LanguageContext.tsx (useCopy — new to MarmotContext.tsx; MarmotProvider is nested inside LanguageProvider in _app.tsx, so this is a safe, non-circular addition)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/contactCard.ts's decodeCard/parseContactCard version-bit LOGIC is never called into or duplicated — this story's contactCard.ts touch (review-remediation round 1) is a single additive named-constant export at the existing return site, with the string value itself unchanged",
+    "app/src/lib/pairing/nonceStore.ts's getOrMintActiveNonce and pairingAck.ts's every export are consumed ONLY via their existing signatures/behavior, unchanged by this story — nonceStore.ts's only story-added surface is the new peekActiveNonce accessor (additive, review-remediation round 1); pairingAck.ts gained no new exports at all",
+    "app/src/lib/pairing/pendingIntent.ts, app/pages/contacts.tsx's pairing query-param logic, app/src/components/PendingPairingIntentWatcher.tsx — S4's scanner-decision surfaces are read via their existing i18n keys only, never touched"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/cards/npubQrModal.test.ts (new — AC-UI-1 render-gate predicate)",
+    "app/tests/unit/marmot/admissionDigest.test.ts (new — AC-UI-2 count + digest-dispatch decision core, VQ-S5-008's 2-then-3-sender scenario)",
+    "app/tests/unit/cards/processContactInput.test.ts (new — AC-UI-3 unsupported_version vs invalid_npub, driven through the real codec)",
+    "app/tests/unit/cards/pairingUiCopy.i18n.test.ts (new — AC-INTL-1 epic-wide en/de completeness for this story's + S4's finalized keys)",
+    "app/tests/unit/marmot/autoCommitLeave.test.ts (extended — two new module-scope mocks for MarmotContext.tsx's new useToast/useCopy imports; no behavioral change to fireAutoCommit's own tests)",
+    "app/tests/unit/pairing/nonceStore.integration.test.ts (extended, review-remediation round 1 — peekActiveNonce's read-only/non-minting contract against the real fake-indexeddb-backed store)"
+  ],
+  "seam": {
+    "cross_story": false,
+    "consumed_by": [],
+    "note": "This story is a pure consumer of S1's decodeCard error signal, S2's getOrMintActiveNonce, and S3's getPairingAckAdmissions/onPairingAckReceived (all already frozen by their landed stories). It declares no new cross-story seam of its own — S6 (e2e specs) will exercise this story's rendered output/data-testids directly rather than through a typed data contract, matching stories.json's seam list (which enumerates only the four typed data-contract seams: EncodedCardV2, ParsedPairingCard, NonceAdmissibility, PairingAckSend)."
+  }
+}

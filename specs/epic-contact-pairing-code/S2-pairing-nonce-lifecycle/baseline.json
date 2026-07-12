@@ -1,0 +1,23 @@
+{
+  "story_id": "S2",
+  "captured_at": "2026-07-12T00:17:21Z",
+  "tests": {
+    "command": "make test-unit",
+    "test_files": 141,
+    "tests": 2540,
+    "passed": 2515,
+    "failed": 25,
+    "status": "PRE_EXISTING_FAILURES",
+    "note": "Same 25 pre-existing failures across the same 2 files (tests/unit/components/ThemeIcon.test.ts, tests/unit/themes/treatments.test.ts) recorded in S1's baseline.json, caused by the already-committed Phosphor->Lucide icon-set migration (commit 5bc5a0b). Unrelated to app/src/lib/pairing/nonceStore.ts or app/src/lib/shareCard.ts. Treated as pre-existing baseline debt per Step 0's tolerance (not a BASELINE_BLOCKED)."
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "note": "No ESLint config file exists in app/ (no .eslintrc*/eslint.config*); `next lint` prompts interactively to scaffold one and cannot run non-interactively. Matches S1's baseline and the precedent in specs/epic-add-contact-by-npub/S2-add-contact-ui/baseline.json."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit",
+    "status": "clean",
+    "errors": 0
+  }
+}

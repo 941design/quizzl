@@ -1,0 +1,88 @@
+{
+  "story_id": "S6",
+  "status": "done",
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "e2e"
+  ],
+  "files_created": [
+    "app/tests/e2e/helpers/pairing.ts",
+    "app/tests/e2e/helpers/forgedPairingAck.ts",
+    "app/tests/e2e/dm-pairing-single-scan-mutual.spec.ts",
+    "app/tests/e2e/dm-pairing-multi-use.spec.ts",
+    "app/tests/e2e/dm-pairing-expired-grace.spec.ts",
+    "app/tests/e2e/dm-pairing-unknown-nonce.spec.ts",
+    "app/tests/e2e/dm-pairing-sender-binding.spec.ts",
+    "app/tests/e2e/dm-pairing-onboarding-scanner.spec.ts",
+    "specs/epic-contact-pairing-code/S6-pairing-e2e-specs/architecture.json",
+    "specs/epic-contact-pairing-code/S6-pairing-e2e-specs/baseline.json",
+    "specs/epic-contact-pairing-code/S6-pairing-e2e-specs/result.json"
+  ],
+  "files_modified": [
+    "app/tests/e2e/contact-card-deeplink.spec.ts",
+    "Makefile",
+    "CLAUDE.md",
+    "specs/epic-contact-pairing-code/S6-pairing-e2e-specs/verification.json"
+  ],
+  "tests_added": {
+    "e2e_relay_bucket": 6
+  },
+  "test_counts": {
+    "baseline": 2655,
+    "final": 2655
+  },
+  "mocks": [],
+  "implementation_summary": {
+    "AC-ADMIT-6": "dm-pairing-single-scan-mutual.spec.ts. A shares one real v2 code via the actual Profile Share button; B (already named) opens it once via a real /add#c=... navigation. Asserts A auto-admits B (waitForAdmission on lp_knownPeers_v1/lp_contacts_v1), then proves BOTH DM directions with real chat-input/chat-send-btn sends and msg-* bubble assertions on the peer's own page \u2014 including the direction (B->A) that was impossible before this epic without A performing a second scan. RAN AGAINST THE LIVE STRFRY RELAY: passes (8.2s solo, 7.4s in the combined 6-spec run).",
+    "AC-PAIR-4 (multi-use)": "dm-pairing-multi-use.spec.ts. A shares ONE code; B then C (independent real contexts) each scan the SAME still-live payload. Asserts A admits BOTH (proving the nonce is not consumed by first use), plus a real chat-input DM from A to C to confirm C's admission is functionally real. RAN AGAINST THE LIVE RELAY: passes.",
+    "AC-PAIR-5 / AC-NONCE-5/6 (expired/past-grace)": "dm-pairing-expired-grace.spec.ts. Since the card's signed expires_at cannot be tampered without invalidating the signature, and the scanner's client-side gate compares against the real card bytes (making a genuinely-expired card unproducible without waiting ~30 real minutes), this spec instead direct-IDB-writes A's OWN persisted nonce-store record (helpers/pairing.ts#seedIssuerNonce) to simulate it having aged ~1h past the full 2h grace boundary \u2014 mirroring dm-self-heal.spec.ts's seedMalformedRow precedent (local state tampering, never a forged relay event). B then genuinely echoes the real, still-future-dated card; A's own isNonceAdmissible silently declines. Asserts B's one-directional add of A completed with a graceful (non-error) UI, and A never admitted B. RAN AGAINST THE LIVE RELAY: passes (20.7s) \u2014 this is the strongest proof the grace-window math (S2) is actually enforced end-to-end, not just unit-tested in isolation.",
+    "AC-PAIR-6 / AC-ADMIT-2 (unknown nonce)": "dm-pairing-unknown-nonce.spec.ts. A has a real, live nonce (from a real Share action) but B never scans it. Instead B's own few-pairing-intents store is seeded directly with a random nonce A never issued (helpers/pairing.ts#seedPendingIntent), then a real 'online' event dispatch triggers the app's genuine drainPendingIntents, which signs and gift-wrap-sends a real ack for the bogus nonce. Asserts A never admits B and the contacts page still renders normally (no crash/error). RAN AGAINST THE LIVE RELAY: passes.",
+    "AC-SEC-1 / AC-PAIR-6b (sender binding, security-critical)": "dm-pairing-sender-binding.spec.ts. Uses the ONE documented exception to CLAUDE.md's e2e rule (helpers/forgedPairingAck.ts, exhaustively justified in its file header): pairingAck.ts#sendPairingAck structurally CANNOT be made to send anyone else's card through the UI, so proving AC-SEC-1 requires constructing that exact input outside the app. The fixture builds the gift wrap with nostr-tools/nip59's own createRumor/wrapEvent (the same library the app uses) so the outer authentication is genuinely, validly signed by the attacker's REAL key (never spoofed) \u2014 only the enclosed `card` field's claimed identity (a harvested THIRD PARTY's genuinely-signed card, itself obtained via the app's real Share action) is adversarial. Delivery is a single raw WebSocket EVENT publish inside page.evaluate, reusing relay-query.ts's established pattern (there for reads, here for one write) rather than inventing a new mechanism. Asserts: (1) neither the harvested card's named pubkey (B) NOR the authenticated attacker's own pubkey (C) is ever admitted; (2) a POSITIVE CONTROL \u2014 B's own subsequent, genuinely legitimate scan \u2014 DOES get admitted, proving the earlier non-admission was the sender-binding check at work, not a dead relay/subscription; (3) C remains permanently un-admitted even after that positive control proves the pipe live. RAN AGAINST THE LIVE RELAY: passes (22.7s solo, 21.9s in the combined run) \u2014 including the self-check inside sendForgedPairingAck that would throw if the attacker's derived pubkey ever mismatched the supplied one.",
+    "AC-PAIR-10 / AC-SCAN-5/6 (onboarding scanner)": "dm-pairing-onboarding-scanner.spec.ts. B is a completely fresh, unseeded browser context (newAnonymousContext) that opens A's real code cold. The app auto-generates an identity on mount, completes the one-directional add of A, then \u2014 because the fresh identity has no name \u2014 redirects to /profile?pairing=1&issuer=... (asserted via URL + profile-pairing-name-setup-prompt). The test reads B's freshly-generated pubkeyHex off localStorage (it isn't known ahead of time), fills the real nickname input, and asserts A auto-admits that generated identity within the window with no further scan. RAN AGAINST THE LIVE RELAY: passes.",
+    "contact-card-deeplink.spec.ts (legacy epic fix)": "The pre-existing AC-UX-3/AC-UX-7 tests asserted a nameless visitor's successful add always lands directly on /contacts?id=...&added=1. That assumption broke once this epic made the Profile Share action ALWAYS emit a v2 pairing card (RD-1): a nameless scanner with a live v2 code is now durably queued and redirected to /profile?pairing=1&issuer=... instead (S4, RD-7, AC-SCAN-5). Updated both tests to assert the NEW, correct redirect + name-setup-prompt behavior, while still directly verifying (via localStorage) that the underlying one-directional add these tests actually exist to prove (single hash-parse, correct pubkeyHex resolved) completed synchronously under the hood either way. contact-card-share.spec.ts was reviewed and needed NO change \u2014 its URL-format and clipboard assertions are unaffected by the v2 payload being larger, and the new validity-hint text is purely additive. RAN AGAINST THE LIVE (non-relay) DEV SERVER: both fixed tests pass; contact-card-share.spec.ts's 3 tests pass unmodified."
+  },
+  "verification": {
+    "verification_json_questions": {
+      "pre_impl": 7,
+      "post_impl": 4
+    },
+    "post_impl_note": "4 post-impl questions appended (VQ-S6-008..011) covering: the two real bugs found only by actually running the specs (Next.js trailing-slash URL shape recurring in 3 places; a Playwright strict-mode violation from .or()-combining a nested testid), cross-author consistency across the 6 specs (architect wrote 2 + both helpers, two base:dev spawns wrote 2 each), the sender-binding fixture's self-check + positive-control guarantees, and whether incrementing the pre-existing (already-stale relative to raw test-block counts) Makefile/CLAUDE.md tally by exactly +6 was the correct scope-preserving move.",
+    "lint": "NO_LINT (no committed ESLint config; next lint prompts interactively; matches every prior story's baseline in this epic).",
+    "typecheck": "clean (npx tsc --noEmit, zero diagnostics, confirmed after every fix)."
+  },
+  "e2e_execution": {
+    "infra_available": true,
+    "docker_relay_status": "strfry + blossom-mock brought up successfully via docker compose -f docker-compose.e2e.yml up -d --wait; both reported healthy",
+    "runs_performed": [
+      "Each of the 6 new dm-pairing-*.spec.ts specs run individually against the live relay \u2014 all 6 passed.",
+      "All 6 new specs run TOGETHER in one Playwright invocation (matching how make test-e2e-groups actually invokes the suite) to check for cross-spec relay-state contamination given they share one strfry instance \u2014 all 6 passed with no contamination (auth-helpers.ts's per-spec-file identity salting held up).",
+      "contact-card-deeplink.spec.ts (2 fixed tests) and contact-card-share.spec.ts (3 unmodified tests, reviewed only) run against the non-relay dev server \u2014 all 5 passed.",
+      "The full non-relay/fast bucket (14 files, 68 test() blocks per scripts/run-e2e.mjs with no E2E_GROUPS) run in full \u2014 67 passed, 1 pre-existing unrelated failure (info-page.spec.ts's 'No account needed' heading assertion; verified via `git status`/`git diff` that this story touched zero files under that test's blast radius \u2014 the failure predates this story)."
+    ],
+    "not_performed": "The full relay/groups bucket (all groups-*.spec.ts + dm-*.spec.ts together, ~44 files) was NOT run in full \u2014 per this project's own documented precedent (CLAUDE.md, and the project memory that make test-e2e-all is chronically red from pre-existing shared-relay/shared-keypair contamination across ~7 groups specs unrelated to any single story), judging a change by whether its OWN specs pass is the established convention; a full-suite run is also a long-running operation better suited to the lead's Step 5.8 e2e gate than a single architect pass. This story's own 6 new specs plus the 2 fixed legacy specs were exhaustively verified as documented above.",
+    "conclusion": "No fake pass: every claim above is backed by an actual command invocation and its real output, not an assumption. STATUS: IMPLEMENTATION_COMPLETE stands on genuine live-relay verification, not just static/typecheck correctness."
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Two concrete frictions. (1) A Next.js static-export trailing-slash URL shape (client-side navigations render as `/path/?query=...`, not `/path?query=...`) broke a naive `toHaveURL` regex in THREE separate places \u2014 two I wrote myself before realizing the pattern, and one independently reproduced by a base:dev spawn working from a detailed, correct spec (proving it's a genuine convention gap, not a one-off typo). Only caught because I actually ran the specs against the live relay/dev server rather than stopping at typecheck; captured as a durable cross-project learning (`next-js-static-export-trailing-slash`) so the next e2e author doesn't rediscover it the same way. (2) I initially misapplied the 'background agent \u2014 wait for notification, don't poll' guidance by spawning pointless placeholder Agent calls while waiting for two base:dev spawns to finish, until the coordinator had to interrupt and clarify that delegated dev output lands on disk directly rather than via an async callback I needed to wait for \u2014 a misunderstanding of this harness's actual completion-signaling model that cost several wasted tool calls.",
+    "surprised_by": "A Playwright `.or()` combinator between two testids I assumed were mutually exclusive (`contacts-page` vs `contacts-empty-state`) turned out to be a containment relationship (the empty-state alert renders INSIDE the always-present page wrapper), tripping a strict-mode violation rather than the intended 'either is fine' semantics \u2014 worth remembering that `.or()` requires genuine exclusivity, not just 'either would satisfy the assertion's intent'.",
+    "scope": "meta",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "spawn_index": 1,
+        "note": "dev-pairing-specs-1 (multi-use + expired-grace) returned no non-skipped retrospective flag; both specs matched the brief exactly and needed only the trailing-slash-class fix (none present in this pair) \u2014 no dev-side friction reported."
+      },
+      {
+        "agent": "dev",
+        "spawn_index": 2,
+        "note": "dev-pairing-specs-2 (unknown-nonce + onboarding-scanner) returned no non-skipped retrospective flag; the two bugs I found in this pair (trailing-slash regex in onboarding-scanner, .or() strict-mode violation in unknown-nonce) were caught by the architect's own live-relay run after the dev spawn completed, not self-reported by the dev agent."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T03:20:00Z"
+}

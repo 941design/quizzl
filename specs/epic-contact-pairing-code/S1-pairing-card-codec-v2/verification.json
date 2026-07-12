@@ -1,0 +1,117 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-11T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is `CARD_SIG_KIND_V2` defined as a real named constant (not a magic number re-typed at each call site, not a TODO/FIXME placeholder) whose value the implementer actually re-confirmed against the live repo for collisions immediately before landing (per the S1 story notes), rather than trusting the architecture.md-recommended `20602` unchecked? Does `encodeCardV2` fully compute and pack the `expires_at` and `nonce` fields (no stubbed-out `0x00`-filled bytes, no `// TODO: wire real nonce` placeholder), and does the v2 signature verification path actually reconstruct and hash the synthetic event rather than short-circuiting to `return true` for any input?"
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `app/src/lib/contactCard.ts` remain a pure module per architecture.md's paradigm section ('Pure computation ... stays free of React/storage/relay') — i.e. does it import no React, no idb-keyval, no NDK/relay-publish primitive, and no module under `app/src/lib/pairing/`? Are the new v2 byte offsets (nonce, expires_at) expressed as named length constants alongside the existing v1 constants (per 'Implementation constraints': 'Codec byte offsets computed from named length constants ... not magic numbers'), rather than as inline numeric literals?"
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `codec` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/cards/contactCard.test.ts` carry unit coverage for every new v2 codec behavior — round-trip encode/decode (AC-CODEC-1), post-sign byte-mutation rejection for both the nonce field and the expires_at field independently (AC-CODEC-2), the preimage's synthetic-event `kind !== 0` assertion (AC-CODEC-3), rejection of every unknown version bit pattern and every non-zero reserved/HAS_AVATAR bit (AC-CODEC-4), unchanged v1/npub parsing (AC-CODEC-5), and the exact +20-byte length delta at `MAX_NAME_BYTES` (AC-CODEC-6) — with real `nostr-tools` signing/verification (not a mocked signer), so a broken `verifyEvent` call would actually fail the test?"
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the v2 codec, as landed, actually close the kind-0 laundering vector the spec and architecture.md's RD-4 section describe — i.e. is there no remaining code path (v1 fallback, shared helper, or debug/test-only export) through which a v2 card's signed preimage could be replayed or reformatted into a publishable `{kind:0, content:'{\"name\":...}'}` event? Does the implementation match RD-4's exact content shape `JSON.stringify({v:2,h,exp,nonce,name})` field-for-field, with no additional or missing keys?"
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does signature verification for a v2 card cryptographically bind all five of: header byte, `created_at`, pubkey, `expires_at`, and nonce — such that mutating any single one of `expires_at` or `nonce` in isolation (bytes changed, signature left untouched) is provably detected by `verifyEvent` returning false, with no code path that verifies only a subset of these fields (e.g. an early-return that checks the name/pubkey signature but skips re-deriving `exp`/`nonce` into the reconstructed synthetic event)?"
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CODEC-1",
+      "question": "Does `encodeCardV2` return exactly the `EncodedCardV2` contract fields declared in stories.json's seams array — `pubkeyHex` (64 hex chars), `name` (<=32 UTF-8 bytes), `nonceHex` (32 hex chars / 16 bytes), `expiresAt` (unix-seconds number), `cardB64Url` (base64url string) — with no additional or renamed fields, and does `decodeCard(encodeCardV2(x))` round-trip `pubkeyHex`/`name`/`nonceHex`/`expiresAt` unchanged for a freshly encoded card? Show the exported type/interface and a passing round-trip test."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CODEC-4",
+      "question": "Does `parseContactCard`'s v2-decode return type conform exactly to the `ParsedPairingCard` contract declared in stories.json's seams array — `{ pubkeyHex: string (64 hex chars), profile?: { name: string }, pairing?: { nonce: string (hex), expiresAt: number } }` — with `pairing` present if and only if the header version bits are `01`, and is there a single, named strict-parser gate (not per-caller ad hoc checks) that rejects any header whose version bits are neither `00` nor `01`, or whose `HAS_AVATAR`/reserved bits are non-zero, returning a parse failure rather than a best-effort partial decode? Provide the decoder's return-type declaration and the rejection branch."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CODEC-1",
+      "question": "For a freshly `encodeCardV2`'d card, does `parseContactCard`/`decodeCard` round-trip `pubkeyHex`, `name`, `nonce`, and `expiresAt` byte-for-byte unchanged? Provide (a) the packing/unpacking code for the header version-01 branch, (b) a test that asserts equality on all four fields post-round-trip, and (c) confirmation the test is not a mock-spy proxy over the codec (i.e. it calls the real `encodeCardV2`/`parseContactCard` exports, not stand-ins)."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CODEC-2",
+      "question": "Does decoding a v2 card whose `nonce` bytes were mutated after signing fail signature verification, and independently does decoding a v2 card whose `expires_at` bytes were mutated after signing also fail signature verification — as two separate negative-path test cases, neither returning the original signed identity? Provide (a) the mutation-then-decode test for each field, (b) the verification-failure branch in the decoder, and (c) confirmation the test constructs a real signed card and flips real bytes rather than mocking `verifyEvent`'s return value."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CODEC-3",
+      "question": "Does the synthetic event constructed for the v2 signature preimage have `kind = CARD_SIG_KIND_V2` where `CARD_SIG_KIND_V2 !== 0`? Provide (a) the exact object literal / construction site of the synthetic event, (b) a test that asserts the constructed event's `kind` field is non-zero and specifically equals the named constant (not a hardcoded literal duplicated in the test), and (c) confirmation this is asserted against the real event-construction function, not a re-implementation of it inside the test."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CODEC-4",
+      "question": "Does the decoder reject every header encoding a version other than `00`/`01`, and every header with a non-zero `HAS_AVATAR` bit or non-zero reserved bit, by returning a parse failure rather than attempting a best-effort partial decode? Provide (a) the rejection branch's location and logic, (b) a parameterized/property test sweeping multiple invalid version and reserved-bit combinations (not a single hand-picked example), and (c) confirmation the test inspects the real return value (e.g. `null`/throw) rather than mocking the parser's internals."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CODEC-5",
+      "question": "On the current build, does `parseContactCard` still accept a v1-formatted card (header version `00`) and a bare `npub`/`nostr:` URI, producing a one-directional add result with no `pairing` field, byte-identical to today's pre-epic behavior? Provide (a) evidence the v1 code path was not modified (or, if touched, a diff-level justification), (b) a regression test using a card fixture captured/verifiable against the pre-epic decoder output, and (c) confirmation the test is not simply re-asserting whatever the new decoder happens to return (i.e. it pins a concrete expected value, not a snapshot of current output)."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CODEC-6",
+      "question": "For a name of exactly `MAX_NAME_BYTES` (32) bytes, does the v2 signed-card byte length equal the v1 signed-card length (`SIGNED_CARD_FIXED_OVERHEAD_BYTES` + name) plus exactly 20 bytes (4-byte `expires_at` + 16-byte `nonce`)? Provide (a) the exact byte-length computation or constant arithmetic, (b) a test asserting the numeric delta is exactly 20 (not merely 'greater than v1' or 'roughly 20'), and (c) confirmation the test constructs both a real v1 and a real v2 signed card rather than computing lengths from the constants alone (constants could be wrong even if internally consistent)."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The landed decoder treats a header with version bits `01` (v2) but the SIGNED bit unset as structurally identical to a v1 unsigned card (bare header+pubkey, no `pairing` field), on the reasoning that neither the spec-request doc nor architecture.md defines an 'unsigned v2' layout, and `encodeCardV2` (as implemented) never emits one — a v2 card is always signed. Is this an acceptable interpretation given AC-CODEC-4 only enumerates version-bits-outside-{00,01} and non-zero HAS_AVATAR/reserved bits as reject conditions (i.e. it does not forbid an unsigned-v2 header from being accepted), or should an unsigned-v2 header instead be a hard reject since the spec states 'a v2 code is always signed' as a structural invariant, not merely a convention `encodeCardV2` happens to follow?"
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "`encodeCardV2` throws when the (normalized, truncated) nickname is empty, rather than falling back to an unsigned card the way v1's `encodeCard` does for an empty nickname. Every currently-planned production call site (S2's `shareCard.ts#getOwnShareCard`) already hard-guards on `hasShareableName` before calling `encodeCardV2` (confirmed via exploration.json's `shareCard.ts` notes: 'hard guard throws if !hasShareableName BEFORE cache/signer'), so this should never fire in practice. Does this throw-on-empty design hold up as S2 is implemented, or does any other v2-encoding call site introduced later in the epic need a non-throwing path?"
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "`buildV2SigPreimageEvent` is the single shared preimage constructor used by both `encodeCardV2` (sign side) and `decodeCard`'s version-1 branch (verify side) — the v2 analogue of v1's `CARD_CONTENT` single-source-of-truth discipline (AC-SIG-5). Is there a test that would fail if a future edit accidentally forked this into two independently-maintained preimage builders (one for encode, one for decode) that could silently drift apart on a non-ASCII name or an edge-case byte value, the way AC-SIG-5's umlaut/escaping/surrogate cases pin v1's `CARD_CONTENT` reuse? The current v2 test suite's round-trip and tamper tests would incidentally catch gross drift, but none explicitly targets the same class of subtle content-serialization divergence (e.g. JSON key ordering/escaping) that the v1 suite tests for by name."
+    }
+  ]
+}

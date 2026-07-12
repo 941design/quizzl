@@ -1,0 +1,390 @@
+{
+  "epic_name": "contact-pairing-code",
+  "created_at": "2026-07-11T21:30:00Z",
+  "updated_at": "2026-07-11T21:30:00Z",
+  "total_stories": 6,
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6"
+  ],
+  "dependency_notes": "Strict sequential implementation order (no parallel implementation — per commands/feature.md's non-goal, module ownership here is a correctness boundary, not a concurrency license). S1 (codec) is foundational: every other module encodes or decodes a v2 card through it. S2 (nonce lifecycle) depends only on S1's EncodedCardV2 seam (shareCard.ts calls encodeCardV2). S3 (pairingAck: build+send+subscribe+handle+admit, kept as a single owned module — see the S3/S4 ownership note below) depends on S1 (to build its own outgoing identity-only card) and S2 (to validate echoed nonces via isNonceAdmissible). S4 (pendingIntent + scanner import path) depends on S1 (to read the scanned card's pairing field) and S3 (to call sendPairingAck via the PairingAckSend seam) — S4 owns the *decision* of when to echo (now vs. deferred-to-name-setup); S3 owns the *mechanics* of the echo itself. S5 (UI/i18n) depends on S1-S4 being functionally complete so copy can reference real behavior/counts. S6 (e2e, relay bucket) depends on the full stack landing first.",
+  "mock_resolution_plan": "No temporary mocks are introduced. Because implementation is strictly sequential (S1→S2→S3→S4→S5→S6), every story consumes the real artifact of its dependency rather than a placeholder — by the time a later story is implemented, the seam it consumes already exists as landed code. mocks-registry.json (already empty / all_resolved: true) is expected to remain empty for this epic.",
+  "seams": [
+    {
+      "data": "v2 pairing card, encoded (identity + nonce + expiry), base64url wire form",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/contactCard.ts#encodeCardV2"
+      },
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/lib/shareCard.ts#getOwnShareCard"
+      },
+      "contract": {
+        "type_name": "EncodedCardV2",
+        "fields": [
+          {
+            "name": "pubkeyHex",
+            "type": "string (64 hex chars, x-only secp256k1)"
+          },
+          {
+            "name": "name",
+            "type": "string (<=32 UTF-8 bytes)"
+          },
+          {
+            "name": "nonceHex",
+            "type": "string (32 hex chars / 16 bytes)"
+          },
+          {
+            "name": "expiresAt",
+            "type": "number (unix seconds)"
+          },
+          {
+            "name": "cardB64Url",
+            "type": "string (base64url-encoded packed bytes)"
+          }
+        ],
+        "invariants": [
+          "decodeCard(encodeCardV2(x)) round-trips pubkeyHex/name/nonce/expiresAt unchanged for a freshly encoded card (AC-CODEC-1)",
+          "signed byte length for a MAX_NAME_BYTES (32) name equals the v1 signed length plus exactly 20 bytes (AC-CODEC-6)",
+          "the signature preimage's synthetic event has kind = CARD_SIG_KIND_V2 (!= 0), so it is not a publishable kind-0 event (AC-CODEC-3)"
+        ]
+      }
+    },
+    {
+      "data": "decode result of a scanned/imported card, carrying an optional pairing sub-object",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/contactCard.ts#parseContactCard"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/lib/processContactInput.ts"
+      },
+      "contract": {
+        "type_name": "ParsedPairingCard",
+        "fields": [
+          {
+            "name": "pubkeyHex",
+            "type": "string (64 hex chars)"
+          },
+          {
+            "name": "profile",
+            "type": "{ name: string } | undefined",
+            "optional": true
+          },
+          {
+            "name": "pairing",
+            "type": "{ nonce: string (hex), expiresAt: number } | undefined",
+            "optional": true
+          }
+        ],
+        "invariants": [
+          "pairing is present iff the parsed card is a v2 card (header version bits 01) (AC-CODEC-1)",
+          "an absent pairing field (v1 card or bare npub/nostr: URI) routes to the existing one-directional add with no ack send (AC-SCAN-2, AC-CODEC-5)",
+          "a decoder MUST reject (not partially decode) any header encoding a version other than 00/01 or a non-zero reserved/HAS_AVATAR bit (AC-CODEC-4)"
+        ]
+      }
+    },
+    {
+      "data": "pure admissibility verdict for an echoed nonce, evaluated against the issuer's retained (valid + 2h grace) nonce set",
+      "source": {
+        "story": "S2",
+        "artifact": "app/src/lib/pairing/nonceStore.ts#isNonceAdmissible"
+      },
+      "destination": {
+        "story": "S3",
+        "artifact": "app/src/lib/pairing/pairingAck.ts#handlePairingAck"
+      },
+      "contract": {
+        "type_name": "NonceAdmissibility",
+        "fields": [
+          {
+            "name": "nonceHex",
+            "type": "string (32 hex chars)"
+          },
+          {
+            "name": "nowSec",
+            "type": "number (unix seconds)"
+          },
+          {
+            "name": "admissible",
+            "type": "boolean"
+          }
+        ],
+        "invariants": [
+          "admissible is true iff nowSec <= storedExpiresAt + 7200 (2h grace) for a nonce present in the store, false otherwise (AC-NONCE-5)",
+          "the predicate is read-only — it never mutates or prunes the store; pruning happens only on the next mint or the next ack-processing pass (AC-NONCE-6)",
+          "the predicate returning true for a stale nonce is a store bug, not an ack-handler bug — S3 trusts the store's verdict without re-deriving grace math"
+        ]
+      }
+    },
+    {
+      "data": "callable contract for building and gift-wrap-sending a pairing-ack rumor",
+      "source": {
+        "story": "S3",
+        "artifact": "app/src/lib/pairing/pairingAck.ts#sendPairingAck"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/lib/processContactInput.ts / app/src/lib/pairing/pendingIntent.ts (drain)"
+      },
+      "contract": {
+        "type_name": "PairingAckSend",
+        "fields": [
+          {
+            "name": "issuerPubkeyHex",
+            "type": "string (64 hex chars)"
+          },
+          {
+            "name": "echoedNonceHex",
+            "type": "string (32 hex chars)"
+          },
+          {
+            "name": "result",
+            "type": "'sent' | 'queued-for-retry'"
+          }
+        ],
+        "invariants": [
+          "exactly one gift-wrapped pairing-ack is sent per successful call, addressed to issuerPubkeyHex (AC-SCAN-1)",
+          "the built rumor has kind = PAIRING_ACK_KIND and content {type:'pairing-ack', nonce: echoedNonceHex, card: <b64url identity-only card>} whose decoded card.pubkeyHex equals the caller's own pubkey (AC-ACK-1)",
+          "a publish failure (e.g. offline) returns 'queued-for-retry' and leaves the pending echo persisted rather than dropping it silently; the caller retries on the next 'online' event (AC-SCAN-3)",
+          "no call in this path ever publishes an unaddressed kind-0 event (AC-PRIV-1)"
+        ]
+      }
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "pairing-card-codec-v2",
+      "title": "Card format v2 codec (nonce + expiry, RD-4 signature, strict parser)",
+      "description": "Extends contactCard.ts's pure, side-effect-free codec with the v2 wire format: header version bits 01, a 4-byte big-endian expires_at field, and a 16-byte nonce field, packed between created_at and name per the spec's byte layout. The RD-4 signature is computed over a synthetic non-zero-kind nostr event (CARD_SIG_KIND_V2, recommend 20602 — confirmed no in-repo collision) whose content is JSON.stringify({v:2,h,exp,nonce,name}), so the preimage can never be laundered onto a public relay as a kind-0 profile event. parseContactCard gains a 4th, nonce-bearing result shape ({ pubkeyHex, profile?, pairing?: { nonce, expiresAt } }) and keeps v1's strict-parser discipline: any header version other than 00/01, or any non-zero reserved/HAS_AVATAR bit, is a hard parse failure, never a best-effort partial decode. v1 cards and bare npub/nostr: URIs continue to parse byte-identically to today. This is the foundational story — every other module reads or writes a card exclusively through this codec, so it must land first.",
+      "acceptance_criteria": [
+        "AC-CODEC-1",
+        "AC-CODEC-2",
+        "AC-CODEC-3",
+        "AC-CODEC-4",
+        "AC-CODEC-5",
+        "AC-CODEC-6"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/contactCard.ts: add v2 header (version bits 01), 4-byte BE expires_at, 16-byte nonce; encodeCardV2(params incl. nonce, expiresAt); parseContactCard's 4th nonce-bearing result shape { pubkeyHex, profile?, pairing?: { nonce, expiresAt } }",
+          "RD-4 signature: synthetic event { kind: CARD_SIG_KIND_V2 (recommend 20602, non-zero, confirmed no in-repo collision), pubkey, created_at, tags: [], content: JSON.stringify({v:2,h,exp,nonce,name}) }; verify path reconstructs the identical synthetic event via getEventHash/verifyEvent, mirroring today's decodeCard",
+          "strict parser: reject any header whose version bits are neither 00 nor 01, or whose HAS_AVATAR/reserved bits are non-zero — return a parse failure, not a partial decode (AC-CODEC-4)",
+          "byte-offset constants named (as v1 does), not magic numbers, for the two new fields",
+          "keep v1 (header 00) and bare npub/nostr: parsing byte-identical to the current build (AC-CODEC-5)",
+          "unit tests extending app/tests/unit/cards/contactCard.test.ts: round-trip (AC-CODEC-1), post-sign mutation of nonce/expires_at bytes fails verification (AC-CODEC-2), preimage kind !== 0 (AC-CODEC-3), strict rejection of unknown version/reserved bits (AC-CODEC-4), v1/npub unaffected (AC-CODEC-5), exact +20-byte length delta at MAX_NAME_BYTES (AC-CODEC-6)"
+        ],
+        "excludes": [
+          "issuer-side nonce persistence, minting, or grace/prune lifecycle (S2 owns nonceStore.ts)",
+          "ack rumor construction or sending (S3 owns pairingAck.ts)",
+          "the scanner-side decision of whether/when to echo (S4)",
+          "QR density / ECC-level manual validation of the larger payload (MV-1, owned by S5)"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "codec",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "notes": "Owns architecture.md's 'codec' module (app/src/lib/contactCard.ts) exactly — no consolidation judgment call needed here. CARD_SIG_KIND_V2 = 20602 recommended by architecture.md; verified via grep that 20602 has no existing in-repo use as of planning time, but the implementer re-confirms immediately before landing (kind sentinels are cheap to check, expensive to collide on)."
+    },
+    {
+      "id": "S2",
+      "name": "pairing-nonce-lifecycle",
+      "title": "Issuer nonce store + share-card lifecycle (mint, reuse, grace, prune, cache key)",
+      "description": "Introduces the issuer-side nonce store (new app/src/lib/pairing/nonceStore.ts, idb-keyval few-pairing-nonces) that persists each issued nonce keyed by value with its expiresAt, and extends shareCard.ts with RD-2's single-rolling-active-nonce lifecycle: reuse the active nonce while the session is live and it is unexpired; mint a fresh one on reload or on expiry; never burn a nonce on use. Nonces remain queryable for expiresAt + 2h grace and are pruned no later than the next mint or the next ack-processing pass. A pure exported isNonceAdmissible(nonce, nowSec) predicate is the store's sole read surface for validity, consumed by S3's ack handler. shareCard.ts's ShareCardCacheKey comparator gains the active nonce as a 4th dimension so the QR rebuilds on rotation even when nickname/signerMode/pubkeyHex are unchanged. This story consolidates architecture.md's 'issuer nonce store' and 'share lifecycle' module-map rows into one story: they are two faces of a single cohesive concern (mint/reuse/cache-key-invalidate the active nonce) and splitting them would only create a same-PR seam with no independent-testability benefit.",
+      "acceptance_criteria": [
+        "AC-NONCE-1",
+        "AC-NONCE-2",
+        "AC-NONCE-3",
+        "AC-NONCE-4",
+        "AC-NONCE-5",
+        "AC-NONCE-6",
+        "AC-NONCE-7"
+      ],
+      "scope": {
+        "includes": [
+          "new app/src/lib/pairing/nonceStore.ts: idb-keyval few-pairing-nonces store, keyed by nonce -> { nonce, expiresAt }; mint-or-reuse the active nonce per RD-2; retain each issued nonce through expiresAt + 2h grace; prune expired-past-grace entries no later than the next mint call or the next ack-processing pass",
+          "exported pure isNonceAdmissible(nonce, nowSec) predicate (valid + 2h grace boundary) — the S-nonceStore→ack-handler seam S3 consumes",
+          "app/src/lib/shareCard.ts: mint-on-reload/expiry active-nonce selection wired into getOwnShareCard; extend ShareCardCacheKey to a 4th dimension (active nonce) so a nonce rotation with nickname/signerMode/pubkeyHex unchanged still rebuilds the card (AC-NONCE-7)",
+          "fake-indexeddb/auto unit/integration tests mirroring app/tests/unit/profileRequestStorage.integration.test.ts, covering AC-NONCE-1 through AC-NONCE-7; extend app/tests/unit/cards/shareCard.test.ts for the cache-key dimension"
+        ],
+        "excludes": [
+          "any consumption of isNonceAdmissible by ack-handling logic (S3 calls it; S2 only defines and exports it)",
+          "the '~30 minutes' UI affordance copy that surfaces this lifecycle to the issuer (S5)"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "nonceStore+shareCard",
+      "creates_seam": true,
+      "consumes_seams": [
+        "EncodedCardV2"
+      ],
+      "notes": "Consolidates two architecture.md module-map rows ('issuer nonce store', 'share lifecycle') under one owning_module by story-planner judgment — see description. Depends on S1's EncodedCardV2 seam because getOwnShareCard calls encodeCardV2 to build the QR-bearing card once the active nonce is selected."
+    },
+    {
+      "id": "S3",
+      "name": "pairing-ack-protocol",
+      "title": "Pairing-ack protocol: build, send, subscribe, handle, admit",
+      "description": "Introduces the ack protocol as a single owned module (new app/src/lib/pairing/pairingAck.ts) covering the full round trip on the ack side: build the RD-6 rumor (kind = PAIRING_ACK_KIND, recommend 21060, confirmed not colliding with sentinels 444/21059/5/7/14 nor any other in-repo use) with content { type: 'pairing-ack', nonce: echoedNonceHex, card: <b64url identity-only card> }, gift-wrap and send it to the issuer's pubkey (sendPairingAck, reusing directMessages.ts sealAndWrap); register the subscription in welcomeSubscription.ts and wire it from MarmotContext analogous to onJoinRequestReceived; and handle received acks by unwrapping via directMessages.ts's unwrapAndOpen (which asserts rumor.pubkey === seal.pubkey — never welcomeSubscription.ts's weaker local unwrapGiftWrap), validating the echoed nonce via S2's isNonceAdmissible, sender-binding the enclosed card's pubkey to the authenticated gift-wrap sender, and on success admitting via rememberKnownPeers before rememberContact (ADR-005 ordering) — without ever calling isAllowedDmSender. Receiving an ack never itself sends a further ack (no ping-pong); a repeat ack from an already-admitted sender is a no-op. This story also carries the epic's explicit no-public-kind-0 assertion (AC-PRIV-1) for the send/handle path. Kept as one owning_module rather than split between 'ack protocol' and 'admission' per architecture.md's module map, because 'admission' (knownPeers.ts/contacts.ts) is reused as-is — no new admission logic is introduced, only called — so there is nothing structurally new to give a separate story ownership of.",
+      "acceptance_criteria": [
+        "AC-ACK-1",
+        "AC-ACK-2",
+        "AC-ACK-3",
+        "AC-ADMIT-1",
+        "AC-ADMIT-2",
+        "AC-ADMIT-3",
+        "AC-ADMIT-4",
+        "AC-ADMIT-5",
+        "AC-SEC-1",
+        "AC-SEC-2",
+        "AC-SEC-3",
+        "AC-SEC-4",
+        "AC-PRIV-1"
+      ],
+      "scope": {
+        "includes": [
+          "new app/src/lib/pairing/pairingAck.ts: sendPairingAck(issuerPubkeyHex, nonceHex) builds + gift-wraps + sends the RD-6 rumor via directMessages.ts sealAndWrap; handlePairingAck(giftWrapEvent) unwraps via directMessages.ts unwrapAndOpen, validates via nonceStore.isNonceAdmissible, sender-binds, and admits",
+          "PAIRING_ACK_KIND = 21060 (recommend; confirmed no collision with 444/21059/5/7/14 and no other in-repo use as of planning)",
+          "app/src/lib/marmot/welcomeSubscription.ts: register the pairing-ack subscription and dispatch kind-PAIRING_ACK_KIND rumors to pairingAck.handlePairingAck — no exclusion code needed in ContactChat.tsx / directMessageNotifications.ts, both already fail-closed on unrecognized rumor.kind (AC-SEC-4)",
+          "app/src/context/MarmotContext.tsx: wire the subscription analogous to the existing onJoinRequestReceived callback",
+          "admission ordering: rememberKnownPeers(sender) before rememberContact(sender) (ADR-005, AC-ADMIT-1); never call isAllowedDmSender in this path (AC-ADMIT-4)",
+          "idempotency: a second ack from a sender already present in knownPeers from a prior admitted ack creates no duplicate contact and does not double-increment any admission-digest count (AC-ACK-3)",
+          "explicit unit test asserting no function reachable from sendPairingAck/handlePairingAck ever calls a relay-publish primitive with an unaddressed kind-0 event (AC-PRIV-1)",
+          "unit tests for AC-ACK-1..3, AC-ADMIT-1..5, AC-SEC-1..4, AC-PRIV-1, including the sender-binding negative case (enclosed card pubkey != authenticated gift-wrap sender → no admission of the named pubkey)"
+        ],
+        "excludes": [
+          "AC-ADMIT-6 (the single-scan, both-directions-work, no-second-scan outcome) — this is an end-to-end integration assertion across S3 (issuer side) and S4 (scanner side) together with a real relay; it is owned and verified in S6 where the full stack exists, not unit-testable within S3 alone",
+          "the scanner-side decision of when to call sendPairingAck (S4 owns that decision; S3 only owns the call's mechanics and its PairingAckSend contract)",
+          "the admission-digest UI rendering (S5 consumes a count this story can expose; S3 does not render UI)"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "pairingAck",
+      "creates_seam": true,
+      "consumes_seams": [
+        "EncodedCardV2",
+        "NonceAdmissibility"
+      ],
+      "notes": "Resolves the spec's flagged S3/S4 pairingAck.ts ownership question (spec Suggested implementation order + planner brief) by keeping the whole pairingAck module — send, subscribe, handle, admit — in this one story; S4 only calls sendPairingAck across the PairingAckSend seam and never edits pairingAck.ts. This is the security-critical story (sender binding, kind isolation, walled-garden bypass gating) — architecture.md boundary rules 2 and 3 apply directly."
+    },
+    {
+      "id": "S4",
+      "name": "pairing-scanner-reciprocation",
+      "title": "Scanner reciprocation, pending intent, and onboarding name-setup redirect",
+      "description": "Owns the scanner-side decision of whether and when to echo. On parsing a v2 card via S1's ParsedPairingCard seam with an unexpired pairing field: a scanner who already has a shareable name calls S3's sendPairingAck immediately (no detour) and lands on the issuer's contact with the existing green confirmation, now carrying honesty copy that reciprocation is in flight rather than confirmed. A nameless scanner cannot sign an outgoing card at all (hasShareableName false), so instead this story persists a pending pairing intent (new app/src/lib/pairing/pendingIntent.ts, idb-keyval few-pairing-intents: { issuerPubkey, nonce, expiresAt }) and redirects to the name-setup screen before landing on the contact (RD-7). Because the app has no dedicated onboarding/name-setup route today, this story reuses the existing name-entry surface on app/pages/profile.tsx behind a query flag (e.g. ?pairing=1) rather than scaffolding a new static route — consistent with this project's query-param-over-path-segment convention for static export. Once hasShareableName flips true, the held intent's echo fires automatically iff still in-window (AC-SCAN-6); past the window it silently degrades to one-directional (AC-SCAN-7). A failed publish attempt (offline) is persisted and retried on the next 'online' event and on app mount, never fired-once-and-forgotten. Expired or pairing-less input completes today's one-directional add unchanged, with no ack sent.",
+      "acceptance_criteria": [
+        "AC-SCAN-1",
+        "AC-SCAN-2",
+        "AC-SCAN-3",
+        "AC-SCAN-4",
+        "AC-SCAN-5",
+        "AC-SCAN-6",
+        "AC-SCAN-7",
+        "AC-SCAN-8"
+      ],
+      "scope": {
+        "includes": [
+          "new app/src/lib/pairing/pendingIntent.ts: idb-keyval few-pairing-intents store; { issuerPubkey, nonce, expiresAt }; retry queue drained on window 'online' + on app mount; fires pairingAck.sendPairingAck when hasShareableName flips true iff current time <= intent.expiresAt (AC-SCAN-6), else silently degrades with no error (AC-SCAN-7)",
+          "app/pages/add.tsx, app/src/lib/addDeepLink.ts, app/src/lib/processContactInput.ts, app/src/lib/contactCardImport.ts: on a ParsedPairingCard with an unexpired pairing field, a named scanner (hasShareableName true) calls sendPairingAck immediately with no name-setup detour (AC-SCAN-1, AC-SCAN-8); a nameless scanner persists the pending intent and redirects to name setup before landing on the contact (AC-SCAN-5); an expired pairing field or a pairing-less v1/npub input completes the existing one-directional add unchanged and sends no ack (AC-SCAN-2)",
+          "app/pages/profile.tsx: accept a query-flag redirect target (name-setup reuse, RD-7) rather than a new page/route — minimal extension to trigger the pending-intent's held echo once a name is saved",
+          "wire the AC-SCAN-4 honesty-copy string key at the post-add confirmation point (copy text itself authored/translated in S5)",
+          "unit tests: extend app/tests/unit/cards/contactCardImport.test.ts and app/tests/unit/cards/addContactCardWiring.test.ts; new app/tests/unit/pairing/pendingIntent.test.ts covering AC-SCAN-1..8 including the retry-on-online case (AC-SCAN-3) and the in-window vs. past-window intent-resolution branches (AC-SCAN-6/7)"
+        ],
+        "excludes": [
+          "the ack rumor's kind/content shape and the gift-wrap send mechanics themselves (S3, consumed via the PairingAckSend seam — S4 never edits pairingAck.ts)",
+          "the honesty-copy and name-setup-prompt string text and their de/en translations (S5 authors the copy; S4 only wires the key)",
+          "AC-ADMIT-6's end-to-end mutual-channel assertion (S6)"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "pendingIntent+scannerImport",
+      "creates_seam": false,
+      "consumes_seams": [
+        "ParsedPairingCard",
+        "PairingAckSend"
+      ],
+      "notes": "Consolidates architecture.md's 'pending intent' and 'scanner import' module-map rows under one owning_module by story-planner judgment: the nameless-scanner path is a single coherent behavior that touches both, and the app has no existing name-setup route (grep-confirmed at planning time) — reusing app/pages/profile.tsx behind a query flag is a scope decision this story documents rather than escalates, since CLAUDE.md's static-export query-param convention already resolves the 'new route or reuse' question. Depends on S3 (PairingAckSend) — per the S3 story notes, S4 must not modify pairingAck.ts."
+    },
+    {
+      "id": "S5",
+      "name": "pairing-ui-i18n",
+      "title": "UI affordances and i18n: validity window, admission digest, unknown-version copy",
+      "description": "Adds the epic's user-visible surface: a '~30 minutes' validity affordance on the share modal whenever a share card is shown; an admission-digest notification ('N people paired with your code') that replaces per-admission toasts once 2 or more distinct senders are admitted for the currently-active nonce, sourced from S3's admission counting; friendly 'update your app' copy when importing a card whose header version the current codec does not recognize, replacing a raw error surface; and the scanner-side honesty-copy and name-setup-redirect-prompt strings that S4 wires by key. Every new string introduced by this epic gets both an en and a de entry in i18n.ts's Copy type and both Copy objects. Owns MV-1: confirming the v2 code (~20 bytes / ~27 b64url chars larger than v1 per AC-CODEC-6) remains reliably scannable at NpubQrModal's current ECC level.",
+      "acceptance_criteria": [
+        "AC-UI-1",
+        "AC-UI-2",
+        "AC-UI-3",
+        "AC-INTL-1"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/components/groups/NpubQrModal.tsx: '~30 minutes' validity copy whenever a share card renders (AC-UI-1); re-check QR density at the current ECC level against the larger v2 payload",
+          "issuer admission-digest UI: 'N people paired with your code' single notification when >=2 distinct senders are admitted for the active nonce, replacing one-toast-per-admission (AC-UI-2)",
+          "friendly 'update your app' copy for an unrecognized header version on import, replacing a raw error/exception surface (AC-UI-3)",
+          "app/src/lib/i18n.ts: en + de Copy entries for the 30-minute affordance, the scanner honesty copy (AC-SCAN-4's text, wired by S4), the admission digest, the unknown-version copy, and the name-setup redirect prompt (AC-INTL-1)",
+          "MV-1 (manual validation, owned by this story, blocked on AC-CODEC-6): confirm the larger v2 code remains reliably scannable by a phone camera at typical viewing distance"
+        ],
+        "excludes": [
+          "the codec, nonce-store, ack-protocol, and scanner-decision logic these copy strings describe (S1-S4)",
+          "AC-ADMIT-6 / end-to-end verification (S6)"
+        ]
+      },
+      "complexity": "low",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "ui-i18n",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "notes": "The i18n translation-coverage AC is tagged INTL (renamed from I18N by the lead so the AC-ID matches stories.schema.json's letters-only tag pattern ^AC-[A-Z]+-[0-9]+[a-z]?$). Owns the en+de Copy entries plus MV-1 (QR density visual check)."
+    },
+    {
+      "id": "S6",
+      "name": "pairing-e2e-specs",
+      "title": "E2E specs (relay bucket): the six pairing scenarios",
+      "description": "Adds six new or updated relay-bucket Playwright specs driving the full pairing flow end to end through the real app (never raw WebSocket, per CLAUDE.md): (1) single-scan mutual pairing — A shows a code, a second real browser context B scans it, and both directions work without a second scan (AC-ADMIT-6); (2) multi-use within the window — two distinct B's pair from the same still-valid code; (3) expired-code fallback — inject a short expires_at via page.evaluate direct-IDB-write (never hand-sign) and confirm graceful one-directional degrade; (4) unknown-nonce ignored — an ack for a nonce A never issued produces no admission and no error; (5) sender-binding — a harvested third-party card replayed by an attacker admits nobody; (6) onboarding scanner — a nameless B is redirected to name setup and the deferred echo fires on name-set within the window. Also reviews the pre-existing contact-card-deeplink.spec.ts and contact-card-share.spec.ts (v1-card-specific) for behavior this epic supersedes, and updates the Makefile relay-bucket test count plus CLAUDE.md's E2E gate tally to reflect the additions. This story depends on the full stack (S1-S5) landing first.",
+      "acceptance_criteria": [
+        "AC-ADMIT-6"
+      ],
+      "scope": {
+        "includes": [
+          "app/tests/e2e/: six new/updated relay-bucket specs — single-scan mutual (AC-ADMIT-6), multi-use within window, expired-code fallback (direct-IDB-write injection of a short expires_at, never hand-signed), unknown-nonce ignored, sender-binding (third-party card admits nobody, AC-SEC-1 end-to-end), onboarding scanner redirect + deferred echo (AC-SCAN-5/6 end-to-end)",
+          "every A/B action driven via the app's own publish helpers using a second real browser.newContext() peer — never a hand-signed event sent by raw WebSocket, per CLAUDE.md's E2E rule",
+          "review contact-card-deeplink.spec.ts / contact-card-share.spec.ts for v1-only behavior now superseded by v2 pairing; update or retire as needed",
+          "update the Makefile's relay-bucket test count and CLAUDE.md's E2E gate tally (currently 38 relay-bucket / 50 total) to include the new specs"
+        ],
+        "excludes": [
+          "any new non-relay-bucket (fast) spec — this epic introduces no non-relay scenario",
+          "unit-level coverage of the ACs these specs exercise end-to-end (owned by S1-S4's own unit/integration tests)"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "e2e",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "notes": "AC-ADMIT-6 is deliberately owned here rather than by S3: it asserts an end-to-end, both-directions-work, single-scan outcome that only exists once the full issuer+scanner stack is live against a real relay — not something S3 could satisfy in isolation with unit tests. This keeps 'every AC covered exactly once' true across S1-S6 while still satisfying the schema's acceptance_criteria minItems:1 for this story."
+    }
+  ]
+}

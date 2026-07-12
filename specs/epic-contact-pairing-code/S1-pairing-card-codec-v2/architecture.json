@@ -1,0 +1,71 @@
+{
+  "module_name": "codec",
+  "purpose": "Extends the existing pure, side-effect-free contact-card codec (app/src/lib/contactCard.ts) with the v2 wire format: header version bits 01, a 4-byte BE expires_at, a 16-byte nonce, an RD-4 domain-separated signature preimage (non-zero kind, so the preimage can never be laundered as a publishable kind-0 profile event), and a strict parser that hard-rejects any header whose version bits are neither 00 nor 01 or whose HAS_AVATAR/reserved bits are non-zero. Every other story in the epic reads or writes a card exclusively through this codec.",
+  "public_api": [
+    {
+      "name": "CARD_SIG_KIND_V2",
+      "signature": "export const CARD_SIG_KIND_V2 = 20602",
+      "description": "Fixed, non-zero synthetic-event kind the v2 signature is computed over (RD-4, AC-CODEC-3). Confirmed no in-repo collision by grep immediately before landing."
+    },
+    {
+      "name": "SIGNED_CARD_FIXED_OVERHEAD_BYTES_V2",
+      "signature": "export const SIGNED_CARD_FIXED_OVERHEAD_BYTES_V2: number",
+      "description": "v1's SIGNED_CARD_FIXED_OVERHEAD_BYTES (102) + expires_at(4) + nonce(16) = 122. Named-constant byte accounting for AC-CODEC-6's exact +20-byte delta."
+    },
+    {
+      "name": "EncodedCardV2",
+      "signature": "export type EncodedCardV2 = { pubkeyHex: string; name: string; nonceHex: string; expiresAt: number; cardB64Url: string }",
+      "description": "The EncodedCardV2 seam contract (stories.json) consumed cross-story by S2's shareCard.ts#getOwnShareCard."
+    },
+    {
+      "name": "encodeCardV2",
+      "signature": "export async function encodeCardV2(pubkeyHex: string, profile: { nickname: string; createdAt: number }, nonceHex: string, expiresAt: number, signEvent: EventSigner['signEvent']): Promise<EncodedCardV2>",
+      "description": "Builds and signs a v2 pairing card. Caller (S2's nonce-lifecycle module) mints nonceHex/expiresAt; this stays a pure codec. Always signed — throws if nickname normalizes to empty, since a v2 card without a name serves no pairing purpose and every real caller already gates on hasShareableName."
+    },
+    {
+      "name": "DecodedCard",
+      "signature": "export type DecodedCard = { version: 0 | 1; pubkeyHex: string; profile?: { nickname: string; createdAt: number }; pairing?: { nonce: string; expiresAt: number } }",
+      "description": "Extended from v1's { version: 0 } shape. pairing is present iff version === 1 (AC-CODEC-1)."
+    },
+    {
+      "name": "decodeCard",
+      "signature": "export function decodeCard(b64url: string): DecodedCard | { error: string }",
+      "description": "Extended in place (same exported symbol as v1) to branch on the 2-bit version field: 00 = v1 layout (unchanged), 01 = v2 layout (expires_at+nonce inserted, RD-4 preimage verified), 10/11 = hard parse failure (AC-CODEC-4). Never throws."
+    },
+    {
+      "name": "ParseContactCardResult",
+      "signature": "export type ParseContactCardResult = { pubkeyHex } | { pubkeyHex, profile } | { pubkeyHex, profile, pairing } | { error }",
+      "description": "The ParsedPairingCard seam contract (stories.json), realized as a 4th union variant on the existing type (rather than a renamed type) to keep every existing caller's discrimination logic (`'profile' in result`) working unchanged. Consumed cross-story by S4's processContactInput.ts."
+    },
+    {
+      "name": "parseContactCard",
+      "signature": "export function parseContactCard(input: string): ParseContactCardResult",
+      "description": "Unchanged decode seam (nostr:/npub/card-link/raw-payload dispatch); now forwards decodeCard's pairing field when present. v1/npub paths byte-identical to pre-epic behavior (AC-CODEC-5)."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "nostr-tools/pure (getEventHash, verifyEvent) — already used by v1",
+    "nostr-tools types (Event, UnsignedEvent) — already used by v1",
+    "applesauce-core (EventSigner type) — already used by v1",
+    "@/src/lib/nostrKeys (hexToBytes, bytesToHex, npubToPubkeyHex) — already used by v1"
+  ],
+  "dependencies_forbidden": [
+    "React (any import from 'react' or a component file)",
+    "idb-keyval or any storage adapter",
+    "NDK / any relay-publish primitive",
+    "any module under app/src/lib/pairing/ (S2/S3/S4's stateful modules — codec is the seam they consume, not the reverse)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/cards/contactCard.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S2", "S4"],
+    "note": "Two seams originate here per stories.json: EncodedCardV2 (encodeCardV2, consumed by S2's shareCard.ts) and ParsedPairingCard (parseContactCard's pairing field, consumed by S4's processContactInput.ts). Both are frozen by this story; S2/S3/S4 read them as-is."
+  }
+}

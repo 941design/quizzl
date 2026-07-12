@@ -1,0 +1,129 @@
+{
+  "story_id": "S5",
+  "status": "done",
+  "remediation_rounds": 1,
+  "modules_touched": [
+    "ui-i18n"
+  ],
+  "files_created": [
+    "app/tests/unit/cards/npubQrModal.test.ts",
+    "app/tests/unit/marmot/admissionDigest.test.ts",
+    "app/tests/unit/cards/processContactInput.test.ts",
+    "app/tests/unit/cards/pairingUiCopy.i18n.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/i18n.ts",
+    "app/src/components/groups/NpubQrModal.tsx",
+    "app/pages/profile.tsx",
+    "app/src/lib/processContactInput.ts",
+    "app/pages/add.tsx",
+    "app/src/context/MarmotContext.tsx",
+    "app/tests/unit/marmot/autoCommitLeave.test.ts",
+    "app/src/lib/contactCard.ts",
+    "app/src/lib/pairing/nonceStore.ts",
+    "app/tests/unit/pairing/nonceStore.integration.test.ts"
+  ],
+  "tests_added": {
+    "unit": 39
+  },
+  "test_counts": {
+    "baseline": 2616,
+    "final": 2655
+  },
+  "mocks": [],
+  "implementation_summary": {
+    "AC-UI-1": "NpubQrModal.tsx gained a validityHint prop, rendered under the QR/value block behind the exported pure predicate shouldShowValidityHint(shareUrl, validityHint) \u2014 true only for an actual shareUrl-encoded pairing card, never a bare-npub or group-invite QR. profile.tsx passes copy.profile.shareCardValidityHint ('This code works for about 30 minutes.' / de equivalent). profile.shareCardDescription (the pre-existing text shown above the Share button, before the modal opens) was also retexted in both languages to mention the ~30-minute window, so the affordance is visible both before and during the share flow.",
+    "AC-UI-2": "MarmotContext.tsx's onPairingAckReceived callback (previously a console.info-only S3 stub) now calls resolveAndApplyPairingAdmissionDigest on every admission, which resolves the issuer's currently-active nonce via nonceStore.ts's new peek-only peekActiveNonce() (review-remediation \u2014 see below; NEVER mints/prunes, unlike getOrMintActiveNonce), counts distinct senders in pairingAck.ts's existing getPairingAckAdmissions() map for that nonce via countAdmissionsForActiveNonce, and \u2014 only once the count reaches 2 \u2014 shows a single Chakra toast (id 'pairing-admission-digest') via applyPairingAdmissionDigest, updating that SAME toast in place on every later admission for the same nonce rather than stacking a new one. A lone first admission, or an ack received when no code has been shared this session (peek returns null), produces no notification. Neither pairingAck.ts nor nonceStore.ts's pre-existing exports were modified \u2014 nonceStore.ts gained one new additive read-only accessor (see review_remediation).",
+    "AC-UI-3": "decodeCard (S1, AC-CODEC-4) rejects an unrecognized header version with the error string now exported as contactCard.ts's UNSUPPORTED_VERSION_ERROR constant (review-remediation \u2014 see below; was an inline literal at landing), which parseContactCard propagates unchanged. processContactInput.ts previously collapsed EVERY parse failure into error: 'invalid_npub'. It now special-cases that one constant into a new 'unsupported_version' error code (no other parse failure is affected \u2014 a tampered signature, truncated payload, or garbage input still maps to 'invalid_npub' exactly as before, verified by a dedicated regression test). add.tsx's getErrorMessage switch gained a case rendering the new friendly copy.contacts.addContactErrorUnsupportedVersion string instead of falling through to the generic invalid-npub message.",
+    "AC-INTL-1": "Added en+de Copy type/object entries for: contacts.addContactErrorUnsupportedVersion, contacts.pairingAdmissionDigest ((count) => string), profile.shareCardValidityHint; retexted profile.shareCardDescription (both languages) to mention the validity window. Reviewed S4's two placeholder-labeled keys (contacts.addContactPairingInFlight, profile.pairingNameSetupPrompt) per the ownership-ledger's finalization note \u2014 both already read naturally in the app's voice in both languages; left unchanged. app/tests/unit/cards/pairingUiCopy.i18n.test.ts asserts en/de presence, non-emptiness, non-copy-paste, and (for the AC-UI-1/2/3 keys specifically) the count/30-minute content requirements."
+  },
+  "manual_validation": [
+    {
+      "id": "MV-1",
+      "status": "not_automatable_flagged_for_manual_check",
+      "note": "Computed real QR-version/module-count deltas via the app's own `qrcode` package rather than estimating: at ECC level 'L' (the current shareUrl branch, NpubQrModal.tsx line ~94), a max-length v1 signed card (134 raw bytes -> 202-char share URL) renders at QR version 7 (45x45 modules); the AC-CODEC-6-larger v2 card (+20 bytes -> 229-char share URL) renders at version 8 (49x49 modules) \u2014 one version step up, not a jump into a materially harder-to-scan range. Bumping to ECC 'M' for the v2 payload instead (the naive 'more redundancy = safer' instinct) would push it to version 9 (53x53 modules) \u2014 a DENSER code for no benefit, since higher ECC costs more modules for the same data. Conclusion: the existing shareUrl ? 'L' : 'M' choice at NpubQrModal.tsx line 94 is correct and was NOT changed; no ECC-level adjustment was needed for the larger v2 payload. What remains genuinely unautomatable in this repo's no-jsdom, non-visual unit-test setup is confirming a real phone camera reliably reads a 49x49-module code rendered at the modal's 280px display box from typical scanning distance \u2014 flagged for a manual check (or an S6 e2e visual/OCR-of-decoded-payload pass if one is added) before this epic ships."
+    }
+  ],
+  "verification": {
+    "verification_json_questions": {
+      "pre_impl": 10,
+      "post_impl": 0
+    },
+    "post_impl_note": "No post-impl questions added \u2014 implementation surfaced no risk the pre-impl commitment set (VQ-S5-001..010) did not already cover; several pre-impl questions (VQ-S5-007/008/009) explicitly named the exact test evidence produced (real-decoder-driven unsupported_version fixture, 2-then-3-sender digest scenario, predicate-level render-gate test), so the audit floor is already met.",
+    "lint": "NO_LINT (no committed ESLint config; confirmed again this story)",
+    "typecheck": "clean (npx tsc --noEmit, zero diagnostics before and after this remediation round)"
+  },
+  "review_remediation": {
+    "round": 1,
+    "reviewer": "lead-owned Opus stage-1 review (base:code-reviewer)",
+    "findings_addressed": [
+      {
+        "id": "finding-1",
+        "severity": 4,
+        "category": "testing",
+        "summary": "The already_exists -> pairingEcho sev-5 fix (S4) had no regression test in the new processContactInput.test.ts file this story introduced.",
+        "fix": "Added a new describe block ('already_exists pairingEcho regression (review-remediation)') to app/tests/unit/cards/processContactInput.test.ts with 6 real-codec-driven cases: (a) already_exists + a LIVE unexpired v2 pairing card -> pairingEcho present with the exact {issuerPubkeyHex, nonceHex, expiresAt}; (b) already_exists + an EXPIRED v2 card, a v1 card, and a bare npub -> pairingEcho undefined in all three; (c) a self-scan of a live v2 card (-> error 'self') and a garbage parse failure (-> error 'invalid_npub') both never carry pairingEcho. Built via the real encodeCardV2/addContactByNpub production seam (mirrors addContactCardWiring.test.ts's existing helper of the same shape), not a hand-rolled fixture. Complements, does not replace, the pre-existing equivalent coverage in addContactCardWiring.test.ts.",
+        "files": [
+          "app/tests/unit/cards/processContactInput.test.ts"
+        ]
+      },
+      {
+        "id": "finding-2",
+        "severity": 3,
+        "category": "correctness",
+        "summary": "The admission-digest wiring resolved the issuer's active nonce via getOrMintActiveNonce(), which mints a fresh nonce (a store write) whenever the in-memory pointer is absent or expired. A grace-window ack (legitimately arriving 30-150 minutes after mint, since admissibility extends to expiresAt+2h) would therefore silently rotate the issuer's pairing nonce on ack receipt and the digest would then count against the wrong (freshly-minted, zero-match) nonce.",
+        "fix": "Added an additive, genuinely read-only accessor `peekActiveNonce(): StoredNonce | null` to app/src/lib/pairing/nonceStore.ts \u2014 returns the in-memory pointer as-is, never mints/persists/prunes; getOrMintActiveNonce's own behavior is completely unchanged. Extracted the digest wiring's 'resolve nonce then apply' step into a new exported function, resolveAndApplyPairingAdmissionDigest(admissions, peek, ...), whose `peek` parameter type (`() => {nonce: string} | null`) offers no mint capability at all \u2014 structurally, not just conventionally, preventing this bug class. MarmotContext.tsx's onPairingAckReceived callback now calls peekActiveNonce (via this wrapper) instead of getOrMintActiveNonce; if peek returns null (no code shared this session), the digest is a no-op. Added a 'does not mint' integration test suite to nonceStore.integration.test.ts (peek before any mint -> null; peek does not cause a subsequent getOrMintActiveNonce to observe a pre-existing nonce; peek past the active nonce's own expiry still returns the stale value rather than nothing/a fresh mint) plus a wiring-level test suite in admissionDigest.test.ts driving resolveAndApplyPairingAdmissionDigest directly with a null-returning and a stale-but-real fake peek.",
+        "files": [
+          "app/src/lib/pairing/nonceStore.ts",
+          "app/src/context/MarmotContext.tsx",
+          "app/tests/unit/pairing/nonceStore.integration.test.ts",
+          "app/tests/unit/marmot/admissionDigest.test.ts"
+        ]
+      },
+      {
+        "id": "finding-3",
+        "severity": 3,
+        "category": "best_practices",
+        "summary": "processContactInput.ts hardcoded a local copy of the literal string 'contactCard: unsupported version' that contactCard.ts:529 also emits inline \u2014 a reworded S1 error message would silently desync the AC-UI-3 friendly-copy mapping from the codec that actually produces the error.",
+        "fix": "Exported the literal as `UNSUPPORTED_VERSION_ERROR` from app/src/lib/contactCard.ts (single source of truth) and used it at decodeCard's line-529 return site \u2014 the string VALUE is unchanged, this is purely a duplication fix. processContactInput.ts now imports and compares against that constant instead of its own local copy, which was deleted.",
+        "files": [
+          "app/src/lib/contactCard.ts",
+          "app/src/lib/processContactInput.ts"
+        ]
+      }
+    ],
+    "verification_after_remediation": {
+      "targeted_tests_run": [
+        "app/tests/unit/cards/processContactInput.test.ts",
+        "app/tests/unit/pairing/nonceStore.integration.test.ts",
+        "app/tests/unit/marmot/admissionDigest.test.ts",
+        "app/tests/unit/marmot/autoCommitLeave.test.ts",
+        "app/tests/unit/cards/npubQrModal.test.ts",
+        "app/tests/unit/cards/pairingUiCopy.i18n.test.ts",
+        "app/tests/unit/cards/addContactCardWiring.test.ts",
+        "app/tests/unit/cards/contactCard.test.ts"
+      ],
+      "targeted_result": "all passing",
+      "full_suite": "make test-unit \u2014 2630 passed, 25 failed (the same pre-existing icon-set failures, unchanged), 2655 total",
+      "typecheck": "npx tsc --noEmit \u2014 clean"
+    },
+    "note": "Two of the three fixes are additive-only edits to prior-story modules (contactCard.ts: S1, nonceStore.ts: S2), explicitly authorized by the remediation brief as review-remediation with no behavior change to either module's existing exports. modules_touched remains [\"ui-i18n\"] per this story's owning_module; the additive prior-module touches are recorded here rather than expanding modules_touched, since neither module's existing public contract, decision logic, or owned data changed \u2014 only a net-new read-only export was added to each."
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "This session was handed 'implement Story S5' directly, with S1-S4 already sitting uncommitted in the working tree from prior sessions. Step 0's baseline capture is meant to run BEFORE any design/implementation, but by the time I ran `make test-unit` for the first time, I had already made this story's production-code edits (i18n.ts, NpubQrModal.tsx, MarmotContext.tsx, etc.) \u2014 there was no explicit checkpoint forcing the baseline run first, and reading the epic's dense cross-story context (architecture.md, exploration.json, ownership-ledger.json, S3/S4's own artifacts) before touching code felt like the natural first step but left no pristine pre-edit baseline to compare against. I captured the closest available approximation (post-production-edit, pre-new-test-files) and noted the gap in baseline.json rather than fabricating a pristine number.",
+    "surprised_by": "The admission-digest correctness bug (finding 2) came from reusing getOrMintActiveNonce purely for its read behavior without checking whether 'read while unexpired' was actually the ONLY path through that function \u2014 it mints on ANY absent/expired pointer, and the digest's own trigger (a received ack) is precisely the kind of event that tends to arrive well after a 30-minute active-nonce TTL has lapsed, given the 2h grace window. A function whose name says 'get or mint' should have been the giveaway; I read past it because the doc comment's AC-NONCE-1 framing ('reuses while unexpired') made the reuse case feel like the common one, when for THIS caller the expired-mint case was actually the likely one.",
+    "scope": "meta",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "base:code-reviewer",
+        "note": "Stage-1 Opus review surfaced 3 findings on the S5 diff: (sev4/testing) missing already_exists+pairingEcho regression coverage in the new processContactInput.test.ts; (sev3/correctness) the admission-digest wiring calling a minting primitive (getOrMintActiveNonce) instead of a read-only one, risking a nonce-rotation-on-ack-receipt bug; (sev3/best_practices) processContactInput.ts duplicating contactCard.ts's error-string literal by value instead of importing a shared constant. All three applied as additive-only fixes (finding 2 and 3 touched prior-story modules S1/S2 \u2014 export-only, no behavior change to existing exports)."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T02:30:00Z"
+}

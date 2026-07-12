@@ -14,9 +14,24 @@ import {
   ModalHeader,
   ModalOverlay,
   Spinner,
+  Text,
   VStack,
 } from '@chakra-ui/react';
 import NpubQrScanner from '@/src/components/groups/NpubQrScanner';
+
+/**
+ * S5 (epic: contact-pairing-code, AC-UI-1) — the validity-hint render gate.
+ * Exported as a pure predicate (mirrors this repo's "prop-derivation logic"
+ * test convention for components the vitest environment cannot render — see
+ * `memberListAdminUi.test.ts`'s doc comment) so the gating condition itself
+ * is unit-tested directly, even though the DOM output is not. `shareUrl` is
+ * the sole gate (matches the `shareUrl && copyButtonLabel` Copy-button gate
+ * already used below): a bare-npub or group-invite display never has a
+ * `shareUrl`, so this hint only ever appears on an actual pairing share card.
+ */
+export function shouldShowValidityHint(shareUrl: string | undefined, validityHint: string | undefined): boolean {
+  return Boolean(shareUrl && validityHint);
+}
 
 type NpubQrModalProps = {
   isOpen: boolean;
@@ -43,6 +58,17 @@ type NpubQrModalProps = {
   copyButtonLabel?: string;
   /** Translated label shown briefly after a successful copy. */
   copiedButtonLabel?: string;
+  /**
+   * Translated copy communicating the shared code's limited validity window
+   * (epic: contact-pairing-code, story S5, AC-UI-1 — e.g. "This code works
+   * for about 30 minutes."). Rendered under the QR/value block only when a
+   * `shareUrl`-encoded card is shown, so it never appears on the generic
+   * bare-npub or group-invite uses of this modal. This component only ever
+   * renders the translated string it is given — it never owns i18n or
+   * derives the window itself (mirrors the `shareUrl` seam's "generic value
+   * renderer" contract above).
+   */
+  validityHint?: string;
   qrErrorMessage: string;
   invalidPayloadMessage?: string;
   permissionDeniedMessage?: string;
@@ -67,6 +93,7 @@ export default function NpubQrModal({
   shareUrl,
   copyButtonLabel,
   copiedButtonLabel,
+  validityHint,
   qrErrorMessage,
   invalidPayloadMessage,
   permissionDeniedMessage,
@@ -206,6 +233,11 @@ export default function NpubQrModal({
                     >
                       {copied ? (copiedButtonLabel ?? copyButtonLabel) : copyButtonLabel}
                     </Button>
+                  )}
+                  {shouldShowValidityHint(shareUrl, validityHint) && (
+                    <Text fontSize="xs" color="textMuted" data-testid="npub-qr-modal-validity-hint">
+                      {validityHint}
+                    </Text>
                   )}
                 </>
               )}

@@ -259,6 +259,13 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
   // (it redirects here instead of showing its own success screen). Surface the
   // green "Contact added" confirmation on this, the selected-contact view.
   const justAdded = router.query.added === '1';
+  // Epic: contact-pairing-code, story S4 (AC-SCAN-4). `?pairing=sent|pending`
+  // is set by /add.tsx exactly when a pairing-ack echo was attempted for this
+  // add (v2 code, unexpired). Neither value implies A has admitted yet — no
+  // ack-of-ack exists — so this MUST show honesty copy ("reciprocation in
+  // flight"), never a "connected"/"paired" claim. Copy TEXT is S5's; this
+  // story only wires the key and the trigger condition.
+  const pairingEchoInFlight = router.query.pairing === 'sent' || router.query.pairing === 'pending';
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const { profile: ownProfile } = useProfile();
   const contact = useMemo(
@@ -338,7 +345,9 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
         {justAdded ? (
           <Alert status="success" borderRadius="md" mt={4} data-testid="contact-added-success">
             <AlertIcon />
-            <AlertDescription>{copy.contacts.addContactSuccess}</AlertDescription>
+            <AlertDescription>
+              {pairingEchoInFlight ? copy.contacts.addContactPairingInFlight : copy.contacts.addContactSuccess}
+            </AlertDescription>
           </Alert>
         ) : null}
         {contact.isArchived ? (

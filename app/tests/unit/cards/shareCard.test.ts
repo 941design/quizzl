@@ -1,5 +1,6 @@
 /**
- * Unit tests for shareCard.ts — Story S6, "Share contact card".
+ * Unit tests for shareCard.ts — Story S6, "Share contact card"; extended by
+ * epic: contact-pairing-code, story S2 (RD-2 active-nonce lifecycle wiring).
  *
  * Covers:
  *   - VQ-S6-004 / AC-UX-4: card production verifies via REAL getEventHash/
@@ -10,12 +11,21 @@
  *     produced signature genuinely verifies (see contactCard.test.ts and
  *     tests/unit/calls/callSignaling.test.ts for the sibling precedents).
  *   - AC-CARD-6: no nickname set -> unsigned card, round-tripping to a
- *     pubkey-only parse result.
+ *     pubkey-only parse result (buildOwnShareCard, the v1 path — untouched
+ *     by S2 and kept as-is).
  *   - VQ-S6-001 / VQ-S6-006: the cache rebuilds on the first open and on a
  *     nickname or signer-mode change, but NOT on a repeat open with an
  *     unchanged key — asserted by counting signer invocations.
+ *   - AC-NONCE-1/2/3/7 (story S2): getOwnShareCard now always produces a v2
+ *     pairing card, and its active-nonce dimension is exercised BOTH via an
+ *     injected `getActiveNonce` stub (deterministic, most tests below) AND,
+ *     in the dedicated "real nonce-store wiring" describe block, via the
+ *     REAL default `nonceStore.getOrMintActiveNonce` (fake-indexeddb — see
+ *     profileRequestStorage.integration.test.ts for the pattern) so the
+ *     actual production wiring is proven, not just the pure comparator.
  */
-import { describe, it, expect, vi } from 'vitest';
+import 'fake-indexeddb/auto';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { generateSecretKey, getPublicKey, finalizeEvent } from 'nostr-tools/pure';
 import { bytesToHex } from 'nostr-tools/utils';
 import type { NDKNip46Signer, NDKNip07Signer } from '@nostr-dev-kit/ndk';
@@ -28,12 +38,35 @@ import { parseContactCard } from '@/src/lib/contactCard';
 import {
   shouldRebuildShareCard,
   buildOwnShareCard,
+  buildOwnShareCardV2,
   getOwnShareCard,
   hasShareableName,
   type ShareCardCacheEntry,
 } from '@/src/lib/shareCard';
+import {
+  getStoredNonce,
+  clearAllNonces,
+  _resetActiveNonceForTests,
+  NONCE_TTL_SEC,
+} from '@/src/lib/pairing/nonceStore';
 
 const FIXED_CREATED_AT = 1735689600; // 2025-01-01T00:00:00Z
+const FIXED_NONCE_A = 'a'.repeat(32);
+const FIXED_NONCE_B = 'b'.repeat(32);
+
+/** Deterministic getActiveNonce stub for tests that don't care about nonce rotation itself. */
+function fixedNonceProvider(nonce = FIXED_NONCE_A, expiresAt = FIXED_CREATED_AT + NONCE_TTL_SEC) {
+  return vi.fn(async () => ({ nonce, expiresAt }));
+}
+
+// getOwnShareCard tests default to a nonce-store-independent stub above; the
+// dedicated "real nonce-store wiring" describe block below still needs a
+// clean nonceStore between cases (both in-memory pointer and persisted
+// store), mirroring profileRequestStorage.integration.test.ts's beforeEach.
+beforeEach(async () => {
+  await clearAllNonces();
+  _resetActiveNonceForTests();
+});
 
 type EventDraft = { kind: number; created_at: number; tags: string[][]; content: string };
 
@@ -199,37 +232,57 @@ describe('hasShareableName', () => {
 describe('shouldRebuildShareCard', () => {
   it('rebuilds when there is no cache yet', () => {
     expect(
-      shouldRebuildShareCard(null, { nickname: 'Alice', signerMode: 'local', pubkeyHex: 'pk-a' }),
+      shouldRebuildShareCard(null, {
+        nickname: 'Alice',
+        signerMode: 'local',
+        pubkeyHex: 'pk-a',
+        nonceHex: FIXED_NONCE_A,
+      }),
     ).toBe(true);
   });
 
-  it('does NOT rebuild when nickname, signerMode, and pubkeyHex are unchanged', () => {
+  it('does NOT rebuild when nickname, signerMode, pubkeyHex, AND nonceHex are all unchanged', () => {
     const cached: ShareCardCacheEntry = {
-      key: { nickname: 'Alice', signerMode: 'local', pubkeyHex: 'pk-a' },
+      key: { nickname: 'Alice', signerMode: 'local', pubkeyHex: 'pk-a', nonceHex: FIXED_NONCE_A },
       shareUrl: 'x',
     };
     expect(
-      shouldRebuildShareCard(cached, { nickname: 'Alice', signerMode: 'local', pubkeyHex: 'pk-a' }),
+      shouldRebuildShareCard(cached, {
+        nickname: 'Alice',
+        signerMode: 'local',
+        pubkeyHex: 'pk-a',
+        nonceHex: FIXED_NONCE_A,
+      }),
     ).toBe(false);
   });
 
   it('rebuilds when the nickname changes', () => {
     const cached: ShareCardCacheEntry = {
-      key: { nickname: 'Alice', signerMode: 'local', pubkeyHex: 'pk-a' },
+      key: { nickname: 'Alice', signerMode: 'local', pubkeyHex: 'pk-a', nonceHex: FIXED_NONCE_A },
       shareUrl: 'x',
     };
     expect(
-      shouldRebuildShareCard(cached, { nickname: 'Alicia', signerMode: 'local', pubkeyHex: 'pk-a' }),
+      shouldRebuildShareCard(cached, {
+        nickname: 'Alicia',
+        signerMode: 'local',
+        pubkeyHex: 'pk-a',
+        nonceHex: FIXED_NONCE_A,
+      }),
     ).toBe(true);
   });
 
   it('rebuilds when the signer mode changes (e.g. local -> NIP-46 mid-session)', () => {
     const cached: ShareCardCacheEntry = {
-      key: { nickname: 'Alice', signerMode: 'local', pubkeyHex: 'pk-a' },
+      key: { nickname: 'Alice', signerMode: 'local', pubkeyHex: 'pk-a', nonceHex: FIXED_NONCE_A },
       shareUrl: 'x',
     };
     expect(
-      shouldRebuildShareCard(cached, { nickname: 'Alice', signerMode: 'nip46', pubkeyHex: 'pk-a' }),
+      shouldRebuildShareCard(cached, {
+        nickname: 'Alice',
+        signerMode: 'nip46',
+        pubkeyHex: 'pk-a',
+        nonceHex: FIXED_NONCE_A,
+      }),
     ).toBe(true);
   });
 
@@ -245,12 +298,54 @@ describe('shouldRebuildShareCard', () => {
   // comparison is what makes this a correct MISS.
   it('rebuilds when only pubkeyHex changes (mid-session identity restore, same nickname/signerMode)', () => {
     const cached: ShareCardCacheEntry = {
-      key: { nickname: '', signerMode: 'local', pubkeyHex: 'pk-identity-a' },
+      key: { nickname: '', signerMode: 'local', pubkeyHex: 'pk-identity-a', nonceHex: FIXED_NONCE_A },
       shareUrl: 'x',
     };
     expect(
-      shouldRebuildShareCard(cached, { nickname: '', signerMode: 'local', pubkeyHex: 'pk-identity-b' }),
+      shouldRebuildShareCard(cached, {
+        nickname: '',
+        signerMode: 'local',
+        pubkeyHex: 'pk-identity-b',
+        nonceHex: FIXED_NONCE_A,
+      }),
     ).toBe(true);
+  });
+
+  // AC-NONCE-7: a nonce rotation (reload after prior expiry, or mid-session
+  // expiry) with nickname/signerMode/pubkeyHex unchanged must still force a
+  // rebuild — otherwise the QR-producing card would keep serving a
+  // no-longer-active nonce indefinitely.
+  it('rebuilds when only nonceHex changes (nickname/signerMode/pubkeyHex unchanged)', () => {
+    const cached: ShareCardCacheEntry = {
+      key: { nickname: 'Alice', signerMode: 'local', pubkeyHex: 'pk-a', nonceHex: FIXED_NONCE_A },
+      shareUrl: 'x',
+    };
+    expect(
+      shouldRebuildShareCard(cached, {
+        nickname: 'Alice',
+        signerMode: 'local',
+        pubkeyHex: 'pk-a',
+        nonceHex: FIXED_NONCE_B,
+      }),
+    ).toBe(true);
+  });
+
+  // Inverse of the above — proves the new dimension isn't an "always rebuild"
+  // change: when ALL FOUR dimensions (including nonceHex) are unchanged,
+  // there is still no rebuild.
+  it('does NOT rebuild when all four dimensions, including nonceHex, are unchanged (inverse of the rotation test)', () => {
+    const cached: ShareCardCacheEntry = {
+      key: { nickname: 'Bob', signerMode: 'nip07', pubkeyHex: 'pk-b', nonceHex: FIXED_NONCE_B },
+      shareUrl: 'x',
+    };
+    expect(
+      shouldRebuildShareCard(cached, {
+        nickname: 'Bob',
+        signerMode: 'nip07',
+        pubkeyHex: 'pk-b',
+        nonceHex: FIXED_NONCE_B,
+      }),
+    ).toBe(false);
   });
 });
 
@@ -285,6 +380,7 @@ describe('getOwnShareCard — cache-driven orchestration', () => {
     const signer = createPrivateKeySigner(skHex);
     const signEventSpy = vi.fn(signer.signEvent);
     const getSignEvent = vi.fn(async () => signEventSpy);
+    const getActiveNonce = fixedNonceProvider();
 
     const first = await getOwnShareCard({
       pubkeyHex,
@@ -292,6 +388,7 @@ describe('getOwnShareCard — cache-driven orchestration', () => {
       signerMode: 'local',
       cache: null,
       getSignEvent,
+      getActiveNonce,
     });
     expect(first.rebuilt).toBe(true);
     expect(signEventSpy).toHaveBeenCalledTimes(1);
@@ -302,6 +399,7 @@ describe('getOwnShareCard — cache-driven orchestration', () => {
       signerMode: 'local',
       cache: first.cache,
       getSignEvent,
+      getActiveNonce,
     });
     expect(second.rebuilt).toBe(false);
     expect(second.shareUrl).toBe(first.shareUrl);
@@ -310,20 +408,33 @@ describe('getOwnShareCard — cache-driven orchestration', () => {
     // resolved again on a repeat open with an unchanged nickname/signerMode.
     expect(getSignEvent).toHaveBeenCalledTimes(1);
     expect(signEventSpy).toHaveBeenCalledTimes(1);
+    // getActiveNonce IS still resolved on the cache-hit path (the cache-key
+    // comparison needs to know the current nonce either way), but it never
+    // triggers a rebuild by itself since the nonce is unchanged.
+    expect(getActiveNonce).toHaveBeenCalledTimes(2);
   });
 
   it('rebuilds when the nickname changes between opens', async () => {
     const { skHex, pubkeyHex } = makeIdentity();
     const signer = createPrivateKeySigner(skHex);
     const getSignEvent = vi.fn(async () => signer.signEvent);
+    const getActiveNonce = fixedNonceProvider();
 
-    const first = await getOwnShareCard({ pubkeyHex, nickname: 'Alice', signerMode: 'local', cache: null, getSignEvent });
+    const first = await getOwnShareCard({
+      pubkeyHex,
+      nickname: 'Alice',
+      signerMode: 'local',
+      cache: null,
+      getSignEvent,
+      getActiveNonce,
+    });
     const second = await getOwnShareCard({
       pubkeyHex,
       nickname: 'Alicia',
       signerMode: 'local',
       cache: first.cache,
       getSignEvent,
+      getActiveNonce,
     });
 
     expect(second.rebuilt).toBe(true);
@@ -336,6 +447,7 @@ describe('getOwnShareCard — cache-driven orchestration', () => {
     const localSigner = createPrivateKeySigner(skHex);
     const { fake: nip46Fake } = makeFakeNip46Signer(sk, pubkeyHex);
     const nip46Signer = createNip46EventSigner(nip46Fake);
+    const getActiveNonce = fixedNonceProvider();
 
     const first = await getOwnShareCard({
       pubkeyHex,
@@ -343,6 +455,7 @@ describe('getOwnShareCard — cache-driven orchestration', () => {
       signerMode: 'local',
       cache: null,
       getSignEvent: async () => localSigner.signEvent,
+      getActiveNonce,
     });
     const second = await getOwnShareCard({
       pubkeyHex,
@@ -350,6 +463,7 @@ describe('getOwnShareCard — cache-driven orchestration', () => {
       signerMode: 'nip46',
       cache: first.cache,
       getSignEvent: async () => nip46Signer.signEvent,
+      getActiveNonce,
     });
 
     expect(second.rebuilt).toBe(true);
@@ -412,5 +526,181 @@ describe('getOwnShareCard — cache-driven orchestration', () => {
     expect(parsedFirst.pubkeyHex).toBe(identityA.pubkeyHex);
     expect(parsedSecond.pubkeyHex).toBe(identityB.pubkeyHex);
     expect(parsedSecond.pubkeyHex).not.toBe(parsedFirst.pubkeyHex);
+  });
+});
+
+// ── buildOwnShareCardV2 — v2 pairing-card production (story S2) ────────────
+
+describe('buildOwnShareCardV2 — produces a v2 pairing card carrying nonce + expiry', () => {
+  it('round-trips pubkeyHex/name/nonce/expiresAt through parseContactCard, carrying a `pairing` field', async () => {
+    const { skHex, pubkeyHex } = makeIdentity();
+    const signer = createPrivateKeySigner(skHex);
+    const nonceHex = FIXED_NONCE_A;
+    const expiresAt = FIXED_CREATED_AT + NONCE_TTL_SEC;
+
+    const { shareUrl } = await buildOwnShareCardV2(
+      pubkeyHex,
+      { nickname: 'Dave', createdAt: FIXED_CREATED_AT },
+      nonceHex,
+      expiresAt,
+      signer.signEvent,
+    );
+
+    const parsed = parseContactCard(shareUrl);
+    expect('error' in parsed).toBe(false);
+    if ('error' in parsed) throw new Error('unreachable');
+    expect(parsed.pubkeyHex).toBe(pubkeyHex);
+    expect('profile' in parsed).toBe(true);
+    if ('profile' in parsed) expect(parsed.profile.nickname).toBe('Dave');
+    expect('pairing' in parsed).toBe(true);
+    if ('pairing' in parsed) {
+      expect(parsed.pairing.nonce).toBe(nonceHex);
+      expect(parsed.pairing.expiresAt).toBe(expiresAt);
+    }
+  });
+});
+
+// ── AC-NONCE-1/2/3/7 — real nonce-store wiring through getOwnShareCard ─────
+//
+// Unlike the orchestration tests above (which inject a deterministic
+// getActiveNonce stub to isolate the nickname/signerMode/pubkeyHex
+// dimensions), these tests deliberately do NOT override getActiveNonce —
+// they exercise the REAL default (`nonceStore.getOrMintActiveNonce`,
+// fake-indexeddb-backed) so the actual production wiring between
+// shareCard.ts and nonceStore.ts is proven, not just the pure comparator.
+
+describe('getOwnShareCard — real nonce-store wiring (no getActiveNonce override)', () => {
+  it('AC-NONCE-1: repeated calls within the same session return a card carrying the SAME nonce (no rotation on repeat display)', async () => {
+    const { skHex, pubkeyHex } = makeIdentity();
+    const signer = createPrivateKeySigner(skHex);
+    const now = () => FIXED_CREATED_AT;
+
+    const first = await getOwnShareCard({
+      pubkeyHex,
+      nickname: 'Erin',
+      signerMode: 'local',
+      cache: null,
+      getSignEvent: async () => signer.signEvent,
+      now,
+    });
+    expect(first.rebuilt).toBe(true);
+    const nonceAfterFirst = first.cache.key.nonceHex;
+
+    // A second call within the same session (no _resetActiveNonceForTests,
+    // no reload) with the cache already populated must reuse the cache
+    // entirely — same nonce, no re-sign.
+    const second = await getOwnShareCard({
+      pubkeyHex,
+      nickname: 'Erin',
+      signerMode: 'local',
+      cache: first.cache,
+      getSignEvent: async () => {
+        throw new Error('signer must not be re-resolved on a cache hit');
+      },
+      now,
+    });
+    expect(second.rebuilt).toBe(false);
+    expect(second.cache.key.nonceHex).toBe(nonceAfterFirst);
+
+    const parsedFirst = parseContactCard(first.shareUrl);
+    if ('error' in parsedFirst || !('pairing' in parsedFirst)) throw new Error('unreachable');
+    expect(parsedFirst.pairing.nonce).toBe(nonceAfterFirst);
+  });
+
+  it('AC-NONCE-2: a simulated page reload mints a fresh nonce; the previous card (built with the old nonce) is not reused, and the old nonce is still admissible', async () => {
+    const { skHex, pubkeyHex } = makeIdentity();
+    const signer = createPrivateKeySigner(skHex);
+
+    const beforeReload = await getOwnShareCard({
+      pubkeyHex,
+      nickname: 'Frank',
+      signerMode: 'local',
+      cache: null,
+      getSignEvent: async () => signer.signEvent,
+      now: () => FIXED_CREATED_AT,
+    });
+    const oldNonce = beforeReload.cache.key.nonceHex;
+
+    // Simulate reload: in-memory pointer resets, persisted store survives.
+    _resetActiveNonceForTests();
+
+    const afterReload = await getOwnShareCard({
+      pubkeyHex,
+      nickname: 'Frank',
+      signerMode: 'local',
+      // A real reload also loses the in-memory shareCardCacheRef (it lives
+      // in a React ref in profile.tsx) — starting from null models that.
+      cache: null,
+      getSignEvent: async () => signer.signEvent,
+      now: () => FIXED_CREATED_AT + 60,
+    });
+
+    expect(afterReload.cache.key.nonceHex).not.toBe(oldNonce);
+    expect(afterReload.shareUrl).not.toBe(beforeReload.shareUrl);
+
+    // The old nonce is read from REAL persisted storage and remains
+    // admissible (well within its own grace window).
+    const oldStored = await getStoredNonce(oldNonce);
+    expect(oldStored).not.toBeUndefined();
+  });
+
+  it('AC-NONCE-3: the active nonce expiring mid-session (no reload) causes the next getOwnShareCard call to mint a fresh nonce and rebuild', async () => {
+    const { skHex, pubkeyHex } = makeIdentity();
+    const signer = createPrivateKeySigner(skHex);
+
+    const first = await getOwnShareCard({
+      pubkeyHex,
+      nickname: 'Grace',
+      signerMode: 'local',
+      cache: null,
+      getSignEvent: async () => signer.signEvent,
+      now: () => FIXED_CREATED_AT,
+    });
+    const firstNonce = first.cache.key.nonceHex;
+
+    // No reset — same "session" — but the clock advances past the nonce's
+    // 30-minute expiry (NONCE_TTL_SEC), with the caller still holding the
+    // previous cache entry (mirrors a share-modal reopened much later).
+    const second = await getOwnShareCard({
+      pubkeyHex,
+      nickname: 'Grace',
+      signerMode: 'local',
+      cache: first.cache,
+      getSignEvent: async () => signer.signEvent,
+      now: () => FIXED_CREATED_AT + NONCE_TTL_SEC + 1,
+    });
+
+    expect(second.rebuilt).toBe(true);
+    expect(second.cache.key.nonceHex).not.toBe(firstNonce);
+  });
+
+  it('AC-NONCE-7: a nonce rotation (session expiry) with nickname/signerMode/pubkeyHex unchanged still rebuilds the QR-producing card', async () => {
+    const { skHex, pubkeyHex } = makeIdentity();
+    const signer = createPrivateKeySigner(skHex);
+    const signEventSpy = vi.fn(signer.signEvent);
+
+    const first = await getOwnShareCard({
+      pubkeyHex,
+      nickname: 'Heidi',
+      signerMode: 'local',
+      cache: null,
+      getSignEvent: async () => signEventSpy,
+      now: () => FIXED_CREATED_AT,
+    });
+    expect(signEventSpy).toHaveBeenCalledTimes(1);
+
+    const second = await getOwnShareCard({
+      pubkeyHex,
+      nickname: 'Heidi', // unchanged
+      signerMode: 'local', // unchanged
+      cache: first.cache,
+      getSignEvent: async () => signEventSpy,
+      now: () => FIXED_CREATED_AT + NONCE_TTL_SEC + 1, // past the active nonce's expiry
+    });
+
+    expect(second.rebuilt).toBe(true);
+    expect(signEventSpy).toHaveBeenCalledTimes(2);
+    expect(second.cache.key.nonceHex).not.toBe(first.cache.key.nonceHex);
+    expect(second.shareUrl).not.toBe(first.shareUrl);
   });
 });

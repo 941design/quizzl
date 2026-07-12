@@ -1,0 +1,71 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-11T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S5-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Are the new `de` i18n entries genuine German translations distinct from their `en` counterparts (not the English string copy-pasted into the `de` object as a placeholder, and not a machine-transliterated string that a German-reading reviewer would flag as nonsensical)? Is the admission-digest notification ('N people paired with your code') driven by a real count read from S3's admission state (not a hardcoded 'N' string or a frozen sample count left in from development)?"
+    },
+    {
+      "question_id": "VQ-S5-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Do all new strings live in `app/src/lib/i18n.ts`'s `Copy` type/objects and get consumed via `useCopy()` (per CLAUDE.md's translation rule — 'Never hardcode user-visible strings in components'), with zero hardcoded user-visible literal strings introduced in `NpubQrModal.tsx` or the add/contacts views by this story? Does this story avoid touching `app/src/lib/contactCard.ts`, `nonceStore.ts`, `pairingAck.ts`, or `pendingIntent.ts` (per its scope's explicit exclusion of the codec/nonce-store/ack-protocol/scanner-decision logic these strings describe)?"
+    },
+    {
+      "question_id": "VQ-S5-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `ui-i18n` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S5-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Is there test coverage confirming: (a) the 30-minute validity copy renders whenever `NpubQrModal.tsx`/the profile share affordance shows a share card, (b) the admission-digest notification renders as a single notification (not one toast per admission) once the admitted-sender count for the active nonce reaches 2, with a real count-crossing-threshold test rather than an always-true render check, and (c) the unknown-header-version import path renders the friendly 'update your app' copy rather than an unhandled error boundary or raw exception message, using a real malformed-header fixture parsed through the actual S1 decoder?"
+    },
+    {
+      "question_id": "VQ-S5-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the landed UI faithfully surface the behavior the other stories implement — the digest count sourced from S3's real admission state (not a separately-maintained UI-local counter that could drift from actual `knownPeers` admissions), and the unknown-version copy triggered specifically by AC-CODEC-4's strict-parser rejection path (not a generic catch-all error handler that also swallows unrelated import failures under the same friendly copy)?"
+    },
+    {
+      "question_id": "VQ-S5-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does every new UI string added by this epic follow the project's i18n conventions exactly — both `en` and `de` `Copy` type entries and object entries added together in the same change (per CLAUDE.md: 'When adding new UI text, add both en and de entries'), dynamic strings (e.g. the digest count) implemented as functions per the existing `(count: number) => string` pattern rather than string concatenation at the call site? Is MV-1's QR-density re-check performed against the actual larger v2 payload size (per AC-CODEC-6's +20-byte delta), not against an estimated or rounded size?"
+    },
+    {
+      "question_id": "VQ-S5-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UI-1",
+      "question": "Does the share modal (`NpubQrModal.tsx` / the profile share affordance) display copy communicating the code's ~30-minute validity window whenever a share card is shown? Provide (a) the render condition (confirm it is not conditional on some unrelated flag that could suppress it), (b) a test rendering the modal with a share card present and asserting the validity copy is in the rendered output via the real `useCopy()` key, and (c) confirmation the copy is not a mock-spy proxy asserting the i18n function was called without checking the actual rendered text."
+    },
+    {
+      "question_id": "VQ-S5-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UI-2",
+      "question": "When 2 or more distinct senders are admitted for the currently-active nonce, does the issuer's UI show a single digest notification (e.g. 'N people paired with your code') rather than one toast per admission? Provide (a) the count-threshold logic and toast-suppression code, (b) a test that admits 2 then 3 distinct senders and asserts exactly one digest notification is shown (with the count reflecting 3, not a stale 2) and no per-admission toast fired for admissions 2 and 3, and (c) confirmation the 1-admission case still shows its existing single-admission UI (no regression to the below-threshold path)."
+    },
+    {
+      "question_id": "VQ-S5-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UI-3",
+      "question": "Does importing a card whose header version byte the current codec does not recognize (neither `00` nor `01`) show friendly 'update your app' copy rather than a raw error/exception surface? Provide (a) the catch/handling code path wired to AC-CODEC-4's strict-parser rejection, (b) a test importing a real fixture with an unrecognized header version and asserting the friendly copy renders (not a thrown exception reaching the console/error boundary), and (c) confirmation this is scoped to the unknown-version case specifically, not a blanket catch-all that would also mask genuinely malformed/corrupt input under the same reassuring message."
+    },
+    {
+      "question_id": "VQ-S5-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INTL-1",
+      "question": "Does every new user-facing string introduced by this epic — the 30-minute affordance, the scanner honesty copy (AC-SCAN-4's text), the admission digest, the unknown-version copy, and the name-setup redirect prompt — have both an `en` and a `de` entry in `i18n.ts`'s `Copy` type and in both the `en` and `de` `Copy` objects? Provide (a) a diff or listing of every new `Copy` key added by this epic (across S4's wired keys and S5's authored keys) cross-checked against both language objects, and (b) confirmation of zero keys present in only one language object (a TypeScript type-completeness check, e.g. both objects satisfying the same `Copy` interface, is acceptable evidence if it would fail to compile on a missing key)."
+    }
+  ]
+}

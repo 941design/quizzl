@@ -1,0 +1,20 @@
+{
+  "captured_at": "2026-07-12T01:35:19Z",
+  "command": "make test-unit",
+  "status": "PRE_EXISTING_FAILURES_UNRELATED_TO_STORY",
+  "test_files": { "passed": 141, "failed": 2, "total": 143 },
+  "tests": { "passed": 2563, "failed": 25, "total": 2588 },
+  "pre_existing_failures": {
+    "files": [
+      "app/tests/unit/components/ThemeIcon.test.ts",
+      "app/tests/unit/themes/treatments.test.ts"
+    ],
+    "reason": "Same icon-set naming mismatch already recorded as pre-existing in S3's baseline.json (specs/epic-contact-pairing-code/S3-pairing-ack-protocol/baseline.json) — an unrelated theme refactor, zero overlap with this epic's files.",
+    "verified_pre_existing": true,
+    "decision": "Recorded, not blocking — identical debt already tolerated across S1/S2/S3 of this epic through this same baseline."
+  },
+  "lint": "NO_LINT",
+  "lint_detail": "next lint has no committed ESLint config in app/ (no .eslintrc*); running it interactively prompts for first-time setup. No usable lint gate exists for this project (confirmed again this story — attempted `npx next lint`, hit the same interactive prompt, killed it).",
+  "typecheck": "clean",
+  "typecheck_detail": "npx tsc --noEmit -p app/tsconfig.json exits 0 with zero diagnostics."
+}

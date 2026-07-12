@@ -1,0 +1,102 @@
+{
+  "module_name": "nonceStore+shareCard",
+  "purpose": "Issuer-side pairing-nonce lifecycle (RD-2): mint-or-reuse a single active nonce, persist every issued nonce (idb-keyval few-pairing-nonces) keyed by value with its expiresAt, retain each through a 2h grace window, and expose a pure read-only admissibility predicate S3's ack handler will consume. Wires that active-nonce selection into shareCard.ts's getOwnShareCard so the issuer's share card becomes a v2 pairing card (encodeCardV2), and extends the share-card cache key with the active nonce as a 4th invalidating dimension.",
+  "public_api": [
+    {
+      "name": "StoredNonce",
+      "signature": "export type StoredNonce = { nonce: string; expiresAt: number }",
+      "description": "Persisted shape: 32-hex-char nonce value + its unix-seconds expiresAt."
+    },
+    {
+      "name": "NONCE_TTL_SEC",
+      "signature": "export const NONCE_TTL_SEC = 1800",
+      "description": "30-minute active-nonce validity window (RD-2)."
+    },
+    {
+      "name": "NONCE_GRACE_SEC",
+      "signature": "export const NONCE_GRACE_SEC = 7200",
+      "description": "2-hour post-expiry grace window during which a nonce still admits an echo (AC-NONCE-4/5)."
+    },
+    {
+      "name": "getOrMintActiveNonce",
+      "signature": "export async function getOrMintActiveNonce(nowSec?: number): Promise<StoredNonce>",
+      "description": "Returns the current session's active nonce, reusing the in-memory pointer while unexpired (AC-NONCE-1), minting+persisting a fresh one on first call after a reload (module-scope reset) or once the prior active nonce has expired (AC-NONCE-2/3). Triggers pruneExpiredNonces as part of every mint (AC-NONCE-6, mint-time trigger)."
+    },
+    {
+      "name": "isNonceAdmissible",
+      "signature": "export async function isNonceAdmissible(nonceHex: string, nowSec: number): Promise<boolean>",
+      "description": "The NonceAdmissibility seam S3 consumes. True iff nonceHex is present in the store and nowSec <= storedExpiresAt + NONCE_GRACE_SEC (AC-NONCE-5). Read-only: never mutates or prunes. Defensive: malformed/never-issued nonceHex returns false, never throws."
+    },
+    {
+      "name": "getStoredNonce",
+      "signature": "export async function getStoredNonce(nonceHex: string): Promise<StoredNonce | undefined>",
+      "description": "Raw store read (bypassing admissibility math) — used by tests to assert persistence/pruning directly against store contents (AC-NONCE-4/6)."
+    },
+    {
+      "name": "pruneExpiredNonces",
+      "signature": "export async function pruneExpiredNonces(nowSec?: number): Promise<void>",
+      "description": "Deletes every stored nonce whose expiresAt + NONCE_GRACE_SEC has passed. Called internally by getOrMintActiveNonce's mint path; also exported standalone so S3's ack-processing pass (out of this story's scope) can trigger the second AC-NONCE-6 prune moment."
+    },
+    {
+      "name": "clearAllNonces",
+      "signature": "export async function clearAllNonces(): Promise<void>",
+      "description": "Test/dev-reset helper — clears the idb-keyval store and the in-memory active-nonce pointer. Mirrors profileRequestStorage.ts's clearProfileRequestMemos('*')."
+    },
+    {
+      "name": "_resetActiveNonceForTests",
+      "signature": "export function _resetActiveNonceForTests(): void",
+      "description": "Clears only the in-memory active-nonce pointer (not the store), simulating a page reload for tests. Mirrors ndkClient.ts's _resetNdkSingleton precedent."
+    },
+    {
+      "name": "ShareCardCacheKey (extended)",
+      "signature": "export type ShareCardCacheKey = { nickname: string; signerMode: SignerMode; pubkeyHex: string; nonceHex: string }",
+      "description": "Adds nonceHex as a 4th cache-invalidating dimension (AC-NONCE-7) to the existing S6 type."
+    },
+    {
+      "name": "buildOwnShareCardV2",
+      "signature": "export async function buildOwnShareCardV2(pubkeyHex: string, profile: { nickname: string; createdAt: number }, nonceHex: string, expiresAt: number, signEvent: EventSigner['signEvent']): Promise<{ shareUrl: string; cardB64Url: string }>",
+      "description": "v2 analogue of the existing buildOwnShareCard (which stays v1, untouched, still exported/tested): calls contactCard's encodeCardV2 + buildShareUrl."
+    },
+    {
+      "name": "getOwnShareCard (extended)",
+      "signature": "export async function getOwnShareCard(params: GetOwnShareCardParams): Promise<GetOwnShareCardResult>",
+      "description": "Unchanged call shape for existing callers (profile.tsx) — gains two new OPTIONAL params (now, getActiveNonce) with production defaults (Date.now()/1000, nonceStore.getOrMintActiveNonce), so profile.tsx needs no edits. Now resolves the active nonce every call (cheap in-memory read on a cache hit), builds the cache key's 4th dimension from it, and — on a MISS — signs a v2 card via buildOwnShareCardV2 instead of v1's buildOwnShareCard."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/pairing/nonceStore.ts"
+  ],
+  "owned_data": [
+    "idb-keyval store 'few-pairing-nonces' (issuer's issued-nonce set)",
+    "in-memory active-nonce pointer (module-scope in nonceStore.ts, reset on reload)"
+  ],
+  "dependencies_allowed": [
+    "idb-keyval (createStore, get, set, del, entries, clear) — few-* naming, architecture.md boundary rule 7",
+    "@/src/lib/contactCard (encodeCardV2, buildShareUrl, EncodedCardV2) — the EncodedCardV2 seam from S1",
+    "@/src/lib/pairing/nonceStore (getOrMintActiveNonce) — shareCard.ts importing its sibling-in-this-story nonce module; architecture.md's module-map explicitly consolidates 'issuer nonce store' + 'share lifecycle' as one cohesive concern for this story",
+    "@/src/context/NostrIdentityContext (SignerMode type) — already used by S6's shareCard.ts",
+    "applesauce-core (EventSigner type) — already used by S6's shareCard.ts",
+    "Web Crypto (crypto.getRandomValues) — nonce minting, mirrors architecture.md's constraint"
+  ],
+  "dependencies_forbidden": [
+    "React (any import from 'react' or a component file) — nonceStore.ts stays a stateful-but-React-free adapter, matching architecture.md boundary rule 1",
+    "app/src/lib/pairing/pairingAck.ts (S3, does not exist yet)",
+    "app/src/lib/pairing/pendingIntent.ts (S4, does not exist yet)",
+    "directMessages.ts / any gift-wrap transport (that seam belongs to S3, not this story)",
+    "isNonceAdmissible consumption by any ack-handling logic (S3's job; this story only defines and exports it)"
+  ],
+  "external_ports": [
+    "idb-keyval IndexedDB store 'few-pairing-nonces'"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/pairing/nonceStore.integration.test.ts",
+    "app/tests/unit/cards/shareCard.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S3"],
+    "note": "isNonceAdmissible is the NonceAdmissibility seam (stories.json) — frozen by this story, consumed as-is by S3's pairingAck.ts#handlePairingAck. The EncodedCardV2 seam this story consumes (from S1) is fully realized inside getOwnShareCard/buildOwnShareCardV2; no further seam originates from the shareCard.ts side for later stories."
+  }
+}

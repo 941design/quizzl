@@ -1,0 +1,83 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "pairingAck"
+  ],
+  "files_created": [
+    "app/src/lib/pairing/pairingAck.ts",
+    "app/tests/unit/pairing/pairingAck.test.ts",
+    "specs/epic-contact-pairing-code/S3-pairing-ack-protocol/architecture.json",
+    "specs/epic-contact-pairing-code/S3-pairing-ack-protocol/baseline.json",
+    "specs/epic-contact-pairing-code/S3-pairing-ack-protocol/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/welcomeSubscription.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/tests/unit/marmot/welcomeSubscription.test.ts",
+    "app/tests/unit/directMessageNotifications.test.ts",
+    "specs/epic-contact-pairing-code/S3-pairing-ack-protocol/verification.json"
+  ],
+  "implementation_summary": {
+    "pairingAck_ts": "New app/src/lib/pairing/pairingAck.ts. PAIRING_ACK_KIND=21060, grep-confirmed (2026-07-12) to collide with none of 444/21059/5/7/14/9/20602 (AC-SEC-3); a module-load-time assertion also fails loudly if ever edited into collision. sendPairingAck(params) builds an identity-only card via contactCard.ts#encodeCard (never encodeCardV2, so the enclosed card structurally cannot carry a pairing/nonce field, AC-ACK-1), builds the RD-6 rumor via nostr-tools/nip59#createRumor, seals+gift-wraps via directMessages.ts#sealAndWrap, and publishes via NDKEvent \u2014 malformed issuerPubkeyHex/echoedNonceHex throw (caller bugs); any other failure (signer, network, relay) is caught and reported 'queued-for-retry', never thrown. handlePairingAck(giftWrapEvent, ownPrivateKeyHex, opts) is the 9-step security-critical core: unwrap via directMessages.ts#unwrapAndOpen ONLY (never welcomeSubscription.ts's weak unwrapGiftWrap, AC-SEC-2) -> kind gate -> content shape validation -> unconditional pruneExpiredNonces sweep (AC-NONCE-6) -> isNonceAdmissible called verbatim (AC-ADMIT-2, never re-derives grace math) -> decodeCard verify -> sender-binding (decoded.pubkeyHex vs the AUTHENTICATED rumor.pubkey returned by unwrapAndOpen, never the raw gift-wrap event's outer pubkey, AC-SEC-1) -> idempotency check against a module-scope Map -> admit via rememberKnownPeers([sender]) strictly BEFORE rememberContact(sender) (ADR-005, AC-ADMIT-1), with isAllowedDmSender never imported (AC-ADMIT-4). Never throws; never constructs/sends a further ack (AC-ACK-2). getPairingAckAdmissions()/_resetPairingAckAdmissionsForTests() expose the same Map as both the AC-ACK-3 idempotency source and the admission-digest read surface S5 will consume (S3 renders no UI).",
+    "welcomeSubscription_wiring": "subscribeToWelcomes gained two optional trailing params (ownPrivateKeyHex, onPairingAckReceived) \u2014 fully backward compatible, existing 5-arg call sites unaffected. Inside the event handler, a new try/catch block attempts handlePairingAck before the existing (weak) unwrapGiftWrap path; 'unwrap-failed'/'wrong-kind' fall through unchanged (might still be a real Welcome/join-request), every other outcome marks the event id seen and returns early (never reaches the Welcome/join-request dispatch), firing onPairingAckReceived for admitted/already-admitted.",
+    "marmotContext_wiring": "startWelcomeSubscription threads the same two new params through to subscribeToWelcomes. The init() call site passes privateKeyHex ?? undefined and a callback that only logs ('[Marmot] Pairing-ack admitted from: ...') \u2014 no new React state/UI, deliberately deferring the admission-digest UI to S5.",
+    "kind_isolation_AC_SEC_4": "ContactChat.tsx and directMessageNotifications.ts were NOT modified \u2014 both already fail-closed on an unrecognized rumor.kind (directMessageNotifications.ts's kind1059Handler returns early when rumor.kind !== CHAT_MESSAGE_KIND). A new proof test in directMessageNotifications.test.ts exercises this existing guard with a genuine PAIRING_ACK_KIND rumor and asserts no rememberContact/incrementDirectMessage call."
+  },
+  "tests": {
+    "baseline": {
+      "files_passed": 140,
+      "files_failed": 2,
+      "tests_passed": 2539,
+      "tests_failed": 25,
+      "tests_total": 2564
+    },
+    "final": {
+      "files_passed": 141,
+      "files_failed": 2,
+      "tests_passed": 2563,
+      "tests_failed": 25,
+      "tests_total": 2588
+    },
+    "delta": "+24 passing tests (21 pairingAck.test.ts + 2 welcomeSubscription.test.ts + 1 directMessageNotifications.test.ts). The 25 failing tests are unchanged and pre-existing (app/tests/unit/components/ThemeIcon.test.ts + app/tests/unit/themes/treatments.test.ts, an unrelated icon-set-naming mismatch from a prior theme refactor, commit 8fae18e \u2014 see baseline.json). Zero regressions.",
+    "typecheck": "npx tsc --noEmit -p app/tsconfig.json \u2014 clean, 0 errors, both before and after.",
+    "lint": "NO_LINT \u2014 no ESLint config committed in app/."
+  },
+  "mocks_introduced": [],
+  "ac_coverage": {
+    "AC-ACK-1": "pairingAck.test.ts \u2014 sendPairingAck rumor shape, decoded via the real codec (not hand-constructed)",
+    "AC-ACK-2": "pairingAck.test.ts \u2014 sealAndWrap spy asserts zero calls from handlePairingAck",
+    "AC-ACK-3": "pairingAck.test.ts \u2014 replay idempotency, digest-map-backed",
+    "AC-ADMIT-1": "pairingAck.test.ts \u2014 ordered call-array asserts rememberKnownPeers before rememberContact",
+    "AC-ADMIT-2": "pairingAck.test.ts \u2014 unknown nonce + past-grace nonce, both against real isNonceAdmissible",
+    "AC-ADMIT-3": "pairingAck.test.ts \u2014 two distinct senders, same nonce, both admitted, nonce not consumed",
+    "AC-ADMIT-4": "pairingAck.ts never imports isAllowedDmSender; architecture.json dependencies_forbidden records this",
+    "AC-ADMIT-5": "pairingAck.test.ts \u2014 real isAllowedDmSender flips false->true post-admission",
+    "AC-SEC-1": "pairingAck.test.ts \u2014 harvested-card forgery fixture (real, independently-generated attacker key)",
+    "AC-SEC-2": "pairingAck.test.ts \u2014 tautology-check negative test; architecture.json boundary_compliance",
+    "AC-SEC-3": "pairingAck.test.ts + module-load-time assertion in pairingAck.ts itself",
+    "AC-SEC-4": "directMessageNotifications.test.ts new proof test; ContactChat.tsx/directMessageNotifications.ts confirmed unmodified",
+    "AC-PRIV-1": "pairingAck.test.ts \u2014 kind-0 spy + handlePairingAck's structural inability to publish (no ndk param)",
+    "AC-NONCE-6 (2nd trigger)": "pairingAck.test.ts \u2014 unrelated stale nonce swept during ack processing"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "None of the friction was in the spec \u2014 architecture.md, exploration.json, and the S2 ownership-ledger watches were unusually complete and precise (down to exact line numbers for the sender-binding primitive and the HAZARD note about welcomeSubscription's weak unwrap). The only real work was synthesizing that already-excellent research into a single coherent module design and a from-scratch attack-fixture test suite (real, independently-keyed attacker identities rather than mocked pubkey comparisons) for the sender-binding negative case, since no prior story in this epic had a security-adversarial test of this shape to pattern-match against.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "spawn_index": 1,
+        "note": "handlePairingAck's outer defense-in-depth catch-all (the 'never throws' contract) needed a fallback HandlePairingAckResult status not spelled out in the stub JSDoc; dev chose 'malformed-content' since it never risks admission and is the most plausible cause of a post-unwrap exception. Recorded as VQ-S3-023/024-adjacent follow-up territory for a future audit pass, not acted on further here since it doesn't affect any AC."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T01:25:00Z",
+  "review_remediation": "Parallel Opus+Codex review. Opus: sender-binding/walled-garden/kind-isolation/privacy all sound, no circumvention; 2 non-security findings fixed (loud empty-name guard in sendPairingAck; malformed 'unknown nonce' test assertion). Codex caught a cross-cutting regression Opus missed: v1->v2 share switch broke NIP-46 bunker signing (REQUIRED_PERMS lacked sign_event:20602) \u2014 fixed in NostrIdentityContext.tsx. NIP-46 perm list has no unit coverage (React module, no-jsdom) \u2014 documented gap in ledger watches. Examiner 24/24 YES."
+}

@@ -1,0 +1,111 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-11T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is `isNonceAdmissible(nonce, nowSec)` a real predicate that reads the actual persisted nonce store (not a hardcoded `return true`/`return false`, and not a stub that ignores `nowSec` and always compares against `Date.now()` internally, which would make it untestable with injected clock values)? Does the mint-or-reuse logic in `nonceStore.ts`/`shareCard.ts` actually persist to idb-keyval `few-pairing-nonces` (not an in-memory-only Map that silently loses state on reload, which would make AC-NONCE-2's 'previously-active nonce MUST remain retrievable' impossible to satisfy)?"
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `app/src/lib/pairing/nonceStore.ts` follow architecture.md's boundary rule 1 (`pairing/*` modules may import the codec and `directMessages` transport but not React) and boundary rule 7 (new idb-keyval stores use the `few-*` naming convention, not frozen `lp_*`) — i.e. is the store literally keyed under `few-pairing-nonces`, and does the module import no React/component code? Is the mint/reuse/grace/prune logic contained entirely within `nonceStore.ts` (not duplicated or reimplemented inline in `shareCard.ts`)?"
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `nonceStore+shareCard` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Is there a `fake-indexeddb/auto` unit/integration test (mirroring `app/tests/unit/profileRequestStorage.integration.test.ts`'s pattern) that exercises real idb-keyval persistence for `nonceStore.ts` across all of AC-NONCE-1 through AC-NONCE-7 — including boundary-exact grace-window math (at, one-second-before, and one-second-after `expiresAt + 7200`) — rather than asserting only against an in-memory mock of the store? Does `app/tests/unit/cards/shareCard.test.ts` cover the extended `ShareCardCacheKey`'s 4th dimension with a real cache-key equality/inequality comparison (not a snapshot of the whole card object)?"
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the landed nonce lifecycle actually implement RD-2's 'single rolling active nonce' behavior described in the spec and architecture.md — reuse while live and unexpired, mint fresh on reload or expiry, never burn on use — with no code path that mints a new nonce on every `getOwnShareCard` call (which would silently break multi-use pairing) or that never re-mints after expiry (which would silently break AC-NONCE-3)?"
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is `isNonceAdmissible` — the sole read surface an attacker-influenced echoed nonce (arbitrary hex string from a received pairing-ack) is validated against — defensive against malformed input (non-hex string, wrong length, nonce never issued by this device) by returning `false` rather than throwing or returning `undefined`/truthy-by-coercion? Does the predicate never mutate or prune the store as a side effect of being called with attacker-supplied input (per the seam's read-only invariant), which would make it exploitable as a nonce-eviction oracle?"
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NONCE-5",
+      "question": "Does the `NonceAdmissibility` seam contract's exact shape hold in the landed `isNonceAdmissible` export — inputs `nonceHex: string (32 hex chars)` and `nowSec: number (unix seconds)`, output `admissible: boolean` — and does `admissible` evaluate to true if and only if `nowSec <= storedExpiresAt + 7200` (exactly 2h grace, not a rounded or approximate window) for a nonce present in the store, and false both for a nonce past that boundary and for a nonce never present in the store? Provide the exact comparison expression and a boundary test at `storedExpiresAt + 7200` and `storedExpiresAt + 7201`."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NONCE-1",
+      "question": "While the issuer's session remains live and the active nonce is unexpired, do repeated calls to `getOwnShareCard` return a card carrying the same `nonceHex` value (no rotation on repeat display)? Provide (a) the reuse-check code path, (b) a test calling `getOwnShareCard` twice within the validity window and asserting nonce equality, and (c) confirmation the test does not mock `getOwnShareCard`'s internals in a way that would trivially pass regardless of correctness."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NONCE-2",
+      "question": "Does a simulated page reload mint a fresh active nonce with a new `expires_at` (`now + 30min`), while the previously-active nonce remains retrievable from the nonce store and continues to admit echoes until its own `expiresAt + 2h` grace elapses? Provide (a) the reload-detection/re-mint code path, (b) a test simulating reload (fresh module state, persisted store intact) that asserts both the new nonce's freshness and the old nonce's continued admissibility via `isNonceAdmissible`, and (c) confirmation the old nonce is read from real persisted storage, not carried over in JS memory."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NONCE-3",
+      "question": "When the active nonce expires while the session remains live (no reload), does the next call to `getOwnShareCard` mint a new active nonce with a fresh 30-minute `expires_at`? Provide (a) the expiry-check-then-remint code path inside `getOwnShareCard` (not only on reload), (b) a test that advances a real/injected clock past the current nonce's `expires_at` without reloading and then calls `getOwnShareCard`, asserting a new nonce value and a fresh `expires_at`, and (c) confirmation the clock is genuinely advanced (fake timers or injected `now`), not asserted against a hardcoded future value."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NONCE-4",
+      "question": "Does the nonce store persist each issued nonce keyed by its value together with its `expiresAt`, remaining queryable from the store for at least `expiresAt + 2h`? Provide (a) the idb-keyval read/write schema for `few-pairing-nonces`, (b) a test that mints a nonce, advances time to just before `expiresAt + 2h`, and confirms the store still returns the entry (via a store-read function, not only via `isNonceAdmissible`), and (c) confirmation this uses real idb-keyval (fake-indexeddb), not a JS object stand-in with no persistence semantics."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NONCE-6",
+      "question": "Is a nonce past its `expiresAt + 2h` grace removed from the nonce store no later than the next call that issues a new nonce or the next ack-processing pass, whichever occurs first? Provide (a) the prune-trigger code path(s) — confirm there are at least two distinct call sites (mint-time and ack-processing-time) — (b) a test that ages a nonce past grace, triggers a mint, and asserts the stale entry is gone from the store's raw contents (not merely that `isNonceAdmissible` returns false for it), and (c) a separate test proving pruning also occurs via the ack-processing trigger, not only the mint trigger."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NONCE-7",
+      "question": "Does `shareCard.ts`'s `ShareCardCacheKey` comparator treat a changed active nonce as a cache-invalidating 4th dimension, such that a nonce rotation with `nickname`/`signerMode`/`pubkeyHex` unchanged still causes the QR-producing card to be rebuilt? Provide (a) the cache-key type/comparator diff showing the added dimension, (b) a test that holds the first three dimensions constant, rotates only the active nonce, and asserts the cache key changes and the card is rebuilt (not served from stale cache), and (c) confirmation the test also asserts the inverse — no rebuild when all four dimensions are unchanged — so the change isn't merely 'always rebuild'."
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The landed design makes `getOwnShareCard`'s `getActiveNonce` and `now` params OPTIONAL (defaulting to the real `nonceStore.getOrMintActiveNonce`/`Date.now()`), rather than required-injected like `getSignEvent`. This was a deliberate choice so the existing single caller (`app/pages/profile.tsx`) needs zero edits despite `getOwnShareCard` now always producing a v2 pairing card. Does this actually hold — i.e. does `profile.tsx`'s existing call site (no `now`/`getActiveNonce` args) compile and behave correctly against the new signature, and does the test suite exercise BOTH the injected-stub path (`fixedNonceProvider`, most `getOwnShareCard` tests) AND the real-default path (the dedicated 'real nonce-store wiring' describe block) rather than only ever testing the stub?"
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The module-scope `activeNonce` singleton in `nonceStore.ts` is shared across every test case within a single test FILE (vitest does not reload modules between `it()` blocks in the same file by default). Both `nonceStore.integration.test.ts` and `shareCard.test.ts` rely on a `beforeEach` calling `clearAllNonces()` + `_resetActiveNonceForTests()` for isolation. Is this isolation actually sufficient — i.e. does every test in both files that depends on a specific nonce value or mint/reuse outcome start from a clean slate, with no test order-dependence (would the suite still pass if test order within either file were shuffled)? Was vitest's actual `isolate`/`pool` configuration (app/vitest.config.ts) confirmed to give each test FILE its own fresh module registry (ruling out CROSS-FILE singleton leakage), as opposed to merely asserting it from reading the config?"
+    },
+    {
+      "question_id": "VQ-S2-016",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NONCE-6",
+      "question": "`pruneExpiredNonces`'s deletion condition (`nowSec > stored.expiresAt + NONCE_GRACE_SEC`, strict) and `isNonceAdmissible`'s admission condition (`nowSec <= stored.expiresAt + NONCE_GRACE_SEC`, inclusive) are complementary by construction. Is there a dedicated test that pins `pruneExpiredNonces`'s own boundary (called AT exactly `expiresAt + NONCE_GRACE_SEC` vs one second later), independent of `isNonceAdmissible`'s boundary tests — i.e. would a hypothetical `>=` typo in `pruneExpiredNonces` (deleting an entry at the exact boundary that should still read as admissible) have been caught by the test suite as it stands?"
+    }
+  ]
+}
