@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-11T21:02:36Z",
+  "updated_at": "2026-07-12T07:51:35Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -159,8 +159,8 @@
     },
     {
       "path": "specs/epic-contact-pairing-code/",
-      "status": "IN_PROGRESS",
-      "next_action": "created 2026-07-11"
+      "status": "DONE",
+      "next_action": "completed 2026-07-12"
     }
   ],
   "findings": [
