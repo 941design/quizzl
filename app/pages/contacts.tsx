@@ -332,9 +332,6 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
             <Heading as="h1" size="xl">
               {displayName}
             </Heading>
-            <Text mt={1} color="textMuted" fontSize="sm">
-              {truncateNpub(pubkeyToNpub(contact.pubkeyHex))}
-            </Text>
           </Box>
           <HStack spacing={2}>
             {/* Voice/video call icons — rendered only while the call feature
