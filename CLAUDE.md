@@ -34,6 +34,19 @@ E2E tests (Playwright, under `app/tests/e2e/`) must drive publishes through the 
 - Do not hand-sign a kind-1059 / kind-14 / kind-4 in the test process and `WebSocket.send` it to the relay. Such a test passes even when the app's signer, NDK config, retry/dedupe, or future protocol changes are broken — which defeats the point of an e2e test.
 - Narrow exception: events the app cannot itself produce (e.g., a bare-plaintext kind-4 from a non-Few client). Treat as exceptional, prefer a fixture loader over inline WebSocket, and call it out in the spec header.
 
+### E2E gate (do not ship on a subset)
+
+The suite is physically split into two buckets by infrastructure need, **not** by importance:
+the **non-relay** bucket (12 tests: profile, avatar, theming, settings, emoji, notifications, info page, imprint) runs on
+`next dev` alone, and the **groups/relay** bucket (44 tests: `groups-*`, `dm-*`, including the
+contact-pairing-code epic's 6 `dm-pairing-*.spec.ts` specs) needs Docker
+(strfry relay + blossom mock) and a differently-configured server. There is no CI — the Makefile is
+the only gate.
+
+- **The definitive e2e gate is the full 56-test suite: `make test-e2e-all` (or `make test`, which adds unit tests).** A feature or bug is not e2e-verified until that passes end to end.
+- `make test-e2e-fast`, `make test-e2e-groups`, `make test-e2e-image-sharing`, and any filtered `node scripts/run-e2e.mjs <pattern>` run a **subset**. They are dev-iteration aids. A green subset is **never** an e2e pass — `test-e2e-fast` prints a partial-run warning when run standalone for this reason.
+- When the `/feature` or `/bug` workflow reaches its e2e step, the pass criterion is the full suite, not the tests that happen to touch the changed files.
+
 ## Project state
 Project orientation lives in `BACKLOG.json`. On a fresh session — or when
 resuming work after idle time — run `/base:orient` to get a 3-line
