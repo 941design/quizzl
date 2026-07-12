@@ -77,6 +77,51 @@ export async function readIdbRecord<T = unknown>(
 }
 
 /**
+ * Seed a DUE-NOW entry directly into the `few-dm-profile-schedule` idb-keyval
+ * store (`app/src/lib/dmProfile/scheduler.ts`'s `few-dm-profile-schedule`/
+ * `schedules` store) so a relay-bucket e2e spec can drive the direct-contact
+ * profile self-heal loop (AC-PROF-7) without waiting out the real 1h+ backoff
+ * floor.
+ *
+ * Mirrors `helpers/pairing.ts#seedPendingIntent`: this tampers LOCAL state
+ * only (the app's own real `ProfileHealWatcher` mount-triggered due-sweep
+ * then reads this record and, if due, genuinely constructs, signs, and
+ * gift-wrap-publishes a real `profile-request` via `send.ts#sendProfileRequest`
+ * — no event is ever forged or hand-published here).
+ *
+ * Epic: direct-contact-profile-exchange, story S08 (AC-E2E-1, FIXTURE-08-001).
+ *
+ * Deliberately test-only: this is a Playwright helper, not a
+ * `NEXT_PUBLIC_*` build-time override — spec.md's "Resolved Decisions"
+ * rejects a build-time backoff-floor constant as a test-only timing knob
+ * that could leak into the production bundle. Accepts exactly the four
+ * fields AC-E2E-1 specifies; the two additional `ProfileSchedule` fields
+ * (`firstAttemptAt`, `lastResetAt`) are filled with schedule-store-shape-
+ * compatible defaults recent enough to sit well inside the 30-day give-up
+ * ceiling and to never trip the once-per-24h reset rate limit.
+ */
+export async function seedDueProfileSchedule(
+  page: Page,
+  schedule: {
+    pubkeyHex: string;
+    nextAttemptAt: number;
+    attempts: number;
+    state: 'active' | 'answered-incomplete' | 'given-up';
+  },
+): Promise<void> {
+  const key = schedule.pubkeyHex.toLowerCase();
+  const nowSec = Math.floor(Date.now() / 1000);
+  await writeIdbRecord(page, 'few-dm-profile-schedule', 'schedules', key, {
+    pubkeyHex: key,
+    attempts: schedule.attempts,
+    nextAttemptAt: schedule.nextAttemptAt,
+    state: schedule.state,
+    firstAttemptAt: nowSec,
+    lastResetAt: null,
+  });
+}
+
+/**
  * Write a single record to a named IndexedDB store.
  */
 export async function writeIdbRecord(

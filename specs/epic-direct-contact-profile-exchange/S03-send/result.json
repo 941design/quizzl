@@ -1,0 +1,69 @@
+{
+  "story_id": "S03",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T15:32:10Z",
+  "files_created": [
+    "app/src/lib/dmProfile/send.ts",
+    "app/tests/unit/dmProfile/send.test.ts",
+    "specs/epic-direct-contact-profile-exchange/S03-send/architecture.json",
+    "specs/epic-direct-contact-profile-exchange/S03-send/baseline.json",
+    "specs/epic-direct-contact-profile-exchange/S03-send/result.json"
+  ],
+  "files_modified": [
+    "specs/epic-direct-contact-profile-exchange/S03-send/verification.json",
+    "specs/epic-direct-contact-profile-exchange/S03-send/architecture.json",
+    "app/src/lib/dmProfile/send.ts",
+    "app/tests/unit/dmProfile/send.test.ts"
+  ],
+  "tests_added": {
+    "unit": 24
+  },
+  "test_counts": {
+    "baseline": 2869,
+    "final": 2893
+  },
+  "mocks": [
+    "NDKEvent.prototype.publish mocked at the relay-publish boundary only (never the crypto path). sealAndWrap/unwrapAndOpen/encodeProfileRequest/encodeProfileAnnounce/parseProfileRequest/parseProfileAnnounce/ensureAvatar/hasShareableName all exercised for real."
+  ],
+  "remediation_rounds": 2,
+  "architect_skipped": false,
+  "modules_touched": [
+    "send"
+  ],
+  "implementation_summary": "New app/src/lib/dmProfile/send.ts exports sendProfileRequest and sendProfileAnnounce, mirroring pairing/pairingAck.ts#sendPairingAck's shape exactly: createRumor (nostr-tools/nip59) + sealAndWrap (directMessages.ts) + new NDKEvent(ndk, wrap).publish(), catching any publish failure and reporting 'queued-for-retry' rather than throwing; a malformed recipientPubkeyHex/keys.ownPubkeyHex/keys.ownPrivateKeyHex throws synchronously before the try (caller bug). NDK and keys ({ownPubkeyHex, ownPrivateKeyHex}) are always explicit params, never a singleton. sendProfileRequest has no localProfile parameter at all (AC-PROF-12 request half \u2014 structurally zero local-name precondition) and optionally passes `since` through to kinds.ts#encodeProfileRequest. sendProfileAnnounce validates all three hex fields, defensively lowercases recipientPubkeyHex, then gates on hasShareableName(localProfile.nickname) BEFORE any I/O (returns 'deferred-nameless' with zero calls to ensureAvatar/encodeProfileAnnounce/sealAndWrap when nameless \u2014 AC-PROF-12), then runs ensureAvatar on the local profile (AC-PROF-2, so the announce can never carry avatar:null), then encodeProfileAnnounce (kinds.ts, story 01's codec seam \u2014 stamps updatedAt at THIS call, answer-time, never re-derived or overridden here), then sealAndWrap + publish addressed to the lowercased recipient. The inner rumor is unsigned by construction (createRumor never produces a `sig` field) and every outbound event is addressed to exactly one recipient pubkey via a single 'p' tag \u2014 the AC-PROF-8 privacy invariant is enforced structurally, not just asserted in prose. Round 1 (Stage-1/Opus review): fixed a sev-4 case-fold gap (recipientPubkeyHex flowed into the wrap's 'p' tag / sealAndWrap in caller-supplied case, silently undeliverable against the recipient's lowercased '#p' subscription filter, defeating AC-PROF-7 self-heal) and a sev-2 error-posture gap (own-key hex was unvalidated, so a malformed private key surfaced as a permanently-unfixable 'queued-for-retry' instead of a caller-bug throw) in both sendProfileRequest and sendProfileAnnounce, with 6 new regression tests (2 case-fold, 4 own-key-validation). Round 2 (verification-examiner, VQ-S03-011 gap): test-only, no code change \u2014 added a regression test proving the answer-time double-defense (no-spread of localProfile into encodeProfileAnnounce + the codec's own updatedAt override) holds even for a hypothetical future UserProfile shape carrying a stale updatedAt/lastEdited field.",
+  "escalation_history": [
+    {
+      "round": 1,
+      "reason": "Stage-1 (Opus) code review of app/src/lib/dmProfile/send.ts found two robustness defects, both post-privacy-pass (the AC-PROF-8 privacy invariant itself passed clean): (sev 4) recipientPubkeyHex used raw-case in both the inner rumor's 'p' tag and the sealAndWrap call, in both functions \u2014 a mixed/upper-case input would pass PUBKEY_HEX_RE's case-insensitive check and stamp the wrap with that casing, silently undeliverable against the recipient watcher's lowercased '#p' subscription filter (story 05), defeating self-heal convergence (AC-PROF-7) while still returning 'sent'; (sev 2) keys.ownPrivateKeyHex/ownPubkeyHex were unvalidated, so a malformed own private key only surfaced when hexToBytes threw INSIDE the try block, downgrading a permanent caller bug into an infinitely-retryable 'queued-for-retry'.",
+      "decision": "FIX"
+    },
+    {
+      "round": 2,
+      "reason": "base:verification-examiner flagged VQ-S03-011 (a post-impl question this architect itself authored after round 1) as unresolved by any existing test: the question asked whether SendProfileAnnounceParams.localProfile's type structurally prevents a future UserProfile field from reaching encodeProfileAnnounce's updatedAt argument, or whether a naive future edit (spreading ...params.localProfile) could silently reintroduce the stale-timestamp/LWW-poisoning bug REVIEW B2 closed. No test in the suite exercised a localProfile carrying an extra timestamp-shaped field, so the double-defense (no-spread in send.ts + override in kinds.ts) was asserted only in prose, not proven by a failing-under-regression test.",
+      "decision": "FIX"
+    }
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "architecture.md explicitly states the project-wide rule 'pubkey map-keys are case-folded defensively at every read/write site', and this story's own architecture.json cited that rule under boundary compliance \u2014 yet the initial send.ts pass did not apply it to the new outbound wrap's 'p' tag / sealAndWrap call. The gap wasn't caught by the pre-impl design pass or by the original test suite, because every test used already-lowercase secp256k1-derived hex (nostr-tools' getPublicKey always returns lowercase), so no test path exercised a mixed-case input at all. Only Stage-1 (Opus) review surfaced it.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "base:code-reviewer",
+        "note": "Stage-1 (Opus) review found two genuine defects neither the architect's own design nor the original test suite caught: (1) sev 4 \u2014 recipientPubkeyHex flowed into the wrap's 'p' tag and sealAndWrap in caller-supplied case in both sendProfileRequest and sendProfileAnnounce, silently undeliverable against the recipient's lowercased '#p' subscription filter; (2) sev 2 \u2014 keys.ownPrivateKeyHex/ownPubkeyHex were unvalidated, letting a malformed own key masquerade as a transient 'queued-for-retry' instead of a caller-bug throw. Both fixed by lowercasing recipientPubkeyHex once post-validation and threading it through both the tag and sealAndWrap, and by adding the same PUBKEY_HEX_RE assertion to both own-key fields before the try block, in both functions. 6 new regression tests added (2 case-fold, 4 own-key-validation); all fail under the prior behavior and pass under the fix. No new lint/type errors; full suite green (2892 total, same 25 pre-existing unrelated failures)."
+      },
+      {
+        "agent": "base:verification-examiner",
+        "note": "Flagged VQ-S03-011 (this architect's own round-1 post-impl question) as asserted only in prose, not proven by a test: whether SendProfileAnnounceParams.localProfile's type structurally prevents a future UserProfile field from reaching encodeProfileAnnounce's updatedAt, or whether spreading ...params.localProfile could silently reintroduce the REVIEW B2 stale-timestamp bug. Closed with one new regression test (VQ-S03-014) that feeds a localProfile carrying a hypothetical stale updatedAt field under fake timers and asserts the wrapped announce still carries answer-time \u2014 proving both defense layers (no-spread in send.ts, override in kinds.ts) simultaneously. Test-only change, no source edit to send.ts."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "lead_disposition": {
+    "examiner_partials": "VQ-S03-010 (3-way result handling) and VQ-S03-013 (own-key realism) were PARTIAL/spec_gap ONLY because they verify story 04/06 caller behavior that does not exist yet \u2014 not S03 defects. All 3 S03 ACs (AC-PROF-2/8/12) verified YES conf 1.0; Opus review clean. Caller-side verification tracked as ledger carry_forward_for_story_04/06 and will be checked in those stories' examinations. VQ-S03-011 (defensive answer-time test) closed via VQ-S03-014. Accepted by lead without Decider escalation: no genuine spec gap in S03, no AC-bearing PARTIAL."
+  }
+}

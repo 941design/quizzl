@@ -1,0 +1,60 @@
+{
+  "module_name": "e2e-and-proof",
+  "purpose": "Final story of the epic. No production source module — this story adds (a) three relay-bucket Playwright specs proving AC-PROF-7 (self-heal loop), AC-PROF-3/4 (stranger request/announce gates), and AC-PROF-11b's push-trigger complements (pairing-instant profile + edit propagation) end to end through the real app; (b) a test-only idb-keyval seeding hook (seedDueProfileSchedule, AC-E2E-1/FIXTURE-08-001) plus a small epic-scoped e2e helper module; (c) two unit-level foreign-kind proof tests (AC-PROF-9) closing a pre-existing gap noted in exploration.json, with zero source change to ContactChat.tsx/directMessageNotifications.ts; (d) an i18n baseline confirmation (AC-PROF-14); (e) the e2e tally bump in CLAUDE.md/Makefile (AC-E2E-1).",
+  "public_api": [
+    {
+      "name": "seedDueProfileSchedule",
+      "signature": "seedDueProfileSchedule(page: Page, schedule: { pubkeyHex: string; nextAttemptAt: number; attempts: number; state: 'active' | 'answered-incomplete' | 'given-up' }): Promise<void>",
+      "description": "Playwright test hook (app/tests/e2e/helpers/idb-record.ts). Writes a due-now ProfileSchedule record directly into the few-dm-profile-schedule idb-keyval store, case-folding the key, so a relay-bucket spec can drive ProfileHealWatcher's mount-triggered due-sweep without waiting the real 1h+ backoff floor. Fills the two ProfileSchedule fields beyond the AC-E2E-1 signature (firstAttemptAt, lastResetAt) with schedule-store-shape-compatible defaults (now, null). NOT a NEXT_PUBLIC_* build-time override — no production bundle surface."
+    },
+    {
+      "name": "seedLocalContact / clearContactCacheEntry / readContactCacheEntry / waitForCompleteProfile / assertContactConverged / readContactsListPubkeys",
+      "signature": "app/tests/e2e/helpers/dm-profile.ts (all Playwright Page -> Promise helpers)",
+      "description": "Epic-scoped e2e helper module, mirroring helpers/pairing.ts's per-epic convention. seedLocalContact writes ONLY the calling page's own lp_contacts_v1 belief (used solely by the stranger-gate specs, on the stranger's own page, never the target's) so the sender's real app machinery (ProfileHealWatcher's sweep / profile.tsx's broadcastProfile fan-out) constructs and publishes a genuine wire event. clearContactCacheEntry/readContactCacheEntry/waitForCompleteProfile/assertContactConverged read or tamper only lp_contactCache_v1 (contactCache.ts's store), never lp_contacts_v1, for the self-heal and push-trigger specs' convergence checks."
+    }
+  ],
+  "private_files": [
+    "app/tests/e2e/dm-profile-self-heal.spec.ts",
+    "app/tests/e2e/dm-profile-stranger-gates.spec.ts",
+    "app/tests/e2e/dm-profile-push-triggers.spec.ts",
+    "app/tests/e2e/helpers/dm-profile.ts"
+  ],
+  "owned_data": [
+    "None new. All reads/writes target pre-existing stores this epic's earlier stories already own: few-dm-profile-schedule (idb-keyval, S02 scheduler.ts), lp_contactCache_v1 (localStorage, contactCache.ts), lp_contacts_v1 (localStorage, contacts.ts) — the last two are pre-existing stores this epic's stories 04/06 write into, not created by S08."
+  ],
+  "dependencies_allowed": [
+    "app/tests/e2e/helpers/idb-record.ts (writeIdbRecord/readIdbRecord — generic e2e infra, pre-existing)",
+    "app/tests/e2e/helpers/auth-helpers.ts (USER_A/USER_B/computeTestKeypairs — pre-existing)",
+    "app/tests/e2e/helpers/contact-card.ts (bootIdentity/getShareCardLink/extractCardPayload — pre-existing)",
+    "app/tests/e2e/helpers/pairing.ts (waitForAdmission — pre-existing)",
+    "Real app UI surfaces only: /add#c=, /contacts, /profile (profile-nickname-input), contact-card-* testids — no import of any app/src/** production module from a spec file (matches helpers/pairing.ts's documented boundary)"
+  ],
+  "dependencies_forbidden": [
+    "No source edits to app/src/components/contacts/ContactChat.tsx or app/src/lib/directMessageNotifications.ts (AC-PROF-9 is tests-only per architecture.md)",
+    "No raw WebSocket publish anywhere in the new e2e specs (publish-through-the-app rule)",
+    "No NEXT_PUBLIC_* backoff-floor override (Resolved Decisions)",
+    "No new e2e spec named dm-self-heal* (naming collision with the pre-existing, unrelated dm-self-heal.spec.ts)"
+  ],
+  "external_ports": [
+    "strfry relay + blossom mock (Docker, relay bucket) — required by all three new specs; not runnable in this implementation environment (see result.json's verification notes)"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/e2e/dm-profile-self-heal.spec.ts",
+    "app/tests/e2e/dm-profile-stranger-gates.spec.ts",
+    "app/tests/e2e/dm-profile-push-triggers.spec.ts",
+    "app/tests/unit/contactChat.test.ts",
+    "app/tests/unit/directMessageNotifications.test.ts"
+  ],
+  "seam": {
+    "cross_story": false,
+    "note": "Last story in the epic; consumes every prior story's frozen seam (codec, scheduler's few-dm-profile-schedule shape, send/receive dispatch, watcher's mount-sweep, push-triggers, the §10.1 fix) but introduces no seam for a later story to consume."
+  },
+  "notes": [
+    "Test-design resolution (self-heal anchor, AC-PROF-7): a real pairing already triggers S06's announce-on-pair on both sides, which would make an anchor built directly on top of pairing pass even if the periodic PULL loop were broken. dm-profile-self-heal.spec.ts therefore pairs for real, then clears each side's OWN contactCache.ts entry for the other (local-state-only tamper, lp_contacts_v1 untouched) to force a genuine 'avatar absent, mutual, active contact' precondition, then drives convergence via seedDueProfileSchedule + reload alone. This is the story's central non-obvious design decision — captured as a learning candidate.",
+    "Test-design resolution (stranger gates, AC-PROF-3/4): sendProfileRequest/sendProfileAnnounce have no app-level 'send to an arbitrary non-consenting pubkey' UI trigger — both are only invoked internally over the SENDER's OWN contact list (ProfileHealWatcher's sweep; profile.tsx's broadcastProfile fan-out). dm-profile-stranger-gates.spec.ts seeds ONLY the stranger's own lp_contacts_v1 belief (seedLocalContact, never touching the target's records) so the stranger's real app decides, on its own, to construct and publish a genuine wire event addressed to the target — real crypto, real relay publish, zero forged bytes, and the target's own gate genuinely (not by any target-side tamper) has no record of the sender.",
+    "Negative-assertion timing (stranger gates): both stranger tests use a bounded page.waitForTimeout (10s) before asserting absence, because proving a negative has no positive rendered signal to poll for. This is distinct from the 'no fixed waitForTimeout' guidance, which targets waiting for a POSITIVE state change (use a retrying assertion instead) — there is no positive signal here by design.",
+    "Rendered-vs-raw-state polling (self-heal / push-trigger convergence): app/pages/contacts.tsx's ContactListView has no reactivity wired to a contactCache.ts write (contactsRevision only bumps on a group-membership change), so an already-mounted /contacts page will NOT re-render on a live announce arrival. assertContactConverged therefore polls the RAW contactCache.ts state directly (page.evaluate reading localStorage, mirroring helpers/pairing.ts#waitForAdmission's established convention) until convergence, THEN performs ONE navigation to /contacts and asserts the RENDERED card via an auto-retrying toBeVisible/toHaveText — satisfying both correctness (no DOM-render blind spot) and the 'assert on rendered readiness markers' requirement. This is a single reload-then-assert, not the flagged reload()+isVisible() polling-loop anti-pattern (memory: e2e_no_reload_poll_for_propagation)."
+  ]
+}

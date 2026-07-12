@@ -1,0 +1,21 @@
+{
+  "story_id": "S05",
+  "captured_at": "2026-07-12T18:07:01Z",
+  "command": "cd app && npx vitest run",
+  "result": {
+    "test_files": { "passed": 152, "failed": 2, "total": 154 },
+    "tests": { "passed": 2904, "failed": 25, "total": 2929 }
+  },
+  "pre_existing_failures": {
+    "note": "All 25 failures are pre-existing and unrelated to this story's scope: icon-set resolution mismatches (e.g. 'lucide:phone' vs expected 'ph:phone-bold') in tests/unit/components/ThemeIcon.test.ts and tests/unit/themes/treatments.test.ts, stemming from the watercolor theme-set landing (commit a50edf4, predates this epic). No file in ProfileHealWatcher.tsx's dependency graph is involved. Treated as pre-existing debt this story did not introduce. Matches stories S01-S04's recorded baseline note exactly (same 25 failures, same root cause)."
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "detail": "No ESLint config exists in app/ (no .eslintrc*/eslint.config*); `next lint` prompts interactively to scaffold one. Treated as NO_LINT baseline, not a failure. Matches S01-S04's recorded baseline."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit",
+    "status": "clean"
+  }
+}

@@ -129,6 +129,13 @@ export async function subscribeToWelcomes(
             tags: ndkEvent.tags,
           },
           ownPrivateKeyHex,
+          // epic: direct-contact-profile-exchange, story 06 (AC-PROF-11b) —
+          // pass the `ndk` this function already receives as its own param
+          // so a fresh admission fires the issuer-side push-trigger announce
+          // (handlePairingAck no-ops this when ndk is omitted). No other
+          // wiring changes: the subscription filter, dispatch order, and
+          // Welcome/join-request fallthrough below are all untouched.
+          { ndk },
         );
         if (pairingResult.status !== 'unwrap-failed' && pairingResult.status !== 'wrong-kind') {
           // This WAS a pairing-ack (of some outcome) — mark processed and

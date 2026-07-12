@@ -38,8 +38,57 @@
  * Also carries the epic-wide privacy invariant (AC-PRIV-1, architecture.md
  * boundary rule 6): no function reachable from `sendPairingAck` or
  * `handlePairingAck` ever calls a relay-publish primitive with an unaddressed
- * kind-0 event. The only outbound traffic this module produces is the single
- * gift-wrapped (kind-1059) pairing-ack addressed to one recipient pubkey.
+ * kind-0 event. Every outbound gift wrap this module produces is addressed to
+ * exactly one recipient pubkey.
+ *
+ * ## Push triggers — announce-on-pair (epic: direct-contact-profile-exchange,
+ * story 06; AC-PROF-11b)
+ *
+ * Both admission points in this module ALSO fire an immediate
+ * `dmProfile/send.ts#sendProfileAnnounce` gift wrap to the freshly-paired
+ * contact, so that contact's avatar/nickname appears at once instead of
+ * waiting for the first profile-request backoff floor (~1h, D3). This reuses
+ * story 03's `send.ts` seam verbatim — never re-implements wrap/publish, never
+ * constructs a signed kind-0 — and is additive: it never affects the
+ * pairing-ack's own result, never blocks admission, and any announce failure
+ * is swallowed.
+ *
+ *   - **Scanner side** (`sendPairingAck`): by the time this function is
+ *     called, the scanner has ALREADY admitted the issuer as a contact
+ *     (`processContactInput.ts`'s `addContactByNpub`/`importCard`, which run
+ *     strictly before any caller reaches `sendPairingAck` — see
+ *     `pendingIntent.ts`'s header doc). This function already receives
+ *     `ndk`/`ownPubkeyHex`/`ownPrivateKeyHex` as explicit params, so firing
+ *     the announce here needs no new import surface beyond `send.ts` and a
+ *     read of the current local profile.
+ *   - **Issuer side** (`handlePairingAck`): fires right after admission
+ *     (`rememberKnownPeers`/`rememberContact`). This function's signature
+ *     deliberately carries no `ndk` (architecture.md: receive-path modules
+ *     never hold a singleton NDK reference) — the optional `opts.ndk` lets a
+ *     caller that already has a live NDK instance in scope (e.g.
+ *     `welcomeSubscription.ts`'s `subscribeToWelcomes`, which receives `ndk`
+ *     as its own param) opt into this behavior. When `opts.ndk` is omitted,
+ *     the announce step is a pure no-op — admission itself is completely
+ *     unaffected either way, so this stays backward compatible with any
+ *     existing call site that has not yet been updated to pass it.
+ *
+ * ## §10.1 name-drop fix (epic: direct-contact-profile-exchange, story 07;
+ * AC-CARD-1)
+ *
+ * `handlePairingAck`'s admission path used to call `rememberKnownPeers` and
+ * `rememberContact` but silently DISCARD `decoded.profile`, so the issuer
+ * never persisted the scanner's submitted name. This is now fixed at the same
+ * admission point, directly below story 06's announce block: the decoded
+ * card's `{nickname, createdAt}` is converted to contactCache's
+ * `{nickname, updatedAt}` shape (`updatedAt` derived from the card's own
+ * `created_at` — never an answer-time stamp, so this is immune to the §B2
+ * LWW-poisoning trap) and written via `contactCache.ts#writeContactEntryNeutralized`
+ * — story 04's already-landed neutralized cache-write seam, reused verbatim
+ * rather than re-implemented. Calling the *neutralized* (no-`rememberContact`)
+ * primitive here is safe and correct — NOT the stranger-injection concern the
+ * announce receive path (S04) guards against — because nonce possession
+ * already legitimately admitted this contact one step earlier in this same
+ * function (`rememberKnownPeers`/`rememberContact` above).
  */
 
 import type NDK from '@nostr-dev-kit/ndk';
@@ -53,8 +102,18 @@ import type { UnsignedRumor } from '@/src/lib/directMessages';
 import { isNonceAdmissible, pruneExpiredNonces } from '@/src/lib/pairing/nonceStore';
 import { rememberKnownPeers } from '@/src/lib/knownPeers';
 import { rememberContact } from '@/src/lib/contacts';
-import { hexToBytes } from '@/src/lib/nostrKeys';
+import { hexToBytes, derivePublicKeyHex } from '@/src/lib/nostrKeys';
+// §10.1 fix seam (epic: direct-contact-profile-exchange, story 07; AC-CARD-1)
+// — reuses story 04's already-landed neutralized cache-write primitive
+// verbatim (architecture.md "Cache-write seam": the one deliberately-shared
+// surface between dmProfile/receive.ts and this fix). Never re-implements
+// LWW or contact-injection semantics locally.
+import { readContactEntry, writeContactEntryNeutralized } from '@/src/lib/contactCache';
 import { createLogger } from '@/src/lib/logger';
+// Push-trigger seam (epic: direct-contact-profile-exchange, story 06;
+// AC-PROF-11b) — reused verbatim, never re-implemented (see file header).
+import { sendProfileAnnounce } from '@/src/lib/dmProfile/send';
+import { readUserProfile } from '@/src/lib/storage';
 
 const logger = createLogger('pairing-ack');
 
@@ -202,6 +261,25 @@ export async function sendPairingAck(params: SendPairingAckParams): Promise<Pair
     const wrap = await sealAndWrap(rumor, params.issuerPubkeyHex, params.ownPrivateKeyHex);
     const ndkEvent = new NDKEvent(params.ndk, wrap as any);
     await ndkEvent.publish();
+
+    // Push-trigger, scanner side (AC-PROF-11b "announce-on-pair"): the
+    // scanner has already admitted the issuer as a contact before this
+    // function was ever called (see file header) — fire an immediate
+    // profile-announce so the issuer sees the scanner's current
+    // nickname/avatar at once rather than after the first ~1h backoff
+    // floor. Swallowed independently of the ack send above: a failure here
+    // must never turn a successfully-sent ack into 'queued-for-retry'.
+    try {
+      await sendProfileAnnounce({
+        ndk: params.ndk,
+        recipientPubkeyHex: params.issuerPubkeyHex,
+        keys: { ownPubkeyHex: params.ownPubkeyHex, ownPrivateKeyHex: params.ownPrivateKeyHex },
+        localProfile: readUserProfile(),
+      });
+    } catch {
+      // Never let the push-announce affect the ack's own result.
+    }
+
     return { issuerPubkeyHex: params.issuerPubkeyHex, echoedNonceHex: params.echoedNonceHex, result: 'sent' };
   } catch (err) {
     logger.info('pairing-ack:send-failed', { issuerPubkeyHex: params.issuerPubkeyHex });
@@ -262,6 +340,24 @@ export type GiftWrapEventLike = {
  * further ack (AC-ACK-2). Idempotent for a sender already admitted this
  * session (AC-ACK-3).
  *
+ * Push-trigger, issuer side (epic: direct-contact-profile-exchange, story
+ * 06; AC-PROF-11b): on a FRESH admission only (never on `already-admitted`),
+ * when `opts.ndk` is supplied, fires one immediate
+ * `dmProfile/send.ts#sendProfileAnnounce` gift wrap to the newly-admitted
+ * sender, reusing story 03's send seam verbatim. This is purely additive —
+ * it never affects the returned `HandlePairingAckResult`, and any failure
+ * (including `opts.ndk` being omitted, which is a no-op, not an error) is
+ * swallowed. `opts.ndk` is optional so existing call sites that have not
+ * been updated to pass their own in-scope `ndk` keep working unchanged.
+ *
+ * §10.1 name-drop fix (epic: direct-contact-profile-exchange, story 07;
+ * AC-CARD-1): on that SAME fresh admission, directly after the announce
+ * block above, the scanner's decoded name is persisted into `contactCache`
+ * via `contactCache.ts#writeContactEntryNeutralized` (story 04's seam, reused
+ * verbatim — no local LWW/neutralization re-implementation). Any existing
+ * avatar for this sender is preserved (a name-only import must never null out
+ * an avatar populated by group profile sync).
+ *
  * Never throws for any input, malformed or adversarial (mirrors
  * `decodeCard`/`unwrapAndOpen`'s own never-throw-on-bad-input discipline at
  * this module's own boundary) — always resolves to a `HandlePairingAckResult`.
@@ -269,7 +365,7 @@ export type GiftWrapEventLike = {
 export async function handlePairingAck(
   giftWrapEvent: GiftWrapEventLike,
   ownPrivateKeyHex: string,
-  opts?: { nowSec?: number },
+  opts?: { nowSec?: number; ndk?: NDK },
 ): Promise<HandlePairingAckResult> {
   try {
     // Step 1: unwrap via the STRICT primitive only (AC-SEC-2) — never
@@ -337,6 +433,51 @@ export async function handlePairingAck(
     rememberKnownPeers([senderHex]);
     rememberContact(senderHex);
     pairingAckAdmissions.set(senderHex, payload.nonce);
+
+    // Step 10 (story 06, AC-PROF-11b, issuer-side push trigger): fire an
+    // immediate profile-announce to the freshly-admitted sender so their
+    // avatar/nickname appears at once. Additive, best-effort, and gated on
+    // the caller having supplied a live NDK instance (see this function's
+    // doc) — never affects the 'admitted' result below either way.
+    if (opts?.ndk) {
+      try {
+        const ownPubkeyHex = await derivePublicKeyHex(ownPrivateKeyHex);
+        await sendProfileAnnounce({
+          ndk: opts.ndk,
+          recipientPubkeyHex: senderHex,
+          keys: { ownPubkeyHex, ownPrivateKeyHex },
+          localProfile: readUserProfile(),
+        });
+      } catch {
+        // Never let a push-announce failure affect admission.
+      }
+    }
+
+    // Step 11 (story 07, §10.1 issuer name-drop fix, AC-CARD-1): persist the
+    // scanner's submitted name. `decoded.profile` was decoded and sender-
+    // bound above (Steps 6-7) but, before this fix, was discarded here. The
+    // contact was ALREADY legitimately admitted a few lines above
+    // (rememberKnownPeers/rememberContact, Step 9) — nonce possession is
+    // itself the authorization decision for this flow (see this module's
+    // header) — so reusing the NEUTRALIZED write (no further rememberContact
+    // side effect) here is correct and avoids a redundant second injection
+    // call; this is NOT the stranger-injection concern the announce receive
+    // path (S04) guards against. Reuses story 04's already-landed seam
+    // verbatim — no local LWW/neutralization re-implementation.
+    //
+    // decodeCard's `profile.createdAt` is unix seconds, not the ISO-8601
+    // `updatedAt` contactCache expects — converted exactly like
+    // contactCard.ts#parseContactCard's own createdAt->updatedAt conversion,
+    // so this is immune to the §B2 answer-time-stamp trap (spec §10.1).
+    // Any existing avatar is preserved (a name-only import must never null
+    // out an avatar populated by group profile sync).
+    const existingCacheEntry = readContactEntry(senderHex);
+    writeContactEntryNeutralized(senderHex, {
+      nickname: decoded.profile.nickname,
+      avatar: existingCacheEntry?.avatar ?? null,
+      updatedAt: new Date(decoded.profile.createdAt * 1000).toISOString(),
+    });
+
     return { status: 'admitted', senderPubkeyHex: senderHex };
   } catch (err) {
     // Defense in depth — mirrors decodeCard's/unwrapAndOpen's own

@@ -1,0 +1,65 @@
+{
+  "story_id": "S07",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-12T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S07-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the added `importCard(senderHex, decoded.profile)` call actually pass the scanner's real decoded name through to the neutralized cache-write seam, or could it be calling importCard with a placeholder/empty profile that would pass a shallow 'importCard was called' test while never persisting the real name?"
+    },
+    {
+      "question_id": "VQ-S07-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does this story's edit call into story 04's already-landed neutralized write / importCard surface without re-implementing any LWW comparison or contact-injection-neutralization logic locally in pairingAck.ts (per its explicit scope exclusion), and does a diff review confirm no duplicate LWW/neutralization code was added?"
+    },
+    {
+      "question_id": "VQ-S07-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `pairing-ack-fix` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S07-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Is there a regression test asserting story 06's announce-on-pair call (added earlier in story_order, in the same handlePairingAck admission block) still fires after this story's edit \u2014 i.e. does the diff/test prove this story's change is additive, not a silent revert of story 06's call in the same function?"
+    },
+    {
+      "question_id": "VQ-S07-005",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the fix land at the same admission point as the existing rememberKnownPeers/rememberContact calls (not a different code path that could execute out of order relative to contact creation), and is there a check confirming importCard is called only after the contact is confirmed admitted (not before, which could target a not-yet-existent contact)?"
+    },
+    {
+      "question_id": "VQ-S07-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-1",
+      "question": "Is there a pairing-ack round-trip test asserting the issuer's contactCache entry for the scanner carries the scanner's submitted name after admission \u2014 using a real decoded.profile value distinct from any placeholder default, so the test would fail if importCard were never called or were called with an empty profile?"
+    },
+    {
+      "question_id": "VQ-S07-007",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-CARD-1",
+      "question": "AC-CARD-1/spec.md \u00a710.1/exploration.json literally name the fix `importCard(senderHex, decoded.profile)` \u2014 the same identifier as the PRE-EXISTING app/src/lib/contactCardImport.ts#importCard function (which calls the non-neutralized writeContactEntry, and therefore ALSO calls rememberContact a second time). The implementation instead calls contactCache.ts#writeContactEntryNeutralized + readContactEntry directly, per architecture.md's explicit 'Cache-write seam' section and both of ownership-ledger.json's carry_forward_for_story_07 notes ('reuses writeContactEntryNeutralized (no re-impl)'), which post-date and supersede the AC's informal naming. Does an independent reviewer agree this resolution is correct \u2014 i.e. that architecture.md/ownership-ledger.json's explicit, more specific seam declaration should govern over the AC's loose identifier, and that AC-CARD-1's actual BEHAVIORAL requirement (issuer's contactCache entry carries the scanner's submitted name after admission) is fully satisfied regardless of which internal function name was used?",
+      "answer_note": "PRE-IMPL commitment; not authored during this post-impl pass \u2014 see the architect's own architecture.json 'notes' field for the full resolution rationale documented at implementation time."
+    },
+    {
+      "question_id": "VQ-S07-008",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "ac_id": "AC-CARD-1",
+      "question": "contactCard.ts#decodeCard returns `profile: { nickname: string; createdAt: number }` (unix seconds) \u2014 NOT the `{ nickname, updatedAt: string }` (ISO-8601) shape writeContactEntryNeutralized's CachedContact requires. The fix converts via `new Date(decoded.profile.createdAt * 1000).toISOString()`, mirroring contactCard.ts#parseContactCard's own identical conversion a few lines above in the same file. Is this conversion exercised by a test asserting the EXACT resulting ISO string (not just that SOME string was written), and could a future edit to decodeCard's profile shape (e.g. adding a wall-clock-derived field) silently reintroduce the \u00a7B2 answer-time-stamp trap this conversion is specifically designed to avoid?"
+    },
+    {
+      "question_id": "VQ-S07-009",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Is there a regression test proving the fix preserves a PRE-EXISTING contactCache avatar for the same pubkey (i.e. a name-only pairing-ack must never null out an avatar populated separately, e.g. by group profile sync) \u2014 mirroring contactCardImport.ts#importCard's own avatar-preservation precedent that this story's implementation deliberately follows via readContactEntry?"
+    }
+  ]
+}

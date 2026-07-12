@@ -1,0 +1,97 @@
+{
+  "story_id": "S03",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-12T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S03-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does sendProfileAnnounce genuinely call ensureAvatar and await its result before constructing the announce payload, or could the avatar backfill be a no-op stub/short-circuit that would let a profile with no avatar slip through unnoticed by a shallow mock-based test?"
+    },
+    {
+      "question_id": "VQ-S03-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Are NDK, keys, and signer passed into sendProfileRequest/sendProfileAnnounce as explicit function parameters (never imported as a module-level singleton), matching pairingAck.ts's pattern per architecture.md's boundary rules, and does send.ts avoid importing any inbound-gating logic from receive.ts (construction/publish only, no gate duplication)?"
+    },
+    {
+      "question_id": "VQ-S03-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `send` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S03-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do send.ts's tests assert on the actual constructed rumor object (kind, content JSON, unsigned-ness) passed to sealAndWrap, using a real or faithfully-shaped sealAndWrap rather than a mock that only records 'was called' \u2014 i.e. would the test fail if send.ts accidentally signed the rumor or set the wrong kind?"
+    },
+    {
+      "question_id": "VQ-S03-005",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is there a test proving sendProfileAnnounce never constructs a signed inner event and never calls any code path that could result in a public relay publish (only sealAndWrap to exactly one recipient pubkey), and does hasShareableName(profile)===false provably short-circuit sendProfileAnnounce before ensureAvatar/sealAndWrap are ever invoked (not merely before the final publish call)?"
+    },
+    {
+      "question_id": "VQ-S03-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-2",
+      "question": "Is there a test where a gate-passing request triggers sendProfileAnnounce, asserting ensureAvatar was invoked, the outgoing payload is `{nickname, avatar:{imageUrl}, updatedAt}`, and `updatedAt` equals the call-time timestamp (not the local profile's stored last-edit timestamp) \u2014 with the test able to distinguish the two by using a profile whose last-edit time differs from 'now'?"
+    },
+    {
+      "question_id": "VQ-S03-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-8",
+      "question": "Is there a test asserting the produced profile-announce rumor is unsigned (no `sig`, no signing call) and is delivered via sealAndWrap addressed to exactly one recipient pubkey (not a list, not a broadcast), and does a diff review confirm no new call to any kind-0-publishing API was added?"
+    },
+    {
+      "question_id": "VQ-S03-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-12",
+      "question": "Is there a test asserting sendProfileAnnounce is never called (not called-and-swallowed, but never invoked) when hasShareableName(profile) is false, and a separate test asserting sendProfileRequest succeeds with no local nickname/avatar set at all (proving the request path has zero local-name precondition)?"
+    },
+    {
+      "question_id": "VQ-S03-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-2",
+      "question": "(Seam contract) Does sendProfileAnnounce's parameter/behavior shape match architecture's declared contract exactly \u2014 recipientPubkeyHex lowercase, nickname non-empty, avatar never null (ensureAvatar-backfilled), updatedAt stamped at call time \u2014 and is there a test proving the function is a true no-op (throws or returns without any I/O) when the hasShareableName precondition is false, which is the exact precondition story 04's request-gate arm relies on before calling into this seam?"
+    },
+    {
+      "question_id": "VQ-S03-010",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "sendProfileAnnounce returns a 3-way result union ('sent' | 'queued-for-retry' | 'deferred-nameless') where the pre-impl commitment set (VQ-S03-008) was framed around 'is sendProfileAnnounce ever called at all' \u2014 i.e. it left open whether the nameless gate lives in send.ts itself or in a caller that checks hasShareableName BEFORE invoking this seam. This story implements the gate INSIDE sendProfileAnnounce (matching stories.json's explicit scope bullet), so the function IS called and returns 'deferred-nameless' rather than never being invoked. When story 04's receive.ts (the request-gate arm) and story 06's push-triggers are implemented: do they correctly branch on this 3-way result (never surfacing 'deferred-nameless' as an error/toast, never retrying it as if it were 'queued-for-retry'), or does either caller re-implement its own redundant hasShareableName pre-check that could silently diverge from this seam's internal gate if the two are ever edited independently?"
+    },
+    {
+      "question_id": "VQ-S03-011",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "UserProfile (app/src/types/index.ts) carries no updatedAt/lastEdited field today, so sendProfileAnnounce's answer-time stamping is enforced entirely by kinds.ts#encodeProfileAnnounce calling new Date().toISOString() at serialization \u2014 send.ts has no last-edit timestamp to accidentally thread through even if it wanted to. If a future story ever adds an updatedAt/lastEdited field to UserProfile (e.g. for a different feature), does send.ts's SendProfileAnnounceParams.localProfile type still structurally prevent that field from ever reaching encodeProfileAnnounce's updatedAt argument, or would a naive future edit (e.g. spreading ...params.localProfile into the encode call instead of explicitly picking {nickname, avatar}) silently reintroduce the exact stale-timestamp/LWW-poisoning bug REVIEW B2 closed?"
+    },
+    {
+      "question_id": "VQ-S03-012",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-7",
+      "question": "Stage-1 review (sev 4) found that the original implementation used `params.recipientPubkeyHex` raw-case in both the inner rumor's 'p' tag and the sealAndWrap call, in both sendProfileRequest and sendProfileAnnounce \u2014 since PUBKEY_HEX_RE is case-insensitive, a mixed/upper-case recipient hex passed validation and would stamp the wrap's 'p' tag with that casing, silently undeliverable against the recipient's lowercased '#p' subscription filter (story 05), defeating self-heal convergence (AC-PROF-7) while `sendProfileRequest`/`sendProfileAnnounce` both still returned 'sent'. Remediated: both functions now lowercase `recipientPubkeyHex` once, immediately after validation, and thread the lowercased value through the rumor's 'p' tag AND the sealAndWrap call in both functions; two new tests (one per function) assert a mixed-case input produces a lowercase published 'p' tag. Was this the ONLY case-fold gap in send.ts, or could `keys.ownPubkeyHex` (stored verbatim as the rumor's `pubkey` field) carry unfolded case into a downstream consumer that compares it case-sensitively \u2014 and if so, is that a live risk given sealAndWrap's own wrapEvent call re-derives the wrap's actual signing pubkey from the private key rather than trusting the passed-in field?"
+    },
+    {
+      "question_id": "VQ-S03-013",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "Stage-1 review (sev 2) found that `keys.ownPrivateKeyHex`/`keys.ownPubkeyHex` were unvalidated in the original implementation, so a malformed own private key would only surface when `hexToBytes` threw INSIDE the try block, downgrading a genuine, permanently-unfixable caller bug into a 'queued-for-retry' status that a caller might retry forever without ever succeeding. Remediated: both functions now assert `keys.ownPubkeyHex`/`keys.ownPrivateKeyHex` via the same PUBKEY_HEX_RE/64-hex-char check as `recipientPubkeyHex`, BEFORE the try block (and before the AC-PROF-12 nameless gate in sendProfileAnnounce), with 4 new tests (2 per function) covering both malformed own-key fields. Does story 04/06's calling code ever construct `keys` from a value that could plausibly be malformed at runtime (vs. always sourced from an already-validated identity/session object), i.e. is this hardening purely defense-in-depth, or is there a realistic caller path where a malformed own key could actually reach this seam in production?"
+    },
+    {
+      "question_id": "VQ-S03-014",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-PROF-2",
+      "question": "VQ-S03-011 asked whether SendProfileAnnounceParams.localProfile's type structurally prevents a future UserProfile field (e.g. an added updatedAt/lastEdited) from ever reaching encodeProfileAnnounce's updatedAt argument, or whether a naive future edit (spreading ...params.localProfile instead of the current explicit {nickname, avatar} literal) could silently reintroduce the stale-timestamp/LWW-poisoning bug REVIEW B2 closed. Closed by a new regression test (send.test.ts) that constructs a localProfile carrying a hypothetical stale `updatedAt: '2020-01-01T00:00:00.000Z'` field (cast, since no such field exists on UserProfile today), sends under fake timers set to a distinct answer-time, and asserts the wrapped announce's updatedAt equals the fake 'now', never the stale 2020 value — proving both defense layers hold simultaneously: (a) send.ts passes only an explicit {nickname, avatar} literal into encodeProfileAnnounce, never a spread of localProfile, so an extra field has no path into the payload; (b) encodeProfileAnnounce itself unconditionally stamps updatedAt=new Date().toISOString() at serialization regardless of any caller-supplied value. This test would fail if a future edit reintroduced `...params.localProfile` (layer a) AND if kinds.ts's codec ever stopped overriding updatedAt (layer b), since either regression alone is caught by the OTHER surviving layer only in the case the two are edited independently, not simultaneously — is that dual-layer independence assumption still accurate given both files are maintained by different stories (send.ts by S03, kinds.ts by S01), or could a single cross-cutting refactor plausibly break both layers in the same change?"
+    }
+  ]
+}

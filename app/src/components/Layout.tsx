@@ -26,6 +26,7 @@ import ThemeIcon from '@/src/components/ThemeIcon';
 import NotificationBell from '@/src/components/NotificationBell';
 import DirectMessageNotificationsWatcher from '@/src/components/DirectMessageNotificationsWatcher';
 import PendingPairingIntentWatcher from '@/src/components/PendingPairingIntentWatcher';
+import ProfileHealWatcher from '@/src/components/ProfileHealWatcher';
 import { IncomingCallWatcher } from '@/src/components/calls/IncomingCallWatcher';
 import { IncomingCallModal } from '@/src/components/calls/IncomingCallModal';
 import { CallScreen } from '@/src/components/calls/CallScreen';
@@ -101,6 +102,7 @@ export default function Layout({ children }: LayoutProps) {
     <Box minH="100vh" bg="appBg" display="flex" flexDirection="column">
       <DirectMessageNotificationsWatcher />
       <PendingPairingIntentWatcher />
+      <ProfileHealWatcher />
       <IncomingCallWatcher />
       <IncomingCallModal />
       <CallScreen />

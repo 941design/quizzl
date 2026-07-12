@@ -1,0 +1,57 @@
+{
+  "module_name": "receive",
+  "purpose": "Inbound dispatch for the DM profile-exchange channel: two arms (request, announce) reached exclusively via directMessages.ts#unwrapAndOpen, each enforcing the spec.md §3.3/§3.5 disclosure gate (isAllowedDmSender AND active non-archived contact) before doing anything observable. The request arm answers via send.ts#sendProfileAnnounce, rate-limited per authenticated sender. The announce arm writes contactCache.ts's new neutralized primitive (no rememberContact side effect) under LWW and clears/marks the contact's scheduler.ts schedule based on the write outcome. Also edits contactCache.ts to add that neutralized write primitive, shared with story 07.",
+  "public_api": [
+    { "name": "DisclosureGateContext", "signature": "type DisclosureGateContext = { groups: ReadonlyArray<Group>; knownPeers: ReadonlySet<string>; ownPubkeyHex: string }", "description": "The live state isAllowedDmSender needs (it is pure and reads no storage itself, per walledGarden.ts's own AC-SEC-13). The caller (story 05's watcher) supplies a live snapshot; receive.ts never imports a React context or a singleton to obtain these." },
+    { "name": "passesDisclosureGate", "signature": "passesDisclosureGate(senderHex: string, ctx: DisclosureGateContext): boolean", "description": "The single §3.3/§3.5 predicate: isAllowedDmSender(...) AND an active, non-archived contact (archivedAt==null) already present in contacts.ts's store, read case-insensitively. Exported so both arms — and their tests — share exactly one gate implementation; also lets a test exercise each failing half (allowed-but-archived, active-but-not-allowed) independently (VQ-S04-001/006/007/008)." },
+    { "name": "ProfileRequestHandlerContext", "signature": "type ProfileRequestHandlerContext = DisclosureGateContext & { ndk: NDK; keys: ProfileSendKeys; localProfile: UserProfile }", "description": "Everything handleProfileRequest needs beyond the gate: the outbound seam's own params (send.ts#ProfileSendKeys, the caller's current localProfile) so it can call sendProfileAnnounce on a gate pass. NDK/keys are explicit params per architecture.md's boundary rule, never a singleton." },
+    { "name": "handleProfileRequest", "signature": "handleProfileRequest(rumor: UnsignedRumor, senderHex: string, ctx: ProfileRequestHandlerContext, nowSec?: number): Promise<void>", "description": "AC-PROF-3/12/13. Defense-in-depth first: drops silently (no gate evaluation, no send) unless senderHex.toLowerCase() === rumor.pubkey.toLowerCase() — the caller (story 05's watcher) is expected to derive senderHex from the strict-unwrapAndOpen-authenticated rumor.pubkey itself, and this check means a caller bug or a mismatched param can never let an unauthenticated identity reach the gate. Drops on wrong rumor.kind or a parseProfileRequest failure. On gate pass, checks the in-memory per-sender cooldown (RATE_LIMIT_COOLDOWN_SECONDS, >= the 1h floor, AC-PROF-13) — within cooldown, drops with zero calls to sendProfileAnnounce. On cooldown pass, calls send.ts#sendProfileAnnounce with senderHex as the recipient (the authenticated identity, never a rumor-claimed one) and records the cooldown timestamp UNLESS the result is 'deferred-nameless' (AC-PROF-12 — a nameless owner's failed attempts must not consume the requester's next legitimate cooldown slot once named). nowSec is an injectable clock (defaults to real time) so tests can assert the cooldown boundary deterministically without fake timers." },
+    { "name": "handleProfileAnnounce", "signature": "handleProfileAnnounce(rumor: UnsignedRumor, senderHex: string, ctx: DisclosureGateContext): Promise<void>", "description": "AC-PROF-4/4b/5/6/10. Same senderHex-vs-rumor.pubkey defense-in-depth check as handleProfileRequest. Drops on wrong rumor.kind or a parseProfileAnnounce failure (AC-PROF-6a — malformed avatar is a parse failure, never reaches the gate or a write). On gate pass (same passesDisclosureGate as the request arm), calls contactCache.ts#writeContactEntryNeutralized keyed under the authenticated senderHex, then routes the schedule side effect via decideScheduleAction on the write's {lwwWon, avatarNonNull}: 'clear' -> scheduler.ts#deleteSchedule (AC-PROF-6's completing-write case); 'mark-incomplete' -> load the existing schedule, scheduler.ts#markAnsweredIncomplete, save it back (AC-PROF-11a's non-Few-peer terminal case — wired for scheduler-contract completeness though currently unreachable via this story's own call site, since kinds.ts#parseProfileAnnounce already classifies every null/absent avatar as malformed before this arm ever sees it; a future producer of this wire kind that is not send.ts could still reach it); 'none' -> no schedule mutation (an LWW-losing/idempotent-replay announce, AC-PROF-10)." },
+    { "name": "decideScheduleAction", "signature": "decideScheduleAction(writeResult: { lwwWon: boolean; avatarNonNull: boolean }): 'clear' | 'mark-incomplete' | 'none'", "description": "Pure routing predicate factored out of handleProfileAnnounce specifically so it is unit-testable without going through the parser/gate/storage stack — it never touches localStorage, idb-keyval, or the codec. 'clear' iff scheduler.ts#isCompletingAnnounce({lwwWon, avatarNonNull}); else 'mark-incomplete' iff lwwWon && !avatarNonNull; else 'none'." }
+  ],
+  "private_files": [
+    "app/src/lib/dmProfile/receive.ts"
+  ],
+  "owned_data": [
+    "The in-memory per-authenticated-sender answer-cooldown map (AC-PROF-13) — not persisted; a page reload resets it, which is acceptable per spec.md §5's existing multi-tab/no-lock tolerance for this feature."
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/dmProfile/kinds.ts (DM_PROFILE_REQUEST_KIND, DM_PROFILE_ANNOUNCE_KIND, parseProfileRequest, parseProfileAnnounce — the sole decoder, never hand-rolled JSON.parse)",
+    "app/src/lib/dmProfile/send.ts (sendProfileAnnounce, ProfileSendKeys — the sole outbound-construction chokepoint, never re-implemented here)",
+    "app/src/lib/dmProfile/scheduler.ts (deleteSchedule, loadSchedule, saveSchedule, markAnsweredIncomplete, isCompletingAnnounce — consumed only via these exports, never by hand-constructing/pattern-matching ProfileSchedule fields)",
+    "app/src/lib/contactCache.ts (the new writeContactEntryNeutralized primitive this story adds)",
+    "app/src/lib/contacts.ts (readStoredContacts — for the archivedAt half of the disclosure gate)",
+    "app/src/lib/walledGarden.ts (isAllowedDmSender — the allowed-sender half of the disclosure gate)",
+    "app/src/lib/directMessages.ts (UnsignedRumor type only — the strict unwrapAndOpen call itself lives in story 05's watcher, which authenticates the rumor before ever calling into this module)",
+    "app/src/types (Group, UserProfile)",
+    "@nostr-dev-kit/ndk (NDK type, re-exported through ProfileRequestHandlerContext)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/marmot/welcomeSubscription.ts (unwrapGiftWrap — the lenient primitive, FORBIDDEN for this feature, AC-PROF-5)",
+    "react (this module is not a component; the watcher, story 05, owns all React wiring)",
+    "app/src/lib/pairing/pairingAck.ts (no edits — story 07's concern, this module only exposes the seam story 07 reuses)"
+  ],
+  "external_ports": [
+    "None directly — handleProfileRequest's only external effect is via send.ts#sendProfileAnnounce (NDK publish), never a direct relay call from this module."
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/dmProfile/receive.test.ts",
+    "app/tests/unit/contactCache.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S05", "S06"]
+  },
+  "contactCache_edit": {
+    "module_name": "contactCache",
+    "purpose": "Adds a neutralized write primitive alongside the existing writeContactEntry, without changing that function's signature or behavior for its existing callers (group sync via MarmotContext.tsx, card import via contactCardImport.ts).",
+    "public_api_addition": [
+      { "name": "WriteContactEntryResult", "signature": "type WriteContactEntryResult = { landed: boolean; lwwWon: boolean; avatarNonNull: boolean }", "description": "landed is true iff the write passed LWW (existing.updatedAt < contact.updatedAt, lexicographic ISO-8601 compare) AND the resulting stored entry has a non-null avatar (VQ-S04-013's exact combined semantics — 'not merely a write happened'). lwwWon and avatarNonNull are the two raw components exposed separately so a caller (receive.ts#decideScheduleAction) can distinguish 'LWW lost / idempotent repeat' from 'LWW won but avatar still empty' (AC-PROF-11a), which a single combined boolean cannot." },
+      { "name": "writeContactEntryNeutralized", "signature": "writeContactEntryNeutralized(pubkeyHex: string, contact: CachedContact): WriteContactEntryResult", "description": "Same LWW predicate and storage shape as writeContactEntry, but (a) never calls rememberContact — no contact-injection side effect (AC-PROF-4/§3.5's central fix), and (b) returns WriteContactEntryResult instead of void, so a caller no longer needs to peek the LWW predicate itself before calling (the pattern contactCardImport.ts#importCard currently has to use ahead of writeContactEntry). Defensively lowercases pubkeyHex before both the read and the write (architecture.md's case-folding rule) rather than relying on the caller. Idempotent: calling twice with the identical payload leaves the cache in the same state as calling once (AC-PROF-10) because the second call's LWW comparison is existing.updatedAt(===contact.updatedAt) which is not < contact.updatedAt, so lwwWon is false and no write occurs." },
+      { "name": "readContactEntry (remediated, round 1)", "signature": "readContactEntry(pubkeyHex: string): CachedContact | undefined", "description": "Stage-1 review remediation (sev 3): now case-folds pubkeyHex before the lookup (readContactCache()[pubkeyHex.toLowerCase()]), matching writeContactEntryNeutralized's own folding on write. Before this fix, a neutralized write under a mixed-case pubkey (the live hazard: story 07's importCard reuse of this seam) and a subsequent readContactEntry call with that same mixed-case string would silently MISS, because the write landed under the lowercased key while the read used the raw case. This is the pre-existing readContactEntry function — signature unchanged, only the body now folds. Safe for every existing caller (they already pass lowercase per the transitive-lowercase guarantee; folding only removes the reliance on that guarantee, matching architecture.md's defensive-case-folding rule, and does not change any existing caller's observed behavior). writeContactEntry itself (the pre-existing, non-neutralized function) is deliberately left untouched, per the review's explicit instruction." }
+    ],
+    "dependencies_forbidden_addition": ["No new call to rememberContact anywhere in this new function's body."]
+  }
+}

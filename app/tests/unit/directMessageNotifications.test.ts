@@ -118,6 +118,12 @@ const { rememberContact } = await import('@/src/lib/contacts');
 
 const { subscribeDirectMessageNotifications } = await import('@/src/lib/directMessageNotifications');
 const { PAIRING_ACK_KIND } = await import('@/src/lib/pairing/pairingAck');
+const {
+  DM_PROFILE_REQUEST_KIND,
+  DM_PROFILE_ANNOUNCE_KIND,
+  encodeProfileRequest,
+  encodeProfileAnnounce,
+} = await import('@/src/lib/dmProfile/kinds');
 
 // ── Test suite ─────────────────────────────────────────────────────────────────
 
@@ -293,6 +299,62 @@ describe('subscribeDirectMessageNotifications', () => {
     )!;
 
     await emitEvent(kind1059Sub, { id: 'pairing-ack-wrap', kind: 1059, pubkey: 'any-key' });
+
+    expect(rememberContact).not.toHaveBeenCalled();
+    expect(incrementDirectMessage).not.toHaveBeenCalled();
+  });
+
+  // ── AC-PROF-9 (epic: direct-contact-profile-exchange, story S08) ────────
+  //
+  // A delivered profile-request/profile-announce MUST raise no bell
+  // notification, for both new kinds and both inbound directions. Per
+  // architecture.md this is satisfied by the EXISTING kind!==CHAT_MESSAGE_KIND
+  // (14) guard already exercised above for other foreign kinds — these two
+  // cases close the specific gap (both DM_PROFILE_REQUEST_KIND and
+  // DM_PROFILE_ANNOUNCE_KIND, both inbound directions) without any source
+  // change to directMessageNotifications.ts.
+
+  it('AC-PROF-9: a DM_PROFILE_REQUEST_KIND rumor is silently skipped — no bell, no rememberContact (proof test; directMessageNotifications.ts is not modified for this)', async () => {
+    vi.mocked(unwrapAndOpen).mockResolvedValue({
+      id: 'profile-request-rumor-id',
+      pubkey: PEER_PUB,
+      kind: DM_PROFILE_REQUEST_KIND, // 21061 — not CHAT_MESSAGE_KIND (14)
+      content: encodeProfileRequest(),
+      tags: [],
+      created_at: 1_700_000_000,
+    });
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
+
+    const kind1059Sub = ndk.subs.find(
+      (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
+    )!;
+
+    await emitEvent(kind1059Sub, { id: 'profile-request-wrap', kind: 1059, pubkey: 'any-key' });
+
+    expect(rememberContact).not.toHaveBeenCalled();
+    expect(incrementDirectMessage).not.toHaveBeenCalled();
+  });
+
+  it('AC-PROF-9: a DM_PROFILE_ANNOUNCE_KIND rumor is silently skipped — no bell, no rememberContact (proof test; directMessageNotifications.ts is not modified for this)', async () => {
+    vi.mocked(unwrapAndOpen).mockResolvedValue({
+      id: 'profile-announce-rumor-id',
+      pubkey: PEER_PUB,
+      kind: DM_PROFILE_ANNOUNCE_KIND, // 21062 — not CHAT_MESSAGE_KIND (14)
+      content: encodeProfileAnnounce({ nickname: 'Peer', avatar: { imageUrl: 'https://example.com/a.png' } }),
+      tags: [],
+      created_at: 1_700_000_000,
+    });
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowAll });
+
+    const kind1059Sub = ndk.subs.find(
+      (s) => JSON.stringify(s.filter).includes('"kinds":[1059]'),
+    )!;
+
+    await emitEvent(kind1059Sub, { id: 'profile-announce-wrap', kind: 1059, pubkey: 'any-key' });
 
     expect(rememberContact).not.toHaveBeenCalled();
     expect(incrementDirectMessage).not.toHaveBeenCalled();

@@ -1,0 +1,48 @@
+{
+  "story_id": "S07",
+  "status": "done",
+  "files_created": [
+    "specs/epic-direct-contact-profile-exchange/S07-pairing-ack-fix/architecture.json",
+    "specs/epic-direct-contact-profile-exchange/S07-pairing-ack-fix/baseline.json",
+    "specs/epic-direct-contact-profile-exchange/S07-pairing-ack-fix/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/pairing/pairingAck.ts",
+    "app/tests/unit/pairing/pairingAck.test.ts",
+    "specs/epic-direct-contact-profile-exchange/S07-pairing-ack-fix/verification.json",
+    "specs/epic-direct-contact-profile-exchange/stories.json"
+  ],
+  "implementation_summary": "handlePairingAck's admission path (app/src/lib/pairing/pairingAck.ts) previously called rememberKnownPeers/rememberContact and, since story 06, an opts.ndk-gated announce, but silently discarded decoded.profile \u2014 the issuer never persisted the scanner's submitted name (spec \u00a710.1, AC-CARD-1). Added a new Step 11, directly below story 06's `if (opts?.ndk) {...announce...}` block (per stories.json/ownership-ledger.json's explicit ordering contract) and before the 'admitted' return: the decoded card's {nickname, createdAt} is converted to contactCache's {nickname, updatedAt} shape (updatedAt = new Date(decoded.profile.createdAt * 1000).toISOString(), identical to contactCard.ts#parseContactCard's own createdAt->updatedAt conversion \u2014 this is spec \u00a710.1's '\u00a7B2-safe' clause: updatedAt derives from the card's own created_at, never a wall-clock answer-time stamp) and written via contactCache.ts#writeContactEntryNeutralized (story 04's already-landed neutralized cache-write seam, reused verbatim \u2014 no local LWW or contact-injection-neutralization logic added). readContactEntry is read first so any pre-existing avatar for this pubkey is preserved (a name-only import must never null out an avatar populated by group profile sync, mirroring contactCardImport.ts#importCard's own precedent). Two new imports added to pairingAck.ts: readContactEntry, writeContactEntryNeutralized from @/src/lib/contactCache \u2014 no other file was edited (contactCache.ts and contacts.ts are both untouched; every function this fix calls already existed).\n\nIMPLEMENTATION-CHOICE NOTE: AC-CARD-1/spec.md \u00a710.1/exploration.json all name the fix informally as `importCard(senderHex, decoded.profile)` \u2014 the identifier of the PRE-EXISTING app/src/lib/contactCardImport.ts#importCard function (used by the unrelated add-contact-by-card flow; internally calls the non-neutralized writeContactEntry, which unconditionally also calls rememberContact). architecture.md's 'Cache-write seam' section and both of ownership-ledger.json's carry_forward_for_story_07 notes are explicit and more specific: 'A single neutralized-write function ... consumed by BOTH receive.ts and the \u00a710.1 fix' / 'Reuse writeContactEntryNeutralized (no re-impl)'. Resolved in favor of the architecture.md/ownership-ledger direction \u2014 writeContactEntryNeutralized is called directly, not contactCardImport.ts#importCard \u2014 because (a) it matches the explicitly-declared shared seam, (b) it avoids a redundant second rememberContact call for a contact this same function already just admitted one step earlier (Step 9), and (c) it still fully satisfies AC-CARD-1's BEHAVIORAL test requirement (issuer's contactCache entry for the scanner carries the scanner's submitted name after admission), which is what the AC's own regression clause actually tests, independent of the internal function name. Full rationale recorded in this story's architecture.json 'notes'.\n\nTests added (app/tests/unit/pairing/pairingAck.test.ts, real contactCache.ts exercised \u2014 not mocked, unlike knownPeers.ts/contacts.ts in this file): (1) a real decodeCard round-trip asserting the issuer's contactCache entry for the scanner carries the scanner's submitted name and the exact converted updatedAt after admission; (2) avatar preservation against a pre-existing cache entry; (3) a combined test proving story 06's announce-on-pair still fires in the SAME admission as story 07's name persistence (additive, not a revert); (4) an already-admitted replay leaves the cached entry unchanged (Step 8's early return means Step 11 never re-runs); (5) a non-admitted outcome (nonce-inadmissible) persists nothing.",
+  "tests_added": {
+    "unit": 5
+  },
+  "test_counts": {
+    "baseline": 2980,
+    "final": 2985
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "architect_skipped": false,
+  "modules_touched": [
+    "pairing-ack-fix"
+  ],
+  "escalation_history": [],
+  "verification": {
+    "pre_impl_questions": 6,
+    "post_impl_questions": 3,
+    "typecheck": "clean",
+    "lint": "NO_LINT (matches baseline)"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The story's own instruction packet and the epic's authoritative spec artifacts pointed at two different concrete implementations for the same one-line-class fix: AC-CARD-1/spec.md \u00a710.1/exploration.json all literally name `importCard(senderHex, decoded.profile)` (the pre-existing contactCardImport.ts function, which uses the non-neutralized writeContactEntry), while architecture.md's 'Cache-write seam' section and ownership-ledger.json's carry_forward_for_story_07 notes (authored later, more specific) explicitly require reusing writeContactEntryNeutralized instead. Neither document flags the other as superseded, so resolving which one governs required reading contactCache.ts's two write functions side by side, checking decodeCard's actual return shape (profile:{nickname,createdAt}, NOT {nickname,updatedAt} \u2014 a further, silent type mismatch in the AC's literal wording that would have failed typecheck if taken at face value), and reasoning about which choice a downstream reviewer would consider correct given the epic's own declared shared-seam contract.",
+    "surprised_by": "AC-CARD-1's literal code snippet, `importCard(senderHex, decoded.profile)`, does not type-check as written: decodeCard's profile field is {nickname, createdAt: number}, not the {nickname, updatedAt: string} shape either importCard or writeContactEntryNeutralized require \u2014 the acceptance criterion's own example code silently assumed a conversion it never spelled out.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T17:44:24Z"
+}

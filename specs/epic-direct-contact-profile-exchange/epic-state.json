@@ -1,0 +1,237 @@
+{
+  "epic_name": "direct-contact-profile-exchange",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-12T12:04:59Z",
+  "updated_at": "2026-07-12T20:41:14Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md",
+    "specs/block-contact-spec-request.md",
+    "specs/contact-pairing-code-spec-request.md",
+    "specs/direct-contact-profile-exchange-spec-request.md",
+    "themes.json"
+  ],
+  "completed_stories": [
+    "S01",
+    "S02",
+    "S03",
+    "S04",
+    "S05",
+    "S06",
+    "S07",
+    "S08"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-12T12:04:59Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "IMPLEMENTATION",
+      "timestamp": "2026-07-12T12:33:24Z",
+      "trigger": "story_loop_started"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-12T18:36:04Z",
+      "trigger": "all_stories_done_interlock_passed"
+    }
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "f22080f91b33d5b0b6bfcdfdcdcb4e087205f730",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "reviewer_agent_id": "a208ee9732ed27185",
+  "ac_closure": [
+    {
+      "ac_id": "AC-STRUCT-1",
+      "status": "met",
+      "evidence": "S01 kinds.test.ts: module-load sentinel assertion + constants; behavioral"
+    },
+    {
+      "ac_id": "AC-STRUCT-2",
+      "status": "met",
+      "evidence": "S01 kinds.test.ts: DM_ naming, no shadow of PROFILE_REQUEST_KIND=30; dual-import compiles"
+    },
+    {
+      "ac_id": "AC-PROF-6a",
+      "status": "met",
+      "evidence": "S01 kinds.test.ts: every malformed-avatar variant -> ok:false (parametric)"
+    },
+    {
+      "ac_id": "AC-PROF-1",
+      "status": "met",
+      "evidence": "S02 scheduler.test/.integration: backoff ladder, jitter bounds, durable clock-clamp, persist across restart"
+    },
+    {
+      "ac_id": "AC-PROF-11",
+      "status": "met",
+      "evidence": "S02: advance + D4 reset (<=1/24h, announce-excluded)"
+    },
+    {
+      "ac_id": "AC-PROF-11a",
+      "status": "met",
+      "evidence": "S02 scheduler layer: markAnsweredIncomplete + terminal state + re-arm (tested). Unreachable via announce path by design (AC-6a); documented acceptance-criteria.md Amendment 2026-07-12"
+    },
+    {
+      "ac_id": "AC-PROF-11c",
+      "status": "met",
+      "evidence": "S02: 30-day give-up + re-arm; computeDue excludes past-ceiling active schedules"
+    },
+    {
+      "ac_id": "AC-PROF-2",
+      "status": "met",
+      "evidence": "S03 send.test.ts (real crypto): ensureAvatar before encode, answer-time updatedAt"
+    },
+    {
+      "ac_id": "AC-PROF-8",
+      "status": "met",
+      "evidence": "S03 send.test.ts: unsigned inner rumor, single-recipient kind-1059, no publishable kind-0 (AC-PRIV-1)"
+    },
+    {
+      "ac_id": "AC-PROF-12",
+      "status": "met",
+      "evidence": "S03: nameless owner defers announce (no-op, zero I/O); request unaffected"
+    },
+    {
+      "ac_id": "AC-PROF-3",
+      "status": "met",
+      "evidence": "S04 receive.test.ts: answer gate (isAllowedDmSender AND archivedAt==null, both halves); S08 e2e stranger-request gate (runtime at Step 5.8) \u2014 e2e stranger gate RUNTIME CONFIRMED (Step 5.8)."
+    },
+    {
+      "ac_id": "AC-PROF-4",
+      "status": "met",
+      "evidence": "S04: accept gate + no contact injection (writeContactEntryNeutralized); S08 e2e stranger-announce gate (runtime at Step 5.8) \u2014 e2e stranger gate RUNTIME CONFIRMED (Step 5.8)."
+    },
+    {
+      "ac_id": "AC-PROF-4b",
+      "status": "met",
+      "evidence": "S04 inbound live archive gate + S05 outbound plan+fire archive re-check + S06 fan-out exclusion"
+    },
+    {
+      "ac_id": "AC-PROF-5",
+      "status": "met",
+      "evidence": "S04 receive.test.ts: REAL forged NIP-59 wrap rejected by unwrapAndOpen; victim cache/schedule untouched + defense-in-depth drop"
+    },
+    {
+      "ac_id": "AC-PROF-6",
+      "status": "met",
+      "evidence": "S04: completing announce -> stored under authenticated sender + deleteSchedule; malformed -> dropped, schedule not cleared"
+    },
+    {
+      "ac_id": "AC-PROF-10",
+      "status": "met",
+      "evidence": "S04/contactCache.test.ts: LWW newer-updates/older-doesn't/idempotent via strict-ISO (S01)"
+    },
+    {
+      "ac_id": "AC-PROF-13",
+      "status": "met",
+      "evidence": "S04: per-authenticated-sender cooldown; burst -> at most one answer; deferred-nameless doesn't consume slot"
+    },
+    {
+      "ac_id": "AC-WATCH-1",
+      "status": "met",
+      "evidence": "S05 planDueSweep test: >N due -> staggered sends distinct from per-fire jitter; S08 e2e drives mount-sweep"
+    },
+    {
+      "ac_id": "AC-WATCH-2",
+      "status": "met",
+      "evidence": "S05 source-scan: one new dedicated kind-1059 sub, unwrapAndOpen-only, 3 pre-existing subs untouched"
+    },
+    {
+      "ac_id": "AC-PROF-11b",
+      "status": "met",
+      "evidence": "S06 unit (pure fan-out planner + real sendProfileAnnounce): announce-on-change to active non-archived; announce-on-pair both sides live (welcomeSubscription {ndk}); S08 e2e push spec \u2014 e2e push complements RUNTIME CONFIRMED (Step 5.8)."
+    },
+    {
+      "ac_id": "AC-CARD-1",
+      "status": "met",
+      "evidence": "S07 pairingAck.test.ts (real contactCache): issuer persists scanner's name via writeContactEntryNeutralized; createdAt->ISO \u00a7B2-safe. AC text amended 2026-07-12"
+    },
+    {
+      "ac_id": "AC-PROF-7",
+      "status": "met",
+      "evidence": "S08 dm-profile-self-heal.spec.ts: two mutual avatar-absent contacts converge via pull loop alone (cache cleared post-pairing to isolate). Constituent unit pieces (S02/S03/S04/S05) all green; e2e runtime verified at Step 5.8 gate \u2014 RUNTIME CONFIRMED green under Docker relay (Step 5.8)."
+    },
+    {
+      "ac_id": "AC-PROF-9",
+      "status": "met",
+      "evidence": "S08 contactChat.test.ts (real handler, post-shadow-fix) + directMessageNotifications.test.ts: no bubble/no bell for both new kinds; no source change"
+    },
+    {
+      "ac_id": "AC-PROF-14",
+      "status": "met",
+      "evidence": "S08 i18n baseline: no new user-facing string across S01-S07; i18n.ts untouched (git-diff + grep confirmed)"
+    },
+    {
+      "ac_id": "AC-E2E-1",
+      "status": "met",
+      "evidence": "S08 seedDueProfileSchedule idb hook matches S02 ProfileSchedule shape (fail-loud on mismatch); not a NEXT_PUBLIC_* override; e2e runtime at Step 5.8 \u2014 hook drove the self-heal anchor green (Step 5.8)."
+    }
+  ],
+  "manual_validation": [],
+  "full_suite_result": {
+    "passed": 2964,
+    "failed": 25,
+    "determination": "25 failures ALL pre-existing in tests/unit/components/ThemeIcon.test.ts + tests/unit/themes/treatments.test.ts (theme-icon-set, last touched by commit a50edf4 watercolor themes; NOT touched by this epic; count == every story's baseline snapshot). Zero epic-introduced regressions; all epic tests green.",
+    "assessed_at": "2026-07-12T18:35:09Z"
+  },
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_remediated",
+      "detail": "10 real gaps closed (4 auto by gate incl. codec scheme allow-list + 6 in receive.ts security core incl. untested/gate-masked forged-binding drops). send/scheduler/receive PASS. kinds/contactCache LOW residuals accepted. welcomeSubscription(29%)/pairingAck(MED) pre-existing whole-module debt accepted+backlogged."
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_pass",
+      "detail": "4 tests / 3 new dm-profile-* specs GREEN under strfry:7777 + blossom:3001 Docker relay (50.5s): AC-PROF-7 self-heal convergence, AC-PROF-11b push complements, AC-PROF-3/4 stranger request+announce gates. Scoped to the epic's specs (full 60-test relay gate chronically-RED from pre-existing contamination, documented; not this epic)."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "skipped",
+      "skip_reason": "codex unavailable (out of credits), user override",
+      "detail": "Stage-1 Opus resumable reviewer (reviewer_agent_id a208...) reviewed all 8 stories to a clean fixpoint each + a whole-assembly structural read (no cross-story emergent defect). Stage-2 Codex UNAVAILABLE (workspace out of credits); user authorized commit-without-Codex. REVIEW SKIPPED: codex unavailable.",
+      "structural_findings": {
+        "surfaced": 8,
+        "acted": 2,
+        "disclosed_unacted": 6
+      }
+    }
+  ],
+  "mutation_gate_residuals": [
+    {
+      "module": "app/src/lib/dmProfile/kinds.ts",
+      "residuals": [
+        "decode reason-code precision (L379/398 wrong-type vs not-an-object) \u2014 LOW, diagnostic-only; callers branch on ok not reason. Scheme allow-list gap CLOSED by gate."
+      ]
+    },
+    {
+      "module": "app/src/lib/contactCache.ts",
+      "residuals": [
+        "writeContactEntryNeutralized storage-unavailable/throws silent-failure paths (L23/34/128) \u2014 LOW, silent-by-design, no oracle. LWW-idempotency gap CLOSED by gate."
+      ]
+    },
+    {
+      "module": "app/src/lib/pairing/pairingAck.ts",
+      "residuals": [
+        "malformed-content-shape branch (valid-JSON-wrong-shape -> 'malformed-content') untested \u2014 MED, but PRE-EXISTING branch (epic added importCard+announce, both tested). Backlogged. Nameless-throw gap CLOSED by gate."
+      ]
+    },
+    {
+      "module": "app/src/lib/marmot/welcomeSubscription.ts",
+      "residuals": [
+        "29% score, 82 survived + 104 no-coverage \u2014 PRE-EXISTING whole-module test-quality debt; isolation ACs enforced by source-scan text tests not behavioral assertions. Epic's 1-line {ndk} pass-through IS tested (call-through spy + source-scan). Backlogged as a dedicated audit."
+      ]
+    }
+  ]
+}

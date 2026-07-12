@@ -1,0 +1,106 @@
+{
+  "story_id": "S02",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-12T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S02-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the backoff ladder (1h->2h->4h->8h->16h->24h cap) implemented as real arithmetic driven by `attempts` and an injected clock, or is any step a frozen/stand-in constant (e.g. always returning a fixed interval) that would pass a shallow 'does not throw' test while never actually advancing?"
+    },
+    {
+      "question_id": "VQ-S02-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does scheduler.ts import zero React/NDK/localStorage-adapter surface (only idb-keyval for its own `few-dm-profile-schedule` CRUD), per the pure-core + same-file-adapter convention, and does it expose computeDue/advance/computeIncompleteSet as pure functions taking `schedules`/`nowSec` as explicit parameters rather than reading a wall-clock or module-level singleton internally?"
+    },
+    {
+      "question_id": "VQ-S02-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `scheduler` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S02-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do parametric sweep tests exist that assert advance()'s output at every rung of the ladder (1h,2h,4h,8h,16h,24h,24h-repeat) with a fixed injected clock, confirming both the \u00b120% jitter bound (never below 0.8x or above 1.2x nominal) and the exact rung values \u2014 not just that advance() returns some number greater than the input?"
+    },
+    {
+      "question_id": "VQ-S02-005",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the idb-keyval CRUD case-fold every pubkeyHex key on both write and read (defensive re-fold per architecture.md, 'not relied on transitively'), and does loading a persisted schedule with `nextAttemptAt` far in the past due to a backwards clock jump provably clamp to `now + 24h` rather than firing an immediate retry storm?"
+    },
+    {
+      "question_id": "VQ-S02-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-1",
+      "question": "Is there a test that persists a schedule, reloads the idb-keyval store fresh (simulating a page reload via fake-indexeddb), and asserts the reloaded schedule's `attempts`/`nextAttemptAt` are unchanged from before reload (no reset to the 1h floor), and a separate test proving the very first fire for a newly-incomplete contact is scheduled at now+1h, not immediately?"
+    },
+    {
+      "question_id": "VQ-S02-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-11",
+      "question": "Is there a test proving a D4 non-announce inbound event resets a contact's schedule to the 1h floor, and a second test proving that calling the reset twice within 24h for the same contact only applies the reset once (the second call is a no-op) \u2014 with assertions on the actual returned/stored schedule state rather than a call-count on a mock?"
+    },
+    {
+      "question_id": "VQ-S02-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-11a",
+      "question": "Is there a test in which a gate-passing, non-malformed announce arrives but leaves avatar empty, asserting computeDue/computeIncompleteSet subsequently excludes that contact entirely (not a long-cadence inclusion), and a second test proving a later non-announce D4 signal re-arms it at the 1h floor (not the 24h cap)?"
+    },
+    {
+      "question_id": "VQ-S02-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-11c",
+      "question": "Is there a test driving a contact's schedule across a simulated 30-day attempt span with no completing announce, asserting it is excluded from computeDue thereafter, and a second test proving a later D4 non-announce signal re-arms it at the 1h floor \u2014 with both assertions checking the actual `state` field transition (e.g. 'active' -> 'given-up' -> 'active'), not just a boolean flag?"
+    },
+    {
+      "question_id": "VQ-S02-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-1",
+      "question": "(Seam contract) Does the persisted `ProfileSchedule` record match exactly `{pubkeyHex: string (lowercase), attempts: integer >= 0, nextAttemptAt: number (epoch seconds, clamped to now+24h on load), state: 'active'|'answered-incomplete'|'given-up'}` with no extra/renamed fields, and is there a test asserting `computeDue` never returns a schedule whose `state` is 'answered-incomplete' or 'given-up' unless a D4 non-announce signal has flipped it back to 'active' \u2014 the exact contract story 05's watcher consumes without holding any backoff math of its own?"
+    },
+    {
+      "question_id": "VQ-S02-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-PROF-1",
+      "question": "The implementation deviates from VQ-S02-010's bare 4-field sketch by adding `firstAttemptAt` and `lastResetAt` to `ProfileSchedule`. Is this deviation justified and non-leaking? Answer: yes. `firstAttemptAt` anchors AC-PROF-11c's 30-day WALL-CLOCK ceiling exactly (a nominal-ladder-sum approximation would drift by up to the actual jitter applied at each of ~30 fires, and would silently re-drift if the ladder constants are ever retuned); `lastResetAt` anchors AC-PROF-11's <=1-reset-per-24h rate limit, which is not otherwise derivable from `attempts`/`nextAttemptAt` (a schedule immediately after a reset is structurally indistinguishable from one reached a few hours later by ordinary advancement, without a timestamp to compare against). Both fields are opaque outside scheduler.ts: `computeDue`'s output contract (state==='active' && due) and `isCompletingAnnounce`'s predicate are unaffected, and story 05/04 are documented (architecture.json, this file's header doc) to consume the type only through the exported functions, never by hand-matching individual fields. Recorded here rather than silently landed, per this story's process contract."
+    },
+    {
+      "question_id": "VQ-S02-012",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The dev hardening pass found and fixed a real defensive gap: `loadSchedule`/`loadAllSchedules` case-folded the store LOOKUP KEY but returned the stored record's `pubkeyHex` FIELD verbatim, so a record written outside `saveSchedule` (e.g. by a future migration or an older code version) with mismatched-case `pubkeyHex` would leak un-folded case to callers, contradicting the type's own doc-comment invariant. Is this now closed? Answer: yes \u2014 both functions now re-derive `pubkeyHex` from the already-lowercase store key rather than trusting the stored value, and `app/tests/unit/dmProfile/scheduler.integration.test.ts` covers both functions by writing a mismatched-case record directly via `idb-keyval` (bypassing `saveSchedule`) and asserting the returned `pubkeyHex` is folded. `saveSchedule` itself already case-folded both the key and the field prior to this fix, so the gap was read-side only."
+    },
+    {
+      "question_id": "VQ-S02-013",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-PROF-11",
+      "question": "`applyReachabilitySignal` implements D4's reset/re-arm math but does NOT itself inspect rumor kind to exclude a profile-announce receipt \u2014 by design, per the file header doc, the CALLER (story 04/05) is responsible for never invoking it for an announce. Is this a risk worth flagging forward? Yes, flagged for story 05 (watcher) and story 04 (receive): whichever module wires the D4 dispatch MUST route a `DM_PROFILE_ANNOUNCE_KIND` rumor to `markAnsweredIncomplete`/`isCompletingAnnounce`/`deleteSchedule` only, and every OTHER inbound gift-wrapped rumor kind (chat message, reaction, etc., but excluding the announce and request kinds) to `applyReachabilitySignal`. This story's tests cannot verify that dispatch wiring since it does not exist yet (scheduler.ts is pure and has no subscription); story 05's own tests must include a proof test that an inbound announce does NOT trigger `applyReachabilitySignal`, mirroring the `directMessageNotifications.test.ts` foreign-kind proof-test template noted in exploration.json."
+    },
+    {
+      "question_id": "VQ-S02-014",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-PROF-11a",
+      "question": "Stage-1 review flagged a second integration hazard beyond VQ-S02-013: `computeIncompleteSet` is schedule-state-blind (it only knows contacts/cache, never schedules), so a watcher naively doing 'for each incomplete contact, createInitialSchedule if none active' would resurrect a TERMINAL ('answered-incomplete'/'given-up') contact by minting a fresh 'active' schedule on the very next due-check sweep \u2014 re-opening the exact permanent-loop hole AC-PROF-11a/11c close at the state-machine layer, this time via the watcher's own mint-if-missing logic rather than via advance()/computeDue(). Is this now closed at the module that owns the state machine, rather than being re-encoded independently in story 05? Answer: yes \u2014 `computeContactsNeedingNewSchedule(incompleteSet, existingSchedules)` returns only pubkeys with NO existing schedule of ANY state (active or terminal), case-folding both sides on the join. Story 05's watcher is required to call `createInitialSchedule` ONLY for the pubkeys this function returns (never directly off `computeIncompleteSet`'s raw output), so the terminal-exclusion rule lives exactly once, in scheduler.ts, not duplicated in the watcher. Five parametric tests added to scheduler.test.ts cover: no-schedule inclusion, active-schedule exclusion, answered-incomplete exclusion, given-up exclusion, and a case-mismatched join, plus a mixed-set/dedup test. All 145 tests in app/tests/unit/dmProfile/ pass; typecheck remains clean."
+    },
+    {
+      "question_id": "VQ-S02-015",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "ac_id": "AC-PROF-1",
+      "question": "Cross-vendor Codex review found two genuine edge-case defects that Stage-1 (Opus) and the earlier dev hardening pass both missed. (1) `clampScheduleOnLoad` was pure-only: `loadSchedule`/`loadAllSchedules` clamped in-memory but never wrote the clamped value back, so while a wall clock stayed behind, every reload re-derived a FRESH `now+24h` off a `now` that crept forward each time \u2014 the schedule's effective fire time kept sliding forward and would NEVER actually arrive, the exact opposite of AC-PROF-1's 'can't freeze a schedule' intent. (2) `computeDue` checked only `state==='active' && nowSec>=nextAttemptAt`, so a schedule whose give-up ceiling had already elapsed (`nowSec - firstAttemptAt >= GIVE_UP_CEILING_SECONDS`) but which `advance()` had not yet transitioned to `'given-up'` (e.g. the app slept past the ceiling, or a prior `advance()` scheduled a fire beyond it) would leak one more due request past the ceiling the state machine is supposed to enforce. Are both now closed, with regression tests that fail under the prior behavior? Answer: yes. (1) `loadSchedule`/`loadAllSchedules` now compare the clamped value against the originally-stored `nextAttemptAt` and call `saveSchedule` when the clamp actually lowered it, making the clamp durable while `clampScheduleOnLoad` itself stays pure (persistence lives in the adapter layer, not the pure function) \u2014 three new integration tests prove the write-back happens, that a second reload at an unchanged clock returns the identical clamped value rather than a re-pushed-forward one, and that computeDue observes the schedule as due once nowSec reaches the persisted clamp (recovery). (2) `computeDue` now additionally requires `nowSec - firstAttemptAt < GIVE_UP_CEILING_SECONDS`; two new pure tests prove a past-ceiling-but-still-active schedule is excluded and a one-second-before-ceiling schedule is still included (boundary parity with `advance()`'s own `>=` transition). `advance()` is unchanged \u2014 it still performs the actual `'given-up'` state transition when it next runs, so persisted state converges; `computeDue`'s exclusion only prevents the in-between leak. Full targeted suite: 150 tests in app/tests/unit/dmProfile/, all passing; typecheck clean; no regressions in the full 2869-test suite (same 25 pre-existing unrelated failures)."
+    }
+  ]
+}

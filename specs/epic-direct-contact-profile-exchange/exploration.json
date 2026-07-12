@@ -1,0 +1,92 @@
+{
+  "epic": "direct-contact-profile-exchange",
+  "generated_at": "2026-07-12T12:10:00Z",
+  "language": "typescript",
+  "app_root": "app/",
+  "explorers": ["similar-features", "architecture", "testing-and-conventions"],
+
+  "gift_wrap_primitives": {
+    "strict_unwrap": "app/src/lib/directMessages.ts:230-282 unwrapAndOpen — verifies seal schnorr sig, decrypts under authenticated seal.pubkey, asserts rumor.pubkey===seal.pubkey (line 262), validates canonical rumor id (271-274). Throws generic error, never leaks plaintext. Takes raw private-key hex. THE mandatory primitive (§4.2, AC-PROF-5).",
+    "seal_and_wrap": "app/src/lib/directMessages.ts:171-190 sealAndWrap(rumor, recipientPubkey, selfPrivKeyHex) — wraps nostr-tools/nip59 wrapEvent, returns signed kind-1059.",
+    "lenient_unwrap_FORBIDDEN": "app/src/lib/marmot/welcomeSubscription.ts:40-68 unwrapGiftWrap — NO seal verify, NO rumor.pubkey===seal.pubkey assertion, trusts rumor.pubkey (line 61). MUST NOT be used for the new arms.",
+    "UnsignedRumor_type": "app/src/lib/directMessages.ts:25-32 {kind,content,tags,pubkey,created_at,id}"
+  },
+
+  "pairing_ack_template": {
+    "file": "app/src/lib/pairing/pairingAck.ts",
+    "kind_sentinel_assertion": "lines 61-81 PAIRING_ACK_KIND=21060 + PAIRING_ACK_SENTINEL_KINDS array + throw-on-collision at module load. Template for DM_PROFILE_*_KIND assertions.",
+    "send": "sendPairingAck lines 164-210 — createRumor + sealAndWrap + NDKEvent.publish; never throws on send failure (returns 'queued-for-retry'); bad-hex inputs throw as caller bugs. Template for sendProfileRequest/sendProfileAnnounce.",
+    "handle": "handlePairingAck lines 269-347 — unwrapAndOpen ONLY (never lenient fallback), kind-gate, parse, admit via rememberKnownPeers then rememberContact (ADR-005 order). BYPASSES isAllowedDmSender (nonce is authz). The new answer path does NOT bypass — it requires the gate.",
+    "bug_10_1": "handlePairingAck line 338 calls rememberContact but never importCard, discarding decoded.profile (316-318). §10.1 fix = add importCard(senderHex, decoded.profile) at admission."
+  },
+
+  "existing_group_profile_mechanism_DO_NOT_COLLIDE": {
+    "note": "DIFFERENT transport (MLS group application rumors, not 1:1 gift wraps). No numeric collision with 21061/21062, but IDENTIFIER collision risk — hence DM_ prefix.",
+    "profileRequestSync": "app/src/lib/marmot/profileRequestSync.ts — PROFILE_REQUEST_KIND=30 (line 40), payload {type:'profile_request',targetPubkey,sinceUpdatedAt?,nonce}, backoff UNANSWERED_RETRY_MS=1h/UNANSWERED_MAX_ATTEMPTS=3/7d dedupe. Pure module = pure-scheduler template.",
+    "profileSync": "app/src/lib/marmot/profileSync.ts — PROFILE_RUMOR_KIND=0 (FORBIDDEN namespace, §4). buildPayloadJson (39-46) stamps updatedAt=new Date().toISOString() at serialization — the answer-time precedent (§4 REVIEW B2). Signs kind-0 envelope (serialiseProfileUpdate) — the new feature deliberately does NOT (D6 unsigned).",
+    "profileRequestStorage": "app/src/lib/marmot/profileRequestStorage.ts — idb-keyval memo store keyed groupId:targetPubkey. Precedent for the new per-pubkey schedule store, different key shape and upsert semantics."
+  },
+
+  "contact_profile_storage": {
+    "contactCache": "app/src/lib/contactCache.ts:32-45 writeContactEntry(pubkeyHex,contact) — LWW: if existing.updatedAt>=contact.updatedAt return (line 38, LEXICOGRAPHIC ISO-8601 string compare). Returns VOID (no landed-signal). UNCONDITIONALLY calls rememberContact (line 41) = the §3.5 injection side effect to neutralize. Caller must peek LWW predicate to know if write completed (§3.2), as importCard does.",
+    "contacts": "app/src/lib/contacts.ts — rememberContact(pubkeyHex,seenAt?,isAllowed?) lines 81-103: OPTIONAL isAllowed predicate (line 84) → silent no-op if rejected (the DM-path gate mechanism). archiveContact/unarchiveContact (115-137) toggle StoredContact.archivedAt (string|null). listContacts (139-171) reads archivedAt off stored contact, isArchived=Boolean(archivedAt) (161). rememberContactsFromGroups (105-113) auto-invoked from Layout.tsx materializes co-members as archivedAt:null contacts (resolves §3.3/AC-PROF-3 tension — NO redundant carve-out). purgeStrangerContacts (357-408) janitor, NOT a security boundary. importCard persists card name.",
+    "knownPeers": "app/src/lib/knownPeers.ts — localStorage, sync, APPEND-ONLY (no removal fn anywhere; confirmed whole-file). rememberKnownPeer(s) idempotent-add.",
+    "walledGarden": "app/src/lib/walledGarden.ts:53-81 isAllowedDmSender(peerHex,groups,knownPeers,ownPubkeyHex) — pure/sync, true iff non-empty && not-self && (group member OR in knownPeers). Does NOT consult archivedAt — archive check is a SEPARATE explicit layer read from contacts.ts.",
+    "storage_key_layers": "idb-keyval few-* (async, createStore) for protocol/session state (nonces, intents) — NEW schedule store goes HERE, e.g. few-dm-profile-schedule keyed by pubkeyHex. localStorage lp_* (sync, frozen legacy) for the contact list + cache (lp_contacts_v1, lp_contactCache_v1 in app/src/types/index.ts:43-45).",
+    "pubkey_casing": "hex compared lowercase at read sites but NOT always normalized at write sites (rememberContact stores caller case). Any new map-key code must case-fold defensively (addContactByNpub precedent, contacts.ts:304-342). See learning storedcontact-keys-lowercase-only-via-transitive."
+  },
+
+  "profile_model": {
+    "ensureAvatar": "app/src/lib/avatar.ts:27-29 — pure, returns profile unchanged if avatar set, else backfills pickRandomAvatar() (never null). O runs this before answering so a Few peer can NEVER answer avatar:null (§3.step4).",
+    "hasShareableName": "app/src/lib/shareCard.ts:125-127 — nickname.trim().length>0. The §3.4 answer gate.",
+    "avatar_url_shape": "//few.chat/assets/<uuid>.png — AVATAR_BROWSER_CONFIG.endpointBaseUrl='//few.chat/assets' (config/profile.ts:27).",
+    "local_profile": "ProfileContext.tsx readUserProfile/writeUserProfile via lib/storage; saveProfile chokepoint (52-58) applies capNickname+ensureAvatar.",
+    "group_fanout_template": "MarmotContext.tsx:1598-1617 publishProfileUpdate — serialize once, loop every joined group, swallow per-group failures. The §3.6 announce-on-change mirrors this: loop every ACTIVE non-archived contact, unsigned announce.",
+    "edit_chokepoints": "app/pages/profile.tsx — broadcastProfile(next) at 188-194 (called from handleNicknameBlur ~209-213 only if changed, and handleAvatarSelect ~217-223 always). THESE are where announce-on-change must additionally fire (fan to active 1:1 contacts)."
+  },
+
+  "watchers_and_dispatch": {
+    "mount_point": "app/src/components/Layout.tsx:102-106 — DirectMessageNotificationsWatcher, PendingPairingIntentWatcher, IncomingCallWatcher siblings. New ProfileHealWatcher is a 5th sibling here.",
+    "watcher_template_mount_online": "PendingPairingIntentWatcher.tsx — gated on hydrated&&pubkeyHex&&privateKeyHex; drain() on mount + on window 'online'; dynamic imports for heavy deps; renders null. New watcher adds setInterval for the periodic due-check.",
+    "watcher_template_subscription": "DirectMessageNotificationsWatcher.tsx:15-64 — live groupsRef/knownPeersRef synced by side effects so the subscription doesn't churn on membership change (groups deliberately omitted from dep array). isAllowedSender closure over live refs. The new watcher's answer/announce gates mirror this + a fresh archivedAt check via readStoredContacts.",
+    "DISPATCH_SEAM_DECISION": "LEAD-RATIFIED: open a NEW dedicated kind-1059 subscription owned by the new watcher (mirrors directMessageNotifications.ts:100-103 ndk.subscribe({kinds:[GIFT_WRAP_KIND],'#p':[ownPubkeyHex]})), strict unwrapAndOpen only, route on rumor.kind===DM_PROFILE_REQUEST_KIND / DM_PROFILE_ANNOUNCE_KIND. Do NOT modify welcomeSubscription.ts's pairing-ack/Welcome chain. Reason: 3 existing kind-1059 subs, none a natural single reuse target; a 4th isolates cleanly and satisfies §4.2/§5.",
+    "no_bell_no_chat_free": "directMessageNotifications.ts:111-118 gates rumor.kind===CHAT_MESSAGE_KIND(14) exactly — new kinds excluded with ZERO prod code. ContactChat.tsx:394-398,583-589 same. AC-PROF-9 = TESTS only (proof tests), no source change.",
+    "cannot_filter_by_author": "gift-wrap subs use {kinds:[1059],'#p':[...]} — CANNOT filter by authors (ephemeral outer key per wrap). See learning kind-445-events-have-ephemeral-authors."
+  },
+
+  "pure_module_pattern": {
+    "template_files": "app/src/lib/pairing/nonceStore.ts + pendingIntent.ts — ONE file owns both pure math (params-injected, no React/NDK/idb import surface in the pure fns) AND idb-keyval CRUD adapter, clearly separated in header doc. Module-scope in-memory state has explicit _reset*ForTests exports. pendingIntent.ts:165-201 per-key in-flight-promise lock is the multi-tab/coalescing precedent (REVIEW G4).",
+    "new_scheduler_module": "one file: pure backoff(1h->24h cap, ±20% jitter)/due-check/incomplete-set/clock-clamp + few-dm-profile-schedule idb CRUD keyed by pubkeyHex."
+  },
+
+  "testing": {
+    "unit": "Vitest, app/tests/unit/**/*.test.ts. NO jsdom/@testing-library, NO fast-check (absent from app/package.json; comment-convention only). 'Property tests' = hand-rolled parametric sweeps in it() blocks, each annotated with the mutant it kills (contacts-property.test.ts). Backoff math follows this idiom + boundary cases, NOT a PBT framework.",
+    "storage_test": "profileRequestStorage.integration.test.ts — fake-indexeddb/auto + real idb-keyval, boundary-math via injected now. Template for the new schedule store.",
+    "localStorage_mock": "contacts-property.test.ts Object.defineProperty(globalThis,'localStorage',...) hand-rolled mock (no jsdom). Reuse for archivedAt-gate unit tests.",
+    "kind_exclusion_proof_test": "directMessageNotifications.test.ts:278-299 — mock unwrapAndOpen -> foreign kind -> assert rememberContact/incrementDirectMessage never called ('proof test; source not modified'). Template for AC-PROF-9 bell half. contactChat.test.ts has NO foreign-kind proof test today — GAP to close for both new kinds (AC-PROF-9 chat half).",
+    "module_load_throw": "not unit-tested by precedent (untestable except by source mutation + re-import) — rely on the throw + manual pre-land grep.",
+    "e2e_bucket": "playwright.config.ts:43-44 — filename prefix ONLY: groups-*.spec.ts / dm-*.spec.ts = relay bucket. New specs MUST be named dm-* or groups-* to land in the relay bucket.",
+    "e2e_gate": "Makefile:99-133 make test-e2e-all = test-e2e-fast (12 non-relay, next dev) + test-e2e (44 relay, E2E_GROUPS=1 docker-compose.e2e.yml strfry:7777 + blossom:3001). CLAUDE.md E2E-gate section states 12+44=56 tally — new relay spec must bump 44/56 in BOTH CLAUDE.md and Makefile:99-111 inline comments (hardcoded prose).",
+    "e2e_publish_through_app": "enforced by convention + one exception (helpers/forgedPairingAck.ts). dm-pairing-single-scan-mutual.spec.ts = template for two mutual contacts via real card flow. helpers: getShareCardLink, bootIdentity, computeTestKeypairs (per-spec salted identities), contact-card.ts, auth-helpers.ts.",
+    "e2e_idb_seed": "helpers/idb-record.ts writeIdbRecord/readIdbRecord + helpers/pairing.ts seedPendingIntent/seedIssuerNonce — write real app state to IDB, let the app act on it. The RESOLVED backoff-override hook = new seedDueProfileSchedule(page,{pubkeyHex,nextAttemptAt,attempts,state}) in this shape.",
+    "e2e_naming_collision": "app/tests/e2e/dm-self-heal.spec.ts ALREADY EXISTS (unrelated DM message-content self-heal). New anchor MUST be dm-profile-self-heal.spec.ts (or similar), NOT dm-self-heal*.",
+    "e2e_stranger_gates": "a stranger request/announce IS producible through the real app via a second non-contact browser context (no forged-primitive carve-out needed). Only the forged-binding strict-unwrap case (AC-PROF-5) is a unit test."
+  },
+
+  "constraints": {
+    "privacy_invariant": "CLAUDE.md hard invariant — NO public kind-0, gift-wrap-only, addressed+encrypted. The unsigned announce (D6) exists specifically so a recipient cannot republish it as the sender's public kind-0.",
+    "adr_002": "Proposed — mutual contact graph & pull-only invitations. The disclosure boundary builds on it.",
+    "adr_005": "Accepted — ever-known-peers trust extended to manually-added contacts; establishes knownPeers append-only. The archivedAt layer exists because of this.",
+    "static_export": "output:'export' — query params not path segments; but this feature adds no routes."
+  },
+
+  "prior_learnings": [
+    {"id": "backoff-jitter-formula-can-guarantee-monotonic", "why": "pure backoff+jitter design can guarantee monotonic growth deterministically — directly informs the scheduler module + its parametric-sweep tests"},
+    {"id": "storedcontact-keys-lowercase-only-via-transitive", "why": "pubkey keys are lowercase only via a transitive guarantee, not explicit normalization — the new schedule store + announce keying must case-fold defensively"},
+    {"id": "only-flip-health-reachability-state-transport", "why": "classify nip59 unwrap failures as transport vs application — informs the receive-arm error handling (drop silently, don't mutate state on a decrypt failure)"},
+    {"id": "kind-445-events-have-ephemeral-authors", "why": "never filter gift-wrap NDK subscriptions by author — the new dedicated 1059 sub uses #p only"},
+    {"id": "mls-over-relay-playwright-e2e-must", "why": "e2e must gate on rendered readiness markers not fixed timeouts — the self-heal anchor polls the live-updating contact-list UI, no waitForTimeout"},
+    {"id": "e2e-global-setup-port-check-must", "why": "e2e setup ordering — relevant if any new global-setup wiring is needed"},
+    {"id": "next-js-static-export-trailing-slash", "why": "trailing-slash breaks naive toHaveURL regexes in e2e"}
+  ]
+}

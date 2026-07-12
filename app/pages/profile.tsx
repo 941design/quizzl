@@ -26,13 +26,138 @@ import { useProfile } from '@/src/context/ProfileContext';
 import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { getOwnShareCard, hasShareableName, type ShareCardCacheEntry } from '@/src/lib/shareCard';
-import { addableGroupsForContact, archiveContact, eligibleGroupsForContact, getContact, unarchiveContact } from '@/src/lib/contacts';
+import { addableGroupsForContact, archiveContact, eligibleGroupsForContact, getContact, listContacts, unarchiveContact } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import { drainPendingIntents, type PendingIntentSendContext } from '@/src/lib/pairing/pendingIntent';
 import { capNickname, NICKNAME_MAX_BYTES } from '@/src/config/profile';
 import { utf8ByteLength } from '@/src/lib/contactCard';
+import { sendProfileAnnounce, type ProfileSendKeys } from '@/src/lib/dmProfile/send';
 import type { ContactListItem } from '@/src/lib/contacts';
 import type { ProfileAvatar, UserProfile } from '@/src/types';
+import type NDK from '@nostr-dev-kit/ndk';
+
+// ── Push trigger: announce-on-change fan-out (epic:
+// direct-contact-profile-exchange, story 06; AC-PROF-11b) ──────────────────
+//
+// The 1:1 analog of `MarmotContext#publishProfileUpdate`'s group fan-out
+// (exploration.json's `profile_model.group_fanout_template`): on a
+// nickname/avatar edit, ADDITIONALLY fan a `profile-announce` gift wrap to
+// every active, non-archived contact (archived contacts get NOTHING — Q7/
+// AC-PROF-4b), staggered like `ProfileHealWatcher.tsx#planDueSweep`'s bulk
+// sweep so a large contact list doesn't stampede a relay with N simultaneous
+// wraps (spec.md §3.6/§5). This is purely additive alongside the existing
+// group broadcast — `publishProfileUpdate` itself is never touched.
+//
+// Split into two pure/testable pieces (mirrors `ProfileHealWatcher.tsx`'s
+// own `planDueSweep` / `advanceAfterFire` split — no jsdom/renderHook
+// precedent in this repo, so page-level logic worth testing directly is
+// extracted as an exported, dependency-injectable function instead):
+//   - `planProfileAnnounceFanout` — PURE. Audience + stagger schedule.
+//   - `executeProfileAnnounceFanout` — fires (or schedules) the actual
+//     `send.ts#sendProfileAnnounce` calls, with `sendAnnounce`/
+//     `scheduleDelay` injectable so tests can assert exact call behavior
+//     without a real network/timers.
+
+/** A contact snapshot as seen by the fan-out planner — mirrors `ContactSnapshot` (scheduler.ts/ProfileHealWatcher.tsx) but scoped to this module. */
+export type ProfileAnnounceContactSnapshot = {
+  pubkeyHex: string;
+  archived: boolean;
+};
+
+/** One planned fan-out send: the (lowercased) recipient plus its dispatch-time stagger delay. */
+export type ProfileAnnounceFanoutEntry = {
+  pubkeyHex: string;
+  /** Milliseconds to wait before firing. 0 when the audience is <= PROFILE_EDIT_FANOUT_STAGGER_THRESHOLD. */
+  delayMs: number;
+};
+
+/**
+ * When a nickname/avatar edit's fan-out audience exceeds this many active
+ * contacts, sends are spread across `PROFILE_EDIT_FANOUT_STAGGER_WINDOW_MS`
+ * instead of firing in the same tick (spec.md §3.6: "staggered/jittered like
+ * the sweep to avoid a burst"). Mirrors
+ * `ProfileHealWatcher.tsx#BULK_SWEEP_STAGGER_THRESHOLD`'s value — kept as an
+ * independent constant (not imported) so this module has no dependency edge
+ * on the watcher component, consistent with architecture.md's module
+ * boundaries.
+ */
+export const PROFILE_EDIT_FANOUT_STAGGER_THRESHOLD = 5;
+
+/** The window a large fan-out's sends are spread evenly across. Mirrors `ProfileHealWatcher.tsx#BULK_SWEEP_STAGGER_WINDOW_MS`'s value (independent constant — see above). */
+export const PROFILE_EDIT_FANOUT_STAGGER_WINDOW_MS = 30_000;
+
+/**
+ * PURE. Computes the announce-on-change fan-out audience + stagger plan.
+ *
+ * Audience = active, non-archived contacts ONLY (archived/hidden contacts
+ * are excluded entirely — Q7/AC-PROF-4b — this function's own filter, not a
+ * downstream one, so the exclusion is directly assertable at this
+ * boundary). Every `pubkeyHex` is case-folded (architecture.md's
+ * case-folding rule) so a mixed-case snapshot entry can never produce a
+ * second, distinct recipient for the same contact.
+ */
+export function planProfileAnnounceFanout(
+  contacts: ProfileAnnounceContactSnapshot[],
+): ProfileAnnounceFanoutEntry[] {
+  const active = contacts.filter((c) => !c.archived).map((c) => c.pubkeyHex.toLowerCase());
+
+  if (active.length > PROFILE_EDIT_FANOUT_STAGGER_THRESHOLD) {
+    return active.map((pubkeyHex, index) => ({
+      pubkeyHex,
+      delayMs: Math.round((index / active.length) * PROFILE_EDIT_FANOUT_STAGGER_WINDOW_MS),
+    }));
+  }
+  return active.map((pubkeyHex) => ({ pubkeyHex, delayMs: 0 }));
+}
+
+export type ExecuteProfileAnnounceFanoutParams = {
+  ndk: NDK;
+  keys: ProfileSendKeys;
+  /** The profile as of THIS edit (pre-`ensureAvatar` — `sendProfileAnnounce` backfills). */
+  localProfile: UserProfile;
+  plan: ProfileAnnounceFanoutEntry[];
+  /** Injectable for tests — defaults to `send.ts#sendProfileAnnounce` (the S03 privacy chokepoint). Never re-implemented. */
+  sendAnnounce?: typeof sendProfileAnnounce;
+  /** Injectable for tests — defaults to the real `setTimeout`. */
+  scheduleDelay?: (fire: () => void, delayMs: number) => void;
+};
+
+/**
+ * Fires (or schedules) one `sendProfileAnnounce` gift wrap per plan entry.
+ *
+ * Synchronous and fire-and-forget by design: every send is either invoked
+ * immediately or handed to `scheduleDelay`, never awaited here, so this
+ * function itself can never block or slow the profile-save UX. A single
+ * recipient's failure is swallowed (mirrors
+ * `MarmotContext#publishProfileUpdate`'s per-group swallow) — it is never
+ * surfaced to the caller and never stops the remaining sends.
+ */
+export function executeProfileAnnounceFanout(params: ExecuteProfileAnnounceFanoutParams): void {
+  const sendAnnounce = params.sendAnnounce ?? sendProfileAnnounce;
+  const scheduleDelay =
+    params.scheduleDelay ??
+    ((fire: () => void, delayMs: number) => {
+      setTimeout(fire, delayMs);
+    });
+
+  for (const entry of params.plan) {
+    const fire = () => {
+      void sendAnnounce({
+        ndk: params.ndk,
+        recipientPubkeyHex: entry.pubkeyHex,
+        keys: params.keys,
+        localProfile: params.localProfile,
+      }).catch(() => {
+        // Per-target failure swallowed — mirrors publishProfileUpdate's group fan-out.
+      });
+    };
+    if (entry.delayMs > 0) {
+      scheduleDelay(fire, entry.delayMs);
+    } else {
+      fire();
+    }
+  }
+}
 
 function AvatarDisplay({ avatar, displayName, size }: { avatar: ProfileAvatar | null; displayName: string; size: string }) {
   return (
@@ -185,12 +310,50 @@ function OwnProfileSection() {
     }
   }, [hydrated, savedProfile.nickname]);
 
+  // Push trigger: announce-on-change (epic: direct-contact-profile-exchange,
+  // story 06; AC-PROF-11b). Additive alongside `publishProfileUpdate`'s group
+  // fan-out below — fans a 1:1 profile-announce to every active,
+  // non-archived contact. Reads the LIVE contact list at call time (never a
+  // cached/stale snapshot) so a contact archived since the last render is
+  // still excluded. Entirely fire-and-forget: any setup failure (e.g. NDK
+  // connect) is swallowed here so it can never surface as a profile-save
+  // error — the nickname/avatar edit itself already succeeded via
+  // `saveProfile` before `broadcastProfile` is ever called.
+  const fanOutProfileAnnounceOnChange = useCallback(
+    (next: UserProfile) => {
+      if (!pubkeyHex || !privateKeyHex) return;
+      const ownPubkeyHex = pubkeyHex;
+      const ownPrivateKeyHex = privateKeyHex;
+      void (async () => {
+        try {
+          const contactItems = listContacts(ownPubkeyHex, { includeArchived: true });
+          const plan = planProfileAnnounceFanout(
+            contactItems.map((c) => ({ pubkeyHex: c.pubkeyHex, archived: c.isArchived })),
+          );
+          if (plan.length === 0) return;
+          const { connectNdk } = await import('@/src/lib/ndkClient');
+          const ndk = await connectNdk(ownPrivateKeyHex);
+          executeProfileAnnounceFanout({
+            ndk,
+            keys: { ownPubkeyHex, ownPrivateKeyHex },
+            localProfile: next,
+            plan,
+          });
+        } catch {
+          // Fan-out setup failures must never surface as a profile-save error.
+        }
+      })();
+    },
+    [pubkeyHex, privateKeyHex],
+  );
+
   const broadcastProfile = useCallback(
     (next: UserProfile) => {
       lastBroadcastNickname.current = next.nickname;
       void publishProfileUpdate(next);
+      fanOutProfileAnnounceOnChange(next);
     },
-    [publishProfileUpdate],
+    [publishProfileUpdate, fanOutProfileAnnounceOnChange],
   );
 
   // Nickname is stored locally on every keystroke, but only broadcast when the

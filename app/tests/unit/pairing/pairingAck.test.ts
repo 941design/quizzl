@@ -33,6 +33,12 @@ import { bytesToHex } from 'nostr-tools/utils';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { encodeCard, decodeCard } from '@/src/lib/contactCard';
 import { isAllowedDmSender } from '@/src/lib/walledGarden';
+// §10.1 fix (epic: direct-contact-profile-exchange, story 07, AC-CARD-1) —
+// contactCache.ts is NOT mocked in this file (unlike knownPeers.ts/contacts.ts
+// above), so these regression tests exercise the real read/write seam.
+import { readContactEntry, writeContactEntryNeutralized } from '@/src/lib/contactCache';
+import { STORAGE_KEYS } from '@/src/types';
+import { DM_PROFILE_ANNOUNCE_KIND, parseProfileAnnounce } from '@/src/lib/dmProfile/kinds';
 import {
   getOrMintActiveNonce,
   clearAllNonces,
@@ -40,6 +46,38 @@ import {
   getStoredNonce,
   NONCE_GRACE_SEC,
 } from '@/src/lib/pairing/nonceStore';
+
+// ── localStorage mock (story 06 push-trigger tests only) ───────────────────
+// Hand-rolled, no jsdom — mirrors contacts-property.test.ts's precedent.
+// `readUserProfile()` (storage.ts) reads through this; contacts.ts/
+// knownPeers.ts are separately vi.mock'd above/below and never touch this
+// store, so this mock is scoped in effect to the new push-trigger behavior
+// (readUserProfile()) only — every pre-existing test leaves the store empty
+// and gets storage.ts's own DEFAULT_USER_PROFILE ({nickname:'', avatar:null}),
+// which makes sendProfileAnnounce's nameless gate a zero-I/O no-op (S03
+// contract) — so pre-existing publish-count assertions are unaffected.
+const localProfileStore: Record<string, string> = {};
+const localStorageMock = {
+  getItem: (key: string) => localProfileStore[key] ?? null,
+  setItem: (key: string, value: string) => {
+    localProfileStore[key] = value;
+  },
+  removeItem: (key: string) => {
+    delete localProfileStore[key];
+  },
+  clear: () => {
+    Object.keys(localProfileStore).forEach((k) => delete localProfileStore[k]);
+  },
+};
+Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true });
+
+function setLocalUserProfile(profile: { nickname: string; avatar: { imageUrl: string } | null }): void {
+  localProfileStore[STORAGE_KEYS.userProfile] = JSON.stringify(profile);
+}
+
+function clearLocalUserProfile(): void {
+  delete localProfileStore[STORAGE_KEYS.userProfile];
+}
 
 // ── Tracked mocks for knownPeers.ts / contacts.ts ───────────────────────────
 // Shared, inspectable JS state standing in for the real (localStorage-backed)
@@ -137,6 +175,7 @@ beforeEach(async () => {
   await clearAllNonces();
   _resetActiveNonceForTests();
   _resetPairingAckAdmissionsForTests();
+  clearLocalUserProfile();
 });
 
 // ── AC-SEC-3 — kind sentinel isolation ──────────────────────────────────
@@ -290,6 +329,31 @@ describe('sendPairingAck (AC-ACK-1, AC-PRIV-1)', () => {
         signEvent: scanner.signer.signEvent,
       }),
     ).rejects.toThrow();
+  });
+
+  it('throws (never silently emits an unsigned/nameless echo) when the owner has no shareable name — RD-7 name-set gate, before any publish', async () => {
+    // The guard is symmetric to the S4 echo gate: without a shareable name the
+    // enclosed card would be nameless and the issuer's handlePairingAck would
+    // reject it at the signature step, turning the echo into a silent no-op
+    // that still reports 'sent'. Fail loudly at the send source instead.
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const publishSpy = vi.spyOn(NDKEvent.prototype, 'publish').mockResolvedValue(new Set() as never);
+
+    await expect(
+      sendPairingAck({
+        ndk: {} as never,
+        issuerPubkeyHex: issuer.pubHex,
+        echoedNonceHex: 'ab'.repeat(16),
+        ownPubkeyHex: scanner.pubHex,
+        ownPrivateKeyHex: scanner.privHex,
+        ownProfile: { nickname: '', createdAt: T0 }, // nameless (DEFAULT_USER_PROFILE)
+        signEvent: scanner.signer.signEvent,
+      }),
+    ).rejects.toThrow();
+
+    // The throw happens before the try/send — nothing is ever published.
+    expect(publishSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -646,10 +710,12 @@ describe('AC-PRIV-1 — no public kind-0 anywhere in the pairing-ack send/handle
     expect(publishedKinds).toEqual([1059]);
   });
 
-  it('handlePairingAck cannot publish anything at all — its signature carries no NDK/publish capability', async () => {
-    // Structural guarantee: handlePairingAck's parameters are (giftWrapEvent,
-    // ownPrivateKeyHex, opts) — no `ndk` reachable — so it is architecturally
-    // incapable of calling a relay-publish primitive, kind-0 or otherwise.
+  it('handlePairingAck never publishes anything when the caller omits opts.ndk (the pre-story-06 default)', async () => {
+    // Story 06 (AC-PROF-11b) adds an OPTIONAL opts.ndk purely for the
+    // issuer-side push-trigger announce (see the dedicated "push trigger"
+    // describe block below) — with it omitted (every pre-story-06 call
+    // site, and any call that doesn't pass it), this function still cannot
+    // reach a relay-publish primitive of any kind, kind-0 or otherwise.
     // A publish spy across the whole run stays untouched regardless of outcome.
     const issuer = makeIdentity();
     const scanner = makeIdentity();
@@ -746,5 +812,354 @@ describe('handlePairingAck — content-shape rejection (mutation gate)', () => {
     expect(result.status).toBe('card-invalid');
     expect(rememberKnownPeersCalls).toEqual([]);
     expect(rememberContactCalls).toEqual([]);
+  });
+});
+
+// ── Push triggers (epic: direct-contact-profile-exchange, story 06, AC-PROF-11b) ──
+// "Announce-on-pair": both admission points additionally fire an immediate
+// `dmProfile/send.ts#sendProfileAnnounce` gift wrap to the freshly-paired
+// contact. Real send.ts is exercised (not mocked) so a privacy regression —
+// e.g. a signed kind-0, or a wrap addressed to the wrong recipient — would
+// fail these tests, mirroring this file's existing AC-PRIV-1 discipline.
+
+describe('sendPairingAck — push trigger, scanner side (AC-PROF-11b)', () => {
+  it('also fires an immediate profile-announce to the issuer when the scanner has a shareable local profile cached', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const echoedNonceHex = 'ab'.repeat(16);
+    setLocalUserProfile({ nickname: 'Bob', avatar: { imageUrl: 'https://example.test/a.png' } });
+
+    const published: NDKEvent[] = [];
+    vi.spyOn(NDKEvent.prototype, 'publish').mockImplementation(async function (this: NDKEvent) {
+      published.push(this);
+      return new Set() as never;
+    });
+
+    const result = await sendPairingAck({
+      ndk: {} as never,
+      issuerPubkeyHex: issuer.pubHex,
+      echoedNonceHex,
+      ownPubkeyHex: scanner.pubHex,
+      ownPrivateKeyHex: scanner.privHex,
+      ownProfile: { nickname: 'Bob', createdAt: T0 },
+      signEvent: scanner.signer.signEvent,
+    });
+
+    expect(result.result).toBe('sent');
+    // Exactly two gift wraps: the pairing-ack itself, then the push-trigger announce.
+    expect(published).toHaveLength(2);
+
+    const announceWrap = (published[1] as unknown as { rawEvent: () => { kind: number; pubkey: string; tags: string[][] } }).rawEvent();
+    expect(announceWrap.kind).toBe(1059);
+    expect(announceWrap.kind).not.toBe(0); // AC-PRIV-1: never an unaddressed kind-0
+    const pTag = announceWrap.tags.find((t) => t[0] === 'p');
+    expect(pTag?.[1]).toBe(issuer.pubHex);
+
+    const recoveredRumor = await unwrapAndOpen(announceWrap as never, issuer.privHex);
+    expect(recoveredRumor.kind).toBe(DM_PROFILE_ANNOUNCE_KIND);
+    expect(recoveredRumor.pubkey).toBe(scanner.pubHex);
+
+    const parsed = parseProfileAnnounce(recoveredRumor.content);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.value.nickname).toBe('Bob');
+    }
+  });
+
+  it('does not attempt a second publish when the scanner has no shareable local profile cached (readUserProfile default → sendProfileAnnounce\'s zero-I/O nameless gate)', async () => {
+    clearLocalUserProfile();
+    const published: unknown[] = [];
+    vi.spyOn(NDKEvent.prototype, 'publish').mockImplementation(async function () {
+      published.push(1);
+      return new Set() as never;
+    });
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+
+    const result = await sendPairingAck({
+      ndk: {} as never,
+      issuerPubkeyHex: issuer.pubHex,
+      echoedNonceHex: 'ef'.repeat(16),
+      ownPubkeyHex: scanner.pubHex,
+      ownPrivateKeyHex: scanner.privHex,
+      ownProfile: { nickname: 'Bob', createdAt: T0 },
+      signEvent: scanner.signer.signEvent,
+    });
+
+    expect(result.result).toBe('sent');
+    expect(published).toHaveLength(1); // only the ack itself
+  });
+
+  it('a failed announce publish never turns a successfully-sent ack into "queued-for-retry"', async () => {
+    setLocalUserProfile({ nickname: 'Bob', avatar: null });
+    let callCount = 0;
+    vi.spyOn(NDKEvent.prototype, 'publish').mockImplementation(async function () {
+      callCount += 1;
+      if (callCount === 2) throw new Error('announce publish failed (e.g. offline)');
+      return new Set() as never;
+    });
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+
+    const result = await sendPairingAck({
+      ndk: {} as never,
+      issuerPubkeyHex: issuer.pubHex,
+      echoedNonceHex: 'cd'.repeat(16),
+      ownPubkeyHex: scanner.pubHex,
+      ownPrivateKeyHex: scanner.privHex,
+      ownProfile: { nickname: 'Bob', createdAt: T0 },
+      signEvent: scanner.signer.signEvent,
+    });
+
+    expect(result.result).toBe('sent');
+    expect(callCount).toBe(2); // the announce WAS attempted, and it did fail
+  });
+});
+
+describe('handlePairingAck — push trigger, issuer side (AC-PROF-11b)', () => {
+  it('fires an immediate profile-announce to the freshly-admitted sender when opts.ndk + a shareable local profile are both available', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Bob');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    setLocalUserProfile({ nickname: 'Alice', avatar: null });
+    const published: NDKEvent[] = [];
+    vi.spyOn(NDKEvent.prototype, 'publish').mockImplementation(async function (this: NDKEvent) {
+      published.push(this);
+      return new Set() as never;
+    });
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5, ndk: {} as never });
+    expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
+    expect(published).toHaveLength(1);
+
+    const announceWrap = (published[0] as unknown as { rawEvent: () => { kind: number; pubkey: string; tags: string[][] } }).rawEvent();
+    expect(announceWrap.kind).toBe(1059);
+    expect(announceWrap.kind).not.toBe(0); // AC-PRIV-1
+    const pTag = announceWrap.tags.find((t) => t[0] === 'p');
+    expect(pTag?.[1]).toBe(scanner.pubHex);
+
+    // Decoded by the SCANNER (the announce's addressed recipient), authored
+    // by the ISSUER (rumor.pubkey === issuer, derived from ownPrivateKeyHex).
+    const recoveredRumor = await unwrapAndOpen(announceWrap as never, scanner.privHex);
+    expect(recoveredRumor.kind).toBe(DM_PROFILE_ANNOUNCE_KIND);
+    expect(recoveredRumor.pubkey).toBe(issuer.pubHex);
+
+    const parsed = parseProfileAnnounce(recoveredRumor.content);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.value.nickname).toBe('Alice');
+    }
+  });
+
+  it('does not re-fire an announce on an already-admitted replay, even with opts.ndk provided', async () => {
+    setLocalUserProfile({ nickname: 'Alice', avatar: null });
+    const published: unknown[] = [];
+    vi.spyOn(NDKEvent.prototype, 'publish').mockImplementation(async function () {
+      published.push(1);
+      return new Set() as never;
+    });
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Bob');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    const first = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5, ndk: {} as never });
+    expect(first.status).toBe('admitted');
+    expect(published).toHaveLength(1);
+
+    const second = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 6, ndk: {} as never });
+    expect(second).toEqual({ status: 'already-admitted', senderPubkeyHex: scanner.pubHex });
+    expect(published).toHaveLength(1); // unchanged — no re-fire on replay
+  });
+
+  it('a failed announce publish never affects the returned "admitted" result', async () => {
+    setLocalUserProfile({ nickname: 'Alice', avatar: null });
+    vi.spyOn(NDKEvent.prototype, 'publish').mockRejectedValue(new Error('offline'));
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Bob');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5, ndk: {} as never });
+    expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
+  });
+
+  it('still does not publish anything when opts.ndk is omitted, even with a shareable local profile cached (opts.ndk is the sole gate)', async () => {
+    setLocalUserProfile({ nickname: 'Alice', avatar: null });
+    const publishSpy = vi.spyOn(NDKEvent.prototype, 'publish');
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Bob');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5 });
+    expect(result.status).toBe('admitted');
+    expect(publishSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ── §10.1 name-drop fix (epic: direct-contact-profile-exchange, story 07, ──
+// AC-CARD-1). Before this fix, handlePairingAck's admission path called
+// rememberKnownPeers/rememberContact but silently discarded decoded.profile,
+// so the issuer never persisted the scanner's submitted name. contactCache.ts
+// is NOT mocked in this file — these tests exercise the real
+// writeContactEntryNeutralized/readContactEntry seam (story 04) through the
+// real decodeCard round trip, so a fix that never threads the real decoded
+// name through (or a silent revert) would fail here.
+
+describe('handlePairingAck — §10.1 name-drop fix (AC-CARD-1)', () => {
+  it('persists the scanner\'s submitted name into contactCache after admission, using a real decoded value distinct from any placeholder default', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const scannerName = 'Zzyxw-Distinctive-Name-42';
+    const card = await buildIdentityCard(scanner, scannerName);
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    // Before admission: no cache entry at all for the scanner.
+    expect(readContactEntry(scanner.pubHex)).toBeUndefined();
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 60 });
+    expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
+
+    const cached = readContactEntry(scanner.pubHex);
+    expect(cached).toBeDefined();
+    expect(cached?.nickname).toBe(scannerName);
+    // updatedAt derives from the card's own created_at (T0), never a
+    // wall-clock answer-time stamp — spec §10.1's §B2-safety clause.
+    expect(cached?.updatedAt).toBe(new Date(T0 * 1000).toISOString());
+  });
+
+  it('preserves a pre-existing contactCache avatar (a name-only import must never null it out)', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Carol');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    // Seed a pre-existing cache entry with an avatar and an OLDER updatedAt,
+    // so this ack's card (timestamped T0) still wins LWW.
+    writeContactEntryNeutralized(scanner.pubHex, {
+      nickname: 'stale-name',
+      avatar: { imageUrl: 'https://example.test/existing.png' },
+      updatedAt: new Date((T0 - 1000) * 1000).toISOString(),
+    });
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 60 });
+    expect(result.status).toBe('admitted');
+
+    const cached = readContactEntry(scanner.pubHex);
+    expect(cached?.nickname).toBe('Carol');
+    expect(cached?.avatar).toEqual({ imageUrl: 'https://example.test/existing.png' });
+  });
+
+  it("still fires story 06's announce-on-pair AND persists the name in the SAME admission (additive fix, not a revert of story 06)", async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const scannerName = 'Dave';
+    const card = await buildIdentityCard(scanner, scannerName);
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    setLocalUserProfile({ nickname: 'Alice', avatar: null });
+    const published: NDKEvent[] = [];
+    vi.spyOn(NDKEvent.prototype, 'publish').mockImplementation(async function (this: NDKEvent) {
+      published.push(this);
+      return new Set() as never;
+    });
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5, ndk: {} as never });
+    expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
+
+    // Story 06's announce still fires (not reordered/removed by this story).
+    expect(published).toHaveLength(1);
+    const announceWrap = (published[0] as unknown as { rawEvent: () => { kind: number } }).rawEvent();
+    expect(announceWrap.kind).toBe(1059);
+
+    // Story 07's name persistence also happened, in the SAME admission.
+    const cached = readContactEntry(scanner.pubHex);
+    expect(cached?.nickname).toBe(scannerName);
+  });
+
+  it('does not persist (or corrupt) the cached name a second time on an already-admitted replay', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Eve');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    const first = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5 });
+    expect(first.status).toBe('admitted');
+    const cachedAfterFirst = readContactEntry(scanner.pubHex);
+    expect(cachedAfterFirst?.nickname).toBe('Eve');
+
+    const second = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 6 });
+    expect(second).toEqual({ status: 'already-admitted', senderPubkeyHex: scanner.pubHex });
+
+    const cachedAfterSecond = readContactEntry(scanner.pubHex);
+    expect(cachedAfterSecond).toEqual(cachedAfterFirst); // unchanged by the replay
+  });
+
+  it('does not persist any name on a non-admitted outcome (nonce-inadmissible)', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const card = await buildIdentityCard(scanner, 'Frank');
+    const neverIssuedNonce = 'aa'.repeat(16);
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(neverIssuedNonce, card),
+    });
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 });
+    expect(result.status).toBe('nonce-inadmissible');
+    expect(readContactEntry(scanner.pubHex)).toBeUndefined();
   });
 });

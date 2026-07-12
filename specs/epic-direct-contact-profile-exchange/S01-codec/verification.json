@@ -1,0 +1,124 @@
+{
+  "story_id": "S01",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-12T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S01-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the module-load sentinel-collision assertion in kinds.ts actually execute and throw when instantiated against a colliding value, or is it a dead/tautological check that would pass even if DM_PROFILE_REQUEST_KIND or DM_PROFILE_ANNOUNCE_KIND collided with one of the listed sentinels (444, 5, 7, 9, 13, 14, 21059, 21060, 20602, 25050-25055, 10, 11, 12, 30078, 30051, 30, 0)? Show the test that substitutes one constant with a colliding value and confirms the module throws at import time, not just when manually invoked."
+    },
+    {
+      "question_id": "VQ-S01-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does kinds.ts import only pure JS/TS (no NDK, no React, no idb-keyval, no localStorage adapter), per architecture.md's pure-core convention, and is it free of any reference to send.ts/receive.ts/scheduler.ts/contactCache.ts that would violate the 'no direct imports across module boundaries except through declared seams' rule?"
+    },
+    {
+      "question_id": "VQ-S01-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `codec` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S01-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do the unit tests for kinds.ts exercise both encode->parse round-trips AND the negative/malformed paths (avatar:null, avatar absent, wrong `type` literal, non-JSON content) with real assertions on the returned value/thrown error \u2014 not merely calling the function and asserting it does not throw?"
+    },
+    {
+      "question_id": "VQ-S01-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the implemented kinds.ts match spec.md \u00a74's wire format exactly \u2014 DM_PROFILE_REQUEST_KIND=21061 with `{type, since?}` and DM_PROFILE_ANNOUNCE_KIND=21062 with `{type, nickname, avatar:{imageUrl}, updatedAt}` \u2014 with no extra/renamed fields that would silently break a later story's consumer?"
+    },
+    {
+      "question_id": "VQ-S01-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Since kinds.ts is the sole parser for wire data a stranger could gift-wrap and send, does parseProfileAnnounce/parseProfileRequest reject any payload shape outside the exact expected JSON shape (e.g. extra/prototype-polluting keys, non-string `nickname`, non-string `avatar.imageUrl`) rather than passing an under-validated object through to the caller?"
+    },
+    {
+      "question_id": "VQ-S01-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "Is there a real unit test that substitutes each sentinel value (444, 5, 7, 9, 13, 14, 21059, 21060, 20602, 25050, 25051, 25052, 25053, 25054, 25055, 10, 11, 12, 30078, 30051, 30, 0) in place of DM_PROFILE_REQUEST_KIND or DM_PROFILE_ANNOUNCE_KIND, proving the module-load assertion throws for every one of them \u2014 not just a single representative value \u2014 and what evidence shows the production code path (not a test-only stub) performs this check?"
+    },
+    {
+      "question_id": "VQ-S01-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-2",
+      "question": "Does a build/typecheck that imports both `app/src/lib/dmProfile/kinds.ts` and `app/src/lib/marmot/profileRequestSync.ts` compile without a duplicate-identifier error, and is there a grep-based or compile-based test proving DM_PROFILE_REQUEST_KIND/DM_PROFILE_ANNOUNCE_KIND are distinct identifiers from PROFILE_REQUEST_KIND=30 (not just distinct values)?"
+    },
+    {
+      "question_id": "VQ-S01-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-6a",
+      "question": "For a profile-announce payload with `avatar: null` and one with the `avatar` key entirely absent, does parseProfileAnnounce return a value that is provably unusable by contactCache.ts's write function (e.g. throws, or returns a tagged malformed/error result the caller must check) \u2014 with a test that asserts on the actual return/throw shape, not just that some downstream store call did not happen in a mock?"
+    },
+    {
+      "question_id": "VQ-S01-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "(Seam contract) Does `ProfileRequestPayload` as implemented have exactly `{type: 'profile-request', since?: string}` with `since` genuinely optional and no undeclared fields, and is there a test asserting encodeProfileRequest's output round-trips through parseProfileRequest to an equal object \u2014 the exact contract story 03 (send.ts) and story 04 (receive.ts) both depend on?"
+    },
+    {
+      "question_id": "VQ-S01-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-6a",
+      "question": "(Seam contract) Does `ProfileAnnouncePayload` as implemented have exactly `{type: 'profile-announce', nickname: string (non-empty), avatar: {imageUrl: string} with null/absent rejected before return, updatedAt: string ISO-8601}`, and does encodeProfileAnnounce provably refuse (throw, not silently coerce) to serialize a call site that passes `avatar: null` or omits `avatar` \u2014 the exact contract story 03's answer path and story 04's announce-gate both depend on?"
+    },
+    {
+      "question_id": "VQ-S01-012",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "encodeProfileAnnounce's implemented parameter type widens `avatar` to `{ imageUrl: string } | null | undefined` \u2014 narrower/looser than the exported `ProfileAnnouncePayload['avatar']` type (`{ imageUrl: string }`) \u2014 specifically so the runtime null/absent-avatar guard is reachable from a well-typed test without an `as any` cast. Does this widening create any real risk that story 03's send.ts could pass `avatar: null` and have TypeScript accept it silently at a call site that should have run `ensureAvatar` first, or does TS's structural typing plus the runtime throw fully close that gap regardless of the wider parameter type?"
+    },
+    {
+      "question_id": "VQ-S01-013",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-6a",
+      "question": "parseProfileAnnounce distinguishes two malformed-avatar reasons \u2014 `'avatar-missing'` (covers both `avatar: null` and an absent `avatar` key) and `'avatar-imageUrl-invalid'` (avatar present but `imageUrl` is null/absent/empty/non-string). Is this two-way split sufficient for story 04 (receive.ts)'s dispatch, or does the receive path need to distinguish `avatar: null` from an absent `avatar` key as separate reasons (e.g. for differing telemetry/backoff handling), which the current codec does not expose?"
+    },
+    {
+      "question_id": "VQ-S01-014",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "encodeProfileAnnounce stamps `updatedAt` via `new Date().toISOString()` internally at call time (never accepting it as a caller parameter), matching spec.md \u00a74's answer-time requirement. Since story 03 (send.ts) and the scheduler's LWW comparisons (AC-PROF-10) depend on this exact timestamp being genuinely call-time and monotonically comparable across rapid successive calls, should kinds.ts additionally expose a way to inject a clock (mirroring `profileRequestStorage.integration.test.ts`'s injected-now pattern) for story 02/03's own deterministic tests, or is relying on real wall-clock time in this codec module (as implemented) acceptable given no other pure module in this epic needs to control it?"
+    },
+    {
+      "question_id": "VQ-S01-015",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "ac_id": "AC-PROF-10",
+      "question": "Gate-remediation sev 5: parseProfileAnnounce's `updatedAt` and parseProfileRequest's `since` are now validated by `isStrictIsoUtcTimestamp` (regex shape + Date.parse sanity + round-trip re-serialization check) rather than a bare non-empty-string check. Does this fully close the LWW-poisoning attack (a gate-passing sender submitting `updatedAt:\"zzzz\"` or another string that lexicographically dominates real timestamps to win every future AC-PROF-10 compare and pin a stale/empty avatar), and is the three-layer check (shape/parse/round-trip) actually necessary \u2014 i.e. does the round-trip layer catch a real case (calendar-invalid-but-shape-valid values like Feb 30) that the shape+parse layers alone would miss?"
+    },
+    {
+      "question_id": "VQ-S01-016",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Gate-remediation sev 2: `ParseResult`'s failure arm is now typed `{ ok: false; reason: ProfileParseReason }` with `ProfileParseReason` exported as a closed string-literal union of the 11 reasons the two parsers actually return. Is this union exhaustive against every `return { ok: false, reason: '...' }` site in kinds.ts (no reason string used in the source is missing from the type, and no union member is dead/unreachable), and does story 04's receive-path dispatch get genuine compile-time exhaustiveness (e.g. via a `switch` with no `default`) rather than just a wider allowed-string-literal set that could still silently ignore a case?"
+    },
+    {
+      "question_id": "VQ-S01-017",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-6a",
+      "question": "Gate-remediation sev 2: nickname is capped at 32 UTF-8 bytes (mirroring, not importing, `contactCard.ts#MAX_NAME_BYTES`/`config/profile.ts#NICKNAME_MAX_BYTES` to keep kinds.ts's cross-module dependency footprint at zero) and `avatar.imageUrl` is capped at 512 characters (a new, codec-local constant with no existing precedent). Is mirroring the nickname constant by value (rather than importing it) an acceptable maintenance risk \u2014 i.e. if `config/profile.ts#NICKNAME_MAX_BYTES` is ever changed, will anything catch that this codec's copy has silently drifted out of sync? Is 512 characters the right imageUrl cap, or should it be derived from an actual blossom/CDN URL-length precedent elsewhere in the codebase?"
+    },
+    {
+      "question_id": "VQ-S01-018",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "ac_id": "AC-PROF-6a",
+      "question": "Gate-remediation sev 3 (imageUrl scheme): kinds.ts now rejects any `avatar.imageUrl` outside `https://` absolute or `//`-protocol-relative shapes, based on the finding that the existing group profile-sync path (`marmot/profileSync.ts#payloadToMemberProfile`) and its render sites (`ProfileSummary.tsx`, `AvatarBrowserModal.tsx`) do no scheme validation at all on wire-sourced imageUrl today. Given that gap remains unfixed in the pre-existing group-sync path, should a follow-up finding be raised against `profileSync.ts`/`ProfileSummary.tsx` (out of this story's scope) to close the same class of gap there, or is the 1:1 DM channel meaningfully higher-risk (stranger-reachable pre-contact vs. only-post-group-join) such that hardening only the new codec is a defensible priority call?"
+    }
+  ]
+}

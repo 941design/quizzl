@@ -1,0 +1,100 @@
+{
+  "story_id": "S08",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-12T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S08-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does seedDueProfileSchedule write directly into the real few-dm-profile-schedule idb-keyval store used by production code (not a parallel test-only store the app never reads), and is there evidence the app's own due-check genuinely fires off this seeded entry rather than the test asserting success via a second, independent seed/read of the same store?"
+    },
+    {
+      "question_id": "VQ-S08-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Is seedDueProfileSchedule implemented purely as a Playwright test helper (mirroring helpers/pairing.ts#seedPendingIntent) with zero NEXT_PUBLIC_* build-time timing constant added to the production bundle, and does inspecting the built output confirm no test-only override ships in production config?"
+    },
+    {
+      "question_id": "VQ-S08-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `e2e-and-proof` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S08-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do the new/extended contactChat.test.ts and directMessageNotifications.test.ts proof tests construct a real (or faithfully-shaped) delivered event of both new kinds and assert no bubble/notification renders, with zero source changes to ContactChat.tsx/directMessageNotifications.ts in the diff \u2014 proving the fail-closed behavior pre-existed rather than being newly patched in to pass the test?"
+    },
+    {
+      "question_id": "VQ-S08-005",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the stranger-request and stranger-announce e2e coverage use a genuinely separate, non-contact second browser context/identity (not a re-used contact identity relabeled), and does it assert on the target's actual contact-list/cache state (no new entry, no data disclosed) rather than only on the absence of a UI toast?"
+    },
+    {
+      "question_id": "VQ-S08-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-7",
+      "question": "Does the self-heal e2e anchor pair two real browser-context identities via the actual card flow (not pre-seeded contact records), start both avatar-absent, drive convergence using only seedDueProfileSchedule plus the app's own periodic loop (no manual re-add, no re-scan, no direct relay publish), and assert both sides' contact-list entries reach complete {name, avatar}?"
+    },
+    {
+      "question_id": "VQ-S08-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-9",
+      "question": "Does the new contactChat.test.ts case close the specific pre-existing gap noted in exploration.json for both DM_PROFILE_REQUEST_KIND and DM_PROFILE_ANNOUNCE_KIND (not just one), and does the extended directMessageNotifications.test.ts case cover both inbound directions (request received, announce received) with assertions that a notification/bell state did NOT change?"
+    },
+    {
+      "question_id": "VQ-S08-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-14",
+      "question": "Was a diff review performed across stories 01-07 confirming zero new user-facing string was introduced, or \u2014 if one was found (e.g. an error toast) \u2014 were both `en` and `de` entries added to i18n.ts before this story closes, with the specific string and its i18n key cited as evidence?"
+    },
+    {
+      "question_id": "VQ-S08-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-1",
+      "question": "Does seedDueProfileSchedule accept exactly `{pubkeyHex, nextAttemptAt, attempts, state}` and write it directly into the few-dm-profile-schedule idb-keyval store, and is there a test proving the app's next due-check fires a request for that seeded entry within the test's real-time budget (no reliance on waiting out real backoff hours)?"
+    },
+    {
+      "question_id": "VQ-S08-010",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-7",
+      "question": "dm-profile-self-heal.spec.ts pairs A and B for real (which per story S06 already fires an immediate announce-on-pair on both sides), then deliberately CLEARS each side's own contactCache.ts entry for the other peer before seeding a due-now schedule and reloading. Does an independent reviewer agree this is a faithful, non-circumventing way to produce AC-PROF-7's 'both start avatar-absent, mutual, active, non-archived contact' precondition without a forbidden re-add/re-scan/direct-relay-publish — i.e. that clearing a local cache entry (not touching lp_contacts_v1) is a legitimate simulation of 'the announce never landed / the cache was lost on this device', not a way to dodge exercising the real pairing/announce-on-pair machinery this same spec first drives for real?"
+    },
+    {
+      "question_id": "VQ-S08-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-PROF-3",
+      "question": "dm-profile-stranger-gates.spec.ts seeds ONLY the stranger's own lp_contacts_v1 belief (seedLocalContact) that the target is a contact, never touching the target's own records, so the stranger's real ProfileHealWatcher sweep / profile.tsx broadcastProfile fan-out constructs and publishes a genuine wire event. Is this scenario representative of a real-world stranger (e.g. a user who scanned/typo'd/guessed a pubkey into some future contact-adding surface), or does it depend on an app-internal state (a one-directional lp_contacts_v1 entry with no corresponding admission) that the CURRENT app can only reach via this test's direct seed — and if the latter, does that weaken AC-PROF-3/4's real-world security guarantee, or is the target's own isAllowedDmSender/archivedAt gate genuinely independent of how the sender's own local belief was formed (so the gate's correctness does not depend on how a stranger's belief arose)?"
+    },
+    {
+      "question_id": "VQ-S08-012",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "None of the three new relay-bucket specs could be executed in this implementation environment (no Docker/strfry available) — only a scoped `tsc --noEmit` pass (confirming the delta against the pre-existing tests/e2e error baseline is exactly the four already-tolerated bootIdentity(browser, USER_B, ...) literal-type mismatches, zero new error classes) and a manual read-through against the app's real testids/store shapes were performed. Does the Step 5.8 e2e gate run (lead-owned, real Docker) reveal any runtime-only defect this static review could not have caught — e.g. a testid drift, a timing margin too tight for CI, or an incorrect assumption about contactCache.ts's read/write key casing?"
+    },
+    {
+      "question_id": "VQ-S08-013",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-14",
+      "question": "The i18n baseline confirmation for this story was performed via `git diff` against the epic's uncommitted S01-S07 working-tree changes (app/pages/profile.tsx, Layout.tsx, contactCache.ts, pairingAck.ts, welcomeSubscription.ts) plus a grep of every new pure dmProfile/*.ts file and ProfileHealWatcher.tsx for JSX/copy/toast usage, finding zero new user-facing strings and zero touch to app/src/lib/i18n.ts. Is diffing the current uncommitted working tree a reliable proxy for 'what stories 01-07 introduced' given the epic has not yet been committed as discrete story commits, or could this miss a change that was made and then reverted within the same uncommitted working tree before this story ran?"
+    },
+    {
+      "question_id": "VQ-S08-014",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-PROF-9",
+      "question": "Stage-1 review (sev 4) found the original contactChat.test.ts AC-PROF-9 proof used a hand-rolled `mirrorsLiveGiftWrapDispatchGate` function that asserted against its OWN copy of the dispatch order and never called any real ContactChat.tsx-adjacent production code or observed any real persisted side effect — it would not have failed had ContactChat.tsx gained a bubble path for the two new kinds (the feedback_test_mocking_blind_spots shadow-test anti-pattern). Remediated by replacing it with two cases reusing the file's existing real-driving `runInitBody` harness (same pattern as the pre-existing 'gift wrap with non-matching peer pubkey is silently dropped' sibling test): a real gift-wrapped rumor of each new kind flows through the real `parseDirectPayload`/`appendMessage`/`loadMessages` pipeline, and the assertion reads back real persisted IDB state (plus the real `upsertMessages` call history) confirming the rumor's id never appears. During remediation, running these two cases as part of the full file surfaced pre-existing cross-describe state pollution (this file's module-level `idbStore`/`upsertMessagesCalls` are shared across ALL describe blocks and an earlier describe's async self-heal/append-queue writes were still landing after this describe's own beforeEach cleared state), which was fixed by asserting containment of the specific rumor id (`upsertMessagesCalls.flat().some(...)`) rather than raw array length. Does an independent reviewer agree (a) this is now a genuine real-driving proof at the same fidelity bar as its sibling test, and (b) the id-containment assertion is a correct, non-weakening way to make the test robust to the file's pre-existing shared-state pollution, rather than papering over a real regression risk?",
+      "answer_note": "Remediation applied 2026-07-12 in response to the lead's Stage-1 relay: app/tests/unit/contactChat.test.ts's AC-PROF-9 block replaced end-to-end; re-run confirmed 14/14 (file) and 31/31 (contactChat.test.ts + directMessageNotifications.test.ts together) green, full suite unchanged at 2964/2989 passed (same 25 pre-existing unrelated failures)."
+    }
+  ]
+}

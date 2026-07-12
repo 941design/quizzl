@@ -1,0 +1,55 @@
+{
+  "module_name": "push-triggers",
+  "purpose": "Additive push-trigger behavior over two existing chokepoints (no new module directory): (1) app/pages/profile.tsx's broadcastProfile fans an immediate profile-announce to every active, non-archived 1:1 contact on a nickname/avatar edit, staggered like the S05 watcher's bulk sweep; (2) app/src/lib/pairing/pairingAck.ts's sendPairingAck (scanner side) and handlePairingAck (issuer side) each fire one immediate profile-announce to the freshly-paired contact at admission. Both reuse story 03's send.ts#sendProfileAnnounce verbatim (the sole outbound-construction/privacy chokepoint) and never touch story 04's receive.ts (a pushed announce is received by the existing announce arm unmodified).",
+  "public_api": [
+    { "name": "ProfileAnnounceContactSnapshot", "signature": "type ProfileAnnounceContactSnapshot = { pubkeyHex: string; archived: boolean }", "description": "profile.tsx. Input shape to planProfileAnnounceFanout — mirrors ProfileHealWatcher.tsx's ContactSnapshot but scoped to this module (no cross-module import, per architecture.md's boundary rules)." },
+    { "name": "ProfileAnnounceFanoutEntry", "signature": "type ProfileAnnounceFanoutEntry = { pubkeyHex: string; delayMs: number }", "description": "profile.tsx. One planned send: lowercased recipient + dispatch-time stagger delay." },
+    { "name": "PROFILE_EDIT_FANOUT_STAGGER_THRESHOLD", "signature": "const PROFILE_EDIT_FANOUT_STAGGER_THRESHOLD = 5", "description": "profile.tsx. Audience size above which sends are staggered instead of firing in the same tick. Independent constant (not imported from ProfileHealWatcher.tsx) but same value, for consistency." },
+    { "name": "PROFILE_EDIT_FANOUT_STAGGER_WINDOW_MS", "signature": "const PROFILE_EDIT_FANOUT_STAGGER_WINDOW_MS = 30_000", "description": "profile.tsx. The window a staggered fan-out's sends are spread evenly across." },
+    { "name": "planProfileAnnounceFanout", "signature": "planProfileAnnounceFanout(contacts: ProfileAnnounceContactSnapshot[]): ProfileAnnounceFanoutEntry[]", "description": "profile.tsx. PURE. Filters to active/non-archived, case-folds pubkeyHex, and assigns stagger delays exactly like ProfileHealWatcher.tsx#planDueSweep's toSend computation. Archived contacts are excluded at THIS function's own boundary (not a downstream filter), so the exclusion is directly assertable (VQ-S06-005)." },
+    { "name": "ExecuteProfileAnnounceFanoutParams", "signature": "type ExecuteProfileAnnounceFanoutParams = { ndk: NDK; keys: ProfileSendKeys; localProfile: UserProfile; plan: ProfileAnnounceFanoutEntry[]; sendAnnounce?: typeof sendProfileAnnounce; scheduleDelay?: (fire: () => void, delayMs: number) => void }", "description": "profile.tsx. sendAnnounce/scheduleDelay are dependency-injection points for deterministic testing (default to the real send.ts seam and the real setTimeout)." },
+    { "name": "executeProfileAnnounceFanout", "signature": "executeProfileAnnounceFanout(params: ExecuteProfileAnnounceFanoutParams): void", "description": "profile.tsx. Synchronous, fire-and-forget: fires (or hands to scheduleDelay) one sendProfileAnnounce call per plan entry. Never awaited by its caller, never blocks/slows the profile-save UX; a single recipient's failure is swallowed (mirrors MarmotContext#publishProfileUpdate's per-group swallow)." },
+    { "name": "handlePairingAck (opts.ndk addition)", "signature": "handlePairingAck(giftWrapEvent: GiftWrapEventLike, ownPrivateKeyHex: string, opts?: { nowSec?: number; ndk?: NDK }): Promise<HandlePairingAckResult>", "description": "pairingAck.ts. Additive, backward-compatible opts.ndk (new field on the existing optional opts param — NOT a new required param). On a FRESH 'admitted' outcome, when opts.ndk is supplied, fires one sendProfileAnnounce to the newly-admitted sender via a locally-derived ownPubkeyHex (nostrKeys.ts#derivePublicKeyHex(ownPrivateKeyHex) — no new param needed for the issuer's own pubkey) and the live local profile (storage.ts#readUserProfile()). When opts.ndk is omitted (every pre-story-06 call site), this is a pure no-op — the function's admission behavior and returned result are completely unaffected either way. Never fires on 'already-admitted' (idempotent replay)." },
+    { "name": "sendPairingAck (push-trigger addition, no signature change)", "signature": "sendPairingAck(params: SendPairingAckParams): Promise<PairingAckSendResult>", "description": "pairingAck.ts. Additive: after the pairing-ack itself is successfully sent, fires one sendProfileAnnounce to issuerPubkeyHex using params.ndk/ownPubkeyHex/ownPrivateKeyHex (all already explicit params) and storage.ts#readUserProfile(). Swallowed independently — an announce failure never turns a successfully-sent ack into 'queued-for-retry'. No public signature change." },
+    { "name": "subscribeToWelcomes (call-site wiring only, no signature change)", "signature": "subscribeToWelcomes(pubkeyHex, marmotClient, ndk, signer, onGroupJoined, onJoinRequestReceived?, groupMemberPubkeys?, ownPrivateKeyHex?, onPairingAckReceived?): Promise<() => void>", "description": "welcomeSubscription.ts. Lead-authorized scope amendment (see notes). The ONLY change: its existing handlePairingAck(giftWrapEvent, ownPrivateKeyHex) call now passes a third argument, { ndk } — the SAME `ndk` this function already receives as its own param, already in closure scope at that exact call site. No new param on subscribeToWelcomes itself, no change to the kind-1059 subscription filter, no change to dispatch order or the Welcome/join-request fallthrough." }
+  ],
+  "private_files": [
+    "app/pages/profile.tsx",
+    "app/src/lib/pairing/pairingAck.ts",
+    "app/src/lib/marmot/welcomeSubscription.ts (scope amendment, lead-authorized after initial implementation — see notes; minimal, additive one-line wiring at the pre-existing handlePairingAck(...) call site only)"
+  ],
+  "owned_data": [
+    "None new. Reuses send.ts's outbound construction (no new store) and pairingAck.ts's existing in-memory pairingAckAdmissions map (unmodified)."
+  ],
+  "dependencies_allowed": [
+    "@/src/lib/dmProfile/send (sendProfileAnnounce, ProfileSendKeys) — the S03 privacy chokepoint, reused verbatim by both files",
+    "@/src/lib/contacts (listContacts, already used by profile.tsx)",
+    "@/src/lib/ndkClient (connectNdk, dynamic import — profile.tsx only, matches this file's existing lazy-import pattern for drainPendingIntents/getSignEvent)",
+    "@/src/lib/storage (readUserProfile — pairingAck.ts only, to read the current local profile for the push-trigger announce without adding a new param that would require editing an out-of-scope caller)",
+    "@/src/lib/nostrKeys (derivePublicKeyHex, added to pairingAck.ts's existing import of hexToBytes from the same module — derives the issuer's own pubkeyHex from ownPrivateKeyHex, which handlePairingAck already receives, so no new param is needed)",
+    "@nostr-dev-kit/ndk (type NDK only, both files)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/dmProfile/receive.ts (a pushed announce is received by the EXISTING announce arm unmodified — no import, no gate re-implementation)",
+    "app/src/lib/dmProfile/kinds.ts (no new kind; only send.ts constructs the wire payload)",
+    "app/src/components/ProfileHealWatcher.tsx (no cross-module dependency edge — profile.tsx defines its own independent stagger constants rather than importing the watcher's)",
+    "app/pages/add.tsx and app/src/lib/processContactInput.ts and app/src/lib/pairing/pendingIntent.ts (scanner-side admission already completes in these files before sendPairingAck is ever called; this story's scanner-side hook lives entirely inside sendPairingAck's own body, per stories.json's explicit files list for S06)"
+  ],
+  "external_ports": [],
+  "events_emitted": ["kind-1059 gift wrap, inner kind DM_PROFILE_ANNOUNCE_KIND (via the unmodified send.ts seam) — one per active/non-archived contact on edit, one per freshly-admitted contact on pairing"],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/pages/profile-announce-fanout.test.ts",
+    "app/tests/unit/pairing/pairingAck.test.ts",
+    "app/tests/unit/marmot/welcomeSubscription.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S07-pairing-ack-fix"],
+    "note": "handlePairingAck's admission block (pairingAck.ts) is shared textually with S07's §10.1 importCard fix, which lands after this story in the SAME function body, directly below this story's announce-send call (see the 'Step 10' comment landed in the file). S07 must add importCard(senderHex, decoded.profile) AFTER the announce call without reordering or removing it."
+  },
+  "notes": [
+    "RESOLVED (was a flagged scope-boundary gap, now closed by lead-authorized scope amendment): the initial S06 implementation built and unit-tested the issuer-side announce fully (handlePairingAck's new optional opts.ndk), but stories.json's files list at that time was exactly [app/pages/profile.tsx, app/src/lib/pairing/pairingAck.ts] — no third file — leaving the feature inert in the running app, since handlePairingAck's sole real caller, app/src/lib/marmot/welcomeSubscription.ts#subscribeToWelcomes (~line 122), already had `ndk` in scope at its handlePairingAck(...) call site but did not pass it. The lead reviewed this finding and explicitly authorized adding welcomeSubscription.ts to this story's scope for a MINIMAL, additive change: pass the function's own already-in-scope `ndk` as a third argument, `{ ndk }`, to the existing handlePairingAck(...) call — no change to the kind-1059 subscription filter, dispatch order, or Welcome/join-request fallthrough (verified by a source-scan regression test, mirroring S05's AC-WATCH-2 isolation style, plus a call-through spy proving the exact new argument). The issuer-side push-trigger announce is now live end-to-end, not merely unit-tested in isolation.",
+    "readUserProfile()/derivePublicKeyHex() were the two additions needed inside handlePairingAck/sendPairingAck to avoid widening either function's REQUIRED param surface: readUserProfile() (storage.ts) supplies the current local profile without a new required param threading through pendingIntent.ts/welcomeSubscription.ts; derivePublicKeyHex() (nostrKeys.ts, already imported in this file for hexToBytes) supplies the issuer's own pubkeyHex from the ownPrivateKeyHex handlePairingAck already receives. Both are read-only utility calls, not a re-implementation of any wrap/publish/gate logic. The welcomeSubscription.ts amendment above only had to add the OPTIONAL opts.ndk pass-through — no further param threading was needed."
+  ]
+}

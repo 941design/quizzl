@@ -1,0 +1,88 @@
+{
+  "story_id": "S05",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-12T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S05-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the mount/online/interval due-sweep actually call scheduler.ts's computeDue/advance/computeIncompleteSet with live state on each trigger, or could any of the three triggers (mount, 'online' event, interval) be wired to a no-op/dead handler that a shallow render-only test would not catch?"
+    },
+    {
+      "question_id": "VQ-S05-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does ProfileHealWatcher.tsx hold zero backoff math itself (all timing decisions delegated to scheduler.ts's pure functions, per architecture.md's 'Integration wiring only' role), and is the 1-line Layout.tsx mount the only change to that file (no logic added to Layout.tsx itself)?"
+    },
+    {
+      "question_id": "VQ-S05-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `watcher` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S05-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do tests for the bulk-sweep stagger assert on actual send timing/ordering (e.g. fake timers showing sends spread across a window) when more than N contacts are due, rather than merely asserting all N sends eventually happened with no ordering/timing assertion?"
+    },
+    {
+      "question_id": "VQ-S05-005",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is there a test asserting ProfileHealWatcher.tsx's dedicated subscription filters strictly on `{'#p':[ownPubkeyHex]}` and routes every received wrap through unwrapAndOpen (never welcomeSubscription.ts#unwrapGiftWrap) before reaching receive.ts's arms, and does the diff show zero modifications to welcomeSubscription.ts or the two pre-existing kind-1059 consumers' subscription filters?"
+    },
+    {
+      "question_id": "VQ-S05-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-WATCH-1",
+      "question": "Is there a test seeding more than N due contacts and asserting the resulting outbound sends are staggered (spread across a window) in addition to each fire's own \u00b120% jitter \u2014 i.e. can the test distinguish 'staggered' from 'all fired at once but each individually jittered'?"
+    },
+    {
+      "question_id": "VQ-S05-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-WATCH-2",
+      "question": "Is there a test asserting ProfileHealWatcher.tsx opens its own `ndk.subscribe({kinds:[GIFT_WRAP_KIND], '#p':[ownPubkeyHex]})` call distinct from the three pre-existing subscriptions, and a regression test asserting welcomeSubscription.ts's subscription filter and dispatch table are behaviorally unchanged before and after this story lands?"
+    },
+    {
+      "question_id": "VQ-S05-008",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-PROF-4b",
+      "question": "planDueSweep filters computeDue's output against a currently-archived-contacts set BEFORE the BULK_SWEEP_STAGGER_THRESHOLD comparison, deliberately going beyond this story's literally-listed AC-WATCH-1/2 to close AC-PROF-4b's outbound half ('the scheduler sends an archived contact no further requests') — a behavior scheduler.ts cannot enforce itself since it is contact/archive-blind by architecture. Is this the correct owner for that enforcement, is the filter applied at the right point (before vs. after the threshold count), and does it correctly leave the archived contact's persisted schedule untouched (so unarchiving resumes it rather than requiring a fresh createInitialSchedule)?",
+      "answer": "Yes, confirmed by inspection and test. planDueSweep (ProfileHealWatcher.tsx) is the only module with both due-schedule and archive-state visibility in scope: scheduler.ts's dependencies_forbidden bars it from importing contacts.ts, and receive.ts only gates the inbound (answer/accept) directions, not the outbound sweep. The filter runs on computeDue's raw output before the .length > BULK_SWEEP_STAGGER_THRESHOLD comparison (see planDueSweep's source and the 'archived contact does not count toward the threshold' test in ProfileHealWatcher.test.ts), so an archived contact cannot inflate a batch into staggering. The filter is a pure exclusion from `toSend` only — it never calls deleteSchedule or otherwise mutates the archived contact's persisted schedule, so an unarchive simply makes that same schedule due-eligible again on the next sweep tick, exactly as intended (no state loss, no double-jittered restart)."
+    },
+    {
+      "question_id": "VQ-S05-009",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The due-sweep's per-entry `fire()` closure advances a schedule after an await (the send call, plus up to BULK_SWEEP_STAGGER_WINDOW_MS of setTimeout delay for a staggered batch). Does it advance the STALE plan-time schedule snapshot, or does it re-load the current persisted schedule immediately before calling advance() — and if it re-loads, what happens when the schedule was deleted or D4-reset in the interim (e.g. the contact completed the exchange or was independently observed reachable while its staggered send was still pending)?",
+      "answer": "Fixed during the dev hardening pass (this story): the initial implementation advanced entry.schedule (the plan-time snapshot) directly, which would have silently clobbered a legitimate concurrent D4 reset with stale pre-reset attempt/jitter state, or resurrected a schedule that receive.ts had just correctly deleted via a completing announce. The landed code re-loads the schedule via loadSchedule(entry.schedule.pubkeyHex, nowSecFire) immediately before computing advance(), and short-circuits (no advance, no save) when the reload returns undefined (deleted in the interim) — covered by the dev's own review. UPDATE (Stage-1 review, round 2): the fire-time re-load/advance logic was subsequently extracted into the exported advanceAfterFire(pubkeyHex, nowSec) async seam and IS now covered by dedicated regression tests against fake-indexeddb/auto (ProfileHealWatcher.test.ts's 'advanceAfterFire' describe block) — see VQ-S05-012, which supersedes the 'no dedicated regression test' gap this answer originally recorded."
+    },
+    {
+      "question_id": "VQ-S05-010",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "Mount, the 'online' event, and the setInterval tick can each independently call runDueSweep — is there a guard against two overlapping sweep ticks (e.g. mount and a near-simultaneous 'online' event right after a laptop resume) double-creating a schedule or double-sending a due request for the same contact within one overlap window?",
+      "answer": "No explicit in-flight-sweep lock exists (no per-key promise-coalescing guard analogous to pendingIntent.ts's precedent). This is an accepted, documented tradeoff, not an oversight: spec.md §5's 'Multi-tab (REVIEW G4)' note already accepts this exact class of duplication ('two tabs both mount the watcher; the idb schedule store is read-modify-write with no lock -> at worst duplicate small requests / double-advanced schedules. Acceptable; match whatever the existing watchers do') for the cross-TAB case, and a same-tab mount-then-immediate-online overlap is a strict subset of that already-accepted risk (smaller blast radius: same idb read/write path, same worst case of one extra small gift wrap, self-correcting on the next sweep). Adding a lock would be new complexity beyond this story's AC-WATCH-1/2 scope and inconsistent with the sibling watchers' (DirectMessageNotificationsWatcher, PendingPairingIntentWatcher) equivalent unlocked mount+online wiring. Not fixed; flagged here for visibility rather than silently accepted without a paper trail."
+    },
+    {
+      "question_id": "VQ-S05-011",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-4b",
+      "question": "Stage-1 review (round 2) found planDueSweep's archive filter only catches archive state AT PLAN TIME — a staggered send can fire up to BULK_SWEEP_STAGGER_WINDOW_MS (30s) later, so a contact archived DURING that window still received one outbound profile-request. Is the fire-time re-check now correctly placed BEFORE sendProfileRequest is invoked (not merely before the post-send advance), and is it tested?",
+      "answer": "Fixed: the fire() closure now calls a private isContactArchived(pk) live-read check (reads contacts.ts's store directly via readStoredContacts, case-folded) immediately on entry, BEFORE sendProfileRequest is called — an archived-at-fire-time contact returns early with no send and no schedule mutation at all. A second, defense-in-depth re-check of the same predicate lives inside the newly-extracted advanceAfterFire seam (covers the narrower case of the contact being archived during the sendProfileRequest await itself, after the pre-send check already passed). Tested directly: advanceAfterFire.test 'skips advancing (and would skip the send) when the contact is archived as of fire time, even though it was NOT archived at plan time' seeds a schedule, archives the contact, and asserts advanceAfterFire returns 'skipped-archived' with the schedule left unmutated."
+    },
+    {
+      "question_id": "VQ-S05-012",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Stage-1 review (round 2) flagged that the stale-schedule-race fix (advancing the CURRENT persisted schedule rather than the plan-time snapshot) and the D4 inbound wiring both lived only in the untested effect body — a regression reintroducing either bug would pass all existing tests. Are both now covered by tests that would fail under the prior (buggy) behavior?",
+      "answer": "Yes. Both were extracted into exported async seams (advanceAfterFire, applyInboundReachabilitySignal) and tested directly against fake-indexeddb/auto (ProfileHealWatcher.test.ts, +7 tests): (1) 'advances the CURRENT persisted schedule, not a stale plan-time snapshot' seeds a plan-time snapshot, applies a D4 reset via applyReachabilitySignal + saveSchedule (simulating the reset landing during the stagger window), then calls advanceAfterFire and asserts the persisted result's firstAttemptAt/lastResetAt/attempts reflect the RESET state advanced-by-one, not the stale plan-time snapshot advanced-by-one — this assertion fails under the prior (pre-fix) behavior of advancing entry.schedule directly. (2) 'does NOT resurrect a schedule deleted between plan and fire' asserts 'skipped-deleted' + no persisted schedule after a simulated interim deleteSchedule. (3) applyInboundReachabilitySignal's 3 tests assert reset/no-schedule/rate-limited outcomes directly, and a 4th documents (via decideDispatch) that an announce receipt structurally cannot reach this function."
+    }
+  ]
+}

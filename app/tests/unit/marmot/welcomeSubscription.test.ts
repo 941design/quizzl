@@ -70,7 +70,10 @@ import { encodeCard } from '@/src/lib/contactCard';
 import { sealAndWrap } from '@/src/lib/directMessages';
 import { hexToBytes } from '@/src/lib/nostrKeys';
 import { PAIRING_ACK_KIND, _resetPairingAckAdmissionsForTests, type PairingAckContent } from '@/src/lib/pairing/pairingAck';
+import * as pairingAckModule from '@/src/lib/pairing/pairingAck';
 import { getOrMintActiveNonce, clearAllNonces, _resetActiveNonceForTests } from '@/src/lib/pairing/nonceStore';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 // ---------------------------------------------------------------------------
 // unwrapGiftWrap tests
@@ -727,6 +730,100 @@ describe('subscribeToWelcomes — pairing-ack dispatch (S3)', () => {
 
     expect(mockEnqueuePendingInvitation).toHaveBeenCalledTimes(1);
     unsub();
+  });
+
+  // ── Push trigger wiring (epic: direct-contact-profile-exchange, story 06,
+  // AC-PROF-11b) ────────────────────────────────────────────────────────────
+  //
+  // handlePairingAck gained an OPTIONAL opts.ndk field (pairingAck.test.ts
+  // already covers, with real crypto, that supplying it fires an announce on
+  // a fresh admission and that omitting it is a no-op). The only change this
+  // story makes HERE is threading this function's own already-in-scope `ndk`
+  // param through to that call — proven below by a call-through spy (never a
+  // full replacement of handlePairingAck, per this repo's mocking-discipline
+  // convention) plus a source-scan asserting the subscription filter itself,
+  // the dispatch order, and the Welcome/join-request fallthrough are BYTE-FOR-
+  // BYTE unchanged (mirrors S05's source-scan style for AC-WATCH-2 isolation).
+
+  it('passes its own `ndk` through to handlePairingAck as opts.ndk, alongside the same first two arguments as before', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+
+    const minted = await getOrMintActiveNonce();
+    const card = await encodeCard(scanner.pubHex, { nickname: 'Bob', createdAt: Math.floor(Date.now() / 1000) }, scanner.signer.signEvent);
+    const content: PairingAckContent = { type: 'pairing-ack', nonce: minted.nonce, card };
+    const rumor = createRumor(
+      {
+        kind: PAIRING_ACK_KIND,
+        content: JSON.stringify(content),
+        tags: [['p', issuer.pubHex]],
+        created_at: Math.floor(Date.now() / 1000),
+        pubkey: scanner.pubHex,
+      },
+      hexToBytes(scanner.privHex),
+    );
+    const wrap = await sealAndWrap(rumor as never, issuer.pubHex, scanner.privHex);
+
+    const { mockNdk, fireEvent } = makeNdkWithEventCapture();
+    const mockMarmotClient = { joinGroupFromWelcome: vi.fn() };
+
+    // Call-through spy — the REAL handlePairingAck still runs (never
+    // replaced), so admission/announce behavior is exercised for real; only
+    // the call arguments are inspected.
+    const handlePairingAckSpy = vi.spyOn(pairingAckModule, 'handlePairingAck');
+
+    const unsub = await subscribeToWelcomes(
+      issuer.pubHex,
+      mockMarmotClient as never,
+      mockNdk as never,
+      { nip44: { decrypt: vi.fn().mockRejectedValue(new Error('n/a')) } } as never,
+      vi.fn(),
+      undefined,
+      undefined,
+      issuer.privHex,
+      vi.fn(),
+    );
+
+    await fireEvent(wrap);
+
+    expect(handlePairingAckSpy).toHaveBeenCalledTimes(1);
+    const [giftWrapArg, ownPrivateKeyHexArg, optsArg] = handlePairingAckSpy.mock.calls[0];
+    // The gift wrap's OUTER pubkey is an ephemeral per-wrap key (project
+    // learning: gift-wrap authors are never the real sender) — assert the
+    // exact same wrap object's own content/id is what was forwarded, not the
+    // (inapplicable) scanner identity.
+    expect((giftWrapArg as { content: string }).content).toBe((wrap as unknown as { content: string }).content);
+    expect(ownPrivateKeyHexArg).toBe(issuer.privHex);
+    expect(optsArg).toEqual({ ndk: mockNdk });
+
+    unsub();
+  });
+
+  it("does not alter the subscription filter, dispatch order, or Welcome/join-request fallthrough (source-scan, mirrors S05's AC-WATCH-2 isolation style)", () => {
+    const source = fs.readFileSync(
+      path.join(__dirname, '..', '..', '..', 'src', 'lib', 'marmot', 'welcomeSubscription.ts'),
+      'utf8',
+    );
+
+    // The kind-1059 subscription this function opens is untouched: still
+    // exactly one filter term beyond '#p' possible (kinds:[1059]), still
+    // filtered to this pubkey only.
+    expect(source).toContain("kinds: [1059 as import('@nostr-dev-kit/ndk').NDKKind]");
+    expect(source).toContain("'#p': [pubkeyHex]");
+    expect(source).toContain('{ closeOnEose: false }');
+
+    // The pairing-ack dispatch still runs BEFORE the Welcome/join-request
+    // unwrapGiftWrap path, and still falls through unchanged on
+    // 'unwrap-failed'/'wrong-kind'.
+    const pairingDispatchIndex = source.indexOf('const pairingResult = await handlePairingAck(');
+    const welcomeUnwrapIndex = source.indexOf('const welcomeRumor = await unwrapGiftWrap(');
+    expect(pairingDispatchIndex).toBeGreaterThan(-1);
+    expect(welcomeUnwrapIndex).toBeGreaterThan(-1);
+    expect(pairingDispatchIndex).toBeLessThan(welcomeUnwrapIndex);
+    expect(source).toContain("'unwrap-failed' or 'wrong-kind' — might still be a real Welcome/");
+
+    // This story's only change to this call is the added trailing `{ ndk }`.
+    expect(source).toContain('{ ndk },');
   });
 });
 

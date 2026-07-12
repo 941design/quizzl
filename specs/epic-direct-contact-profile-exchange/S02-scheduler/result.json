@@ -1,0 +1,62 @@
+{
+  "story_id": "S02",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T15:04:03Z",
+  "files_created": [
+    "app/src/lib/dmProfile/scheduler.ts",
+    "app/tests/unit/dmProfile/scheduler.test.ts",
+    "app/tests/unit/dmProfile/scheduler.integration.test.ts",
+    "specs/epic-direct-contact-profile-exchange/S02-scheduler/architecture.json",
+    "specs/epic-direct-contact-profile-exchange/S02-scheduler/baseline.json",
+    "specs/epic-direct-contact-profile-exchange/S02-scheduler/result.json"
+  ],
+  "files_modified": [
+    "specs/epic-direct-contact-profile-exchange/S02-scheduler/verification.json",
+    "specs/epic-direct-contact-profile-exchange/S02-scheduler/architecture.json"
+  ],
+  "tests_added": {
+    "unit": 47,
+    "integration": 16
+  },
+  "test_counts": {
+    "baseline": 2806,
+    "final": 2869
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "architect_skipped": false,
+  "modules_touched": [
+    "scheduler"
+  ],
+  "escalation_history": [
+    {
+      "round": 1,
+      "reason": "Cross-vendor Codex review (second-opinion stage) found 2 genuine edge-case defects in scheduler.ts, both AC-PROF-1-adjacent, missed by Stage-1 (Opus) review and the prior dev hardening pass: (P2) clampScheduleOnLoad's clamp was pure-only and never persisted, so a wall clock that stayed behind across repeated watcher reloads would re-derive a fresh, ever-further-forward now+24h on every reload and the schedule would never actually fire (the opposite of AC-PROF-1's anti-freeze intent); (P2) computeDue leaked one due request past the 30-day give-up ceiling for a schedule advance() had not yet transitioned to given-up.",
+      "decision": "RETRY"
+    }
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The pre-impl commitment set (VQ-S02-010) sketched the persisted ProfileSchedule as a bare {pubkeyHex, attempts, nextAttemptAt, state} shape, but two of this story's own ACs (the 30-day wall-clock give-up ceiling in AC-PROF-11c and the <=1-reset-per-24h rate limit in AC-PROF-11) cannot be implemented correctly from that shape alone without drifting under jitter or being unable to tell 'just reset' from 'organically progressed a few hours later'. Recognizing that the seam sketch and the AC set were in tension, and that the correct resolution was two additive, module-opaque timestamp fields rather than either silently keeping the bare shape (and getting the ceiling/rate-limit wrong) or silently bloating it, took real design attention. Recorded explicitly as VQ-S02-011 rather than left implicit, and captured as a durable cross-project learning (persisted-backoff-schedules-need-explicit-timestamp-anchors) since this tension will recur in any future backoff/schedule design.",
+    "surprised_by": "The dev hardening pass (Step 5) found a genuine defensive-write gap in the first draft: loadSchedule/loadAllSchedules case-folded the store LOOKUP KEY but returned the stored record's pubkeyHex FIELD verbatim, so a record ever written outside saveSchedule (a future migration, an older code version) with mismatched-case pubkeyHex would leak un-folded case to callers, contradicting the type's own doc-comment invariant. Low severity today (saveSchedule is currently the only writer) but a real latent bug the independent review pass caught that a same-author read-through likely would not have. A third layer \u2014 the cross-vendor Codex review \u2014 then found two MORE genuine defects (clamp-not-durable-across-reloads; computeDue leaking one request past the give-up ceiling) that neither the architect's own design nor Stage-1 (Opus) nor the dev hardening pass had caught, both in code paths (clampScheduleOnLoad's adapter wiring, computeDue's filter) that had explicit tests around adjacent behavior but not the specific temporal-boundary interaction the defect lived in. Three independent review passes each found distinct, real bugs in a ~460-line pure module with 91%+ line coverage by test count \u2014 a reminder that test volume and review-pass count are not substitutes for each other; each layer caught something the others missed.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "note": "Independent hardening pass: found and fixed the loadSchedule/loadAllSchedules case-fold-on-read gap (fixed by re-deriving pubkeyHex from the already-folded store key rather than trusting the stored field); added 3 tests to scheduler.test.ts (jitter bounds swept across every rung at rng=0 and the largest double below 1, give-up-is-time-not-count-based at attempts=50/100, a full reset->re-climb->given-up lifecycle test) and 3 tests to scheduler.integration.test.ts (defensive re-fold-on-read for both load functions, a terminal-state schedule surviving a backwards clock jump without resurfacing via computeDue). Confirmed no other defect in the jitter/ceiling/rate-limit boundary arithmetic. No escalations raised."
+      },
+      {
+        "agent": "base:code-reviewer",
+        "note": "Stage-1 review surfaced a second integration hazard beyond the dev pass: computeIncompleteSet is schedule-state-blind, so a watcher naively minting createInitialSchedule for every incomplete contact would resurrect a terminal (answered-incomplete/given-up) contact on the next sweep, re-opening the AC-PROF-11a/11c permanent-loop hole via the watcher's mint-if-missing logic rather than via advance()/computeDue(). Closed in scheduler.ts (the module owning the state machine) via computeContactsNeedingNewSchedule, with 6 new parametric tests (VQ-S02-014), rather than re-encoding the terminal-exclusion rule independently in story 05's watcher."
+      },
+      {
+        "agent": "codex:review",
+        "note": "Cross-vendor second opinion found 2 genuine edge-case defects neither the architect nor Stage-1 (Opus) caught: (1) clampScheduleOnLoad's clamp was never made durable, so a wall clock stuck behind real time would cause the watcher's periodic reload to re-derive an ever-further-forward now+24h and the schedule would never fire \u2014 fixed by having loadSchedule/loadAllSchedules persist the clamp via saveSchedule whenever it actually lowers nextAttemptAt, keeping clampScheduleOnLoad itself pure; (2) computeDue could return an active schedule whose 30-day give-up ceiling had already elapsed but which advance() hadn't yet flipped to given-up, leaking one extra request past the ceiling \u2014 fixed by adding a `nowSec - firstAttemptAt < GIVE_UP_CEILING_SECONDS` condition to computeDue's filter, matching advance()'s own boundary. 5 new regression tests added (2 pure, 3 integration); all fail under the prior behavior and pass under the fix."
+      }
+    ],
+    "lead_clarifications": []
+  }
+}

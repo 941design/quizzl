@@ -1,0 +1,81 @@
+{
+  "module_name": "codec",
+  "purpose": "Defines the two new DM profile-exchange rumor kinds (profile-request, profile-announce), a module-load sentinel-collision assertion against every reserved kind in the codebase, and the encode/parse/validate functions for both wire payloads. Pure module — no side effects, no IO.",
+  "public_api": [
+    {
+      "name": "DM_PROFILE_REQUEST_KIND",
+      "signature": "21061 as const",
+      "description": "Rumor kind for a profile-request. Distinct from PROFILE_REQUEST_KIND=30 (marmot/profileRequestSync.ts, a different transport)."
+    },
+    {
+      "name": "DM_PROFILE_ANNOUNCE_KIND",
+      "signature": "21062 as const",
+      "description": "Rumor kind for a profile-announce."
+    },
+    {
+      "name": "ProfileRequestPayload",
+      "signature": "type { type: 'profile-request'; since?: string }",
+      "description": "Wire content shape for a profile-request rumor. Seam contract consumed by story 03 (send.ts) and story 04 (receive.ts)."
+    },
+    {
+      "name": "ProfileAnnouncePayload",
+      "signature": "type { type: 'profile-announce'; nickname: string; avatar: { imageUrl: string }; updatedAt: string }",
+      "description": "Wire content shape for a profile-announce rumor. avatar is never null in this type — the parser rejects null/absent avatar as malformed before a value of this type is ever returned. Seam contract consumed by story 03 and story 04."
+    },
+    {
+      "name": "encodeProfileRequest",
+      "signature": "encodeProfileRequest(input: { since?: string }): string",
+      "description": "Serializes a profile-request payload to a JSON string for the rumor content field."
+    },
+    {
+      "name": "parseProfileRequest",
+      "signature": "parseProfileRequest(content: string): ParseResult<ProfileRequestPayload>",
+      "description": "Parses/validates rumor content into a ProfileRequestPayload. Returns a tagged ok/malformed result, never throws."
+    },
+    {
+      "name": "encodeProfileAnnounce",
+      "signature": "encodeProfileAnnounce(input: { nickname: string; avatar: { imageUrl: string } }): string",
+      "description": "Serializes a profile-announce payload, stamping updatedAt at call time (answer-time semantics per spec.md §4). Throws synchronously if avatar is null/absent/imageUrl missing or nickname is empty — refuses to construct a malformed rumor at the source."
+    },
+    {
+      "name": "parseProfileAnnounce",
+      "signature": "parseProfileAnnounce(content: string): ParseResult<ProfileAnnouncePayload>",
+      "description": "Parses/validates rumor content into a ProfileAnnouncePayload. Classifies avatar:null, absent avatar, or absent avatar.imageUrl as a distinct 'malformed' result the receive path can branch on before ever reaching contactCache.ts. Never throws."
+    },
+    {
+      "name": "ParseResult",
+      "signature": "type ParseResult<T> = { ok: true; value: T } | { ok: false; reason: ProfileParseReason }",
+      "description": "Shared discriminated-union result type for both parsers. reason narrowed from a bare string to ProfileParseReason (gate-remediation sev 2) so story 04's receive-path dispatch is compile-checked against an exhaustive vocabulary."
+    },
+    {
+      "name": "ProfileParseReason",
+      "signature": "type ProfileParseReason = 'invalid-json' | 'not-an-object' | 'wrong-type' | 'invalid-since' | 'invalid-nickname' | 'nickname-too-long' | 'invalid-updatedAt' | 'avatar-missing' | 'avatar-imageUrl-invalid' | 'avatar-imageUrl-too-long' | 'avatar-imageUrl-invalid-scheme'",
+      "description": "Exhaustive malformed-parse reason union (gate-remediation sev 2, added post-impl). Consumed by story 04's receive-path dispatch as a typed seam vocabulary instead of an open string."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/dmProfile/kinds.ts"
+  ],
+  "owned_data": [
+    "DM_PROFILE_REQUEST_KIND numeric value",
+    "DM_PROFILE_ANNOUNCE_KIND numeric value",
+    "The two wire-content JSON shapes"
+  ],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": [
+    "react",
+    "@nostr-dev-kit/ndk",
+    "idb-keyval",
+    "localStorage",
+    "app/src/lib/dmProfile/scheduler.ts (later story)",
+    "app/src/lib/dmProfile/send.ts (later story)",
+    "app/src/lib/dmProfile/receive.ts (later story)",
+    "app/src/lib/contactCache.ts (later story)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/dmProfile/kinds.test.ts"
+  ]
+}

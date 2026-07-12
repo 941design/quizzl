@@ -612,3 +612,99 @@ describe('ContactChat — handleHistoricalKind4Event walled-garden gate (AC-SEC-
     expect(onDrop).not.toHaveBeenCalled();
   });
 });
+
+// ── AC-PROF-9 (epic: direct-contact-profile-exchange, story S08) ───────────
+//
+// A delivered profile-request/profile-announce MUST NOT render a message
+// bubble. This closes the pre-existing gap exploration.json noted: this file
+// had a real-driving foreign-kind proof test for other kinds (pairing-ack,
+// join-request, welcome — see the AC-09 block above and its "gift wrap with
+// non-matching peer pubkey is silently dropped" sibling) but none for the two
+// new direct-contact-profile-exchange kinds.
+//
+// STAGE-1 REMEDIATION (sev 4): an earlier version of this block asserted
+// against a hand-rolled `mirrorsLiveGiftWrapDispatchGate` mirror function
+// that never called any real production code — it would NOT have failed if
+// ContactChat.tsx ever gained a bubble path for these kinds (the
+// `feedback_test_mocking_blind_spots` shadow-test anti-pattern). Replaced
+// with cases that reuse the SAME real-driving harness (`runInitBody`) as the
+// "gift wrap with non-matching peer pubkey" test directly above: a REAL
+// gift-wrapped rumor of each new kind is fed through the real
+// `parseDirectPayload` / `appendMessage` / `loadMessages` pipeline (only the
+// non-exported effect-wiring shell is a local copy, matching this file's
+// established convention — see the file's own top-of-suite doc comment and
+// architecture.md's note that this repo has no jsdom/render-harness
+// precedent for exercising a mounted component's live subscription
+// directly), and the assertion reads back REAL persisted IDB state via
+// `loadMessages`, exactly like the non-matching-peer sibling test. This would
+// fail if the SAME kind-gate this test exercises ever admitted these two
+// kinds. No source change to ContactChat.tsx (architecture.md: AC-PROF-9 is
+// tests-only).
+describe('ContactChat gift-wrap ingestion — DM profile-exchange foreign-kind proof (AC-PROF-9)', () => {
+  beforeEach(() => {
+    resetState();
+    vi.clearAllMocks();
+  });
+
+  it('a DM_PROFILE_REQUEST_KIND rumor is never stored as a chat message (no bubble)', async () => {
+    const { DM_PROFILE_REQUEST_KIND, encodeProfileRequest } = await import('@/src/lib/dmProfile/kinds');
+    expect(DM_PROFILE_REQUEST_KIND).not.toBe(CHAT_MESSAGE_KIND);
+
+    const profileRequestRumor = {
+      kind: DM_PROFILE_REQUEST_KIND,
+      id: 'rumor-profile-request-001',
+      pubkey: BOB_PUB, // matching peer — isolates the KIND gate, not the peer gate
+      content: encodeProfileRequest(),
+      tags: [],
+      created_at: Math.floor(Date.now() / 1000) - 300,
+    };
+    const giftWrapContent = JSON.stringify({ seal: {}, rumor: profileRequestRumor });
+    const giftWrapEvt = fakeNDKEvent({ id: 'wrap-profile-request-001', content: giftWrapContent });
+
+    __fetchResults = [
+      { events: new Set(), timedOut: false },
+      { events: new Set(), timedOut: false },
+      { events: new Set([giftWrapEvt]), timedOut: false },
+    ];
+
+    await runInitBody({ giftWrapEvents: [giftWrapEvt] });
+
+    const { messages: stored } = await loadMessages(THREAD_ID);
+    expect(stored.some((m: any) => m.id === 'rumor-profile-request-001')).toBe(false);
+    // Robust to any pre-existing entries other describe blocks in this shared-THREAD_ID
+    // file may have left in upsertMessagesCalls: assert THIS rumor specifically was
+    // never handed to upsertMessages, not merely that the total call was empty.
+    expect(upsertMessagesCalls.flat().some((m: any) => m.id === 'rumor-profile-request-001')).toBe(false);
+  });
+
+  it('a DM_PROFILE_ANNOUNCE_KIND rumor is never stored as a chat message (no bubble)', async () => {
+    const { DM_PROFILE_ANNOUNCE_KIND, encodeProfileAnnounce } = await import('@/src/lib/dmProfile/kinds');
+    expect(DM_PROFILE_ANNOUNCE_KIND).not.toBe(CHAT_MESSAGE_KIND);
+
+    const profileAnnounceRumor = {
+      kind: DM_PROFILE_ANNOUNCE_KIND,
+      id: 'rumor-profile-announce-001',
+      pubkey: BOB_PUB, // matching peer — isolates the KIND gate, not the peer gate
+      content: encodeProfileAnnounce({ nickname: 'Bob', avatar: { imageUrl: 'https://example.com/a.png' } }),
+      tags: [],
+      created_at: Math.floor(Date.now() / 1000) - 300,
+    };
+    const giftWrapContent = JSON.stringify({ seal: {}, rumor: profileAnnounceRumor });
+    const giftWrapEvt = fakeNDKEvent({ id: 'wrap-profile-announce-001', content: giftWrapContent });
+
+    __fetchResults = [
+      { events: new Set(), timedOut: false },
+      { events: new Set(), timedOut: false },
+      { events: new Set([giftWrapEvt]), timedOut: false },
+    ];
+
+    await runInitBody({ giftWrapEvents: [giftWrapEvt] });
+
+    const { messages: stored } = await loadMessages(THREAD_ID);
+    expect(stored.some((m: any) => m.id === 'rumor-profile-announce-001')).toBe(false);
+    // Robust to any pre-existing entries other describe blocks in this shared-THREAD_ID
+    // file may have left in upsertMessagesCalls: assert THIS rumor specifically was
+    // never handed to upsertMessages, not merely that the total call was empty.
+    expect(upsertMessagesCalls.flat().some((m: any) => m.id === 'rumor-profile-announce-001')).toBe(false);
+  });
+});

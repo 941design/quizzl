@@ -1,0 +1,46 @@
+{
+  "module_name": "send",
+  "purpose": "Outbound send path for the DM profile-exchange channel: sendProfileRequest and sendProfileAnnounce, both building a gift-wrapped (kind-1059) rumor over the epic's two new inner kinds and publishing via NDK. Mirrors app/src/lib/pairing/pairingAck.ts#sendPairingAck's orchestration-over-already-audited-primitives shape (createRumor + sealAndWrap + NDKEvent.publish, catch-and-report on send failure, throw on malformed caller-supplied identifiers). The sole outbound-construction chokepoint for both new kinds, so it is where the AC-PROF-8 privacy invariant (single-recipient gift wrap, unsigned announce) is enforced and tested once rather than re-asserted per caller.",
+  "public_api": [
+    { "name": "ProfileSendKeys", "signature": "type ProfileSendKeys = { ownPubkeyHex: string; ownPrivateKeyHex: string }", "description": "Explicit key params, never a singleton — matches architecture.md's boundary rule and pairingAck.ts's ownPubkeyHex/ownPrivateKeyHex fields." },
+    { "name": "SendProfileRequestParams", "signature": "type SendProfileRequestParams = { ndk: NDK; recipientPubkeyHex: string; keys: ProfileSendKeys; since?: string }", "description": "since is optional pass-through to kinds.ts#encodeProfileRequest's own `since` field (spec.md §4); no production caller in this story sets it, but the codec seam supports it for later stories (e.g. a future request-scoping optimization) without a signature change." },
+    { "name": "SendProfileRequestResult", "signature": "type SendProfileRequestResult = { recipientPubkeyHex: string; result: 'sent' | 'queued-for-retry' }", "description": "Mirrors PairingAckSendResult's result vocabulary exactly (AC-PROF-2 request half)." },
+    { "name": "sendProfileRequest", "signature": "sendProfileRequest(params: SendProfileRequestParams): Promise<SendProfileRequestResult>", "description": "Builds a profile-request rumor (kinds.ts#encodeProfileRequest), gift-wraps it to the lowercased recipientPubkeyHex via sealAndWrap, publishes via NDKEvent. NO local-name precondition (AC-PROF-12 request half) — the function never reads or requires any local profile. Malformed recipientPubkeyHex, keys.ownPubkeyHex, or keys.ownPrivateKeyHex all throw synchronously BEFORE the try (caller bugs, Stage-1 review gate-remediation sev 2 — a malformed own key can never self-correct on retry); any other failure (signer/network/relay) is caught and reported as 'queued-for-retry', never thrown. recipientPubkeyHex is defensively lowercased (Stage-1 review gate-remediation sev 4) before use in both the wrap's 'p' tag and the sealAndWrap call, per architecture.md's case-folding rule — a mixed/upper-case input would otherwise produce a wrap the recipient's lowercased '#p' subscription filter (story 05) can never match, silently defeating self-heal (AC-PROF-7) while still returning 'sent'." },
+    { "name": "SendProfileAnnounceParams", "signature": "type SendProfileAnnounceParams = { ndk: NDK; recipientPubkeyHex: string; keys: ProfileSendKeys; localProfile: UserProfile }", "description": "localProfile is the caller's current local profile (nickname + avatar|null) BEFORE ensureAvatar backfill — this function runs ensureAvatar itself, so callers must not pre-backfill or double-apply it." },
+    { "name": "SendProfileAnnounceResult", "signature": "type SendProfileAnnounceResult = { recipientPubkeyHex: string; result: 'sent' | 'queued-for-retry' | 'deferred-nameless' }", "description": "'deferred-nameless' is the AC-PROF-12 no-op outcome — hasShareableName(localProfile.nickname)===false. Not an error: callers (story 04's request-gate arm, story 06's push triggers) treat it as 'try again once named', never surface it as a failure toast." },
+    { "name": "sendProfileAnnounce", "signature": "sendProfileAnnounce(params: SendProfileAnnounceParams): Promise<SendProfileAnnounceResult>", "description": "Order: (1) validate recipientPubkeyHex/keys.ownPubkeyHex/keys.ownPrivateKeyHex format — throw on any malformed input (caller bug, Stage-1 review gate-remediation sev 2), then lowercase recipientPubkeyHex defensively (Stage-1 review gate-remediation sev 4, architecture.md's case-folding rule); (2) hasShareableName(localProfile.nickname) gate — returns 'deferred-nameless' immediately with ZERO I/O (no ensureAvatar, no sealAndWrap, no publish call reachable) when false, per VQ-S03-005/009; (3) ensureAvatar(localProfile) — backfills a real avatar so the announce can never carry avatar:null; (4) kinds.ts#encodeProfileAnnounce stamps updatedAt at THIS call (answer-time), never localProfile's own last-edit time; (5) gift-wrap via sealAndWrap, addressed to exactly the lowercased recipient; (6) publish via NDKEvent. The inner rumor is UNSIGNED by construction (createRumor never produces a `sig` field) — AC-PROF-8's hard privacy invariant. Any failure from step 3 onward is caught and reported as 'queued-for-retry'." }
+  ],
+  "private_files": [
+    "app/src/lib/dmProfile/send.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/dmProfile/kinds.ts (encodeProfileRequest, encodeProfileAnnounce, DM_PROFILE_REQUEST_KIND, DM_PROFILE_ANNOUNCE_KIND — the declared codec seam)",
+    "app/src/lib/directMessages.ts (sealAndWrap, UnsignedRumor — pre-existing gift-wrap primitive, same one pairingAck.ts reuses)",
+    "app/src/lib/avatar.ts (ensureAvatar)",
+    "app/src/lib/shareCard.ts (hasShareableName)",
+    "app/src/lib/nostrKeys.ts (hexToBytes)",
+    "app/src/lib/logger.ts (createLogger)",
+    "@nostr-dev-kit/ndk (NDK type, NDKEvent)",
+    "nostr-tools/nip59 (createRumor)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/dmProfile/receive.ts (no inbound gating logic here — story 04's concern)",
+    "app/src/lib/dmProfile/scheduler.ts (no idb-keyval schedule access; consume its exports only if a later story needs to, never duplicate its state)",
+    "app/src/lib/contactCache.ts",
+    "app/src/lib/contacts.ts",
+    "react"
+  ],
+  "external_ports": [
+    "NDK.publish() via NDKEvent (relay publish of the gift-wrapped kind-1059)"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/dmProfile/send.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S04", "S06"]
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "story_id": "S01",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T13:03:57Z",
+  "files_created": [
+    "app/src/lib/dmProfile/kinds.ts",
+    "app/tests/unit/dmProfile/kinds.test.ts",
+    "specs/epic-direct-contact-profile-exchange/01-codec/architecture.json",
+    "specs/epic-direct-contact-profile-exchange/01-codec/baseline.json",
+    "specs/epic-direct-contact-profile-exchange/01-codec/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/dmProfile/kinds.ts",
+    "app/tests/unit/dmProfile/kinds.test.ts",
+    "specs/epic-direct-contact-profile-exchange/01-codec/architecture.json",
+    "specs/epic-direct-contact-profile-exchange/01-codec/verification.json"
+  ],
+  "tests_added": {
+    "unit": 87
+  },
+  "test_counts": {
+    "baseline": 2719,
+    "final": 2806
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "architect_skipped": false,
+  "modules_touched": [
+    "codec"
+  ],
+  "escalation_history": [
+    {
+      "round": 1,
+      "reason": "Stage-1 Opus review (base:code-reviewer) found 4 issues at the untrusted-wire validation chokepoint: (sev5) updatedAt/since not ISO-8601-validated, enabling an LWW-poisoning attack via a lexicographically-dominant non-date string; (sev2) ParseResult's failure reason was an open string instead of a closed union; (sev2) no length bound on nickname/avatar.imageUrl on the untrusted parse path; (sev3) no imageUrl scheme allow-list.",
+      "decision": "RETRY"
+    }
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The initial implementation followed pairingAck.ts's validation template closely but under-scoped 'validate the wire shape' to structural/type checks only, missing that a field feeding a downstream LWW string-compare (AC-PROF-10) needs semantic validation (genuinely-parseable, uniformly-formatted ISO-8601), not just typeof-string. The gate-remediation review caught this before it reached story 04; a pre-impl verification question specifically about the updatedAt/since semantic contract (beyond 'is it a string') would have surfaced this during the original design pass instead of after.",
+    "surprised_by": "Checking the existing precedent for the imageUrl-scheme question (per the review's own instruction to check before adding new validation) turned up that the pre-existing MLS group profile-sync path (marmot/profileSync.ts#payloadToMemberProfile) and its render sites (ProfileSummary.tsx, AvatarBrowserModal.tsx) perform NO scheme validation on wire-sourced imageUrl today \u2014 this codec is being hardened past an existing, unfixed gap in an adjacent, already-shipped feature. Recorded as VQ-01-018 rather than fixed here (out of this story's scope); worth a follow-up finding against profileSync.ts if the lead wants that class of gap closed project-wide.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "base:code-reviewer",
+        "note": "Stage-1 Opus review: 4 findings (sev5 updatedAt/since ISO validation gap enabling LWW poisoning; sev2 open-string ParseResult reason; sev2 unbounded nickname/imageUrl length on untrusted parse path; sev3 no imageUrl scheme allow-list). All 4 applied; see verification.json VQ-01-015..VQ-01-018 for the post-impl analysis of each."
+      }
+    ],
+    "lead_clarifications": []
+  }
+}

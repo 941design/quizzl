@@ -1,0 +1,39 @@
+{
+  "module_name": "pairing-ack-fix",
+  "purpose": "One-line-class fix inside the already-existing pairing-ack module (app/src/lib/pairing/pairingAck.ts): handlePairingAck's admission path currently discards decoded.profile after rememberKnownPeers/rememberContact, so the issuer never persists the scanner's submitted name. This story adds that persistence at the same admission point, reusing story 04's already-landed neutralized cache-write seam (contactCache.ts#writeContactEntryNeutralized + readContactEntry) rather than re-implementing LWW or contact-injection semantics. No new module, no new files besides the existing test file.",
+  "public_api": [
+    {
+      "name": "handlePairingAck",
+      "signature": "handlePairingAck(giftWrapEvent: GiftWrapEventLike, ownPrivateKeyHex: string, opts?: { nowSec?: number; ndk?: NDK }): Promise<HandlePairingAckResult>",
+      "description": "UNCHANGED signature and unchanged HandlePairingAckResult union. Only the function BODY changes: on a fresh 'admitted' outcome, after story 06's opts.ndk-gated announce block, the scanner's decoded card profile is now persisted into contactCache via writeContactEntryNeutralized. No new export is added by this story."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/pairing/pairingAck.ts"
+  ],
+  "owned_data": [
+    "None new. Writes into the pre-existing lp_contactCache_v1 store via contactCache.ts's already-landed writeContactEntryNeutralized/readContactEntry (owned by contactCache.ts, not this module)."
+  ],
+  "dependencies_allowed": [
+    "@/src/lib/contactCache (readContactEntry, writeContactEntryNeutralized) — the S04-landed neutralized cache-write seam, architecture.md's declared 'deliberately-shared surface... reused by the §10.1 story, not re-implemented'"
+  ],
+  "dependencies_forbidden": [
+    "No local re-implementation of any LWW comparison or contact-injection-neutralization logic in pairingAck.ts",
+    "No edit to contactCache.ts or contacts.ts (both already export everything this fix needs)",
+    "No reordering or removal of story 06's `if (opts?.ndk) { ...announce... } ` block"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/pairing/pairingAck.test.ts"
+  ],
+  "seam": {
+    "cross_story": false,
+    "note": "Consumes S04's already-frozen cross-story seam (writeContactEntryNeutralized/readContactEntry); this story is the last non-e2e story and introduces no seam of its own for any later story to consume."
+  },
+  "notes": [
+    "IMPLEMENTATION-CHOICE RESOLUTION: AC-CARD-1/spec.md §10.1/exploration.json's bug_10_1 note all name the fix informally as `importCard(senderHex, decoded.profile)` — the same identifier as the PRE-EXISTING app/src/lib/contactCardImport.ts#importCard(pubkeyHex, profile:{nickname,updatedAt}) function (used by the unrelated add-contact-by-card flow, which calls the NON-neutralized writeContactEntry, and therefore also calls rememberContact a second time). architecture.md's own 'Cache-write seam' section and BOTH of ownership-ledger.json's carry_forward_for_story_07 notes (authored after architecture.md was finalized) are unambiguous and more specific: 'A single neutralized-write function ... consumed by BOTH receive.ts and the §10.1 fix. This is the one deliberately-shared surface' and 'Reuse writeContactEntryNeutralized (no re-impl)'. Resolved in favor of the architecture.md/ownership-ledger direction: this story calls contactCache.ts#writeContactEntryNeutralized directly (plus readContactEntry to preserve any existing avatar, mirroring contactCardImport.ts#importCard's own avatar-preservation precedent), NOT the contactCardImport.ts function. This (a) matches the explicitly-declared shared seam, (b) avoids a redundant second rememberContact call for a contact this same function already just admitted via rememberKnownPeers/rememberContact one step earlier, and (c) still fully satisfies AC-CARD-1's BEHAVIORAL requirement — the issuer's contactCache entry for the scanner carries the scanner's submitted name after admission — which is what the AC's own regression-test clause actually tests for, independent of which internal function name was used.",
+    "decoded.profile shape mismatch: contactCard.ts#decodeCard returns profile as { nickname: string; createdAt: number } (unix seconds), NOT { nickname, updatedAt: string } (ISO-8601) — the shape writeContactEntryNeutralized's CachedContact requires. Converts via updatedAt = new Date(decoded.profile.createdAt * 1000).toISOString(), identical to contactCard.ts#parseContactCard's own createdAt→updatedAt conversion a few lines above in the same file. This is exactly spec §10.1's 'immune to the §B2 trap (card updatedAt derives from card created_at)' clause — never an answer-time stamp."
+  ]
+}

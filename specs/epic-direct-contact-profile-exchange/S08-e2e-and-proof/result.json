@@ -1,0 +1,63 @@
+{
+  "story_id": "S08",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T18:32:45Z",
+  "files_created": [
+    "app/tests/e2e/dm-profile-self-heal.spec.ts",
+    "app/tests/e2e/dm-profile-stranger-gates.spec.ts",
+    "app/tests/e2e/dm-profile-push-triggers.spec.ts",
+    "app/tests/e2e/helpers/dm-profile.ts",
+    "specs/epic-direct-contact-profile-exchange/S08-e2e-and-proof/architecture.json",
+    "specs/epic-direct-contact-profile-exchange/S08-e2e-and-proof/baseline.json",
+    "specs/epic-direct-contact-profile-exchange/S08-e2e-and-proof/result.json"
+  ],
+  "files_modified": [
+    "app/tests/e2e/helpers/idb-record.ts",
+    "app/tests/unit/contactChat.test.ts",
+    "app/tests/unit/directMessageNotifications.test.ts",
+    "CLAUDE.md",
+    "Makefile",
+    "specs/epic-direct-contact-profile-exchange/S08-e2e-and-proof/verification.json",
+    "specs/epic-direct-contact-profile-exchange/stories.json"
+  ],
+  "implementation_summary": "Final story of the direct-contact-profile-exchange epic; no production source changes. Added (1) a Playwright test hook seedDueProfileSchedule (app/tests/e2e/helpers/idb-record.ts, AC-E2E-1/FIXTURE-08-001) writing a due-now ProfileSchedule record directly into the few-dm-profile-schedule idb-keyval store, deliberately NOT a NEXT_PUBLIC_* build-time override; (2) a new epic-scoped e2e helper module (app/tests/e2e/helpers/dm-profile.ts) with contactCache/contacts-list read/seed/poll/assert helpers; (3) three new relay-bucket specs \u2014 dm-profile-self-heal.spec.ts (AC-PROF-7: pairs A/B for real, then clears each side's own contactCache entry for the other and drives convergence via seedDueProfileSchedule + reload alone, defeating the confound that a real pairing already completes both profiles via story S06's announce-on-pair before the pull loop runs), dm-profile-stranger-gates.spec.ts (AC-PROF-3/4: seeds ONLY the stranger's own lp_contacts_v1 belief so the stranger's real app constructs and publishes a genuine wire event, asserting the target's own records show no disclosure/injection/schedule-start), and dm-profile-push-triggers.spec.ts (AC-PROF-11b: pairing-instant profile both ways plus edit propagation, both via the real card/profile UI, no seedDueProfileSchedule at all); (4) two unit-level foreign-kind proof tests each in app/tests/unit/contactChat.test.ts and app/tests/unit/directMessageNotifications.test.ts (extending the existing kind-exclusion proof-test pattern), for both DM_PROFILE_REQUEST_KIND and DM_PROFILE_ANNOUNCE_KIND, with zero source change to ContactChat.tsx/directMessageNotifications.ts; (5) an i18n baseline confirmation (AC-PROF-14) via git diff of every S01-S07 source file plus a grep of all new dmProfile/*.ts files and ProfileHealWatcher.tsx, finding zero new user-facing strings and zero touch to i18n.ts; (6) the e2e tally bump in CLAUDE.md and Makefile (44->48 relay, 56->60 total, +4 new relay-bucket tests across the 3 new specs). REMEDIATION ROUND 1 (Stage-1, sev 4): the contactChat.test.ts AC-PROF-9 proof was replaced end-to-end \u2014 the original `mirrorsLiveGiftWrapDispatchGate` shadow function (asserted against its own re-implemented copy, no real production call, no observable side effect) was swapped for two cases reusing the file's existing real-driving `runInitBody` harness (the same pattern as the pre-existing 'gift wrap with non-matching peer pubkey is silently dropped' sibling test): a real gift-wrapped rumor of each new kind flows through the real parseDirectPayload/appendMessage/loadMessages pipeline, with the assertion reading back real persisted IDB state and the real upsertMessages call history for the specific rumor id.",
+  "tests_added": {
+    "unit": 4,
+    "e2e_relay_written_not_run": 4
+  },
+  "test_counts": {
+    "baseline": 2985,
+    "final": 2989
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "modules_touched": [
+    "e2e-and-proof"
+  ],
+  "escalation_history": [],
+  "verification_notes": {
+    "unit_tests_run": "cd app && npx vitest run tests/unit/contactChat.test.ts tests/unit/directMessageNotifications.test.ts -> both files green (14 and 17 tests respectively, including the 2+2 new proof tests, post-remediation). Full suite: npx vitest run -> 154/156 files, 2964/2989 tests passed; the 25 failing tests are the pre-existing, unrelated ThemeIcon/treatments icon-set baseline (see baseline.json), unchanged by this story.",
+    "remediation_round_1": "Stage-1 review (sev 4, feedback_test_mocking_blind_spots anti-pattern) found the original AC-PROF-9 contactChat.test.ts proof was a shadow test: `mirrorsLiveGiftWrapDispatchGate` re-implemented ContactChat.tsx's dispatch order and asserted against its own copy, never calling real production code or observing a real side effect \u2014 it would not have failed had ContactChat.tsx gained a bubble path for the two new kinds. Fixed by replacing the whole describe block with two cases built on the file's existing real-driving `runInitBody` harness (real parseDirectPayload/appendMessage/loadMessages calls, real IDB read-back). While remediating, running the two new cases inside the full file (rather than filtered in isolation) surfaced pre-existing cross-describe state pollution \u2014 this file's module-level idbStore/upsertMessagesCalls are shared across every describe block, and an earlier describe's async self-heal/append-queue write was still landing after this describe's own beforeEach reset state \u2014 fixed by asserting containment of the specific rumor id (`upsertMessagesCalls.flat().some(...)`) rather than raw array length, which is robust to that pre-existing pollution without weakening what the test proves. Re-run: 14/14 (contactChat.test.ts alone), 31/31 (both proof files together), full suite unchanged at 2964/2989 (same 25 pre-existing unrelated failures).",
+    "e2e_relay_specs": "The 3 new relay-bucket specs (dm-profile-self-heal.spec.ts, dm-profile-stranger-gates.spec.ts, dm-profile-push-triggers.spec.ts) require Docker (strfry:7777 + blossom:3001), unavailable in this implementation environment. Not executed here. Verified instead via: (a) a scoped ad hoc `tsc --noEmit` pass against tests/e2e/**/*.ts (tsconfig.json's own \"exclude\" list excludes the whole tests/ tree, a pre-existing project convention \u2014 NO_TYPECHECK for this tree by design) confirming the delta introduced by the 4 new files is exactly 4 instances of the SAME already-tolerated bootIdentity(browser, USER_B, ...) literal-type mismatch present in every other pre-existing spec that calls bootIdentity with USER_B/USER_C (e.g. dm-pairing-single-scan-mutual.spec.ts, contact-card-deeplink.spec.ts) \u2014 zero new error classes; (b) a manual read-through against the real app's testids (contact-card-*, profile-display-name, profile-avatar-thumb, profile-nickname-input, contact-added-success) and store shapes (few-dm-profile-schedule's ProfileSchedule, lp_contactCache_v1, lp_contacts_v1) confirmed via direct source reads (scheduler.ts, contactCache.ts, contacts.ts, ProfileHealWatcher.tsx, send.ts, contacts.tsx, ProfileSummary.tsx). The Step 5.8 e2e gate (lead-owned, real Docker) is the first actual execution of these 3 specs.",
+    "i18n_baseline": "AC-PROF-14 confirmed clean: `git diff` over every S01-S07-modified source file (profile.tsx, Layout.tsx, contactCache.ts, pairingAck.ts, welcomeSubscription.ts) shows zero added JSX text/Alert/Heading/useToast/toast(/placeholder=/aria-label= lines; a grep of every new pure module (kinds.ts, scheduler.ts, send.ts, receive.ts) and ProfileHealWatcher.tsx (renders null) for the same patterns is empty; app/src/lib/i18n.ts is untouched (git status confirms no pending change). No action needed."
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The story brief asked for e2e coverage of AC-PROF-7 (self-heal loop) and AC-PROF-3/4 (stranger gates), but neither scenario is directly producible by simply driving the UI once: a real pairing already completes both profiles via story S06's announce-on-pair before the pull loop ever gets a chance to run, and send.ts#sendProfileRequest/sendProfileAnnounce have no UI trigger for sending to an arbitrary, non-consenting pubkey (both are only ever invoked internally, over the SENDER's own contact list). Working out that clearing the SENDER's own local state after a real pairing (contactCache, for the self-heal anchor) and seeding ONLY the sender's own local contact belief (lp_contacts_v1, for the stranger gates) is the correct way to force each scenario for real \u2014 without touching the target's records or forging any wire event \u2014 required tracing every call site of sendProfileRequest/sendProfileAnnounce and reading contactCache.ts's LWW/read-back semantics closely before a single line of spec code could be written.",
+    "surprised_by": "app/pages/contacts.tsx's ContactListView has no reactivity wired to a contactCache.ts write (its contactsRevision counter only bumps on a group-membership change) \u2014 an already-mounted /contacts page will not show a live-arriving profile-announce without a fresh navigation/reload. The self-heal and push-trigger specs' convergence checks had to poll the raw localStorage state directly (mirroring helpers/pairing.ts#waitForAdmission's existing convention) rather than trust a rendered-DOM poll on an already-mounted page.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "base:code-reviewer",
+        "note": "Stage-1 sev-4: contactChat.test.ts's original AC-PROF-9 proof (mirrorsLiveGiftWrapDispatchGate) was a shadow test \u2014 reimplemented the dispatch order and asserted against its own copy with zero real production call and zero observed side effect, so it would not fail if ContactChat.tsx ever gained a bubble path for the two new kinds. Remediated by rebuilding the proof on the file's existing real-driving runInitBody harness (real parseDirectPayload/appendMessage/loadMessages, real IDB read-back), matching the fidelity of its 'gift wrap with non-matching peer pubkey' sibling test."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "lead_disposition": {
+    "examiner_partial": "VQ-S08-012 PARTIAL is runtime validation of the relay e2e specs deferred to the Step 5.8 e2e gate (needs Docker) \u2014 the designed handoff, not a defect. Unit proofs 31/31 green; all ACs YES."
+  }
+}

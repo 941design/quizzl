@@ -1,0 +1,439 @@
+{
+  "epic": "direct-contact-profile-exchange",
+  "concepts": [
+    {
+      "id": "dm-profile-kind-constants",
+      "name": "DM_PROFILE_REQUEST_KIND / DM_PROFILE_ANNOUNCE_KIND + sentinel assertion",
+      "owning_module": "codec",
+      "type": "naming_scheme",
+      "added_by_story": "01"
+    },
+    {
+      "id": "profile-request-backoff-ladder",
+      "name": "1h->2h->4h->8h->16h->24h backoff ladder (attempt-indexed, capped), +/-20% jitter, clock-clamp-down-only on load, 30-day wall-clock give-up + D4 re-arm state machine",
+      "owning_module": "scheduler",
+      "type": "invariant",
+      "added_by_story": "S02",
+      "notes": "States: active | answered-incomplete (terminal) | given-up (terminal). Both terminals excluded from computeDue; only exit is applyReachabilitySignal (D4, non-announce, <=1/contact/24h via lastResetAt). Give-up is wall-clock (now-firstAttemptAt>=30d). clampScheduleOnLoad only lowers too-far-future nextAttemptAt to now+24h. All idb CRUD case-folds pubkeyHex on write AND read."
+    },
+    {
+      "id": "profile-announce-answer-time-stamping",
+      "name": "updatedAt stamped at send-time (answer-time), never the profile's last-edit time",
+      "owning_module": "send",
+      "type": "invariant",
+      "added_by_story": "S03",
+      "notes": "send.ts passes only {nickname, avatar} to encodeProfileAnnounce; the S01 codec stamps updatedAt=new Date().toISOString() internally, so no local profile timestamp can leak. Load-bearing for story 04 LWW. Verified by a fake-timer feed-old-assert-fresh test."
+    },
+    {
+      "id": "profile-disclosure-gate",
+      "name": "Two-layer disclosure gate: isAllowedDmSender AND active non-archived contact (archivedAt==null), read live per call",
+      "owning_module": "receive",
+      "type": "validation_rule",
+      "added_by_story": "S04",
+      "notes": "One predicate passesDisclosureGate shared by both arms (\u00a73.3 request, \u00a73.5 announce). isAllowedDmSender (walledGarden) does NOT consult archivedAt; archive check is a SEPARATE explicit layer reading contacts.ts#readStoredContacts LIVE every call, so archive/unarchive flips both directions without a cached snapshot (AC-PROF-4b). Both failing halves block independently. Injected via DisclosureGateContext {groups, knownPeers, ownPubkeyHex}."
+    },
+    {
+      "id": "neutralized-cache-write",
+      "name": "writeContactEntryNeutralized(pubkeyHex, contact) -> {landed, lwwWon, avatarNonNull}; same LWW as writeContactEntry but NO rememberContact injection",
+      "owning_module": "contactCache",
+      "type": "public_contract",
+      "added_by_story": "S04",
+      "notes": "landed = lwwWon AND avatarNonNull (completing-write def, feeds isCompletingAnnounce). lwwWon/avatarNonNull exposed separately. Lowercases key on read+write; companion reader readContactEntry now ALSO case-folds (symmetric) \u2014 read-back with any-case key is safe. Idempotent. Silent all-false on storage-unavailable. Additive: writeContactEntry + its callers (group sync, contactCardImport) UNCHANGED. Reused by story 07."
+    },
+    {
+      "id": "dedicated-inbound-gift-wrap-subscription",
+      "name": "ProfileHealWatcher's own kind-1059 subscription ({kinds:[1059],'#p':[ownPubkeyHex]}), strict-unwrap-only, routed by inner kind; the 3 pre-existing consumers untouched",
+      "owning_module": "watcher",
+      "type": "invariant",
+      "added_by_story": "S05",
+      "notes": "AC-WATCH-2. 4th kind-1059 consumer; '#p'-only filter. unwrapAndOpen ONLY -> decideDispatch by inner kind -> handleProfileRequest/handleProfileAnnounce; unknown ignored. welcomeSubscription/DirectMessageNotifications/IncomingCall subs unchanged (source-scan regression tests); Layout.tsx +2-line mount. Identity-gated, renders null, no backoff math."
+    },
+    {
+      "id": "active-contact-fan-out-audience",
+      "name": "Push-trigger audience is exactly active, non-archived contacts (archived excluded at the caller); staggered >5 like the S05 sweep; fire-and-forget",
+      "owning_module": "push-triggers",
+      "type": "path_convention",
+      "added_by_story": "S06",
+      "notes": "AC-PROF-11b announce-on-change. planProfileAnnounceFanout (pure, tested) filters !archived + lowercases at boundary; executeProfileAnnounceFanout fire-and-forget with per-recipient swallow, defaults to real sendProfileAnnounce (privacy chokepoint). broadcastProfile additively calls publishProfileUpdate (group, untouched) + the 1:1 fan-out. Reads LIVE contact list at call time. Recipient's own S04 accept-gate governs storage."
+    },
+    {
+      "id": "pairing-ack-profile-import",
+      "name": "handlePairingAck persists the scanner's submitted name via the shared neutralized cache-write seam (writeContactEntryNeutralized), converting card createdAt->ISO updatedAt (\u00a7B2-safe)",
+      "owning_module": "pairing-ack-fix",
+      "type": "invariant",
+      "added_by_story": "S07",
+      "notes": "AC-CARD-1. Step 11, after S06's announce block, fresh admission only. Reuses S04 writeContactEntryNeutralized verbatim (no re-impl); NOT contactCardImport.ts#importCard (redundant rememberContact). Preserves existing avatar. updatedAt=new Date(card.createdAt*1000).toISOString() byte-identical to parseContactCard, \u00a7B2-safe, always valid strict-ISO. Write NOT gated on avatarNonNull so a name-only card still persists the name. AC-CARD-1 wording amended 2026-07-12 to match."
+    },
+    {
+      "id": "dm-profile-payload-contract",
+      "name": "ProfileRequestPayload / ProfileAnnouncePayload + ParseResult<T> with closed ProfileParseReason (11-member) union; encode*/parse* are the sole codec seam for stories 03/04",
+      "owning_module": "codec",
+      "type": "public_contract",
+      "added_by_story": "01",
+      "notes": "parse* return fresh literals (__proto__ dropped). Failure arm {ok:false; reason: ProfileParseReason} \u2014 story 04 receive dispatch gets a compile-checked exhaustive vocabulary."
+    },
+    {
+      "id": "dm-profile-strict-iso-timestamp",
+      "name": "updatedAt (announce) and since (request) validated to exact toISOString() shape: strict regex + Date.parse + round-trip",
+      "owning_module": "codec",
+      "type": "invariant",
+      "added_by_story": "01",
+      "notes": "LOAD-BEARING for story 04 contactCache.ts LWW lexicographic-ISO compare (concept neutralized-cache-write, AC-PROF-10). Fixed-width shape makes lexicographic==chronological. Closes sev-5 LWW-poisoning. Story 04 MUST use this parser as sole decoder, MUST NOT relax the compare."
+    },
+    {
+      "id": "dm-profile-malformed-avatar-rejection",
+      "name": "avatar null/absent/non-object -> avatar-missing; imageUrl empty/non-string/over-512/non-(https://|//) scheme -> distinct malformed reasons",
+      "owning_module": "codec",
+      "type": "validation_rule",
+      "added_by_story": "01",
+      "notes": "AC-PROF-6a, enforced at encoder(throw)+parser(ok:false). Scheme allow-list constrains scheme only, not host (consistent app-wide). profileSync.ts does NO scheme validation (pre-existing project-wide gap, candidate backlog finding). Story 04 must treat every malformed reason as drop, never empty-avatar signal."
+    },
+    {
+      "id": "dm-profile-wire-field-caps",
+      "name": "nickname capped 32 UTF-8 bytes (mirrors config/profile.ts#NICKNAME_MAX_BYTES), avatar.imageUrl 512 chars, on untrusted parse path",
+      "owning_module": "codec",
+      "type": "validation_rule",
+      "added_by_story": "01",
+      "notes": "nickname cap mirrored not imported (zero cross-module dep). Byte-length via TextEncoder not .length."
+    },
+    {
+      "id": "profile-schedule-store-shape",
+      "name": "ProfileSchedule = {pubkeyHex, attempts, nextAttemptAt, state, firstAttemptAt, lastResetAt}; few-dm-profile-schedule idb store; consumed only via exported fns",
+      "owning_module": "scheduler",
+      "type": "public_contract",
+      "added_by_story": "S02",
+      "notes": "Two fields beyond minimal seam: firstAttemptAt (give-up anchor), lastResetAt (reset-rate-limit anchor). Story 04 (deleteSchedule, markAnsweredIncomplete) and story 05 (computeDue/advance/applyReachabilitySignal/persist) consume via functions only, never hand-construct/pattern-match fields."
+    },
+    {
+      "id": "completing-announce-predicate",
+      "name": "isCompletingAnnounce({lwwWon, avatarNonNull}) === lwwWon && avatarNonNull \u2014 the clear/delete-schedule trigger",
+      "owning_module": "scheduler",
+      "type": "validation_rule",
+      "added_by_story": "S02",
+      "notes": "Story 04 calls after its LWW cache write; on true -> deleteSchedule (AC-PROF-6). Ties to codec dm-profile-malformed-avatar-rejection and neutralized-cache-write's landed flag (==lwwWon). Story 04 must feed the cache write's ACTUAL landed result, not a re-derived guess."
+    },
+    {
+      "id": "new-schedule-creation-guard",
+      "name": "computeContactsNeedingNewSchedule(incompleteSet, existingSchedules): the ONLY sanctioned source of pubkeys the watcher may createInitialSchedule for \u2014 excludes any pubkey holding a schedule of ANY state",
+      "owning_module": "scheduler",
+      "type": "public_contract",
+      "added_by_story": "S02",
+      "notes": "Closes the integration hazard (former Stage-1 sev-4): computeIncompleteSet is schedule-state-blind, so terminal-exclusion is now owned module-side. Case-folds both join sides; dedups. STORY 05 CONTRACT: watcher MUST create schedules only for pubkeys this returns, advance active ones via advance(), move terminal ones only via applyReachabilitySignal on a real non-announce D4 signal. Verify at S05 review."
+    },
+    {
+      "id": "profile-outbound-privacy-chokepoint",
+      "name": "send.ts is the SOLE outbound-construction chokepoint for both new kinds: every emit is a single kind-1059 gift wrap, one 'p' tag, unsigned inner rumor, never a signed/publishable kind-0",
+      "owning_module": "send",
+      "type": "invariant",
+      "added_by_story": "S03",
+      "notes": "AC-PROF-8 (hard privacy invariant) enforced+tested here ONCE so story 06 reuses this module. sealAndWrap->wrapEvent (single-recipient) + createRumor (unsigned). No error/retry path publishes anything but the one wrap. STORY 06 CONSTRAINT: push-triggers MUST call sendProfileRequest/sendProfileAnnounce, never re-implement wrap/publish or introduce a signed kind-0."
+    },
+    {
+      "id": "profile-send-seam-surface",
+      "name": "sendProfileRequest / sendProfileAnnounce signatures \u2014 the outbound seam stories 04 (answer) and 06 (push) call",
+      "owning_module": "send",
+      "type": "public_contract",
+      "added_by_story": "S03",
+      "notes": "sendProfileRequest{ndk, recipientPubkeyHex, keys, since?} -> 'sent'|'queued-for-retry' (NO local-profile param). sendProfileAnnounce{ndk, recipientPubkeyHex, keys, localProfile} -> 'sent'|'queued-for-retry'|'deferred-nameless'. keys = {ownPubkeyHex, ownPrivateKeyHex} explicit. recipientPubkeyHex declared already-lowercase by contract AND defensively re-folded in-module (toLowerCase at every outbound site in both functions); own-key hex validated pre-try. Callers MUST treat 'deferred-nameless' as retry-when-named."
+    },
+    {
+      "id": "ensure-avatar-scheme-coupling",
+      "name": "ensureAvatar's backfilled imageUrl must satisfy the S01 codec's https://|// scheme allow-list, or the answer path fails closed to queued-for-retry (never sends, never emits null)",
+      "owning_module": "send",
+      "type": "path_convention",
+      "added_by_story": "S03",
+      "notes": "Latent cross-module coupling: avatar.ts#pickRandomAvatar draws from data/avatarManifest.json; a future non-https/non-// scheme entry would make encodeProfileAnnounce throw and the announce silently never send. Guarded by send.test.ts asserting backfilled scheme. Flag if manifest schemes or the codec allow-list change."
+    },
+    {
+      "id": "authenticated-sender-binding",
+      "name": "Both inbound arms act ONLY on the authenticated sender (rumor.pubkey==seal.pubkey via unwrapAndOpen); senderHex-vs-rumor.pubkey mismatch drops silently; forged NIP-59 binding rejected upstream",
+      "owning_module": "receive",
+      "type": "invariant",
+      "added_by_story": "S04",
+      "notes": "AC-PROF-5 (hard). receive.ts never calls unwrapAndOpen/unwrapGiftWrap itself and never JSON.parses rumor.content (source-scan-enforced). Cache write + answer address keyed on rumor.pubkey.toLowerCase(), never a rumor-claimed identity. Forged wrap throws in unwrapAndOpen step-4 -> arms never invoked; verified by real-crypto forged-wrap test proving victim cache/schedule untouched."
+    },
+    {
+      "id": "announce-schedule-routing",
+      "name": "decideScheduleAction routes the neutralized write result: clear (completing) | mark-incomplete (lwwWon&&!avatarNonNull) | none (LWW-loss/idempotent); announce receipt NEVER calls applyReachabilitySignal",
+      "owning_module": "receive",
+      "type": "path_convention",
+      "added_by_story": "S04",
+      "notes": "Honors S02 contract: deleteSchedule only on completing write; applyReachabilitySignal NOT imported. The 'mark-incomplete' branch is wired as intentional defensive code but UNREACHABLE via this arm by design \u2014 AC-6a classifies every empty avatar as malformed, and only Few clients (all running ensureAvatar) speak this protocol. AC-PROF-11a satisfied at scheduler layer S02, documented unreachable-here (acceptance-criteria.md Amendment 2026-07-12). Resolved-by-amendment, not open."
+    },
+    {
+      "id": "watcher-due-sweep-plan",
+      "name": "planDueSweep: pure per-tick plan \u2014 toCreate ONLY from computeContactsNeedingNewSchedule (S02 guard), toSend = computeDue minus archived, staggered when > threshold",
+      "owning_module": "watcher",
+      "type": "path_convention",
+      "added_by_story": "S05",
+      "notes": "AC-WATCH-1. Composes S02 math, re-implements none. Fire-time bookkeeping extracted to tested async seam advanceAfterFire (re-loads current schedule; 'skipped-deleted' never resurrects; 'skipped-archived' honors fire-time archive; 'advanced' persists current-not-snapshot state) \u2014 covered against fake-indexeddb."
+    },
+    {
+      "id": "archive-outbound-suppression",
+      "name": "planDueSweep filters archived contacts from the due-send set (AC-PROF-4b outbound half) \u2014 watcher is the only place with both due-set and archive state (scheduler can't import contacts.ts)",
+      "owning_module": "watcher",
+      "type": "validation_rule",
+      "added_by_story": "S05",
+      "notes": "Case-folded both sides; a filter not a mutation (unarchive resumes). Enforced at BOTH plan time (planDueSweep filter) and fire time (isContactArchived re-check in fire closure before sendProfileRequest + defense-in-depth in advanceAfterFire) \u2014 closes the <=30s stagger-window race."
+    },
+    {
+      "id": "d4-reachability-wiring",
+      "name": "Inbound profile-REQUEST receipt -> applyReachabilitySignal on sender's own schedule (D4); profile-ANNOUNCE receipt -> never (S02 contract). decideDispatch encodes the split",
+      "owning_module": "watcher",
+      "type": "invariant",
+      "added_by_story": "S05",
+      "notes": "D4 reset runs before handleProfileRequest, independent of the disclosure gate, no-op when no schedule, saved only if changed (24h rate-limit). Announce's schedule effect owned solely by receive.ts#decideScheduleAction. Broader cross-channel D4 out of scope (AC-WATCH-2 isolation). D4 bookkeeping extracted to tested async seam applyInboundReachabilitySignal ('reset'|'no-schedule'|'rate-limited'), called ONLY from route-request; structurally unreachable from route-announce (discriminated-union type)."
+    },
+    {
+      "id": "announce-on-pair-dual-trigger",
+      "name": "Both pairing admission points fire an immediate sendProfileAnnounce to the freshly-paired contact: scanner (sendPairingAck) + issuer (handlePairingAck, gated on opts.ndk, fresh-admission-only)",
+      "owning_module": "push-triggers",
+      "type": "invariant",
+      "added_by_story": "S06",
+      "notes": "AC-PROF-11b announce-on-pair. Both reuse sendProfileAnnounce verbatim (no wrap/publish re-impl, no signed kind-0; tested). Best-effort swallow so an announce failure never changes ack 'sent'/admission 'admitted'. Issuer side opt-in via optional opts.ndk (omitted=>no-op, backward compat); wired end-to-end by welcomeSubscription.ts one-line {ndk} pass-through. Recipients issuerPubkeyHex/senderHex lowercased. Issuer announce never re-fires on already-admitted."
+    },
+    {
+      "id": "welcomesub-pairingack-ndk-passthrough",
+      "name": "welcomeSubscription.ts passes its own ndk to handlePairingAck as opts.ndk \u2014 the ONLY change; filter/dispatch-order/Welcome-fallthrough untouched (AC-WATCH-2 preserved)",
+      "owning_module": "push-triggers",
+      "type": "invariant",
+      "added_by_story": "S06",
+      "notes": "Lead-authorized one-line scope amendment. Verified minimal by diff + call-through-spy test + dispatch-order source-scan. S05 welcomeSubscription filter isolation still holds."
+    },
+    {
+      "id": "archived-predicate-multi-site",
+      "name": "The 'contact archived?' predicate is computed in 3 sites (receive.isActiveNonArchivedContact, watcher.isContactArchived, listContacts().isArchived) \u2014 consistent but no single owner",
+      "owning_module": "contacts",
+      "type": "convention_drift",
+      "added_by_story": "S07",
+      "notes": "Whole-assembly observation (not a defect). All three read readStoredContacts + case-fold and agree today. Drift risk if archivedAt representation changes. Recommend centralized contacts.ts#isArchived(pubkeyHex). Backlog candidate, sev 3."
+    },
+    {
+      "id": "e2e-self-heal-pull-isolation",
+      "name": "Self-heal e2e anchor isolates the PULL loop by clearing contactCache post-pairing (so announce-on-pair can't auto-complete it) and driving convergence via seedDueProfileSchedule + reload alone",
+      "owning_module": "e2e-and-proof",
+      "type": "path_convention",
+      "added_by_story": "S08",
+      "notes": "AC-PROF-7. Real pairing -> clear each side's cache entry for the peer (lp_contacts_v1 untouched) -> seed a due-now S02-shape schedule -> reload -> mount-sweep fires real sendProfileRequest -> peer answers -> both converge. Publish-through-the-app (no raw WS). Stranger gates seed only the STRANGER's own lp_contacts_v1. Positive waits poll live store + retrying toBeVisible; negative waits use a fixed settling window. seedDueProfileSchedule is a Playwright idb hook (FIXTURE-08-001), never NEXT_PUBLIC_*."
+    }
+  ],
+  "stories": [
+    {
+      "id": "S01",
+      "name": "dm-profile-codec",
+      "surfaces_touched": [
+        "app/src/lib/dmProfile/kinds.ts",
+        "app/tests/unit/dmProfile/kinds.test.ts"
+      ],
+      "concepts_introduced": [
+        "dm-profile-kind-constants",
+        "dm-profile-payload-contract",
+        "dm-profile-strict-iso-timestamp",
+        "dm-profile-malformed-avatar-rejection",
+        "dm-profile-wire-field-caps"
+      ],
+      "review_verdict": "clean",
+      "review_note": "Stage-1 sev-5 (updatedAt not ISO-validated vs LWW seam) + three lower findings remediated and converged; 87 unit tests passing, typecheck clean. Codex: no issues.",
+      "open_findings": [],
+      "carry_forward_for_story_04": "contactCache.ts LWW compare must consume parseProfileAnnounce as sole decoder (dm-profile-strict-iso-timestamp); do not add a second looser timestamp path. Watch profileSync.ts no-scheme-validation gap if paths ever unified."
+    },
+    {
+      "id": "S02",
+      "name": "dm-profile-scheduler",
+      "surfaces_touched": [
+        "app/src/lib/dmProfile/scheduler.ts",
+        "app/tests/unit/dmProfile/scheduler.test.ts",
+        "app/tests/unit/dmProfile/scheduler.integration.test.ts"
+      ],
+      "concepts_introduced": [
+        "profile-schedule-store-shape",
+        "completing-announce-predicate",
+        "new-schedule-creation-guard"
+      ],
+      "concepts_completed": [
+        "profile-request-backoff-ladder"
+      ],
+      "review_verdict": "clean",
+      "review_note": "State machine exhaustive and correct; terminal-resurrection seam hazard closed by construction via computeContactsNeedingNewSchedule; Codex edge cases (durable clock-clamp write-back, computeDue ceiling leak) fixed without regression. 150/150 dmProfile tests green, typecheck clean.",
+      "open_findings": [],
+      "carry_forward_for_story_04": "deleteSchedule on isCompletingAnnounce(landed, avatarNonNull); markAnsweredIncomplete on a gate-passing non-malformed announce that leaves avatar empty; applyReachabilitySignal ONLY for non-announce D4 signals. Feed cache write's real landed flag into isCompletingAnnounce.",
+      "carry_forward_for_story_05": "Watcher MUST source new-schedule pubkeys exclusively from computeContactsNeedingNewSchedule(computeIncompleteSet(...), loadAllSchedules(...)); advance active; never overwrite terminal except via applyReachabilitySignal on a real non-announce D4 signal. AC-WATCH-1 stagger on top of applyJitter's +/-20%."
+    },
+    {
+      "id": "S03",
+      "name": "dm-profile-send",
+      "surfaces_touched": [
+        "app/src/lib/dmProfile/send.ts",
+        "app/tests/unit/dmProfile/send.test.ts"
+      ],
+      "concepts_introduced": [
+        "profile-outbound-privacy-chokepoint",
+        "profile-send-seam-surface",
+        "ensure-avatar-scheme-coupling"
+      ],
+      "concepts_completed": [
+        "profile-announce-answer-time-stamping"
+      ],
+      "consumes_seams": [
+        "dm-profile-payload-contract (encodeProfileRequest/encodeProfileAnnounce from S01)"
+      ],
+      "review_verdict": "clean",
+      "review_note": "Privacy invariant (AC-PROF-8) fully satisfied structurally and by real-crypto tests. Primary gate (Codex sandbox down this story). Both Stage-1 findings (recipient defensive lowercase sev 4, own-key validation sev 2) remediated at every outbound site with no privacy/behavior regression. 23/23 module tests green, typecheck clean.",
+      "open_findings": [],
+      "carry_forward_for_story_04": "receive.ts request-gate arm calls sendProfileAnnounce ONLY after the \u00a73.3 gate, with the authenticated seal.pubkey-bound senderHex (rumor.pubkey.toLowerCase()), never a rumor-claimed identity; treat 'deferred-nameless' as gate-passed-but-nameless, never a failure.",
+      "carry_forward_for_story_06": "push-triggers MUST reuse sendProfileRequest/sendProfileAnnounce (privacy chokepoint); never re-implement wrap/publish, never construct a signed kind-0. Exclude archived contacts (AC-PROF-11b) at the caller \u2014 send.ts does not gate on archive state."
+    },
+    {
+      "id": "S04",
+      "name": "dm-profile-receive-and-gates",
+      "surfaces_touched": [
+        "app/src/lib/dmProfile/receive.ts",
+        "app/src/lib/contactCache.ts",
+        "app/tests/unit/dmProfile/receive.test.ts",
+        "app/tests/unit/contactCache.test.ts"
+      ],
+      "concepts_introduced": [
+        "authenticated-sender-binding",
+        "announce-schedule-routing"
+      ],
+      "concepts_completed": [
+        "profile-disclosure-gate",
+        "neutralized-cache-write"
+      ],
+      "consumes_seams": [
+        "dm-profile-payload-contract (S01)",
+        "profile-send-seam-surface (S03)",
+        "profile-schedule-store-shape + completing-announce-predicate (S02)"
+      ],
+      "review_verdict": "clean",
+      "review_note": "Security-critical story; primary gate (Codex sandbox down). All three gates SOLID at fixpoint (36/36 tests green): strict-unwrap/forged-binding rejected upstream (real-crypto test) + in-module defense-in-depth drop; two-layer disclosure gate with live archive read (both halves independent); neutralized write with no contact injection, correct LWW/idempotency, schedule-clear only on completing write, applyReachabilitySignal never called. Both Stage-1 findings resolved: readContactEntry case-fold (code sev3) + AC-PROF-11a reachability (spec sev5, Option A amendment).",
+      "resolved_by_amendment": [
+        "AC-PROF-11a unreachable via announce path \u2014 acceptance-criteria.md Amendment 2026-07-12; mark-incomplete branch retained as defensive code."
+      ],
+      "open_findings": [],
+      "carry_forward_for_story_05": "Watcher wires the pipeline: dedicated kind-1059 subscription strictly unwraps via unwrapAndOpen (NEVER unwrapGiftWrap), senderHex=rumor.pubkey.toLowerCase(), routes by inner kind to handleProfileRequest/handleProfileAnnounce, assembles ctx {groups, knownPeers, ownPubkeyHex, ndk, keys, localProfile} from LIVE sources per dispatch (do not cache). In-memory rate-limit resets on reload by design. AC-WATCH-1 stagger on top of scheduler jitter.",
+      "carry_forward_for_story_07": "importCard reuses writeContactEntryNeutralized (no re-impl); readContactEntry now folds case so read-back is any-case safe. Shares pairingAck.ts admission block with story 06 \u2014 rebase on 06's announce-send call, do not revert."
+    },
+    {
+      "id": "S05",
+      "name": "dm-profile-watcher",
+      "surfaces_touched": [
+        "app/src/components/ProfileHealWatcher.tsx",
+        "app/src/components/Layout.tsx",
+        "app/tests/unit/components/ProfileHealWatcher.test.ts"
+      ],
+      "concepts_introduced": [
+        "watcher-due-sweep-plan",
+        "archive-outbound-suppression",
+        "d4-reachability-wiring"
+      ],
+      "concepts_completed": [
+        "dedicated-inbound-gift-wrap-subscription"
+      ],
+      "consumes_seams": [
+        "profile-schedule-store-shape + new-schedule-creation-guard + completing-announce-predicate (S02)",
+        "profile-send-seam-surface (sendProfileRequest, S03)",
+        "authenticated-sender-binding + profile-disclosure-gate (S04)"
+      ],
+      "review_verdict": "clean",
+      "review_note": "Integration component at fixpoint (32/32 tests green; primary gate, Codex down). AC-WATCH-1/2 satisfied, S02 terminal-resurrection guard honored, strict-unwrap isolation intact (3 pre-existing subs untouched, Layout +2 lines), D4 correctly scoped, ctx live per dispatch. Both Stage-1 sev-3 findings remediated: AC-PROF-4b outbound race closed by fire-time isContactArchived re-check + defense-in-depth; fire/D4 async logic extracted into 2 fake-indexeddb-tested seams with a regression that fails under prior stale-snapshot behavior.",
+      "open_findings": [],
+      "carry_forward_for_story_06": "Push triggers hook profile.tsx#broadcastProfile (fan a profile-announce to every ACTIVE NON-ARCHIVED contact on nickname/avatar edit \u2014 exclude archived at the caller) and the two pairing admission points (scanner post-add, issuer handlePairingAck) for an immediate announce. MUST reuse send.ts#sendProfileAnnounce (privacy chokepoint) with lowercased recipients; no new kind/handler; no re-implemented wrap/publish. Story 06 lands its pairingAck.ts announce-send BEFORE story 07's importCard edit in the same handlePairingAck block. Mirror the watcher's stagger/jitter for the fan-out.",
+      "carry_forward_for_story_08": "E2E AC-PROF-7 self-heal anchor: two mutual active non-archived contacts, both avatar-absent, converge to complete {name, avatar} via the loop ALONE, driven by seedDueProfileSchedule (idb hook, NOT NEXT_PUBLIC_*) + a reload so mount-triggered sweep fires. Add foreign-kind proof tests (contactChat.test.ts + directMessageNotifications.test.ts) for both new kinds; bump e2e tally in CLAUDE.md + Makefile. Archive-during-stagger and plan->delete->fire now have unit coverage via S05 seams."
+    },
+    {
+      "id": "S06",
+      "name": "dm-profile-push-triggers",
+      "surfaces_touched": [
+        "app/pages/profile.tsx",
+        "app/src/lib/pairing/pairingAck.ts",
+        "app/src/lib/marmot/welcomeSubscription.ts",
+        "app/tests/unit/pairing/pairingAck.test.ts",
+        "app/tests/unit/pages/profile-announce-fanout.test.ts",
+        "app/tests/unit/marmot/welcomeSubscription.test.ts"
+      ],
+      "concepts_introduced": [
+        "announce-on-pair-dual-trigger",
+        "welcomesub-pairingack-ndk-passthrough"
+      ],
+      "concepts_completed": [
+        "active-contact-fan-out-audience"
+      ],
+      "consumes_seams": [
+        "profile-outbound-privacy-chokepoint + profile-send-seam-surface (sendProfileAnnounce, S03)",
+        "authenticated-sender-binding (handleProfileAnnounce receive path, S04)"
+      ],
+      "review_verdict": "clean",
+      "review_note": "Both push triggers wired+tested end-to-end (69/69 green; primary gate, Codex down): announce-on-change fan-out to active non-archived contacts (tested pure planner, staggered, fire-and-forget, additive alongside untouched publishProfileUpdate) + announce-on-pair on BOTH scanner and issuer sides (issuer via minimal welcomeSubscription {ndk} pass-through). Privacy chokepoint reused (no kind-0). importCard correctly NOT added; S07 ordering seam preserved. Sev-2 LWW-ordering edge ACCEPTED (transient/self-healing/pathological; documented in spec Amendments).",
+      "accepted_findings": [
+        "Transient LWW-ordering edge (answer-time stamp x per-edit staggering, pathological trigger, self-healing) \u2014 accepted-as-documented (spec Amendment 2026-07-12), no code change."
+      ],
+      "open_findings": [],
+      "carry_forward_for_story_07": "\u00a710.1 importCard fix lands in handlePairingAck's SAME admission block: add importCard(senderHex, decoded.profile) DIRECTLY BELOW S06's `if (opts?.ndk) {\u2026announce\u2026}` block (AFTER it) \u2014 do NOT reorder/remove the announce (inline NOTE marks the spot). Reuse writeContactEntryNeutralized (no re-impl); read back with lowercased key (readContactEntry folds). senderHex already lowercased. Regression: issuer's contactCache entry for the scanner carries the scanner's submitted name after admission.",
+      "carry_forward_for_story_08": "E2E must exercise the push paths: announce-on-pair makes a freshly-paired contact's avatar appear immediately (before ~1h backoff), announce-on-change propagates an edit to active contacts \u2014 both via the app's real publish path, archived excluded. AC-PROF-7 self-heal anchor remains the pull-loop convergence."
+    },
+    {
+      "id": "S07",
+      "name": "pairing-ack-name-drop-fix",
+      "surfaces_touched": [
+        "app/src/lib/pairing/pairingAck.ts",
+        "app/tests/unit/pairing/pairingAck.test.ts"
+      ],
+      "concepts_introduced": [
+        "archived-predicate-multi-site"
+      ],
+      "concepts_completed": [
+        "pairing-ack-profile-import"
+      ],
+      "consumes_seams": [
+        "neutralized-cache-write (S04)",
+        "profile-outbound-privacy-chokepoint (S06 announce preserved)"
+      ],
+      "review_verdict": "clean",
+      "review_note": "\u00a710.1 name-drop fix at fixpoint (58/58 tests green; primary gate, Codex out-of-credits). AC-CARD-1 satisfied: scanner's name persists into contactCache via reused S04 neutralized seam, written even for avatarless card; createdAt->ISO byte-identical to parseContactCard (\u00a7B2-safe, never throws). S06 announce-on-pair preserved. Admission semantics unchanged. All 3 post-impl questions resolved no-action. Whole-assembly read: NO cross-story emergent defect.",
+      "open_findings": [],
+      "curator_candidates": [
+        "AC-CARD-1 text amended 2026-07-12 to match writeContactEntryNeutralized (was comment-rot naming importCard).",
+        "Backlog: centralize contacts.ts#isArchived(pubkeyHex); archived predicate re-derived in 3 sites (sev 3).",
+        "Guard comment at pairingAck createdAt->ISO conversion re: \u00a7B2-safety depends on decodeCard.profile carrying no wall-clock field (sev 1)."
+      ]
+    },
+    {
+      "id": "S08",
+      "name": "dm-profile-e2e-and-proof-tests",
+      "surfaces_touched": [
+        "app/tests/e2e/dm-profile-self-heal.spec.ts",
+        "app/tests/e2e/dm-profile-stranger-gates.spec.ts",
+        "app/tests/e2e/dm-profile-push-triggers.spec.ts",
+        "app/tests/e2e/helpers/dm-profile.ts",
+        "app/tests/e2e/helpers/idb-record.ts",
+        "app/tests/unit/contactChat.test.ts",
+        "app/tests/unit/directMessageNotifications.test.ts",
+        "CLAUDE.md",
+        "Makefile"
+      ],
+      "concepts_introduced": [
+        "e2e-self-heal-pull-isolation"
+      ],
+      "concepts_completed": [],
+      "consumes_seams": [
+        "profile-schedule-store-shape (S02)",
+        "authenticated-sender-binding + profile-disclosure-gate (S04)",
+        "announce-on-pair-dual-trigger + active-contact-fan-out-audience (S06)",
+        "pairing-ack-profile-import (S07)"
+      ],
+      "review_verdict": "clean",
+      "review_note": "Final story at fixpoint. 3 relay e2e specs (4 tests) + seedDueProfileSchedule (S02-shape-correct) + AC-PROF-9 unit proofs + i18n baseline + tally bump (44->48 relay, 56->60 total). Self-heal anchor isolates pull loop; publish-through-the-app; stranger gates never touch target state. Stage-1 sev-4 shadow-test remediated: contactChat AC-PROF-9 chat-bubble proof now drives REAL ContactChat dispatch (would fail if a bubble path added). No source change to ContactChat.tsx. 31/31 unit proofs green.",
+      "open_findings": [],
+      "curator_candidates": [
+        "Optional low-priority UX: bump contactsRevision on a contactCache write so an already-open contact list re-renders live (heal currently visible on next open \u2014 acceptable per \u00a71.1). sev 3.",
+        "Carry-over from S07: centralize contacts.ts#isArchived (AC-CARD-1 text already amended). sev 2/3."
+      ]
+    }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "S08",
+    "model_at": "2026-07-12T18:25:19Z",
+    "model_complete": true
+  }
+}

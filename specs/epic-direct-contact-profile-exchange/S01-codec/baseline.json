@@ -1,0 +1,25 @@
+{
+  "story_id": "01",
+  "captured_at": "2026-07-12T15:30:00Z",
+  "command": "make test-unit (cd app && npx vitest run)",
+  "result": {
+    "test_files": { "passed": 146, "failed": 2, "total": 148 },
+    "tests": { "passed": 2694, "failed": 25, "total": 2719 }
+  },
+  "pre_existing_failures": {
+    "note": "All 25 failures are pre-existing and unrelated to this story's scope. They are icon-set resolution mismatches (e.g. 'lucide:phone' vs expected 'ph:phone-bold') in tests/unit/components/ThemeIcon.test.ts and tests/unit/themes/treatments.test.ts, stemming from the recent watercolor theme-set landing (commit a50edf4). No file in dmProfile/kinds.ts's dependency graph is involved. Treated as pre-existing debt this story did not introduce (analogous to the lint/typecheck NO_LINT tolerance) rather than a BASELINE_BLOCKED condition, per the 'never fail a story for debt it did not introduce' principle. Not fixed by this story; recorded for visibility."
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "detail": "No ESLint config exists in app/ (no .eslintrc*/eslint.config*); `next lint` prompts interactively to scaffold one. Treated as NO_LINT baseline, not a failure."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit -p tsconfig.json",
+    "status": "clean"
+  },
+  "pre_land_grep": {
+    "command": "cd app && grep -rn \"21061|21062\" src tests",
+    "result": "zero hits (confirmed unused before this story)"
+  }
+}

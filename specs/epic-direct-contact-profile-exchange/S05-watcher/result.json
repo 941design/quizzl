@@ -1,0 +1,60 @@
+{
+  "story_id": "S05",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T16:44:30Z",
+  "files_created": [
+    "app/src/components/ProfileHealWatcher.tsx",
+    "app/tests/unit/components/ProfileHealWatcher.test.ts",
+    "specs/epic-direct-contact-profile-exchange/S05-watcher/architecture.json",
+    "specs/epic-direct-contact-profile-exchange/S05-watcher/baseline.json",
+    "specs/epic-direct-contact-profile-exchange/S05-watcher/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/Layout.tsx",
+    "specs/epic-direct-contact-profile-exchange/S05-watcher/verification.json"
+  ],
+  "implementation_summary": "New always-mounted ProfileHealWatcher.tsx (5th sibling of DirectMessageNotificationsWatcher/PendingPairingIntentWatcher/IncomingCallWatcher, mounted via a 1-line Layout.tsx addition). Exports two pure, unit-tested functions (planDueSweep, decideDispatch), two async idb-backed seams added in remediation round 2 (advanceAfterFire, applyInboundReachabilitySignal), plus three tuning constants (BULK_SWEEP_STAGGER_THRESHOLD=5, BULK_SWEEP_STAGGER_WINDOW_MS=30_000, DUE_SWEEP_INTERVAL_MS=5min); the default component is a thin wrapper managing refs/effects and executing the plan/seams those functions return, per the repo's pure-core + thin-IO-adapter convention (no jsdom/@testing-library/renderHook precedent exists, so these functions are the tested surface, mirroring src/components/ThemeIcon.tsx#getThemeIconId). AC-WATCH-1: mount/online/5-min-interval due-sweep composes scheduler.ts's computeIncompleteSet -> computeContactsNeedingNewSchedule (the sole sanctioned source of new-schedule pubkeys, per the S02 ownership-ledger contract) and computeDue, fires each due request via send.ts#sendProfileRequest (after a fire-time archive re-check, see below), then calls advanceAfterFire \u2014 which re-loads the CURRENT persisted schedule (not the plan-time snapshot) before advance()+saveSchedule, avoiding clobbering a concurrent D4 reset or a completing-announce deletion during a staggered send's delay window. Batches of >5 due schedules are spread across a 30s window (delayMs), on top of scheduler.ts's own independent +/-20% per-fire jitter. AC-WATCH-2: opens ONE new dedicated ndk.subscribe({kinds:[GIFT_WRAP_KIND],'#p':[ownPubkeyHex]}), strictly unwraps every inbound wrap via directMessages.ts#unwrapAndOpen ONLY (never welcomeSubscription.ts#unwrapGiftWrap), and routes by inner kind (decideDispatch) to receive.ts's handleProfileRequest/handleProfileAnnounce, assembling the DisclosureGateContext (groups/knownPeers/ownPubkeyHex) and the request arm's extra {ndk, keys, localProfile} fresh on every dispatch from live refs (never a cached snapshot). D4 (spec.md Resolved Decisions): a profile-request receipt calls applyInboundReachabilitySignal, which applies scheduler.ts#applyReachabilitySignal to the SENDER's own tracked schedule (a no-op if none exists) independent of the disclosure-gate outcome; a profile-announce receipt never does (decideDispatch never sets applyReachability for it, so this seam is structurally unreachable from that path), preserving the S02 'announce receipt never re-arms' contract. Deliberate, documented addition beyond the story's literal AC-WATCH-1/2 scope: planDueSweep filters the due-set against currently-archived contacts (from the same listContacts snapshot already read for the incomplete-set computation) before staggering, closing AC-PROF-4b's outbound half at PLAN time. Remediation round 2 (Stage-1 review) closed the remaining fire-time window on the same invariant: a contact archived DURING a staggered send's up-to-30s delay was still receiving one request under the round-1 implementation. Fixed with a live isContactArchived() re-check in the fire() closure BEFORE sendProfileRequest is called (skips the send entirely), plus a second defense-in-depth re-check inside advanceAfterFire; both the stale-schedule-advance fix and the D4 wiring were also extracted into the two new exported async seams and covered by 7 new tests against fake-indexeddb/auto, closing the 'lives only in the untested effect body' gap the same review round flagged.",
+  "tests_added": {
+    "unit": 32
+  },
+  "test_counts": {
+    "baseline": 2929,
+    "final": 2961
+  },
+  "mocks": [],
+  "remediation_rounds": 2,
+  "architect_skipped": false,
+  "modules_touched": [
+    "watcher"
+  ],
+  "escalation_history": [],
+  "verification": {
+    "pre_impl_questions": 7,
+    "post_impl_questions": 5,
+    "typecheck": "clean",
+    "lint": "NO_LINT (matches baseline)"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "S05's own acceptance_criteria array (stories.json) lists only AC-WATCH-1/AC-WATCH-2, but AC-PROF-4b (a cross-cutting invariant: 'the scheduler MUST send an archived contact no further profile-requests') has no other owner \u2014 scheduler.ts (S02) is deliberately contact/archive-blind by its own architecture.json (dependencies_forbidden bars it from importing contacts.ts), and receive.ts (S04) only gates the two INBOUND directions (answering/accepting), never the outbound sweep. Recognizing that this watcher is therefore the ONLY module with both due-schedule and archive-state visibility in scope, and that silently leaving the gap vs. silently expanding scope were both wrong answers, took real design attention \u2014 resolved by implementing a narrow, additive filter entirely inside planDueSweep (the one file already in scope) and documenting the deviation explicitly (architecture.json's notes field, VQ-S05-008) rather than landing it invisibly or skipping it. This mirrors story S02's own retro finding (VQ-S02-011-style seam-vs-AC tension) and suggests story-splitting cross-cutting ACs across multiple stories' literal acceptance_criteria arrays is a recurring source of this exact ambiguity in this epic.",
+    "surprised_by": "The dev hardening pass caught a genuine race the architect's own design missed: the due-sweep's per-entry fire() closure originally advanced the PLAN-TIME schedule snapshot after its send+delay await, rather than re-loading the schedule actually persisted at fire time. For a staggered batch (up to a 30s spread), a D4 reachability reset or a completing-announce deletion landing on that same contact during the delay window would have been silently clobbered by the stale advance()+save \u2014 either resurrecting a schedule receive.ts had just correctly deleted, or overwriting a fresh D4 reset with pre-reset attempt/jitter state. Fixed by re-loading the current schedule immediately before advancing and short-circuiting when it no longer exists. Neither the architect's design pass nor the pure-function test suite (which cannot express a concurrent-mutation-during-delay scenario without simulating idb writes mid-timer) would have caught this without the dev's independent line-by-line review of the effect body. Stage-1 review (round 2) then found the SAME class of fire-time-vs-plan-time staleness bug one layer up: the archive-suppression filter added to close AC-PROF-4b's outbound half only ran at plan time, so a contact archived during a staggered send's delay window still received one request \u2014 an instance of the identical race pattern in a different guise, which the round-1 fix (staleness for the SCHEDULE) did not generalize to catch for the CONTACT's archive state. Both the round-1 fix and the round-2 archive re-check are now extracted into tested async seams rather than left in the untested effect body.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "note": "Independent hardening pass found and fixed a real race: the due-sweep's staggered fire() closure advanced the plan-time schedule snapshot instead of the schedule actually persisted at fire time, which could silently clobber a concurrent D4 reset or resurrect a schedule already deleted by a completing announce during the stagger delay. Fixed via a re-load-before-advance pattern; added one test closing a case-folding gap in the archive-suppression filter (mixed-case contact pubkey vs. already-lowercased schedule key). Confirmed full suite green (2929/2954, same 25 pre-existing unrelated failures) and typecheck clean; raised no escalations."
+      },
+      {
+        "agent": "lead (Stage-1 review, round 2)",
+        "note": "Two sev-3 findings: (1) archive-outbound race \u2014 planDueSweep's archive filter only catches plan-time state, so a contact archived during a staggered send's up-to-30s delay still received one profile-request; fixed with a live fire-time re-check (isContactArchived) placed BEFORE sendProfileRequest in the fire() closure, plus a defense-in-depth re-check inside the newly-extracted advanceAfterFire. (2) effect-body coverage gap \u2014 the stale-schedule-advance fix and the D4 inbound wiring lived only in the untested effect body, so a regression reintroducing either would pass all tests; both extracted into exported async seams (advanceAfterFire, applyInboundReachabilitySignal) and covered by 7 new tests against fake-indexeddb/auto. Both fixes applied, tests added, full suite re-verified green (2936/2961, same 25 pre-existing unrelated failures), typecheck clean."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "lead_disposition": {
+    "examiner_partial": "VQ-S05-010 (no in-flight-sweep lock) is PARTIAL/spec_gap only by examiner over-classification: spec \u00a75 (REVIEW G4) EXPLICITLY accepts no-lock read-modify-write duplication and instructs matching existing watchers (which S05 does). Not a gap. All AC-bearing Qs (AC-WATCH-1/2, AC-PROF-4b) YES; examiner concluded 'Blockers: None, ready for promotion'. Accepted by lead without Decider escalation."
+  }
+}

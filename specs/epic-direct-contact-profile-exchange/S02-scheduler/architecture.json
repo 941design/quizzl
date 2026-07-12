@@ -1,0 +1,56 @@
+{
+  "module_name": "scheduler",
+  "purpose": "Pure backoff-ladder math, incomplete-contact-set computation, and the state machine governing when a contact's profile is re-requested (active / answered-incomplete / given-up), plus the same-file idb-keyval CRUD adapter for the persisted per-contact schedule. No React/NDK import surface — every stateful input (clock, contact list, cache snapshot, rng) is an explicit parameter.",
+  "public_api": [
+    { "name": "ProfileScheduleState", "signature": "type ProfileScheduleState = 'active' | 'answered-incomplete' | 'given-up'", "description": "The three states a schedule can be in. Only 'active' schedules are ever returned by computeDue." },
+    { "name": "ProfileSchedule", "signature": "type ProfileSchedule = { pubkeyHex: string; attempts: number; nextAttemptAt: number; state: ProfileScheduleState; firstAttemptAt: number; lastResetAt: number | null }", "description": "Persisted per-contact record, keyed by lowercased pubkeyHex. Extends the 4-field shape sketched in verification.json's VQ-S02-010 with two additional epoch-second fields (firstAttemptAt, lastResetAt) — see the file header doc and this story's post-impl verification append for why: the 30-day give-up ceiling and the <=1/24h D4 reset rate-limit each need a timestamp anchor, and deriving either from attempts+nextAttemptAt alone is not reliable across resets, jitter, or clock-clamp. Both are opaque to callers outside this module; story 05 (watcher) consumes the type only through the exported functions below, never by hand-constructing or pattern-matching individual fields." },
+    { "name": "RandomSource", "signature": "type RandomSource = () => number", "description": "Injectable jitter source returning a value in [0,1). Defaults to Math.random in every function; tests inject a fixed sequence for deterministic jitter-bound assertions." },
+    { "name": "LADDER_HOURS", "signature": "const LADDER_HOURS: readonly [1,2,4,8,16,24]", "description": "The nominal (pre-jitter) backoff rungs in hours, exported so tests assert against the same constant rather than re-deriving it." },
+    { "name": "CAP_HOURS", "signature": "const CAP_HOURS = 24", "description": "The interval every attempt beyond the ladder's length repeats at." },
+    { "name": "JITTER_FRACTION", "signature": "const JITTER_FRACTION = 0.2", "description": "±20% jitter bound (D2)." },
+    { "name": "GIVE_UP_CEILING_SECONDS", "signature": "const GIVE_UP_CEILING_SECONDS = 30 * 24 * 3600", "description": "AC-PROF-11c's 30-day ceiling, in seconds." },
+    { "name": "RESET_RATE_LIMIT_SECONDS", "signature": "const RESET_RATE_LIMIT_SECONDS = 24 * 3600", "description": "AC-PROF-11's <=1 D4 reset per contact per 24h." },
+    { "name": "nominalIntervalHours", "signature": "nominalIntervalHours(attemptNumber: number): number", "description": "Pure ladder lookup for the Nth (1-based) attempt, capped at CAP_HOURS beyond the ladder's length." },
+    { "name": "createInitialSchedule", "signature": "createInitialSchedule(pubkeyHex: string, nowSec: number, rng?: RandomSource): ProfileSchedule", "description": "First-ever schedule for a newly-incomplete contact: attempts=1, nextAttemptAt = nowSec + jittered 1h (AC-PROF-1's 'first fire after 1h, not immediately'), state='active'." },
+    { "name": "advance", "signature": "advance(schedule: ProfileSchedule, nowSec: number, rng?: RandomSource): ProfileSchedule", "description": "Called after an active schedule's fire went out. Increments attempts and schedules the next rung (AC-PROF-1/11), UNLESS nowSec - schedule.firstAttemptAt has reached GIVE_UP_CEILING_SECONDS, in which case it transitions to 'given-up' (AC-PROF-11c) instead of scheduling further. No-op (returns schedule unchanged) if state is not 'active'." },
+    { "name": "markAnsweredIncomplete", "signature": "markAnsweredIncomplete(schedule: ProfileSchedule): ProfileSchedule", "description": "Pure transition to the 'answered-incomplete' terminal state (AC-PROF-11a) — called by story 04's receive path when a gate-passing, non-malformed announce nonetheless leaves avatar empty." },
+    { "name": "applyReachabilitySignal", "signature": "applyReachabilitySignal(schedule: ProfileSchedule, nowSec: number, rng?: RandomSource): ProfileSchedule", "description": "The single D4 handler shared by both reset-on-activity (AC-PROF-11, from 'active') and re-arm-from-terminal (AC-PROF-11a/11c, from 'answered-incomplete'/'given-up') — resets to the 1h floor and 'active', rate-limited: a no-op if lastResetAt is non-null and less than RESET_RATE_LIMIT_SECONDS ago. Never called for a profile-announce receipt (D4 excludes those; the caller, not this function, filters by rumor kind)." },
+    { "name": "isCompletingAnnounce", "signature": "isCompletingAnnounce(params: { lwwWon: boolean; avatarNonNull: boolean }): boolean", "description": "Pure predicate for 'this announce should clear the schedule' — true iff the LWW write landed AND the resulting avatar is non-null. Story 04 calls this, then deleteSchedule on true; scheduler holds no receive-path logic itself." },
+    { "name": "computeDue", "signature": "computeDue(schedules: ProfileSchedule[], nowSec: number): ProfileSchedule[]", "description": "Filters to schedules with state==='active' && nowSec >= nextAttemptAt && (nowSec - firstAttemptAt) < GIVE_UP_CEILING_SECONDS. Never returns an 'answered-incomplete' or 'given-up' entry (VQ-S02-010), and never leaks a still-'active' schedule whose give-up ceiling has already elapsed but which advance() has not yet transitioned to 'given-up' (Codex remediation, VQ-S02-015)." },
+    { "name": "ContactSnapshot", "signature": "type ContactSnapshot = { pubkeyHex: string; archived: boolean }", "description": "Minimal injected view of a contact — the watcher (story 05) maps its own contacts.ts read into this shape; scheduler.ts never imports contacts.ts." },
+    { "name": "ProfileCacheSnapshot", "signature": "type ProfileCacheSnapshot = { pubkeyHex: string; avatarNonNull: boolean }", "description": "Minimal injected view of a contactCache.ts entry; scheduler.ts never imports contactCache.ts." },
+    { "name": "computeIncompleteSet", "signature": "computeIncompleteSet(contacts: ContactSnapshot[], cache: ProfileCacheSnapshot[], ownPubkeyHex: string): string[]", "description": "Sec 3.1: a contact (excluding own pubkey and archived contacts, and anything not in the injected contact list) is incomplete when it has no cache entry or a cache entry with a null avatar." },
+    { "name": "computeContactsNeedingNewSchedule", "signature": "computeContactsNeedingNewSchedule(incompleteSet: string[], existingSchedules: ProfileSchedule[]): string[]", "description": "Stage-1 review remediation (integration-hazard closer): computeIncompleteSet is schedule-state-blind, so a naive watcher doing 'for each incomplete contact, createInitialSchedule if none active' would resurrect a terminal ('answered-incomplete'/'given-up') contact by minting a fresh active schedule on the next sweep, re-opening the permanent-loop hole AC-PROF-11a/11c close at the state-machine layer. Returns the subset of incompleteSet with NO existing schedule at all (active OR terminal) — the watcher calls createInitialSchedule ONLY for these pubkeys, holding no terminal-exclusion logic of its own. Case-folds both sides on the join; deduped, lowercased output." },
+    { "name": "clampScheduleOnLoad", "signature": "clampScheduleOnLoad(schedule: ProfileSchedule, nowSec: number): ProfileSchedule", "description": "AC-PROF-1's backwards-clock-jump guard: clamps nextAttemptAt down to nowSec + CAP_HOURS*3600 when it exceeds that bound. PURE — never persists; applied by every store read, which is responsible for persisting the clamp durably (see loadSchedule/loadAllSchedules, VQ-S02-015)." },
+    { "name": "saveSchedule", "signature": "saveSchedule(schedule: ProfileSchedule): Promise<void>", "description": "Upsert, case-folding pubkeyHex on both the store key and the persisted record." },
+    { "name": "loadSchedule", "signature": "loadSchedule(pubkeyHex: string, nowSec?: number): Promise<ProfileSchedule | undefined>", "description": "Case-folds the lookup key; applies clampScheduleOnLoad before returning. Codex remediation (VQ-S02-015): when the clamp actually lowers nextAttemptAt relative to the stored value, the clamped record is persisted back via saveSchedule before returning, so a subsequent reload at an unchanged (still-behind) clock returns the SAME clamped value instead of re-deriving a fresh, further-forward now+24h on every reload." },
+    { "name": "loadAllSchedules", "signature": "loadAllSchedules(nowSec?: number): Promise<ProfileSchedule[]>", "description": "Every persisted schedule, each clamped via clampScheduleOnLoad. Codex remediation (VQ-S02-015): mirrors loadSchedule's durable-clamp persistence — every entry the clamp actually lowers is written back to the store before this function returns." },
+    { "name": "deleteSchedule", "signature": "deleteSchedule(pubkeyHex: string): Promise<void>", "description": "Case-folds the key; called on a completing announce (isCompletingAnnounce===true) or on contact archive/remove." },
+    { "name": "clearAllSchedulesForTests", "signature": "clearAllSchedulesForTests(): Promise<void>", "description": "Test-only full-store reset, mirroring nonceStore.ts's clearAllNonces / pendingIntent.ts's clearPendingIntentsForTests precedent. This module holds no module-scope mutable state beyond the idb-keyval store itself, so this is the only reset needed." }
+  ],
+  "private_files": [
+    "app/src/lib/dmProfile/scheduler.ts"
+  ],
+  "owned_data": [
+    "The few-dm-profile-schedule idb-keyval store",
+    "The ProfileSchedule record shape and its state machine"
+  ],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": [
+    "react",
+    "@nostr-dev-kit/ndk",
+    "app/src/lib/contactCache.ts",
+    "app/src/lib/contacts.ts",
+    "app/src/lib/dmProfile/send.ts",
+    "app/src/lib/dmProfile/receive.ts"
+  ],
+  "external_ports": [
+    "idb-keyval (few-dm-profile-schedule store)"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/dmProfile/scheduler.test.ts",
+    "app/tests/unit/dmProfile/scheduler.integration.test.ts"
+  ]
+}

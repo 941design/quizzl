@@ -1,0 +1,22 @@
+{
+  "story_id": "S08",
+  "captured_at": "2026-07-12T20:00:00Z",
+  "command": "cd app && npx vitest run",
+  "result": {
+    "test_files": { "passed": 154, "failed": 2, "total": 156 },
+    "tests": { "passed": 2960, "failed": 25, "total": 2985 }
+  },
+  "pre_existing_failures": {
+    "note": "All 25 failures are pre-existing and unrelated to this story's scope: icon-set resolution mismatches (e.g. 'lucide:phone' vs expected 'ph:phone-bold') in tests/unit/components/ThemeIcon.test.ts and tests/unit/themes/treatments.test.ts, stemming from the watercolor theme-set landing (commit a50edf4, predates this epic). No file touched by this story is involved. Treated as pre-existing debt this story did not introduce. Matches stories S01-S07's recorded baseline note exactly (same 25 failures, same root cause). Baseline total (2985) equals S07's recorded final count exactly, as expected for the epic's last sequential story."
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "detail": "No ESLint config exists in app/ (no .eslintrc*/eslint.config*); `next lint` prompts interactively to scaffold one. Treated as NO_LINT baseline, not a failure. Matches S01-S07's recorded baseline."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit -p tsconfig.json",
+    "status": "clean",
+    "detail": "Production src typecheck is clean. Note: tsconfig.json's own \"exclude\" list excludes the entire tests/ directory (pre-existing project convention, predates this story) — the new/edited e2e spec files under app/tests/e2e/ are therefore not covered by this command at all. See result.json for the ad hoc scoped tsc check performed against the new e2e files specifically."
+  }
+}

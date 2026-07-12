@@ -1,0 +1,49 @@
+{
+  "story_id": "S04",
+  "status": "done",
+  "completed_at": "2026-07-12T16:04:49Z",
+  "files_created": [
+    "app/src/lib/dmProfile/receive.ts",
+    "app/tests/unit/dmProfile/receive.test.ts",
+    "app/tests/unit/contactCache.test.ts",
+    "specs/epic-direct-contact-profile-exchange/S04-receive/architecture.json",
+    "specs/epic-direct-contact-profile-exchange/S04-receive/baseline.json",
+    "specs/epic-direct-contact-profile-exchange/S04-receive/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/contactCache.ts",
+    "specs/epic-direct-contact-profile-exchange/S04-receive/verification.json"
+  ],
+  "tests_added": {
+    "unit": 36
+  },
+  "test_counts": {
+    "baseline": 2893,
+    "final": 2929
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "architect_skipped": false,
+  "modules_touched": [
+    "receive",
+    "contactCache"
+  ],
+  "implementation_summary": "New app/src/lib/dmProfile/receive.ts exports handleProfileRequest(rumor, senderHex, ctx, nowSec?) and handleProfileAnnounce(rumor, senderHex, ctx), plus the exported passesDisclosureGate and decideScheduleAction predicates. Both arms take an already strict-unwrapAndOpen'd rumor (unwrapAndOpen itself lives in story 05's watcher, not here) and re-derive+re-assert the authenticated sender from rumor.pubkey, dropping silently if the caller-supplied senderHex ever disagrees \u2014 defense in depth beyond unwrapAndOpen's own rumor.pubkey===seal.pubkey check, verified by a dedicated test. passesDisclosureGate implements the \u00a73.3/\u00a73.5 conjunction (isAllowedDmSender AND an active, non-archived contact read case-insensitively from contacts.ts's store) shared by both arms. The request arm parses via kinds.ts#parseProfileRequest, gates, applies an in-memory per-authenticated-sender cooldown (RATE_LIMIT_COOLDOWN_SECONDS=3600, AC-PROF-13, injectable nowSec for deterministic tests), then calls send.ts#sendProfileAnnounce addressed to the authenticated sender \u2014 recording the cooldown only when the result is not 'deferred-nameless', so a nameless owner's non-answer never blocks the next legitimate reply once named (AC-PROF-12). The announce arm parses via kinds.ts#parseProfileAnnounce (malformed avatar is a parse failure, dropped before the gate or any storage touch \u2014 AC-PROF-6a), gates, then calls the new contactCache.ts#writeContactEntryNeutralized (keyed under the authenticated sender) and routes the schedule side effect via decideScheduleAction on the write's {lwwWon, avatarNonNull}: 'clear' -> scheduler.ts#deleteSchedule (AC-PROF-6's completing-write case); 'mark-incomplete' -> load/markAnsweredIncomplete/save (AC-PROF-11a's scheduler-contract wiring \u2014 see the post-impl question on its current reachability); 'none' -> no schedule mutation (AC-PROF-10's LWW-loss/idempotent-repeat case). contactCache.ts gains writeContactEntryNeutralized + the exported WriteContactEntryResult type ({landed, lwwWon, avatarNonNull}) alongside the pre-existing writeContactEntry (signature and behavior for its existing callers \u2014 MarmotContext.tsx's group sync, contactCardImport.ts's card import \u2014 are untouched and regression-tested). The new function never calls rememberContact (the AC-PROF-4 contact-injection fix), defensively lowercases pubkeyHex, and is idempotent under repeated identical payloads by construction of the same LWW predicate writeContactEntry already used. Round 1 (Stage-1 review, sev 3): readContactEntry did not case-fold its lookup key while writeContactEntryNeutralized already folded its write key \u2014 a neutralized write under a mixed-case pubkey followed by a readContactEntry call with that same mixed-case string would silently miss, a live hazard for story 07's importCard reuse of this seam. Fixed by folding readContactEntry's argument (readContactCache()[pubkeyHex.toLowerCase()]); the pre-existing writeContactEntry and its existing callers are deliberately untouched, per the review's explicit instruction. One new regression test added.",
+  "verification_notes": "35 new tests (12 contactCache.test.ts, 23 receive.test.ts): AC-PROF-3 (both gate halves independently), AC-PROF-4 (allowed-but-not-yet-a-contact still dropped), AC-PROF-4b (archive revokes both request-answer and announce-accept; unarchive restores both), AC-PROF-5 (a real NIP-59 forged wrap built via nostr-tools/nip59's createSeal/createWrap directly \u2014 rumor.pubkey=victim, seal signed by attacker \u2014 is rejected by the real unwrapAndOpen before any receive.ts code runs, with a pre-seeded victim contact/schedule proving no poisoning occurred; plus a second, independent test of receive.ts's own senderHex-vs-rumor.pubkey defense-in-depth drop; plus a static source-grep proving no import of welcomeSubscription.ts/unwrapGiftWrap and no hand-rolled JSON.parse on rumor.content), AC-PROF-6 (completing write stores+clears; non-completing write leaves schedule untouched; malformed avatar dropped without touching the schedule), AC-PROF-10 (real ISO-8601 lexicographic newer/older/idempotent-repeat, driven through fake-timer-stamped encodeProfileAnnounce calls, not pre-sorted mock inputs), AC-PROF-13 (burst-within-cooldown yields exactly one answer; a request just past the cooldown yields a second; the cooldown is scoped per authenticated sender, not global). The codec parser, the gate predicate, and isAllowedDmSender are exercised for real throughout \u2014 only NDKEvent.prototype.publish is mocked, matching send.test.ts's and this project's mocking-discipline precedent (never mock the parser/gate that would hide a real security bug).",
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Reconciling AC-PROF-11a (the 'answered-but-incomplete' terminal state, story 02's markAnsweredIncomplete) against story 01's landed codec took real analysis: kinds.ts#parseProfileAnnounce unconditionally classifies a null/absent avatar as malformed (never returns ok:true for it), and send.ts#sendProfileAnnounce always runs ensureAvatar before encoding \u2014 so every payload this story's own gate-passing path can construct has avatarNonNull===true whenever the write lands. The scheduler's three-state machine (active/answered-incomplete/given-up) and spec.md's own \u00a73.1 narrative both assume a 'valid but avatar-empty' announce is reachable from a non-Few/legacy peer, but under the codec as actually landed by story 01 that specific shape is indistinguishable from any other malformed payload and never reaches this story's write call site at all. I still wired decideScheduleAction's 'mark-incomplete' branch (for scheduler-contract completeness and any future non-Few producer of this exact wire kind) and unit-tested it directly as a pure predicate, but it is not reachable end-to-end via this story's own tests given the current codec \u2014 recorded as post-impl VQ-S04-016 rather than left as a silent gap.",
+    "surprised_by": "The stories.json seam ledger's literal InboundDispatchArms contract is `(rumor: UnsignedRumor, senderHex: string) => Promise<void>` with no third parameter, but isAllowedDmSender is pure and reads no storage (walledGarden.ts's own AC-SEC-13), and sendProfileAnnounce needs NDK/keys/localProfile as explicit non-singleton params \u2014 so a literal 2-arg signature was not implementable without a hidden module-level context object, which architecture.md's boundary rules explicitly forbid (NDK/keys/signer must be explicit params, never a singleton). Added a third `ctx` parameter and documented the deviation in architecture.json and VQ-S04-015 rather than silently matching the ledger's literal signature with a singleton underneath.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "base:code-reviewer",
+        "note": "Stage-1 review (sev 3): readContactEntry(pubkeyHex) did not case-fold its lookup key while the new writeContactEntryNeutralized already folds its write key to lowercase \u2014 a mixed-case-keyed neutralized write would be silently missed by a readContactEntry call using that same mixed-case string, a live hazard for story 07's planned importCard reuse of this seam. Fixed by folding readContactEntry's argument; writeContactEntry (pre-existing, non-neutralized) and its existing callers left untouched per the reviewer's explicit instruction. One regression test added (mixed-case write, same mixed-case read, asserts hit). The review's second finding (AC-PROF-11a currently unreachable via the announce path given story 01's codec) was routed to the lead as a spec-documentation decision (acceptance-criteria.md amendment), not a code change \u2014 the markAnsweredIncomplete wiring stays in place per the lead's explicit instruction not to remove it."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted"
+}

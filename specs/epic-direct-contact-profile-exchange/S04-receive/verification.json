@@ -1,0 +1,125 @@
+{
+  "story_id": "S04",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-12T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S04-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the \u00a73.3/\u00a73.5 disclosure gate (isAllowedDmSender AND archivedAt==null) a real conjunction evaluated against live contacts.ts/walledGarden.ts state, or could either half be a stubbed-true placeholder that would silently pass every sender \u2014 show that the two failing branches (allowed-but-archived, active-but-not-allowed) each independently produce a gate failure?"
+    },
+    {
+      "question_id": "VQ-S04-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the neutralized cache-write primitive added to contactCache.ts coexist with the existing writeContactEntry without modifying its signature or behavior for its existing callers (per stories.json's explicit 'without changing writeContactEntry's existing callers' scope), and is there a regression test proving an existing writeContactEntry caller (e.g. group sync, card import) is unaffected?"
+    },
+    {
+      "question_id": "VQ-S04-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `receive` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S04-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do the forged-binding, stranger-request, and stranger-announce tests assert on actual cache/schedule state after dispatch (e.g. contactCache still absent, lp_contacts_v1 unchanged, schedule untouched) rather than only asserting a mocked sendProfileAnnounce/writeContactEntry 'was not called' \u2014 could the test still pass if the gate were removed but the mock happened not to be exercised for an unrelated reason?"
+    },
+    {
+      "question_id": "VQ-S04-005",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is there a unit test constructing a forged gift wrap where `rumor.pubkey` is set to an existing contact's pubkey but the seal is signed by a different ephemeral key, asserting receive.ts drops it before either gate runs and that neither that contact's cache entry nor its schedule is mutated as a result \u2014 and does this test fail (red) if AC-PROF-5's rumor.pubkey===seal.pubkey check is deleted?"
+    },
+    {
+      "question_id": "VQ-S04-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-3",
+      "question": "Is there a test where a profile-request arrives from a sender that fails isAllowedDmSender, asserting sendProfileAnnounce is never invoked and no other outbound gift wrap is sent \u2014 and a second test where the sender passes isAllowedDmSender but is archived, asserting the same no-answer outcome (both halves of the gate independently tested)?"
+    },
+    {
+      "question_id": "VQ-S04-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-4",
+      "question": "Is there a test where a profile-announce arrives from a sender failing the gate (not allowed OR not an active pre-existing contact), asserting contactCache.ts gains no entry for that sender, lp_contacts_v1 gains no new record, and no schedule is created/touched for that pubkey \u2014 with the assertions reading actual store state, not a mock call count?"
+    },
+    {
+      "question_id": "VQ-S04-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-4b",
+      "question": "Is there a test that archives a previously-healthy mutual contact and then asserts a subsequent profile-announce from them is dropped (not stored) \u2014 and does a follow-up unarchive test assert the same sender's next valid announce IS now accepted, proving the gate re-opens rather than remaining permanently shut?"
+    },
+    {
+      "question_id": "VQ-S04-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-5",
+      "question": "Beyond the forged-binding SECURITY test above, is there a positive-path test proving receive.ts's two dispatch arms are wired exclusively to directMessages.ts#unwrapAndOpen (e.g. via an import/reference check or a test that a welcomeSubscription-style unwrap never reaches these arms), closing off the possibility that only the negative forged case was tested while the wiring itself still calls the lenient primitive in some other branch?"
+    },
+    {
+      "question_id": "VQ-S04-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-6",
+      "question": "Is there a test where a gate-passing, non-malformed announce's write wins LWW and leaves avatar non-null, asserting (a) the entry is stored under the authenticated sender in the same contactCache the contact list reads and (b) that contact's few-dm-profile-schedule entry is cleared in the same operation \u2014 with a companion test proving a non-completing write (LWW-lost, or avatar still null) leaves the schedule untouched?"
+    },
+    {
+      "question_id": "VQ-S04-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-10",
+      "question": "Is there a test asserting a newer-`updatedAt` announce overwrites the stored entry, an older-or-equal-`updatedAt` announce leaves it unchanged, and applying the identical announce twice in sequence leaves the cache byte-for-byte identical to applying it once \u2014 using real ISO-8601 lexicographic comparison values, not pre-sorted mock inputs?"
+    },
+    {
+      "question_id": "VQ-S04-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-13",
+      "question": "Is there a test sending two profile-requests from the same authenticated sender within the 1h cooldown window, asserting only one profile-announce reply is produced, and a companion test sending a third request just after the cooldown elapses, asserting a second reply IS now produced (proving the limiter is time-bounded, not a permanent one-shot)?"
+    },
+    {
+      "question_id": "VQ-S04-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-6",
+      "question": "(Seam contract) Does the neutralized write primitive return `{landed: boolean}` where `landed` is true iff the write passed LWW AND the entry now has a non-null avatar (not merely 'a write happened'), and is there an idempotency test proving calling it twice with the identical announce payload leaves the cache in the same state as calling it once \u2014 the exact contract story 07's \u00a710.1 fix reuses without re-implementing LWW?"
+    },
+    {
+      "question_id": "VQ-S04-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-5",
+      "question": "(Seam contract) Do `handleProfileRequest(rumor, senderHex)` and `handleProfileAnnounce(rumor, senderHex)` exist as exported functions with exactly this signature, reachable only via unwrapAndOpen, and is there a test proving that mounting/calling these arms never modifies welcomeSubscription.ts's own dispatch table or either pre-existing kind-1059 consumer's filter \u2014 the exact contract story 05's watcher wires its subscription onto?"
+    },
+    {
+      "question_id": "VQ-S04-015",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The seam ledger (stories.json) frames the exported signature as exactly `(rumor, senderHex) => Promise<void>`, but the landed implementation adds a third parameter (`ctx: DisclosureGateContext` / `ProfileRequestHandlerContext`, carrying `groups`/`knownPeers`/`ownPubkeyHex` plus, for the request arm, `ndk`/`keys`/`localProfile`) because `isAllowedDmSender` is pure and reads no storage itself (walledGarden.ts's own AC-SEC-13), and `sendProfileAnnounce` needs NDK/keys/localProfile as explicit params (never a singleton, per architecture.md). Is story 05's watcher able to supply this context cleanly from its own live refs (mirroring DirectMessageNotificationsWatcher.tsx's groupsRef/knownPeersRef pattern), or does the 3-arg signature create friction against the 2-arg seam contract the story planner originally wrote?"
+    },
+    {
+      "question_id": "VQ-S04-016",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-6",
+      "question": "`decideScheduleAction`'s `'mark-incomplete'` branch (AC-PROF-11a's non-Few-peer terminal state, `scheduler.ts#markAnsweredIncomplete`) is wired in `handleProfileAnnounce` for contract completeness with scheduler.ts (story 02), but is it actually reachable via this story's own call site? `kinds.ts#parseProfileAnnounce` (story 01) unconditionally classifies a `null`/absent `avatar` as malformed (`ok:false`, reason `'avatar-missing'`) BEFORE a payload ever reaches `writeContactEntryNeutralized`, and `send.ts#sendProfileAnnounce` (story 03) always runs `ensureAvatar` before encoding, so every value this story's own gate-passing path could ever construct has `avatarNonNull===true` by construction. Confirm whether AC-PROF-11a is therefore only reachable from a hypothetical future non-Few implementation of this exact wire protocol that sends a spec-shaped payload with a real (non-null) but semantically-empty avatar field the codec would accept as well-formed \u2014 or whether the `'mark-incomplete'` branch is genuinely dead code under the current, fully-landed codec, and if so whether that should be recorded as a spec/story-02 note rather than left implicit in a code comment."
+    },
+    {
+      "question_id": "VQ-S04-017",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The AC-PROF-13 rate-limit cooldown (`lastAnsweredAtBySender`) is a module-scope in-memory `Map`, not persisted to idb/localStorage. A page reload (or a second browser tab) therefore resets/duplicates the cooldown window, matching spec.md \u00a75's already-accepted multi-tab/no-lock tolerance for this feature and this story's own AC-PROF-13 text (\"in-memory is sufficient\"). Is this tolerance actually exercised/asserted anywhere in story 08's e2e suite (e.g. a two-tab or reload-mid-burst scenario), or does the acceptance of \"in-memory is sufficient\" rest solely on this story's prose justification with no end-to-end proof that a reload-triggered double-answer is bounded to a harmless single extra gift wrap rather than compounding with some other retry path?"
+    },
+    {
+      "question_id": "VQ-S04-018",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Round-1 Stage-1 review (sev 3) found readContactEntry did not case-fold its lookup key while writeContactEntryNeutralized already folds its write key, so a neutralized write under a mixed-case pubkey followed by a readContactEntry call with that SAME mixed-case string would silently miss the entry that write just landed \u2014 a live hazard for story 07's importCard reuse of this seam. Remediated: readContactEntry now case-folds (readContactCache()[pubkeyHex.toLowerCase()]) before the lookup; writeContactEntry (the pre-existing, non-neutralized function) and its existing callers (group sync, card import) are deliberately left unchanged. One new regression test (contactCache.test.ts) writes under a mixed-case pubkey and reads back with that same mixed-case string, asserting a hit. Is there any OTHER read site in this codebase that keys directly into the raw lp_contactCache_v1 object (bypassing readContactEntry) that could still exhibit the same case-fold asymmetry \u2014 e.g. a future story-07 read path, or an existing caller that reads readContactCache() and indexes it directly rather than going through readContactEntry?"
+    }
+  ]
+}

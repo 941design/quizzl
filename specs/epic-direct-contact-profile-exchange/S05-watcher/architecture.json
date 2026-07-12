@@ -1,0 +1,64 @@
+{
+  "module_name": "watcher",
+  "purpose": "Always-mounted integration component (5th sibling of PendingPairingIntentWatcher/DirectMessageNotificationsWatcher/IncomingCallWatcher in Layout.tsx) that drives the direct-contact profile-heal loop: a mount/online/interval due-sweep (bulk-stagger + scheduler.ts's own +/-20% jitter) and a dedicated inbound kind-1059 subscription that strictly unwraps and routes to receive.ts's two dispatch arms. Holds zero backoff math and zero disclosure-gate logic of its own — pure wiring over scheduler.ts (S02), send.ts (S03), and receive.ts (S04). The due-sweep planning, the dispatch routing, and the D4 reachability-signal decision are pulled out as exported pure functions (no React/NDK/idb import surface) so they are unit-testable without jsdom/@testing-library/renderHook, per this repo's testing convention (mirrors src/components/ThemeIcon.tsx's getThemeIconId precedent).",
+  "public_api": [
+    { "name": "BULK_SWEEP_STAGGER_THRESHOLD", "signature": "const BULK_SWEEP_STAGGER_THRESHOLD = 5", "description": "AC-WATCH-1: when computeDue returns MORE than this many due schedules in one sweep, the sends are staggered across BULK_SWEEP_STAGGER_WINDOW_MS instead of firing in the same tick. Chosen as a small-burst threshold: <=5 simultaneous small gift wraps is indistinguishable from ordinary background traffic to a relay; a mount/online/resume sweep after a long sleep can plausibly exceed it and is exactly the stampede §5 warns about." },
+    { "name": "BULK_SWEEP_STAGGER_WINDOW_MS", "signature": "const BULK_SWEEP_STAGGER_WINDOW_MS = 30_000", "description": "The window (30s) a bulk-sweep's due sends are spread evenly across, on top of each fire's own +/-20% scheduler-level jitter (which affects nextAttemptAt, not this dispatch-time spread). 30s is short enough that a user reloading immediately after a long sleep still sees convergence promptly, long enough to avoid a same-tick burst to the relay." },
+    { "name": "DUE_SWEEP_INTERVAL_MS", "signature": "const DUE_SWEEP_INTERVAL_MS = 5 * 60 * 1000", "description": "Periodic due-check interval (5 min). Coarse relative to the >=1h backoff floor by design (polling every few minutes cannot itself cause a fire storm); mount and 'online' triggers cover the low-latency cases (app open, reconnect) an interval alone would miss between polls. Test-only immediacy (AC-E2E-1) is achieved by the mount-triggered sweep after seedDueProfileSchedule + a reload, not by shortening this interval — no NEXT_PUBLIC_* override exists (spec.md's explicit anti-pattern)." },
+    { "name": "DueSendPlanEntry", "signature": "type DueSendPlanEntry = { schedule: ProfileSchedule; delayMs: number }", "description": "One due schedule plus the dispatch-time delay (0 when <= threshold due, else an evenly-spread offset within the stagger window) the wrapper's setTimeout applies before firing." },
+    { "name": "DueSweepPlan", "signature": "type DueSweepPlan = { toCreate: string[]; toSend: DueSendPlanEntry[] }", "description": "The full sweep-tick plan: pubkeys to createInitialSchedule for (sourced EXCLUSIVELY from computeContactsNeedingNewSchedule per the S02 ownership-ledger contract), and the due schedules to send, each with its stagger delay." },
+    { "name": "planDueSweep", "signature": "planDueSweep(params: { contacts: ContactSnapshot[]; cache: ProfileCacheSnapshot[]; ownPubkeyHex: string; schedules: ProfileSchedule[]; nowSec: number }): DueSweepPlan", "description": "PURE. Composes computeIncompleteSet -> computeContactsNeedingNewSchedule (toCreate) and computeDue (toSend), in that order, all imported from scheduler.ts (no math re-implemented here). Additionally excludes any due schedule whose pubkeyHex matches a currently-archived contact in `contacts` BEFORE computing the stagger indices or threshold comparison — see the 'archive-suppression' note below; this is the one piece of watcher-owned logic beyond pure composition, and it is deliberately pure/parametric like everything else in this function." },
+    { "name": "DispatchDecision", "signature": "type DispatchDecision = { action: 'ignore' } | { action: 'route-request'; applyReachability: true } | { action: 'route-announce' }", "description": "The routing outcome for one inbound rumor's inner kind." },
+    { "name": "decideDispatch", "signature": "decideDispatch(innerKind: number): DispatchDecision", "description": "PURE. DM_PROFILE_REQUEST_KIND -> route-request (always applyReachability:true, i.e. a profile-request receipt IS a D4 signal per spec.md §3.2/D4); DM_PROFILE_ANNOUNCE_KIND -> route-announce (never a D4 signal, per the S02 ownership-ledger's 'announce receipt never re-arms' contract); anything else -> ignore. The caller (component effect) applies applyReachabilitySignal only for route-request." },
+    { "name": "AdvanceAfterFireOutcome", "signature": "type AdvanceAfterFireOutcome = 'advanced' | 'skipped-archived' | 'skipped-deleted'", "description": "Stage-1 remediation (round 2). The three outcomes of advanceAfterFire below." },
+    { "name": "advanceAfterFire", "signature": "advanceAfterFire(pubkeyHex: string, nowSec: number): Promise<AdvanceAfterFireOutcome>", "description": "ASYNC, idb-backed. Called from the fire() closure after sendProfileRequest (the closure itself does its own pre-send archive check first, so an archived contact gets no send at all; this function's own archive re-check is the defense-in-depth layer for the rare archived-during-the-send-await case). Re-loads the CURRENT persisted schedule via scheduler.ts#loadSchedule rather than advancing planDueSweep's stale plan-time snapshot — up to BULK_SWEEP_STAGGER_WINDOW_MS can elapse between planning and this call, during which a D4 reset (applyInboundReachabilitySignal) or a completing-announce deleteSchedule (receive.ts) may have already mutated or removed the schedule. Returns 'skipped-archived' (no mutation) when the contact is archived as of THIS call, 'skipped-deleted' (no resurrection) when no schedule is persisted any more, else 'advanced' after advancing+saving the CURRENT schedule. Closes AC-PROF-4b's outbound half at fire time, not just plan time (planDueSweep's own archive filter only catches the plan-time snapshot)." },
+    { "name": "ReachabilitySignalOutcome", "signature": "type ReachabilitySignalOutcome = 'reset' | 'no-schedule' | 'rate-limited'", "description": "Stage-1 remediation (round 2). The three outcomes of applyInboundReachabilitySignal below." },
+    { "name": "applyInboundReachabilitySignal", "signature": "applyInboundReachabilitySignal(senderHex: string, nowSec: number): Promise<ReachabilitySignalOutcome>", "description": "ASYNC, idb-backed. The D4 (spec.md §3.2) bookkeeping extracted out of the inbound handler: loads the sender's own tracked schedule (if any), applies scheduler.ts#applyReachabilitySignal, and persists only when it actually changed (identical-reference check honors that function's own <=1/24h rate limit). Called ONLY from decideDispatch's route-request arm — decideDispatch never sets applyReachability for route-announce, so this function is structurally unreachable from an announce receipt, not merely unreachable by convention." }
+  ],
+  "private_files": [
+    "app/src/components/ProfileHealWatcher.tsx"
+  ],
+  "owned_data": [
+    "None — the component is stateless wiring. The dedicated kind-1059 NDK subscription and its setTimeout/setInterval handles are transient effect state, torn down on unmount/identity change."
+  ],
+  "dependencies_allowed": [
+    "react",
+    "@/src/context/NostrIdentityContext",
+    "@/src/context/MarmotContext",
+    "@/src/context/ProfileContext",
+    "@/src/lib/walledGarden",
+    "@/src/lib/knownPeers",
+    "@/src/lib/contacts",
+    "@/src/lib/contactCache",
+    "@/src/lib/directMessages (GIFT_WRAP_KIND, unwrapAndOpen only)",
+    "@/src/lib/ndkClient (connectNdk, dynamic import)",
+    "@/src/lib/dmProfile/kinds",
+    "@/src/lib/dmProfile/scheduler",
+    "@/src/lib/dmProfile/send",
+    "@/src/lib/dmProfile/receive",
+    "@/src/types"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/marmot/welcomeSubscription.ts",
+    "app/src/components/DirectMessageNotificationsWatcher.tsx",
+    "app/src/components/calls/IncomingCallWatcher.tsx"
+  ],
+  "external_ports": [
+    "NDK gift-wrap subscription (ndk.subscribe({kinds:[GIFT_WRAP_KIND],'#p':[ownPubkeyHex]})) — a NEW, dedicated subscription (AC-WATCH-2), distinct from the 3 pre-existing kind-1059 consumers",
+    "idb-keyval few-dm-profile-schedule store, read/written only via scheduler.ts's exported CRUD (never directly)"
+  ],
+  "events_emitted": [],
+  "events_consumed": ["kind-1059 gift wrap (own dedicated subscription, inner kinds DM_PROFILE_REQUEST_KIND/DM_PROFILE_ANNOUNCE_KIND routed, all others ignored)"],
+  "test_targets": [
+    "app/tests/unit/components/ProfileHealWatcher.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S08-e2e-and-proof"],
+    "note": "The dedicated-subscription seam (architecture.md seam #4) and AC-PROF-7 self-heal convergence are exercised end-to-end by S08; S06 (push-triggers) does NOT depend on this component (it hooks profile.tsx + pairing admission directly, per architecture.md's module map)."
+  },
+  "notes": [
+    "Archive-suppression addition beyond the story's literal AC-WATCH-1/2 scope: AC-PROF-4b (cross-cutting) requires 'the scheduler MUST send that contact no further profile-requests' after archive. scheduler.ts is deliberately contact/archive-blind (dependencies_forbidden bars it from importing contacts.ts), so this can only be enforced where contact/archive state and the due-set are both in scope: this component. planDueSweep filters the due set against `contacts[].archived` before staggering — a low-risk, purely-additive filter inside the one file already in this story's scope, not a scheduler.ts change. Recorded as a post-impl verification question rather than silently landed, since it goes beyond S05's literally-listed acceptance_criteria array (AC-WATCH-1/2 only) though it stays inside scope.includes ('mount / online / interval due-sweep calling scheduler.ts's computeDue/advance/computeIncompleteSet') and touches no file outside the story's two named files.",
+    "Stage-1 review remediation (round 2, post-initial-landing): planDueSweep's archive filter only catches the state at PLAN time; a staggered send can fire up to BULK_SWEEP_STAGGER_WINDOW_MS (30s) later, leaving a window where a contact archived DURING that delay still received one outbound request. Closed by adding a fire-time re-check (isContactArchived, private helper reading contacts.ts's store live) in the fire() closure BEFORE sendProfileRequest is called (skips the send entirely), plus a second, defense-in-depth re-check inside the newly-extracted advanceAfterFire seam (covers the contact being archived during the sendProfileRequest await itself). Same review round also extracted the previously-inline fire-time advance logic and the inbound D4 logic into two tested async seams (advanceAfterFire, applyInboundReachabilitySignal) so both properties are covered by tests against fake-indexeddb/auto rather than living only in the untested effect body."
+  ]
+}

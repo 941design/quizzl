@@ -1,0 +1,65 @@
+{
+  "story_id": "S06",
+  "status": "done",
+  "files_created": [
+    "app/tests/unit/pages/profile-announce-fanout.test.ts",
+    "specs/epic-direct-contact-profile-exchange/S06-push-triggers/architecture.json",
+    "specs/epic-direct-contact-profile-exchange/S06-push-triggers/baseline.json",
+    "specs/epic-direct-contact-profile-exchange/S06-push-triggers/result.json"
+  ],
+  "files_modified": [
+    "app/pages/profile.tsx",
+    "app/src/lib/pairing/pairingAck.ts",
+    "app/tests/unit/pairing/pairingAck.test.ts",
+    "app/src/lib/marmot/welcomeSubscription.ts",
+    "app/tests/unit/marmot/welcomeSubscription.test.ts",
+    "specs/epic-direct-contact-profile-exchange/S06-push-triggers/verification.json",
+    "specs/epic-direct-contact-profile-exchange/S06-push-triggers/architecture.json",
+    "specs/epic-direct-contact-profile-exchange/stories.json"
+  ],
+  "implementation_summary": "Announce-on-change (profile.tsx): broadcastProfile (called from handleNicknameBlur/handleAvatarSelect, unchanged) now ADDITIONALLY calls a new fanOutProfileAnnounceOnChange, alongside the existing unmodified `void publishProfileUpdate(next)` line. Extracted two exported, dependency-injectable pure/testable functions (mirrors ProfileHealWatcher.tsx's planDueSweep/advanceAfterFire split, since this repo has no jsdom/renderHook precedent): planProfileAnnounceFanout(contacts) \u2014 PURE, filters to active/non-archived, case-folds pubkeyHex, assigns a stagger delay (0 when audience <= PROFILE_EDIT_FANOUT_STAGGER_THRESHOLD=5, else spread across PROFILE_EDIT_FANOUT_STAGGER_WINDOW_MS=30s, same values as the S05 watcher's own constants, kept independent per architecture.md's boundary rules); and executeProfileAnnounceFanout(params) \u2014 synchronous, fire-and-forget, fires (or hands to an injectable scheduleDelay) one send.ts#sendProfileAnnounce call per plan entry, swallowing per-target failures. The React wiring reads listContacts(ownPubkeyHex, {includeArchived:true}) LIVE at call time, lazily resolves an NDK instance via connectNdk (dynamic import, matching this file's own pre-existing lazy-import pattern), and never blocks/awaits the fan-out itself.\n\nAnnounce-on-pair (pairingAck.ts): sendPairingAck (scanner side) fires one sendProfileAnnounce to issuerPubkeyHex, using its own already-explicit ndk/ownPubkeyHex/ownPrivateKeyHex params plus storage.ts#readUserProfile() for the current local profile, immediately after the pairing-ack itself successfully publishes; any announce failure is caught in its own try/catch and never turns a successful ack into 'queued-for-retry'. No signature change. handlePairingAck (issuer side) gained a new OPTIONAL `opts.ndk` field (backward compatible with every existing/omitted caller): on a FRESH 'admitted' outcome only (never on 'already-admitted'), when opts.ndk is supplied, it derives its own pubkeyHex via nostrKeys.ts#derivePublicKeyHex(ownPrivateKeyHex) (already received, so no new required param) and fires sendProfileAnnounce to the freshly-admitted sender using storage.ts#readUserProfile(). This is landed as 'Step 10' in the admission block, directly after rememberKnownPeers/rememberContact/pairingAckAdmissions.set and BEFORE where story 07's importCard(senderHex, decoded.profile) must land next (an explicit code comment marks the insertion point for S07 \u2014 see notes below).\n\nBoth admission points reuse send.ts#sendProfileAnnounce verbatim \u2014 no wrap/publish re-implementation, no new kind, no gate-logic change; receive.ts is untouched (a pushed announce is handled by the existing announce arm unmodified).\n\nSCOPE AMENDMENT (lead-authorized): the initial pass flagged that handlePairingAck's sole real caller, welcomeSubscription.ts#subscribeToWelcomes, already had `ndk` in scope at its handlePairingAck(...) call site but did not pass it, leaving the issuer-side announce fully implemented/unit-tested but INERT in the running app. The lead reviewed the finding and authorized adding welcomeSubscription.ts to this story's scope for a minimal, additive change: the existing handlePairingAck(giftWrapEvent, ownPrivateKeyHex) call now passes a third argument, `{ ndk }` \u2014 the function's own pre-existing `ndk` param, already in closure scope at that line. No other line in welcomeSubscription.ts changed: the kind-1059 subscription filter, dispatch order, and Welcome/join-request fallthrough are byte-for-byte unchanged (verified by a new source-scan regression test). A second new test (call-through spy on the real, unmocked handlePairingAck) proves the call site now passes exactly `{ ndk }`. The issuer-side push-trigger announce is now live end-to-end \u2014 AC-PROF-11b is fully satisfied on both the scanner and issuer sides, not merely unit-tested in isolation.",
+  "tests_added": {
+    "unit": 19
+  },
+  "test_counts": {
+    "baseline": 2961,
+    "final": 2980
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "architect_skipped": false,
+  "modules_touched": [
+    "push-triggers"
+  ],
+  "escalation_history": [
+    {
+      "round": 0,
+      "reason": "Issuer-side push-trigger announce (AC-PROF-11b) required handlePairingAck to receive an ndk instance, but its sole real caller (welcomeSubscription.ts) was outside this story's declared files list \u2014 flagged rather than silently touched, per the story's explicit scope restriction.",
+      "decision": "ACCEPT",
+      "decider_caveats": "Lead authorized a minimal, additive scope amendment: add welcomeSubscription.ts for the single handlePairingAck(...) call-site argument only (pass its own already-in-scope `ndk` through as opts.ndk). No change to the subscription filter, dispatch order, or Welcome/join-request fallthrough. Implemented and verified with a source-scan regression test plus a call-through spy; full suite green, typecheck clean."
+    }
+  ],
+  "verification": {
+    "pre_impl_questions": 6,
+    "post_impl_questions": 5,
+    "typecheck": "clean",
+    "lint": "NO_LINT (matches baseline)"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "handlePairingAck's own architecture (receive-path modules never hold a singleton NDK reference, per architecture.md) is structurally incompatible with firing an outbound announce from inside it, and the story's originally-declared files list (exactly profile.tsx + pairingAck.ts) did not include handlePairingAck's real caller (welcomeSubscription.ts), which is where the needed `ndk` value already lives. Reconciling 'implement the AC's issuer-side push exactly where the story says it must live' against 'never touch a file outside declared scope' required first landing an OPTIONAL opts.ndk field (backward compatible, but inert without a caller passing it), flagging the gap explicitly rather than silently fixing or silently skipping it, and then \u2014 once the lead reviewed the finding and authorized the scope amendment \u2014 making the single call-site edit that actually wires it live. A pre-existing test in pairingAck.test.ts ('handlePairingAck cannot publish anything at all') also encoded a now-partially-obsolete structural claim that had to be re-scoped to the omitted-opts.ndk case specifically, rather than an absolute claim, without breaking its original intent (AC-PRIV-1: no unaddressed kind-0).",
+    "surprised_by": "sendPairingAck's push-trigger announce needed a source for the CURRENT local profile (nickname+avatar), but SendPairingAckParams.ownProfile only carries {nickname, createdAt} (no avatar) and its callers (pendingIntent.ts, add.tsx) are outside this story's scope, so widening that param shape was not an option. storage.ts#readUserProfile() (a plain localStorage read, already used by ProfileContext.tsx) turned out to be exactly the right zero-new-param seam for both admission points, and is safely no-op-default (empty nickname) in a non-browser/no-jsdom test environment rather than throwing \u2014 this made the announce's own nameless gate (S03's AC-PROF-12) double as a convenient, correct 'do nothing extra' default for every pre-existing pairingAck.test.ts test that never sets up a local-profile mock, so none of them needed touching. Once the scope was amended, the welcomeSubscription.ts fix itself was trivially small (one added argument) \u2014 the effort was entirely in correctly identifying and communicating the gap, not in resolving it.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "lead (coordinator message, mid-implementation)",
+        "note": "Reviewed the flagged scope-boundary finding (VQ-S06-007) and authorized a minimal scope amendment adding welcomeSubscription.ts, constrained to the single handlePairingAck(...) call-site argument, with explicit instructions to leave the subscription filter/dispatch order/fallthrough untouched and to add a source-scan regression test proving that. Confirms the flag-rather-than-silently-resolve approach was the right call for a genuine scope-vs-completeness tension."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-12T17:24:44Z"
+}

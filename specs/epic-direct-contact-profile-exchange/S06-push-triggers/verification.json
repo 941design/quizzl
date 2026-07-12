@@ -1,0 +1,81 @@
+{
+  "story_id": "S06",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-12T15:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S06-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does broadcastProfile's new fan-out genuinely iterate the live active, non-archived contact list at call time (not a cached/stale snapshot, not a hardcoded empty array that would make the feature silently do nothing), and is there a test proving at least one real send.ts call is made when a non-empty active-contact set exists?"
+    },
+    {
+      "question_id": "VQ-S06-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the fan-out reuse story 03's send.ts and story 04's receive.ts paths without introducing a new kind, new handler, or duplicated gate logic, and does the scanner-side / issuer-side announce-on-pair call sit at the admission point without adding any new module import surface beyond send.ts?"
+    },
+    {
+      "question_id": "VQ-S06-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `push-triggers` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S06-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Is there a test proving broadcastProfile's fan-out is staggered/jittered across multiple active contacts (not a synchronous burst), and a separate regression test proving the pre-existing MLS group profile fan-out (publishProfileUpdate) still fires unchanged after this story's edit to the same chokepoint?"
+    },
+    {
+      "question_id": "VQ-S06-005",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is there a test proving an archived contact is excluded from the edit-propagation fan-out entirely (receives zero announces), distinguishing 'excluded' from 'included but the announce happens to be dropped downstream' \u2014 i.e. does the test assert on the outbound call list at profile.tsx's boundary, not just on the archived contact's eventual cache state?"
+    },
+    {
+      "question_id": "VQ-S06-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-11b",
+      "question": "Is there a test asserting (a) a nickname/avatar edit sends a profile-announce to every active, non-archived contact and none to an archived one, (b) each recipient's cache updates via the AC-PROF-6/AC-PROF-4 receive path with no request having been sent by that recipient, and (c) a newly-admitted contact (both scanner-side and issuer-side) receives an immediate profile-announce at admission, distinct from waiting for the first backoff interval \u2014 covering all three sub-claims with separate assertions, not one combined smoke test?"
+    },
+    {
+      "question_id": "VQ-S06-007",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-PROF-11b",
+      "question": "handlePairingAck's own signature carries no `ndk` (architecture.md: receive-path modules never hold a singleton NDK reference), yet the issuer side of AC-PROF-11b requires it to send an announce. This story's files list is exactly [profile.tsx, pairingAck.ts] \u2014 no third file. How was the ndk-availability problem solved without editing an out-of-scope file, and does the issuer-side announce actually fire against the live relay today?",
+      "answer": "Solved with a new OPTIONAL `opts.ndk` field on handlePairingAck's existing opts param (no new required param, fully backward compatible). When opts.ndk is supplied, the freshly-admitted-only branch fires the announce; when omitted, it is a pure no-op with zero behavioral change to admission (verified by 'still does not publish anything when opts.ndk is omitted, even with a shareable local profile cached' in pairingAck.test.ts). HOWEVER: this function's sole real caller, app/src/lib/marmot/welcomeSubscription.ts#subscribeToWelcomes (around line 122), already has its own `ndk` in scope at that exact call site and does NOT pass it \u2014 that file is outside this story's declared scope (stories.json's files list), and editing it was judged NOT to be a silent scope leak the architect should take unilaterally. CONSEQUENCE: the issuer-side instant-avatar behavior is fully implemented and unit-tested here (real crypto, real send.ts, asserted publish/no-publish in both the with-ndk and without-ndk cases) but is INERT in the running app until a 1-line follow-up passes `ndk` through at that existing call site. The scanner side (sendPairingAck) has no equivalent gap \u2014 it already receives ndk/ownPubkeyHex/ownPrivateKeyHex as explicit params and fires live today. This is flagged explicitly in the STATUS response to the lead as a scope-vs-completeness tension requiring either a scope amendment or an accepted follow-up, not silently resolved either way."
+    },
+    {
+      "question_id": "VQ-S06-008",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "VQ-S06-004 asked for 'a separate regression test proving the pre-existing MLS group profile fan-out (publishProfileUpdate) still fires unchanged after this story's edit to the same chokepoint.' Does such a test exist, and if not, what actually guarantees no regression?",
+      "answer": "No such test exists, and none can be added without violating this repo's no-jsdom/@testing-library/renderHook convention (profile.tsx is a page component; `publishProfileUpdate` is only reachable by mounting OwnProfileSection and simulating a blur/avatar-select event). Grepping app/tests for `publishProfileUpdate`/`broadcastProfile` confirms ZERO pre-existing test coverage of this chokepoint even before this story \u2014 so this is not a coverage regression this story introduced, only a pre-existing gap it inherits. The actual guarantee is at the diff level: `broadcastProfile`'s body still contains the exact pre-existing line `void publishProfileUpdate(next);`, unmodified in position or arguments \u2014 the only change is one ADDITIONAL line (`fanOutProfileAnnounceOnChange(next);`) appended after it. This is a structural/code-review guarantee, not a test-enforced one. The eventual test-enforced backstop is story 08's e2e suite (spec.md \u00a713 step 8), which drives a real nickname/avatar edit through the app and can assert group members still see it update \u2014 out of this story's scope."
+    },
+    {
+      "question_id": "VQ-S06-009",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "sendPairingAck's push-trigger announce reads the local profile via storage.ts#readUserProfile() independently of the SendPairingAckParams.ownProfile field already passed to the function (which lacks an avatar field). Could these two profile reads diverge in production, e.g. the announce carrying a stale or different nickname than the one the pairing-ack card itself just asserted?",
+      "answer": "Not in practice: both ultimately read from the SAME persisted source. `ownProfile.nickname` (used to sign the enclosed identity card via encodeCard) is built by every real call site (pendingIntent.ts's PendingIntentSendContext, add.tsx's buildPendingIntentSendContext) from `useProfile()`'s `savedProfile.nickname`, which is itself backed by storage.ts#readUserProfile()/writeUserProfile() (ProfileContext.tsx). Both reads happen within the same synchronous-enough window of a single pairing-ack send attempt, so a divergence would require the user editing their profile in another tab in the exact instant between the two reads \u2014 a vanishingly narrow, self-correcting race (the next announce-on-change fan-out, or the next pairing-ack, would immediately reconcile it) rather than a systemic bug. Chosen over threading a full UserProfile (with avatar) through SendPairingAckParams specifically to avoid widening that param shape / touching its callers, which are outside this story's scope."
+    },
+    {
+      "question_id": "VQ-S06-010",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "planProfileAnnounceFanout case-folds every pubkeyHex before returning. Could a pre-existing data-hygiene issue in contacts.ts's storage (the same logical contact stored under two differently-cased keys, e.g. from an old un-normalized write path) cause this function to produce two fan-out entries for what is really one contact, double-sending an announce?",
+      "answer": "Theoretically yes, but this is a pre-existing contacts.ts storage-key hygiene concern (readStoredContacts is a plain Record keyed by whatever case rememberContact was originally called with \u2014 see exploration.json's `pubkey_casing` note: 'hex compared lowercase at read sites but NOT always normalized at write sites'), not something introduced or worsened by this story. planProfileAnnounceFanout's case-fold is a pure best-effort normalization at ITS boundary (consistent with architecture.md's 'case-folded defensively at every read/write site' rule) \u2014 it cannot retroactively de-duplicate a genuinely-duplicated storage record, and doing so is out of this story's scope (would require editing contacts.ts, not listed in stories.json's files for S06). Worst case, a contact with a pre-existing case-duplicated storage entry receives two announces instead of one on an edit \u2014 harmless (idempotent LWW write on the receive side, AC-PROF-10) rather than incorrect. Not fixed here; recorded for visibility only."
+    },
+    {
+      "question_id": "VQ-S06-011",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PROF-11b",
+      "question": "VQ-S06-007 flagged that the issuer-side announce was fully implemented and unit-tested but INERT in the running app, because handlePairingAck's sole real caller (welcomeSubscription.ts) never passed the new opts.ndk. The lead authorized a scope amendment to wire it. Was the fix actually minimal (call-site argument only), and is there now a test proving both (a) the wiring itself, and (b) that nothing else about the subscription/dispatch changed?",
+      "answer": "Yes on both counts. The fix is a single added trailing argument, `{ ndk }`, to the pre-existing `handlePairingAck(giftWrapEvent, ownPrivateKeyHex)` call inside subscribeToWelcomes's `sub.on('event', ...)` handler (welcomeSubscription.ts) \u2014 `ndk` is the function's own pre-existing param, already in closure scope at that exact line; no new param was added to subscribeToWelcomes itself, and no other line in the file changed. Two new tests in welcomeSubscription.test.ts's 'subscribeToWelcomes \u2014 pairing-ack dispatch (S3)' describe block cover this: (1) a call-through spy (vi.spyOn on the real, unmocked handlePairingAck export \u2014 never a full replacement) asserts the call now carries exactly `{ ndk: mockNdk }` as its third argument, with the first two arguments unchanged in shape/value; (2) a source-scan test (mirroring S05's AC-WATCH-2 isolation style \u2014 fs.readFileSync + string/index assertions) confirms the kind-1059 subscription filter (`kinds:[1059 as ...]`, `'#p':[pubkeyHex]`, `{closeOnEose:false}`) is verbatim unchanged, that the pairing-ack dispatch still runs strictly before the Welcome/join-request unwrapGiftWrap path, and that the 'unwrap-failed'/'wrong-kind' fallthrough comment is still present unchanged. All 19 tests in that file pass (17 pre-existing + 2 new), full suite green (2980 total, 2955 passing, same 25 pre-existing unrelated theme-icon failures), typecheck clean. The issuer-side push-trigger announce (AC-PROF-11b) is now live end-to-end, not merely unit-tested in isolation \u2014 VQ-S06-007's flagged gap is resolved, not merely re-flagged."
+    }
+  ]
+}

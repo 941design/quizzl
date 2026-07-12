@@ -1,0 +1,565 @@
+{
+  "epic_name": "direct-contact-profile-exchange",
+  "created_at": "2026-07-12T14:00:00Z",
+  "updated_at": "2026-07-12T14:00:00Z",
+  "total_stories": 8,
+  "dependency_notes": "Strict sequential order: codec(01) -> scheduler(02) -> send(03) -> receive(04) -> watcher(05) -> push-triggers(06) -> \u00a710.1 fix(07) -> e2e/proof(08), matching spec.md \u00a713 and architecture.md 'Implementation constraints'. Each later story consumes only already-landed exports from earlier stories (see top-level `seams`); no story is implemented before a module it depends on. Two same-file cautions: (a) story 04 and story 07 both touch the contactCache.ts write surface \u2014 story 04 lands the neutralized-write seam once, story 07 only calls into it (does not re-implement LWW or contact-injection neutralization); (b) story 06 and story 07 both edit app/src/lib/pairing/pairingAck.ts's handlePairingAck admission block \u2014 story 06 (announce-on-pair trigger) lands first per story_order, story 07 (importCard name-drop fix) edits the same function afterward and must rebase on story 06's change rather than reverting it. Because implementation is strictly sequential (see base:story-planner 'Module Ownership... not a concurrency license'), no story requires a temporary mock of a later story's module \u2014 mock_dependencies/introduces_mocks are empty on every story.",
+  "mock_resolution_plan": "No temporary mocks are introduced by this epic. Every cross-story dependency points backward in story_order (a later story consumes an earlier, already-implemented module's real export), so no story needs a placeholder for work that hasn't landed yet.",
+  "story_order": [
+    "S01",
+    "S02",
+    "S03",
+    "S04",
+    "S05",
+    "S06",
+    "S07",
+    "S08"
+  ],
+  "seams": [
+    {
+      "data": "profile-request wire payload + kind constant",
+      "source": {
+        "story": "01",
+        "artifact": "app/src/lib/dmProfile/kinds.ts exports DM_PROFILE_REQUEST_KIND, encodeProfileRequest(), parseProfileRequest()"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "03",
+        "artifact": "send.ts#sendProfileRequest consumes the kind constant + encoder"
+      },
+      "contract": {
+        "type_name": "ProfileRequestPayload",
+        "fields": [
+          {
+            "name": "type",
+            "type": "literal 'profile-request'"
+          },
+          {
+            "name": "since",
+            "type": "string (ISO-8601) | undefined"
+          }
+        ],
+        "invariants": [
+          "DM_PROFILE_REQUEST_KIND (21061) MUST be distinct from every sentinel in AC-STRUCT-1's mandatory pre-land list, asserted by a module-load throw",
+          "encodeProfileRequest MUST NOT require a local nickname/avatar (AC-PROF-12: requesting needs no local name)"
+        ]
+      }
+    },
+    {
+      "data": "profile-request wire payload + kind constant (receive side)",
+      "source": {
+        "story": "01",
+        "artifact": "app/src/lib/dmProfile/kinds.ts exports DM_PROFILE_REQUEST_KIND, parseProfileRequest()"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "04",
+        "artifact": "receive.ts's request-gate dispatch arm consumes the kind constant + parser"
+      },
+      "contract": {
+        "type_name": "ProfileRequestPayload",
+        "fields": [
+          {
+            "name": "type",
+            "type": "literal 'profile-request'"
+          },
+          {
+            "name": "since",
+            "type": "string (ISO-8601) | undefined"
+          }
+        ],
+        "invariants": [
+          "parseProfileRequest MUST be the only accepted decoder for this kind; receive.ts MUST NOT hand-roll JSON.parse on the rumor content"
+        ]
+      }
+    },
+    {
+      "data": "profile-announce wire payload + kind constant",
+      "source": {
+        "story": "01",
+        "artifact": "app/src/lib/dmProfile/kinds.ts exports DM_PROFILE_ANNOUNCE_KIND, encodeProfileAnnounce(), parseProfileAnnounce()"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "03",
+        "artifact": "send.ts#sendProfileAnnounce consumes the kind constant + encoder (answer path)"
+      },
+      "contract": {
+        "type_name": "ProfileAnnouncePayload",
+        "fields": [
+          {
+            "name": "type",
+            "type": "literal 'profile-announce'"
+          },
+          {
+            "name": "nickname",
+            "type": "string, non-empty"
+          },
+          {
+            "name": "avatar",
+            "type": "{ imageUrl: string } \u2014 never null; encodeProfileAnnounce MUST refuse to serialize a null/absent avatar (AC-PROF-6a)"
+          },
+          {
+            "name": "updatedAt",
+            "type": "string (ISO-8601), stamped at send/serialization time"
+          }
+        ],
+        "invariants": [
+          "DM_PROFILE_ANNOUNCE_KIND (21062) MUST be distinct from every sentinel in AC-STRUCT-1's list and from PROFILE_REQUEST_KIND=30 / PROFILE_RUMOR_KIND=0 (different transport, AC-STRUCT-2)",
+          "avatar:null or an absent avatar key MUST be rejected by the encoder before a rumor is ever constructed"
+        ]
+      }
+    },
+    {
+      "data": "profile-announce wire payload + kind constant (receive side)",
+      "source": {
+        "story": "01",
+        "artifact": "app/src/lib/dmProfile/kinds.ts exports DM_PROFILE_ANNOUNCE_KIND, parseProfileAnnounce()"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "04",
+        "artifact": "receive.ts's announce-gate dispatch arm consumes the kind constant + parser"
+      },
+      "contract": {
+        "type_name": "ProfileAnnouncePayload",
+        "fields": [
+          {
+            "name": "type",
+            "type": "literal 'profile-announce'"
+          },
+          {
+            "name": "nickname",
+            "type": "string, non-empty"
+          },
+          {
+            "name": "avatar",
+            "type": "{ imageUrl: string } | null \u2014 null/absent classified malformed by the parser"
+          },
+          {
+            "name": "updatedAt",
+            "type": "string (ISO-8601)"
+          }
+        ],
+        "invariants": [
+          "parseProfileAnnounce MUST classify avatar:null/absent as malformed and MUST NOT return a value receive.ts can hand to contactCache.ts's write function for that payload (AC-PROF-6a)"
+        ]
+      }
+    },
+    {
+      "data": "answer-emission contract (reply to a gate-passing request)",
+      "source": {
+        "story": "03",
+        "artifact": "send.ts#sendProfileAnnounce(recipientPubkeyHex, localProfile, keys) \u2014 runs ensureAvatar, stamps updatedAt=answer-time, seals+wraps+publishes"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "04",
+        "artifact": "receive.ts's request-gate arm calls send.ts#sendProfileAnnounce only after the \u00a73.3 gate (isAllowedDmSender AND active non-archived) and the \u00a73.4 hasShareableName check both pass"
+      },
+      "contract": {
+        "type_name": "sendProfileAnnounce(params): Promise<void>",
+        "fields": [
+          {
+            "name": "recipientPubkeyHex",
+            "type": "string, case-folded lowercase"
+          },
+          {
+            "name": "nickname",
+            "type": "string, non-empty (hasShareableName true)"
+          },
+          {
+            "name": "avatar",
+            "type": "{ imageUrl: string } \u2014 never null (ensureAvatar backfills before this is called)"
+          },
+          {
+            "name": "updatedAt",
+            "type": "string (ISO-8601), stamped at call time, never the profile's last-edit time"
+          }
+        ],
+        "invariants": [
+          "MUST NOT be called at all when hasShareableName(profile) is false (AC-PROF-12: deferred, not sent malformed)",
+          "The produced rumor MUST be unsigned and delivered only via sealAndWrap addressed to exactly one recipient pubkey (AC-PROF-8)"
+        ]
+      }
+    },
+    {
+      "data": "scheduler pure API + persisted schedule store",
+      "source": {
+        "story": "02",
+        "artifact": "scheduler.ts exports computeDue(schedules, nowSec), advance(schedule, nowSec), computeIncompleteSet(contacts, cache), and the few-dm-profile-schedule idb-keyval CRUD"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "05",
+        "artifact": "ProfileHealWatcher.tsx calls computeDue/advance/computeIncompleteSet on mount/online/interval; holds no backoff math of its own"
+      },
+      "contract": {
+        "type_name": "ProfileSchedule",
+        "fields": [
+          {
+            "name": "pubkeyHex",
+            "type": "string, case-folded lowercase"
+          },
+          {
+            "name": "attempts",
+            "type": "integer >= 0"
+          },
+          {
+            "name": "nextAttemptAt",
+            "type": "number (epoch seconds); clamped to now+24h cap on load (backwards clock-jump guard)"
+          },
+          {
+            "name": "state",
+            "type": "enum: 'active' | 'answered-incomplete' | 'given-up'"
+          }
+        ],
+        "invariants": [
+          "advance() ladder MUST be monotonic: 1h -> 2h -> 4h -> 8h -> 16h -> 24h, capped at 24h thereafter, each fire jittered +/-20%",
+          "computeDue MUST NOT surface a schedule whose state is 'answered-incomplete' or 'given-up' unless a D4 non-announce reachability signal has re-armed it to 'active' at the 1h floor",
+          "a D4 reset-on-activity MUST NOT fire more than once per contact per 24h period"
+        ]
+      }
+    },
+    {
+      "data": "neutralized cache-write primitive",
+      "source": {
+        "story": "04",
+        "artifact": "contactCache.ts: a write function that does NOT call rememberContact and returns whether the LWW write landed with a non-null avatar"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "07",
+        "artifact": "pairingAck.ts's \u00a710.1 fix reuses the same neutralized write / importCard surface; it does not re-implement LWW or contact-injection neutralization"
+      },
+      "contract": {
+        "type_name": "WriteContactEntryResult",
+        "fields": [
+          {
+            "name": "landed",
+            "type": "boolean \u2014 true iff the write passed LWW (existing.updatedAt < contact.updatedAt, lexicographic ISO-8601 compare) and the entry now has a non-null avatar"
+          }
+        ],
+        "invariants": [
+          "The function MUST NOT call rememberContact for a sender that is not already a stored, active contact (no contact-injection, AC-PROF-4)",
+          "Calling it twice with the same announce payload MUST leave the cache in the same state as calling it once (AC-PROF-10 idempotency)"
+        ]
+      }
+    },
+    {
+      "data": "dedicated inbound subscription -> dispatch arms",
+      "source": {
+        "story": "04",
+        "artifact": "receive.ts exports handleProfileRequest(rumor, senderHex) and handleProfileAnnounce(rumor, senderHex), each gated per \u00a73.3/\u00a73.5"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "05",
+        "artifact": "ProfileHealWatcher.tsx's own ndk.subscribe({kinds:[GIFT_WRAP_KIND], '#p':[ownPubkeyHex]}) strictly unwraps via unwrapAndOpen and routes to these two arms by inner kind"
+      },
+      "contract": {
+        "type_name": "InboundDispatchArms",
+        "fields": [
+          {
+            "name": "handleProfileRequest",
+            "type": "(rumor: UnsignedRumor, senderHex: string) => Promise<void>"
+          },
+          {
+            "name": "handleProfileAnnounce",
+            "type": "(rumor: UnsignedRumor, senderHex: string) => Promise<void>"
+          }
+        ],
+        "invariants": [
+          "Both arms MUST be reached only via directMessages.ts#unwrapAndOpen, never welcomeSubscription.ts#unwrapGiftWrap (AC-PROF-5)",
+          "Landing the watcher's subscription MUST NOT modify welcomeSubscription.ts or either pre-existing kind-1059 consumer's subscription filter (AC-WATCH-2)"
+        ]
+      }
+    }
+  ],
+  "stories": [
+    {
+      "id": "S01",
+      "name": "dm-profile-codec",
+      "title": "DM profile-request/profile-announce codec + kind constants",
+      "description": "New pure module app/src/lib/dmProfile/kinds.ts defining DM_PROFILE_REQUEST_KIND=21061 and DM_PROFILE_ANNOUNCE_KIND=21062, a module-load sentinel-collision assertion (mirroring pairingAck.ts's PAIRING_ACK_SENTINEL_KINDS pattern) against the full mandatory pre-land list, and encode/parse/validate functions for both message shapes. The announce parser classifies avatar:null or an absent avatar key as malformed and never lets such a payload reach a value the receive path could hand to contactCache.ts's write function.",
+      "owning_module": "codec",
+      "files": [
+        "app/src/lib/dmProfile/kinds.ts"
+      ],
+      "acceptance_criteria": [
+        "AC-STRUCT-1",
+        "AC-STRUCT-2",
+        "AC-PROF-6a"
+      ],
+      "scope": {
+        "includes": [
+          "define DM_PROFILE_REQUEST_KIND / DM_PROFILE_ANNOUNCE_KIND and the module-load throw-on-collision assertion against the full sentinel list (444, 5, 7, 9, 13, 14, 21059, 21060, 20602, 25050-25055, POLL_OPEN_KIND=10, POLL_VOTE_KIND=11, POLL_CLOSE_KIND=12, BACKUP_EVENT_KIND=30078, RELAY_LIST_KIND=30051, PROFILE_REQUEST_KIND=30, PROFILE_RUMOR_KIND=0)",
+          "encodeProfileRequest/parseProfileRequest, encodeProfileAnnounce/parseProfileAnnounce",
+          "reject avatar:null / absent avatar as malformed in the announce parser and encoder"
+        ],
+        "excludes": [
+          "no NDK/React/idb import surface (pure module only)",
+          "no edits to scheduler.ts, send.ts, receive.ts, or contactCache.ts (those are later stories)"
+        ]
+      },
+      "complexity": "low",
+      "lighter_path": false,
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "notes": "Pure, standalone module with no dependents yet landed. lighter_path is false because files_code (kinds.ts, a .ts file) is non-empty per the lighter_path rule, regardless of AC completeness."
+    },
+    {
+      "id": "S02",
+      "name": "dm-profile-scheduler",
+      "title": "Pure backoff scheduler + persisted schedule store",
+      "description": "New pure module app/src/lib/dmProfile/scheduler.ts owning the backoff ladder (1h->2h->4h->8h->16h->24h cap, +/-20% jitter), due-check, incomplete-set computation (\u00a73.1 rules including the answered-but-incomplete and malformed-announce carve-outs), clock-clamp on load, the 30-day give-up ceiling, and D4 reset-on-activity re-arm semantics, plus the few-dm-profile-schedule idb-keyval CRUD adapter in the same file (mirrors nonceStore.ts/pendingIntent.ts).",
+      "owning_module": "scheduler",
+      "files": [
+        "app/src/lib/dmProfile/scheduler.ts"
+      ],
+      "acceptance_criteria": [
+        "AC-PROF-1",
+        "AC-PROF-11",
+        "AC-PROF-11a",
+        "AC-PROF-11c"
+      ],
+      "scope": {
+        "includes": [
+          "backoff ladder + jitter + due-check + incomplete-set computation, no React/NDK import surface",
+          "few-dm-profile-schedule idb-keyval CRUD keyed by pubkeyHex (case-folded lowercase)",
+          "clock-clamp of nextAttemptAt to now+24h on load",
+          "D4 reset-on-activity (excluding announce receipts, <=1/contact/24h) and the answered-but-incomplete / 30-day give-up terminal states with re-arm on a later D4 signal"
+        ],
+        "excludes": [
+          "no NDK subscription wiring (that is story 05's watcher)",
+          "no calls into contactCache.ts or send.ts"
+        ]
+      },
+      "complexity": "medium",
+      "lighter_path": false,
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "notes": "Depends only on story 01's kind constants for type-level clarity (not a runtime import). Testable in full isolation via injected clock, per pure-core convention."
+    },
+    {
+      "id": "S03",
+      "name": "dm-profile-send",
+      "title": "Outbound send path: profile-request + gated profile-announce answer",
+      "description": "New module app/src/lib/dmProfile/send.ts providing sendProfileRequest and sendProfileAnnounce over sealAndWrap (mirrors sendPairingAck), with NDK/keys/signer passed as explicit params (never a singleton). The answer path runs ensureAvatar on the local profile before replying and stamps updatedAt at serialization time (answer-time, never the profile's last-edit time). Sending a profile-announce is skipped when hasShareableName is false; sending a profile-request never requires a local name.",
+      "owning_module": "send",
+      "files": [
+        "app/src/lib/dmProfile/send.ts"
+      ],
+      "acceptance_criteria": [
+        "AC-PROF-2",
+        "AC-PROF-8",
+        "AC-PROF-12"
+      ],
+      "scope": {
+        "includes": [
+          "sendProfileRequest(recipientPubkeyHex, keys, ndk) with no local-name precondition",
+          "sendProfileAnnounce(recipientPubkeyHex, localProfile, keys, ndk): ensureAvatar -> stamp updatedAt=now -> sealAndWrap -> publish, unsigned inner rumor",
+          "hasShareableName(profile)===false short-circuits sendProfileAnnounce to a no-op (deferred, not an error)"
+        ],
+        "excludes": [
+          "no inbound gating logic (that is story 04's receive.ts) \u2014 this module only constructs and publishes outbound wraps",
+          "no idb-keyval schedule access (consume scheduler.ts's exports only if needed, do not duplicate its state)"
+        ]
+      },
+      "complexity": "medium",
+      "lighter_path": false,
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "notes": "AC-PROF-8 (privacy: unsigned, single-recipient gift wrap, no publishable kind-0) is owned here because send.ts is the sole outbound-construction chokepoint for both new kinds; later stories (06 push-triggers) reuse this module rather than re-asserting the privacy invariant."
+    },
+    {
+      "id": "S04",
+      "name": "dm-profile-receive-and-gates",
+      "title": "Inbound dispatch: strict-unwrap gates, neutralized cache write, LWW",
+      "description": "New module app/src/lib/dmProfile/receive.ts with two dispatch arms reached exclusively via directMessages.ts#unwrapAndOpen (never welcomeSubscription.ts#unwrapGiftWrap): a request arm applying the \u00a73.3 disclosure gate (isAllowedDmSender AND active non-archived contact) before calling send.ts#sendProfileAnnounce, and an announce arm applying the \u00a73.5 accept gate before writing. Also edits app/src/lib/contactCache.ts to add the neutralized write primitive (no rememberContact side effect; returns whether the LWW write landed with a non-null avatar), shared with story 07.",
+      "owning_module": "receive",
+      "files": [
+        "app/src/lib/dmProfile/receive.ts",
+        "app/src/lib/contactCache.ts"
+      ],
+      "acceptance_criteria": [
+        "AC-PROF-3",
+        "AC-PROF-4",
+        "AC-PROF-4b",
+        "AC-PROF-5",
+        "AC-PROF-6",
+        "AC-PROF-10",
+        "AC-PROF-13"
+      ],
+      "scope": {
+        "includes": [
+          "request arm: \u00a73.3 gate (isAllowedDmSender AND archivedAt==null), rate-limited to at most one answer per authenticated sender per >=1h cooldown",
+          "announce arm: \u00a73.5 gate (same predicate) + malformed-avatar rejection (consumes story 01's parser) + LWW write via the neutralized contactCache.ts primitive + schedule-clear on a completing write",
+          "forged-binding unit test: rumor.pubkey != seal.pubkey MUST be dropped before either gate, without mutating any contact's cache entry or schedule",
+          "archive check (archivedAt != null) revokes both gates in every direction; unarchive restores them",
+          "contactCache.ts: add the neutralized write function (no rememberContact call; returns landed:boolean) alongside the existing writeContactEntry, without changing writeContactEntry's existing callers"
+        ],
+        "excludes": [
+          "no edits to app/src/lib/pairing/pairingAck.ts (story 07 consumes this seam, does not get its own copy edited here)",
+          "no NDK subscription creation (that is story 05's watcher, which calls into these two exported arms)"
+        ]
+      },
+      "complexity": "high",
+      "lighter_path": false,
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "notes": "Owns the shared contactCache.ts cache-write seam (see top-level seams). Security-critical: most ACs and the epic's only forged-primitive unit test land here. Must complete before story 07 (\u00a710.1 fix) and story 05 (watcher), both of which consume its exports."
+    },
+    {
+      "id": "S05",
+      "name": "dm-profile-watcher",
+      "title": "Always-mounted ProfileHealWatcher: sweep lifecycle + dedicated subscription",
+      "description": "New component app/src/components/ProfileHealWatcher.tsx (5th sibling of PendingPairingIntentWatcher/DirectMessageNotificationsWatcher/IncomingCallWatcher in Layout.tsx) driving the due-check on mount, on the window 'online' event, and on an interval, staggering outbound sends in addition to each fire's jitter when more than N contacts are due. It opens its own dedicated ndk.subscribe({kinds:[GIFT_WRAP_KIND], '#p':[ownPubkeyHex]}) subscription, strictly unwraps via unwrapAndOpen, and routes to receive.ts's two exported dispatch arms \u2014 leaving welcomeSubscription.ts and the two pre-existing kind-1059 consumers untouched.",
+      "owning_module": "watcher",
+      "files": [
+        "app/src/components/ProfileHealWatcher.tsx",
+        "app/src/components/Layout.tsx"
+      ],
+      "acceptance_criteria": [
+        "AC-WATCH-1",
+        "AC-WATCH-2"
+      ],
+      "scope": {
+        "includes": [
+          "mount / online / interval due-sweep calling scheduler.ts's computeDue/advance/computeIncompleteSet",
+          "bulk-sweep stagger (on top of per-fire +/-20% jitter) when more than N contacts are due at once",
+          "one new dedicated kind-1059 subscription filtered on {'#p':[ownPubkeyHex]} only (never filter gift-wrap subs by author), routed by inner kind to receive.ts's handleProfileRequest/handleProfileAnnounce",
+          "1-line mount of <ProfileHealWatcher /> in Layout.tsx alongside its existing watcher siblings"
+        ],
+        "excludes": [
+          "no changes to welcomeSubscription.ts's subscription or dispatch",
+          "no changes to DirectMessageNotificationsWatcher.tsx's or IncomingCallWatcher.tsx's subscription filters",
+          "no backoff math in the component itself \u2014 all math is imported from scheduler.ts (story 02)"
+        ]
+      },
+      "complexity": "medium",
+      "lighter_path": false,
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "notes": "AC-PROF-7 (self-heal convergence) depends on this story integrating correctly with scheduler.ts + receive.ts, but is verified end-to-end in story 08, not owned here."
+    },
+    {
+      "id": "S06",
+      "name": "dm-profile-push-triggers",
+      "title": "Push triggers: announce-on-change + announce-on-pair",
+      "description": "Edit app/pages/profile.tsx's broadcastProfile chokepoint (called from the nickname-blur and avatar-select handlers) to additionally fan a profile-announce to every active, non-archived contact (staggered/jittered like the sweep), excluding archived contacts entirely. Edit the scanner-side post-add admission point and the issuer-side handlePairingAck admission point in app/src/lib/pairing/pairingAck.ts to send that one new contact an immediate profile-announce, so its avatar is visible without waiting for the first backoff interval. Both reuse story 03's send.ts and story 04's receive.ts paths \u2014 no new kind, no new handler.",
+      "owning_module": "push-triggers",
+      "files": [
+        "app/pages/profile.tsx",
+        "app/src/lib/pairing/pairingAck.ts",
+        "app/src/lib/marmot/welcomeSubscription.ts"
+      ],
+      "acceptance_criteria": [
+        "AC-PROF-11b"
+      ],
+      "scope": {
+        "includes": [
+          "broadcastProfile fan-out to every active, non-archived contact on nickname/avatar edit, staggered/jittered, excluding archived contacts",
+          "announce-on-pair: scanner-side call after admission, issuer-side call in handlePairingAck after admission \u2014 one profile-announce to the single new contact",
+          "SCOPE AMENDMENT (lead-authorized after initial implementation flagged the gap): welcomeSubscription.ts#subscribeToWelcomes's existing handlePairingAck(...) call site \u2014 pass its own already-in-scope `ndk` through as a third argument, `{ ndk }`, so the issuer-side announce fires end-to-end against a real inbound pairing-ack admission, not just in isolation. Call-site wiring ONLY \u2014 no change to the kind-1059 subscription filter, dispatch order, or Welcome/join-request fallthrough."
+        ],
+        "excludes": [
+          "does not add importCard(senderHex, decoded.profile) to handlePairingAck \u2014 that edit, in the same function, is story 07's \u00a710.1 fix and lands after this story",
+          "no changes to the gate logic itself (reuses story 04's receive.ts path unmodified)",
+          "no changes to welcomeSubscription.ts's subscription filter ({kinds:[1059],'#p':[pubkeyHex]}), dispatch order, or Welcome/join-request fallthrough \u2014 the amendment is limited to the one handlePairingAck(...) call's argument list"
+        ]
+      },
+      "complexity": "medium",
+      "lighter_path": false,
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "notes": "Shares app/src/lib/pairing/pairingAck.ts's handlePairingAck admission block with story 07. This story lands first (per story_order); story 07 edits the same function afterward and must not revert this story's added announce-send call. Scope amended mid-implementation to add welcomeSubscription.ts (see scope.includes) \u2014 without it, handlePairingAck's new opts.ndk field would have been unit-tested but never actually invoked with a live ndk in the running app, leaving AC-PROF-11b's issuer-side half inert."
+    },
+    {
+      "id": "S07",
+      "name": "pairing-ack-name-drop-fix",
+      "title": "\u00a710.1 fix: issuer persists the scanner's name from the pairing-ack",
+      "description": "handlePairingAck's admission path currently calls rememberKnownPeers/rememberContact but discards decoded.profile. Add importCard(senderHex, decoded.profile) at the same admission point so the issuer persists the scanner's submitted name, reusing the neutralized cache-write seam landed in story 04 rather than re-implementing LWW or contact-injection neutralization.",
+      "owning_module": "pairing-ack-fix",
+      "files": [
+        "app/src/lib/pairing/pairingAck.ts"
+      ],
+      "acceptance_criteria": [
+        "AC-CARD-1"
+      ],
+      "scope": {
+        "includes": [
+          "call importCard(senderHex, decoded.profile) at handlePairingAck's admission point, alongside the existing rememberKnownPeers/rememberContact calls",
+          "regression test: a pairing-ack round-trip asserts the issuer's contactCache entry for the scanner carries the scanner's submitted name after admission"
+        ],
+        "excludes": [
+          "no re-implementation of the LWW/neutralized-write logic story 04 already landed in contactCache.ts",
+          "no change to story 06's announce-on-pair call in the same function"
+        ]
+      },
+      "complexity": "low",
+      "lighter_path": false,
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "notes": "MUST be ordered after story 04 (shares contactCache.ts's write seam) and after story 06 (shares pairingAck.ts's admission block). Not marked lighter_path despite being a one-line-class edit: it shares the contactCache seam and edits a function two other stories also touch, and lighter_path is false regardless per the files_code rule since pairingAck.ts is a .ts file."
+    },
+    {
+      "id": "S08",
+      "name": "dm-profile-e2e-and-proof-tests",
+      "title": "E2E self-heal anchor, stranger gates, no-chat/bell proof tests, i18n baseline, e2e tally bump",
+      "description": "Relay-bucket e2e specs (dm-profile-self-heal.spec.ts and related dm-* specs) publishing only through the app via a second browser context, driven by a new seedDueProfileSchedule(page, {pubkeyHex, nextAttemptAt, attempts, state}) idb-keyval test hook (mirrors helpers/pairing.ts#seedPendingIntent) rather than any NEXT_PUBLIC_* build-time timing override. Adds the foreign-kind proof test closing contactChat.test.ts's pre-existing gap for both new kinds, extends directMessageNotifications.test.ts's existing proof test, confirms the AC-PROF-14 i18n baseline (no new UI copy expected), and bumps the 44/56 e2e tally in CLAUDE.md and the Makefile's inline comments.",
+      "owning_module": "e2e-and-proof",
+      "files": [
+        "app/tests/e2e/dm-profile-self-heal.spec.ts",
+        "app/tests/e2e/helpers/idb-record.ts",
+        "app/tests/unit/contactChat.test.ts",
+        "app/tests/unit/directMessageNotifications.test.ts",
+        "CLAUDE.md",
+        "Makefile"
+      ],
+      "acceptance_criteria": [
+        "AC-PROF-7",
+        "AC-PROF-9",
+        "AC-PROF-14",
+        "AC-E2E-1"
+      ],
+      "scope": {
+        "includes": [
+          "seedDueProfileSchedule(page, {pubkeyHex, nextAttemptAt, attempts, state}) test hook writing directly into the few-dm-profile-schedule idb-keyval store; no NEXT_PUBLIC_* backoff override",
+          "self-heal anchor: two mutual contacts paired via the real card flow, both avatar-absent, converge to complete {name, avatar} via the loop alone",
+          "stranger request/announce gates driven through the real app via a second non-contact browser context",
+          "contactChat.test.ts: new foreign-kind proof test for both new kinds (no source change to ContactChat.tsx)",
+          "directMessageNotifications.test.ts: extend the existing proof test for both new kinds (no source change to directMessageNotifications.ts)",
+          "confirm AC-PROF-14: no new user-facing string introduced by stories 01-07; if any implementation added copy, verify both en/de entries exist in i18n.ts before closing this story",
+          "bump the e2e tally (44->N relay, 56->N+12 total) in CLAUDE.md's E2E gate section and the Makefile's inline comments"
+        ],
+        "excludes": [
+          "no source edits to ContactChat.tsx or directMessageNotifications.ts (AC-PROF-9 is tests-only per architecture.md)",
+          "new specs must be named dm-*.spec.ts (not dm-self-heal*, which already exists for an unrelated feature) to land in the relay bucket"
+        ]
+      },
+      "complexity": "high",
+      "lighter_path": false,
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [
+        {
+          "fixture_id": "FIXTURE-08-001",
+          "description": "seedDueProfileSchedule(page, {pubkeyHex, nextAttemptAt, attempts, state}) \u2014 writes a due-now entry directly into the few-dm-profile-schedule idb-keyval store so relay-bucket e2e specs can drive the self-heal loop without waiting on real elapsed backoff time.",
+          "interface": "Playwright test helper, analogous to helpers/pairing.ts#seedPendingIntent",
+          "reason": "Test-only timing control; must not ship as a NEXT_PUBLIC_* build-time constant in the production bundle (Resolved Decisions: validator gap resolution).",
+          "permanent": true
+        }
+      ],
+      "status": "done",
+      "notes": "Depends on all seven prior stories being fully landed. AC-PROF-7 is verified here (end-to-end anchor) rather than in story 05, which only integrates the pieces this story exercises."
+    }
+  ]
+}
