@@ -673,3 +673,11 @@ ceiling) are unchanged.
   time, so AC-PROF-7 convergence holds. The §3.6 stagger is spec-required, so the
   "skip-stagger-for-edits" alternative is rejected; an edit-time monotonic counter was
   judged not worth the complexity for a transient, self-healing, pathologically-triggered edge.
+
+## Constrained by ADRs
+
+- **ADR-008** — Block is a deny layer AND-ed at every peer-signal channel, keyed on
+  `archivedAt`. This epic's heal channel (`ProfileHealWatcher` / `dmProfile/receive.ts`)
+  already gates on `archivedAt` via `passesDisclosureGate` / `isActiveNonArchivedContact`
+  — `epic-block-contact` verified this channel needed no code change to satisfy the
+  block-contact composite gate, and cites it as the ADR-worthy pattern instance.

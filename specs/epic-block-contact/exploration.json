@@ -1,0 +1,44 @@
+{
+  "created_at": "2026-07-13T19:30:37Z",
+  "prior_learnings": [
+    {"id": "storedcontact-keys-lowercase-only-via-transitive", "note": "StoredContact keys are lowercase only via a transitive noble-hashes guarantee, not explicit normalization — block-set derivation MUST lowercase-normalize defensively."},
+    {"id": "next-js-static-export-trailing-slash", "note": "Static-export trailing slash breaks naive Playwright toHaveURL regexes — relevant for direct-URL /contacts?id= e2e."}
+  ],
+  "block_state_model": {
+    "source_of_truth": "StoredContact.archivedAt (string|null) in lp_contacts_v1; archivedAt != null => blocked (DD-1).",
+    "mutators": "archiveContact/unarchiveContact (contacts.ts:114-137), existence-guarded no-ops. Only UI call site: profile.tsx handleArchiveToggle (:635-643) wired to button :746-754 (data-testid profile-archive), NO confirmation today.",
+    "reactive_read": "contacts.ts is pure localStorage, no React context. profile.tsx uses a LOCAL version counter (:565) that does not propagate. No cross-component reactive derivation exists yet — must add one (see revision-counter).",
+    "block_set_derivation": "new Set(Object.values(readStoredContacts()).filter(c => c.archivedAt != null).map(c => c.pubkeyHex.toLowerCase())) — belongs in a pure reader (new blockedPeers.ts mirroring knownPeers.ts isolation, or alongside contacts.ts).",
+    "readd_by_npub": "addContactByNpub (contacts.ts:329-337) calls unarchiveContact + returns reactivated:true when re-adding an archived contact. DD-9 (user decision 2026-07-13): remove this silent-unblock; re-add of a blocked contact must NOT clear archivedAt. pairingAck.ts path already preserves archivedAt (rememberContact), needs no change."
+  },
+  "composite_gate": {
+    "allow_fn": "isAllowedDmSender(peerHex, groups, knownPeers, ownPubkeyHex) — walledGarden.ts:53-81, PURE (AC-SEC-13: no IDB/NDK/React/localStorage). MUST stay pure (DD-8).",
+    "design": "Separate pure predicate isBlockedPeer(peerHex, blockedPeers: ReadonlySet<string>); composite = isAllowedDmSender(...) AND NOT isBlockedPeer(...). Do NOT fold into isAllowedDmSender.",
+    "threading": "Two shapes exist for knownPeers, replicate for blockedPeers: (1) React-ref mirror pattern for live components; (2) WhitelistArgs bag ({groups,knownPeers,ownPubkeyHex}, walledGarden.ts:26-30) for the 4 sweep call sites — extending WhitelistArgs with blockedPeers touches all 4 sweep destructures + getWhitelist producers in MarmotContext.tsx (:756-758,816-818).",
+    "revision_counter": "MarmotContext exposes knownPeersRevision (:325,498) bumped on out-of-band lp_knownPeers_v1 writes (:1014,1873); consumers list it in ref-refresh deps. Add a blockedPeersRevision (or reuse) bumped by the block/unblock action so ContactChat + DirectMessageNotificationsWatcher pick up changes without unmount/remount. ARCHITECT DECIDES separate-vs-reuse."
+  },
+  "enforcement_sites": {
+    "inbound_notification_watcher": "directMessageNotifications.ts — kind-4 handler gate at :85 (before dedup, rememberContact:93/94, incrementDirectMessage which owns the bell/lastSeen bump); kind-1059 handler gate at :126 (before rememberContact:137, incrementDirectMessage:138). Both take isAllowedSender as injected callback (:62) — extend that seam, not the handler bodies. Wired via DirectMessageNotificationsWatcher.tsx: groupsRef(:15), knownPeersRef(:21 refreshed on [groups,knownPeersRevision]), closure at :54.",
+    "contactchat_ingestion_4_sites": "ContactChat.tsx: historical kind-4 :492, historical kind-1059 :559, live kind-4 :649, live kind-1059 :690. All identical shape: if(!isSelf && !isAllowedDmSender(senderPeer, groupsRef.current, knownPeersRef.current, pubkeyHex)) skip. Gate strictly before any write. Refs at :185-192.",
+    "outbound_view": "contacts.tsx ContactDetailView + direct-URL /contacts?id=. archived-notice Alert at contacts.tsx:351-354 (data-testid contact-archived-alert) is the mirror target for a Blocked banner. Render Blocked state (banner + Unblock) INSTEAD of ContactChat composer when blocked.",
+    "send_paths_5": "ContactChat.tsx owns all 5 handlers: sendMessage(:782), sendImageMessage(:810), handleReact(:869), handleDeleteMessage(:963), handleEditMessage(:1008), passed into ChatBox(:1086-1116). ChatBox affordances: send button(:950-951)/Enter(:926-936), ImageAttachmentButton(:924 gated on allowImageAttachments), paste handlePaste(:437-448 via onPaste :933), drop handleDrop(:422-435 via onDrop :850), reactions EmojiReactionPicker(:726-735)/ReactionBadgeRow(:806-814 render null when onReact falsy). PATTERN: source==='feedback' already gates the whole surface off booleans (allowImageAttachments=false, onReact=undefined, allowMessageActions=false, ContactChat.tsx:1100,1105,1114). Replicate with a 'blocked' boolean — but the primary approach (swap ContactChat for a Blocked view) suppresses all 5 for free; the ChatBox boolean-gating is the defensive fallback if the composer ever renders.",
+    "profile_heal_channel_no_change": "ProfileHealWatcher.tsx (:478 kind-1059 sub, rumor 21061/21062) already gates archived contacts via passesDisclosureGate/isActiveNonArchivedContact (dmProfile/receive.ts:95-113, gate :110). No code change; add a regression assertion that a blocked peer's heal rumor is not persisted."
+  },
+  "history_wipe": {
+    "model": "purgeStrangerDmThreads (chatPersistence.ts:611-678) documents the drain-then-delete + aux-cleanup pattern.",
+    "single_peer_calls": "Per DD-12: (1) clearMessages(directConversationId(peer)) — chatPersistence.ts:552-575 ALREADY drains in-flight appendMessage writes AND clears edit/delete aux state (clearMessageEditsStateForThread) internally; (2) clearDirectMessageContact(peer) — unreadStore.ts:311-324, synchronous, clears in-memory + persisted lp_unreadLastReadDM_v1 last-read. NOT three separate calls.",
+    "storage_key": "directConversationId(peerPubkeyHex) => dm:<peerHexLower> (directMessages.ts:48-50). NEVER hand-build the key.",
+    "resilience": "aux-cleanup convention is try/catch + console.warn, never fails the primary op. Block must still take effect for filtering even if the wipe write fails (storage/quota) — log, do not crash."
+  },
+  "confirm_dialog": {
+    "precedent": "No shared ConfirmDialog/AlertDialog primitive exists (grep AlertDialog = 0 hits). Sole destructive-action precedent: groups/LeaveGroupButton.tsx:49-133 — Chakra Modal + useDisclosure, Cancel ghost + colorScheme=danger confirm (isLoading during async). Reuse this pattern (DD-11).",
+    "existing_hide_has_no_confirm": "profile.tsx archive toggle archives immediately on click — the confirmation is NEW UX for block."
+  },
+  "testing": {
+    "unit": "vitest, app/tests/unit/**/*.test.ts. No jsdom/@testing-library. walledGarden.test.ts organizes describe blocks by AC-SEC-* ID with literal 64-hex fixtures + case-insensitivity checks. contacts.test.ts uses hand-rolled localStorageMock via Object.defineProperty(globalThis,'localStorage'). Split by concern: prefer a new contacts-block.test.ts / blockedSenders.test.ts over growing contacts.test.ts.",
+    "e2e": "Playwright app/tests/e2e/. Closest analog: dm-walled-garden-stranger-blocked.spec.ts (two-context peer boot, __fewPublishDm bridge, badge-count baseline-relative assertion, readIdbRecord thread-absent assertion). Peer sends MUST go through window.__fewPublishDm (unreadStore.ts:404-417 -> publishDirectMessage), never raw WebSocket. Second peer = USER_C convention (USER_B reserved). idb thread key: readIdbRecord(page,'keyval-store','keyval',`few:messages:dm:${peer.toLowerCase()}`) => expect toBeNull after block. Bell: notification-badge textContent baseline-relative; notification-dm-${peer} toHaveCount(0).",
+    "e2e_gate_bucket": "New dm-block-* specs use relay+two-context => land in the GROUPS/RELAY bucket (E2E_GROUPS=1 + Docker), not test-e2e-fast. Full gate: make test-e2e-all (60 tests today). CLAUDE.md e2e tally line must be updated when the new spec count is known.",
+    "testids_stable": "profile-archive has ONE e2e consumer (groups-contacts.spec.ts:119,127). contact-archived-alert has zero e2e consumers. Keep both ids stable (DD-10)."
+  },
+  "stranger_sweeps_orthogonal": "purgeStrangerContacts/purgeStrangerDmCounters/purgeStrangerDmThreads/purgeStrangerDmReactions key off isAllowedDmSender and GC strangers, not blocked contacts (retained by design). Verify sweeps neither delete a blocked-but-retained contact record nor resurrect a blocked peer's thread. reactions/api.ts:497 dynamic-imports walledGarden."
+}

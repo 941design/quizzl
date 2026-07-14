@@ -116,7 +116,12 @@ test.describe.serial('Contacts and direct chat', () => {
     // no longer carries a hide button). Hide Bob there, then confirm he drops out
     // of the contacts list into the hidden filter.
     await pageA.goto(`/profile/?pubkey=${USER_B.pubkeyHex}`);
+    // Epic: block-contact, story S4 (AC-CONFIRM-1/2) — hiding/blocking a
+    // contact now requires confirming a destructive-action modal before
+    // archiveContact fires.
     await pageA.getByTestId('profile-archive').click();
+    await pageA.getByTestId('block-confirm-btn').click();
+    await expect(pageA.getByTestId('block-confirm-modal')).not.toBeVisible({ timeout: 15_000 });
     await pageA.goto('/contacts/');
     await expect(pageA.getByTestId(`contact-card-${USER_B.pubkeyHex}`)).toHaveCount(0);
     await expect(pageA.getByTestId('contacts-hidden-state')).toContainText('1');

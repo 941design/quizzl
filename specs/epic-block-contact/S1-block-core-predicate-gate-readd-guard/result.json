@@ -1,0 +1,48 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "remediation_rounds": 0,
+  "completed_at": "2026-07-13T23:05:00Z",
+  "files_created": [
+    "app/src/lib/blockedPeers.ts",
+    "app/tests/unit/blockedPeers.test.ts",
+    "specs/epic-block-contact/S1-block-core-predicate-gate-readd-guard/architecture.json",
+    "specs/epic-block-contact/S1-block-core-predicate-gate-readd-guard/baseline.json",
+    "specs/epic-block-contact/S1-block-core-predicate-gate-readd-guard/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/contacts.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/tests/unit/contacts-add-by-npub.test.ts",
+    "app/tests/unit/contacts-mutation-gaps.test.ts",
+    "specs/epic-block-contact/S1-block-core-predicate-gate-readd-guard/verification.json"
+  ],
+  "tests_added": {
+    "unit": 28
+  },
+  "test_counts": {
+    "baseline": 3009,
+    "final": 3035
+  },
+  "mocks": [],
+  "modules_touched": [
+    "block core / blocklist",
+    "contacts",
+    "context"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The DD-9 re-add-guard removal (deleting the silent unarchiveContact call in addContactByNpub) broke a previously-passing test outside this story's declared scope.includes test-file list: app/tests/unit/contacts-mutation-gaps.test.ts's Gap-3 describe block, which pinned the OLD reactivate-on-readd behavior end to end. Updating it was unavoidable under Regression Prevention's zero-new-failures bar, but it meant touching a file the story spec didn't name. Separately, the AddContactResult return-shape choice for 'blocked' was constrained by an out-of-scope consumer: app/src/lib/processContactInput.ts forwards addResult.error into its own narrower AddContactSubmissionResult error union, so a new error: 'blocked' literal would have broken that file's typecheck. Chose an additive blocked?: boolean + pubkeyHex?: string on the existing already_exists case instead, which typechecks cleanly against the unmodified consumer.",
+    "surprised_by": "AC-SCOPE-3 names four purge/sweep functions across four different files (contacts.ts, unreadStore.ts, chatPersistence.ts, reactions/api.ts), but this story's declared scope only touches one of those files. The other three are argued safe-by-construction (they key exclusively off the untouched isAllowedDmSender, verified by a zero-diff, zero-isBlockedPeer-reference grep on walledGarden.ts) rather than directly regression-tested here \u2014 flagged as VQ-S1-023 in verification.json for the examiner, with a suggested landing spot in S3 if dedicated tests turn out to be required.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "accepted_residuals": [
+    "AC-SCOPE-3: only purgeStrangerContacts has a dedicated regression test; the other 3 sweeps (unreadStore/chatPersistence/reactions) have ZERO production diff and are safe-by-construction (key off isAllowedDmSender which returns true for blocked-but-known peers). Accepted sev-3 coverage gap.",
+    "contacts-mutation-gaps.test.ts edited outside declared scope.includes: necessary DD-9 ripple (pins the exact removed behavior), test-only, transparently reasoned. Accepted (not a scope violation)."
+  ]
+}

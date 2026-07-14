@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-12T20:41:14Z",
+  "updated_at": "2026-07-14T05:59:53Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -166,6 +166,11 @@
       "path": "specs/epic-direct-contact-profile-exchange/",
       "status": "DONE",
       "next_action": "completed 2026-07-12"
+    },
+    {
+      "path": "specs/epic-block-contact/",
+      "status": "DONE",
+      "next_action": "completed 2026-07-14"
     }
   ],
   "findings": [
@@ -291,6 +296,43 @@
       "approach": "Decide product intent: (a) icon family becomes a themed/selectable dimension — add at least one theme that uses filled or pixel (or expose it in settings) so all three columns are exercised, plus a test asserting each ICON_SETS entry defines all three coherently; or (b) drop the multi-set abstraction — collapse ICON_SETS to the single active family and remove IconSetName, simplifying ThemeIcon. (a) is the 'make it part of a theme' direction requested here.",
       "success_signal": "Either every IconSetName column is rendered by some registered theme (guarded by a test), or the unused columns are removed and ThemeIcon no longer branches on a set that never varies.",
       "kind": "spec-gap"
+    },
+    {
+      "slug": "gate-incoming-calls-with-block-deny",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/components/calls/IncomingCallWatcher.tsx",
+        "line": 149
+      },
+      "text": "Gate incoming calls with the block deny-list (a blocked contact can still ring)",
+      "created_at": "2026-07-14",
+      "motivation": "A blocked contact can still ring the user via an incoming call: the call gate uses the bare isAllowedDmSender and block deliberately keeps the peer in knownPeers (spec §9 / ADR-005). 'I blocked them but they can still call me' is a user-facing surprise. Surfaced by the block-contact epic review (2026-07-14); user chose to track as a follow-up. Latent while calls are disabled.",
+      "behavior": "IncomingCallWatcher.tsx:149 gates on isAllowedDmSender only; a blocked-but-known peer passes and can ring.",
+      "approach": "Compose isBlockedPeer into the call gate (mirror the DM isAllowedDmSenderComposite), with call-specific ACs + e2e in a dedicated story. Re-enable-calls dependent."
+    },
+    {
+      "slug": "block-revision-sibling-revision-counters-have",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/context/MarmotContext.tsx"
+      },
+      "text": "Block-revision (and sibling revision counters) have no cross-tab sync",
+      "created_at": "2026-07-14",
+      "motivation": "If a user blocks a peer in one tab while another tab has that peer's ContactChat mounted, the second tab's blockedPeersRef never refreshes and keeps persisting the blocked peer's messages — a privacy gap. Pre-existing app-wide characteristic (knownPeersRevision, groupDataVersion share it); surfaced by the block-contact epic review (2026-07-14).",
+      "behavior": "blockedPeersRevision is an in-memory useState counter with no storage-event / BroadcastChannel cross-tab propagation; a block in another tab is not observed until reload.",
+      "approach": "Add a BroadcastChannel or window 'storage' event sync for the revision counters so block/unblock (and known-peer changes) propagate across tabs. Project-wide hardening, not block-specific."
+    },
+    {
+      "slug": "one-time-migration-clear-stale-unread",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/lib/unreadStore.ts"
+      },
+      "text": "One-time migration: clear stale unread badges for legacy-hidden (now blocked) contacts",
+      "created_at": "2026-07-14",
+      "motivation": "Contacts hidden before the block-contact epic become 'blocked' but their pre-existing unread counts linger on the bell with no way to clear them (their chat is not openable to mark read). Product decision (2026-07-14) was to KEEP their DM history (no retroactive wipe), but the stale unread badge should still be cleared. Minor cosmetic wart affecting only the legacy-hidden-with-unreads cohort.",
+      "behavior": "initDirectMessageCounts prunes with raw isAllowedDmSender, which blocked-but-known peers pass, so a legacy-hidden contact's unread count survives indefinitely.",
+      "approach": "Add a one-time startup migration that clears unread counters (NOT history) for all currently-archived contacts, mirroring purgeStrangerDmCounters but keyed on archivedAt. Idempotent."
     }
   ],
   "archive": [

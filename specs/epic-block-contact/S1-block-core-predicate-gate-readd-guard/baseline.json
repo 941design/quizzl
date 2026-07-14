@@ -1,0 +1,17 @@
+{
+  "captured_at": "2026-07-13T22:15:00Z",
+  "baseline_commit": "910d6b221e7886f26f8fd4bcc2884413c9ddcc79",
+  "test_command": "make test-unit (cd app && npx vitest run)",
+  "tests": {
+    "status": "PRE_EXISTING_FAILURES",
+    "test_files": { "passed": 154, "failed": 2, "total": 156 },
+    "tests": { "passed": 2983, "failed": 25, "skipped": 1, "total": 3009 },
+    "pre_existing_failures": [
+      "tests/unit/components/ThemeIcon.test.ts (icon-set id mismatches, e.g. lucide:video vs ph:video-camera-bold)",
+      "tests/unit/themes/treatments.test.ts (same icon-set id mismatch family)"
+    ],
+    "note": "Both failing files are icon-set/theme-registry mismatches unrelated to block-contact; themes.json is listed in epic-state.json#pre_existing_dirty_files (uncommitted working-tree change from a parallel theming effort). Not introduced by this story; treated as baseline per Step 0's pre-existing-failure handling (mirrors the NO_TESTS tolerance)."
+  },
+  "lint": { "status": "NO_LINT", "note": "No ESLint config present (.eslintrc*/eslint.config* absent); `next lint` prompts interactively to scaffold one rather than running." },
+  "typecheck": { "status": "clean", "command": "npx tsc --noEmit -p tsconfig.json", "note": "Zero errors at baseline." }
+}

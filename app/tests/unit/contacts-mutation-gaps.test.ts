@@ -88,22 +88,31 @@ describe('addContactByNpub — match isolation against unrelated contacts', () =
   });
 });
 
-// ── Gap 3: reactivation must register the peer as ever-known (ADR-005) ─────────
-describe('addContactByNpub — ever-known-peer registration on reactivation', () => {
-  it('registers a reactivated archived contact as an ever-known peer', () => {
+// ── Gap 3: a blocked re-add must not silently reactivate or re-seed ever-known ──
+// (epic: block-contact, DD-9 — this describe block previously pinned the OLD
+// "reactivate on re-add" behavior; that behavior was intentionally removed so
+// that re-adding a blocked contact by npub can no longer reopen the DM
+// channel. Updated here rather than left failing, since it exercises the
+// exact code path DD-9 changed.)
+describe('addContactByNpub — blocked re-add guard (epic: block-contact, DD-9)', () => {
+  it('does not register a blocked contact as an ever-known peer as a side effect of the rejected re-add', () => {
     const pubkeyHex = 'e'.repeat(64);
     const seededAt = '2020-01-01T00:00:00.000Z';
     rememberContact(pubkeyHex, seededAt);
     archiveContact(pubkeyHex, seededAt);
-    // knownPeers is derived from localStorage; the beforeEach clear left it empty.
+    // knownPeers is derived from localStorage; the beforeEach clear left it empty,
+    // and archiving alone never seeds it either.
     expect(loadKnownPeers().has(pubkeyHex)).toBe(false);
 
     const result = addContactByNpub(pubkeyToNpub(pubkeyHex), null);
 
-    expect(result).toEqual({ ok: true, pubkeyHex, reactivated: true });
-    // The reactivate branch must call rememberKnownPeers([pubkeyHex]); an empty
-    // argument would leave the peer purge-exposed.
-    expect(loadKnownPeers().has(pubkeyHex)).toBe(true);
+    expect(result).toEqual({ ok: false, error: 'already_exists', blocked: true, pubkeyHex });
+    // The removed reactivate branch used to call rememberKnownPeers([pubkeyHex]);
+    // a re-add attempt on a blocked contact must NOT do so — no channel reopens,
+    // and no side-channel write leaves the peer purge-exempt behind the block.
+    expect(loadKnownPeers().has(pubkeyHex)).toBe(false);
+    // archivedAt itself is untouched — the guard this test now pins.
+    expect(readStoredContacts()[pubkeyHex].archivedAt).toBe(seededAt);
   });
 });
 

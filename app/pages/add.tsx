@@ -176,7 +176,15 @@ export default function AddPage(): JSX.Element {
     // was pre-remediation) — the only visible change is a possible redirect
     // to name setup for a nameless returning scanner, mirroring AC-SCAN-5
     // exactly.
-    if (result.error === 'already_exists' && result.pairingEcho && pubkeyHex && privateKeyHex) {
+    //
+    // Epic: block-contact, story S4 (AC-VIEW-13). The explicit
+    // `!result.blocked` guard below is defense-in-depth: processContactInput
+    // already never populates `pairingEcho` when `blocked` is true (a full
+    // cut-off in both directions, DD-2), so this guard is redundant with the
+    // `result.pairingEcho` check today — but it makes the invariant directly
+    // visible and independently testable at this call site rather than
+    // resting solely on the upstream suppression.
+    if (result.error === 'already_exists' && !result.blocked && result.pairingEcho && pubkeyHex && privateKeyHex) {
       const pairingEcho = result.pairingEcho;
       const ctx = buildPendingIntentSendContext(pubkeyHex, privateKeyHex, profile.nickname);
       void attemptOrQueuePairingEcho(pairingEcho, ctx)

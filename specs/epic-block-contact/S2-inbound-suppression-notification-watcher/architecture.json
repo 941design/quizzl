@@ -1,0 +1,50 @@
+{
+  "module_name": "DM notifications",
+  "purpose": "Global inbound-DM bell watcher (kind-4 + kind-1059). S2 composes the block predicate into the injected isAllowedSender seam so a blocked peer's inbound DM never rings the bell, never bumps lastSeenAt, and is re-opened live on unblock without an unmount/remount.",
+  "public_api": [
+    {
+      "name": "subscribeDirectMessageNotifications",
+      "signature": "(params: { ndk: NDK; ownPubkeyHex: string; privateKeyHex: string; isAllowedSender: (peer: string) => boolean }) => () => void",
+      "description": "UNCHANGED by this story — already gates both handlers on isAllowedSender strictly before rememberContact/incrementDirectMessage (existing seam from an earlier epic). S2 does not modify this function's body; it only changes what the caller passes as isAllowedSender."
+    },
+    {
+      "name": "isAllowedDmSenderComposite",
+      "signature": "(peer: string, groups: ReadonlyArray<Group>, knownPeers: ReadonlySet<string>, blockedPeers: ReadonlySet<string>, ownPubkeyHex: string) => boolean",
+      "description": "NEW pure export added to DirectMessageNotificationsWatcher.tsx (AC-INBOUND-3, DD-8). Assembles isAllowedDmSender(...) && !isBlockedPeer(...) at the call site — never inside either predicate's body. Exported so it is independently unit-testable without React/DOM."
+    },
+    {
+      "name": "DirectMessageNotificationsWatcher",
+      "signature": "() => null (React component, default export)",
+      "description": "UI wiring only. Adds a blockedPeersRef (ReadonlySet<string>) initialized from loadBlockedPeers(), refreshed via useEffect on [groups, knownPeersRevision, blockedPeersRevision] (mirrors the existing knownPeersRef pattern). The isAllowedSender closure passed into subscribeDirectMessageNotifications becomes isAllowedDmSenderComposite(peer, groupsRef.current, knownPeersRef.current, blockedPeersRef.current, ownPubkey). The subscription-owning effect's dependency array is unchanged ([hydrated, pubkeyHex, privateKeyHex]) — no teardown/rebuild on block-revision change."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/blockedPeers.ts (loadBlockedPeers, isBlockedPeer) — S1 seam, read-only",
+    "app/src/context/MarmotContext.tsx (blockedPeersRevision field only, via useMarmot()) — S1 seam, read-only",
+    "app/src/lib/walledGarden.ts (isAllowedDmSender) — pre-existing dependency, unchanged",
+    "app/src/lib/knownPeers.ts (loadKnownPeers) — pre-existing dependency, unchanged",
+    "app/src/lib/dmProfile/receive.ts — read-only regression-test target (AC-INBOUND-4); no production import added here"
+  ],
+  "dependencies_forbidden": [
+    "app/src/components/contacts/ContactChat.tsx (S4 territory)",
+    "app/pages/contacts.tsx / app/pages/profile.tsx (S4/UI territory)",
+    "any write path into MarmotContext.tsx beyond reading blockedPeersRevision"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [
+    "kind-4 (NIP-04 legacy DM) — unchanged filter, unchanged handler body",
+    "kind-1059 (NIP-17 gift wrap) — unchanged filter, unchanged handler body"
+  ],
+  "test_targets": [
+    "app/tests/unit/directMessageNotifications.test.ts (pre-existing, unchanged — the isAllowedSender gate it already exercises generically covers AC-INBOUND-1/2's control flow)",
+    "app/tests/unit/directMessageNotifications-property.test.ts (pre-existing, unchanged)",
+    "app/tests/unit/directMessageNotifications-block-suppression.test.ts (NEW — this story's primary test file: composite-gate purity/deny-overrides-allow, AC-INBOUND-1/2 with a real blocked contact and real lastSeenAt/rememberContact assertions, AC-INBOUND-3/VQ-S2-006 live-ref no-remount proof, AC-UNBLOCK-3 post-unblock resume, plus source-wiring assertions mirroring ProfileHealWatcher.test.ts's AC-WATCH-2 pattern)",
+    "app/tests/unit/dmProfile/receive-block-contact-regression.test.ts (NEW — AC-INBOUND-4, verification-only regression against the untouched passesDisclosureGate/isActiveNonArchivedContact in receive.ts)"
+  ],
+  "seam": {
+    "cross_story": false
+  }
+}

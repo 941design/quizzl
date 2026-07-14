@@ -110,6 +110,11 @@ import { hexToBytes, derivePublicKeyHex } from '@/src/lib/nostrKeys';
 // LWW or contact-injection semantics locally.
 import { readContactEntry, writeContactEntryNeutralized } from '@/src/lib/contactCache';
 import { createLogger } from '@/src/lib/logger';
+// Privacy gate (gate-remediation finding 1, epic: block-contact DD-1's
+// cross-cutting deny layer). Re-used verbatim, never re-implemented — the
+// block-set derivation and the pure predicate both live in exactly one
+// place.
+import { loadBlockedPeers, isBlockedPeer } from '@/src/lib/blockedPeers';
 // Push-trigger seam (epic: direct-contact-profile-exchange, story 06;
 // AC-PROF-11b) — reused verbatim, never re-implemented (see file header).
 import { sendProfileAnnounce } from '@/src/lib/dmProfile/send';
@@ -434,12 +439,28 @@ export async function handlePairingAck(
     rememberContact(senderHex);
     pairingAckAdmissions.set(senderHex, payload.nonce);
 
+    // Privacy gate (gate-remediation finding 1, epic: block-contact DD-1):
+    // Step 9 above deliberately PRESERVES a re-pairing sender's existing
+    // `archivedAt` (rememberContact never clears it) — a blocked peer who
+    // still possesses a live nonce is re-admitted as a known-but-blocked
+    // contact, not un-blocked. Steps 10/11 below are OUTBOUND signals (a
+    // gift-wrapped profile-announce, and a cache write derived from THIS
+    // sender's own submitted data) and must both be skipped for a blocked
+    // sender — sending either one would leak profile data to, or persist
+    // untrusted data received from, a peer the user has explicitly cut off
+    // (spec §7 "blocked peer receives no signal", DD-2 "full cut-off, both
+    // directions"). Checked once, immediately after admission, and reused by
+    // both gates below.
+    const senderIsBlocked = isBlockedPeer(senderHex, loadBlockedPeers());
+
     // Step 10 (story 06, AC-PROF-11b, issuer-side push trigger): fire an
     // immediate profile-announce to the freshly-admitted sender so their
     // avatar/nickname appears at once. Additive, best-effort, and gated on
     // the caller having supplied a live NDK instance (see this function's
-    // doc) — never affects the 'admitted' result below either way.
-    if (opts?.ndk) {
+    // doc) — never affects the 'admitted' result below either way. Also
+    // gated on `!senderIsBlocked` (gate-remediation finding 1) — never sent
+    // to a blocked peer.
+    if (opts?.ndk && !senderIsBlocked) {
       try {
         const ownPubkeyHex = await derivePublicKeyHex(ownPrivateKeyHex);
         await sendProfileAnnounce({
@@ -463,7 +484,9 @@ export async function handlePairingAck(
     // side effect) here is correct and avoids a redundant second injection
     // call; this is NOT the stranger-injection concern the announce receive
     // path (S04) guards against. Reuses story 04's already-landed seam
-    // verbatim — no local LWW/neutralization re-implementation.
+    // verbatim — no local LWW/neutralization re-implementation. Also gated
+    // on `!senderIsBlocked` (gate-remediation finding 1) — a blocked
+    // sender's submitted name/avatar is never cached.
     //
     // decodeCard's `profile.createdAt` is unix seconds, not the ISO-8601
     // `updatedAt` contactCache expects — converted exactly like
@@ -471,12 +494,14 @@ export async function handlePairingAck(
     // so this is immune to the §B2 answer-time-stamp trap (spec §10.1).
     // Any existing avatar is preserved (a name-only import must never null
     // out an avatar populated by group profile sync).
-    const existingCacheEntry = readContactEntry(senderHex);
-    writeContactEntryNeutralized(senderHex, {
-      nickname: decoded.profile.nickname,
-      avatar: existingCacheEntry?.avatar ?? null,
-      updatedAt: new Date(decoded.profile.createdAt * 1000).toISOString(),
-    });
+    if (!senderIsBlocked) {
+      const existingCacheEntry = readContactEntry(senderHex);
+      writeContactEntryNeutralized(senderHex, {
+        nickname: decoded.profile.nickname,
+        avatar: existingCacheEntry?.avatar ?? null,
+        updatedAt: new Date(decoded.profile.createdAt * 1000).toISOString(),
+      });
+    }
 
     return { status: 'admitted', senderPubkeyHex: senderHex };
   } catch (err) {

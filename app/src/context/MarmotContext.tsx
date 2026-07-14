@@ -329,6 +329,30 @@ type MarmotContextValue = {
    * e.g. after addContactByNpub succeeds in AddContactModal.
    */
   notifyKnownPeersChanged: () => void;
+  /**
+   * Monotonically increasing counter bumped whenever a contact's `archivedAt`
+   * (block/unblock, `lp_contacts_v1`) is written outside this context's own
+   * effects (epic: block-contact, S1). Mirrors `knownPeersRevision`'s
+   * ref-refresh mechanism but is a SEPARATE counter — `knownPeersRevision`'s
+   * contract is specifically "lp_knownPeers_v1 changed"; block/unblock never
+   * touches that key, so overloading it here would let a future consumer
+   * assume a knownPeersRevision bump always means `loadKnownPeers()` has
+   * fresh data, which would no longer hold. Consumers that need to react to
+   * block/unblock without unmount/remount (`DirectMessageNotificationsWatcher`
+   * in S2, `ContactChat` in S4) list this alongside `groups` /
+   * `knownPeersRevision` in their ref-refresh effect's dependency array. This
+   * story exposes and bumps the counter; it does not yet call
+   * `notifyBlockedPeersChanged` from any UI action — that wiring belongs to
+   * S4's `handleArchiveToggle` (block branch: confirm -> archiveContact ->
+   * history wipe -> revision bump; unblock branch: unarchiveContact -> bump).
+   */
+  blockedPeersRevision: number;
+  /**
+   * Bumps blockedPeersRevision. Call after any successful `archiveContact` /
+   * `unarchiveContact` write so the always-mounted DM surfaces observe the
+   * block/unblock immediately, without unmount/remount or a page reload.
+   */
+  notifyBlockedPeersChanged: () => void;
 };
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
@@ -496,6 +520,10 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   // Bumped whenever lp_knownPeers_v1 is written outside the group-seeding
   // effects (currently: manual add-contact-by-npub) — see notifyKnownPeersChanged.
   const [knownPeersRevision, setKnownPeersRevision] = useState(0);
+  // Bumped whenever a contact's archivedAt (block/unblock) is written — see
+  // notifyBlockedPeersChanged (epic: block-contact, S1). Deliberately a
+  // separate counter from knownPeersRevision (see the field's JSDoc above).
+  const [blockedPeersRevision, setBlockedPeersRevision] = useState(0);
   // Track discoverability status
   const [discoverable, setDiscoverable] = useState(false);
 
@@ -1873,6 +1901,14 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     setKnownPeersRevision((n) => n + 1);
   }, []);
 
+  // Bumps blockedPeersRevision so the always-mounted DM surfaces (S2's
+  // DirectMessageNotificationsWatcher, S4's ContactChat) pick up a block or
+  // unblock immediately. Functional update avoids a dependency on the current
+  // value, keeping this callback stable (epic: block-contact, S1).
+  const notifyBlockedPeersChanged = useCallback((): void => {
+    setBlockedPeersRevision((n) => n + 1);
+  }, []);
+
   /**
    * Re-publish key-package discoverability and kind 30051 relay list to the given
    * relay URLs. Called from the relay settings save handler so discoverability
@@ -1955,6 +1991,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       republishDiscoverability,
       knownPeersRevision,
       notifyKnownPeersChanged,
+      blockedPeersRevision,
+      notifyBlockedPeersChanged,
     }),
     [
       ready,
@@ -1990,6 +2028,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       republishDiscoverability,
       knownPeersRevision,
       notifyKnownPeersChanged,
+      blockedPeersRevision,
+      notifyBlockedPeersChanged,
     ]
   );
 
@@ -2036,6 +2076,8 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   republishDiscoverability: NOOP_ASYNC,
   knownPeersRevision: 0,
   notifyKnownPeersChanged: () => {},
+  blockedPeersRevision: 0,
+  notifyBlockedPeersChanged: () => {},
 };
 
 export function useMarmot(): MarmotContextValue {

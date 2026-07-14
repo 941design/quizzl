@@ -6,9 +6,10 @@
  */
 
 import { get, set, del, keys, delMany } from 'idb-keyval';
-import { parseDirectPayload } from '@/src/lib/directMessages';
+import { parseDirectPayload, directConversationId } from '@/src/lib/directMessages';
 import type { RoledAttachments } from '@/src/lib/media/imageMessage';
 import * as walledGarden from '@/src/lib/walledGarden';
+import { clearDirectMessageContact } from '@/src/lib/unreadStore';
 
 /** MLS application-message kind discriminator for chat messages. */
 export const CHAT_MESSAGE_KIND = 9;
@@ -572,6 +573,109 @@ export function clearMessages(groupId: string): Promise<void> {
       console.warn('[chatPersistence] clearMessages: messageEdits aux cleanup failed', err);
     });
   return Promise.all([next, auxCleanup]).then(() => undefined);
+}
+
+// ─── Single-peer history wipe on block (epic-block-contact, S3) ────────────
+
+/**
+ * Result of {@link wipeSinglePeerHistory} — lets the caller (S4's block
+ * action) observe partial success under a simulated storage-quota failure
+ * without either half of the wipe throwing. `true` means that call
+ * completed without throwing; `false` means it threw and the error was
+ * logged + swallowed (AC-WIPE-5).
+ */
+export interface HistoryWipeResult {
+  /** True iff `clearMessages(directConversationId(peerPubkeyHex))` completed without throwing. */
+  threadCleared: boolean;
+  /** True iff `clearDirectMessageContact(peerPubkeyHex)` completed without throwing. */
+  countersCleared: boolean;
+  /**
+   * True iff `reactions/api.ts#clearDmReactionsForPeer(peerPubkeyHex)`
+   * completed without throwing (gate-remediation finding 4). The DM reaction
+   * aggregate (`few:reactions:dm:<peerHex>`) is a distinct idb-keyval
+   * namespace from the thread record above — a full wipe requires deleting
+   * it too, or a blocked peer's emoji/message-id/reactor-pubkey rows survive
+   * the block. `clearDmReactionsForPeer` itself is case-insensitive by
+   * enumeration (it does not assume the row was written under a lowercase
+   * key), so this flag does not depend on the case of the stored contact
+   * pubkeyHex.
+   */
+  reactionsCleared: boolean;
+}
+
+/**
+ * Wipes a single peer's DM history on block (DD-12). Exactly three calls, in
+ * this order:
+ *
+ *   1. `clearMessages(directConversationId(peerPubkeyHex))` — deletes the
+ *      idb-keyval thread record (AC-WIPE-1). This already drains any
+ *      in-flight `appendMessage` write for the thread and clears edit/delete
+ *      aux state (`clearMessageEditsStateForThread`) internally.
+ *   2. `clearDirectMessageContact(peerPubkeyHex)` — clears the unread
+ *      counter and last-read timestamp (AC-WIPE-2).
+ *   3. `reactions/api.ts#clearDmReactionsForPeer(peerPubkeyHex)` — deletes
+ *      the DM reaction aggregate (gate-remediation finding 4; DD-3 "permanently
+ *      deletes the locally stored DM history" covers reactions too, not just
+ *      messages/thread/unread state). Dynamic import mirrors this module's
+ *      existing `clearMessages` aux-cleanup wiring (messageEdits) and
+ *      `storage.ts`'s `clearAllReactions` call — never a static import, so a
+ *      caller that never touches reactions doesn't eagerly load that module.
+ *
+ * The storage key for steps 1/2 is derived exclusively via
+ * `directConversationId` — never a hand-built `dm:<peer>` string literal
+ * (AC-WIPE-4). Step 3 does not derive a single key at all: since the
+ * reaction WRITE path doesn't normalize case, `clearDmReactionsForPeer`
+ * enumerates and case-insensitively matches every `few:reactions:dm:` key
+ * itself — see that function's doc comment.
+ *
+ * Each call is independently try/caught: a thrown/rejected error from any of
+ * the three calls is logged via `console.warn` and swallowed, never
+ * propagated to the caller (AC-WIPE-5) — mirrors the existing aux-cleanup
+ * try/catch convention in `clearMessages`/`purgeStrangerDmThreads`. This
+ * function never throws, so a storage-quota failure here can never prevent
+ * the block action from setting `archivedAt` or taking filtering effect.
+ *
+ * Does not read or write `lp_contacts_v1` / `archivedAt` — contact
+ * retention (AC-WIPE-3) is the caller's concern via `archiveContact`,
+ * called by S4 before this helper.
+ */
+export async function wipeSinglePeerHistory(peerPubkeyHex: string): Promise<HistoryWipeResult> {
+  const threadId = directConversationId(peerPubkeyHex);
+
+  let threadCleared = false;
+  try {
+    await clearMessages(threadId);
+    threadCleared = true;
+  } catch (err) {
+    console.warn('[chatPersistence] wipeSinglePeerHistory: clearMessages failed', err);
+  }
+
+  let countersCleared = false;
+  try {
+    clearDirectMessageContact(peerPubkeyHex);
+    countersCleared = true;
+  } catch (err) {
+    console.warn('[chatPersistence] wipeSinglePeerHistory: clearDirectMessageContact failed', err);
+  }
+
+  let reactionsCleared = false;
+  try {
+    const { clearDmReactionsForPeer } = await import('@/src/lib/reactions/api');
+    // `clearDmReactionsForPeer` is case-insensitive by enumeration (it does
+    // NOT assume reaction rows were written under a lowercase key — the
+    // reaction WRITE path doesn't normalize case, and AC-CORE-6 explicitly
+    // does not guarantee a stored contact pubkeyHex is lowercase). The
+    // `.toLowerCase()` here is not load-bearing for correctness — it just
+    // matches this function's own AC-WIPE-4 normalization discipline above
+    // — but is kept so a caller can rely on this call site's input shape
+    // being consistent with the other two calls in this function.
+    await clearDmReactionsForPeer(peerPubkeyHex.toLowerCase());
+    reactionsCleared = true;
+  } catch (err) {
+    console.warn('[chatPersistence] wipeSinglePeerHistory: clearDmReactionsForPeer failed', err);
+  }
+
+  return { threadCleared, countersCleared, reactionsCleared };
 }
 
 /**

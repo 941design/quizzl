@@ -26,7 +26,8 @@ import { useProfile } from '@/src/context/ProfileContext';
 import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
 import NpubQrModal from '@/src/components/groups/NpubQrModal';
 import { getOwnShareCard, hasShareableName, type ShareCardCacheEntry } from '@/src/lib/shareCard';
-import { addableGroupsForContact, archiveContact, eligibleGroupsForContact, getContact, listContacts, unarchiveContact } from '@/src/lib/contacts';
+import { addableGroupsForContact, eligibleGroupsForContact, getContact, listContacts } from '@/src/lib/contacts';
+import BlockContactButton from '@/src/components/contacts/BlockContactButton';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import { drainPendingIntents, type PendingIntentSendContext } from '@/src/lib/pairing/pendingIntent';
 import { capNickname, NICKNAME_MAX_BYTES } from '@/src/config/profile';
@@ -632,16 +633,6 @@ export default function ProfilePage() {
     setTimeout(() => setNpubCopied(false), 2000);
   }
 
-  function handleArchiveToggle() {
-    if (!contact) return;
-    if (contact.isArchived) {
-      unarchiveContact(contact.pubkeyHex);
-    } else {
-      archiveContact(contact.pubkeyHex);
-    }
-    setVersion((v) => v + 1);
-  }
-
   async function handleAddToGroup() {
     if (!effectiveGroupId || !pubkeyHex) return;
     setAddToGroupStatus('loading');
@@ -744,13 +735,11 @@ export default function ProfilePage() {
           )}
 
           {contact && (
-            <Button
-              variant="outline"
-              onClick={handleArchiveToggle}
-              data-testid="profile-archive"
-            >
-              {contact.isArchived ? copy.profile.unarchiveAction : copy.profile.archiveAction}
-            </Button>
+            <BlockContactButton
+              peerPubkeyHex={contact.pubkeyHex}
+              isArchived={contact.isArchived}
+              onChanged={() => setVersion((v) => v + 1)}
+            />
           )}
         </VStack>
       </Box>

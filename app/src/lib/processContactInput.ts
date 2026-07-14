@@ -54,6 +54,16 @@
  * nameless branch and the actual network side effect belong to the caller
  * (`app/pages/add.tsx`), consistent with architecture.md's "S4 owns the
  * decision, S3 owns the mechanics" split.
+ *
+ * Epic: block-contact, story S4 (AC-VIEW-13). addContactByNpub's
+ * already_exists result additionally carries blocked: true when the
+ * matching stored contact is archived (blocked, DD-9) - re-adding by npub or
+ * re-scanning a blocked peer's pairing card is a full cut-off in both
+ * directions (DD-2). shouldImportProfile treats this as its own case,
+ * distinct from an ordinary already_exists: neither importCard nor the
+ * pairingEcho computation runs, so no cached-nickname refresh and no
+ * reciprocation candidate are ever produced for a blocked peer, even when
+ * their re-scanned card carries a live, unexpired v2 pairing field.
  */
 import { addContactByNpub } from '@/src/lib/contacts';
 import { parseContactCard, UNSUPPORTED_VERSION_ERROR } from '@/src/lib/contactCard';
@@ -89,8 +99,21 @@ export type AddContactSubmissionResult =
        * produces, not a new decision.
        */
       error: 'invalid_npub' | 'self' | 'already_exists' | 'unsupported_version';
-      /** Review-remediation (sev 5): present iff `error === 'already_exists'` AND the parsed card carried an unexpired `pairing` field — a RETURNING scanner re-scanning a live code must still reciprocate. Always undefined for `invalid_npub`/`self`/`unsupported_version`. */
+      /** Review-remediation (sev 5): present iff `error === 'already_exists'` AND the parsed card carried an unexpired `pairing` field — a RETURNING scanner re-scanning a live code must still reciprocate. Always undefined for `invalid_npub`/`self`/`unsupported_version`. Always undefined when `blocked` is `true` (AC-VIEW-13) — see below. */
       pairingEcho?: PairingEchoCandidate;
+      /**
+       * Epic: block-contact, story S4 (AC-VIEW-13). Mirrors
+       * `AddContactResult`'s `blocked` field one-for-one — present and `true`
+       * iff `error === 'already_exists'` because the matching stored contact
+       * is archived (blocked, DD-9). A blocked re-add is a full cut-off in
+       * both directions: `shouldImportProfile` below excludes this case, so
+       * neither the card's profile is imported into the cache NOR a
+       * `pairingEcho` candidate is computed, even when the re-scanned card
+       * carries a live, unexpired v2 pairing field. No signal — cached
+       * nickname or reciprocation — leaks back to a peer the user has
+       * blocked. Always undefined for every other error variant.
+       */
+      blocked?: boolean;
     };
 
 export function processContactInput(
@@ -115,7 +138,16 @@ export function processContactInput(
   // already_exists (a returning scanner). `self`/`invalid_npub` never
   // qualify: echoing to your own pubkey is meaningless, and a parse failure
   // has no `parsed.pairing` to read in the first place.
-  const shouldImportProfile = addResult.ok || addResult.error === 'already_exists';
+  //
+  // Epic: block-contact, story S4 (AC-VIEW-13). An already_exists result
+  // that is ALSO `blocked` (the matching stored contact is archived, DD-9)
+  // is excluded here too — a full cut-off in both directions (DD-2). This
+  // single exclusion suppresses BOTH the `importCard` cache refresh below
+  // AND the `pairingEcho` computation further down, since both are gated on
+  // this same flag: no cached-nickname refresh and no reciprocation
+  // candidate for a peer the user has blocked, even if their re-scanned card
+  // carries a live v2 pairing field.
+  const shouldImportProfile = addResult.ok || (addResult.error === 'already_exists' && !addResult.blocked);
   let cachedNickname = false;
   if (shouldImportProfile && 'profile' in parsed && parsed.profile) {
     const importResult = importCard(parsed.pubkeyHex, parsed.profile);
@@ -135,7 +167,7 @@ export function processContactInput(
   }
 
   if (!addResult.ok) {
-    return { ok: false, error: addResult.error, pairingEcho };
+    return { ok: false, error: addResult.error, blocked: addResult.blocked, pairingEcho };
   }
 
   return {

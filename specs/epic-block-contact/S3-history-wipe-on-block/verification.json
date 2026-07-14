@@ -1,0 +1,116 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-13T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the storage-failure handling in the wipe helper a real try/catch around each of the two calls (or the pair), or a vacuous stub that swallows *all* errors including ones unrelated to storage (masking real bugs) or that never actually calls the real `clearMessages`/`clearDirectMessageContact` in the failure-path test (a mocked-away no-op that trivially 'doesn't throw')? Provide the helper's exact error-handling code and confirm the storage-quota test drives a real `clearMessages`/`clearDirectMessageContact` implementation that is made to reject (e.g. via a fake IDB quota error), not a pre-stubbed always-resolving mock."
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does this story confine itself to the 'chat persistence' module (`app/src/lib/marmot/chatPersistence.ts`, `app/src/lib/unreadStore.ts`) and export a single wipe-helper entry point rather than duplicating the two-call sequence and its failure handling elsewhere? Run `grep -rn 'clearMessages\\|clearDirectMessageContact' app/src` and confirm the only place both calls appear together is the new/modified helper inside `chatPersistence.ts` — not inlined again at a future S4 call site."
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could 'chat persistence' (`chatPersistence.ts`, `unreadStore.ts`) be deleted and rewritten without modifying any file outside its dependencies_allowed list — with S4 (`profile.tsx#handleArchiveToggle`) calling only the exported wipe-helper entry point via the declared `HistoryWipeResult` seam, never reaching into `chatPersistence.ts` internals? If S4 would need to import an internal helper (not the public wipe entry point) to complete its block-branch orchestration, identify that dependency."
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do `app/tests/unit/chatPersistence-purge.test.ts`, `chatPersistence-property.test.ts`, and `unreadStore.test.ts` cover, as separate assertions: (a) the two-call sequence and post-wipe absence of the idb-keyval thread record (AC-WIPE-1), (b) unread-counter/last-read clearing (AC-WIPE-2), (c) `StoredContact` retention with `archivedAt` set (AC-WIPE-3), (d) the `directConversationId`-only key derivation with no hand-built literal (AC-WIPE-4), (e) the storage-failure no-throw/no-block-prevention case (AC-WIPE-5), and (f) the in-flight `appendMessage` drain race (AC-WIPE-6)? List the specific test names for each."
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does this story implement only the wipe helper itself, with the invocation from the block action (UI trigger, confirm dialog) explicitly deferred to S4, and with no change to `isAllowedDmSender`/`isBlockedPeer` (S1) or the notification watcher (S2)? Confirm the helper is exported but not yet called from any `profile.tsx` or `contacts.tsx` code path in this story's diff."
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does a thrown/rejected error from either `clearMessages` or `clearDirectMessageContact` get logged (not silently discarded) while still allowing the calling block action to complete and set `archivedAt`? Provide a test spying on the logging call (e.g. `console.error` or the project's logger) asserting it fires exactly once per simulated failure, and that the block action's caller receives no unhandled rejection."
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `git diff --stat` for this story's commit(s) touch only files inside this story's declared scope (`app/src/lib/marmot/chatPersistence.ts`, `app/src/lib/unreadStore.ts`, the three named test files) or files already listed in `specs/epic-block-contact/epic-state.json#pre_existing_dirty_files`? Any other file appearing in the diff is a scope-boundary violation."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-WIPE-1",
+      "question": "Does the block action call `clearMessages(directConversationId(peerPubkeyHex))` such that after a successful block, the idb-keyval record at key `few:messages:dm:<peerHexLower>` is absent (a `readIdbRecord` lookup on `keyval-store`/`keyval` returns null/undefined)? Provide (a) the call site, and (b) a test that writes a message, blocks the peer, and asserts the idb-keyval read returns nothing."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-WIPE-2",
+      "question": "Does the block action call `clearDirectMessageContact(peerPubkeyHex)` such that after a successful block, the unread counter and last-read timestamp for that peer are cleared, and the notification-badge count attributable to that peer is zero? Provide a test that increments the peer's unread counter, blocks the peer, and asserts both the counter and last-read timestamp are cleared."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-WIPE-3",
+      "question": "Does the wipe helper leave the `StoredContact` record for `peerPubkeyHex` intact after a block, with `archivedAt` set to a non-null timestamp and `readStoredContacts()` still returning that entry? Provide a test asserting the contact record survives the wipe with the correct `archivedAt` value — never deleted from `lp_contacts_v1`."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-WIPE-4",
+      "question": "Does the wipe helper derive its storage key exclusively via `directConversationId(peerPubkeyHex)`, with no hand-built `dm:<peer>`-shaped string literal anywhere in this story's diff? Run `grep -n '`dm:\\$' app/src/lib/marmot/chatPersistence.ts app/src/lib/unreadStore.ts` (and any other file this story touches) and confirm zero matches for a hand-built template-literal key."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-WIPE-5",
+      "question": "If `clearMessages` or `clearDirectMessageContact` throws (simulated storage-quota failure), does the block action still set `archivedAt` on the contact record, does the composite gate still return `false` for that peer immediately afterward, and does the wipe failure neither prevent the block's filtering effect nor throw out of the block action? Provide a test that forces each of the two calls to reject in turn and asserts, for both cases, `archivedAt` is set and the composite gate denies the peer, with no exception propagating to the caller."
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-WIPE-6",
+      "question": "Does an `appendMessage` write in flight for `dm:<peer>` at the moment block is triggered fail to resurrect the thread key after `clearMessages` completes — i.e. does the idb-keyval record for that thread remain absent even if the in-flight write resolves after the clear call started? Provide a test that starts an `appendMessage` promise, triggers the block/wipe before it resolves, lets both settle, and asserts the thread key is absent regardless of resolution order."
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-WIPE-5",
+      "question": "Contract check for the `HistoryWipeResult` seam this story defines (consumed by S4's `handleArchiveToggle` block branch): does the wipe helper never throw out of the block action even when either underlying call rejects, does it drain any in-flight `appendMessage` write for the peer's thread before completing (per AC-WIPE-6), and does it derive its storage key exclusively via `directConversationId(peerHex)` (per AC-WIPE-4), never a hand-built `dm:<peer>` literal? Provide one test per invariant (three total) demonstrating S4 can rely on this contract without inspecting the helper's internals."
+    },
+    {
+      "question_id": "VQ-S3-015",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Implementation created a NEW test file, `app/tests/unit/chatPersistence-wipe.test.ts`, rather than adding to the three test files named in the story's original scope notes (`chatPersistence-purge.test.ts`, `chatPersistence-property.test.ts`, `unreadStore.test.ts`). Is this an acceptable scope interpretation — the file is chat-persistence-scoped, follows the same idb-keyval/localStorage mocking conventions as `chatPersistence-purge.test.ts`, and mirrors the precedent set by S2's `directMessageNotifications-block-suppression.test.ts` (a new file, not an addition to a pre-existing one)? Confirm no test coverage for `wipeSinglePeerHistory`/`HistoryWipeResult` exists anywhere else that would make this a duplicate."
+    },
+    {
+      "question_id": "VQ-S3-016",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The AC-WIPE-5 test for a `clearDirectMessageContact` failure forces the throw via `vi.mock('@/src/lib/unreadStore', importOriginal)` wrapping the real export in `vi.fn(actual.clearDirectMessageContact)` and then `mockImplementationOnce(() => { throw ... })` for that one test. Does this genuinely exercise `wipeSinglePeerHistory`'s own try/catch around a real underlying call in every OTHER test in the file (i.e., is the wrapped mock a pass-through to the real implementation by default, not a permanently stubbed no-op), and does `getDirectMessageLastReadAt(PEER_HEX)` in the 'still runs the counters clear' scenario reflect a real `clearMessages` execution rather than a mocked idb-keyval short-circuit?"
+    },
+    {
+      "question_id": "VQ-S3-017",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "`wipeSinglePeerHistory` imports `clearDirectMessageContact` from `@/src/lib/unreadStore` as a STATIC top-level import (not the dynamic `import()` pattern `clearMessages` already uses for its `messageEdits/api.ts` aux-cleanup). Was this verified safe against circular-import risk — i.e. does `unreadStore.ts` import anything from `chatPersistence.ts` (directly or transitively), which would make the static edge introduce a cycle? Confirm via `grep -n \"chatPersistence\" app/src/lib/unreadStore.ts` returning zero matches, and note that `directMessages.ts`'s existing references to `chatPersistence.ts` are all dynamic `import()` calls, so `chatPersistence.ts`'s pre-existing static import of `directConversationId` from `directMessages.ts` was already cycle-safe before this story added the `unreadStore.ts` edge."
+    }
+  ]
+}

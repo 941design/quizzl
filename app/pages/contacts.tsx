@@ -22,6 +22,7 @@ import {
 import ThemeIcon from '@/src/components/ThemeIcon';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import ContactChat from '@/src/components/contacts/ContactChat';
+import BlockContactButton from '@/src/components/contacts/BlockContactButton';
 // Voice/video calls are gated behind the CALLS_ENABLED feature toggle.
 import { ContactCallToolbar } from '@/src/components/calls/CallToolbar';
 import { CALLS_ENABLED } from '@/src/config/features';
@@ -268,9 +269,23 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
   const pairingEchoInFlight = router.query.pairing === 'sent' || router.query.pairing === 'pending';
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const { profile: ownProfile } = useProfile();
+  // blockedPeersRevision (epic: block-contact, S1) in the dependency array:
+  // any block/unblock action bumps this revision (notifyBlockedPeersChanged),
+  // so `contact.isArchived` re-derives reactively within the SAME mounted
+  // tree, without requiring a route change. This is what makes AC-VIEW-14's
+  // "transition an open ContactChat to the Blocked state, tearing down its
+  // live subscriptions" hold generically: if this contact somehow gets
+  // blocked while its (non-archived) ContactChat is still mounted here, the
+  // very next render swaps ContactChat out for the Blocked banner below,
+  // and React's own unmount lifecycle stops ContactChat's live subs (its
+  // effect cleanup already does this on any unmount) — no manual teardown
+  // hook into ContactChat is needed. Symmetrically, an Unblock action taken
+  // from the Blocked banner's own button (below) re-derives `contact` the
+  // same way, swapping back to ContactChat without a page navigation.
+  const { blockedPeersRevision } = useMarmot();
   const contact = useMemo(
     () => getContact(contactPubkeyHex, pubkeyHex, { includeArchived: true }),
-    [contactPubkeyHex, pubkeyHex],
+    [contactPubkeyHex, pubkeyHex, blockedPeersRevision],
   );
   const signer = useMemo(
     () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
@@ -348,23 +363,42 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
           </Alert>
         ) : null}
         {contact.isArchived ? (
-          <Alert status="info" borderRadius="md" mt={4} data-testid="contact-archived-alert">
-            <AlertIcon />
-            <AlertDescription>{copy.contacts.archivedDetailNotice}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        <Divider my={6} />
-
-        <Box>
-          <ContactChat
-            peerPubkeyHex={contact.pubkeyHex}
-            pubkeyHex={pubkeyHex}
-            privateKeyHex={privateKeyHex}
-            signer={signer}
-            profileMap={profileMap}
-          />
-        </Box>
+          // AC-VIEW-1/7 (epic: block-contact, S4): the Blocked banner + Unblock
+          // affordance renders INSTEAD OF ContactChat's composer — ContactChat
+          // is not mounted at all in this branch, so none of the five send
+          // affordances (text, image, paste, drag-drop, reactions) can ever
+          // reach the DOM while blocked. This is decided synchronously on
+          // first render (no async fetch gates it), so a direct navigation to
+          // /contacts?id=<blockedPeerHex> renders this branch immediately,
+          // with no intermediate composer frame (AC-VIEW-7).
+          <>
+            <Alert status="info" borderRadius="md" mt={4} data-testid="contact-archived-alert">
+              <AlertIcon />
+              <AlertDescription>{copy.contacts.archivedDetailNotice}</AlertDescription>
+            </Alert>
+            <Box mt={4}>
+              <BlockContactButton
+                peerPubkeyHex={contact.pubkeyHex}
+                isArchived
+                onChanged={() => { /* blockedPeersRevision bump already drives the re-derive above */ }}
+                testId="contact-detail-unblock"
+              />
+            </Box>
+          </>
+        ) : (
+          <>
+            <Divider my={6} />
+            <Box>
+              <ContactChat
+                peerPubkeyHex={contact.pubkeyHex}
+                pubkeyHex={pubkeyHex}
+                privateKeyHex={privateKeyHex}
+                signer={signer}
+                profileMap={profileMap}
+              />
+            </Box>
+          </>
+        )}
       </Box>
     </>
   );

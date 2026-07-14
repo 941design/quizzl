@@ -9,6 +9,7 @@ import {
 } from '@/src/lib/contacts';
 import { loadKnownPeers } from '@/src/lib/knownPeers';
 import { isAllowedDmSender } from '@/src/lib/walledGarden';
+import { isBlockedPeer, loadBlockedPeers } from '@/src/lib/blockedPeers';
 import { npubToPubkeyHex, pubkeyToNpub } from '@/src/lib/nostrKeys';
 import { STORAGE_KEYS } from '@/src/types';
 
@@ -40,22 +41,31 @@ describe('addContactByNpub', () => {
     expect(contacts[pubkeyHex].archivedAt).toBeNull();
   });
 
-  it('reactivates an archived contact and bumps lastSeenAt (AC-STRUCT-2)', () => {
+  it('reports blocked rather than reactivating an archived (blocked) contact, leaving archivedAt untouched (AC-CORE-5, DD-9)', () => {
     const pubkeyHex = 'b'.repeat(64);
     const npub = pubkeyToNpub(pubkeyHex);
     const seededAt = '2020-01-01T00:00:00.000Z';
 
     rememberContact(pubkeyHex, seededAt);
     archiveContact(pubkeyHex, seededAt);
+    const before = readStoredContacts()[pubkeyHex];
 
     const result = addContactByNpub(npub, null);
 
-    expect(result).toEqual({ ok: true, pubkeyHex, reactivated: true });
+    expect(result).toEqual({ ok: false, error: 'already_exists', blocked: true, pubkeyHex });
+    expect(result).not.toEqual(expect.objectContaining({ reactivated: true }));
 
+    // archivedAt is read back completely unchanged from its pre-call value —
+    // no silent unblock, no lastSeenAt bump.
     const contacts = readStoredContacts();
-    expect(contacts[pubkeyHex].archivedAt).toBeNull();
-    expect(contacts[pubkeyHex].lastSeenAt).not.toBe(seededAt);
-    expect(contacts[pubkeyHex].lastSeenAt > seededAt).toBe(true);
+    expect(contacts[pubkeyHex]).toEqual(before);
+    expect(contacts[pubkeyHex].archivedAt).toBe(seededAt);
+
+    // No DM channel becomes reachable as a consequence of the re-add: the
+    // composite gate (assembled at the call site, mirroring later stories'
+    // enforcement) still denies this peer immediately after the call.
+    const blockedPeers = loadBlockedPeers();
+    expect(isBlockedPeer(pubkeyHex, blockedPeers)).toBe(true);
   });
 
   it('rejects an invalid npub without mutating storage (AC-ERR-1)', () => {
@@ -136,7 +146,7 @@ describe('addContactByNpub', () => {
     expect(Object.keys(readStoredContacts())).toEqual([mixedCaseKey]);
   });
 
-  it('reactivates an archived contact stored under a different-case key, unarchiving the same entry rather than creating a duplicate (case-insensitivity regression)', () => {
+  it('reports blocked (not reactivated) for an archived contact stored under a different-case key, and does not create a duplicate (AC-CORE-5 + AC-CORE-6)', () => {
     const pubkeyHex = 'fedcba9876543210'.repeat(4);
     const mixedCaseKey = pubkeyHex.toUpperCase();
     const npub = pubkeyToNpub(pubkeyHex);
@@ -146,13 +156,18 @@ describe('addContactByNpub', () => {
 
     const result = addContactByNpub(npub, null);
 
-    expect(result).toEqual({ ok: true, pubkeyHex, reactivated: true });
+    expect(result).toEqual({ ok: false, error: 'already_exists', blocked: true, pubkeyHex });
 
     const contacts = readStoredContacts();
-    // Exactly one entry — the original mixed-case key was unarchived in
-    // place, no second (lowercase-keyed) entry was created.
+    // Exactly one entry — the original mixed-case key stays archived in
+    // place, no second (lowercase-keyed) entry was created, and it was NOT
+    // unarchived.
     expect(Object.keys(contacts)).toEqual([mixedCaseKey]);
-    expect(contacts[mixedCaseKey].archivedAt).toBeNull();
+    expect(contacts[mixedCaseKey].archivedAt).toBe(seededAt);
+
+    // AC-CORE-6: the block-set derivation still recognizes this mixed-case-
+    // keyed contact as blocked, matching a lowercase lookup.
+    expect(isBlockedPeer(pubkeyHex, loadBlockedPeers())).toBe(true);
   });
 
   it('rejects reactivation when an active entry exists alongside a differently-cased archived entry (P2 correctness regression)', () => {

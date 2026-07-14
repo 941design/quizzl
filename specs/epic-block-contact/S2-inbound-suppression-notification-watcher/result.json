@@ -1,0 +1,52 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "remediation_rounds": 0,
+  "completed_at": "2026-07-13T23:35:00Z",
+  "files_created": [
+    "app/tests/unit/directMessageNotifications-block-suppression.test.ts",
+    "app/tests/unit/dmProfile/receive-block-contact-regression.test.ts",
+    "specs/epic-block-contact/S2-inbound-suppression-notification-watcher/architecture.json",
+    "specs/epic-block-contact/S2-inbound-suppression-notification-watcher/baseline.json",
+    "specs/epic-block-contact/S2-inbound-suppression-notification-watcher/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/DirectMessageNotificationsWatcher.tsx",
+    "specs/epic-block-contact/S2-inbound-suppression-notification-watcher/verification.json"
+  ],
+  "tests_added": {
+    "unit": 14
+  },
+  "test_counts": {
+    "baseline": 3035,
+    "final": 3049
+  },
+  "mocks": [],
+  "modules_touched": [
+    "DM notifications"
+  ],
+  "implementation_summary": "directMessageNotifications.ts required ZERO production change: its kind-4 (:85) and kind-1059 (:126) handlers already gate on the injected isAllowedSender callback strictly before rememberContact/incrementDirectMessage (a pre-existing seam from an earlier epic). This story's entire production diff is in DirectMessageNotificationsWatcher.tsx: (1) a new exported pure function isAllowedDmSenderComposite(peer, groups, knownPeers, blockedPeers, ownPubkeyHex) that assembles isAllowedDmSender(...) && !isBlockedPeer(...) at the call site per DD-8; (2) a blockedPeersRef initialized from loadBlockedPeers() and refreshed in a useEffect keyed on [groups, knownPeersRevision, blockedPeersRevision], mirroring the existing knownPeersRef pattern exactly; (3) the isAllowedSender closure passed into subscribeDirectMessageNotifications now calls isAllowedDmSenderComposite instead of isAllowedDmSender alone. The subscription-owning effect's own dependency array ([hydrated, pubkeyHex, privateKeyHex]) is untouched \u2014 no teardown/rebuild on block-revision change, satisfying AC-INBOUND-3's no-remount requirement via the ref pattern. AC-INBOUND-4 required no production change to dmProfile/receive.ts at all (verification-only) \u2014 passesDisclosureGate/isActiveNonArchivedContact already rejects archived peers from an earlier epic; a new regression test pins that guarantee under this epic's terminology.",
+  "verification": {
+    "pre_impl_questions": 12,
+    "post_impl_questions": 2,
+    "notes": "Post-impl questions VQ-S2-013/014 record why zero production change to directMessageNotifications.ts is genuinely sufficient (not a shortcut), and why exporting a pure function from a .tsx watcher file for jsdom-free unit testing is a safe, precedented pattern (mirrors ProfileHealWatcher.tsx)."
+  },
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  },
+  "final_outcome": "accepted",
+  "gated_acs": [
+    {
+      "ac": "AC-INBOUND-3",
+      "gate": "S4 must call notifyBlockedPeersChanged in the BLOCK branch of handleArchiveToggle; re-verify at epic AC-closure."
+    },
+    {
+      "ac": "AC-UNBLOCK-3",
+      "gate": "S4 must call notifyBlockedPeersChanged in the UNBLOCK branch; re-verify at epic AC-closure."
+    }
+  ],
+  "accepted_residuals": [
+    "Composite gate rehomed to blockedPeers.ts (post-review) to prevent a forked gate; S4 ContactChat imports it."
+  ]
+}

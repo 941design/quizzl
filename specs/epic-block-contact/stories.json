@@ -1,0 +1,330 @@
+{
+  "epic_name": "block-contact",
+  "created_at": "2026-07-13T21:45:00Z",
+  "total_stories": 5,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "block-core-predicate-gate-readd-guard",
+      "title": "Block core: predicate, composite gate, block-set derivation, re-add guard",
+      "description": "Adds the pure isBlockedPeer(peerHex, blockedPeers) predicate and a lowercase-normalized blockedPeers derivation over readStoredContacts() in a new app/src/lib/blockedPeers.ts, keeps isAllowedDmSender untouched so the composite gate (allow AND NOT blocked) is assembled only at call sites (DD-8), exposes a block-revision counter on MarmotContext that other stories' live surfaces observe, closes the DD-9 silent-unblock hole in addContactByNpub (contacts.ts) so re-adding a blocked contact by npub no longer clears archivedAt, and proves the cross-cutting invariants that block does not disturb knownPeers membership, shared-group rendering, or the stranger-purge sweeps. This is the foundation every other story composes with.",
+      "acceptance_criteria": [
+        "AC-CORE-1",
+        "AC-CORE-2",
+        "AC-CORE-3",
+        "AC-CORE-4",
+        "AC-CORE-5",
+        "AC-CORE-6",
+        "AC-UNBLOCK-1",
+        "AC-SCOPE-1",
+        "AC-SCOPE-2",
+        "AC-SCOPE-3"
+      ],
+      "scope": {
+        "includes": [
+          "new isBlockedPeer(peerHex, blockedPeers) pure predicate in app/src/lib/blockedPeers.ts, no localStorage/IDB/React access in its own body",
+          "blockedPeers set derivation from readStoredContacts() (contacts.ts), lowercase-normalized regardless of stored key/pubkeyHex case",
+          "leave isAllowedDmSender's body unmodified; composite gate assembled only at call sites, never inside walledGarden.ts",
+          "expose + bump a block-revision counter on MarmotContext (app/src/context/MarmotContext.tsx) that S2 and S4 subscribe to via ref",
+          "remove the silent unarchiveContact call from addContactByNpub's archived-match branch (contacts.ts:329-337) so a re-add reports the contact is blocked instead of reactivating it",
+          "regression proof: block does not remove the peer from knownPeers, does not affect shared-group membership/rendering, and purgeStrangerContacts/purgeStrangerDmCounters/purgeStrangerDmThreads/purgeStrangerDmReactions neither delete a blocked-but-retained StoredContact nor resurrect its wiped thread"
+        ],
+        "excludes": [
+          "wiring the composite gate into directMessageNotifications.ts or ContactChat.tsx (S2, S4)",
+          "the history wipe itself (S3)",
+          "any UI (blocked banner, confirm dialog, send-path gating \u2014 S4)",
+          "i18n copy (S5)"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "owning_module": "block core / blocklist",
+      "creates_seam": true,
+      "lighter_path": false,
+      "consumes_seams": [],
+      "notes": "Owning module per architecture.md is 'block core / blocklist' (app/src/lib/blockedPeers.ts, new). This story also makes a small, tightly-scoped edit to contacts.ts (DD-9 guard) and to MarmotContext.tsx (revision counter) \u2014 both are single, non-competing edits anticipated by architecture.md's own module rows for 'contacts' and 'context', and no other story touches either file, so there is no dual-ownership conflict. AC-SCOPE-3 spans four purge functions in four different files (contacts.ts, chatPersistence.ts, unreadStore.ts, reactions/api.ts); it is verification-only \u2014 purgeStranger* sweeps key off isAllowedDmSender, which still returns true for a blocked-but-known peer, so no production code change is required there, only a regression test proving the sweeps and the block/wipe do not interact. Files: app/src/lib/blockedPeers.ts (new), app/src/lib/contacts.ts, app/src/context/MarmotContext.tsx, app/tests/unit/blockedPeers.test.ts (new), app/tests/unit/contacts-add-by-npub.test.ts, app/tests/unit/contacts.test.ts."
+    },
+    {
+      "id": "S2",
+      "name": "inbound-suppression-notification-watcher",
+      "title": "Inbound suppression at the DM notification watcher",
+      "description": "Composes the composite gate into subscribeDirectMessageNotifications's kind-4 and kind-1059 handlers (directMessageNotifications.ts) so a blocked sender is dropped before rememberContact/incrementDirectMessage \u2014 no bell increment, no lastSeenAt bump. DirectMessageNotificationsWatcher.tsx injects the composite gate sourced from a ref that refreshes on S1's block-revision bump, so a peer blocked while the watcher is mounted is suppressed on the very next inbound event without unmount/remount. Also proves the ProfileHealWatcher heal-channel regression (already-gated, no code change) and the symmetric post-unblock resume (bell rings again once unblocked).",
+      "acceptance_criteria": [
+        "AC-INBOUND-1",
+        "AC-INBOUND-2",
+        "AC-INBOUND-3",
+        "AC-INBOUND-4",
+        "AC-UNBLOCK-3"
+      ],
+      "scope": {
+        "includes": [
+          "kind4Handler in subscribeDirectMessageNotifications returns before rememberContact/incrementDirectMessage for a blocked sender",
+          "kind-1059 gift-wrap handler in the same subscription applies the same suppression",
+          "isAllowedSender callback injected via DirectMessageNotificationsWatcher.tsx is the composite gate, sourced from a ref that refreshes on block-revision change (no watcher unmount/remount required)",
+          "regression test: ProfileHealWatcher's passesDisclosureGate/isActiveNonArchivedContact (dmProfile/receive.ts) still rejects a rumor from an archived peer after this epic (no code change expected here, verification only)",
+          "post-unblock: next inbound DM from a previously blocked, now-unblocked peer is persisted and increments the bell"
+        ],
+        "excludes": [
+          "ContactChat.tsx's own four ingestion sites (S4, defensive/historical/live handling in the chat view)",
+          "the history wipe (S3)",
+          "any UI change"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "owning_module": "DM notifications",
+      "creates_seam": false,
+      "lighter_path": false,
+      "consumes_seams": [
+        "BlockedPeersSnapshot",
+        "CompositeDmGate"
+      ],
+      "notes": "Owning module matches architecture.md's 'DM notifications' row (directMessageNotifications.ts + DirectMessageNotificationsWatcher.tsx). Files: app/src/lib/directMessageNotifications.ts, app/src/components/DirectMessageNotificationsWatcher.tsx, app/tests/unit/directMessageNotifications.test.ts, app/tests/unit/directMessageNotifications-property.test.ts. AC-INBOUND-4 touches app/src/lib/dmProfile/receive.ts only as a read/regression-test target, per spec 'no code change is needed here.'"
+    },
+    {
+      "id": "S3",
+      "name": "history-wipe-on-block",
+      "title": "Single-peer history wipe on block",
+      "description": "Adds a resilient single-peer wipe helper wired into the block action: clearMessages(directConversationId(peerHex)) followed by clearDirectMessageContact(peerHex) \u2014 per DD-12, exactly these two calls (clearMessages already drains in-flight appendMessage writes and clears edit/delete aux state internally). The helper never hand-builds the dm:<peer> storage key, tolerates a storage-quota failure without throwing or preventing the block from taking filtering effect, and completes the drain race correctly when an appendMessage write is in flight at the moment block is triggered. Retains the StoredContact record with archivedAt set.",
+      "acceptance_criteria": [
+        "AC-WIPE-1",
+        "AC-WIPE-2",
+        "AC-WIPE-3",
+        "AC-WIPE-4",
+        "AC-WIPE-5",
+        "AC-WIPE-6"
+      ],
+      "scope": {
+        "includes": [
+          "wipe helper calls clearMessages(directConversationId(peerPubkeyHex)) then clearDirectMessageContact(peerPubkeyHex), deriving the storage key exclusively via directConversationId \u2014 no hand-built dm:<peer> string literal",
+          "wipe helper swallows and logs a thrown error from either call (storage-quota simulation) without throwing out of the block action, and the contact's archivedAt is still set afterward",
+          "in-flight appendMessage write for the peer's thread at block time does not resurrect the thread key once clearMessages settles",
+          "StoredContact record for the peer is retained (never deleted) with archivedAt non-null after a successful wipe"
+        ],
+        "excludes": [
+          "invoking the wipe from the UI action itself (that wiring, plus the confirmation dialog gating it, is S4)",
+          "the composite gate and blockedPeers derivation (S1)",
+          "notification suppression (S2)"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "owning_module": "chat persistence",
+      "creates_seam": true,
+      "lighter_path": false,
+      "consumes_seams": [],
+      "notes": "Owning module matches architecture.md's 'chat persistence' row (marmot/chatPersistence.ts, unreadStore.ts). The wipe helper is exported from chatPersistence.ts (or a small new co-located function) so S4 calls a single entry point rather than duplicating the two-call sequence and its failure handling at the call site. Files: app/src/lib/marmot/chatPersistence.ts, app/src/lib/unreadStore.ts, app/tests/unit/chatPersistence-purge.test.ts, app/tests/unit/chatPersistence-property.test.ts, app/tests/unit/unreadStore.test.ts."
+    },
+    {
+      "id": "S4",
+      "name": "blocked-view-send-gating-confirm-action",
+      "title": "Blocked detail view, send-path gating, defensive ingestion, confirm dialog and block action",
+      "description": "Renders a Blocked banner in ContactDetailView (contacts.tsx) in place of ContactChat's composer whenever archivedAt is set \u2014 including on first render of the direct-URL route (/contacts?id=<peerHex>) \u2014 and gates every one of the five send affordances (text, image/attachment, paste, drag-and-drop, reactions) plus defensively re-applies the composite gate at ContactChat's four ingestion sites (historical/live kind-4, historical/live kind-1059) and at history render (loadMessages/filterVisibleMessages/ChatBox). Adds the block confirmation modal (Chakra Modal + useDisclosure, mirroring LeaveGroupButton's destructive pattern per DD-11) so archiveContact is never invoked as a direct result of the initial click; on confirm, handleArchiveToggle (profile.tsx) calls archiveContact, then S3's history-wipe helper, then bumps S1's block revision. Unblock remains a direct, non-confirmed unarchiveContact call that does not resurrect deleted history. Proves the privacy invariant (no kind-0/kind-10000/any public event) across both actions via a publish-call spy.",
+      "acceptance_criteria": [
+        "AC-VIEW-1",
+        "AC-VIEW-2",
+        "AC-VIEW-3",
+        "AC-VIEW-4",
+        "AC-VIEW-5",
+        "AC-VIEW-6",
+        "AC-VIEW-7",
+        "AC-VIEW-8",
+        "AC-VIEW-9",
+        "AC-VIEW-10",
+        "AC-VIEW-11",
+        "AC-VIEW-12",
+        "AC-VIEW-13",
+        "AC-VIEW-14",
+        "AC-CONFIRM-1",
+        "AC-CONFIRM-2",
+        "AC-UNBLOCK-2",
+        "AC-UNBLOCK-4",
+        "AC-PRIV-1",
+        "AC-PRIV-2",
+        "AC-PRIV-3"
+      ],
+      "scope": {
+        "includes": [
+          "ContactDetailView renders a Blocked banner (mirroring contact-archived-alert, DD-10) instead of ContactChat's composer for an archived contact, with no composer input/send-button/image-button in the rendered output",
+          "all five send affordances (text send, image/attachment button, paste-to-send, drag-and-drop, reactions) are unreachable while blocked, on both in-app navigation and the direct-URL route's first render",
+          "ContactChat's four ingestion sites (historical kind-4, historical kind-1059, live kind-4, live kind-1059) re-apply the composite gate defensively and never persist a rejected sender's message",
+          "loadMessages/filterVisibleMessages/ChatBox render zero visible messages for a blocked, wiped peer even under a stray write",
+          "block confirmation modal (Chakra Modal + useDisclosure, LeaveGroupButton pattern) gates archiveContact behind an explicit confirm; cancel/dismiss leaves archivedAt unchanged and never calls the S3 wipe helper",
+          "handleArchiveToggle's block branch: confirm -> archiveContact -> S3 wipe helper -> block-revision bump; unblock branch: direct unarchiveContact call, no confirmation, no history resurrection",
+          "no kind-0, kind-10000, or any Nostr publish call as an observable side effect of either block or unblock (spy-verified)",
+          "suppress outbound pairing-echo AND card-profile import for a blocked peer: propagate addContactByNpub's blocked:true through processContactInput.ts (no pairingEcho, no profile import) and app/pages/add.tsx (no attemptOrQueuePairingEcho). Enforces DD-2/\u00a77. Files: app/src/lib/processContactInput.ts, app/pages/add.tsx.",
+          "unblock branch of handleArchiveToggle MUST also bump the block-revision counter (notifyBlockedPeersChanged) so the notification-watcher/ContactChat refs refresh \u2014 without it AC-UNBLOCK-3 (post-unblock inbound persists + rings) silently fails (examiner VQ-S1-024).",
+          "ORDER the block action so the gate is live before/atomic with the wipe: setArchived + notifyBlockedPeersChanged (and tear down an open ContactChat's live subs by transitioning to Blocked state) BEFORE/atomic with wipeSinglePeerHistory, so a post-wipe inbound append cannot resurrect the wiped thread (AC-VIEW-14, S3 review sev-4)."
+        ],
+        "excludes": [
+          "the composite gate's own definition and blockedPeers derivation (S1)",
+          "the wipe helper's internals (S3)",
+          "notification-watcher suppression (S2)",
+          "copy text itself (S5) \u2014 this story consumes the new confirm-dialog and relabeled copy keys, it does not author them"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "owning_module": "contacts UI",
+      "creates_seam": false,
+      "lighter_path": false,
+      "consumes_seams": [
+        "BlockedPeersSnapshot",
+        "CompositeDmGate",
+        "HistoryWipeResult"
+      ],
+      "notes": "Owning module label 'contacts UI' groups three architecture.md rows the story necessarily spans as one vertical slice \u2014 'chat view' (ContactChat.tsx), 'contacts page' (contacts.tsx ContactDetailView), and 'profile page' (profile.tsx handleArchiveToggle) \u2014 because the confirm dialog, the block action, and the resulting view transition are one user-observable flow that cannot be split further without breaking independent testability (confirming AC-CONFIRM-2 requires the wipe call chain; the direct-URL route AC-VIEW-7 requires the same banner/gating logic as in-app navigation). No other story claims chat view, contacts page, or profile page. Ordered after S5 in story_order because this story's confirm-dialog copy and relabeled controls consume i18n keys that must already exist. Files: app/src/components/contacts/ContactChat.tsx, app/pages/contacts.tsx, app/pages/profile.tsx, plus a new confirm-dialog component colocated with the existing archive/block action trigger."
+    },
+    {
+      "id": "S5",
+      "name": "relabel-block-copy-i18n",
+      "title": "Relabel copy: Block / Blocked / Unblock (en + de)",
+      "description": "Updates app/src/lib/i18n.ts in both en and de: contacts.archiveAction -> Block contact / Kontakt blockieren, contacts.unarchiveAction -> Unblock contact / Kontakt entsperren, contacts.hiddenBadge -> Blocked / Blockiert, contacts.archivedDetailNotice -> destructive blocked-notice copy distinct from the prior hidden-view wording, the hidden-filter controls (hiddenFilterLabel, hideHiddenOption, showHiddenOption, hiddenOnlyBody) -> 'Blocked contacts' phrasing, and new confirm-dialog copy keys (title, body, confirm-button label, cancel-button label) in both locales.",
+      "acceptance_criteria": [
+        "AC-COPY-1",
+        "AC-COPY-2",
+        "AC-COPY-3",
+        "AC-COPY-4",
+        "AC-COPY-5",
+        "AC-COPY-6"
+      ],
+      "scope": {
+        "includes": [
+          "contacts.archiveAction / contacts.unarchiveAction / contacts.hiddenBadge / contacts.archivedDetailNotice relabeled in en + de",
+          "hiddenFilterLabel / hideHiddenOption / showHiddenOption / hiddenOnlyBody relabeled to 'Blocked contacts' phrasing in en + de",
+          "new confirm-dialog copy keys (title, body, confirm label, cancel label) added to both the en and de Copy objects"
+        ],
+        "excludes": [
+          "consuming these keys in components (S4 wires the confirm dialog and blocked banner to them)",
+          "any code path outside app/src/lib/i18n.ts"
+        ]
+      },
+      "complexity": "low",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "owning_module": "i18n",
+      "creates_seam": false,
+      "lighter_path": false,
+      "consumes_seams": [],
+      "notes": "lighter_path is false despite this being copy-only work: i18n.ts is a .ts file, not a markdown/json/yaml/toml/txt target, so the files_code partition is non-empty per the deterministic AC-STORY-2 rule (a TypeScript object literal of strings still requires reading the file's structure, not a pure-prose edit). Files: app/src/lib/i18n.ts."
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S5",
+    "S4"
+  ],
+  "dependency_notes": "S1 is the foundation (predicate, composite gate assembly point, block-set derivation, block-revision counter, DD-9 guard) and must land first \u2014 S2 and S4 both consume its BlockedPeersSnapshot/CompositeDmGate seam. S2 (inbound notification suppression) and S3 (history wipe helper) are mutually independent and both depend only on S1 (S3 in fact needs nothing from S1 and could be built in parallel with S2, but is sequenced after it for a simpler linear implementation order). S5 (i18n) is independent of all code stories but is sequenced before S4 in story_order because S4's confirm dialog and relabeled controls consume S5's copy keys \u2014 either land i18n first or fold the copy into S4; this epic keeps i18n as its own reviewable story per the spec's suggested split and simply orders it earlier. S4 is last: it is the vertical slice that assembles S1's gate, S3's wipe helper, and S5's copy into the user-visible block/unblock flow, and depends on all four prior stories. Because implementation is sequential (not parallel) per project convention, no story introduces temporary mocks for another \u2014 by the time each story starts, its dependencies have already landed for real.",
+  "mock_resolution_plan": "No temporary mocks are introduced. All five stories are implemented sequentially in story_order, so every consumer story (S2, S4) integrates against the real S1 (and S3, S5 for S4) implementation rather than a stand-in.",
+  "seams": [
+    {
+      "data": "blockedPeers set (ReadonlySet<string> of lowercase-hex pubkeys) plus a block-revision counter, refreshed on every block/unblock action without requiring subscriber unmount/remount",
+      "contract": {
+        "type_name": "BlockedPeersSnapshot",
+        "fields": [
+          {
+            "name": "blockedPeers",
+            "type": "ReadonlySet<string>"
+          },
+          {
+            "name": "revision",
+            "type": "number"
+          }
+        ],
+        "invariants": [
+          "every member of blockedPeers is a lowercase-hex pubkey, regardless of the case of the underlying StoredContact key",
+          "revision strictly increases on every block or unblock action",
+          "a consumer holding a ref to this snapshot observes the post-block value on the very next inbound event without unmounting or remounting"
+        ]
+      },
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/context/MarmotContext.tsx (block revision) + app/src/lib/blockedPeers.ts (derivation)"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/components/DirectMessageNotificationsWatcher.tsx"
+      }
+    },
+    {
+      "data": "composite DM-allow decision (allow AND NOT blocked)",
+      "contract": {
+        "type_name": "CompositeDmGate",
+        "fields": [
+          {
+            "name": "peerHex",
+            "type": "string"
+          },
+          {
+            "name": "groups",
+            "type": "GroupId[]"
+          },
+          {
+            "name": "knownPeers",
+            "type": "ReadonlySet<string>"
+          },
+          {
+            "name": "ownPubkeyHex",
+            "type": "string | null"
+          },
+          {
+            "name": "blockedPeers",
+            "type": "ReadonlySet<string>"
+          }
+        ],
+        "invariants": [
+          "returns false whenever isBlockedPeer(peerHex, blockedPeers) is true, regardless of isAllowedDmSender's result (deny overrides allow)",
+          "isAllowedDmSender's own body is never modified to call isBlockedPeer \u2014 the composite is assembled only at the call site",
+          "evaluated fresh on every inbound/outbound gate check, never cached across a block-revision change"
+        ]
+      },
+      "source": {
+        "story": "S1",
+        "artifact": "call-site composition of app/src/lib/walledGarden.ts#isAllowedDmSender and app/src/lib/blockedPeers.ts#isBlockedPeer"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/components/contacts/ContactChat.tsx ingestion sites + app/pages/contacts.tsx ContactDetailView"
+      }
+    },
+    {
+      "data": "result of the single-peer DM history wipe (thread rows, edit/delete aux state, unread counters)",
+      "contract": {
+        "type_name": "HistoryWipeResult",
+        "fields": [],
+        "invariants": [
+          "never throws out of the block action, even when clearMessages or clearDirectMessageContact rejects (storage-quota failure) \u2014 the caller can rely on archivedAt still being set afterward regardless of wipe outcome",
+          "drains any in-flight appendMessage write for the peer's thread before completing, so the thread key cannot be resurrected by a late-resolving write",
+          "derives its storage key exclusively via directConversationId(peerHex), never a hand-built dm:<peer> string literal"
+        ]
+      },
+      "source": {
+        "story": "S3",
+        "artifact": "app/src/lib/marmot/chatPersistence.ts (wipe helper) + app/src/lib/unreadStore.ts#clearDirectMessageContact"
+      },
+      "intermediaries": [],
+      "destination": {
+        "story": "S4",
+        "artifact": "app/pages/profile.tsx#handleArchiveToggle (block branch)"
+      }
+    }
+  ]
+}

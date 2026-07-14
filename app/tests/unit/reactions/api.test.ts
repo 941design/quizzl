@@ -33,6 +33,7 @@ const {
   applyOptimisticRemoval,
   rollbackOptimistic,
   clearAllReactions,
+  clearDmReactionsForPeer,
 } = await import('@/src/lib/reactions/api');
 
 // ─── storage.ts import (for the integration test at the bottom) ───────────────
@@ -851,6 +852,115 @@ describe('clearAllReactions (AC-14)', () => {
       (k) => typeof k === 'string' && k.startsWith('few:reactions:'),
     );
     expect(remainingReactionKeys).toHaveLength(0);
+  });
+});
+
+describe('clearDmReactionsForPeer (gate-remediation finding 4)', () => {
+  it('deletes exactly the few:reactions:dm:<peer> key for the given peer', async () => {
+    idbStore.set('few:reactions:dm:peer-target', [makeReaction({ id: 'target-1' })]);
+
+    await clearDmReactionsForPeer('peer-target');
+
+    expect(idbStore.has('few:reactions:dm:peer-target')).toBe(false);
+  });
+
+  it('does not touch a different peer\'s DM reaction key', async () => {
+    idbStore.set('few:reactions:dm:peer-target', [makeReaction({ id: 'target-1' })]);
+    idbStore.set('few:reactions:dm:peer-other', [makeReaction({ id: 'other-1' })]);
+
+    await clearDmReactionsForPeer('peer-target');
+
+    expect(idbStore.has('few:reactions:dm:peer-other')).toBe(true);
+  });
+
+  it('does not touch the few:reactions:group: namespace', async () => {
+    idbStore.set('few:reactions:dm:peer-target', [makeReaction({ id: 'target-1' })]);
+    idbStore.set('few:reactions:group:some-group', [makeReaction({ id: 'grp-1' })]);
+
+    await clearDmReactionsForPeer('peer-target');
+
+    expect(idbStore.has('few:reactions:group:some-group')).toBe(true);
+  });
+
+  it('is a no-op (does not throw) when no key exists for the peer', async () => {
+    await expect(clearDmReactionsForPeer('peer-with-no-reactions')).resolves.toBeUndefined();
+  });
+
+  it('evicts the in-memory cache entry — a subsequent loadReactions re-reads from (now-empty) IDB rather than serving a stale cached array', async () => {
+    const thread = { kind: 'dm' as const, peerPubkeyHex: 'peer-target' };
+    // Populate the in-memory cache via the real loadReactions path first.
+    idbStore.set('few:reactions:dm:peer-target', [makeReaction({ id: 'target-1' })]);
+    const before = await loadReactions(thread);
+    expect(before).toHaveLength(1);
+
+    await clearDmReactionsForPeer('peer-target');
+
+    const after = await loadReactions(thread);
+    expect(after).toEqual([]);
+  });
+
+  it('a write that lands before the clear is still gone afterward (drain-then-delete ordering, AC-WIPE-6-equivalent)', async () => {
+    const thread = { kind: 'dm' as const, peerPubkeyHex: 'peer-race' };
+    // A fully-settled write followed by the clear — the straightforward case
+    // the drain-then-delete sequencing exists to generalize beyond. (A true
+    // concurrent-in-flight-write race against this function's own internal
+    // `import('idb-keyval')` is exercised at the `wipeSinglePeerHistory`
+    // call-site level in chatPersistence-wipe.test.ts's AC-WIPE-6 block,
+    // where the surrounding module's STATIC idb-keyval import avoids an
+    // unrelated concurrent-dynamic-import quirk this module's SSR-safe
+    // dynamic import runs into under true same-tick concurrency in this test
+    // harness.)
+    await applyOptimistic(thread, makeReaction({ id: 'settled-row' }));
+    expect(idbStore.has('few:reactions:dm:peer-race')).toBe(true);
+
+    await clearDmReactionsForPeer('peer-race');
+
+    expect(idbStore.has('few:reactions:dm:peer-race')).toBe(false);
+  });
+
+  // Gate-remediation convergence fix (2026-07-14): the reaction WRITE path
+  // (`idbKeyFor`) never normalizes case, so a mixed-case stored contact
+  // pubkeyHex (AC-CORE-6: not guaranteed lowercase) produces a mixed-case
+  // reaction key. The prior implementation deleted only the exact
+  // `peerPubkeyHex.toLowerCase()` key and silently missed this row — this
+  // is the regression test that would have caught it (the tests above all
+  // seed under an already-lowercase key and share that bug's assumption).
+  it('deletes a reaction key stored under a MIXED-CASE peer suffix when called with the lowercase peer (mirrors wipeSinglePeerHistory\'s call pattern)', async () => {
+    idbStore.set('few:reactions:dm:AABBCCDD', [makeReaction({ id: 'mixed-case-1' })]);
+
+    await clearDmReactionsForPeer('aabbccdd');
+
+    expect(idbStore.has('few:reactions:dm:AABBCCDD')).toBe(false);
+  });
+
+  it('deletes a reaction key stored under a mixed-case peer suffix when called with that exact mixed-case value', async () => {
+    idbStore.set('few:reactions:dm:AaBbCcDd', [makeReaction({ id: 'mixed-case-2' })]);
+
+    await clearDmReactionsForPeer('AaBbCcDd');
+
+    expect(idbStore.has('few:reactions:dm:AaBbCcDd')).toBe(false);
+  });
+
+  it('case-insensitive match still leaves a different peer\'s key (any case) untouched', async () => {
+    idbStore.set('few:reactions:dm:AABBCCDD', [makeReaction({ id: 'mixed-case-target' })]);
+    idbStore.set('few:reactions:dm:eeff0011', [makeReaction({ id: 'other-peer' })]);
+
+    await clearDmReactionsForPeer('aabbccdd');
+
+    expect(idbStore.has('few:reactions:dm:AABBCCDD')).toBe(false);
+    expect(idbStore.has('few:reactions:dm:eeff0011')).toBe(true);
+  });
+
+  it('evicts the in-memory cache for a mixed-case-keyed peer — a subsequent loadReactions on the mixed-case thread re-reads from (now-empty) IDB', async () => {
+    const mixedCaseThread = { kind: 'dm' as const, peerPubkeyHex: 'AABBCCDD' };
+    idbStore.set('few:reactions:dm:AABBCCDD', [makeReaction({ id: 'mixed-case-cache' })]);
+    const before = await loadReactions(mixedCaseThread);
+    expect(before).toHaveLength(1);
+
+    await clearDmReactionsForPeer('aabbccdd');
+
+    const after = await loadReactions(mixedCaseThread);
+    expect(after).toEqual([]);
   });
 });
 

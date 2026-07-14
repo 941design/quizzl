@@ -1,0 +1,31 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "completed_at": "2026-07-13T23:50:00Z",
+  "files_created": [
+    "app/tests/unit/chatPersistence-wipe.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/chatPersistence.ts"
+  ],
+  "tests_added": {
+    "unit": 14
+  },
+  "test_counts": {
+    "baseline": 3053,
+    "final": 3067
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "chat persistence"
+  ],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  },
+  "final_outcome": "accepted",
+  "accepted_residuals": [
+    "Test nits: warnSpy asserts called (not called-once) [sev2, accepted]; misleading FIFO test title fixed by lead (boy-scout). Wipe post-race completeness gated on S4 via AC-VIEW-14."
+  ]
+}

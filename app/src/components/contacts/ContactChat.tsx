@@ -4,7 +4,7 @@ import type { EventSigner } from 'applesauce-core';
 import type { MemberProfile } from '@/src/types';
 import ChatBox from '@/src/components/chat/ChatBox';
 import { useMarmot } from '@/src/context/MarmotContext';
-import { isAllowedDmSender } from '@/src/lib/walledGarden';
+import { isAllowedDmSenderComposite, isBlockedPeer, loadBlockedPeers } from '@/src/lib/blockedPeers';
 import { loadKnownPeers } from '@/src/lib/knownPeers';
 import { createLogger } from '@/src/lib/logger';
 import { appendMessage, filterVisibleMessages, loadMessages, removeMessages, type ChatMessage } from '@/src/lib/marmot/chatPersistence';
@@ -168,6 +168,67 @@ export function resolveFreshOriginalFromStorage(
   return stored ?? msg;
 }
 
+/**
+ * S4 test-rigor remediation (AC-VIEW-8..11): the single shared gate decision
+ * every one of ContactChat's 4 DM-ingestion sites (historical kind-4,
+ * historical kind-1059 gift-wrap loop, live kind-4 subscription, live
+ * kind-1059 gift-wrap subscription) evaluates immediately before its persist
+ * call (appendMessage/ingestEvent/applyInboundRumor/upsertMessages). Prior to
+ * this extraction each site duplicated the isSelf-short-circuit-or-composite-gate
+ * check inline — identical logic re-derived 4 times, provable only via source-text
+ * regex. Exporting it as one pure function means every site now calls the
+ * exact same tested decision, and that decision is directly unit-testable
+ * (no jsdom/component mount needed) against the real fixture data each site
+ * would pass it.
+ *
+ * `isSelf` is true only at the two kind-4 sites (a self-authored echo always
+ * bypasses the gate); the two gift-wrap sites have no self-authored inbound
+ * case and always pass `isSelf: false` (unchanged behavior — see the two
+ * call sites below).
+ *
+ * `freshBlockedPeersSnapshot` (gate-remediation perf hoist): the AC-VIEW-14
+ * staleness backstop below needs an authoritative, just-read `loadBlockedPeers()`
+ * result, but reading+parsing localStorage fresh on EVERY call is only cheap
+ * at live-DM cadence. The two LIVE subscription call sites omit this param
+ * (default `undefined`) so they keep reading fresh per-event — that is where
+ * the staleness window this backstop closes actually exists. The two
+ * HISTORICAL batch call sites (which loop over up to hundreds of stored
+ * events at thread-open, all decided within one synchronous pass — no
+ * intervening block/unblock action can occur mid-batch) pass a single
+ * snapshot taken once before the batch, avoiding hundreds of redundant
+ * localStorage reads for a value that cannot change mid-batch.
+ */
+export function shouldIngestDmFromSender(
+  senderPubkeyHex: string,
+  isSelf: boolean,
+  groups: ReadonlyArray<import('@/src/types').Group>,
+  knownPeers: ReadonlySet<string>,
+  blockedPeers: ReadonlySet<string>,
+  ownPubkeyHex: string,
+  freshBlockedPeersSnapshot?: ReadonlySet<string>,
+): boolean {
+  if (isSelf) return true;
+  // AC-VIEW-14 hardening (gate-remediation finding 5): `blockedPeersRef`
+  // (this function's `blockedPeers` param at every call site below) refreshes
+  // in a passive `useEffect` that runs AFTER `notifyBlockedPeersChanged`'s
+  // setState flushes — so a DM decrypted in the narrow window between the
+  // block action's wipe completing and that effect's flush could otherwise
+  // ingest through a stale ref (thread resurrection while blocked). Closed
+  // deterministically here: `archiveContact` has already written
+  // `archivedAt` synchronously, BEFORE the wipe even starts (see
+  // `blockContactAction.ts#performBlockContact`'s statement order), so a
+  // direct `loadBlockedPeers()` read is always current by the time any DM
+  // could possibly be decrypted post-block. This authoritative direct read
+  // is checked in addition to (not instead of) the faster ref-cached
+  // `blockedPeers` set below, which remains the primary/common-case gate.
+  // `freshBlockedPeersSnapshot`, when provided, stands in for that direct
+  // read — see this function's doc comment for why only the historical
+  // batch call sites provide it.
+  const freshBlocked = freshBlockedPeersSnapshot ?? loadBlockedPeers();
+  if (isBlockedPeer(senderPubkeyHex, freshBlocked)) return false;
+  return isAllowedDmSenderComposite(senderPubkeyHex, groups, knownPeers, blockedPeers, ownPubkeyHex);
+}
+
 export default function ContactChat({
   peerPubkeyHex,
   pubkeyHex,
@@ -179,7 +240,7 @@ export default function ContactChat({
 }: ContactChatProps) {
   const copy = useCopy();
   const toast = useToast();
-  const { groups, ready: marmotReady, whenReady, knownPeersRevision } = useMarmot();
+  const { groups, ready: marmotReady, whenReady, knownPeersRevision, blockedPeersRevision } = useMarmot();
   // Ref for groups so subscription handlers always see the latest whitelist
   // without the effect needing to re-subscribe on every membership change.
   const groupsRef = useRef(groups);
@@ -190,6 +251,13 @@ export default function ContactChat({
   // add-contact-by-npub, that doesn't correlate with a groups change).
   const knownPeersRef = useRef(loadKnownPeers());
   useEffect(() => { knownPeersRef.current = loadKnownPeers(); }, [groups, knownPeersRevision]);
+  // Ref for the block set (epic: block-contact, S4 defense-in-depth) — refreshed
+  // only on blockedPeersRevision (a dedicated counter bumped by archiveContact/
+  // unarchiveContact via notifyBlockedPeersChanged), mirroring knownPeersRef's
+  // ref-refresh pattern above but intentionally NOT tied to [groups,
+  // knownPeersRevision] since a block/unblock is its own independent event.
+  const blockedPeersRef = useRef(loadBlockedPeers());
+  useEffect(() => { blockedPeersRef.current = loadBlockedPeers(); }, [blockedPeersRevision]);
   // Track MarmotContext readiness so the historical fetch can wait for the
   // group whitelist to be fully loaded before running the walled-garden gate.
   // Without this, a fast relay (< 100 ms) resolves the historical fetch before
@@ -479,6 +547,18 @@ export default function ContactChat({
           ]);
         }
 
+        // Perf hoist (gate-remediation finding 2): a single fresh
+        // loadBlockedPeers() snapshot for the WHOLE historical batch below
+        // (both the kind-4 loop immediately following and the kind-1059
+        // gift-wrap loop further down) instead of one fresh read per
+        // historical event. Safe because the entire batch below runs as one
+        // synchronous decision pass at thread-open — no block/unblock action
+        // can land mid-batch to make a per-event re-read necessary — unlike
+        // the two LIVE subscription handlers further down, which intentionally
+        // keep reading fresh per event (see shouldIngestDmFromSender's doc
+        // comment).
+        const historicalBlockedPeersSnapshot = loadBlockedPeers();
+
         // Process kind-4 results (existing path — D9a).
         // AC-SEC-6/AC-SEC-8: apply the walled-garden gate to peer-authored historical
         // kind-4 events (the fourth inbound path).  Self-authored outgoing events
@@ -489,7 +569,7 @@ export default function ContactChat({
         ): Promise<ChatMessage | null> => {
           const senderPeer = evt.pubkey.toLowerCase();
           const isSelf = senderPeer === pubkeyHex.toLowerCase();
-          if (!isSelf && !isAllowedDmSender(senderPeer, groupsRef.current, knownPeersRef.current, pubkeyHex)) {
+          if (!shouldIngestDmFromSender(senderPeer, isSelf, groupsRef.current, knownPeersRef.current, blockedPeersRef.current, pubkeyHex, historicalBlockedPeersSnapshot)) {
             dmLogger.info('dm:walled-garden-drop', { pubkey: senderPeer.slice(0, 8), kind: 4 });
             return null;
           }
@@ -555,8 +635,10 @@ export default function ContactChat({
         for (const { rumor } of unwrappedHistorical) {
           if (!shouldIngestRumor(rumor, peerPubkeyHex)) continue;
           // AC-SEC-6: walled-garden gate — in addition to thread isolation.
+          // historicalBlockedPeersSnapshot (perf hoist, see its declaration
+          // above): this loop is part of the same historical batch pass.
           const senderPeer = rumor.pubkey.toLowerCase();
-          if (!isAllowedDmSender(senderPeer, groupsRef.current, knownPeersRef.current, pubkeyHex)) {
+          if (!shouldIngestDmFromSender(senderPeer, false, groupsRef.current, knownPeersRef.current, blockedPeersRef.current, pubkeyHex, historicalBlockedPeersSnapshot)) {
             dmLogger.info('dm:walled-garden-drop', { pubkey: senderPeer.slice(0, 8), kind: rumor.kind });
             continue;
           }
@@ -646,7 +728,7 @@ export default function ContactChat({
           // returns false for own pubkey by design, but own messages are legitimate.
           const senderPeer = evt.pubkey.toLowerCase();
           const isSelf = senderPeer === pubkeyHex.toLowerCase();
-          if (!isSelf && !isAllowedDmSender(senderPeer, groupsRef.current, knownPeersRef.current, pubkeyHex)) {
+          if (!shouldIngestDmFromSender(senderPeer, isSelf, groupsRef.current, knownPeersRef.current, blockedPeersRef.current, pubkeyHex)) {
             dmLogger.info('dm:walled-garden-drop', { pubkey: senderPeer.slice(0, 8), kind: 4 });
             return;
           }
@@ -687,7 +769,7 @@ export default function ContactChat({
               // AC-SEC-6/7: walled-garden gate — runs after thread isolation, before
               // any write path (appendMessage, upsertMessages, applyInboundRumor).
               const rumorSender = rumor.pubkey.toLowerCase();
-              if (!isAllowedDmSender(rumorSender, groupsRef.current, knownPeersRef.current, pubkeyHex)) {
+              if (!shouldIngestDmFromSender(rumorSender, false, groupsRef.current, knownPeersRef.current, blockedPeersRef.current, pubkeyHex)) {
                 dmLogger.info('dm:walled-garden-drop', { pubkey: rumorSender.slice(0, 8), kind: rumor.kind });
                 return;
               }

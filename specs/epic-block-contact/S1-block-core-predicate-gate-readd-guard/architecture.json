@@ -1,0 +1,49 @@
+{
+  "module_name": "block core / blocklist",
+  "purpose": "Pure predicate + block-set derivation over the existing contacts store (lp_contacts_v1, source of truth StoredContact.archivedAt). Supplies the deny half of the composite DM gate that later stories (S2, S4) assemble at their own call sites. Also carries two small, non-competing edits anticipated by architecture.md's own module rows: the DD-9 re-add guard in the contacts module, and a block-revision counter exposed by the context module.",
+  "public_api": [
+    {
+      "name": "isBlockedPeer",
+      "signature": "isBlockedPeer(peerHex: string, blockedPeers: ReadonlySet<string>): boolean",
+      "description": "Pure predicate (AC-CORE-1/AC-CORE-4): true iff peerHex, lowercased, is a member of blockedPeers. No localStorage/IDB/React access in its body. Never called from isAllowedDmSender (DD-8) — the composite `isAllowedDmSender(...) && !isBlockedPeer(...)` is assembled only at call sites in later stories."
+    },
+    {
+      "name": "loadBlockedPeers",
+      "signature": "loadBlockedPeers(): ReadonlySet<string>",
+      "description": "Reader (AC-CORE-2/AC-CORE-6): derives the set of lowercase-hex pubkeys from every StoredContact in readStoredContacts() whose archivedAt is non-null. Defensively lowercase-normalizes every candidate (does not assume readStoredContacts()'s pubkeyHex values are already lowercase)."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": ["app/src/lib/contacts.ts (readStoredContacts, type StoredContact)"],
+  "dependencies_forbidden": [
+    "app/src/lib/walledGarden.ts (must not be imported by or modified in its logic by blockedPeers.ts — composite assembled at call sites, never inside walledGarden.ts or blockedPeers.ts itself)",
+    "any React/component/context import",
+    "any IDB/NDK import"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/blockedPeers.test.ts",
+    "app/tests/unit/contacts-add-by-npub.test.ts",
+    "app/tests/unit/contacts.test.ts",
+    "app/tests/unit/contacts-mutation-gaps.test.ts"
+  ],
+  "notes": {
+    "boundary_check": "Crosses one module boundary: blockedPeers.ts (new module) reads contacts.ts's readStoredContacts() — an allowed edge per architecture.md ('derives block-set from lp_contacts_v1'). No import from directMessageNotifications.ts, ContactChat.tsx, contacts.tsx, or profile.tsx is introduced (those are S2/S4's job to compose the predicate at their own call sites). walledGarden.ts's body and import list are unchanged; blockedPeers.ts does not import walledGarden.ts either — the composite is a call-site expression, not a module dependency.",
+    "seam_1": {
+      "name": "BlockedPeersSnapshot",
+      "contract": "{ blockedPeers: ReadonlySet<string> (lowercase-hex), revision: number (MarmotContext.blockedPeersRevision, strictly increasing on block/unblock) }. Producer: loadBlockedPeers() (this story) + MarmotContext's blockedPeersRevision/notifyBlockedPeersChanged (this story, exposed but not yet wired to a UI action — S4 calls notifyBlockedPeersChanged() after archiveContact/unarchiveContact).",
+      "seam": { "cross_story": true, "consumed_by": ["S2", "S4"] }
+    },
+    "seam_2": {
+      "name": "CompositeDmGate",
+      "contract": "isAllowedDmSender(peerHex, groups, knownPeers, ownPubkeyHex) && !isBlockedPeer(peerHex, blockedPeers) — a call-site expression pattern, not an exported function. Producers of the two halves: walledGarden.ts (unchanged) + blockedPeers.ts (this story).",
+      "seam": { "cross_story": true, "consumed_by": ["S2", "S4"] }
+    },
+    "data_ownership": "blockedPeers.ts owns no storage key of its own — it is a derived read-only view over lp_contacts_v1, owned exclusively by contacts.ts. MarmotContext's blockedPeersRevision is in-memory React state, not persisted, non-overlapping with any other module's owned data. Both are consistent with architecture.md's explicit framing: block is a cross-cutting deny layer, not a module owning a new data store (DD-1).",
+    "paradigm_compliance": "Modular monolith, package-by-feature — complies. isAllowedDmSender's body and imports remain byte-for-byte unchanged (verified by grep in Step 6/Regression Prevention). The DD-9 guard removal and the MarmotContext revision counter are single edits inside the contacts and context modules' own declared rows in architecture.md's module map, not cross-module reach-ins.",
+    "revision_counter_design_choice": "Added a SEPARATE blockedPeersRevision/notifyBlockedPeersChanged pair (mirroring knownPeersRevision/notifyKnownPeersChanged byte-for-byte) rather than overloading knownPeersRevision. Rationale: knownPeersRevision's contract is specifically 'lp_knownPeers_v1 changed out-of-band'; block/unblock does not touch lp_knownPeers_v1, so bumping knownPeersRevision on a block would be a semantic lie a future maintainer could rely on incorrectly (e.g. assuming a knownPeersRevision bump always means loadKnownPeers() has fresh data). A dedicated counter keeps each producer's contract honest, at the cost of one more field threaded through S2/S4's ref-refresh dependency arrays — judged worth it for correctness over the minor duplication."
+  }
+}

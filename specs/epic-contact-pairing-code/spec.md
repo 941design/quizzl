@@ -254,6 +254,16 @@ sig (64 bytes)       signature per RD-4 (covers header + nonce + expires_at; not
 - New identity tier / key rotation.
 - **No npub-copy UI** (RD-1). **No reciprocation consent notice** (RD-3).
 
+## Constrained by ADRs
+
+- **ADR-008** — Block is a deny layer AND-ed at every peer-signal channel, keyed on
+  `archivedAt`. The pairing-ack issuer push (Step 10/11 of the pairing-ack subscription
+  below) and the pending pairing-echo drain (`pendingIntent.ts`) both emit an outbound
+  signal to the pairing peer and were found to leak that signal to a blocked peer
+  post-epic (`epic-block-contact` amendments, AC-PRIV-4/AC-PRIV-5); any future change to
+  those paths must keep composing the block deny-gate, not just the walled-garden allow
+  check.
+
 ## Technical Approach (affected files)
 
 - `app/src/lib/contactCard.ts` — v2 codec (nonce/expiry, RD-4 signature), strict parser.

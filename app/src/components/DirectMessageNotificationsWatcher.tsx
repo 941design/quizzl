@@ -3,12 +3,12 @@ import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { initDirectMessageCounts } from '@/src/lib/unreadStore';
 import { readStoredContacts } from '@/src/lib/contacts';
 import { useMarmot } from '@/src/context/MarmotContext';
-import { isAllowedDmSender } from '@/src/lib/walledGarden';
+import { isAllowedDmSenderComposite, loadBlockedPeers } from '@/src/lib/blockedPeers';
 import { loadKnownPeers } from '@/src/lib/knownPeers';
 
 export default function DirectMessageNotificationsWatcher() {
   const { hydrated, pubkeyHex, privateKeyHex } = useNostrIdentity();
-  const { groups, knownPeersRevision } = useMarmot();
+  const { groups, knownPeersRevision, blockedPeersRevision } = useMarmot();
 
   // Live ref keeps the gate current without recreating the subscription on
   // every group membership change. Pattern matches ContactChat.tsx groupsRef.
@@ -20,6 +20,16 @@ export default function DirectMessageNotificationsWatcher() {
   // that doesn't correlate with a groups change).
   const knownPeersRef = useRef(loadKnownPeers());
   useEffect(() => { knownPeersRef.current = loadKnownPeers(); }, [groups, knownPeersRevision]);
+  // Block-set ref (epic: block-contact, S2) — refreshed whenever groups/knownPeers
+  // would refresh (the same out-of-band triggers) OR when blockedPeersRevision
+  // bumps (an archiveContact/unarchiveContact call, S1's dedicated counter — kept
+  // separate from knownPeersRevision per MarmotContext's own doc). A peer blocked
+  // while this watcher is already mounted is picked up on the very next inbound
+  // event via this ref, with NO subscription teardown/rebuild (AC-INBOUND-3).
+  const blockedPeersRef = useRef(loadBlockedPeers());
+  useEffect(() => {
+    blockedPeersRef.current = loadBlockedPeers();
+  }, [groups, knownPeersRevision, blockedPeersRevision]);
 
   useEffect(() => {
     if (!hydrated || !pubkeyHex || !privateKeyHex) return;
@@ -46,12 +56,20 @@ export default function DirectMessageNotificationsWatcher() {
         );
         // groupsRef.current is always up-to-date: the separate effect above
         // keeps it in sync with the latest groups array without triggering a
-        // subscription teardown/rebuild on every membership change.
+        // subscription teardown/rebuild on every membership change. Same
+        // pattern for blockedPeersRef (epic: block-contact, S2) — the composite
+        // gate re-reads the live ref on every inbound event.
         unsubscribe = subscribeDirectMessageNotifications({
           ndk,
           ownPubkeyHex: ownPubkey,
           privateKeyHex,
-          isAllowedSender: (peer) => isAllowedDmSender(peer, groupsRef.current, knownPeersRef.current, ownPubkey),
+          isAllowedSender: (peer) => isAllowedDmSenderComposite(
+            peer,
+            groupsRef.current,
+            knownPeersRef.current,
+            blockedPeersRef.current,
+            ownPubkey,
+          ),
         });
       } catch (err) {
         console.warn('[DMNotifications] subscribe failed:', err);

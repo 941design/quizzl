@@ -84,11 +84,19 @@ function clearLocalUserProfile(): void {
 // stores — lets tests assert exact call order (AC-ADMIT-1) and exact
 // dedup/idempotency behavior (AC-ACK-3) without jsdom.
 
-const { knownPeersState, rememberKnownPeersCalls, rememberContactCalls, callOrder } = vi.hoisted(() => ({
+const { knownPeersState, rememberKnownPeersCalls, rememberContactCalls, callOrder, contactsState } = vi.hoisted(() => ({
   knownPeersState: new Set<string>(),
   rememberKnownPeersCalls: [] as string[][],
   rememberContactCalls: [] as string[],
   callOrder: [] as Array<'knownPeers' | 'contact'>,
+  // Gate-remediation finding 1: `@/src/lib/contacts` is mocked wholesale
+  // below, which would otherwise leave `readStoredContacts` undefined —
+  // `blockedPeers.ts#loadBlockedPeers()` (now called from handlePairingAck)
+  // imports exactly that export. Tracked state here stands in for
+  // `lp_contacts_v1`, mirroring `rememberContact`'s real archivedAt-preserving
+  // upsert semantics closely enough for these tests, and lets a test seed a
+  // sender as already-blocked (archivedAt set) BEFORE a pairing-ack arrives.
+  contactsState: {} as Record<string, { pubkeyHex: string; firstSeenAt: string; lastSeenAt: string; archivedAt: string | null }>,
 }));
 
 vi.mock('@/src/lib/knownPeers', () => ({
@@ -103,7 +111,15 @@ vi.mock('@/src/lib/contacts', () => ({
   rememberContact: (hex: string) => {
     rememberContactCalls.push(hex);
     callOrder.push('contact');
+    // Mirrors contacts.ts#rememberContact's real archivedAt-preserving upsert
+    // (Step 9's comment: "correctly PRESERVES their archivedAt").
+    const existing = contactsState[hex];
+    const seenAt = new Date().toISOString();
+    contactsState[hex] = existing
+      ? { ...existing, lastSeenAt: seenAt }
+      : { pubkeyHex: hex, firstSeenAt: seenAt, lastSeenAt: seenAt, archivedAt: null };
   },
+  readStoredContacts: () => contactsState,
 }));
 
 import * as directMessagesModule from '@/src/lib/directMessages';
@@ -172,6 +188,7 @@ beforeEach(async () => {
   rememberKnownPeersCalls.length = 0;
   rememberContactCalls.length = 0;
   callOrder.length = 0;
+  for (const key of Object.keys(contactsState)) delete contactsState[key];
   await clearAllNonces();
   _resetActiveNonceForTests();
   _resetPairingAckAdmissionsForTests();
@@ -1161,5 +1178,85 @@ describe('handlePairingAck — §10.1 name-drop fix (AC-CARD-1)', () => {
     const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 });
     expect(result.status).toBe('nonce-inadmissible');
     expect(readContactEntry(scanner.pubHex)).toBeUndefined();
+  });
+});
+
+// ── Gate-remediation finding 1 (2026-07-14): blocked-sender privacy gate ────
+// Outbound signals (profile-announce, name-cache write) fired from Steps
+// 10/11 of a fresh admission must never reach a sender who is already a
+// blocked peer (StoredContact.archivedAt set) — spec §7 "blocked peer
+// receives no signal", DD-2 "full cut-off, both directions". Admission
+// itself (Step 9, ADR-005 ordering) is unaffected either way — nonce
+// possession alone is the pre-existing re-admission decision, and Step 9
+// deliberately preserves archivedAt rather than clearing it.
+
+describe('handlePairingAck — privacy gate for a blocked re-pairing sender (gate-remediation finding 1)', () => {
+  it('admits a re-pairing sender who is already blocked (keeps archivedAt), but sends NO profile-announce and caches NO name', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Blocked-Bob');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    // Seed the sender as an already-blocked contact (as if the issuer had
+    // previously added, then blocked, this peer).
+    const blockedAt = new Date('2026-01-01T00:00:00.000Z').toISOString();
+    contactsState[scanner.pubHex] = {
+      pubkeyHex: scanner.pubHex,
+      firstSeenAt: blockedAt,
+      lastSeenAt: blockedAt,
+      archivedAt: blockedAt,
+    };
+
+    setLocalUserProfile({ nickname: 'Alice', avatar: null });
+    const publishSpy = vi.spyOn(NDKEvent.prototype, 'publish').mockResolvedValue(new Set() as never);
+
+    // opts.ndk provided so, absent the fix, Step 10 WOULD attempt a publish.
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5, ndk: {} as never });
+
+    // Admission (Step 9) is unaffected — the re-pairing sender is still
+    // admitted, and rememberKnownPeers/rememberContact both still ran.
+    expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
+    expect(rememberKnownPeersCalls).toEqual([[scanner.pubHex]]);
+    expect(rememberContactCalls).toEqual([scanner.pubHex]);
+    // archivedAt is PRESERVED, never cleared by admission.
+    expect(contactsState[scanner.pubHex].archivedAt).toBe(blockedAt);
+
+    // Step 10: no outbound gift-wrapped profile-announce to the blocked sender.
+    expect(publishSpy).not.toHaveBeenCalled();
+
+    // Step 11: no name/avatar persisted into contactCache from this sender.
+    expect(readContactEntry(scanner.pubHex)).toBeUndefined();
+  });
+
+  it('control: an UNBLOCKED re-pairing sender is unaffected by the new gate — announce fires and the name is cached, exactly as before', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Unblocked-Carol');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    setLocalUserProfile({ nickname: 'Alice', avatar: null });
+    const published: NDKEvent[] = [];
+    vi.spyOn(NDKEvent.prototype, 'publish').mockImplementation(async function (this: NDKEvent) {
+      published.push(this);
+      return new Set() as never;
+    });
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5, ndk: {} as never });
+
+    expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
+    expect(published).toHaveLength(1);
+    expect(readContactEntry(scanner.pubHex)?.nickname).toBe('Unblocked-Carol');
   });
 });

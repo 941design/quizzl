@@ -1,0 +1,104 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-13T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S5-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Are the six relabeled copy keys and the four new confirm-dialog keys real distinct string values in both `en` and `de`, not placeholder/TODO text, not a copy-pasted duplicate of the prior 'hidden'/'archive' wording with only a key rename, and not identical en/de values (which would indicate the `de` object was never actually translated)? Run `grep -n 'TODO\\|FIXME\\|XXX' app/src/lib/i18n.ts` scoped to the touched keys — it MUST return no matches — and diff each touched `en` value against its `de` counterpart to confirm they are not byte-identical."
+    },
+    {
+      "question_id": "VQ-S5-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does this story's diff touch only `app/src/lib/i18n.ts` (the 'i18n' module), with zero changes to any component that consumes these keys (`ContactChat.tsx`, `contacts.tsx`, `profile.tsx`) — consumption is explicitly S4's responsibility? Run `git diff --stat` for this story's commit(s) and confirm `app/src/lib/i18n.ts` is the only production file listed."
+    },
+    {
+      "question_id": "VQ-S5-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the 'i18n' module (`app/src/lib/i18n.ts`) be deleted and rewritten without modifying any file outside its dependencies_allowed list — i.e. do all six existing keys plus the four new confirm-dialog keys added by this story require zero change to any `Copy` type consumer beyond adding the new key names, since consumption is deferred to S4? If a consumer file needs a change beyond calling `useCopy()` with the new/renamed key names, identify it."
+    },
+    {
+      "question_id": "VQ-S5-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does a direct assertion against the `Copy` object (per-locale, per-key) exist for each of AC-COPY-1 through AC-COPY-6 — six separate assertions, not one composite snapshot test — verifying the exact expected `en` and `de` string values (or, for AC-COPY-4/AC-COPY-6 where exact wording is not pinned by the AC, verifying the value is present, non-empty, and distinct from the prior wording)? List the specific test names for each AC."
+    },
+    {
+      "question_id": "VQ-S5-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does this story's diff limit itself to the copy relabeling and new confirm-dialog keys described in its scope, with no new key added that isn't consumed by a named AC or by S4's confirm-dialog/blocked-banner wiring, and no existing unrelated key altered as a side effect? Enumerate every key added or changed in this story's diff and map each to the AC or S4 consumption point it serves."
+    },
+    {
+      "question_id": "VQ-S5-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Do the new confirm-dialog copy keys (title, body, confirm-button label, cancel-button label) follow the existing `Copy` type's naming and nesting conventions (e.g. co-located under a `contacts` or dedicated `blockConfirm`-style namespace matching how `hiddenFilterLabel`/`hideHiddenOption` are already grouped), rather than being appended as ungrouped top-level keys that would be awkward for S4 to discover via `useCopy()`? Show the exact key path added for each of the four new keys."
+    },
+    {
+      "question_id": "VQ-S5-007",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `git diff --stat` for this story's commit(s) touch only `app/src/lib/i18n.ts` (plus any i18n test file, e.g. `app/tests/unit/i18n.test.ts` if one is added) or files already listed in `specs/epic-block-contact/epic-state.json#pre_existing_dirty_files`? Any other file appearing in the diff is a scope-boundary violation."
+    },
+    {
+      "question_id": "VQ-S5-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-COPY-1",
+      "question": "Does `copy.contacts.archiveAction` resolve to exactly `\"Block contact\"` in `en` and `\"Kontakt blockieren\"` in `de`, replacing the prior `\"Hide contact\"` / `\"Kontakt ausblenden\"` strings? Provide the exact before/after key values for both locales."
+    },
+    {
+      "question_id": "VQ-S5-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-COPY-2",
+      "question": "Does `copy.contacts.unarchiveAction` resolve to exactly `\"Unblock contact\"` in `en` and `\"Kontakt entsperren\"` in `de`, replacing the prior `\"Unarchive contact\"` / `\"Kontakt wieder einblenden\"` strings? Provide the exact before/after key values for both locales."
+    },
+    {
+      "question_id": "VQ-S5-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-COPY-3",
+      "question": "Does `copy.contacts.hiddenBadge` resolve to exactly `\"Blocked\"` in `en` and `\"Blockiert\"` in `de`, replacing the prior `\"Hidden\"` / `\"Versteckt\"` strings? Provide the exact before/after key values for both locales."
+    },
+    {
+      "question_id": "VQ-S5-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-COPY-4",
+      "question": "Does `copy.contacts.archivedDetailNotice` resolve to destructive-blocked-notice copy in both `en` and `de` that is distinct from the prior 'hidden from the default list view' wording in either language? Provide the new value for both locales and a diff proving neither matches the prior string."
+    },
+    {
+      "question_id": "VQ-S5-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-COPY-5",
+      "question": "Do `copy.contacts.hiddenFilterLabel`, `hideHiddenOption`, `showHiddenOption`, and `hiddenOnlyBody` all use 'Blocked contacts' phrasing in `en` and the corresponding German phrasing in `de`, replacing the prior 'Hidden contacts' wording in both languages? Provide the before/after values for all four keys in both locales — sixteen total value comparisons."
+    },
+    {
+      "question_id": "VQ-S5-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-COPY-6",
+      "question": "Are new confirm-dialog copy keys (title, body, confirm-button label, cancel-button label) present in both the `en` and `de` `Copy` objects, non-empty, and structured so that no hardcoded user-visible string needs to appear in the confirm-dialog component S4 will build? Provide all four key paths and their `en`/`de` values, and confirm the `Copy` TypeScript type requires these keys (so a missing translation in either locale is a type error, not a silent runtime gap)."
+    },
+    {
+      "question_id": "VQ-S5-014",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-COPY-1",
+      "question": "AC-COPY-1/AC-COPY-2 (and pre-impl VQ-S5-008/VQ-S5-009) name `copy.contacts.archiveAction`/`unarchiveAction`, but grep of `app/src/lib/i18n.ts` before this story's edit shows no such keys ever existed under `contacts` — the only archiveAction/unarchiveAction pair in the file lives under `profile`, and `app/pages/profile.tsx:752` is the sole call site (`contact.isArchived ? copy.profile.unarchiveAction : copy.profile.archiveAction`). Given this, was relabeling `copy.profile.archiveAction`/`copy.profile.unarchiveAction` (rather than inventing an unconsumed `copy.contacts.archiveAction`/`unarchiveAction` pair) the correct reconciliation of the AC's intent against the actual UI surface? Verify no 'Hide contact'/'Unarchive contact'/'Kontakt ausblenden'/'Kontakt wieder einblenden' text remains reachable from any page after this change."
+    },
+    {
+      "question_id": "VQ-S5-015",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/blockCopy.i18n.test.ts` assert against `copy.profile.archiveAction`/`unarchiveAction` (the actual reconciled keys, see VQ-S5-014) rather than a non-existent `copy.contacts.archiveAction`/`unarchiveAction`, and does it cover all six AC-COPY IDs (AC-COPY-1 through AC-COPY-6) with a dedicated assertion block each, per VQ-S5-004's requirement of six separate assertions rather than one composite snapshot?"
+    }
+  ]
+}

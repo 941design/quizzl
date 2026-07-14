@@ -1,0 +1,222 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-13T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the Blocked-state gating a real conditional render/guard evaluated per-affordance, or a single coarse flag that happens to hide the composer visually while leaving the underlying handlers (`sendMessage`, `sendImageMessage`, `handlePaste`, `handleDrop`, `handleReact`) still wired and callable (e.g. via a hidden-but-mounted component, a keyboard shortcut, or a stale event listener)? For each of the five send affordances, provide evidence the handler itself is unreachable (not merely visually hidden) when blocked \u2014 e.g. the component tree omits the handler's event binding entirely rather than rendering `display:none`."
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does this story's diff stay within the 'contacts UI' vertical slice this story deliberately spans (`ContactChat.tsx` chat view, `contacts.tsx` ContactDetailView / contacts page, `profile.tsx` handleArchiveToggle / profile page, plus the new confirm-dialog component), consuming S1's `CompositeDmGate`/`BlockedPeersSnapshot` and S3's `HistoryWipeResult` only through their declared seam entry points (never reaching into `blockedPeers.ts` or `chatPersistence.ts` internals)? Run `grep -n '^import' app/src/components/contacts/ContactChat.tsx app/pages/contacts.tsx app/pages/profile.tsx` and confirm every cross-module import resolves to an exported seam function, not an internal helper."
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could 'contacts UI' (ContactChat.tsx, contacts.tsx ContactDetailView, profile.tsx handleArchiveToggle) be deleted and rewritten without modifying any file outside its dependencies_allowed list \u2014 i.e. without changing `blockedPeers.ts`, `walledGarden.ts`, `directMessageNotifications.ts`, `chatPersistence.ts`, or `i18n.ts`'s internals, consuming each only via its exported seam surface? If rewriting this slice would require editing any of those files beyond adding/removing a call to an already-exported function, identify the cross-module dependency and whether it flows through a declared seam contract in architecture.md."
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does the test suite for this story cover, as separate test cases (not one combined assertion): the Blocked banner replacing the composer (AC-VIEW-1), each of the five send-affordance gates individually (AC-VIEW-2 through AC-VIEW-6), the direct-URL first-render case (AC-VIEW-7), each of the four defensive-ingestion sites individually (AC-VIEW-8 through AC-VIEW-11), the post-wipe zero-message render (AC-VIEW-12), the confirm-dialog open/confirm/cancel paths (AC-CONFIRM-1, AC-CONFIRM-2), the unblock no-confirm/no-resurrection paths (AC-UNBLOCK-2, AC-UNBLOCK-4), and the publish-spy privacy checks (AC-PRIV-1 through AC-PRIV-3)? List the specific test file(s) and test names covering each named AC."
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does `handleArchiveToggle`'s block branch sequence strictly as confirm -> `archiveContact` -> S3's wipe helper -> block-revision bump, and its unblock branch as a direct `unarchiveContact` call with no confirmation step and no history resurrection \u2014 matching architecture.md's 'Block action -> history wipe + revision bump' seam and DD-6/DD-11? Provide the exact branch code for both paths and a test asserting the block-branch call order via a spy that records invocation sequence, not just that all four calls eventually happened."
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Across every one of the four defensive-ingestion sites (historical kind-4, historical kind-1059, live kind-4, live kind-1059) and history render (loadMessages/filterVisibleMessages/ChatBox), is the composite gate re-applied independently at each site \u2014 rather than relying on a single upstream check that could be bypassed if `ContactChat` is ever mounted for a blocked peer by a future code path? Provide, for each of the four sites plus history render, the specific line(s) invoking the composite gate and a test that forces the component to mount for a blocked peer (bypassing the normal ContactDetailView guard) and asserts no message from that peer is persisted or rendered at any of the five sites."
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `git diff --stat` for this story's commit(s) touch only files inside this story's declared scope (`app/src/components/contacts/ContactChat.tsx`, `app/pages/contacts.tsx`, `app/pages/profile.tsx`, the new confirm-dialog component and its test(s)) or files already listed in `specs/epic-block-contact/epic-state.json#pre_existing_dirty_files`? Any other file appearing in the diff \u2014 including any edit to `app/src/lib/i18n.ts` beyond consuming S5's already-landed keys \u2014 is a scope-boundary violation."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-1",
+      "question": "Does `ContactDetailView` render a Blocked banner (mirroring `contact-archived-alert`, DD-10) in place of `ContactChat`'s composer for a contact with `archivedAt != null`, with the composer's text input, send button, and image-attachment button absent from the rendered output? Provide a rendered-output assertion (query for composer elements) showing zero matches when blocked and at least one match when not blocked."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-2",
+      "question": "Send affordance 1/5 (text): while a contact is blocked, does no interaction with the (absent) composer's text input or send button result in `sendMessage` being invoked, and is no new kind-14/kind-1059 DM event published to that peer? Provide a test that attempts to invoke the send path programmatically (bypassing the missing UI) and asserts `sendMessage`/the publish spy record zero calls."
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-3",
+      "question": "Send affordance 2/5 (image/attachment): while a contact is blocked, is the image/attachment button unreachable in the rendered view, is `sendImageMessage` non-invocable, and is no image-attachment event published? Provide a test asserting the button is absent from the rendered tree and that a direct call attempt to the underlying handler is guarded (returns without publishing)."
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-4",
+      "question": "Send affordance 3/5 (paste-to-send): while a contact is blocked, does a paste event targeting the contact detail view fail to invoke `handlePaste`'s send path, with no image message published as a result? Provide a test dispatching a paste event with an image payload against the blocked view and asserting no publish call occurs."
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-5",
+      "question": "Send affordance 4/5 (drag-and-drop): while a contact is blocked, does a drop event targeting the contact detail view fail to invoke `handleDrop`'s send path, with no image message published as a result? Provide a test dispatching a drop event with a file payload against the blocked view and asserting no publish call occurs."
+    },
+    {
+      "question_id": "VQ-S4-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-6",
+      "question": "Send affordance 5/5 (reactions): while a contact is blocked, is no reaction affordance (`EmojiReactionPicker`, `ReactionBadgeRow`) rendered, and is `handleReact` non-invocable from the rendered view? Provide a test asserting both components are absent from the rendered tree and a direct invocation attempt on `handleReact` is guarded."
+    },
+    {
+      "question_id": "VQ-S4-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-7",
+      "question": "Does navigating directly to `/contacts?id=<blockedPeerHex>` (no prior in-app navigation) render the same Blocked state as AC-VIEW-1 on first render, with the composer and all five send affordances absent immediately rather than only after a subsequent re-render? Provide a test that mounts the page fresh at that query-param URL (simulating a hard reload / direct-URL entry, per the project's static-export query-param convention) and asserts the Blocked banner and absent affordances on the very first render pass, with no flash-of-composer frame."
+    },
+    {
+      "question_id": "VQ-S4-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-8",
+      "question": "Defensive ingestion site 1/4 (historical kind-4): does `ContactChat`'s historical kind-4 ingestion handler skip calling `ingestEvent` when the composite gate rejects the sender, even if `ContactChat` is somehow mounted for a blocked peer? Provide the guard code at this specific site and a test that forces the mount and delivers a historical kind-4 fixture from a blocked sender, asserting `ingestEvent` records zero calls."
+    },
+    {
+      "question_id": "VQ-S4-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-9",
+      "question": "Defensive ingestion site 2/4 (historical kind-1059): does the same non-persistence hold for `ContactChat`'s historical gift-wrap ingestion handler \u2014 a rumor from a peer the composite gate rejects is not applied via `applyInboundRumor`/`upsertMessages`? Provide the guard code at this specific site and a test symmetric to AC-VIEW-8's using a gift-wrapped historical fixture."
+    },
+    {
+      "question_id": "VQ-S4-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-10",
+      "question": "Defensive ingestion site 3/4 (live kind-4): does the same non-persistence hold for `ContactChat`'s live kind-4 subscription handler? Provide the guard code at this specific site and a test delivering a live kind-4 fixture from a blocked sender while mounted, asserting no persistence call fires."
+    },
+    {
+      "question_id": "VQ-S4-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-11",
+      "question": "Defensive ingestion site 4/4 (live kind-1059): does the same non-persistence hold for `ContactChat`'s live gift-wrap subscription handler? Provide the guard code at this specific site and a test delivering a live gift-wrapped rumor from a blocked sender while mounted, asserting no persistence call fires."
+    },
+    {
+      "question_id": "VQ-S4-019",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-VIEW-12",
+      "question": "After a contact is blocked and its history wiped (AC-WIPE-1), do `loadMessages`/`filterVisibleMessages` for that peer return zero visible messages, and does `ChatBox` render no message rows for that peer even if a stray write occurs (e.g. a late-resolving in-flight write per AC-WIPE-6)? Provide a test that blocks a peer, forces a stray post-block write attempt, and asserts the rendered message list is empty."
+    },
+    {
+      "question_id": "VQ-S4-020",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CONFIRM-1",
+      "question": "Does clicking the block action button open a confirmation modal (Chakra `Modal` + `useDisclosure`, mirroring `LeaveGroupButton`'s destructive pattern, DD-11) before `archiveContact` is called, with `archiveContact` not invoked as a direct result of the initial click alone? Provide a test that clicks the block button and asserts `archiveContact` records zero calls until the modal's confirm control is separately activated."
+    },
+    {
+      "question_id": "VQ-S4-021",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CONFIRM-2",
+      "question": "Does confirming the modal's destructive confirm button invoke `archiveContact`, then the history wipe (AC-WIPE-1, AC-WIPE-2), then the block-revision bump, in that order \u2014 and does cancelling/dismissing the modal leave `archivedAt` unchanged with `clearMessages`/`clearDirectMessageContact` never invoked? Provide two tests: one for the confirm path asserting the ordered call sequence, one for the cancel/dismiss path asserting zero calls to any of the three."
+    },
+    {
+      "question_id": "VQ-S4-022",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UNBLOCK-2",
+      "question": "Does unblock avoid re-fetching, restoring, or resurrecting any message deleted at block time, such that `loadMessages` for that peer returns an empty thread until a new message is sent or received? Provide a test that blocks a peer (wiping history), unblocks it, and asserts `loadMessages` returns an empty array immediately after unblock, before any new message arrives."
+    },
+    {
+      "question_id": "VQ-S4-023",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UNBLOCK-4",
+      "question": "Does clicking Unblock call `unarchiveContact` directly with no intermediate confirm step, per DD-6? Provide a test that clicks Unblock and asserts `unarchiveContact` is called synchronously with no modal/dialog rendered in between."
+    },
+    {
+      "question_id": "VQ-S4-024",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PRIV-1",
+      "question": "Does blocking a contact record zero kind-0 publishes on an attached publish-call spy? Provide a test that attaches a spy to the app's publish path (e.g. `window.__fewPublishDm` equivalent for kind-0, or the underlying NDK publish call), performs a block action, and asserts zero kind-0 events were passed to it."
+    },
+    {
+      "question_id": "VQ-S4-025",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PRIV-2",
+      "question": "Does neither blocking nor unblocking a contact record any kind-10000 (NIP-51 mute list) publish on an attached publish-call spy? Provide a test performing both a block and an unblock action with the spy attached across both, asserting zero kind-10000 events in either."
+    },
+    {
+      "question_id": "VQ-S4-026",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PRIV-3",
+      "question": "Does neither block nor unblock publish any Nostr event of any kind to any relay, with the only observable side effects being `localStorage` writes to `lp_contacts_v1` and local idb-keyval deletions (per AC-WIPE-1, AC-WIPE-2)? Provide a test with a publish-call spy attached across both actions asserting zero total calls, plus an enumeration of the actual observed side effects (localStorage diff, idb-keyval diff) confirming they match only the expected contacts-store and history-wipe writes \u2014 this is the epic's hard, non-negotiable privacy invariant (CLAUDE.md) and must be evidenced with a real spy on the actual publish call path, not a mocked-away publish function that could never have fired regardless of the implementation."
+    },
+    {
+      "question_id": "VQ-S4-027",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does blocking suppress the outbound pairing-echo AND card-profile import for a blocked peer? Verify: addContactByNpub returns blocked:true on the archived-match branch; processContactInput does NOT import the card profile and does NOT produce a pairingEcho for a blocked peer; add.tsx does NOT dispatch attemptOrQueuePairingEcho; a publish spy records zero outbound events toward the blocked peer; archivedAt stays set. (DD-2/\u00a77; Opus+Codex P1 finding.)",
+      "ac_id": "AC-VIEW-13"
+    },
+    {
+      "question_id": "VQ-S4-028",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the block action order operations so a post-wipe inbound DM cannot resurrect the wiped thread? Verify: archivedAt set + notifyBlockedPeersChanged bumped (and open ContactChat transitioned to Blocked, tearing down live subs) before/atomic with wipeSinglePeerHistory; an integration/e2e test races an inbound message against the block and asserts few:messages:dm:<peer> is absent after settle. (S3 review sev-4.)",
+      "ac_id": "AC-VIEW-14"
+    },
+    {
+      "question_id": "VQ-S4-029",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-VIEW-14",
+      "question": "The e2e AC-VIEW-14 test in dm-block-contact.spec.ts does not construct a literal same-tick race against a MOUNTED ContactChat (architecturally impossible in a single tab/session here: the block trigger lives only on /profile, a different Next.js route from /contacts?id=<peer>, so navigating to the block trigger already unmounts any open ContactChat before the block can be clicked). Instead it proves the AC's stated OUTCOME — a DM sent concurrently with the confirm click never resurrects `few:messages:dm:<peer>` after settle — via Promise.all([confirm-click, sendDm]) with no live ContactChat mounted for the peer at all. Is this a faithful verification of AC-VIEW-14's guarantee, or does it leave a genuine gap for the literal 'ContactChat mounted while its own peer is being blocked' scenario the AC's prose also describes (e.g. via a future UI that adds a block trigger reachable from the chat view itself, or a cross-tab/cross-window scenario sharing the same origin's localStorage/IDB)?"
+    },
+    {
+      "question_id": "VQ-S4-030",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-VIEW-14",
+      "question": "contacts.tsx's ContactDetailView adds `blockedPeersRevision` (from useMarmot()) to the dependency array of the `contact` useMemo, so ContactChat unmounts (via React's own reconciliation) the moment a block/unblock bumps the revision, REGARDLESS of what triggered the bump. This is the mechanism satisfying AC-VIEW-14's 'if ContactChat is mounted, transition it to Blocked, tearing down its live subscriptions' clause, without ContactChat itself needing any teardown-on-block logic. Does this generic, revision-driven swap correctly handle the case where blockedPeersRevision bumps for a DIFFERENT reason unrelated to this specific peer (e.g. some other contact was blocked/unblocked elsewhere in the same session) — i.e. does re-deriving `contact` via `getContact` on every revision bump (not just ones affecting THIS peer) introduce any correctness or performance concern (extra localStorage reads on every unrelated block/unblock in the session)?"
+    },
+    {
+      "question_id": "VQ-S4-031",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "Chakra UI's <Modal> component does not forward `data-testid` to any DOM node (it is a portal wrapper) — a `data-testid` placed on <Modal> itself, rather than on <ModalContent>, silently never appears in the rendered DOM. This was caught and fixed in BlockContactButton.tsx (this story's own new component) via an e2e test failure during this story's own verification pass. The EXISTING, pre-this-story `LeaveGroupButton.tsx` (app/src/components/groups/LeaveGroupButton.tsx, out of this story's scope.includes) has the IDENTICAL bug: `data-testid=\"leave-group-modal\"` is placed on its <Modal>, not on <ModalContent>, and grepping app/tests/e2e/*.spec.ts confirms no e2e spec anywhere queries `leave-group-modal` — the testid has apparently never been exercised by any test since it was authored. Should this pre-existing, adjacent bug in a file outside S4's scope be raised as a BACKLOG finding for a follow-up fix, given it was discovered as a direct byproduct of this story's implementation work?"
+    },
+    {
+      "question_id": "VQ-S4-032",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "BlockContactButton.tsx is reused verbatim at two call sites — profile.tsx (block-or-unblock trigger, isArchived driven by contact.isArchived) and contacts.tsx's ContactDetailView Blocked banner (unblock-only usage, always isArchived=true). Both call sites pass `onChanged` callbacks that merely bump a local re-derive signal (profile.tsx's `version` state, contacts.tsx's blockedPeersRevision-driven useMemo already re-deriving independently of onChanged, whose contacts.tsx callback is therefore a no-op comment). Is the no-op `onChanged` at the contacts.tsx call site a code smell that should instead assert/document more directly why it's safe (relying entirely on the sibling blockedPeersRevision dependency rather than its own explicit callback), or would a future edit to BlockContactButton's onChanged contract (e.g. making it required for some new side effect) silently break the contacts.tsx call site by relying on an effectively-decorative callback?"
+    }
+  ]
+}

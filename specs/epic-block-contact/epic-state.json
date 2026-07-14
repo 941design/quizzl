@@ -1,0 +1,338 @@
+{
+  "epic_name": "block-contact",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-13T19:30:37Z",
+  "updated_at": "2026-07-14T01:40:00Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md",
+    "specs/block-contact-spec-request.md",
+    "specs/contact-pairing-code-spec-request.md",
+    "specs/direct-contact-profile-exchange-spec-request.md",
+    "specs/epic-block-contact/spec.md",
+    "themes.json"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3",
+    "S5",
+    "S4"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-13T19:30:37Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "IMPLEMENTATION",
+      "timestamp": "2026-07-13T19:45:00Z",
+      "trigger": "planning_complete"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-14T00:30:00Z",
+      "trigger": "all_stories_done_interlock_pass"
+    }
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "910d6b221e7886f26f8fd4bcc2884413c9ddcc79",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "reviewer_agent_id": "a0cffcda5470a1b32",
+  "gated_acs_pending_reverify": [],
+  "ac_closure": [
+    {
+      "ac_id": "AC-CONFIRM-1",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-CONFIRM-2",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-COPY-1",
+      "status": "met",
+      "evidence": "S5: app/tests/unit/blockCopy.i18n.test.ts"
+    },
+    {
+      "ac_id": "AC-COPY-2",
+      "status": "met",
+      "evidence": "S5: app/tests/unit/blockCopy.i18n.test.ts"
+    },
+    {
+      "ac_id": "AC-COPY-3",
+      "status": "met",
+      "evidence": "S5: app/tests/unit/blockCopy.i18n.test.ts"
+    },
+    {
+      "ac_id": "AC-COPY-4",
+      "status": "met",
+      "evidence": "S5: app/tests/unit/blockCopy.i18n.test.ts"
+    },
+    {
+      "ac_id": "AC-COPY-5",
+      "status": "met",
+      "evidence": "S5: app/tests/unit/blockCopy.i18n.test.ts"
+    },
+    {
+      "ac_id": "AC-COPY-6",
+      "status": "met",
+      "evidence": "S5: app/tests/unit/blockCopy.i18n.test.ts"
+    },
+    {
+      "ac_id": "AC-CORE-1",
+      "status": "met",
+      "evidence": "S1: app/tests/unit/blockedPeers.test.ts + contacts-add-by-npub.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-CORE-2",
+      "status": "met",
+      "evidence": "S1: app/tests/unit/blockedPeers.test.ts + contacts-add-by-npub.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-CORE-3",
+      "status": "met",
+      "evidence": "S1: app/tests/unit/blockedPeers.test.ts + contacts-add-by-npub.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-CORE-4",
+      "status": "met",
+      "evidence": "S1: app/tests/unit/blockedPeers.test.ts + contacts-add-by-npub.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-CORE-5",
+      "status": "met",
+      "evidence": "S1: app/tests/unit/blockedPeers.test.ts + contacts-add-by-npub.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-CORE-6",
+      "status": "met",
+      "evidence": "S1: app/tests/unit/blockedPeers.test.ts + contacts-add-by-npub.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-INBOUND-1",
+      "status": "met",
+      "evidence": "S2: app/tests/unit/directMessageNotifications-block-suppression.test.ts (+ S4 both-branch bump closes AC-INBOUND-3)"
+    },
+    {
+      "ac_id": "AC-INBOUND-2",
+      "status": "met",
+      "evidence": "S2: app/tests/unit/directMessageNotifications-block-suppression.test.ts (+ S4 both-branch bump closes AC-INBOUND-3)"
+    },
+    {
+      "ac_id": "AC-INBOUND-3",
+      "status": "met",
+      "evidence": "S2: app/tests/unit/directMessageNotifications-block-suppression.test.ts (+ S4 both-branch bump closes AC-INBOUND-3)"
+    },
+    {
+      "ac_id": "AC-INBOUND-4",
+      "status": "met",
+      "evidence": "S2: app/tests/unit/directMessageNotifications-block-suppression.test.ts (+ S4 both-branch bump closes AC-INBOUND-3)"
+    },
+    {
+      "ac_id": "AC-PRIV-1",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-PRIV-2",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-PRIV-3",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-SCOPE-1",
+      "status": "met",
+      "evidence": "S1: app/tests/unit/blockedPeers.test.ts + contacts-add-by-npub.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-SCOPE-2",
+      "status": "met",
+      "evidence": "S1: app/tests/unit/blockedPeers.test.ts + contacts-add-by-npub.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-SCOPE-3",
+      "status": "met",
+      "evidence": "S1: app/tests/unit/blockedPeers.test.ts + contacts-add-by-npub.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-UNBLOCK-1",
+      "status": "met",
+      "evidence": "S1: app/tests/unit/blockedPeers.test.ts + contacts-add-by-npub.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-UNBLOCK-2",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-UNBLOCK-3",
+      "status": "met",
+      "evidence": "S2: app/tests/unit/directMessageNotifications-block-suppression.test.ts (+ S4 both-branch bump closes AC-INBOUND-3)"
+    },
+    {
+      "ac_id": "AC-UNBLOCK-4",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-1",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-10",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-11",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-12",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-13",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-14",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-2",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-3",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-4",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-5",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-6",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-7",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-8",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-VIEW-9",
+      "status": "met",
+      "evidence": "S4: app/tests/unit/{blockContactAction,contactChat-block-gating,processContactInput-blocked}.test.ts + e2e dm-block-contact.spec.ts (+ S4 bump closes AC-UNBLOCK-3)"
+    },
+    {
+      "ac_id": "AC-WIPE-1",
+      "status": "met",
+      "evidence": "S3: app/tests/unit/chatPersistence-wipe.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-WIPE-2",
+      "status": "met",
+      "evidence": "S3: app/tests/unit/chatPersistence-wipe.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-WIPE-3",
+      "status": "met",
+      "evidence": "S3: app/tests/unit/chatPersistence-wipe.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-WIPE-4",
+      "status": "met",
+      "evidence": "S3: app/tests/unit/chatPersistence-wipe.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-WIPE-5",
+      "status": "met",
+      "evidence": "S3: app/tests/unit/chatPersistence-wipe.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-WIPE-6",
+      "status": "met",
+      "evidence": "S3: app/tests/unit/chatPersistence-wipe.test.ts (examiner 17 YES)"
+    },
+    {
+      "ac_id": "AC-PRIV-4",
+      "status": "met",
+      "evidence": "S4-precommit-remediation (cross-model Fable review): tests spy on suppressed outbound signal"
+    },
+    {
+      "ac_id": "AC-PRIV-5",
+      "status": "met",
+      "evidence": "S4-precommit-remediation (cross-model Fable review): tests spy on suppressed outbound signal"
+    },
+    {
+      "ac_id": "AC-VIEW-15",
+      "status": "met",
+      "evidence": "S4-precommit-remediation (cross-model Fable review): tests spy on suppressed outbound signal"
+    },
+    {
+      "ac_id": "AC-WIPE-7",
+      "status": "met",
+      "evidence": "S4-precommit-remediation (cross-model Fable review): tests spy on suppressed outbound signal"
+    }
+  ],
+  "manual_validation": [],
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_remediated",
+      "detail": "Audited 3 pure block-logic modules: blockedPeers.ts (100%, 1 real gap closed by boundary test), blockContactAction.ts (100%), processContactInput.ts (93.75%, 4 equivalent residuals). SCOPED: JSX-heavy/huge files (ContactChat/contacts/profile/add.tsx, MarmotContext.tsx, DirectMessageNotificationsWatcher.tsx, i18n.ts, BlockContactButton.tsx) NOT mutation-audited \u2014 mutation noise dominates signal (skill SKIP guidance); their test quality validated by per-story examiners + 2-vendor review + behavioral test-hardening round."
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_pass",
+      "detail": "dm-block-contact.spec.ts 5/5 + groups-contacts.spec.ts 1/1 green; clean run, no flakes."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_remediated",
+      "detail": "Stage1 Opus clean over whole tree + convergence verify (caught reaction-wipe case regression). Stage2 independent Fable cold pass (substituting for broken Codex sandbox) found 5 cross-epic outbound-privacy leaks; all remediated; final Fable pass clean.",
+      "structural_findings": {
+        "surfaced": 6,
+        "acted": 6,
+        "disclosed_unacted": 0
+      }
+    }
+  ]
+}

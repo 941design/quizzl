@@ -146,6 +146,12 @@ export function IncomingCallWatcher() {
             // per-call roster binding still happens inside CallManager.handleEvent
             // (group calls bind to the live MLS roster; direct calls authorize on
             // the caller pubkey alone).
+            // NOTE (block-contact epic, 2026-07-14): this call gate is intentionally
+            // NOT composed with the block deny-list (isBlockedPeer). Because a block
+            // deliberately keeps the peer in knownPeers (spec §9 / ADR-005), a blocked
+            // contact who is still an allowed sender can currently ring the user. This
+            // is out of scope for the DM-only block epic and latent while calls are
+            // disabled. Follow-up tracked in BACKLOG (gate-incoming-calls-with-block).
             return isAllowedDmSender(
               senderPubkey,
               groupsRef.current,

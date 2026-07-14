@@ -468,6 +468,66 @@ export async function clearAllReactions(): Promise<void> {
 }
 
 /**
+ * Deletes the DM reaction aggregate for exactly one peer (epic: block-contact,
+ * gate-remediation finding 4). Consumed by `chatPersistence.ts#wipeSinglePeerHistory`
+ * as the wipe's third step, so a blocked peer's DM history wipe also removes
+ * the reaction rows (emoji, message ids, reactor pubkeys) that would
+ * otherwise survive the block — DD-3 "permanently deletes the locally stored
+ * DM history" covers reactions, not just message/thread/unread state.
+ *
+ * Case-insensitive by enumeration (gate-remediation convergence fix): the
+ * reaction WRITE path (`idbKeyFor` above) does NOT normalize
+ * `thread.peerPubkeyHex` — every write site (e.g. ContactChat) passes the
+ * RAW `contact.pubkeyHex`, and this epic's own AC-CORE-6 exists precisely
+ * because a stored contact pubkeyHex is not guaranteed to be lowercase. A
+ * delete that targets only the single lowercase key
+ * (`few:reactions:dm:<lower>`) would miss a row persisted under a
+ * mixed-case key, silently leaking a blocked peer's reaction data. This
+ * function instead enumerates every `few:reactions:dm:` key and deletes
+ * each whose suffix matches `peerPubkeyHex` case-insensitively — mirroring
+ * `purgeStrangerDmReactions`'s enumerate-then-delMany pattern (in-flight
+ * write drain + cache eviction) rather than going through `idbKeyFor` for a
+ * single exact key.
+ *
+ * Never throws: the caller (`wipeSinglePeerHistory`) independently try/catches
+ * each of its three steps, mirroring how `clearMessages`/`clearDirectMessageContact`
+ * are already wrapped there.
+ */
+export async function clearDmReactionsForPeer(peerPubkeyHex: string): Promise<void> {
+  const dmReactionPrefix = 'few:reactions:dm:';
+  const targetLower = peerPubkeyHex.toLowerCase();
+  const { keys, delMany } = await import('idb-keyval');
+
+  const allKeys = await keys();
+  const matchingKeys = allKeys.filter(
+    (k): k is string =>
+      typeof k === 'string' &&
+      k.startsWith(dmReactionPrefix) &&
+      k.slice(dmReactionPrefix.length).toLowerCase() === targetLower,
+  );
+
+  if (matchingKeys.length === 0) return;
+
+  // Drain any in-flight write for these keys BEFORE deleting — mirrors
+  // clearAllReactions/purgeStrangerDmReactions: without this, a write that is
+  // mid-flight when delMany() fires may resolve AFTER the delete, re-creating
+  // a key.
+  const inflight = matchingKeys
+    .map((k) => writeQueues.get(k))
+    .filter((p): p is Promise<unknown> => p !== undefined);
+  if (inflight.length > 0) {
+    await Promise.allSettled(inflight);
+  }
+
+  for (const key of matchingKeys) {
+    cache.delete(key);
+    writeQueues.delete(key);
+  }
+  await delMany(matchingKeys);
+  for (const key of matchingKeys) emit(key);
+}
+
+/**
  * Purges reaction-aggregate IDB keys for stranger DM peers (AC-PURGE-6).
  *
  * Follows the `clearAllReactions` pattern: enumerates keys matching

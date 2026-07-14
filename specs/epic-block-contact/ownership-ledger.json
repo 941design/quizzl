@@ -1,0 +1,276 @@
+{
+  "epic": "block-contact",
+  "concepts": [
+    {
+      "id": "block-predicate-and-set-derivation",
+      "name": "isBlockedPeer pure predicate + lowercase-normalized blockedPeers derivation",
+      "owning_module": "block core / blocklist",
+      "type": "invariant",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "allow-function-purity",
+      "name": "isAllowedDmSender stays synchronous, pure, and never calls isBlockedPeer internally (AC-SEC-13 / DD-8)",
+      "owning_module": "walled garden",
+      "type": "invariant",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "archivedat-is-blocked",
+      "name": "StoredContact.archivedAt != null is the single source of truth for blocked (DD-1); addContactByNpub never silently clears it",
+      "owning_module": "contacts",
+      "type": "invariant",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "inbound-suppression-before-side-effects",
+      "name": "Blocked sender dropped before rememberContact/incrementDirectMessage in both kind-4 and kind-1059 handlers",
+      "owning_module": "DM notifications",
+      "type": "validation_rule",
+      "added_by_story": "S2",
+      "realized": true
+    },
+    {
+      "id": "defensive-ingestion-gate",
+      "name": "Composite gate re-applied defensively at all four ContactChat ingestion sites, independent of whether the view should be mounted",
+      "owning_module": "chat view",
+      "type": "validation_rule",
+      "added_by_story": "S4",
+      "realized": true
+    },
+    {
+      "id": "history-wipe-key-convention",
+      "name": "Single-peer DM history wipe always derives its storage key via directConversationId(peer), never a hand-built dm:<peer> literal, and never throws out of the block action",
+      "owning_module": "chat persistence",
+      "type": "path_convention",
+      "added_by_story": "S3",
+      "realized": true
+    },
+    {
+      "id": "blocked-state-replaces-composer",
+      "name": "ContactDetailView renders a Blocked banner in place of the composer for an archived contact, on both in-app navigation and the direct-URL route's first render",
+      "owning_module": "contacts page",
+      "type": "public_contract",
+      "added_by_story": "S4",
+      "realized": true
+    },
+    {
+      "id": "block-action-orchestration",
+      "name": "handleArchiveToggle sequences confirm -> archiveContact -> history wipe -> block-revision bump for block, and a direct unarchiveContact call with no confirmation for unblock",
+      "owning_module": "profile page",
+      "type": "invariant",
+      "added_by_story": "S4",
+      "realized": true
+    },
+    {
+      "id": "block-revision-reactivity",
+      "name": "MarmotContext exposes a block-revision counter that live DM surfaces observe without unmount/remount",
+      "owning_module": "context",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "no-hardcoded-block-copy",
+      "name": "All block/blocked/unblock/confirm-dialog user-visible strings are sourced from useCopy() in both en and de, never hardcoded in components",
+      "owning_module": "i18n",
+      "type": "naming_scheme",
+      "added_by_story": "S5"
+    },
+    {
+      "id": "dm-composite-gate-home",
+      "name": "isAllowedDmSenderComposite (isAllowedDmSender && !isBlockedPeer) \u2014 single shared assembly",
+      "owning_module": "block core / blocklist",
+      "type": "public_contract",
+      "added_by_story": "S2",
+      "watch": "MUST be one shared definition (rehomed to blockedPeers.ts); S4 ContactChat imports it, never re-implements \u2014 else forked gate.",
+      "owning_module_file": "app/src/lib/blockedPeers.ts",
+      "status": "rehomed_to_lib (forked-gate finding resolved; S4 ContactChat imports from blockedPeers.ts)"
+    },
+    {
+      "id": "wipe-completeness-requires-gate-ordering",
+      "name": "wipeSinglePeerHistory drains only in-flight-BEFORE-wipe appends; post-wipe appends resurrect the thread",
+      "owning_module": "chat persistence + chat view",
+      "type": "invariant",
+      "added_by_story": "S3",
+      "watch": "S4 MUST make the block gate live before/atomic with the wipe (bump revision + tear down open ContactChat subs), else a racing inbound message resurrects wiped history (privacy regression). AC-VIEW-14."
+    },
+    {
+      "id": "block-does-not-gate-calls",
+      "name": "IncomingCallWatcher gates on bare isAllowedDmSender, NOT the block composite \u2014 a blocked-but-known peer can still ring",
+      "owning_module": "calls",
+      "type": "invariant",
+      "added_by_story": "S4-review",
+      "status": "OPEN \u2014 out of epic AC scope; user chose backlog finding + code comment (calls disabled now). BACKLOG: gate-incoming-calls-with-block-deny."
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "reviewed_at": "2026-07-13T22:10:00Z",
+      "surfaces_touched": [
+        "app/src/lib/blockedPeers.ts",
+        "app/src/lib/contacts.ts",
+        "app/src/context/MarmotContext.tsx"
+      ],
+      "concept_observations": [
+        {
+          "type": "cross_module_seam_open",
+          "concept": "composite-gate / pairing-echo outbound",
+          "note": "S4 MUST decide the pairing-echo path: re-scanning a blocked contact still emits attemptOrQueuePairingEcho (add.tsx:179) since DD-9 returns error=already_exists. DD-2/\u00a77 (no signal, full cut-off) => S4 must suppress pairingEcho for a blocked peer."
+        },
+        {
+          "type": "comment_rot",
+          "concept": "archivedat-is-blocked",
+          "note": "contacts.ts blocked/pubkeyHex flags produced but dropped by processContactInput.ts; S4 must propagate so add-by-npub UI reports blocked, else JSDoc is wrong / dead code."
+        },
+        {
+          "type": "cleanup",
+          "concept": "addContactByNpub.reactivated",
+          "note": "reactivated always false after DD-9; vestigial, optional cleanup."
+        }
+      ],
+      "findings_summary": {
+        "total": 3,
+        "critical": 0,
+        "max_severity": 4,
+        "verdict": "needs_review"
+      }
+    },
+    {
+      "id": "S2",
+      "reviewed_at": "2026-07-13T22:40:00Z",
+      "surfaces_touched": [
+        "DirectMessageNotificationsWatcher.tsx (composite + blockedPeersRef)",
+        "directMessageNotifications.ts UNCHANGED (gate already upstream of side effects)",
+        "dmProfile/receive.ts UNCHANGED (AC-INBOUND-4 regression target)"
+      ],
+      "concept_observations": [
+        {
+          "type": "convention_drift",
+          "concept": "block-revision-reactivity",
+          "note": "AC-INBOUND-3/AC-UNBLOCK-3 require S4 to call notifyBlockedPeersChanged in BOTH branches; green S2 tests do not prove it e2e."
+        },
+        {
+          "type": "forked_validation_risk",
+          "concept": "dm-composite-gate-home",
+          "note": "composite exported from a component file; being rehomed to blockedPeers.ts so S4 imports one definition."
+        },
+        {
+          "type": "seam_closed",
+          "concept": "inbound-suppression-before-side-effects",
+          "note": "both DM-ingestion surfaces (bell watcher + profile-heal receive.ts) deny blocked/archived senders, both keyed off archivedAt (DD-1)."
+        }
+      ],
+      "findings_summary": {
+        "total": 2,
+        "critical": 0,
+        "max_severity": 3,
+        "verdict": "clean_forward_gated"
+      }
+    },
+    {
+      "id": "S3",
+      "reviewed_at": "2026-07-13T23:05:00Z",
+      "surfaces_touched": [
+        "chatPersistence.ts (wipeSinglePeerHistory + HistoryWipeResult; static imports clearDirectMessageContact, directConversationId \u2014 cycle-checked)"
+      ],
+      "concept_observations": [
+        {
+          "type": "guarantee_partial",
+          "concept": "wipe-completeness-requires-gate-ordering",
+          "note": "AC-WIPE-6 bounded to in-flight-before-wipe; real completeness needs S4 gate ordering (AC-VIEW-14)."
+        },
+        {
+          "type": "seam_matches_consumer",
+          "concept": "block-action-orchestration",
+          "note": "wipe signature matches S4 confirm->archive->wipe->bump."
+        }
+      ],
+      "findings_summary": {
+        "total": 2,
+        "critical": 0,
+        "max_severity": 4,
+        "verdict": "clean_forward_gated"
+      }
+    },
+    {
+      "id": "S5",
+      "reviewed_at": "2026-07-13T23:30:00Z",
+      "surfaces_touched": [
+        "i18n.ts (+4 contacts confirm keys; relabeled contacts hidden*, archivedDetailNotice, profile.archive/unarchiveAction en+de)"
+      ],
+      "concept_observations": [
+        {
+          "type": "ac_reconciliation",
+          "concept": "no-hardcoded-block-copy",
+          "note": "AC-COPY-1/2 named nonexistent copy.contacts.archiveAction; relabeled real copy.profile.* (profile.tsx:752). AC text now corrected."
+        },
+        {
+          "type": "namespace_split",
+          "concept": "block-action-orchestration",
+          "note": "S4 reads confirm copy from copy.contacts.blockConfirm* but button label from copy.profile.archiveAction \u2014 TS-checked cross-namespace lookup."
+        }
+      ],
+      "findings_summary": {
+        "total": 1,
+        "critical": 0,
+        "max_severity": 2,
+        "verdict": "clean"
+      }
+    },
+    {
+      "id": "S4",
+      "reviewed_at": "2026-07-14T00:15:00Z",
+      "surfaces_touched": [
+        "blockContactAction.ts (new DI ordering)",
+        "BlockContactButton.tsx (new confirm modal)",
+        "ContactChat.tsx (shouldIngestDmFromSender extraction; 4 gates via shared composite)",
+        "contacts.tsx (Blocked banner replaces composer, sync memo on blockedPeersRevision)",
+        "profile.tsx (delegates to BlockContactButton)",
+        "processContactInput.ts + add.tsx (AC-VIEW-13 cut-off)",
+        "blockedPeers.ts (composite home)"
+      ],
+      "findings_summary": {
+        "total": 3,
+        "critical": 0,
+        "max_severity": 5,
+        "verdict": "clean_scope_decision_resolved"
+      },
+      "watch_items_closed": [
+        "AC-VIEW-14 ordering",
+        "AC-VIEW-13 pairing-echo/import",
+        "both-branch revision bump",
+        "blocked-flag propagation",
+        "composite fork"
+      ]
+    }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "S5+precommit",
+    "gate": "pre-commit-final",
+    "epic_dm_surface": "complete",
+    "structural_findings": {
+      "surfaced": 5,
+      "acted": 3,
+      "disclosed_unacted": 2
+    },
+    "open_leaks": 0,
+    "disclosed_tracked_deferrals": [
+      "gate-incoming-calls-with-block-deny"
+    ]
+  },
+  "convergence_log": [
+    {
+      "gate": "pre-commit",
+      "round": "fable-cold-pass-1",
+      "found": "5 cross-epic outbound-privacy leaks (pairingAck push sev8, pendingIntent drain sev7, feedback route sev6, reactions-wipe-miss sev4, AC-VIEW-14 effect-flush race sev3)",
+      "disposition": "all remediated; 1 migration-cohort product decision -> keep-history + follow-up finding"
+    },
+    {
+      "gate": "pre-commit",
+      "round": "opus-convergence-1",
+      "found": "reaction-wipe remediation introduced case-fragility (mixed-case peer reaction rows survive) sev4 + historical-batch loadBlockedPeers perf nit sev2",
+      "disposition": "fixing: case-insensitive clearDmReactionsForPeer + mixed-case test + batch hoist"
+    }
+  ]
+}

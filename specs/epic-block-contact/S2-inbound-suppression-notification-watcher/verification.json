@@ -1,0 +1,98 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-13T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the suppression guard in `kind4Handler` and the kind-1059 handler a real early-return before `rememberContact`/`incrementDirectMessage`, or a placeholder that calls those functions and then no-ops their effect afterward (which would still bump `lastSeenAt` or the bell before any 'suppression' runs)? Provide the exact control-flow diff for both handlers showing the composite-gate check occurs strictly before either call, not a wrapper that calls-then-discards."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does this story's diff stay within the 'DM notifications' module (`directMessageNotifications.ts` + `DirectMessageNotificationsWatcher.tsx`) plus its declared regression-only touch of `dmProfile/receive.ts` (read/test-only, no production edit), with no new import from `ContactChat.tsx`, `contacts.tsx`, or `profile.tsx` (S4's territory)? Run `grep -n '^import' app/src/lib/directMessageNotifications.ts app/src/components/DirectMessageNotificationsWatcher.tsx` and confirm no import path resolves into `app/src/components/contacts/` or `app/pages/`."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the 'DM notifications' module (`directMessageNotifications.ts` + `DirectMessageNotificationsWatcher.tsx`) be deleted and rewritten without modifying any file outside its dependencies_allowed list — specifically `blockedPeers.ts`/`MarmotContext.tsx` (S1, consumed only via the declared `BlockedPeersSnapshot`/`CompositeDmGate` seams) and `dmProfile/receive.ts` (read-only regression target)? If rewriting this module would require editing `MarmotContext.tsx` beyond reading its exposed revision value, or editing `walledGarden.ts`, identify the cross-module dependency and whether it flows through the declared seam contracts."
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do `app/tests/unit/directMessageNotifications.test.ts` and `directMessageNotifications-property.test.ts` cover, as separate assertions: (a) kind-4 suppression before `rememberContact`/`incrementDirectMessage` (AC-INBOUND-1), (b) kind-1059 suppression symmetrically (AC-INBOUND-2), (c) the injected `isAllowedSender` composing the live block-revision ref without unmount/remount (AC-INBOUND-3), (d) the `ProfileHealWatcher` regression via `passesDisclosureGate` (AC-INBOUND-4), and (e) the post-unblock resume of bell/persistence (AC-UNBLOCK-3)? List the specific test names for each."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does this story change only the suppression point and the injected callback wiring, with zero change to the DM history-deletion, view-rendering, or send-gating concerns owned by S3/S4? Confirm no call to `clearMessages`, `clearDirectMessageContact`, or any ContactChat/contacts.tsx render logic appears in this story's diff."
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the composite gate injected via `DirectMessageNotificationsWatcher.tsx` re-evaluated against a live ref that reflects the current block-revision on every inbound event, rather than a value captured once at mount/subscribe time (which would let a peer blocked mid-session continue to slip through until an unrelated remount)? Provide a test that mounts the watcher, delivers one inbound event from an unblocked peer, blocks that peer without unmounting the watcher, delivers a second inbound event from the same peer, and asserts the second event is suppressed."
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `git diff --stat` for this story's commit(s) touch only files inside this story's declared scope (`app/src/lib/directMessageNotifications.ts`, `app/src/components/DirectMessageNotificationsWatcher.tsx`, the two named test files, plus read-only verification against `dmProfile/receive.ts`) or files already listed in `specs/epic-block-contact/epic-state.json#pre_existing_dirty_files`? Any other file appearing in the diff is a scope-boundary violation."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INBOUND-1",
+      "question": "For a kind-4 DM event whose sender (case-insensitive) is in `blockedPeers`, does `kind4Handler` inside `subscribeDirectMessageNotifications` return before calling `rememberContact` or `incrementDirectMessage`, such that after the event is processed the peer's unread/bell count does not increment and its `lastSeenAt` in `lp_contacts_v1` does not change? Provide (a) the handler diff showing the early return ordered strictly before both calls, and (b) a test spying on both functions plus a before/after `lastSeenAt` read, asserting neither call fires and the timestamp is unchanged — not a mock-spy proxy that stubs the handler's own suppression logic."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INBOUND-2",
+      "question": "Does the kind-1059 gift-wrap handler apply the identical suppression for an unwrapped rumor whose sender is in `blockedPeers` — returning before `rememberContact`/`incrementDirectMessage` with no bell increment and no `lastSeenAt` change? Provide the handler diff and a test symmetric to AC-INBOUND-1's, using a gift-wrapped fixture rather than a plain kind-4."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INBOUND-3",
+      "question": "Is the `isAllowedSender` callback injected into `subscribeDirectMessageNotifications` via `DirectMessageNotificationsWatcher.tsx` the composite gate (`isAllowedDmSender AND NOT isBlockedPeer`), sourced from a ref that refreshes on block-revision change, such that a peer blocked while the watcher is already mounted is suppressed on the very next inbound event without unmount/remount or page reload? Provide the injection code and the mount-block-deliver test from VQ-S2-006 as evidence."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INBOUND-4",
+      "question": "Does `ProfileHealWatcher`'s kind-1059 subscription (inner rumor kinds 21061/21062) still fail to persist a rumor from a peer with `archivedAt != null`, confirmed by `passesDisclosureGate`/`isActiveNonArchivedContact` (`app/src/lib/dmProfile/receive.ts:95-113`) continuing to return `false` for such a peer after this epic lands? Provide a regression test that archives a contact and asserts `passesDisclosureGate` rejects a rumor from that contact's pubkey, and confirm `receive.ts`'s diff is empty (verification-only, no production change expected here)."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UNBLOCK-3",
+      "question": "After unblock, does the next inbound DM from that peer get persisted and increment the notification bell — i.e. does the composite gate no longer reject the peer, allowing `rememberContact`/`incrementDirectMessage` to run for that event? Provide a test that blocks a peer, unblocks it, delivers one inbound event from that peer, and asserts both the bell counter increments and the message is persisted, using the same live-ref/no-remount setup as VQ-S2-006."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The implementation turned out to require ZERO change to `directMessageNotifications.ts` itself — the kind-4 and kind-1059 handlers already gated on the injected `isAllowedSender` callback strictly before `rememberContact`/`incrementDirectMessage` (a pre-existing seam from an earlier epic). Is this genuinely sufficient for AC-INBOUND-1/2, or does the composite gate need to be assembled and injected somewhere INSIDE directMessageNotifications.ts rather than solely at DirectMessageNotificationsWatcher.tsx's call site? Verify by reading directMessageNotifications.ts:79-95 and :107-143 directly and confirming the isAllowedSender check truly precedes both persistence calls in both handlers, with no code path that could call rememberContact/incrementDirectMessage before evaluating isAllowedSender.",
+      "answer": "Confirmed sufficient. directMessageNotifications.ts:85 (kind-4) and :126 (kind-1059) both call isAllowedSender(peer) and return early on false, strictly before the dedup-set population, rememberContact (:93/:137), and incrementDirectMessage (:94/:138) calls in either handler. This is unchanged, pre-existing code from an earlier epic (walled-garden), already covered by directMessageNotifications.test.ts's AC-SEC-3/4/5 tests. S2's only change is what the CALLER (DirectMessageNotificationsWatcher.tsx) passes as isAllowedSender — the composite isAllowedDmSenderComposite instead of isAllowedDmSender alone. Verified directly by reading the source and by directMessageNotifications-block-suppression.test.ts's AC-INBOUND-1/AC-INBOUND-2 tests, which exercise the REAL (unmocked) subscribeDirectMessageNotifications with the REAL composite function and assert no rememberContact call + unchanged lastSeenAt for a blocked sender."
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "`isAllowedDmSenderComposite` is exported from a `.tsx` component file (`DirectMessageNotificationsWatcher.tsx`) and imported directly into a vitest unit test with no jsdom/renderHook. Does importing this file in a Node test environment (no DOM) succeed without triggering any module-level side effect that requires `window`/`document`, and does this pattern hold up as a durable convention (mirroring `ProfileHealWatcher.tsx`'s exported pure-function precedent) rather than being an accidental one-off?",
+      "answer": "Confirmed safe and precedented. DirectMessageNotificationsWatcher.tsx's only module-level code is import statements and the isAllowedDmSenderComposite function declaration — no top-level React rendering, no window/document access outside the component body (which is never invoked by the test, only its sibling export). This exactly mirrors ProfileHealWatcher.tsx's existing precedent (planDueSweep, decideDispatch, advanceAfterFire, applyInboundReachabilitySignal all exported alongside the default component and imported the same way in ProfileHealWatcher.test.ts). Verified empirically: `npx vitest run tests/unit/directMessageNotifications-block-suppression.test.ts` passes all 12 tests with zero DOM-related errors."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "module_name": "chat persistence",
+  "purpose": "Single-peer DM history wipe, invoked by the block action (wired in S4). Composes the two existing primitives DD-12 specifies — clearMessages(directConversationId(peer)) and clearDirectMessageContact(peer) — behind one resilient, storage-key-safe entry point so S4 calls a single function instead of duplicating the two-call sequence and its failure handling at the call site. Does not touch the StoredContact record (contacts.ts) — archivedAt is owned and set by S4's call to archiveContact, not by this helper.",
+  "public_api": [
+    {
+      "name": "wipeSinglePeerHistory",
+      "signature": "wipeSinglePeerHistory(peerPubkeyHex: string): Promise<HistoryWipeResult>",
+      "description": "Runs clearMessages(directConversationId(peerPubkeyHex)) then clearDirectMessageContact(peerPubkeyHex) (DD-12 order, exactly these two calls — clearMessages already drains in-flight appendMessage writes and clears edit/delete aux state internally via clearMessageEditsStateForThread). Storage key is derived exclusively via directConversationId — never a hand-built `dm:<peer>` literal (AC-WIPE-4). Each call is independently try/caught: a thrown/rejected error from either call is logged via console.warn and swallowed, never propagated to the caller (AC-WIPE-5) — mirrors the existing aux-cleanup try/catch convention already present in clearMessages/purgeStrangerDmThreads. Never throws. Does not read or write lp_contacts_v1 (AC-WIPE-3 — contact retention is the caller's concern via archiveContact, out of scope here)."
+    },
+    {
+      "name": "HistoryWipeResult",
+      "signature": "interface HistoryWipeResult { threadCleared: boolean; countersCleared: boolean }",
+      "description": "Partial-success result so S4 (and this story's own tests) can assert which half of the two-call sequence succeeded under a simulated storage failure, without either half throwing. true means that call completed without throwing; false means it threw and was swallowed+logged."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/directMessages.ts (directConversationId) — pre-existing static import already present in chatPersistence.ts (parseDirectPayload)",
+    "app/src/lib/unreadStore.ts (clearDirectMessageContact) — intra-module edge per architecture.md's 'chat persistence' row grouping chatPersistence.ts + unreadStore.ts together; no circular import (unreadStore.ts imports only walledGarden.ts)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/contacts.ts (archiveContact/unarchiveContact/StoredContact) — the wipe helper must not set, read, or delete archivedAt; that stays S4's call to archiveContact, invoked before this helper per the seam contract",
+    "any React/component/context import",
+    "app/pages/profile.tsx, app/pages/contacts.tsx, app/src/components/contacts/ContactChat.tsx — UI wiring is S4"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/chatPersistence-purge.test.ts",
+    "app/tests/unit/chatPersistence-property.test.ts",
+    "app/tests/unit/unreadStore.test.ts"
+  ],
+  "notes": {
+    "boundary_check": "Crosses one intra-module boundary: chatPersistence.ts (existing clearMessages) composed with unreadStore.ts's existing clearDirectMessageContact — both already declared under architecture.md's single 'chat persistence' module row, so this is not a new cross-module edge. No import added to/from contacts.ts, ContactChat.tsx, contacts.tsx, or profile.tsx.",
+    "data_ownership": "Owns no new storage key. clearMessages already owns few:messages:dm:<peer> deletion (idb-keyval); clearDirectMessageContact already owns lp_unreadLastReadDM_v1 entry deletion (localStorage) + in-memory directMessages counter. wipeSinglePeerHistory is pure composition/orchestration with no owned_data of its own.",
+    "paradigm_compliance": "Modular monolith, package-by-feature — complies. Reuses existing primitives rather than re-implementing drain/aux-cleanup logic (DD-12: exactly two calls, not three — no separate clearMessageEditsStateForThread call added here since clearMessages already performs it internally).",
+    "seam": {
+      "name": "HistoryWipeResult",
+      "contract": "wipeSinglePeerHistory(peerPubkeyHex) -> Promise<{ threadCleared: boolean; countersCleared: boolean }>. Never throws. Storage key always directConversationId(peerPubkeyHex). Drains in-flight appendMessage writes for the peer's thread before resolving (inherited from clearMessages). Does not touch lp_contacts_v1.",
+      "cross_story": true,
+      "consumed_by": ["S4"]
+    }
+  }
+}

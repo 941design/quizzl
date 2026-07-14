@@ -54,9 +54,24 @@ import { unwrapAndOpen } from '@/src/lib/directMessages';
 vi.mock('@/src/lib/knownPeers', () => ({
   rememberKnownPeers: vi.fn(),
 }));
+
+// Gate-remediation finding 2: `@/src/lib/contacts` is mocked wholesale below,
+// which would otherwise leave `readStoredContacts` undefined —
+// `blockedPeers.ts#loadBlockedPeers()` (now called from `processIntentCore`)
+// imports exactly that export. `contactsState` stands in for `lp_contacts_v1`
+// and lets a test seed an issuer as blocked (archivedAt set) before draining.
+const { contactsState } = vi.hoisted(() => ({
+  contactsState: {} as Record<string, { pubkeyHex: string; firstSeenAt: string; lastSeenAt: string; archivedAt: string | null }>,
+}));
 vi.mock('@/src/lib/contacts', () => ({
   rememberContact: vi.fn(),
+  readStoredContacts: () => contactsState,
 }));
+
+/** Test helper: marks `hex` as a blocked peer in the mocked contacts store. */
+function blockPeer(hex: string, archivedAt: string = new Date('2026-01-01T00:00:00.000Z').toISOString()): void {
+  contactsState[hex] = { pubkeyHex: hex, firstSeenAt: archivedAt, lastSeenAt: archivedAt, archivedAt };
+}
 
 import { NDKEvent } from '@nostr-dev-kit/ndk';
 import {
@@ -102,6 +117,7 @@ beforeEach(async () => {
   await clearPendingIntentsForTests();
   _clearInFlightLocksForTests();
   vi.restoreAllMocks();
+  for (const key of Object.keys(contactsState)) delete contactsState[key];
 });
 
 // ── Store CRUD sanity ────────────────────────────────────────────────────
@@ -323,7 +339,7 @@ describe('drainPendingIntents — AC-SCAN-7 (past-window silently degrades)', ()
     // "Sets a name" one second past the window.
     const result = await expect(
       drainPendingIntents(namedCtx(scanner, 'Grace'), fixedNow(T0 + 1801)),
-    ).resolves.toEqual({ sent: [], retried: [], droppedExpired: [issuer.pubHex], deferredNoName: [] });
+    ).resolves.toEqual({ sent: [], retried: [], droppedExpired: [issuer.pubHex], deferredNoName: [], droppedBlocked: [] });
 
     expect(publishSpy).not.toHaveBeenCalled();
     // Cleaned up — not left to be silently retried again later (which could
@@ -423,5 +439,79 @@ describe('processIntent concurrency lock (review-remediation, sev 3)', () => {
     expect(first.sent).toEqual([issuer.pubHex]);
     expect(second.sent).toEqual([]);
     expect(NDKEvent.prototype.publish).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Gate-remediation finding 2 (2026-07-14): blocked-issuer privacy gate ────
+// The queued echo/profile-announce must never reach an issuer who was
+// blocked AFTER the intent was queued — checked at SEND time (every
+// processIntent call), not just at queue time, so no producer of a pending
+// intent can bypass it.
+
+describe('processIntentCore — privacy gate for a blocked issuer (gate-remediation finding 2)', () => {
+  it('a held intent for an issuer blocked AFTER queuing (nameless/offline scenario) is dropped on the SAME drain a name-set would otherwise fire it', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    // Queued while nameless/offline — mirrors AC-SCAN-5's persist-without-send.
+    await savePendingIntent({ issuerPubkey: issuer.pubHex, nonce: 'aa'.repeat(16), expiresAt: T0 + 1800 });
+
+    // The scanner then blocks the issuer BEFORE ever setting a name.
+    blockPeer(issuer.pubHex);
+
+    const publishSpy = vi.spyOn(NDKEvent.prototype, 'publish');
+
+    // A name is now set (or an online/retry drain fires) — absent the fix,
+    // this would send the echo + a profile-announce to the blocked issuer.
+    const result = await drainPendingIntents(namedCtx(scanner, 'Alice'), fixedNow(T0 + 5));
+
+    expect(result.droppedBlocked).toEqual([issuer.pubHex]);
+    expect(result.sent).toEqual([]);
+    expect(result.retried).toEqual([]);
+    expect(result.deferredNoName).toEqual([]);
+    expect(publishSpy).not.toHaveBeenCalled();
+
+    // Dropped, not left to be retried later.
+    expect(await getPendingIntent(issuer.pubHex)).toBeUndefined();
+  });
+
+  it('a blocked issuer is dropped even while the scanner is STILL nameless (checked before the name gate, not after)', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    await savePendingIntent({ issuerPubkey: issuer.pubHex, nonce: 'bb'.repeat(16), expiresAt: T0 + 1800 });
+    blockPeer(issuer.pubHex);
+    const publishSpy = vi.spyOn(NDKEvent.prototype, 'publish');
+
+    const result = await drainPendingIntents(namedCtx(scanner, ''), fixedNow(T0));
+
+    expect(result.droppedBlocked).toEqual([issuer.pubHex]);
+    expect(result.deferredNoName).toEqual([]);
+    expect(publishSpy).not.toHaveBeenCalled();
+    expect(await getPendingIntent(issuer.pubHex)).toBeUndefined();
+  });
+
+  it('attemptOrQueuePairingEcho itself never sends to an issuer that is ALREADY blocked at scan time', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    blockPeer(issuer.pubHex);
+    const candidate: PairingEchoCandidate = { issuerPubkeyHex: issuer.pubHex, nonceHex: 'cc'.repeat(16), expiresAt: T0 + 1800 };
+    const publishSpy = vi.spyOn(NDKEvent.prototype, 'publish');
+
+    const status = await attemptOrQueuePairingEcho(candidate, namedCtx(scanner, 'Bob'), fixedNow(T0));
+
+    expect(status).toBe('droppedBlocked');
+    expect(publishSpy).not.toHaveBeenCalled();
+    expect(await getPendingIntent(issuer.pubHex)).toBeUndefined();
+  });
+
+  it('control: an UNBLOCKED issuer is unaffected by the new gate — drains and sends exactly as before', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    await savePendingIntent({ issuerPubkey: issuer.pubHex, nonce: 'dd'.repeat(16), expiresAt: T0 + 1800 });
+    vi.spyOn(NDKEvent.prototype, 'publish').mockImplementation(async () => new Set() as never);
+
+    const result = await drainPendingIntents(namedCtx(scanner, 'Carol'), fixedNow(T0 + 1));
+
+    expect(result.sent).toEqual([issuer.pubHex]);
+    expect(result.droppedBlocked).toEqual([]);
   });
 });

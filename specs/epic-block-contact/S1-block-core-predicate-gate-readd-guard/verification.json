@@ -1,0 +1,164 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-13T22:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the lowercase-normalization in the `blockedPeers` derivation a real defensive transform rather than a vacuous no-op that only happens to work because today's fixtures are already lowercase? Write a unit test that seeds `lp_contacts_v1` with a `StoredContact` stored under a mixed-case key (e.g. `ABCDEF...`) or with `pubkeyHex` in mixed case and `archivedAt` set, then asserts the derived `blockedPeers` set contains only the lowercase form and that `isBlockedPeer` matches an uppercase-cased lookup input. A derivation that merely copies `pubkeyHex` verbatim (assuming it is already lowercase) must fail this test, not pass it vacuously."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the diff confine itself to the module-boundary edits architecture.md anticipates for this story — the new `app/src/lib/blockedPeers.ts` (block core / blocklist), the single DD-9 guard removal inside `contacts.ts#addContactByNpub` (contacts module), and the block-revision counter addition to `MarmotContext.tsx` (context module) — with no new cross-module import (e.g. `blockedPeers.ts` importing from `directMessageNotifications.ts`, `ContactChat.tsx`, or any component)? Run `grep -n '^import' app/src/lib/blockedPeers.ts` and confirm every import resolves to `contacts.ts` or a type-only source, never to a component, context consumer, or NDK/IDB package (mirroring AC-CORE-1's ban on localStorage/IDB/React access inside `isBlockedPeer` itself)."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `block core / blocklist` (app/src/lib/blockedPeers.ts) be deleted and rewritten without modifying any file outside its dependencies_allowed list? Its only declared consumers are call sites in `directMessageNotifications.ts`/`DirectMessageNotificationsWatcher.tsx` (S2) and `ContactChat.tsx`/`contacts.tsx` (S4), which compose the predicate at their own call sites rather than importing internals. If deleting `blockedPeers.ts` would force an edit to `walledGarden.ts`, `MarmotContext.tsx` beyond the revision counter, or any consumer's internals, identify the specific cross-module dependency and whether it flows through the declared `BlockedPeersSnapshot` / `CompositeDmGate` seam contracts in architecture.md."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does `app/tests/unit/blockedPeers.test.ts` cover, as separate assertions (not one composite test): (a) `isBlockedPeer` true/false membership per AC-CORE-1, (b) derivation from `readStoredContacts()` filtering on non-null `archivedAt` per AC-CORE-2 including an add-then-derive and unarchive-then-derive round trip, (c) the composite-gate deny-overrides-allow case per AC-CORE-3, (d) a case-folding property test sweeping mixed-case pubkey fixtures per AC-CORE-6, and (e) the DD-9 re-add guard in `app/tests/unit/contacts-add-by-npub.test.ts` asserting `archivedAt` is read back unchanged and `reactivated` is not `true`? List the specific test names for each."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does this story's implementation match the architecture's explicit framing of block as a cross-cutting deny layer composed at call sites — not a new module owning a new data store? Confirm `blockedPeers.ts` introduces no new persistence key (no new localStorage/IDB key beyond reading the existing `lp_contacts_v1`), and that `StoredContact.archivedAt` remains the sole source of truth for blocked state (DD-1) with no shadow boolean flag introduced anywhere in this story's diff."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is `isAllowedDmSender`'s body byte-for-byte free of any call to `isBlockedPeer`, and does it remain synchronous with zero IDB/NDK/React/localStorage access after this epic's diff (AC-SEC-13 preservation, DD-8)? Run `grep -n 'isBlockedPeer' app/src/lib/walledGarden.ts` — it MUST return zero matches (a match would prove the composite was wrongly assembled inside the allow function rather than at call sites). Separately run `grep -n \"^import\\|localStorage\\|indexedDB\" app/src/lib/walledGarden.ts` and confirm the import list and body are unchanged from pre-epic. Provide both grep outputs as evidence — a passing result on a pre-fix tree where `isBlockedPeer` doesn't exist yet is not evidence; the check must be re-run after `isBlockedPeer` is introduced elsewhere in the codebase to prove `walledGarden.ts` still doesn't reference it."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does `git diff --stat` for this story's commit(s) touch only files inside this story's declared scope (`app/src/lib/blockedPeers.ts`, `app/src/lib/contacts.ts`, `app/src/context/MarmotContext.tsx`, and the three named test files) plus files already listed in `specs/epic-block-contact/epic-state.json#pre_existing_dirty_files`? Any file appearing in the diff that is neither in this story's scope.includes nor in `pre_existing_dirty_files` (e.g. `.serena/project.yml`, `CLAUDE.md`, `amethyst-interop-*.md`, `themes.json`, or the other spec-request files already listed there) is a scope-boundary violation and must be justified or reverted."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CORE-1",
+      "question": "Does `isBlockedPeer(peerHex, blockedPeers)` return `true` exactly when the lowercased `peerHex` is a member of `blockedPeers` and `false` otherwise, with zero `localStorage`/IDB/React access in its own body? Provide the function body and a `grep -n 'localStorage\\|indexedDB\\|useState\\|useEffect\\|useContext'` result against `blockedPeers.ts` scoped to the function — it MUST be empty."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CORE-2",
+      "question": "Does the block-set reader derive `blockedPeers` as the set of lowercase `pubkeyHex` values from every `StoredContact` in `readStoredContacts()` with non-null `archivedAt`, such that a contact archived via `archiveContact` appears in the very next derivation and a contact unarchived via `unarchiveContact` does not? Provide (a) the derivation function, and (b) a test performing archive -> derive -> assert-present, then unarchive -> derive -> assert-absent, as two sequential assertions in one test or two separate tests — not a single snapshot check."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CORE-3",
+      "question": "Does the composite gate `isAllowedDmSender(...) AND NOT isBlockedPeer(...)` evaluate to `false` for a peer that is simultaneously group-allowed/known AND present in `blockedPeers`? Show the call-site composition (not inside `walledGarden.ts`) and a unit test with a peer fixture that is both a group member and archived, asserting the composite returns `false` even though `isAllowedDmSender` alone would return `true` for that peer."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CORE-5",
+      "question": "Does calling `addContactByNpub(npub, ownPubkeyHex)` for an npub decoding to an existing `StoredContact` with `archivedAt != null` leave `archivedAt` unchanged (no silent unarchive) and report something other than `reactivated: true`, and does the composite gate still return `false` for that peer immediately after the call (no `ContactChat` mount, no direct-URL composer)? Provide (a) the diff removing the `unarchiveContact` call from the archived-match branch at `contacts.ts:329-337`, (b) a test asserting `readStoredContacts()` shows the pre-call `archivedAt` value unchanged post-call, and (c) a test asserting the composite gate still denies the peer right after the re-add attempt."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CORE-6",
+      "question": "Does block-set derivation lowercase-normalize every candidate pubkey defensively — i.e. without assuming `lp_contacts_v1` keys or `StoredContact.pubkeyHex` are already lowercase? Provide a fixture where the stored key and/or `pubkeyHex` are stored in mixed case with `archivedAt` set, and assert the derived `blockedPeers` set contains the lowercase form and that `isBlockedPeer` matches when called with an uppercase, lowercase, and mixed-case version of the same pubkey."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UNBLOCK-1",
+      "question": "Does calling `unarchiveContact(peerPubkeyHex)` clear `archivedAt` to `null`, and does the composite gate afterward return exactly the value `isAllowedDmSender` alone would return for that peer (deny no longer applies)? Provide a test asserting equality between the composite gate's post-unblock result and a direct `isAllowedDmSender` call for the same arguments."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCOPE-1",
+      "question": "Does blocking a contact that also shares an MLS group leave that contact's membership and message rendering in the shared group untouched — i.e. does the block predicate/gate have zero effect on any group-membership or group-message-rendering code path? Provide a test that archives a contact who is a fixture group member and asserts the group's member list and rendered messages from that peer are unchanged before/after the block."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCOPE-2",
+      "question": "Does blocking a contact leave `knownPeers` set membership unchanged immediately after the block action? Provide a test that captures `knownPeers` before archiving a contact, archives it, and asserts the captured set (or a fresh read) still contains that peer's pubkey afterward."
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCOPE-3",
+      "question": "Do `purgeStrangerContacts`, `purgeStrangerDmCounters`, `purgeStrangerDmThreads`, and `purgeStrangerDmReactions` leave a blocked-but-retained `StoredContact` (with `archivedAt` set) intact and its wiped thread key absent (not repopulated) when run immediately after a block? Since these sweeps key off `isAllowedDmSender` (still `true` for a blocked-but-known peer) and this story makes no production change to them, provide a regression test per sweep function asserting the blocked contact record survives the sweep and no thread key is resurrected — confirm this is verification-only, with the sweep functions' diffs empty."
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CORE-2",
+      "question": "Contract check for the `BlockedPeersSnapshot` seam this story defines (consumed by S2 and S4): does the produced snapshot expose exactly `{ blockedPeers: ReadonlySet<string>, revision: number }`, with every member of `blockedPeers` a lowercase-hex pubkey regardless of underlying storage case, `revision` strictly increasing on every block/unblock action, and a ref-held consumer observing the post-block value on the very next inbound event without unmount/remount? Provide the type definition and a test that blocks a peer, reads the snapshot via a held ref (not a fresh subscription), and asserts both the updated `blockedPeers` membership and a strictly greater `revision` value."
+    },
+    {
+      "question_id": "VQ-S1-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CORE-3",
+      "question": "Contract check for the `CompositeDmGate` seam this story defines (consumed by S2 and S4): does the composed gate accept exactly `{ peerHex, groups, knownPeers, ownPubkeyHex, blockedPeers }`, return `false` whenever `isBlockedPeer(peerHex, blockedPeers)` is `true` regardless of `isAllowedDmSender`'s result, and get evaluated fresh on every inbound/outbound check (never cached across a block-revision change)? Provide a test that changes `blockedPeers` between two calls with otherwise-identical arguments and asserts the gate's result changes accordingly (proving no stale caching)."
+    },
+    {
+      "question_id": "VQ-S1-019",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CORE-4",
+      "question": "Does `isAllowedDmSender` remain synchronous and free of any IDB, NDK, React, or `localStorage` access inside its own body after this epic, with `isBlockedPeer` exported as a separate function that is never called from within `isAllowedDmSender`'s body (DD-8, composite assembled only at call sites)? Provide (a) the full body of `isAllowedDmSender` unchanged from its pre-epic form, (b) the `isBlockedPeer` export in a different module/function, and (c) a static check (e.g. `grep -n 'isBlockedPeer' app/src/lib/walledGarden.ts` returning zero matches) distinct from VQ-S1-006's SECURITY framing — this is the AC-level acceptance check, not the security regression check."
+    },
+    {
+      "question_id": "VQ-S1-020",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the test suite for this story include at least one assertion, per AC-CORE-1 through AC-CORE-6, AC-UNBLOCK-1, and AC-SCOPE-1 through AC-SCOPE-3, that is not a pure mock-spy proxy — i.e. exercises the real `readStoredContacts()`/`archiveContact`/`unarchiveContact` persistence path (in-memory localStorage shim or equivalent) rather than a fully stubbed-out contacts module? Identify which tests, if any, mock `contacts.ts` entirely rather than exercising it."
+    },
+    {
+      "question_id": "VQ-S1-021",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The DD-9 guard required changing `AddContactResult`'s `ok: false` variant to add optional `blocked?: boolean` and `pubkeyHex?: string` fields (instead of a new `error: 'blocked'` literal), specifically to avoid breaking `processContactInput.ts`'s `AddContactSubmissionResult` type, which forwards `addResult.error` into a narrower `'invalid_npub' | 'self' | 'already_exists' | 'unsupported_version'` union and is outside this story's declared scope. Does `npx tsc --noEmit -p tsconfig.json` remain clean (it did at implementation time), and does `processContactInput.ts`'s `shouldImportProfile` gate (`addResult.ok || addResult.error === 'already_exists'`) now also fire for a blocked re-add — meaning a blocked contact's profile nickname can still be cache-refreshed via a card re-scan even though the DM channel stays denied? Confirm this is an acceptable, narrow side effect (profile-cache nickname only, not a gate/channel reopening) rather than a privacy or DD-9 violation, and flag to S4/S5 if the blocked-re-add UI messaging needs to distinguish this case from an ordinary already_exists."
+    },
+    {
+      "question_id": "VQ-S1-022",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "This story's DD-9 change broke a previously-passing test outside its declared scope.includes test files: `app/tests/unit/contacts-mutation-gaps.test.ts`'s Gap-3 describe block (`addContactByNpub — ever-known-peer registration on reactivation`), which asserted the now-removed reactivate-on-re-add behavior. Was updating that test in place (rather than leaving it red, or reverting the DD-9 production change) the correct call given Regression Prevention's zero-previously-passing-failures bar? Verify the updated test (`addContactByNpub — blocked re-add guard`) still pins a real regression risk (that a blocked re-add must not seed knownPeers as a side effect) rather than becoming a vacuous no-op assertion, and confirm no other test file outside the four touched (`blockedPeers.test.ts`, `contacts-add-by-npub.test.ts`, `contacts.test.ts` unchanged, `contacts-mutation-gaps.test.ts`) asserts the old reactivate-by-npub contract — run `grep -rn \"reactivated: true\" app/tests/unit/` and confirm every remaining hit is either this story's own updated assertions or an unrelated reactivation path (none exist for addContactByNpub after this change)."
+    },
+    {
+      "question_id": "VQ-S1-023",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCOPE-3",
+      "question": "This story's regression test for AC-SCOPE-3 exercises only `purgeStrangerContacts` (in `contacts.ts`, within this story's declared scope) via `blockedPeers.test.ts`. The other three named sweep functions — `purgeStrangerDmCounters` (`unreadStore.ts`), `purgeStrangerDmThreads` (`chatPersistence.ts`), and `purgeStrangerDmReactions` (`reactions/api.ts`) — were NOT given their own regression tests in this story, because their test files (`unreadStore.test.ts`, `chatPersistence-purge.test.ts`, reactions tests) are outside this story's declared touch-scope. Is the architect's reasoning sound that these three are safe by construction — because they key exclusively off the unchanged `isAllowedDmSender` predicate, and a blocked-but-known peer is, from that predicate's perspective, indistinguishable from any other known/grouped peer (verified: `walledGarden.ts` has zero diff and zero `isBlockedPeer` references) — or does AC-SCOPE-3's letter require dedicated tests in those three files before this story can be considered fully verified? If dedicated tests are required, they should land in this story's remediation or be explicitly deferred to S3 (which already touches `chatPersistence.ts`/`unreadStore.ts` for the history-wipe helper and can add the regression assertions where the wipe interacts with the sweep)."
+    },
+    {
+      "question_id": "VQ-S1-024",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "MarmotContext.tsx's `blockedPeersRevision`/`notifyBlockedPeersChanged` pair is exposed and bumpable in this story, but nothing in this story's diff ever calls `notifyBlockedPeersChanged()` — the block/unblock UI action that would call it (`profile.tsx#handleArchiveToggle`) is explicitly out of this story's scope (S4's job). Confirm this is the intended reading of 'expose + bump a block-revision counter' for S1 (mirroring how `notifyKnownPeersChanged` is likewise exposed by context but invoked from call sites like `AddContactModal`/`add.tsx`, not from within `MarmotContext.tsx` itself), and that S4's implementation plan explicitly wires `notifyBlockedPeersChanged()` into the block AND unblock branches of `handleArchiveToggle` (not just block) so `AC-UNBLOCK-3`'s 'no unmount/remount needed to resume' guarantee holds symmetrically."
+    }
+  ]
+}

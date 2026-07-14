@@ -1,0 +1,50 @@
+{
+  "module_name": "contacts UI",
+  "purpose": "Vertical slice spanning ContactChat.tsx (chat view), contacts.tsx ContactDetailView (contacts page), and profile.tsx (profile page) that (a) renders a Blocked state instead of ContactChat's composer for an archived contact, on both in-app nav and the direct-URL route's first render; (b) defensively re-applies S1's composite DM gate at ContactChat's 4 ingestion sites so a blocked sender's message is never persisted even if ContactChat is somehow mounted; (c) adds a block confirmation modal (new BlockContactButton component) gating S1's archiveContact + S3's history wipe + S1's block-revision bump behind an explicit confirm, with unblock remaining a direct, non-confirmed call; (d) suppresses outbound pairing-echo and card-profile import for a blocked peer's re-add/re-scan (processContactInput.ts, add.tsx); (e) proves the privacy invariant (no kind-0/kind-10000/any public event) across block+unblock via a publish-call spy.",
+  "public_api": [
+    {
+      "name": "performBlockContact",
+      "signature": "async function performBlockContact(peerPubkeyHex: string, deps: BlockContactDeps): Promise<HistoryWipeResult>",
+      "description": "Pure(-ish), dependency-injected orchestration of the block branch's CRITICAL ORDERING (AC-VIEW-14): deps.archiveContact(peer) -> deps.notifyBlockedPeersChanged() -> await deps.wipeSinglePeerHistory(peer), in that exact sequence, so the composite gate is live (archivedAt set + revision bumped) before/atomic with the wipe. Never calls S1/S3 internals directly — every side effect is an injected dep, consumed only through its exported seam signature (archiveContact from contacts.ts, notifyBlockedPeersChanged from MarmotContext, wipeSinglePeerHistory from chatPersistence.ts). Testable without React/jsdom by passing spy deps and asserting call order."
+    },
+    {
+      "name": "performUnblockContact",
+      "signature": "function performUnblockContact(peerPubkeyHex: string, deps: UnblockContactDeps): void",
+      "description": "Pure(-ish), dependency-injected orchestration of the unblock branch (AC-UNBLOCK-2/4): deps.unarchiveContact(peer) -> deps.notifyBlockedPeersChanged(), synchronous, no confirmation, no history-resurrection call of any kind (never touches loadMessages/appendMessage)."
+    },
+    {
+      "name": "BlockContactButton",
+      "signature": "function BlockContactButton(props: { peerPubkeyHex: string; isArchived: boolean; onChanged: () => void; testId?: string }): JSX.Element",
+      "description": "New confirm-dialog component (Chakra Modal + useDisclosure, mirrors LeaveGroupButton.tsx's destructive-action pattern, DD-11). isArchived=false renders the block trigger (data-testid defaults to 'profile-archive') that opens a confirm modal before calling performBlockContact with real deps; isArchived=true renders a direct Unblock trigger (same default testid, override via testId) that calls performUnblockContact with no modal. Calls props.onChanged() after either action completes so the caller re-derives contact state. Colocated under app/src/components/contacts/, reused by both profile.tsx (block/unblock trigger) and contacts.tsx's ContactDetailView Blocked banner (unblock-only usage, isArchived always true there)."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/blockContactAction.ts (performBlockContact/performUnblockContact + Deps types)",
+    "app/src/components/contacts/BlockContactButton.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/blockedPeers.ts (isAllowedDmSenderComposite, loadBlockedPeers, isBlockedPeer — consumed only via these exports)",
+    "app/src/context/MarmotContext.tsx (blockedPeersRevision, notifyBlockedPeersChanged — consumed only via useMarmot())",
+    "app/src/lib/marmot/chatPersistence.ts (wipeSinglePeerHistory, HistoryWipeResult — consumed only via this export)",
+    "app/src/lib/contacts.ts (archiveContact, unarchiveContact, addContactByNpub, getContact, listContacts — unchanged, consumed only via existing exports)",
+    "app/src/lib/i18n.ts (useCopy() keys: contacts.blockConfirmTitle/Body/Button, contacts.blockCancelButton, profile.archiveAction/unarchiveAction, contacts.hiddenBadge, contacts.archivedDetailNotice — already landed by S5, consumed read-only)",
+    "app/src/lib/processContactInput.ts (AddContactSubmissionResult.blocked extended field, this story's own change)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/blockedPeers.ts internals (block-set derivation logic, isBlockedPeer's own body)",
+    "app/src/lib/marmot/chatPersistence.ts internals (clearMessages/clearDirectMessageContact called directly — always via wipeSinglePeerHistory)",
+    "app/src/lib/directMessageNotifications.ts (S2's own module, untouched)",
+    "app/src/lib/i18n.ts internals (no new hardcoded copy; no editing of S5's already-landed key values)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/blockContactAction.test.ts (new — AC-CONFIRM-1/2, AC-UNBLOCK-2/4, AC-VIEW-14 call-order, plus AC-PRIV-1/2/3 unit-level structural (no-publish-import) proof)",
+    "app/tests/unit/contactChat-block-gating.test.ts (new — AC-VIEW-8..11 defensive ingestion, source-assertion + real behavioral gate-then-persist proof via ContactChat.tsx's exported shouldIngestDmFromSender)",
+    "app/tests/unit/processContactInput-blocked.test.ts (new — AC-VIEW-13)",
+    "app/tests/e2e/dm-block-contact.spec.ts (new — AC-VIEW-1/7, AC-CONFIRM-1/2, AC-UNBLOCK-2/4, AC-VIEW-14, AC-PRIV-1/2/3 real WebSocket-frame publish-spy across BOTH block and unblock)",
+    "app/tests/e2e/groups-contacts.spec.ts (modified — add confirm-click step for the now-gated block action)"
+  ]
+}

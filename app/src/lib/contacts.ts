@@ -249,7 +249,22 @@ export function addableGroupsForContact(
 
 export type AddContactResult =
   | { ok: true; pubkeyHex: string; reactivated: boolean }
-  | { ok: false; error: 'invalid_npub' | 'self' | 'already_exists' };
+  | {
+      ok: false;
+      error: 'invalid_npub' | 'self' | 'already_exists';
+      /**
+       * Present and `true` iff `error === 'already_exists'` because every
+       * case-insensitively-matching stored entry is archived (blocked) —
+       * epic: block-contact, DD-9. Distinguishes "you already have this
+       * contact, archived/blocked" from the ordinary active-duplicate case
+       * so a caller can surface "this contact is blocked" rather than a
+       * generic already-exists message. Absent (or `false`) for the
+       * ordinary active-duplicate `already_exists` case.
+       */
+      blocked?: boolean;
+      /** Present iff `blocked` is `true` — the lowercase-hex pubkey of the blocked contact, so a caller need not re-decode the npub. */
+      pubkeyHex?: string;
+    };
 
 /**
  * Adds a contact by npub, the entry point for "add contact by npub" (S1).
@@ -273,33 +288,37 @@ export type AddContactResult =
  * index by whatever case the caller (or a group's `memberPubkeys`) happens to
  * supply, un-normalized. An exact-key match would therefore miss an existing
  * entry stored under a mixed/upper-case key — silently creating a duplicate
- * and bypassing both the `already_exists` guard and archived-contact
- * reactivation. The resolution below gathers ALL case-insensitive matches
- * (there can be more than one, e.g. an active entry and a separately-stored
+ * and bypassing both the `already_exists` guard and the blocked-contact
+ * guard below. The resolution gathers ALL case-insensitive matches (there
+ * can be more than one, e.g. an active entry and a separately-stored
  * archived entry differing only in case) and operates on that set, consistent
  * with the case-insensitive comparisons used elsewhere in this module
  * (`commonGroups`, `eligibleGroupsForContact`, `listContacts`). If ANY match
  * is active, the request is rejected as `already_exists` even if another
- * matching entry is archived — an active entry always wins the guard check
- * over reactivating a different archived duplicate.
+ * matching entry is archived — an active entry always wins the guard check.
  *
  * An existing, non-archived contact is left completely untouched (not even
  * `lastSeenAt` is bumped) and reported as `already_exists`. An existing,
- * archived contact (with no active match) is reactivated: `rememberKnownPeers`
- * runs BEFORE any contacts-store write, in both the reactivate and new-contact
- * branches — this ordering is load-bearing (ADR-005). It closes a window
- * where a concurrent `purgeStrangerContacts` sweep (e.g. from another browser
- * tab sharing localStorage) could otherwise delete the contact before it is
- * recognized as an ever-known peer. Do not reorder for convenience.
+ * ARCHIVED (blocked) contact, with no active match, is likewise left
+ * completely untouched — epic: block-contact, DD-9 — and reported as
+ * `{ ok: false, error: 'already_exists', blocked: true, pubkeyHex }`. Prior
+ * to this epic, re-adding an archived contact by npub silently called
+ * `unarchiveContact`, clearing `archivedAt` and reopening the DM channel;
+ * that silent-unblock hole is closed here. A blocked contact only becomes
+ * unblocked through the explicit unblock action (`unarchiveContact`), never
+ * as a side effect of a re-add attempt.
  *
  * @param npub          - Bech32 npub string supplied by the user.
  * @param ownPubkeyHex  - The local user's hex pubkey (any case, or
  *                        null/undefined). When falsy, the self-check is
  *                        skipped.
- * @returns `{ ok: true, pubkeyHex, reactivated }` on success — `reactivated`
- *   is `true` when an archived entry was restored, `false` for a brand-new
- *   entry. `{ ok: false, error }` otherwise, where `error` identifies which
- *   guard rejected the request.
+ * @returns `{ ok: true, pubkeyHex, reactivated: false }` for a brand-new
+ *   entry (this function no longer ever reactivates, so `reactivated` is
+ *   always `false` when present). `{ ok: false, error }` otherwise, where
+ *   `error` identifies which guard rejected the request; `error:
+ *   'already_exists'` additionally carries `blocked: true` and `pubkeyHex`
+ *   when the rejection is specifically because the matching contact is
+ *   archived/blocked.
  */
 export function addContactByNpub(
   npub: string,
@@ -327,13 +346,11 @@ export function addContactByNpub(
   }
 
   if (matchingKeys.length > 0) {
-    // All matches are archived — reactivate the first one deterministically;
-    // any remaining archived duplicates are left as-is.
-    const existingKey = matchingKeys[0];
-    rememberKnownPeers([pubkeyHex]);
-    unarchiveContact(existingKey);
-    rememberContact(existingKey);
-    return { ok: true, pubkeyHex, reactivated: true };
+    // All matches are archived — this peer is blocked (DD-9). Do NOT
+    // reactivate: no unarchiveContact call, no rememberContact bump. Report
+    // `blocked` so the caller can surface "this contact is blocked" instead
+    // of silently restoring DM access.
+    return { ok: false, error: 'already_exists', blocked: true, pubkeyHex };
   }
 
   rememberKnownPeers([pubkeyHex]);

@@ -95,6 +95,7 @@ Enforce the walled garden at every ingress and every persistence boundary:
 ## Constrained by ADRs
 
 - **ADR-001** — Gate DM reachability exclusively on live MLS group membership.
+- **ADR-008** — Block is a deny layer AND-ed at every peer-signal channel, keyed on `archivedAt`.
 
 ## Design Decisions
 

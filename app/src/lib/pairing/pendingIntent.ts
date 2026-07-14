@@ -60,6 +60,9 @@ import type { EventSigner } from 'applesauce-core';
 import { sendPairingAck } from '@/src/lib/pairing/pairingAck';
 import { hasShareableName } from '@/src/lib/shareCard';
 import { createLogger } from '@/src/lib/logger';
+// Privacy gate (gate-remediation finding 2, epic: block-contact DD-1). Reused
+// verbatim, never re-implemented.
+import { loadBlockedPeers, isBlockedPeer } from '@/src/lib/blockedPeers';
 
 const logger = createLogger('pending-pairing-intent');
 
@@ -152,7 +155,17 @@ export type PendingIntentOutcome =
   /** Still in-window, but no shareable name yet — the intent remains persisted, untouched, waiting for a future drain once a name is set. */
   | 'deferred'
   /** Past the intent's own `expiresAt` — deleted with no send attempt and no error (AC-SCAN-7). */
-  | 'expired';
+  | 'expired'
+  /**
+   * The issuer is a blocked peer (gate-remediation finding 2, epic:
+   * block-contact DD-1) — the intent is deleted with NO send attempt, same
+   * as `expired`. Checked at SEND time (every `processIntent` call), not
+   * just at queue time, so a peer blocked AFTER an intent was queued (e.g.
+   * queued while nameless/offline, blocked before a name was ever set) can
+   * never receive the deferred echo/profile-announce once a name is
+   * eventually set or a retry fires.
+   */
+  | 'droppedBlocked';
 
 /**
  * Per-issuer in-flight lock (review-remediation, sev 3 — see file header).
@@ -208,6 +221,17 @@ async function processIntentCore(
   if (!isIntentInWindow(intent, nowSec)) {
     await deletePendingIntent(intent.issuerPubkey);
     return 'expired';
+  }
+
+  // Privacy gate (gate-remediation finding 2, epic: block-contact DD-1):
+  // checked BEFORE sendPairingAck, on every call — not just at queue time —
+  // so a producer that queued this intent before the issuer was ever blocked
+  // cannot bypass the gate. A blocked issuer's held intent is dropped
+  // immediately, regardless of whether a shareable name is set yet, since it
+  // can never legitimately be sent.
+  if (isBlockedPeer(intent.issuerPubkey, loadBlockedPeers())) {
+    await deletePendingIntent(intent.issuerPubkey);
+    return 'droppedBlocked';
   }
 
   if (!hasShareableName(ctx.ownProfile.nickname)) {
@@ -273,6 +297,8 @@ export type DrainPendingIntentsResult = {
   retried: string[];
   droppedExpired: string[];
   deferredNoName: string[];
+  /** Issuer pubkeys whose held intent was dropped because the issuer is a blocked peer (gate-remediation finding 2). */
+  droppedBlocked: string[];
 };
 
 /**
@@ -288,7 +314,7 @@ export async function drainPendingIntents(
 ): Promise<DrainPendingIntentsResult> {
   const nowSec = now();
   const intents = await loadPendingIntents();
-  const result: DrainPendingIntentsResult = { sent: [], retried: [], droppedExpired: [], deferredNoName: [] };
+  const result: DrainPendingIntentsResult = { sent: [], retried: [], droppedExpired: [], deferredNoName: [], droppedBlocked: [] };
 
   for (const intent of intents) {
     const outcome = await processIntent(intent, ctx, nowSec);
@@ -304,6 +330,9 @@ export async function drainPendingIntents(
         break;
       case 'deferred':
         result.deferredNoName.push(intent.issuerPubkey);
+        break;
+      case 'droppedBlocked':
+        result.droppedBlocked.push(intent.issuerPubkey);
         break;
     }
   }

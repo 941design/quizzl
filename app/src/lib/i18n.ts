@@ -261,6 +261,16 @@ type Copy = {
     hiddenOnlyBody: (count: number) => string;
     hiddenBadge: string;
     archivedDetailNotice: string;
+    /**
+     * Epic: block-contact, story S5 (AC-COPY-6) — confirm-dialog copy for the
+     * block-confirmation modal (S4 wires `Modal` + `useDisclosure`, mirroring
+     * `LeaveGroupButton`'s destructive-action pattern). The body MUST warn
+     * that blocking deletes the conversation history and blocks the person.
+     */
+    blockConfirmTitle: string;
+    blockConfirmBody: string;
+    blockConfirmButton: string;
+    blockCancelButton: string;
     profileNameFallback: string;
     backToContacts: string;
     contactNotFound: string;
@@ -837,12 +847,16 @@ const copy: Record<LanguageCode, Copy> = {
       emptyTitle: 'No contacts yet',
       emptyBody: 'Join a group with someone, or open a contact card link they share with you, and they will appear here.',
       listHeading: 'All contacts',
-      hiddenFilterLabel: 'Hidden contacts',
-      hideHiddenOption: 'Hide hidden contacts',
-      showHiddenOption: (count: number) => count === 0 ? 'Show hidden contacts' : `Show hidden contacts (${count})`,
-      hiddenOnlyBody: (count: number) => count === 1 ? '1 hidden contact is currently filtered out.' : `${count} hidden contacts are currently filtered out.`,
-      hiddenBadge: 'Hidden',
-      archivedDetailNotice: 'This contact is hidden from the default list view until you unarchive them.',
+      hiddenFilterLabel: 'Blocked contacts',
+      hideHiddenOption: 'Hide blocked contacts',
+      showHiddenOption: (count: number) => count === 0 ? 'Show blocked contacts' : `Show blocked contacts (${count})`,
+      hiddenOnlyBody: (count: number) => count === 1 ? '1 blocked contact is currently filtered out.' : `${count} blocked contacts are currently filtered out.`,
+      hiddenBadge: 'Blocked',
+      archivedDetailNotice: 'You have blocked this contact. Their messages are filtered and your conversation history was deleted.',
+      blockConfirmTitle: 'Block contact?',
+      blockConfirmBody: 'Blocking this contact deletes your conversation history and stops them from messaging you. This cannot be undone.',
+      blockConfirmButton: 'Block contact',
+      blockCancelButton: 'Cancel',
       profileNameFallback: 'Unnamed contact',
       backToContacts: 'Back to Contacts',
       contactNotFound: 'Contact not found.',
@@ -880,8 +894,8 @@ const copy: Record<LanguageCode, Copy> = {
       copiedCardLink: 'Copied!',
       shareCardError: 'Failed to build the share card. Please try again.',
       sendDm: 'Send message',
-      archiveAction: 'Hide contact',
-      unarchiveAction: 'Unarchive contact',
+      archiveAction: 'Block contact',
+      unarchiveAction: 'Unblock contact',
       viewProfile: 'View profile',
       notFound: 'Profile not found.',
       addToGroupLabel: 'Add to a group',
@@ -1359,12 +1373,16 @@ const copy: Record<LanguageCode, Copy> = {
       emptyTitle: 'Noch keine Kontakte',
       emptyBody: 'Tritt einer Gruppe mit anderen Personen bei oder öffne eine Kontaktkarte, die dir jemand teilt, dann erscheinen sie hier.',
       listHeading: 'Alle Kontakte',
-      hiddenFilterLabel: 'Versteckte Kontakte',
-      hideHiddenOption: 'Versteckte Kontakte ausblenden',
-      showHiddenOption: (count: number) => count === 0 ? 'Versteckte Kontakte anzeigen' : `Versteckte Kontakte anzeigen (${count})`,
-      hiddenOnlyBody: (count: number) => count === 1 ? '1 versteckter Kontakt wird aktuell ausgeblendet.' : `${count} versteckte Kontakte werden aktuell ausgeblendet.`,
-      hiddenBadge: 'Versteckt',
-      archivedDetailNotice: 'Dieser Kontakt ist in der Standardliste ausgeblendet, bis du ihn wieder einblendest.',
+      hiddenFilterLabel: 'Blockierte Kontakte',
+      hideHiddenOption: 'Blockierte Kontakte ausblenden',
+      showHiddenOption: (count: number) => count === 0 ? 'Blockierte Kontakte anzeigen' : `Blockierte Kontakte anzeigen (${count})`,
+      hiddenOnlyBody: (count: number) => count === 1 ? '1 blockierter Kontakt wird aktuell ausgeblendet.' : `${count} blockierte Kontakte werden aktuell ausgeblendet.`,
+      hiddenBadge: 'Blockiert',
+      archivedDetailNotice: 'Du hast diesen Kontakt blockiert. Seine Nachrichten werden gefiltert und euer Gesprächsverlauf wurde gelöscht.',
+      blockConfirmTitle: 'Kontakt blockieren?',
+      blockConfirmBody: 'Wenn du diesen Kontakt blockierst, wird euer Gesprächsverlauf gelöscht und er kann dir keine Nachrichten mehr senden. Dies kann nicht rückgängig gemacht werden.',
+      blockConfirmButton: 'Kontakt blockieren',
+      blockCancelButton: 'Abbrechen',
       profileNameFallback: 'Kontakt ohne Namen',
       backToContacts: 'Zurück zu Kontakten',
       contactNotFound: 'Kontakt nicht gefunden.',
@@ -1402,8 +1420,8 @@ const copy: Record<LanguageCode, Copy> = {
       copiedCardLink: 'Kopiert!',
       shareCardError: 'Kartenerstellung fehlgeschlagen. Bitte erneut versuchen.',
       sendDm: 'Nachricht senden',
-      archiveAction: 'Kontakt ausblenden',
-      unarchiveAction: 'Kontakt wieder einblenden',
+      archiveAction: 'Kontakt blockieren',
+      unarchiveAction: 'Kontakt entsperren',
       viewProfile: 'Profil ansehen',
       notFound: 'Profil nicht gefunden.',
       addToGroupLabel: 'Zu einer Gruppe hinzufügen',

@@ -1,0 +1,40 @@
+{
+  "story_id": "S5",
+  "status": "done",
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "i18n"
+  ],
+  "files_created": [
+    "app/tests/unit/blockCopy.i18n.test.ts",
+    "specs/epic-block-contact/S5-relabel-block-copy-i18n/architecture.json",
+    "specs/epic-block-contact/S5-relabel-block-copy-i18n/baseline.json",
+    "specs/epic-block-contact/S5-relabel-block-copy-i18n/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/i18n.ts",
+    "specs/epic-block-contact/S5-relabel-block-copy-i18n/verification.json"
+  ],
+  "tests_added": {
+    "unit": 6
+  },
+  "test_counts": {
+    "baseline": 3067,
+    "final": 3073
+  },
+  "mocks": [],
+  "escalation_history": [],
+  "implementation_summary": "Relabeled block/unblock/blocked-badge/blocked-notice/hidden-filter copy in app/src/lib/i18n.ts for both en and de locales (AC-COPY-1 through AC-COPY-5), and added 4 new confirm-dialog copy keys under the contacts namespace for both locales plus the Copy type (AC-COPY-6): contacts.blockConfirmTitle, contacts.blockConfirmBody, contacts.blockConfirmButton, contacts.blockCancelButton. contacts.blockConfirmBody warns that blocking deletes the conversation history and stops the person from messaging (S4's confirm dialog consumes these four keys). Reconciliation: AC-COPY-1/AC-COPY-2 name copy.contacts.archiveAction/unarchiveAction, but that key pair does not exist under `contacts` and is not consumed anywhere -- the live archive/unarchive button (app/pages/profile.tsx:752) reads copy.profile.archiveAction/copy.profile.unarchiveAction, and contacts.tsx has no archive/unarchive button of its own. Relabeled copy.profile.archiveAction -> 'Block contact'/'Kontakt blockieren' and copy.profile.unarchiveAction -> 'Unblock contact'/'Kontakt entsperren' instead of adding an orphan, unconsumed copy.contacts.archiveAction/unarchiveAction pair. No 'Hide'/'Hidden'/'ausblenden'/'Versteckt' wording remains anywhere in i18n.ts for these surfaces. New confirm-dialog keys for S4 to consume verbatim: copy.contacts.blockConfirmTitle, copy.contacts.blockConfirmBody, copy.contacts.blockConfirmButton, copy.contacts.blockCancelButton (all plain strings, no dynamic interpolation, mirroring the LeaveGroupButton confirm-modal convention of not naming the target inline).",
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "AC-COPY-1 and AC-COPY-2 name a key path (copy.contacts.archiveAction/unarchiveAction) that has never existed in the codebase -- the actual archive/unarchive toggle lives under copy.profile.* in app/pages/profile.tsx, and contacts.tsx has no archive button at all. Verifying this required cross-referencing the AC text against grep results across both i18n.ts and its two consuming pages before the correct edit target was clear; a spec that had verified the real key path up front would have saved that reconciliation step.",
+    "surprised_by": "The AC's referenced key namespace (contacts.archiveAction/unarchiveAction) does not exist and is not consumed by any component -- the real toggle is under profile.*, which the AC's authors apparently assumed was under contacts.* by analogy with the other four relabeled keys (hiddenBadge, archivedDetailNotice, etc.) that genuinely do live under contacts.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-14T00:05:00Z"
+}

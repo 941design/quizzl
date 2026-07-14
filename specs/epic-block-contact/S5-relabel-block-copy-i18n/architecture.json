@@ -1,0 +1,41 @@
+{
+  "module_name": "i18n",
+  "purpose": "Single source of en/de user-facing copy for the app (Copy type + getCopy()). This story relabels the block/unblock/blocked-badge/blocked-notice/hidden-filter copy to Block/Blocked/Unblock phrasing and adds new confirm-dialog copy keys for S4 to consume.",
+  "public_api": [
+    {
+      "name": "getCopy",
+      "signature": "getCopy(locale: 'en' | 'de'): Copy",
+      "description": "Existing accessor, unchanged signature. Returns the locale's Copy object; this story only edits string/function values within it and extends the Copy type with 4 new contacts.* keys."
+    },
+    {
+      "name": "Copy",
+      "signature": "type Copy (TypeScript type)",
+      "description": "Extended with 4 new keys under contacts: blockConfirmTitle, blockConfirmBody, blockConfirmButton, blockCancelButton (all string). No existing key signatures changed (archiveAction/unarchiveAction/hiddenBadge/archivedDetailNotice/hiddenFilterLabel/hideHiddenOption/showHiddenOption/hiddenOnlyBody keep their prior types; only their string values change)."
+    }
+  ],
+  "private_files": [],
+  "owned_data": ["Copy type definitions", "en Copy object literal", "de Copy object literal"],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": [
+    "app/pages/contacts.tsx",
+    "app/pages/profile.tsx",
+    "app/src/components/contacts/ContactChat.tsx"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/blockCopy.i18n.test.ts"
+  ],
+  "reconciliation_note": "AC-COPY-1/AC-COPY-2 name copy.contacts.archiveAction/unarchiveAction, but no such keys exist or are consumed anywhere. The live archive/unarchive button (app/pages/profile.tsx:752) reads copy.profile.archiveAction/copy.profile.unarchiveAction — contacts.tsx has no button of its own. Relabeled profile.archiveAction -> 'Block contact'/'Kontakt blockieren' and profile.unarchiveAction -> 'Unblock contact'/'Kontakt entsperren' instead, since that is the actual surface the AC's user-facing intent targets. No orphan contacts.archiveAction/unarchiveAction key was added (would be unconsumed, violating the pre-impl scope question VQ-S5-005/VQ-S5-006 no-orphan-key rule).",
+  "new_confirm_dialog_keys": {
+    "namespace": "contacts",
+    "keys": {
+      "blockConfirmTitle": "Modal title, string",
+      "blockConfirmBody": "Modal body warning that blocking deletes conversation history and blocks the person, string",
+      "blockConfirmButton": "Destructive confirm-button label, string",
+      "blockCancelButton": "Cancel-button label, string"
+    },
+    "for_consumption_by": "S4 (confirm-dialog component wiring)"
+  }
+}
