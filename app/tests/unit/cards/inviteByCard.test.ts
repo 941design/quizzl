@@ -74,7 +74,14 @@ const { pubkeyToNpub } = await import('@/src/lib/nostrKeys');
 // S2: pure/async core extracted from InviteMemberModal.tsx (this repo's
 // convention — see AddContactModal.tsx / dmMessageEdits.test.ts precedent).
 // Importing the component module does not mount React or touch the DOM.
-const { resolveInviteTarget, submitInvite } = await import('@/src/components/groups/InviteMemberModal');
+// computeSelectionState/getErrorMessage: extraction added during the
+// epic-invite-contact-picker-redesign S1 mutation gate (2026-07-14) — these
+// were inline closures inside the component (100% NoCoverage under Stryker,
+// 0 unit tests) with no behavior change; see their docstrings in
+// InviteMemberModal.tsx.
+const { resolveInviteTarget, submitInvite, computeSelectionState, getErrorMessage } = await import(
+  '@/src/components/groups/InviteMemberModal'
+);
 
 function makePubkeyHex(): string {
   const sk = generateSecretKey();
@@ -181,5 +188,76 @@ describe('submitInvite — forwards inviteByNpub failure results verbatim (AC-UX
     const pubkeyHex = makePubkeyHex();
     const inviteByNpub = vi.fn(async () => expected);
     await expect(submitInvite(pubkeyHex, GROUP_ID, inviteByNpub)).resolves.toEqual(expected);
+  });
+});
+
+// ── computeSelectionState — hasSelectable / isSelectionValid predicates ────
+// (mutation-gate extraction, epic-invite-contact-picker-redesign S1)
+
+describe('computeSelectionState — derives picker enablement from entries + the current selection', () => {
+  const selectableEntry = (pubkeyHex: string) => ({ selectable: true, contact: { pubkeyHex } });
+  const disabledEntry = (pubkeyHex: string) => ({ selectable: false, contact: { pubkeyHex } });
+
+  it('reports neither selectable nor valid for an empty entries list', () => {
+    expect(computeSelectionState([], '')).toEqual({ hasSelectable: false, isSelectionValid: false });
+  });
+
+  it('reports hasSelectable true but isSelectionValid false when nothing is selected yet', () => {
+    const entries = [selectableEntry('a'.repeat(64))];
+    expect(computeSelectionState(entries, '')).toEqual({ hasSelectable: true, isSelectionValid: false });
+  });
+
+  it('reports hasSelectable false when every entry is disabled, even if one matches selectedPubkeyHex', () => {
+    const target = 'b'.repeat(64);
+    const entries = [disabledEntry(target)];
+    // The selection can never be valid if the matching row isn't selectable —
+    // this pins the `entry.selectable &&` half of the AND, not just the
+    // pubkeyHex equality (a stale selection on a now-disabled row, e.g. the
+    // invitee just got blocked mid-picker, must not read as valid).
+    expect(computeSelectionState(entries, target)).toEqual({ hasSelectable: false, isSelectionValid: false });
+  });
+
+  it('reports both true when selectedPubkeyHex matches a selectable entry', () => {
+    const target = 'c'.repeat(64);
+    const entries = [disabledEntry('d'.repeat(64)), selectableEntry(target)];
+    expect(computeSelectionState(entries, target)).toEqual({ hasSelectable: true, isSelectionValid: true });
+  });
+
+  it('reports isSelectionValid false when selectedPubkeyHex does not match any entry', () => {
+    const entries = [selectableEntry('e'.repeat(64))];
+    expect(computeSelectionState(entries, 'f'.repeat(64))).toEqual({
+      hasSelectable: true,
+      isSelectionValid: false,
+    });
+  });
+});
+
+// ── getErrorMessage — error-code -> copy mapping, one branch per code ──────
+// (mutation-gate extraction, epic-invite-contact-picker-redesign S1)
+
+describe('getErrorMessage — maps each known error code to its own copy key, unknown/undefined to generic', () => {
+  const copy = {
+    inviteErrorInvalidNpub: 'invalid-npub-copy',
+    inviteErrorNoKeyPackage: 'no-key-package-copy',
+    inviteErrorOffline: 'offline-copy',
+    inviteErrorTimeout: 'timeout-copy',
+    inviteErrorGeneric: 'generic-copy',
+  };
+
+  it.each([
+    ['invalid_npub', copy.inviteErrorInvalidNpub],
+    ['no_key_package', copy.inviteErrorNoKeyPackage],
+    ['offline', copy.inviteErrorOffline],
+    ['timeout', copy.inviteErrorTimeout],
+  ] as const)('maps %s to its own distinct copy string', (code, expected) => {
+    expect(getErrorMessage(code, copy)).toBe(expected);
+  });
+
+  it('falls back to the generic copy for an unrecognized error code', () => {
+    expect(getErrorMessage('some_future_error_code', copy)).toBe(copy.inviteErrorGeneric);
+  });
+
+  it('falls back to the generic copy for undefined (e.g. a thrown, code-less error)', () => {
+    expect(getErrorMessage(undefined, copy)).toBe(copy.inviteErrorGeneric);
   });
 });

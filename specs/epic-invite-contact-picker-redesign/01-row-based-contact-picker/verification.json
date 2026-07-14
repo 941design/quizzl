@@ -1,0 +1,161 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-14T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "In the rewritten InviteMemberModal.tsx (app/src/components/groups/InviteMemberModal.tsx), is the disabled-row click-block a real behavioral branch (an `entry.selectable` check that actually withholds the onClick handler / early-returns before calling setSelectedPubkeyHex) rather than a cosmetic-only treatment (e.g. dimmed styling with the click handler still wired and merely relying on the row happening not to be clicked in tests)? Is the selected-state affordance (aria-pressed / border) driven by live `selectedPubkeyHex === entry.contact.pubkeyHex` comparison rather than a frozen/stubbed boolean? Cite the exact line(s) implementing the branch, and confirm no test asserts a tautology (e.g. asserting a constant equals itself, or asserting a mock was 'called' without asserting its arguments).",
+      "answer": "YES on both counts. InviteMemberModal.tsx:208-218 spreads `{ onClick, onKeyDown }` onto the row Box only when `entry.selectable` is true (`{...(entry.selectable ? {...} : {})}`) — for a disabled entry the spread contributes nothing, so the handler is structurally absent, not a wired no-op. The selected-state affordance (line 183: `const isSelected = entry.selectable && entry.contact.pubkeyHex === selectedPubkeyHex;`, consumed at lines 196/201/202) is a live comparison against the component's `selectedPubkeyHex` React state, recomputed every render — not a frozen boolean. e2e assertions (groups-error-cases.spec.ts, groups-invite-pending-contact-selectable.spec.ts) assert on `invite-submit-btn`'s disabled state and error/success absence after a real `.click()` dispatch, not a mock-call assertion or a tautology.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:183, 196-218."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the row implementation follow every convention architecture.md's 'Implementation constraints' section pins down: data-testid placed on ModalContent (not Modal) per constraint 1; row shell visually mirroring ContactListView's row (app/pages/contacts.tsx:120-170) but built from a plain Box/Flex with onClick, never LinkBox/LinkOverlay/NextLink, per constraint 2 and AC-UX-7; selected-state via aria-pressed plus brand.400 border/boxShadow per constraint 3; disabled-row styling via reduced opacity + cursor:not-allowed with no onClick attached, per constraint 4; and zero new i18n keys (verbatim reuse of copy.groups.inviteContactLabel / inviteReasonAlreadyMember / inviteReasonBlocked) per constraint 6? Identify any deviation with file:line evidence.",
+      "answer": "YES, one clarified deviation (correctly resolved, not a defect). `data-testid=\"invite-member-modal-content\"` stays on ModalContent (line 153), unchanged — constraint 1 held. The enlarging `size=\"lg\"` prop, however, is a `Modal`-level prop in Chakra (not a `ModalContent` prop) — the dev agent initially placed it on ModalContent, tsc caught the type error, and it was corrected to `<Modal ... size=\"lg\" data-testid=\"invite-member-modal\">` (line 151). This is a Chakra API fact, not a deviation from architecture.md's testid-placement rule (which only governs data-testid, not size). Row shell: Box/Flex only, no LinkBox/LinkOverlay/NextLink (lines 192-233) — constraint 2 held, AC-UX-7 held. Selected-state: `aria-pressed` (line 196) + `borderColor=\"brand.400\"` + boxShadow ring (lines 201-202) — constraint 3 held, no checkmark badge added. Disabled-row: `opacity={entry.selectable ? 1 : 0.5}`, `cursor={entry.selectable ? 'pointer' : 'not-allowed'}` (lines 205-206), no onClick/onKeyDown spread (lines 208-218) — constraint 4 held. Zero new i18n keys: `copy.groups.inviteContactLabel` (line 173), `inviteReasonAlreadyMember`/`inviteReasonBlocked` (lines 187-189) reused verbatim, confirmed present in app/src/lib/i18n.ts:114-118/710-714/1237-1241 pre-existing — constraint 6 held.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:151,153,170-236."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `InviteMemberModal` be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? (architecture.md declares no seams for this epic and states InviteMemberModal continues to consume `selectableContactsForGroup`/`listContacts` from the `contacts` lib and `ProfileSummary` exactly as before with no new coupling — confirm the implementation introduces no new import of, or reach-through into, `app/src/lib/contacts.ts` or `app/src/components/ProfileSummary.tsx` internals beyond their existing exported surface.)",
+      "answer": "YES. The diff touches exactly `InviteMemberModal.tsx` plus its 4 declared e2e call sites (group-setup.ts, and 3 specs) — no other file changed. Imports added are `Box`/`Flex` from `@chakra-ui/react` (already-available library exports) and `ProfileSummary` (default export, existing public surface, same import path used by app/pages/contacts.tsx). `listContacts`/`selectableContactsForGroup` imports (line 23) are byte-identical to before. No reach-through into either module's internals — only their existing exported functions/component are called with the same argument shapes as before.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:1-25 (import block); git diff --stat confirms only the 5 declared files changed."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does test coverage exist at both levels for the row-based picker: (a) a unit/component-level test (if the project's test tooling supports component rendering) or at minimum a lint/typecheck pass over InviteMemberModal.tsx's new row-rendering branch, selection-state transitions, and disabled-row guard; and (b) e2e coverage via the three updated specs (groups-invite-pending-contact-selectable.spec.ts, groups-invite-guidance-state.spec.ts, groups-error-cases.spec.ts) exercising selectable-row click, disabled-row click-through-prevention, and the guidance-state fallback? Cite the specific test file(s)/case(s) covering each, and confirm none of them merely re-implements the modal's own selection logic in the test body (shadow-init) rather than driving the rendered DOM.",
+      "answer": "YES for (a) — this repo has no jsdom/@testing-library component-render convention (confirmed project convention: hooks/components are exercised via extracted pure functions or e2e, not shallow render), so level (a) here is `tsc --noEmit` (clean, zero errors) plus the pre-existing `tests/unit/cards/inviteByCard.test.ts` (11/11 passing, unmodified) which exercises `resolveInviteTarget`/`submitInvite` — the pure logic this story does not touch — as a regression guard. YES for (b): groups-invite-pending-contact-selectable.spec.ts (AC-E2E-8, 2/2 passing) exercises a real invite via `inviteContactViaPicker` then a disabled-row click-through-prevention case; groups-error-cases.spec.ts (AC-E2E-5, 3/3 passing) exercises the blocked-row click-through-prevention case; groups-invite-guidance-state.spec.ts (AC-E2E-7, 1/1 passing) exercises the zero-selectable guidance fallback. All three drive real rendered DOM via Playwright `getByTestId`/`.click()` against the live app — none re-implements `selectableContactsForGroup`'s eligibility logic in the test body (shadow-init); they seed real contacts, block/invite through real production flows (BlockContactButton, inviteByNpub), and assert on rendered testids.",
+      "evidence": "app/tests/unit/cards/inviteByCard.test.ts (11/11); app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts (2/2); app/tests/e2e/groups-error-cases.spec.ts (3/3); app/tests/e2e/groups-invite-guidance-state.spec.ts (1/1); tsc --noEmit clean."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the shipped InviteMemberModal row-picker match the epic's stated intent in spec.md end-to-end — a full replacement of the native <select>/<option> picker with a ProfileSummary-based row list, preserving the existing selection-state model, submit/loading/error/success flow, and guidance-state fallback exactly, with no behavior change to which contacts are selectable? Identify any point where the implementation diverges from spec.md's described behavior (including anything spec.md describes that the AC set in acceptance-criteria.md does not capture).",
+      "answer": "YES, no divergence found. `<Select>`/`<option>` fully removed (imports and JSX); `selectableContactsForGroup`/`isSelectionValid`/`hasSelectable`/`handleInvite`/`submitInvite`/error/success/loading rendering are byte-identical to pre-change (only the JSX consuming `entries` changed, per spec.md's Technical Approach section). Guidance-state fallback branch (lines 237-247) is untouched. No eligibility-logic file (contacts.ts) was touched.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx (full diff — logic functions and guidance branch unchanged; only lines 170-236 replaced)."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the already-member/blocked disabled-row boundary enforced defensively at the click-handling layer (not merely at the visual layer) so that a disabled row can never set `selectedPubkeyHex` to a blocked or already-member contact's pubkeyHex regardless of how the click event reaches the handler (e.g. keyboard activation, synthetic event, or a future onClick attached by accident)? Provide evidence (file:line + the guarding test) that clicking a disabled row leaves `invite-submit-btn` disabled and produces neither `invite-error` nor `invite-success`, per architecture.md constraint 7's app-state (not DOM-attribute) assertion discipline.",
+      "answer": "YES, defense-in-depth at two independent layers. Layer 1 (handler-absence): disabled rows never receive `onClick`/`onKeyDown` props at all (lines 208-218) — there is no handler to misfire via synthetic event or keyboard. Layer 2 (submit-gate): even in a hypothetical where a click did fire, `handleInvite` (line 116-117) early-returns unless `isSelectionValid` — and `isSelectionValid` (lines 97-99) independently re-checks `entry.selectable` against the live `entries` array, so a stray `selectedPubkeyHex` value pointing at a disabled contact could never pass the gate. Both e2e specs assert the app-state outcome (not a DOM attribute): groups-error-cases.spec.ts:107-110 and groups-invite-pending-contact-selectable.spec.ts:131-134 both click the disabled row then assert `invite-submit-btn` `toBeDisabled()` plus `invite-error`/`invite-success` `not.toBeVisible()` — both passed (3/3, 2/2).",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:97-99,116-117,208-218; app/tests/e2e/groups-error-cases.spec.ts:107-110; app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts:131-134."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-1",
+      "question": "Does InviteMemberModal render exactly one picker row per `entries[i]` inside a container carrying `data-testid=\"invite-contact-list\"`, and does the rendered output contain no `<select>` element with `data-testid=\"invite-contact-select\"` and no `<option>` elements anywhere in the modal? Cite the production JSX implementing this, cite the e2e/test assertion that exercises it end-to-end (not just a snapshot), and confirm that test is not a pure mock-spy proxy (i.e. it inspects rendered DOM/testids, not a mocked render function).",
+      "answer": "YES. `entries.map(...)` (line 182) renders exactly one Box row per entry inside the `VStack data-testid=\"invite-contact-list\"` container (lines 175-181). `Select`/`FormControl`/`FormLabel`/`<option>` are entirely removed from the file (confirmed via import block and full-file read — no residual `<select>`/`<option>` JSX). e2e: all three updated specs query `invite-contact-list`/`invite-contact-row-*` against the live rendered DOM (Playwright `getByTestId`), not a mock; `groups-invite-guidance-state.spec.ts:80-82`'s scoped-absence check additionally proves the list is genuinely absent (not present-but-empty) in the zero-selectable case.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:175-182; app/tests/e2e/groups-invite-guidance-state.spec.ts:80-82; grep for invite-contact-select/<option> returns zero matches in the component file."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-2",
+      "question": "Does each picker row render the contact's avatar and display name via `ProfileSummary`, fed the same `profile`/`fallbackName` derivation the modal used pre-redesign (`entry.contact.nickname` falling back to the truncated npub)? Cite the production code passing these props to `ProfileSummary`, cite the test asserting the rendered name/avatar for both a nicknamed and a nickname-less contact, and confirm the test reads real rendered output rather than asserting a mocked `ProfileSummary` was invoked with the right props alone.",
+      "answer": "YES. Lines 221-225 pass `profile={{ nickname: entry.contact.nickname, avatar: entry.contact.avatar }}` and `fallbackName={truncateNpub(pubkeyToNpub(entry.contact.pubkeyHex))}` to `ProfileSummary`; `ProfileSummary` itself does `displayName = profile.nickname || fallbackName` internally (ProfileSummary.tsx:27) — this reproduces the pre-redesign `entry.contact.nickname || truncateNpub(pubkeyToNpub(...))` derivation exactly, without double-OR-ing it in the caller. e2e tests reference contacts by pubkeyHex-keyed testids (`invite-contact-row-${pubkeyHex}`) and rely on `ProfileSummary`'s own `profile-display-name`/`profile-avatar-thumb` testids being present under that row — real rendered DOM, not a mocked component.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:221-225; app/src/components/ProfileSummary.tsx:22-27,64-69."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-3",
+      "question": "Does clicking a selectable row set `selectedPubkeyHex` to that row's `entry.contact.pubkeyHex`, does the row visibly indicate selected state while selected, and is `invite-submit-btn` enabled if and only if a selectable row is currently selected (same `isSelectionValid` gating as before)? Cite the production click handler and the enable/disable derivation, cite the e2e test that clicks a row and asserts both the visible selected affordance and the submit-button enabled state, and confirm that test observes real DOM state rather than a mocked state setter.",
+      "answer": "YES. `onClick: () => setSelectedPubkeyHex(entry.contact.pubkeyHex)` (line 210) fires only for selectable rows; `isSelected` (line 183) drives `aria-pressed`/`borderColor`/`boxShadow` (lines 196,201-202); `isSelectionValid` (lines 97-99, unchanged) gates the submit button's `isDisabled` prop (line 258, unchanged). `groups-invite-pending-contact-selectable.spec.ts`'s happy-path test (via `inviteContactViaPicker`) clicks a real row and the subsequent `invite-submit-btn` click succeeds end-to-end (invite-success becomes visible) — this is a live production flow through real DOM state, not a mocked setter.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:97-99,183,196,201-202,210,258; app/tests/e2e/helpers/group-setup.ts:79-103 (inviteContactViaPicker); e2e run: groups-invite-pending-contact-selectable.spec.ts 2/2 passed."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-4",
+      "question": "Does a disabled already-member row display the existing `copy.groups.inviteReasonAlreadyMember` text, and does clicking it leave `selectedPubkeyHex` unchanged? Cite the production conditional rendering the reason text and blocking the click, cite the e2e test (in the updated groups-invite-pending-contact-selectable.spec.ts or groups-error-cases.spec.ts) that clicks the already-member row and asserts `invite-submit-btn` stays disabled with no selection change, and confirm the test targets app state (submit-button state) rather than a DOM `disabled` attribute per architecture.md constraint 7.",
+      "answer": "YES. Lines 185-190: `reasonText = entry.disabledReason === 'already_member' ? copy.groups.inviteReasonAlreadyMember : ...`, rendered at lines 226-230 when set. `groups-invite-pending-contact-selectable.spec.ts`'s AC-E2E-8 test (lines 107-135) reopens the modal after Bob has become an already-member (invited synchronously), asserts his row is attached, clicks it (`.catch(() => {})`), then asserts `invite-submit-btn` `toBeDisabled()` + `invite-error`/`invite-success` `not.toBeVisible()` — app-state assertions, not a DOM `disabled` attribute (a Box row has none). Passed 2/2.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:185-190,226-230; app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts:107-135."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-5",
+      "question": "Does a disabled blocked row display the existing `copy.groups.inviteReasonBlocked` text, and does clicking it leave `selectedPubkeyHex` unchanged? Cite the production conditional distinguishing the blocked reason from the already-member reason, cite the e2e test (in groups-error-cases.spec.ts or wherever the blocked case is covered) exercising this row, and confirm the test asserts on `invite-submit-btn`/error/success app state rather than a row-level DOM flag, per architecture.md constraint 7.",
+      "answer": "YES. Same conditional as VQ-S1-010 (lines 185-190) distinguishes `'blocked'` -> `copy.groups.inviteReasonBlocked`. `groups-error-cases.spec.ts`'s AC-E2E-5 test (lines 60-113) blocks Bob via the real BlockContactButton flow, then clicks his disabled row and asserts `invite-submit-btn` `toBeDisabled()` + `invite-error`/`invite-success` `not.toBeVisible()` (lines 107-110) — app-state, not a row DOM flag. Passed 3/3.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:185-190; app/tests/e2e/groups-error-cases.spec.ts:60-113."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-6",
+      "question": "When `hasSelectable` is false, does the modal render the existing guidance state (`data-testid=\"invite-guidance-state\"` with the `/contacts` link) and omit `data-testid=\"invite-contact-list\"` entirely (not merely render it empty)? Cite the production conditional, cite the e2e test in groups-invite-guidance-state.spec.ts asserting both the presence of the guidance state and the absence of invite-contact-list, and confirm the absence assertion is a real query-returns-null/count-zero check rather than an assertion that never queries for the list at all.",
+      "answer": "YES. The `hasSelectable ? <row list> : <guidance VStack>` ternary (line 170, unchanged in structure) means `invite-contact-list` is only ever mounted in the truthy branch — omitted entirely (not rendered-empty) in the falsy branch. `groups-invite-guidance-state.spec.ts:70-82` asserts `invite-guidance-state` `toBeVisible()` AND a scoped `page.locator('[data-testid=\"invite-member-modal-content\"] [data-testid=\"invite-contact-list\"]')` `toHaveCount(0)` — a real DOM query returning zero matches, not an assertion that omits the query. Passed 1/1.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:170; app/tests/e2e/groups-invite-guidance-state.spec.ts:70-82."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-7",
+      "question": "Does clicking any picker row (selectable or disabled) leave the browser's URL/route unchanged — no navigation to `/profile` or `/contacts` — confirming rows are plain Box/Flex selection controls, not LinkBox/LinkOverlay? Cite the production markup showing no anchor/Link wrapping, cite an e2e assertion that checks `page.url()` (or equivalent) is unchanged after a row click, and confirm this assertion exists rather than being merely implied by the absence of a navigation-related failure elsewhere.",
+      "answer": "PARTIAL — production markup confirms no anchor/Link wrapping (no `LinkBox`/`LinkOverlay`/`NextLink` import or usage anywhere in the row-rendering block, lines 192-233 — the only `NextLink` in the file is the unrelated, unchanged guidance-state `/contacts` link at line 242), so navigation is structurally impossible via the row markup. However, no e2e assertion explicitly checks `page.url()`/route-unchanged after a row click in any of the 3 updated specs — the absence is implied (every spec continues driving the same modal/page after row clicks without a navigation-triggered failure) rather than directly asserted. This is a real coverage gap relative to the question's letter, though the structural guarantee (no Link/anchor in the row tree) is strong. Recommend a follow-up finding rather than blocking: add an explicit `expect(page.url()).toBe(...)` (or `toHaveURL`) assertion immediately after a row click in one of the three specs.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:192-233 (no Link-family import/usage in row block); app/tests/e2e/groups-error-cases.spec.ts, groups-invite-pending-contact-selectable.spec.ts (row click assertions present, no explicit URL check)."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-8",
+      "question": "Does `ModalContent` render with an enlarged size (`size=\"lg\"` or an explicit `maxW` wider than the pre-redesign default), and does the `invite-contact-list` container render with `overflowY=\"auto\"` and a bounded max-height so the row list scrolls internally rather than growing the modal unboundedly? Cite the exact Chakra props in InviteMemberModal.tsx, and cite any test or the MV-1 manual-validation note (acceptance-criteria.md's Manual Validation table) covering this, given this AC is primarily a visual/layout property that automated e2e assertions may only partially cover — state explicitly which part is automated-verifiable and which part remains MV-1's responsibility.",
+      "answer": "YES for the props; PARTIAL for automated coverage (as expected/acceptable — this AC is visual/layout-primary). `size=\"lg\"` is on `<Modal>` (line 151 — Chakra's size prop lives on Modal, not ModalContent; caught and corrected via tsc during implementation). `invite-contact-list`'s VStack carries `maxH=\"320px\" overflowY=\"auto\"` (lines 178-179). No e2e test asserts computed CSS (scroll behavior/rendered width) — that is expected, per the question's own framing, and remains MV-1's responsibility (acceptance-criteria.md's Manual Validation table, owner: markus). What IS automated-verifiable and was checked: the props exist in the JSX (static, via reading the file) and the component renders without runtime error across all e2e runs with real contact lists (2-3 contacts in the tested scenarios, not stress-tested at high contact counts).",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:151,178-179; specs/epic-invite-contact-picker-redesign/acceptance-criteria.md MV-1 (unautomated, owner markus)."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEP-1",
+      "question": "Does selecting a selectable row and clicking `invite-submit-btn` invoke `submitInvite`/`inviteByNpub` with that row's `pubkeyHex`, exactly as the dropdown did, and do `data-testid=\"invite-error\"` / `data-testid=\"invite-success\"` render on failure/success identically to the pre-redesign modal? Cite the unchanged call site passing `pubkeyHex` to `submitInvite`/`inviteByNpub`, cite the e2e test(s) exercising both the success and failure paths through row selection, and confirm those tests assert on rendered error/success DOM rather than only spying on the submit function call.",
+      "answer": "YES. `handleInvite`'s call to `submitInvite(selectedPubkeyHex, groupId, inviteByNpub)` (line 124) is byte-identical to pre-change. Success path: `groups-invite-pending-contact-selectable.spec.ts`'s setup phase drives a real invite via `inviteContactViaPicker` and asserts `invite-success` `toBeVisible()` (test file, success-path assertion) — passed. Failure path: `groups-error-cases.spec.ts`'s 'Invite without KeyPackage shows error' test (unrelated to this story's row changes, but exercises the same submit call site) and the disabled-row tests both assert `invite-error`/`invite-success` DOM state, not a function-call spy. All rendered-DOM assertions, none pure mock-spy.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:124; app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts (invite-success assertion); app/tests/e2e/groups-error-cases.spec.ts (invite-error assertion, unmodified by this story)."
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-1",
+      "question": "Has every e2e spec or helper that previously drove the picker via `getByTestId('invite-contact-select')` + `selectOption()` — group-setup.ts's picker-interaction helper, groups-invite-pending-contact-selectable.spec.ts, groups-invite-guidance-state.spec.ts, and groups-error-cases.spec.ts — been updated to drive it via `invite-contact-row-${pubkeyHex}` (click, with the existing wait-for-attach-before-interact discipline per architecture.md constraint 8), and does each updated spec still assert its original outcome (e.g. the disabled-row case still ends with the target unselected and `invite-submit-btn` disabled)? Grep the four files for any remaining `invite-contact-select` or `selectOption(` reference — a non-zero remaining count is a fail — and cite the pass/fail outcome of each updated spec's own run, not merely that the file compiles.",
+      "answer": "YES, all four updated; grep confirms zero remaining `invite-contact-select`/`selectOption(` references anywhere in app/tests/e2e/. group-setup.ts's `inviteContactViaPicker` (lines 79-103) waits for `invite-contact-list` visible, then `invite-contact-row-${inviteeHex}` `toBeAttached` (preserving the VQ-S3-006 anti-race wait-before-interact discipline), clicks it, clicks `invite-submit-btn`. All three original outcomes preserved: groups-invite-pending-contact-selectable.spec.ts (AC-E2E-8) 2/2 passed, groups-invite-guidance-state.spec.ts (AC-E2E-7) 1/1 passed, groups-error-cases.spec.ts (AC-E2E-5) 3/3 passed — each spec's disabled-row case still ends with invite-submit-btn disabled and no error/success visible, exactly as before.",
+      "evidence": "grep -rn 'invite-contact-select|selectOption(' app/tests/e2e/ -> zero matches; app/tests/e2e/helpers/group-setup.ts:79-103; e2e run results: 2/2, 1/1, 3/3 (6/6 total) via base:e2e-testing."
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "InviteMemberModal.tsx:208-218 conditionally spreads `{ onClick, onKeyDown }` onto the row `Box` only `entry.selectable ? {...} : {}` — i.e. the handlers are structurally absent (not present-but-no-op) for a disabled row. Does this actually hold under React/Chakra's prop-spread semantics (no accidental capture of a stale closure or a fallback handler elsewhere in the tree that could still fire selection for a disabled row), and did the disabled-row e2e assertions (groups-error-cases.spec.ts, groups-invite-pending-contact-selectable.spec.ts) exercise a REAL `.click()` dispatch against the disabled row (not a skipped/no-op call) before asserting `invite-submit-btn` stays disabled?",
+      "answer": "YES. InviteMemberModal.tsx:208-218 uses `{...(entry.selectable ? { onClick: ..., onKeyDown: ... } : {})}` — for a disabled entry this spreads an empty object, so `onClick`/`onKeyDown` are simply never assigned as props on the Box; there is no fallback handler elsewhere (no parent-level delegated click handler on the VStack/Box list container). Both e2e tests perform a real `bobRow.click().catch(() => {})` (groups-error-cases.spec.ts:107, groups-invite-pending-contact-selectable.spec.ts:131) against the live disabled row before asserting `invite-submit-btn` stays disabled and no invite-error/invite-success renders — both specs passed when run (groups-error-cases: 3/3, groups-invite-pending-contact-selectable: 2/2). The `.catch(() => {})` exists defensively in case Playwright's click on a non-interactive-but-visible element throws (it did not, in the observed runs), matching the same defensive pattern the old `selectOption(...).catch(() => {})` used.",
+      "evidence": "app/src/components/groups/InviteMemberModal.tsx:205-218 (conditional opacity/cursor + conditional handler spread); app/tests/e2e/groups-error-cases.spec.ts:107-110 (bobRow.click().catch + invite-submit-btn/invite-error/invite-success assertions); app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts:131-134 (same). e2e run: 3/3 and 2/2 passed via base:e2e-testing skill."
+    },
+    {
+      "question_id": "VQ-S1-018",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "25+ other e2e specs call the retargeted `inviteContactViaPicker` helper without directly asserting row testids themselves. Given the full 60-test e2e gate (`make test-e2e-all`) was not re-run for this story (scoped verification only, per project convention that a subset run is a dev-iteration aid, not the definitive gate), what concrete evidence supports the claim that the helper's rewrite (option/select -> row testid + click) does not regress those 25+ other specs, beyond the 5 specs actually run in this session?",
+      "answer": "PARTIAL — spot-checked, not exhaustively run. Direct evidence: 5 specs were run and passed (groups-invite-pending-contact-selectable.spec.ts 2/2, groups-invite-guidance-state.spec.ts 1/1, groups-error-cases.spec.ts 3/3, groups-cancel-pending.spec.ts 8/8, groups-rename.spec.ts 6/6 — the latter two chosen as unrelated `inviteContactViaPicker` callers to spot-check the helper's happy path independent of the 3 specs the story's ACs directly target). All 5 use or directly exercise the rewritten helper/component and passed with zero code changes needed after the initial fix. The helper's exported signature (`inviteContactViaPicker(inviterPage, inviteeNpub): Promise<void>`) is unchanged, and its internal behavior is a like-for-like retarget (wait-for-attach -> click, replacing wait-for-attach -> selectOption) preserving the same anti-race discipline. This is inference from a representative sample plus signature-stability, not a full-suite run. Full-suite confirmation (`make test-e2e-all`) is out of scope for a story-level architect regression check per this repo's CLAUDE.md e2e-gate convention, and was explicitly deferred to avoid colliding with other concurrently-running session agents' use of the shared Docker relay stack.",
+      "evidence": "5 passing e2e runs (14 tests total) captured via base:e2e-testing in this session; app/tests/e2e/helpers/group-setup.ts diff (signature unchanged, body retargeted 1:1)."
+    }
+  ]
+}

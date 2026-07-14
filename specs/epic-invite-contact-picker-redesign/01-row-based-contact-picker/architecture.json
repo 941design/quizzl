@@ -1,0 +1,51 @@
+{
+  "module_name": "InviteMemberModal",
+  "purpose": "Renders the group-invite contact picker modal as a row-based, avatar+name list (replacing the native <select>/<option> picker), preserving the existing selection/submit/loading/error/success state model exactly.",
+  "public_api": [
+    {
+      "name": "InviteMemberModal",
+      "signature": "export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMemberModalProps): JSX.Element",
+      "description": "Unchanged public component contract (isOpen/onClose/groupId props). Internal markup for the contact picker changes from Select/option to a scrollable list of clickable rows; all other behavior (submit/loading/error/success/guidance) is unchanged."
+    },
+    {
+      "name": "resolveInviteTarget",
+      "signature": "export function resolveInviteTarget(pubkeyHex: string): ResolveInviteTargetResult",
+      "description": "Unchanged. Not touched by this story."
+    },
+    {
+      "name": "submitInvite",
+      "signature": "export async function submitInvite(pubkeyHex: string, groupId: string, inviteByNpub: (groupId: string, npub: string) => Promise<{ ok: boolean; error?: string }>): Promise<{ ok: boolean; error?: string }>",
+      "description": "Unchanged. Not touched by this story."
+    }
+  ],
+  "private_files": [
+    "app/src/components/groups/InviteMemberModal.tsx"
+  ],
+  "owned_data": [
+    "selectedPubkeyHex (component-local React state, unchanged)",
+    "isLoading, error, success (component-local React state, unchanged)"
+  ],
+  "dependencies_allowed": [
+    "app/src/components/ProfileSummary.tsx (existing export, consumed as before, size=\"sm\")",
+    "app/src/lib/contacts.ts (listContacts, selectableContactsForGroup — existing exports, unchanged consumption)",
+    "app/src/lib/nostrKeys.ts (pubkeyToNpub, truncateNpub — existing exports, unchanged consumption)",
+    "app/src/context/LanguageContext.tsx (useCopy — existing, unchanged consumption)",
+    "app/src/context/MarmotContext.tsx (useMarmot — existing, unchanged consumption)",
+    "app/src/context/NostrIdentityContext.tsx (useNostrIdentity — existing, unchanged consumption)",
+    "@chakra-ui/react (Box, Flex — newly imported for row shell; Select/FormControl/FormLabel/option removed)"
+  ],
+  "dependencies_forbidden": [
+    "No new coupling into app/src/lib/contacts.ts or app/src/components/ProfileSummary.tsx internals beyond their existing exported surface",
+    "No LinkBox/LinkOverlay/NextLink on picker rows (AC-UX-7 — rows must never navigate)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts",
+    "app/tests/e2e/groups-invite-guidance-state.spec.ts",
+    "app/tests/e2e/groups-error-cases.spec.ts",
+    "app/tests/e2e/helpers/group-setup.ts (inviteContactViaPicker)",
+    "app/tests/unit/contacts-selectable.test.ts (selection-eligibility logic, unchanged, regression guard)"
+  ]
+}

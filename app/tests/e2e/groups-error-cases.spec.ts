@@ -57,7 +57,7 @@ test.describe('Groups Error Cases', () => {
   // this target" behavior under the picker is a disabled contact — this test
   // blocks a seeded contact and asserts their <option> can neither be
   // selected nor submitted.
-  test('AC-E2E-5: a blocked contact cannot be selected or submitted via invite-contact-select', async ({ page }) => {
+  test('AC-E2E-5: a blocked contact cannot be selected or submitted via the invite-contact-list row picker', async ({ page }) => {
     // Seed two contacts: Bob (blocked below) and Carol (stays selectable, so
     // the picker renders instead of the guidance state).
     await seedContact(page, USER_B.npub);
@@ -89,24 +89,22 @@ test.describe('Groups Error Cases', () => {
     await expect(page.getByTestId('invite-member-modal-content')).toBeVisible();
 
     // Carol (selectable) keeps the picker rendered instead of the guidance state.
-    const select = page.getByTestId('invite-contact-select');
-    await expect(select).toBeVisible({ timeout: 10_000 });
+    const list = page.getByTestId('invite-contact-list');
+    await expect(list).toBeVisible({ timeout: 10_000 });
 
-    // Bob's option is present but disabled, carrying the blocked reason suffix.
-    const bobOption = select.locator(`option[value="${USER_B.pubkeyHex}"]`);
-    await expect(bobOption).toBeAttached({ timeout: 10_000 });
-    await expect(bobOption).toBeDisabled();
+    // Bob's row is present but non-interactive, carrying the blocked reason suffix.
+    const bobRow = page.getByTestId(`invite-contact-row-${USER_B.pubkeyHex}`);
+    await expect(bobRow).toBeAttached({ timeout: 10_000 });
 
-    // Attempting to select the disabled option cannot lead to a submission.
-    // NOTE: Playwright's selectOption() can force-set a <select>'s DOM value
-    // to a disabled <option>'s value even though native user interaction
-    // (mouse/keyboard) cannot — confirmed empirically against this repo's
-    // Chromium build. The load-bearing guarantee is therefore NOT "the
-    // browser refuses the assignment" but "the app's own isSelectionValid
-    // guard (entries.some(e => e.selectable && e.contact.pubkeyHex ===
-    // selectedPubkeyHex)) keeps invite-submit-btn disabled regardless of
-    // what value ends up on the <select> element" — asserted below.
-    await select.selectOption({ value: USER_B.pubkeyHex }).catch(() => {});
+    // Attempting to click the disabled row cannot lead to a submission.
+    // NOTE: a picker row is a plain Box, not a native <select>/<option>, so
+    // there is no DOM `disabled` attribute to assert against. A dispatched
+    // click on the row must not be trusted to be inert just because the row
+    // has no wired onClick handler — the load-bearing guarantee is that the
+    // app's own isSelectionValid guard (entries.some(e => e.selectable &&
+    // e.contact.pubkeyHex === selectedPubkeyHex)) keeps invite-submit-btn
+    // disabled regardless of what the click dispatch did — asserted below.
+    await bobRow.click().catch(() => {});
     await expect(page.getByTestId('invite-submit-btn')).toBeDisabled();
     await expect(page.getByTestId('invite-error')).not.toBeVisible();
     await expect(page.getByTestId('invite-success')).not.toBeVisible();

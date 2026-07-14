@@ -1,0 +1,21 @@
+{
+  "captured_at": "2026-07-14T22:11:17Z",
+  "unit_tests": {
+    "command": "make test-unit (cd app && npx vitest run)",
+    "status": "PASS",
+    "test_files": 166,
+    "tests_passed": 3143,
+    "tests_skipped": 1,
+    "tests_failed": 0
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "note": "No ESLint config present (no .eslintrc*/eslint.config.* in app/); next lint prompts an interactive first-time setup wizard rather than running. Baseline recorded as NO_LINT per the architect contract's tolerance for absent tooling."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit",
+    "status": "clean",
+    "note": "No output, zero errors."
+  }
+}

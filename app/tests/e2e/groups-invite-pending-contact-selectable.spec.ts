@@ -109,27 +109,26 @@ test.describe.serial('Pending invitee is treated as already-member', () => {
     await pageA.getByTestId('invite-member-btn').click();
     await expect(pageA.getByTestId('invite-member-modal-content')).toBeVisible();
 
-    const select = pageA.getByTestId('invite-contact-select');
-    await expect(select).toBeVisible({ timeout: 10_000 });
+    const list = pageA.getByTestId('invite-contact-list');
+    await expect(list).toBeVisible({ timeout: 10_000 });
 
     // Bob is now already-member (memberPubkeys updated synchronously by the
     // successful invite) — disabled, same reason as any other member.
-    const bobOption = select.locator(`option[value="${USER_B.pubkeyHex}"]`);
-    await expect(bobOption).toBeAttached({ timeout: 10_000 });
-    await expect(bobOption).toBeDisabled();
+    const bobRow = pageA.getByTestId(`invite-contact-row-${USER_B.pubkeyHex}`);
+    await expect(bobRow).toBeAttached({ timeout: 10_000 });
 
     // Carol remains selectable — confirms the picker itself still renders
     // (this isn't the zero-selectable guidance state).
-    const carolOption = select.locator(`option[value="${USER_C.pubkeyHex}"]`);
-    await expect(carolOption).toBeAttached({ timeout: 10_000 });
-    await expect(carolOption).toBeEnabled();
+    const carolRow = pageA.getByTestId(`invite-contact-row-${USER_C.pubkeyHex}`);
+    await expect(carolRow).toBeAttached({ timeout: 10_000 });
+    await expect(carolRow).toBeVisible();
 
-    // Attempting to select Bob cannot lead to a submission — see
+    // Attempting to click Bob's row cannot lead to a submission — see
     // groups-error-cases.spec.ts's AC-E2E-5 test for why this asserts via
     // the submit button (the app's isSelectionValid guard) rather than via
-    // toHaveValue on the <select>: Playwright's selectOption can force-set
-    // a disabled <option>'s value even though native user interaction can't.
-    await select.selectOption({ value: USER_B.pubkeyHex }).catch(() => {});
+    // DOM state on the row: a Box row has no native disabled attribute at
+    // all, so a dispatched click on it must not be trusted to be inert.
+    await bobRow.click().catch(() => {});
     await expect(pageA.getByTestId('invite-submit-btn')).toBeDisabled();
     await expect(pageA.getByTestId('invite-error')).not.toBeVisible();
     await expect(pageA.getByTestId('invite-success')).not.toBeVisible();

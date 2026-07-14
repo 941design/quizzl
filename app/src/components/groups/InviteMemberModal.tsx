@@ -8,9 +8,8 @@ import {
   ModalFooter,
   ModalCloseButton,
   Button,
-  FormControl,
-  FormLabel,
-  Select,
+  Box,
+  Flex,
   VStack,
   Alert,
   AlertIcon,
@@ -23,6 +22,7 @@ import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { listContacts, selectableContactsForGroup } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
+import ProfileSummary from '@/src/components/ProfileSummary';
 
 type InviteMemberModalProps = {
   isOpen: boolean;
@@ -44,9 +44,9 @@ export type ResolveInviteTargetResult =
  * handles free-text/card/link input elsewhere in the app. This function's
  * input is already a pubkey sourced from a picker-selected contact, so there
  * is nothing to decode; it only validates hex shape and re-encodes to npub
- * form. The 'invalid_npub' case is defensive (a malformed/empty pubkeyHex,
- * e.g. a stale option value) — not expected via the normal picker path since
- * pubkeyHex is sourced from a stored ContactListItem.
+ * form. The 'invalid_npub' case is defensive (a malformed/empty pubkeyHex
+ * from a stale picker selection) — not expected via the normal picker path
+ * since pubkeyHex is sourced from a stored ContactListItem.
  */
 export function resolveInviteTarget(pubkeyHex: string): ResolveInviteTargetResult {
   if (!pubkeyHex || !/^[0-9a-fA-F]{64}$/.test(pubkeyHex)) {
@@ -75,6 +75,60 @@ export async function submitInvite(
   return inviteByNpub(groupId, resolved.npub);
 }
 
+/**
+ * Pure selection-state predicate over the row-based contact picker's
+ * entries (mutation-gate extraction, epic-invite-contact-picker-redesign
+ * S1 — same hooks-via-pure-function-extraction convention as
+ * resolveInviteTarget/submitInvite above). hasSelectable answers "is there
+ * at least one row the user could click"; isSelectionValid answers "is the
+ * CURRENTLY selected pubkeyHex still a selectable row" (guards against a
+ * stale selection surviving a re-render where the entry became disabled,
+ * e.g. the invitee left the group's pending members or got blocked
+ * mid-picker).
+ */
+export function computeSelectionState(
+  entries: { selectable: boolean; contact: { pubkeyHex: string } }[],
+  selectedPubkeyHex: string,
+): { hasSelectable: boolean; isSelectionValid: boolean } {
+  return {
+    hasSelectable: entries.some((entry) => entry.selectable),
+    isSelectionValid: entries.some(
+      (entry) => entry.selectable && entry.contact.pubkeyHex === selectedPubkeyHex,
+    ),
+  };
+}
+
+/**
+ * Pure error-code → user-facing copy mapping (mutation-gate extraction,
+ * same rationale as computeSelectionState above). Previously an inline
+ * closure inside the component, invisible to unit tests; the branch/default
+ * shape is identical, this only lifts it to module scope and takes `copy`
+ * as a parameter instead of closing over it.
+ */
+export function getErrorMessage(
+  errorCode: string | undefined,
+  copy: {
+    inviteErrorInvalidNpub: string;
+    inviteErrorNoKeyPackage: string;
+    inviteErrorOffline: string;
+    inviteErrorTimeout: string;
+    inviteErrorGeneric: string;
+  },
+): string {
+  switch (errorCode) {
+    case 'invalid_npub':
+      return copy.inviteErrorInvalidNpub;
+    case 'no_key_package':
+      return copy.inviteErrorNoKeyPackage;
+    case 'offline':
+      return copy.inviteErrorOffline;
+    case 'timeout':
+      return copy.inviteErrorTimeout;
+    default:
+      return copy.inviteErrorGeneric;
+  }
+}
+
 export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMemberModalProps) {
   const copy = useCopy();
   const { inviteByNpub, groups } = useMarmot();
@@ -93,25 +147,7 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
   const entries = isOpen
     ? selectableContactsForGroup(listContacts(ownPubkeyHex, { includeArchived: true }), { memberPubkeys })
     : [];
-  const hasSelectable = entries.some((entry) => entry.selectable);
-  const isSelectionValid = entries.some(
-    (entry) => entry.selectable && entry.contact.pubkeyHex === selectedPubkeyHex,
-  );
-
-  function getErrorMessage(errorCode: string | undefined): string {
-    switch (errorCode) {
-      case 'invalid_npub':
-        return copy.groups.inviteErrorInvalidNpub;
-      case 'no_key_package':
-        return copy.groups.inviteErrorNoKeyPackage;
-      case 'offline':
-        return copy.groups.inviteErrorOffline;
-      case 'timeout':
-        return copy.groups.inviteErrorTimeout;
-      default:
-        return copy.groups.inviteErrorGeneric;
-    }
-  }
+  const { hasSelectable, isSelectionValid } = computeSelectionState(entries, selectedPubkeyHex);
 
   async function handleInvite() {
     if (!isSelectionValid) return;
@@ -130,7 +166,7 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
           onClose();
         }, 1500);
       } else {
-        setError(getErrorMessage(result.error));
+        setError(getErrorMessage(result.error, copy.groups));
       }
     } catch (err) {
       setError(copy.groups.inviteErrorGeneric);
@@ -148,7 +184,7 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} isCentered data-testid="invite-member-modal">
+    <Modal isOpen={isOpen} onClose={handleClose} isCentered size="lg" data-testid="invite-member-modal">
       <ModalOverlay />
       <ModalContent data-testid="invite-member-modal-content">
         <ModalHeader>{copy.groups.inviteTitle}</ModalHeader>
@@ -168,36 +204,73 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
               </Alert>
             )}
             {hasSelectable ? (
-              <FormControl isRequired>
-                <FormLabel>{copy.groups.inviteContactLabel}</FormLabel>
-                <Select
-                  data-testid="invite-contact-select"
-                  value={selectedPubkeyHex}
-                  onChange={(e) => setSelectedPubkeyHex(e.target.value)}
-                  bg="surfaceBg"
+              <Box>
+                <Text fontWeight="medium" mb={2}>
+                  {copy.groups.inviteContactLabel}
+                </Text>
+                <VStack
+                  align="stretch"
+                  spacing={2}
+                  maxH="320px"
+                  overflowY="auto"
+                  data-testid="invite-contact-list"
                 >
                   {entries.map((entry) => {
-                    const label =
-                      entry.contact.nickname || truncateNpub(pubkeyToNpub(entry.contact.pubkeyHex));
-                    const reasonSuffix =
+                    const isSelected = entry.selectable && entry.contact.pubkeyHex === selectedPubkeyHex;
+                    const fallbackName = truncateNpub(pubkeyToNpub(entry.contact.pubkeyHex));
+                    const reasonText =
                       entry.disabledReason === 'already_member'
-                        ? ` (${copy.groups.inviteReasonAlreadyMember})`
+                        ? copy.groups.inviteReasonAlreadyMember
                         : entry.disabledReason === 'blocked'
-                          ? ` (${copy.groups.inviteReasonBlocked})`
-                          : '';
+                          ? copy.groups.inviteReasonBlocked
+                          : null;
                     return (
-                      <option
+                      <Box
                         key={entry.contact.pubkeyHex}
-                        value={entry.contact.pubkeyHex}
-                        disabled={!entry.selectable}
+                        data-testid={`invite-contact-row-${entry.contact.pubkeyHex}`}
+                        role="button"
+                        aria-pressed={entry.selectable ? isSelected : undefined}
+                        aria-disabled={!entry.selectable}
+                        tabIndex={entry.selectable ? 0 : -1}
+                        p={3}
+                        borderWidth="1px"
+                        borderRadius="lg"
+                        borderColor={isSelected ? 'brand.400' : 'borderSubtle'}
+                        boxShadow={isSelected ? '0 0 0 2px var(--chakra-colors-brand-400)' : undefined}
+                        bg="surfaceBg"
+                        transition="all 0.15s"
+                        opacity={entry.selectable ? 1 : 0.5}
+                        cursor={entry.selectable ? 'pointer' : 'not-allowed'}
+                        _hover={entry.selectable ? { borderColor: 'brand.400', bg: 'surfaceMutedBg' } : undefined}
+                        {...(entry.selectable
+                          ? {
+                              onClick: () => setSelectedPubkeyHex(entry.contact.pubkeyHex),
+                              onKeyDown: (e: React.KeyboardEvent) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  setSelectedPubkeyHex(entry.contact.pubkeyHex);
+                                }
+                              },
+                            }
+                          : {})}
                       >
-                        {label}
-                        {reasonSuffix}
-                      </option>
+                        <Flex align="center" justify="space-between" gap={2}>
+                          <ProfileSummary
+                            profile={{ nickname: entry.contact.nickname, avatar: entry.contact.avatar }}
+                            fallbackName={fallbackName}
+                            size="sm"
+                          />
+                          {reasonText && (
+                            <Text fontSize="xs" color="textMuted" flexShrink={0}>
+                              {reasonText}
+                            </Text>
+                          )}
+                        </Flex>
+                      </Box>
                     );
                   })}
-                </Select>
-              </FormControl>
+                </VStack>
+              </Box>
             ) : (
               <VStack align="stretch" spacing={2} data-testid="invite-guidance-state">
                 <Text fontSize="sm" color="textMuted">

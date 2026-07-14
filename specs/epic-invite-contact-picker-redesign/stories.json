@@ -1,0 +1,58 @@
+{
+  "epic_name": "invite-contact-picker-redesign",
+  "created_at": "2026-07-14T00:00:00Z",
+  "total_stories": 1,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "row-based-contact-picker",
+      "title": "Row-based contact picker",
+      "description": "Replace the native <Select>/<option> contact picker in InviteMemberModal with a scrollable VStack of avatar+name rows (reusing ProfileSummary), preserving selection state, disabled-row semantics (already-member/blocked reason suffixes), the guidance/empty-state fallback, and the existing submit/loading/error/success flow exactly. Enlarge ModalContent and cap the row-list height with overflowY=\"auto\" so long contact lists scroll internally. Update data-testid selectors to invite-contact-list / invite-contact-row-${pubkeyHex}, and update every e2e spec/helper that drove the old <select> via Playwright's selectOption() to instead click the corresponding row.",
+      "acceptance_criteria": [
+        "AC-UX-1",
+        "AC-UX-2",
+        "AC-UX-3",
+        "AC-UX-4",
+        "AC-UX-5",
+        "AC-UX-6",
+        "AC-UX-7",
+        "AC-UX-8",
+        "AC-DEP-1",
+        "AC-TEST-1"
+      ],
+      "scope": {
+        "includes": [
+          "Replace the FormControl/Select/<option> block in InviteMemberModal.tsx with row components, one per entries item, using ProfileSummary for avatar+name",
+          "Add data-testid=\"invite-contact-list\" container and data-testid=\"invite-contact-row-${pubkeyHex}\" per row",
+          "Preserve selectedPubkeyHex/isSelectionValid/hasSelectable selection-state model unchanged; only the rendering of entries changes",
+          "Render disabled (already-member/blocked) rows non-clickable with existing copy.groups.inviteReasonAlreadyMember / inviteReasonBlocked reason text",
+          "Add visible selected-state affordance (e.g. aria-pressed + border/background) on the selected row",
+          "Enlarge ModalContent (size=\"lg\" or explicit maxW) and cap invite-contact-list height with overflowY=\"auto\" so the row list scrolls internally",
+          "Keep rows as plain clickable Box/Flex elements (not LinkBox/LinkOverlay) so clicking never navigates the browser",
+          "Preserve the guidance-state fallback (data-testid=\"invite-guidance-state\") when hasSelectable is false, and ensure invite-contact-list is absent in that case",
+          "Update app/tests/e2e/helpers/group-setup.ts's invite-contact-select/selectOption() interaction to wait for and click invite-contact-row-${inviteeHex} instead",
+          "Update app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts, app/tests/e2e/groups-invite-guidance-state.spec.ts, and app/tests/e2e/groups-error-cases.spec.ts to drive the picker via the new row testid, preserving each spec's original assertion outcome"
+        ],
+        "excludes": [
+          "Any change to selectableContactsForGroup, submitInvite, resolveInviteTarget, or inviteByNpub",
+          "Any change to which contacts are invitable, or to guidance-state copy/link",
+          "Multi-select or search/filter affordances",
+          "New i18n keys — all copy already exists under copy.groups.*"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "test_fixtures": [],
+      "status": "done",
+      "owning_module": "InviteMemberModal",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "notes": "Single-story epic per architecture.md (no new module boundaries, no seams). All target files (InviteMemberModal.tsx, group-setup.ts, and the three e2e specs) pre-exist on disk — this is a markup/selector rewrite, not new-file scaffolding. lighter_path intentionally omitted (defaults false): the story edits production UI markup with behavioral implications for keyboard/click interaction (disabled-row click-through logic, selection affordance), so it routes through the full integration-architect pass rather than the lead-direct-edit lighter path."
+    }
+  ],
+  "story_order": ["S1"],
+  "dependency_notes": "Single story, no dependencies. S1 is fully self-contained: it touches exactly one production component (InviteMemberModal.tsx) plus its direct e2e coverage (group-setup.ts helper and three e2e specs), with no cross-story seams per architecture.md.",
+  "mock_resolution_plan": "No mocks introduced.",
+  "seams": []
+}

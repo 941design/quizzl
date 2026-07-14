@@ -2,7 +2,8 @@
 //
 // Covers AC-E2E-7: when the AC-STRUCT-1 predicate's output contains zero
 // `selectable: true` entries, InviteMemberModal.tsx renders the guidance
-// message + `/contacts` link INSTEAD OF `invite-contact-select`.
+// message + `/contacts` link INSTEAD OF the row-based `invite-contact-list`
+// picker.
 //
 // The zero-selectable precondition is constructed deliberately, not
 // incidentally: a contact IS seeded (proving listContacts() and the
@@ -77,7 +78,7 @@ test.describe('Invite modal guidance state', () => {
     // ...and the picker does not, scoped to the modal (mirrors AC-UX-7's
     // scoped-absence pattern).
     await expect(
-      page.locator('[data-testid="invite-member-modal-content"] [data-testid="invite-contact-select"]'),
+      page.locator('[data-testid="invite-member-modal-content"] [data-testid="invite-contact-list"]'),
     ).toHaveCount(0);
 
     // Submit stays disabled/unusable while nothing is selectable.

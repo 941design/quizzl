@@ -57,7 +57,7 @@ export async function seedContact(page: Page, npub: string): Promise<void> {
  * helper (epic: invite-group-member-from-contacts, S3 — AC-E2E-1). Replaces
  * every e2e spec's former direct fill of the now-removed npub free-text
  * input, now that `InviteMemberModal` only exposes a contact picker
- * (`invite-contact-select`).
+ * (a scrollable list of clickable rows, `invite-contact-list`).
  *
  * Precondition: `inviterPage` is currently ON the target group's detail page
  * (`group-detail-page` visible, i.e. at `/groups?id=<groupId>`), with the
@@ -67,10 +67,9 @@ export async function seedContact(page: Page, npub: string): Promise<void> {
  * Steps: (1) seed the invitee as a contact via `seedContact` — this
  * navigates the page away to `/add` and on to `/contacts`; (2) navigate back
  * to the group-detail URL captured before step 1; (3) open
- * `InviteMemberModal` and wait for the seeded contact's `<option>` to be
- * attached to `invite-contact-select` before interacting with it (never
- * clicks into a stale/empty picker); (4) select it and click
- * `invite-submit-btn`.
+ * `InviteMemberModal` and wait for the seeded contact's row to be attached
+ * to `invite-contact-list` before interacting with it (never clicks into a
+ * stale/empty picker); (4) click the row and click `invite-submit-btn`.
  *
  * Deliberately does NOT assert the outcome (`invite-success` / `invite-
  * error`) — that stays the caller's responsibility, exactly as it already
@@ -92,13 +91,14 @@ export async function inviteContactViaPicker(inviterPage: Page, inviteeNpub: str
   await inviterPage.getByTestId('invite-member-btn').click();
   await expect(inviterPage.getByTestId('invite-member-modal-content')).toBeVisible();
 
-  const select = inviterPage.getByTestId('invite-contact-select');
-  await expect(select).toBeVisible({ timeout: 10_000 });
-  // Wait for the just-seeded contact's option to actually be present before
-  // selecting it — avoids racing listContacts()'s localStorage read against
+  const list = inviterPage.getByTestId('invite-contact-list');
+  await expect(list).toBeVisible({ timeout: 10_000 });
+  // Wait for the just-seeded contact's row to actually be present before
+  // clicking it — avoids racing listContacts()'s localStorage read against
   // a stale render (VQ-S3-006).
-  await expect(select.locator(`option[value="${inviteeHex}"]`)).toBeAttached({ timeout: 30_000 });
-  await select.selectOption(inviteeHex);
+  const row = inviterPage.getByTestId(`invite-contact-row-${inviteeHex}`);
+  await expect(row).toBeAttached({ timeout: 30_000 });
+  await row.click();
   await inviterPage.getByTestId('invite-submit-btn').click();
 }
 

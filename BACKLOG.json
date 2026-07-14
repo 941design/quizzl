@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-14T19:35:25Z",
+  "updated_at": "2026-07-14T21:11:56Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -174,6 +174,11 @@
     },
     {
       "path": "specs/epic-invite-group-member-from-contacts/",
+      "status": "DONE",
+      "next_action": "completed 2026-07-14"
+    },
+    {
+      "path": "specs/epic-invite-contact-picker-redesign/",
       "status": "DONE",
       "next_action": "completed 2026-07-14"
     }
@@ -364,6 +369,19 @@
       "behavior": "Today: after A invites B, B's picker option becomes disabled ('already in group') and stays that way until B accepts or the invite is otherwise resolved (e.g. cancelled). There is no way to resend via the picker while pending.",
       "approach": "The app already computes the right signal for this — groups.tsx's local confirmedPubkeys (a per-member 'has this person sent a profile message in this group yet' Set, currently only used to drive the member-list's Pending badge). Thread that signal (or an equivalent) through to a shared, contacts.ts-reachable form so the invite-picker predicate can distinguish 'pending invite' from 'confirmed member' and re-enable a distinct pending state per the original DD-4 intent.",
       "success_signal": "Re-opening the invite picker for a group where a contact was invited but hasn't accepted shows that contact as selectable (not disabled), and resubmitting the invite succeeds."
+    },
+    {
+      "slug": "dm-self-heal-spec-ts-ac",
+      "scope": "any",
+      "anchor": {
+        "path": "app/tests/e2e/dm-self-heal.spec.ts",
+        "line": 181
+      },
+      "text": "dm-self-heal.spec.ts AC-29: malformed JSON-envelope content row not self-healed to decoded text",
+      "created_at": "2026-07-14",
+      "motivation": "Full e2e gate (make test-e2e-all) failed on this AC during an unrelated epic's pre-ship gate — first time this specific AC-29 failure has been observed, so it needs triage rather than being assumed to be the known chronic shared-relay flake.",
+      "behavior": "AC-29 expects a malformed JSON-envelope message row to self-heal to decoded text ('hello from envelope') and survive reload with the IDB row rewritten in place. Instead the raw JSON envelope string renders in the bubble and the assertion times out after 30s.",
+      "success_signal": "dm-self-heal.spec.ts AC-29 passes in an isolated run (not just within the full sequential gate, to rule out cross-test relay/keypair contamination)."
     }
   ],
   "archive": [

@@ -1,0 +1,52 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "remediation_rounds": 0,
+  "completed_at": "2026-07-14T22:30:00Z",
+  "files_created": [
+    "specs/epic-invite-contact-picker-redesign/01-row-based-contact-picker/architecture.json",
+    "specs/epic-invite-contact-picker-redesign/01-row-based-contact-picker/baseline.json",
+    "specs/epic-invite-contact-picker-redesign/01-row-based-contact-picker/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/groups/InviteMemberModal.tsx",
+    "app/tests/e2e/helpers/group-setup.ts",
+    "app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts",
+    "app/tests/e2e/groups-invite-guidance-state.spec.ts",
+    "app/tests/e2e/groups-error-cases.spec.ts",
+    "specs/epic-invite-contact-picker-redesign/01-row-based-contact-picker/verification.json"
+  ],
+  "tests_added": {
+    "unit": 0,
+    "e2e_retargeted": 6
+  },
+  "test_counts": {
+    "baseline": 3143,
+    "final": 3143
+  },
+  "mocks": [],
+  "modules_touched": [
+    "InviteMemberModal"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "No new unit tests were added because this is a pure markup/selector rewrite of an already-tested feature (the pure logic functions resolveInviteTarget/submitInvite and the selection-eligibility predicate selectableContactsForGroup are untouched and already covered by existing unit tests) combined with this project's convention of no jsdom/@testing-library component-render tests — coverage for the new row markup lives entirely in the 3 targeted e2e specs plus tsc. Coordination overhead came from running two work streams at once: a base:dev spawn implementing the production component + partial e2e retargeting, while I (architect) independently finished the remaining 2 of 4 e2e call sites after a lead course-correction identified they were still outstanding. This worked out cleanly (no conflicting edits, dev's file set and mine were disjoint) but required an extra synchronization message to reconcile which files each side had already touched before proceeding.",
+    "surprised_by": "AC-UX-7 (rows must never navigate) has a strong structural guarantee in the production markup (no LinkBox/LinkOverlay/NextLink anywhere in the row-rendering block) but none of the 3 updated e2e specs assert page.url()/route-unchanged explicitly after a row click — the non-navigation is implied by every subsequent assertion continuing to target the same modal, not directly checked. Flagged as VQ-S1-013 (answered PARTIAL) in verification.json rather than silently treated as fully covered.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "spawn_index": 1,
+        "note": "dev-picker-s1 implemented the InviteMemberModal.tsx row rewrite plus 2 of the 4 e2e call sites (group-setup.ts, groups-invite-pending-contact-selectable.spec.ts) before the architect took over the remaining 2 specs to unblock story completion per lead direction. Dev caught and fixed a real Chakra API detail during implementation: the `size` prop belongs on `<Modal>`, not `<ModalContent>` — an easy mistake given ModalContent is where this codebase's data-testid convention lives (chakra-ui-modal-does-not-forward learning), caught by tsc rather than a test. No other friction reported."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "accepted_residuals": [
+    "VQ-S1-013 (AC-UX-7): structural guarantee (no Link/anchor in row markup) confirmed, but no e2e spec explicitly asserts page.url() is unchanged after a row click — the guarantee is implied, not directly asserted. Low-risk given the structural evidence; suggested as a follow-up hardening rather than a blocker.",
+    "VQ-S1-018 (AC-TEST-1 scope): 25+ other e2e specs call the retargeted inviteContactViaPicker helper; only 5 total specs (the 3 story-targeted + 2 spot-checked unrelated callers) were actually run this session, not the full inviteContactViaPicker caller set or the full 60-test e2e gate. Deferred per this repo's e2e-gate convention (a subset run is a dev-iteration aid, not a story-level obligation to run make test-e2e-all) and to avoid Docker-stack contention with other concurrently active session agents. Recommend the lead's own e2e gate step re-confirm against the full suite before merge."
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "epic": "invite-contact-picker-redesign",
+  "concepts": [
+    {
+      "concept": "invite-picker rendering",
+      "owner": "app/src/components/groups/InviteMemberModal.tsx",
+      "notes": "Row-based avatar+name picker (VStack of clickable Box rows) replacing the native <select>. data-testid contract: invite-contact-list (container), invite-contact-row-<pubkeyHex> (per row). Rows are plain clickable Box elements (not LinkBox/NextLink) so selection carries no navigation (AC-UX-7)."
+    },
+    {
+      "concept": "invite selection-state predicate",
+      "owner": "app/src/components/groups/InviteMemberModal.tsx#computeSelectionState",
+      "notes": "Pure hasSelectable/isSelectionValid over entries; single owner. Mutation-gate extraction S1 (was inline, NoCoverage). isSelectionValid pins both halves of `entry.selectable && pubkeyHex===` so a stale selection on a now-disabled row cannot read as valid."
+    },
+    {
+      "concept": "invite error-code -> copy mapping",
+      "owner": "app/src/components/groups/InviteMemberModal.tsx#getErrorMessage",
+      "notes": "Single-sourced switch; not forked. Mutation-gate extraction S1. Takes copy.groups as a param; unknown/undefined codes fall through to inviteErrorGeneric."
+    },
+    {
+      "concept": "disabledReason -> reason copy mapping",
+      "owner": "app/src/components/groups/InviteMemberModal.tsx (inline row ternary)",
+      "notes": "already_member->inviteReasonAlreadyMember, blocked->inviteReasonBlocked. Single location; input owned by app/src/lib/contacts.ts#selectableContactsForGroup (disabledReason union: 'already_member' | 'blocked')."
+    },
+    {
+      "concept": "invite eligibility/selection logic",
+      "owner": "app/src/lib/contacts.ts#selectableContactsForGroup",
+      "notes": "Unchanged by this epic; InviteMemberModal is a pure consumer. disabledReason present iff selectable === false. already_member wins over blocked when both apply."
+    }
+  ],
+  "stories": [
+    {
+      "story": "S1-row-based-contact-picker",
+      "surfaces_touched": [
+        "app/src/components/groups/InviteMemberModal.tsx",
+        "app/tests/e2e/helpers/group-setup.ts",
+        "app/tests/e2e/groups-error-cases.spec.ts",
+        "app/tests/e2e/groups-invite-guidance-state.spec.ts",
+        "app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts",
+        "app/tests/unit/cards/inviteByCard.test.ts"
+      ],
+      "findings_resolved": [
+        "comment_rot: resolveInviteTarget docstring 'stale option value' -> 'stale picker selection' (sev 3, fixed)",
+        "a11y: disabled rows lacked aria-disabled -> added aria-disabled={!entry.selectable} (sev 3, fixed)"
+      ],
+      "findings_accepted_as_noted": [
+        "all-disabled contact set renders guidance state and hides blocked/member rows (sev 2 inference; preserved pre-redesign behavior, not a regression)",
+        "disabled-row reason text at row opacity 0.5 may dip below WCAG AA (sev 2 inference; acceptable under WCAG 1.4.3 disabled-control exemption)"
+      ]
+    }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "S1-row-based-contact-picker",
+    "verdict": "clean",
+    "scope": "pre-commit gate + Stage-1 (single-story epic)"
+  }
+}

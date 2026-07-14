@@ -1,0 +1,54 @@
+{
+  "epic_name": "invite-contact-picker-redesign",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-14T20:00:40Z",
+  "updated_at": "2026-07-14T22:45:00Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md",
+    "specs/block-contact-spec-request.md",
+    "specs/contact-pairing-code-spec-request.md",
+    "specs/direct-contact-profile-exchange-spec-request.md",
+    "specs/invite-group-member-from-contacts-spec-request.md",
+    "themes.json"
+  ],
+  "completed_stories": ["S1"],
+  "escalated_stories": [],
+  "phase_history": [
+    {"phase": "SPEC_VALIDATED", "timestamp": "2026-07-14T20:00:40Z", "trigger": "validation_passed"},
+    {"phase": "ARCHITECTURE_PRODUCED", "timestamp": "2026-07-14T20:05:00Z", "trigger": "exploration_and_architecture_complete"},
+    {"phase": "STORY_S1_DONE", "timestamp": "2026-07-14T22:35:00Z", "trigger": "verification_examiners_fast_path_pass"},
+    {"phase": "COMPLETE", "timestamp": "2026-07-14T22:45:00Z", "trigger": "ac_closure_and_manual_validation_satisfied"}
+  ],
+  "ac_closure": [
+    {"ac_id": "AC-UX-1", "status": "met", "evidence": "InviteMemberModal.tsx:175-182; groups-invite-guidance-state.spec.ts:80-82; verified by independent examiner"},
+    {"ac_id": "AC-UX-2", "status": "met", "evidence": "InviteMemberModal.tsx:221-225,184; ProfileSummary.tsx:27; verified by independent examiner"},
+    {"ac_id": "AC-UX-3", "status": "met", "evidence": "InviteMemberModal.tsx:97-99,183,196,201-202,210,258; groups-invite-pending-contact-selectable.spec.ts:107-135; verified by independent examiner"},
+    {"ac_id": "AC-UX-4", "status": "met", "evidence": "InviteMemberModal.tsx:185-190,226-230,208-218; groups-invite-pending-contact-selectable.spec.ts:107-135; verified by independent examiner"},
+    {"ac_id": "AC-UX-5", "status": "met", "evidence": "InviteMemberModal.tsx:185-190,226-230,208-218; groups-error-cases.spec.ts:60-111; verified by independent examiner"},
+    {"ac_id": "AC-UX-6", "status": "met", "evidence": "InviteMemberModal.tsx:96,170-247; groups-invite-guidance-state.spec.ts:70-82; verified by independent examiner"},
+    {"ac_id": "AC-UX-7", "status": "met", "evidence": "PARTIAL from examiner (severity 2, confidence 0.95, missing_test) accepted at fast-path threshold — structural proof (no Link/anchor in row block) plus implicit continuity assertions; explicit page.url() check recommended as a follow-up hardening, not a blocker"},
+    {"ac_id": "AC-UX-8", "status": "met", "evidence": "InviteMemberModal.tsx:151,178-179; automated props verified, visual completeness delegated to MV-1 per its own design; verified by independent examiner"},
+    {"ac_id": "AC-DEP-1", "status": "met", "evidence": "InviteMemberModal.tsx:124; groups-invite-pending-contact-selectable.spec.ts and groups-error-cases.spec.ts success/error assertions; verified by independent examiner"},
+    {"ac_id": "AC-TEST-1", "status": "met", "evidence": "grep confirms zero invite-contact-select/selectOption( references in app/tests/e2e/; verified by independent examiner"}
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "45bb1dbc8aafe21da5c3806f748588140b103096",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "gate_runs": [
+    {"gate_id": "mutation", "outcome": "fired_remediated", "structural_findings": {"surfaced": 0, "acted": 0, "disclosed_unacted": 0}},
+    {"gate_id": "e2e", "outcome": "fired_remediated", "detail": "Full make test-e2e-all fast bucket passed (68/68). Groups/relay bucket fail-fast stopped at dm-self-heal.spec.ts:181 (AC-29), a spec untouched by this epic, before reaching the epic's own 4 retargeted specs. Decider (base:decider) ruled RETRY: scope a rerun to the epic's own specs rather than block on an unrelated pre-existing failure. Scoped rerun of groups-error-cases.spec.ts, groups-invite-guidance-state.spec.ts, groups-invite-pending-contact-selectable.spec.ts (6 tests) passed 6/6. dm-self-heal AC-29 filed as BACKLOG finding dm-self-heal-spec-ts-ac, not blocking this epic."},
+    {"gate_id": "pre_commit_review", "outcome": "fired_remediated", "structural_findings": {"surfaced": 4, "acted": 2, "disclosed_unacted": 2}, "detail": "Opus stage 1: 4 findings (2x severity-3: stale comment referencing removed <option>, missing aria-disabled on disabled rows; 2x severity-2 inference notes: all-disabled guidance-state behavior confirmed non-regression, opacity/contrast noted WCAG-1.4.3-exempt). Both severity-3 findings fixed; re-review confirmed clean fixpoint; ownership-ledger.json written. Codex stage 2: no discrete correctness issues found."}
+  ],
+  "manual_validation": [
+    {"ac_id": "MV-1", "status": "satisfied", "owner": "markus", "blocked_on": "AC-UX-1", "evidence": "User reviewed e2e-captured screenshots of the row-based picker (2 selectable rows, letter-avatar+npub fallback rendering, green selected-state border, disabled Send Invite until selection) on 2026-07-14 and approved via AskUserQuestion: 'Satisfied, ship it'."}
+  ]
+}
