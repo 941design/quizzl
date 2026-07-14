@@ -415,10 +415,7 @@ function OwnProfileSection() {
                 bg="surfaceBg"
                 data-testid="profile-nickname-input"
               />
-              <HStack justify="space-between" mt={2}>
-                <Text fontSize="xs" color="textMuted">
-                  {copy.settings.nicknameHelper}
-                </Text>
+              <HStack justify="flex-end" mt={2}>
                 <Text
                   fontSize="xs"
                   color={nicknameCapped ? 'red.400' : 'textMuted'}

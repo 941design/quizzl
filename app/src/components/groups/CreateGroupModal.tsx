@@ -77,7 +77,6 @@ export default function CreateGroupModal({ isOpen, onClose }: CreateGroupModalPr
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={copy.groups.createGroupNamePlaceholder}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void handleSubmit();
                 }}

@@ -53,7 +53,6 @@ type Copy = {
     heading: string;
     description: string;
     nicknameHeading: string;
-    nicknameHelper: string;
     nicknameLimit: (max: number) => string;
     avatarHeading: string;
     changeAvatar: string;
@@ -107,7 +106,6 @@ type Copy = {
     createGroup: string;
     createGroupTitle: string;
     createGroupNameLabel: string;
-    createGroupNamePlaceholder: string;
     createGroupSubmit: string;
     cancel: string;
     memberCount: (count: number) => string;
@@ -589,7 +587,6 @@ const copy: Record<LanguageCode, Copy> = {
       heading: 'Settings',
       description: 'Manage your Nostr identity and key backup.',
       nicknameHeading: 'Name',
-      nicknameHelper: 'Use a short name instead of your full real name.',
       nicknameLimit: (max: number) => `Name reached the ${max}-character limit (accented letters and emoji count for more).`,
       avatarHeading: 'Avatar',
       changeAvatar: 'Change Avatar',
@@ -703,7 +700,6 @@ const copy: Record<LanguageCode, Copy> = {
       createGroup: 'Create Group',
       createGroupTitle: 'Create Group',
       createGroupNameLabel: 'Group Name',
-      createGroupNamePlaceholder: 'e.g. Weekend Hikers',
       createGroupSubmit: 'Create Group',
       cancel: 'Cancel',
       memberCount: (count) => `${count} member${count !== 1 ? 's' : ''}`,
@@ -1116,7 +1112,6 @@ const copy: Record<LanguageCode, Copy> = {
       heading: 'Einstellungen',
       description: 'Verwalte deine Nostr-Identität und Schlüsselsicherung.',
       nicknameHeading: 'Name',
-      nicknameHelper: 'Nutze lieber einen kurzen Namen als deinen vollen echten Namen.',
       nicknameLimit: (max: number) => `Der Name hat die Grenze von ${max} Zeichen erreicht (Umlaute und Emojis zählen mehr).`,
       avatarHeading: 'Avatar',
       changeAvatar: 'Avatar aendern',
@@ -1230,7 +1225,6 @@ const copy: Record<LanguageCode, Copy> = {
       createGroup: 'Gruppe erstellen',
       createGroupTitle: 'Gruppe erstellen',
       createGroupNameLabel: 'Gruppenname',
-      createGroupNamePlaceholder: 'z. B. Wochenend-Wanderer',
       createGroupSubmit: 'Gruppe erstellen',
       cancel: 'Abbrechen',
       memberCount: (count) => `${count} Mitglied${count !== 1 ? 'er' : ''}`,
