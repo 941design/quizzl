@@ -18,6 +18,7 @@ import { test, expect, BrowserContext, Page } from '@playwright/test';
 import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay, dismissErrorOverlay } from './helpers/dismiss-error-overlay';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 const GROUP_NAME = 'Pull-Only Decline Test Group';
@@ -90,9 +91,7 @@ test.describe.serial('Pull-only invitation: Decline (AC-TEST-6)', () => {
 
     await alicePage.locator('[data-testid^="group-card-"]', { hasText: GROUP_NAME }).click();
     await expect(alicePage.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
-    await alicePage.getByTestId('invite-member-btn').click();
-    await alicePage.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await alicePage.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(alicePage, USER_B.npub);
     await expect(alicePage.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
     await alicePage.waitForTimeout(3_000);
   });

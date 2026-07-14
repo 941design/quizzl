@@ -2,6 +2,7 @@ import { test, expect, BrowserContext, Page } from '@playwright/test';
 import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
@@ -51,10 +52,7 @@ async function inviteAndJoin(
   groupName: string,
 ): Promise<void> {
   await dismissErrorOverlay(inviterPage);
-  await inviterPage.getByTestId('invite-member-btn').click();
-  await expect(inviterPage.getByTestId('invite-member-modal-content')).toBeVisible();
-  await inviterPage.getByTestId('invite-npub-input').fill(inviteeNpub);
-  await inviterPage.getByTestId('invite-submit-btn').click();
+  await inviteContactViaPicker(inviterPage, inviteeNpub);
   await expect(inviterPage.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
 
   // Invitee receives Welcome and joins
@@ -107,10 +105,7 @@ test.describe.serial('Live group detail updates without navigation', () => {
   test('A invites B — member count updates to 2 without navigation', async () => {
     // A is still on group detail from the previous test
     await dismissErrorOverlay(pgA);
-    await pgA.getByTestId('invite-member-btn').click();
-    await expect(pgA.getByTestId('invite-member-modal-content')).toBeVisible();
-    await pgA.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await pgA.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(pgA, USER_B.npub);
     await expect(pgA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
 
     // Close the invite modal

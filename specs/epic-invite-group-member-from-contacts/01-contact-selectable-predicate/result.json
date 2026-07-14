@@ -1,0 +1,32 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/tests/unit/contacts-selectable.test.ts",
+    "specs/epic-invite-group-member-from-contacts/01-contact-selectable-predicate/architecture.json",
+    "specs/epic-invite-group-member-from-contacts/01-contact-selectable-predicate/baseline.json",
+    "specs/epic-invite-group-member-from-contacts/01-contact-selectable-predicate/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/contacts.ts",
+    "specs/epic-invite-group-member-from-contacts/01-contact-selectable-predicate/verification.json"
+  ],
+  "tests_added": {
+    "unit": 9
+  },
+  "test_counts": {
+    "baseline": 3132,
+    "final": 3141
+  },
+  "mocks": [],
+  "modules_touched": [
+    "Contact eligibility predicates"
+  ],
+  "retrospective": {
+    "skipped": true,
+    "reason": "routine \u2014 a single pure function mirroring an existing, well-documented pattern in the same file (eligibleGroupsForContact/addableGroupsForContact); spec, architecture.md, and stories.json's seam contract fully determined the implementation with no ambiguity; TDD red\u2192green on first try; zero regressions; dev's own retro was also skipped for the same reason."
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-14T16:10:00Z"
+}

@@ -1,0 +1,22 @@
+{
+  "story_id": "S3",
+  "captured_at": "2026-07-14T18:10:00Z",
+  "command": "make test-unit (cd app && npx vitest run)",
+  "result": {
+    "test_files": { "passed": 166, "failed": 0, "total": 166 },
+    "tests": { "passed": 3141, "failed": 0, "skipped": 1, "total": 3142 }
+  },
+  "pre_existing_failures": {
+    "note": "None — full unit suite is green at baseline (post-S2). S3's scope is app/tests/e2e/** only, which vitest's unit suite does not touch, so baseline == final for this command."
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "detail": "No ESLint config exists in app/ (no .eslintrc*/eslint.config*); `next lint` prompts interactively to scaffold one. Matches S1/S2's recorded baseline."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit -p tsconfig.json",
+    "status": "clean",
+    "detail": "app/tsconfig.json excludes `tests` entirely, so this command never covers app/tests/e2e/** (S3's actual scope). Ad-hoc due diligence: an extended tsconfig that includes tests/e2e/**/*.ts was run separately (see result.json) and shows the SAME widespread pre-existing `typeof USER_A` literal-type errors (privateKeyHex narrowed via `as const`) in files S3 never touched (e.g. contact-card-deeplink.spec.ts, dm-pairing-*.spec.ts, groups-join-request-live.spec.ts, groups-invite-link.spec.ts, update-detection.spec.ts) — confirming this is pre-existing e2e-tree debt with no configured gate, not something introduced by this story."
+  }
+}

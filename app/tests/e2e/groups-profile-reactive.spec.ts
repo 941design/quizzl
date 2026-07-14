@@ -2,6 +2,7 @@ import { test, expect, BrowserContext, Page } from '@playwright/test';
 import { USER_A, USER_B, USER_C, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
@@ -62,10 +63,7 @@ async function inviteAndJoin(
   groupName: string,
 ): Promise<void> {
   await dismissErrorOverlay(inviterPage);
-  await inviterPage.getByTestId('invite-member-btn').click();
-  await expect(inviterPage.getByTestId('invite-member-modal-content')).toBeVisible();
-  await inviterPage.getByTestId('invite-npub-input').fill(inviteePubNpub);
-  await inviterPage.getByTestId('invite-submit-btn').click();
+  await inviteContactViaPicker(inviterPage, inviteePubNpub);
   await expect(inviterPage.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
 
   // Invitee receives Welcome and joins
@@ -137,10 +135,7 @@ test.describe.serial('Pending member indicator', () => {
 
     // Invite B (B is offline and cannot process the Welcome)
     await dismissErrorOverlay(pgA);
-    await pgA.getByTestId('invite-member-btn').click();
-    await expect(pgA.getByTestId('invite-member-modal-content')).toBeVisible();
-    await pgA.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await pgA.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(pgA, USER_B.npub);
     await expect(pgA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
 
     // Navigate back to group detail to refresh member list

@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-14T05:59:53Z",
+  "updated_at": "2026-07-14T19:35:25Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -171,6 +171,11 @@
       "path": "specs/epic-block-contact/",
       "status": "DONE",
       "next_action": "completed 2026-07-14"
+    },
+    {
+      "path": "specs/epic-invite-group-member-from-contacts/",
+      "status": "DONE",
+      "next_action": "completed 2026-07-14"
     }
   ],
   "findings": [
@@ -333,6 +338,32 @@
       "motivation": "Contacts hidden before the block-contact epic become 'blocked' but their pre-existing unread counts linger on the bell with no way to clear them (their chat is not openable to mark read). Product decision (2026-07-14) was to KEEP their DM history (no retroactive wipe), but the stale unread badge should still be cleared. Minor cosmetic wart affecting only the legacy-hidden-with-unreads cohort.",
       "behavior": "initDirectMessageCounts prunes with raw isAllowedDmSender, which blocked-but-known peers pass, so a legacy-hidden contact's unread count survives indefinitely.",
       "approach": "Add a one-time startup migration that clears unread counters (NOT history) for all currently-archived contacts, mirroring purgeStrangerDmCounters but keyed on archivedAt. Idempotent."
+    },
+    {
+      "slug": "purgestrangercontacts-s-deleted-number-return",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/lib/contacts.ts",
+        "line": 435
+      },
+      "text": "purgeStrangerContacts's { deleted: number } return-value contract is unspecced on the SSR/storage-unavailable early-return path",
+      "created_at": "2026-07-14",
+      "motivation": "The function's doc comment promises @returns { deleted: number } always, and a caller could reasonably display this count in UI, but no AC in epic-dm-walled-garden (AC-PURGE-5, which specs the sweep's deletion behavior) or elsewhere pins the exact shape of the early-return value when storage is unavailable. A mutation-testing gate (2026-07-14, invite-group-member-from-contacts pre-ship audit) found the { deleted: 0 } object literal could be mutated to {} with zero test failures until a new assertion was added ad hoc. A human should decide whether to formalize this contract in an AC (e.g. add to epic-dm-walled-garden's Retroactive Purge section) or leave it as implementation-only.",
+      "behavior": "purgeStrangerContacts(getWhitelist) returns exactly { deleted: 0 } (not undefined-deleted or {}) when isStorageAvailable() is false. A closing test now asserts this in app/tests/unit/contacts-ssr-guard.test.ts.",
+      "kind": "spec-gap"
+    },
+    {
+      "slug": "invite-modal-picker-cannot-re-invite",
+      "scope": "any",
+      "anchor": {
+        "path": "app/src/components/groups/InviteMemberModal.tsx"
+      },
+      "text": "Invite-modal picker cannot re-invite a contact who is already invited but hasn't accepted — they show as disabled 'already in group' with no path to resend",
+      "created_at": "2026-07-14",
+      "motivation": "Originally locked product decision (epic invite-group-member-from-contacts, DD-4) wanted a pending-but-not-yet-joined contact to stay selectable so an admin could resend a lost/expired invite. Live e2e testing proved this can't work as specced: group.memberPubkeys updates the moment inviteByNpub succeeds (an MLS commit), not when the invitee accepts, so the picker's already-member check can't currently tell 'invited, still pending' apart from 'fully joined'.",
+      "behavior": "Today: after A invites B, B's picker option becomes disabled ('already in group') and stays that way until B accepts or the invite is otherwise resolved (e.g. cancelled). There is no way to resend via the picker while pending.",
+      "approach": "The app already computes the right signal for this — groups.tsx's local confirmedPubkeys (a per-member 'has this person sent a profile message in this group yet' Set, currently only used to drive the member-list's Pending badge). Thread that signal (or an equivalent) through to a shared, contacts.ts-reachable form so the invite-picker predicate can distinguish 'pending invite' from 'confirmed member' and re-enable a distinct pending state per the original DD-4 intent.",
+      "success_signal": "Re-opening the invite picker for a group where a contact was invited but hasn't accepted shows that contact as selectable (not disabled), and resubmitting the invite succeeds."
     }
   ],
   "archive": [

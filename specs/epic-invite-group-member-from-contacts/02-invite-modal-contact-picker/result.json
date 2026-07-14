@@ -1,0 +1,44 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "remediation_rounds": 0,
+  "files_created": [
+    "specs/epic-invite-group-member-from-contacts/02-invite-modal-contact-picker/architecture.json",
+    "specs/epic-invite-group-member-from-contacts/02-invite-modal-contact-picker/baseline.json",
+    "specs/epic-invite-group-member-from-contacts/02-invite-modal-contact-picker/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/groups/InviteMemberModal.tsx",
+    "app/src/lib/i18n.ts",
+    "app/tests/unit/cards/inviteByCard.test.ts",
+    "specs/epic-invite-group-member-from-contacts/02-invite-modal-contact-picker/verification.json"
+  ],
+  "tests_added": {
+    "unit": 0
+  },
+  "test_counts": {
+    "baseline": 3141,
+    "final": 3141
+  },
+  "mocks": [],
+  "modules_touched": [
+    "Invite modal UI"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The spec's Technical Approach and pre-authored verification.json questions fully determined the target shape (props unchanged, pubkeyHex-in adapter, entries derived live from S1's predicate, guidance-state substring constraints), so the design itself had no ambiguity. The one self-inflicted friction: my own dev-delegation prompt included an over-broad grep requirement ('zero matches for parseContactCard anywhere in the file') intended only to confirm the import/call site was removed, but it also caught the doc-comment's prose mention of the function name, and dev complied literally by rewording the comment to avoid naming parseContactCard at all. That weakened AC-STRUCT-3's 'correctly attribute the seam to parseContactCard' requirement below its clearest form. Caught on independent review and fixed with a one-line edit, but a tighter-scoped grep (matching only import/call syntax, not the bare identifier) in the original prompt would have avoided the correction round entirely.",
+    "surprised_by": "",
+    "scope": "meta",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "note": "dev flagged three judgment calls inline (no formal RETROSPECTIVE: block): (1) reworded the parseContactCard doc-comment to satisfy an overly literal grep instruction from me, later corrected; (2) rendered the guidance state as a standalone sibling VStack rather than reusing inviteContactLabel inside a second FormControl, judged clearer; (3) skipped the optional empty-value placeholder <option> since plain value=\"\" already renders nothing pre-selected. (2) and (3) are sound implementation choices, absorbed as-is; (1) is captured above as the harder_than_needed friction."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-14T17:00:00Z"
+}

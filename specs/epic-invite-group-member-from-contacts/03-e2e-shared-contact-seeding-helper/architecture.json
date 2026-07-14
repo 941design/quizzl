@@ -1,0 +1,51 @@
+{
+  "module_name": "E2E seeding infra",
+  "purpose": "Shared Playwright e2e helper (app/tests/e2e/helpers/group-setup.ts) that drives the app's real add-contact deep-link path (page.goto('/add#c='+npub)) and then the invite-contact-select picker, replacing every spec's former direct invite-npub-input fill now that InviteMemberModal (S2) only exposes a contact picker.",
+  "public_api": [
+    {
+      "name": "seedContact",
+      "signature": "(page: Page, npub: string) => Promise<void>",
+      "description": "Navigates page to /add#c=<npub> (the production add-contact deep link) and waits for either contact-added-success or add-page-error (already_exists) — both mean the contact is present afterward. Idempotent. The only function in the e2e suite permitted to navigate to /add#c=."
+    },
+    {
+      "name": "inviteContactViaPicker",
+      "signature": "(inviterPage: Page, inviteeNpub: string) => Promise<void>",
+      "description": "AC-E2E-1's shared helper: seeds inviteeNpub as a contact via seedContact, returns to the group-detail URL captured at call time, opens InviteMemberModal, waits for the seeded contact's <option> to attach to invite-contact-select, selects it, and clicks invite-submit-btn. Does not assert the outcome (invite-success/invite-error) — left to the caller, matching pre-existing per-spec variance."
+    },
+    {
+      "name": "createGroupAndInvite",
+      "signature": "(alicePage: Page, inviteeNpub: string, bobPage: Page, groupName: string) => Promise<void>",
+      "description": "Unchanged external signature (pre-existing, S3 only changed its internals to call inviteContactViaPicker instead of filling invite-npub-input directly) — creates a group, invites+seeds the invitee via the picker, and waits for the invitee to accept and join."
+    }
+  ],
+  "private_files": [
+    "app/tests/e2e/helpers/group-setup.ts (npubToHex — private helper)"
+  ],
+  "owned_data": [
+    "None — test-only orchestration over the app's own localStorage/IndexedDB via real page navigation; no data owned outside test runtime"
+  ],
+  "dependencies_allowed": [
+    "@playwright/test (Page, expect)",
+    "nostr-tools (nip19)",
+    "./dismiss-error-overlay (dismissErrorOverlay)",
+    "app UI surfaces reached only via page navigation/DOM interaction (never direct import of app source)"
+  ],
+  "dependencies_forbidden": [
+    "Direct import of app/src/** production modules (contacts.ts, InviteMemberModal.tsx, i18n.ts are frozen inputs to this story)",
+    "Raw WebSocket / hand-signed relay events"
+  ],
+  "external_ports": [
+    "Playwright Page.goto('/add#c=' + npub) — the production add-contact deep link, same one a real user's card-share/QR tap triggers",
+    "Playwright Page DOM interaction with invite-member-btn / invite-contact-select / invite-submit-btn (S2's picker surface)"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/e2e/helpers/group-setup.ts",
+    "app/tests/e2e/groups-error-cases.spec.ts",
+    "app/tests/e2e/groups-member-profiles.spec.ts",
+    "app/tests/e2e/groups-invite-guidance-state.spec.ts (new, AC-E2E-7)",
+    "app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts (new, AC-E2E-8)",
+    "23 mechanically-updated specs (see result.json files_modified) — every one of the 25 specs that previously drove invite-npub-input directly, minus the two bespoke files listed above"
+  ]
+}

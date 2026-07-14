@@ -111,9 +111,11 @@ type Copy = {
     memberCount: (count: number) => string;
     inviteMember: string;
     inviteTitle: string;
-    inviteNpubLabel: string;
-    inviteNpubPlaceholder: string;
-    inviteHelp: string;
+    inviteContactLabel: string;
+    inviteReasonAlreadyMember: string;
+    inviteReasonBlocked: string;
+    inviteGuidanceMessage: string;
+    inviteGuidanceLink: string;
     inviteSubmit: string;
     inviteSuccess: string;
     inviteErrorNoKeyPackage: string;
@@ -704,10 +706,12 @@ const copy: Record<LanguageCode, Copy> = {
       cancel: 'Cancel',
       memberCount: (count) => `${count} member${count !== 1 ? 's' : ''}`,
       inviteMember: 'Invite Member',
-      inviteTitle: 'Invite by Npub',
-      inviteNpubLabel: "Member's npub",
-      inviteNpubPlaceholder: 'npub1...',
-      inviteHelp: 'Enter or scan the npub of the person you want to invite. They must have used Few at least once to appear.',
+      inviteTitle: 'Invite a contact',
+      inviteContactLabel: 'Choose a contact',
+      inviteReasonAlreadyMember: 'already in group',
+      inviteReasonBlocked: 'blocked',
+      inviteGuidanceMessage: 'No contacts available to invite. Add contacts by sharing your profile card from the Contacts page.',
+      inviteGuidanceLink: 'Go to Contacts',
       inviteSubmit: 'Send Invite',
       inviteSuccess: 'Invitation sent successfully.',
       inviteErrorNoKeyPackage: 'This user has not set up their Few identity yet.',
@@ -1229,10 +1233,12 @@ const copy: Record<LanguageCode, Copy> = {
       cancel: 'Abbrechen',
       memberCount: (count) => `${count} Mitglied${count !== 1 ? 'er' : ''}`,
       inviteMember: 'Mitglied einladen',
-      inviteTitle: 'Per Npub einladen',
-      inviteNpubLabel: 'Npub des Mitglieds',
-      inviteNpubPlaceholder: 'npub1...',
-      inviteHelp: 'Gib die npub der Person ein oder scanne sie. Die Person muss Few bereits einmal verwendet haben.',
+      inviteTitle: 'Kontakt einladen',
+      inviteContactLabel: 'Kontakt auswählen',
+      inviteReasonAlreadyMember: 'bereits in der Gruppe',
+      inviteReasonBlocked: 'blockiert',
+      inviteGuidanceMessage: 'Keine Kontakte zum Einladen verfügbar. Füge Kontakte hinzu, indem du deine Profilkarte über die Kontakte-Seite teilst.',
+      inviteGuidanceLink: 'Zu den Kontakten',
       inviteSubmit: 'Einladung senden',
       inviteSuccess: 'Einladung erfolgreich gesendet.',
       inviteErrorNoKeyPackage: 'Dieser Nutzer hat seine Few-Identität noch nicht eingerichtet.',

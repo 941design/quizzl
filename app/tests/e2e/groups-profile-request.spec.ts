@@ -13,6 +13,7 @@ import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 import { installRumorCounter, getRumorCount } from './helpers/rumor-counter';
 import { deleteIdbRecord, readIdbRecord, writeIdbRecord } from './helpers/idb-record';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
@@ -86,10 +87,7 @@ async function inviteAndJoin(
   });
 
   await dismissErrorOverlay(inviterPage);
-  await inviterPage.getByTestId('invite-member-btn').click();
-  await expect(inviterPage.getByTestId('invite-member-modal-content')).toBeVisible();
-  await inviterPage.getByTestId('invite-npub-input').fill(inviteeNpub);
-  await inviterPage.getByTestId('invite-submit-btn').click();
+  await inviteContactViaPicker(inviterPage, inviteeNpub);
   await expect(inviterPage.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
 
   // Invitee must explicitly accept the pending invitation.

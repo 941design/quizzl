@@ -1,0 +1,124 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-14T15:18:20Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the shared helper genuinely drive production code paths (`page.goto('/add#c=' + npub)` followed by real DOM interaction with `invite-contact-select`/`invite-submit-btn`) rather than short-circuiting via direct storage writes or a mocked navigation? Grep the helper implementation for any direct call into app internals (e.g., calling `rememberContact` from the test process instead of driving the `/add` route) and confirm none exists."
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Is the seeding+picker interaction encapsulated entirely inside `group-setup.ts`'s shared helper, with zero per-spec ad-hoc seeding logic duplicating the same `page.goto('/add#c=...')` + picker-drive sequence elsewhere? Run `grep -rn \"page.goto('/add#c=\" app/tests/e2e` and confirm every occurrence is inside `group-setup.ts` (any occurrence in a `.spec.ts` file is a boundary violation)."
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `E2E seeding infra` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do the new/updated specs (the guidance-state spec for AC-E2E-7, the pending-contact spec for AC-E2E-8, and the rewritten `groups-error-cases`/`groups-member-profiles` tests) each assert against real rendered DOM state (e.g., `toBeVisible()`/`toBeDisabled()` on `invite-contact-select` or its `<option>`s) rather than only checking that a helper function resolved without throwing or that a network call fired? Cite the specific Playwright assertion in each new/changed test."
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the full set of 25 directly-affected specs plus the 11 transitive `group-setup.ts` importers pass end-to-end using only the new shared helper, with no spec requiring the removed `invite-npub-input` surface to complete its scenario? Identify the mechanism used to confirm this (a full suite run, not a subset) and report the pass/fail outcome."
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the shared helper handle the case where the add-contact step (`page.goto('/add#c=' + npub)`) fails to make the contact appear in `invite-contact-select` (e.g., a slow/failed relay round-trip) with a clear, diagnosable failure — a `waitFor`/`expect.poll` with a reasonable timeout on the option's presence before selecting it — rather than immediately clicking a stale or empty picker and producing a confusing downstream error?"
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-1",
+      "question": "Does `app/tests/e2e/helpers/group-setup.ts` export exactly one shared helper function taking an inviter page and an invitee npub, that first calls `page.goto('/add#c=' + npub)` on the inviter's page and then drives `invite-contact-select` + clicks `invite-submit-btn`? Confirm `createGroupAndInvite`'s prior direct `invite-npub-input` fill (the line `await alicePage.getByTestId('invite-npub-input').fill(inviteeNpub)`) has been replaced by a call to this new helper — cite the diff."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-2",
+      "question": "Run `grep -rl 'invite-npub-input' app/tests/e2e` on the post-implementation tree and confirm zero files are returned. Also run the identical grep against the pre-implementation tree (e.g., `git show HEAD~N:app/tests/e2e/helpers/group-setup.ts` or an equivalent pre-story checkout) and confirm it DOES return at least one match — establishing this check is state-discriminating (nonzero pre-fix, zero post-fix), not vacuously zero in both states."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-3",
+      "question": "For each of the 11 e2e specs that import `group-setup.ts` and exercise the AC-E2E-1 helper transitively, does the spec file itself contain zero direct references to `invite-npub-input` or `invite-contact-select`? Run `grep -l 'invite-contact-select\\|invite-npub-input' app/tests/e2e/*.spec.ts`, list which of the resulting files import `group-setup.ts`, and confirm none of the 11 transitive importers appear in that grep output — the seeding+picker interaction must be invisible at the spec-file level for those 11."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-4",
+      "question": "Does `groups-error-cases.spec.ts`'s 'Invite without KeyPackage shows error' test first seed the fixed unpublished-KeyPackage keypair as a contact (via the AC-E2E-1 helper or an equivalent explicit `/add#c=` step) BEFORE selecting it via `invite-contact-select` and clicking `invite-submit-btn`, and does the test still assert `invite-error` becomes visible? Confirm ordering by reading the test body — a seeding call present but executed after the picker interaction does not satisfy this AC."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-5",
+      "question": "Is `groups-error-cases.spec.ts`'s 'Invalid npub format shows error' test deleted, and replaced by a new test asserting a disabled contact (already-member or blocked) cannot be selected or submitted via `invite-contact-select`, in the SAME commit as the AC-UX-7 change? Inspect the relevant commit's diff on `groups-error-cases.spec.ts` and confirm both the deletion and the new test's addition appear together, not as a silent drop with a gap before the replacement lands."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-6",
+      "question": "Do both 'Invited member profile replaces npub and shows avatar after join' and 'A creates group and invites B' in `groups-member-profiles.spec.ts` seed the invitee as a contact (via the helper or an equivalent explicit `/add#c=` step) BEFORE driving `invite-contact-select`? Confirm by reading each test body for a seeding call that precedes the picker-drive call, for both tests independently (not just one of the two)."
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-7",
+      "question": "Does the new guidance-state e2e test open `InviteMemberModal` for a user with genuinely zero selectable contacts for the given group, then assert the guidance message and `/contacts` link are visible AND that `invite-contact-select` is not present/visible? Cite how the test's fixture/setup produces the zero-selectable precondition specifically (e.g., all seeded contacts already members or blocked, not simply a user with no contacts fetched at all due to an unrelated setup bug that would pass this assertion vacuously)."
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-8",
+      "question": "Does the new pending-contact e2e test have Alice invite Bob, then directly assert Bob's `<option>` in Alice's `invite-contact-select` remains non-disabled (checking the `disabled` attribute, not just absence of an error) while Bob has not yet accepted, and then have Alice successfully submit a second invite to Bob with no `invite-error` surfaced? Confirm the disabled-attribute check happens between the first and second invite, not only as an end-state check after both."
+    },
+    {
+      "question_id": "VQ-S3-015",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-5",
+      "question": "The implementation chose 'blocked' (not 'already_member') as the disabled-reason for AC-E2E-5's replacement test, driving the block through the real `BlockContactButton` flow at `/profile?pubkey=<hex>` (click `profile-archive`, confirm `block-confirm-btn`) rather than getting a contact to actually join the group. Does this genuinely exercise the AC-ERR-2/AC-UX-3 'blocked' branch (not the AC-ERR-1 'already_member' branch, which AC-ERR-1 says takes precedence when both apply) — i.e. is the seeded-then-blocked contact NOT also a member of the test's fresh group at the point the assertion runs? Confirm by reading the test body's ordering (group created AFTER the block, with no invite ever sent to the blocked contact)."
+    },
+    {
+      "question_id": "VQ-S3-016",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "`seedContact`'s idempotency treats BOTH `contact-added-success` and `add.tsx`'s generic `add-page-error` testid as an acceptable outcome (reasoning: the only two errors reachable with a helper-controlled, always-valid npub are `self` and `already_exists`, and neither invalidates the seeded-contact postcondition for a proper npub). Could this mask a genuine first-time seeding failure (e.g. a malformed npub reaching the helper via a future caller, or an `unsupported_version` card-format regression) by silently treating it as 'contact now present' when it is not? Would a caller passing a bad npub get a clear, diagnosable failure downstream (e.g. the subsequent `option[value=...]` wait timing out with a clear Playwright error) rather than a confusing false pass?"
+    },
+    {
+      "question_id": "VQ-S3-017",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "question": "`inviteContactViaPicker` captures `inviterPage.url()` before seeding and `page.goto()`s back to that exact URL afterward to reopen the invite modal. In the `test.describe.serial` suites this helper is now called from mid-test (e.g. `groups-lazy-updates.spec.ts`'s 'A invites B — member count updates to 2 without navigation', which asserts something about NOT navigating), does this internal navigate-away-and-back break any test's own no-navigation assertion, or was every such call site's surrounding assertion re-verified to still hold given the helper's real (if brief) navigation through `/add` and back?"
+    },
+    {
+      "question_id": "VQ-S3-018",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "AC-E2E-5's and the guidance-state test's disabled-option assertions use `select.selectOption(...).catch(() => {})` followed by asserting `invite-submit-btn` stays disabled, rather than asserting the browser refuses the `selectOption` call outright. If `InviteMemberModal.tsx`'s `isSelectionValid` guard (the `entries.some(e => e.selectable && ...)` check) were deleted, would this test actually fail (i.e. does `selectOption` on a disabled `<option>` succeed in forcing the `<select>`'s value in the browsers this suite runs under, making the submit-button-disabled assertion load-bearing rather than vacuously true because the browser already blocked the selection)?"
+    }
+  ]
+}

@@ -17,6 +17,7 @@ import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 import { queryRelayForEvents } from './helpers/relay-query';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 const GROUP_NAME = 'Leave Intent E2E';
@@ -116,10 +117,7 @@ test.describe.serial('Out-of-band group leave (kind-13 leave intent)', () => {
   test('USER_A opens the group and invites USER_B by npub', async () => {
     await openGroupDetail(pgA, GROUP_NAME);
 
-    await pgA.getByTestId('invite-member-btn').click();
-    await expect(pgA.getByTestId('invite-member-modal-content')).toBeVisible();
-    await pgA.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await pgA.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(pgA, USER_B.npub);
     await expect(pgA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
     await pgA.keyboard.press('Escape');
     // Wait for the MLS commit to propagate to the relay.

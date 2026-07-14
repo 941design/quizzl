@@ -33,6 +33,7 @@ import { USER_A, USER_C, computeTestKeypairs } from './helpers/auth-helpers';
 const USER_B = USER_C;
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay, dismissErrorOverlay } from './helpers/dismiss-error-overlay';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
@@ -118,10 +119,7 @@ test.describe.serial('DM walled garden: group member allowed (AC-TEST-5)', () =>
     await alicePage.locator('[data-testid^="group-card-"]', { hasText: 'Walled Garden Test Group' }).click();
     await expect(alicePage.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
-    await alicePage.getByTestId('invite-member-btn').click();
-    await expect(alicePage.getByTestId('invite-member-modal-content')).toBeVisible();
-    await alicePage.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await alicePage.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(alicePage, USER_B.npub);
     await expect(alicePage.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
     await alicePage.waitForTimeout(3_000);
   });

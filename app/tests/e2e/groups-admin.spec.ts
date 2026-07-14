@@ -30,6 +30,7 @@ import { USER_A, USER_B, USER_C, computeTestKeypairs } from './helpers/auth-help
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 import { queryRelayForEvents } from './helpers/relay-query';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
@@ -112,10 +113,7 @@ async function openGroupDetail(page: Page, groupName: string): Promise<void> {
 
 /** Invite a user by npub from the group detail page. */
 async function inviteMember(page: Page, npub: string): Promise<void> {
-  await page.getByTestId('invite-member-btn').click();
-  await expect(page.getByTestId('invite-member-modal-content')).toBeVisible();
-  await page.getByTestId('invite-npub-input').fill(npub);
-  await page.getByTestId('invite-submit-btn').click();
+  await inviteContactViaPicker(page, npub);
   await expect(page.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
   await page.waitForTimeout(3_000);
 }

@@ -12,6 +12,7 @@ import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 import { queryRelayForEvents } from './helpers/relay-query';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 const GROUP_NAME = 'Cancel Pending E2E';
@@ -97,10 +98,7 @@ test.describe.serial('Cancel pending invitation', () => {
     await expect(pgA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
     await dismissErrorOverlay(pgA);
 
-    await pgA.getByTestId('invite-member-btn').click();
-    await expect(pgA.getByTestId('invite-member-modal-content')).toBeVisible();
-    await pgA.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await pgA.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(pgA, USER_B.npub);
     await expect(pgA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
     await pgA.keyboard.press('Escape');
     // Wait for MLS commit to propagate

@@ -1,0 +1,106 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-14T15:18:20Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the new predicate function in app/src/lib/contacts.ts avoid any hard-coded/frozen return value (a literal boolean or reason string not derived from the input contact/group arguments)? Construct a fixture where changing only a contact's `isArchived` flag (with `memberPubkeys` held constant, no match) flips the returned `disabledReason` from `undefined` to `'blocked'`, and another where changing only `group.memberPubkeys` to include the contact's `pubkeyHex` flips it to `'already_member'`. Provide both fixtures and the observed output diffs as evidence that every branch is live-input-driven, not a stub."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Run `grep -n \"^import\" app/src/lib/contacts.ts` on the post-implementation file and compare it against the pre-implementation import list (via `git diff` on that region). Does the new predicate add zero new import lines — i.e., is it composed entirely from types/helpers already available in the module (no new import from `react`, `@nostr-dev-kit/ndk`, or `app/src/context/**`, and no new import at all beyond what pre-existed)? Paste both import lists as evidence."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `Contact eligibility predicates` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does the colocated unit test file (mirroring app/tests/unit/contacts-groups.test.ts's shape) contain six discrete `it(...)` cases matching AC-TEST-1(a)-(f) (empty input, all-selectable, all-disabled, case-insensitive match, already-member+isArchived precedence, order-preservation) as independent, non-overlapping assertions? Temporarily invert the already-member-precedence branch in the predicate (make `blocked` win over `already_member`) and re-run the suite — confirm exactly the AC-TEST-1(e) test (and no other) goes red, then revert the mutation. Report the pre-mutation (all green) and mutated (one red) run outputs as evidence the test actually discriminates this behavior."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the new predicate align with the epic's product intent that a contact-invite picker can be built purely from local `listContacts` data with zero relay/network lookups? Run `grep -inE \"fetch|relay|ndk|await\" app/src/lib/contacts.ts` scoped to the new function's body and confirm it performs no asynchronous or I/O operation — the function must be synchronous and pure."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the predicate's handling of malformed input (e.g., a `contacts` array containing an entry with an empty-string `pubkeyHex`, or `group.memberPubkeys` containing an empty string) match the established convention of `eligibleGroupsForContact`/`addableGroupsForContact` in the same file (compare the two functions' guard clauses side by side), rather than introducing an inconsistent, partially-defensive check unique to the new function?"
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "Does `grep -n 'export function'` on app/src/lib/contacts.ts show a new exported function (beyond `eligibleGroupsForContact`/`addableGroupsForContact`) accepting `(contacts: ContactListItem[], group: { memberPubkeys: string[] })` and returning `{ contact: ContactListItem; selectable: boolean; disabledReason?: 'already_member' | 'blocked' }[]`, preserving input order? Provide the exact signature as evidence, plus at least one unit test that imports and calls this real exported symbol directly (not a re-implemented copy of its logic inline in the test file)."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ERR-1",
+      "question": "For a fixture contact whose `pubkeyHex` case-insensitively matches an entry in `group.memberPubkeys` AND has `isArchived: true`, does the predicate return `{ selectable: false, disabledReason: 'already_member' }` (not `'blocked'`)? Cite the AC-TEST-1(e) test asserting this precedence, confirm it calls the real exported predicate with literal `ContactListItem` fixture data (not a mock/spy standing in for the predicate), and confirm it asserts on the actual return value via `toEqual`/`toStrictEqual`."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ERR-2",
+      "question": "For a fixture contact that does NOT match `memberPubkeys` and has `isArchived: true`, does the predicate return `{ selectable: false, disabledReason: 'blocked' }`? Cite the production branch handling this case and the unit test asserting it against a literal, non-mocked `ContactListItem` fixture — confirm the test would fail if the branch order were swapped (blocked checked before already-member) by pointing to a distinct test (AC-ERR-1's) that would catch that regression."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ERR-3",
+      "question": "For a fixture contact matching neither already-member nor blocked, does the predicate return `{ selectable: true, disabledReason: undefined }` exactly? Cite the test asserting the exact shape via `toEqual`/`toStrictEqual` against a literal object, and confirm the assertion would fail if the implementation instead set `disabledReason: null` or omitted the key with a differing enumerable-property outcome (i.e., the test is precise about `undefined`, not merely falsy)."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-1",
+      "question": "Does the colocated test file contain all six discrete cases (a) empty input (b) all-selectable (c) all-disabled (d) case-insensitive matching (e) already-member+isArchived precedence (f) order-preservation as six separate `it(...)` blocks? Delete each one individually (one at a time) and confirm the remaining five still pass — proving they are independent, non-overlapping assertions rather than one test silently covering multiple letters of AC-TEST-1."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-4",
+      "question": "Run `grep -nE \"from 'react'|@nostr-dev-kit/ndk|app/src/context\" app/src/lib/contacts.ts` against the post-implementation file and confirm zero matches. Because this file already had zero such imports before this story (a negative invariant, not newly introduced), also verify the check is meaningful and not vacuous: temporarily add a throwaway `import React from 'react';` line to contacts.ts, re-run the grep, confirm it now reports at least one match, then discard the mutation. Report both grep outputs (clean: zero matches; mutated: ≥1 match) as evidence the check discriminates a real violation."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "CONTRACT (cross-story seam, consumed by S2): Does the predicate's output conform exactly to the `ContactSelectabilityEntry` contract declared in stories.json's top-level `seams` array — each entry has exactly the fields `contact: ContactListItem`, `selectable: boolean`, `disabledReason?: 'already_member' | 'blocked'` (no additional fields), with `disabledReason` present if and only if `selectable` is `false`? Provide test evidence that the `disabledReason` enum is constrained to exactly the two literal string values `'already_member'` and `'blocked'` (no other string reaches that field), that no fixture ever produces `selectable: true` together with a defined `disabledReason`, and that the output array's length always equals the input `contacts` array's length in the same order (order-preservation, not just membership)."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-ERR-3",
+      "question": "The implementation (app/src/lib/contacts.ts, selectableContactsForGroup) always constructs the selectable-branch object literal with an explicit `disabledReason: undefined` key present (`return { contact, selectable: true, disabledReason: undefined };`), never omitting the key. The colocated test file (app/tests/unit/contacts-selectable.test.ts) asserts this branch with `toEqual`, which in Vitest treats an explicit `disabledReason: undefined` property and an entirely absent `disabledReason` key as equal — i.e. `toEqual` would NOT catch a regression where a future edit switched to `{ contact, selectable: true }` (key omitted) instead of the key-present form, nor would it catch the reverse. Given the implementation as shipped always includes the key explicitly, does this equivalence matter in practice here, or is a `toStrictEqual`/`Object.keys` upgrade still worth recommending as a defense against a future refactor that changes key-presence semantics without changing observable behavior under `toEqual`?"
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-STRUCT-1",
+      "question": "The implementation builds `new Set(group.memberPubkeys.map((pubkey) => pubkey.toLowerCase()))` once per call, then does a single `.map()` pass over `contacts` doing a Set lookup per contact (O(contacts + memberPubkeys) rather than eligibleGroupsForContact's O(groups × group.memberPubkeys.length) `.some()` scan per group). Confirm this is a faithful behavioral match to the `.some(member => member.toLowerCase() === target)` idiom used elsewhere in the file (i.e., the Set-based rewrite produces identical case-insensitive matching semantics, including when `group.memberPubkeys` contains duplicate or empty-string entries) and is not a premature optimization that silently diverges from the file's established idiom in a way a future maintainer skimming the file would find inconsistent."
+    }
+  ]
+}

@@ -78,4 +78,15 @@ describe('purgeStrangerContacts — SSR guard (contacts.ts:192)', () => {
   it('does not throw when storage is unavailable', () => {
     expect(() => purgeStrangerContacts(getWhitelist)).not.toThrow();
   });
+
+  /**
+   * Doc-comment contract: "@returns `{ deleted: number }`" — the count must
+   * be a real number even on the early-return SSR path, not just a
+   * side-effect-free no-op. Kills the ObjectLiteral repl='{}' mutant on the
+   * `{ deleted: 0 }` early return, which no prior test here asserted (no AC
+   * covers this specific shape; filed as a spec-gap finding).
+   */
+  it('returns { deleted: 0 } — not an empty object — when storage is unavailable', () => {
+    expect(purgeStrangerContacts(getWhitelist)).toEqual({ deleted: 0 });
+  });
 });

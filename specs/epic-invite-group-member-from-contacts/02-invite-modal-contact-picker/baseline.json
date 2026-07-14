@@ -1,0 +1,21 @@
+{
+  "story_id": "S2",
+  "captured_at": "2026-07-14T17:44:41Z",
+  "command": "make test-unit (cd app && npx vitest run)",
+  "result": {
+    "test_files": { "passed": 166, "failed": 0, "total": 166 },
+    "tests": { "passed": 3141, "failed": 0, "skipped": 1, "total": 3142 }
+  },
+  "pre_existing_failures": {
+    "note": "None — full unit suite is green at baseline (post-S1)."
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "detail": "No ESLint config exists in app/ (no .eslintrc*/eslint.config*); `next lint` prompts interactively to scaffold one. Treated as NO_LINT baseline, not a failure — matches S1's baseline."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit -p tsconfig.json",
+    "status": "clean"
+  }
+}

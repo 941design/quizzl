@@ -3,6 +3,7 @@ import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { queryRelayForEvents } from './helpers/relay-query';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 
@@ -78,13 +79,8 @@ test.describe.serial('Group Lifecycle', () => {
     await pageA.locator(`[data-testid^="group-card-"]`, { hasText: 'E2E Test Group' }).click();
     await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
-    // Open invite modal
-    await pageA.getByTestId('invite-member-btn').click();
-    await expect(pageA.getByTestId('invite-member-modal-content')).toBeVisible();
-
-    // Enter User B's npub
-    await pageA.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await pageA.getByTestId('invite-submit-btn').click();
+    // Open invite modal, seed User B as a contact, and invite via the picker
+    await inviteContactViaPicker(pageA, USER_B.npub);
 
     // Wait for success
     await expect(pageA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });

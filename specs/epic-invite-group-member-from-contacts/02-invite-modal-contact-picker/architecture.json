@@ -1,0 +1,46 @@
+{
+  "module_name": "Invite modal UI",
+  "purpose": "Contact-picker UI for inviting a group member: renders a Chakra <Select> built from the S1 selectability predicate (disabled options carry an i18n reason suffix), a guidance empty state when nothing is selectable, and the submit orchestration that derives an npub from the selected contact's stored pubkeyHex and calls the unchanged inviteByNpub seam. Replaces the removed npub free-text/QR-scan entry point.",
+  "public_api": [
+    {
+      "name": "InviteMemberModal",
+      "signature": "export default function InviteMemberModal({ isOpen, onClose, groupId }: { isOpen: boolean; onClose: () => void; groupId: string }): JSX.Element",
+      "description": "Modal component, unchanged prop contract (groupId only — memberPubkeys and the contact list are resolved internally from useMarmot().groups / useNostrIdentity() / listContacts, all pure local reads)."
+    },
+    {
+      "name": "resolveInviteTarget",
+      "signature": "function resolveInviteTarget(pubkeyHex: string): ResolveInviteTargetResult",
+      "description": "Reshaped (DD-11) thin adapter: converts a stored contact's pubkeyHex directly to { ok: true; npub } via pubkeyToNpub. No longer parses free text/cards — parseContactCard/contactCard.ts remains the app's single decode seam, unused by this function post-reshape."
+    },
+    {
+      "name": "submitInvite",
+      "signature": "function submitInvite(pubkeyHex: string, groupId: string, inviteByNpub: (groupId: string, npub: string) => Promise<{ ok: boolean; error?: string }>): Promise<{ ok: boolean; error?: string }>",
+      "description": "Reshaped (DD-11) thin adapter: calls resolveInviteTarget(pubkeyHex) then inviteByNpub(groupId, npub) unchanged. Exported for the same hooks-via-pure-function-extraction unit-test convention as before."
+    }
+  ],
+  "private_files": [],
+  "owned_data": ["Local component state only (selected pubkeyHex, isLoading, error, success)"],
+  "dependencies_allowed": [
+    "app/src/lib/contacts.ts (listContacts, selectableContactsForGroup, ContactSelectabilityEntry, ContactListItem)",
+    "app/src/context/MarmotContext.tsx (useMarmot().inviteByNpub, useMarmot().groups — declared seam only, no other MarmotContext internals)",
+    "app/src/context/NostrIdentityContext.tsx (useNostrIdentity().pubkeyHex — read-only, for ownPubkeyHex)",
+    "app/src/context/LanguageContext.tsx (useCopy)",
+    "app/src/lib/nostrKeys.ts (pubkeyToNpub, truncateNpub)",
+    "app/src/lib/i18n.ts (new copy keys)",
+    "next/link or next/router (guidance-state /contacts link)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/contactCard.ts (parseContactCard — this epic narrows the modal's entry point away from free-text/card parsing; do not reintroduce)",
+    "Any other MarmotContext.tsx export beyond inviteByNpub/groups",
+    "Direct localStorage/relay/NDK access (all reads go through listContacts/useMarmot())"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/cards/inviteByCard.test.ts (updated in this story per AC-STRUCT-2)"
+  ],
+  "seam": {
+    "cross_story": false
+  }
+}

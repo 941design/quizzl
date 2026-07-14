@@ -1,0 +1,180 @@
+{
+  "epic_name": "invite-group-member-from-contacts",
+  "created_at": "2026-07-14T15:10:00Z",
+  "updated_at": "2026-07-14T19:20:00Z",
+  "total_stories": 3,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "contact-selectable-predicate",
+      "title": "Contact-Selectable Predicate",
+      "description": "Add a new pure function to app/src/lib/contacts.ts that partitions listContacts(ownPubkeyHex, { includeArchived: true }) output into selectable / disabled-with-reason entries for a given group's memberPubkeys, mirroring eligibleGroupsForContact/addableGroupsForContact. Ship a colocated unit test covering the empty/all-selectable/all-disabled/case-insensitive/precedence/order-preservation cases.",
+      "acceptance_criteria": [
+        "AC-STRUCT-1",
+        "AC-ERR-1",
+        "AC-ERR-2",
+        "AC-ERR-3",
+        "AC-TEST-1",
+        "AC-STRUCT-4"
+      ],
+      "scope": {
+        "includes": [
+          "New pure predicate in app/src/lib/contacts.ts: (contacts: ContactListItem[], group: { memberPubkeys: string[] }) => partition entries { contact, selectable, disabledReason? }",
+          "already_member (case-insensitive memberPubkeys match) takes precedence over blocked (isArchived) per AC-ERR-1",
+          "Unit test file colocated with contacts.ts's existing predicate tests, mirroring app/tests/unit/contacts-groups.test.ts's shape",
+          "Keep app/src/lib/contacts.ts free of react / @nostr-dev-kit/ndk / app/src/context/** imports"
+        ],
+        "excludes": [
+          "Any change to InviteMemberModal.tsx or other UI (owned by S2)",
+          "Any change to i18n.ts",
+          "Consumption of the predicate's output to decide guidance-state rendering (that assertion's subject is InviteMemberModal.tsx \u2014 see notes and AC-ERR-4 reassignment)"
+        ]
+      },
+      "complexity": "low",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "Contact eligibility predicates",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "notes": "AC-ERR-4 is listed under this epic's 'S1' heading in both spec.md and acceptance-criteria.md, but its Observable subject is InviteMemberModal.tsx ('InviteMemberModal.tsx MUST use that all-disabled/empty condition ... to decide when to render the guidance state'), a file architecture.md reserves exclusively for S2 ('InviteMemberModal.tsx is the only file that may change UI/JSX for this epic'). A vitest test against contacts.ts alone cannot assert what the modal does at render time \u2014 that requires the Playwright/DOM surface AC-UX-6 already covers. Reassigned AC-ERR-4 to S2 (see S2.notes) rather than splitting story ownership across a UI file boundary. S1's contribution to AC-ERR-4 is structural only: its output shape must not require any additional/re-derived computation to detect the all-disabled/empty condition (a plain .every(e => !e.selectable) or .length === 0 check on the partition array suffices)."
+    },
+    {
+      "id": "S2",
+      "name": "invite-modal-contact-picker",
+      "title": "Invite Modal: Contact Picker + Guidance State",
+      "description": "Remove the npub free-text Input and QR-scan button from InviteMemberModal.tsx; add the invite-contact-select picker (built from S1's predicate) with disabled-option reason suffixes, and the guidance empty state with a /contacts link. Reshape submitInvite/resolveInviteTarget to accept a pubkey directly, update their DD-1/DD-8 doc-comments so they no longer claim to parse free text, update app/tests/unit/cards/inviteByCard.test.ts against the reshaped signatures, and add the new en/de i18n keys.",
+      "acceptance_criteria": [
+        "AC-ERR-4",
+        "AC-UX-1",
+        "AC-UX-2",
+        "AC-UX-3",
+        "AC-UX-4",
+        "AC-UX-5",
+        "AC-UX-6",
+        "AC-UX-7",
+        "AC-DEP-1",
+        "AC-SEC-1",
+        "AC-STRUCT-2",
+        "AC-STRUCT-3",
+        "AC-DEP-2"
+      ],
+      "scope": {
+        "includes": [
+          "Remove invite-npub-input and invite-scan-qr-btn (and their local state/wiring) from InviteMemberModal.tsx only \u2014 do not touch NpubQrButton/NpubQrModal/NpubQrScanner or their usage in settings.tsx/profile.tsx",
+          "Add invite-contact-select built from S1's predicate output, disabled <option>s carrying i18n-sourced reason suffixes distinct per already_member vs blocked",
+          "Add the guidance empty state (message + /contacts link) rendered when the predicate's output has zero selectable: true entries, using that condition directly (AC-ERR-4) with no separately re-derived check",
+          "Reshape submitInvite/resolveInviteTarget to accept a pubkey (derived via pubkeyToNpub from the selected contact's pubkeyHex) instead of parsing free text; keep them as a thin adapter (DD-11), do not touch contactCard.ts",
+          "Update the DD-1/DD-8 'single decode seam' doc-comments on resolveInviteTarget/submitInvite so they accurately attribute that seam to parseContactCard rather than implying these functions still parse free text",
+          "Update app/tests/unit/cards/inviteByCard.test.ts in the same change: remove/rewrite any of its 9 tests that exercise the now-unreachable free-text/card-parsing surface",
+          "Add new en/de i18n.ts keys: contact-picker label, already-member reason suffix, blocked reason suffix, guidance message, /contacts-link label; retitle inviteTitle; keep existing submit/success/error keys unchanged",
+          "Zero relay/NDK network calls on modal open / picker population (AC-SEC-1) \u2014 listContacts + the predicate are a pure local read"
+        ],
+        "excludes": [
+          "Any change to MarmotContext.inviteByNpub, key-package fetching, or the MLS commit (owned by 'MLS add-member' module, untouched this epic)",
+          "Any change to isAdmin gating or its MLS commit()-layer enforcement",
+          "e2e spec updates (owned by S3)",
+          "Any change to contactCard.ts / parseContactCard itself"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "Invite modal UI",
+      "creates_seam": false,
+      "consumes_seams": [
+        "ContactSelectabilityEntry"
+      ],
+      "lighter_path": false,
+      "notes": "Consumes S1's ContactSelectabilityEntry seam (must land after S1). AC-ERR-4 reassigned here from S1's nominal heading in spec.md/acceptance-criteria.md: its Observable ('InviteMemberModal.tsx MUST use that all-disabled/empty condition ... to decide when to render the guidance state') is about this story's file, and its Manual Validation entry cross-references AC-UX-6, which this story also owns \u2014 verifying both together in one Playwright pass avoids a split assertion across two stories' verification.json files."
+    },
+    {
+      "id": "S3",
+      "name": "e2e-shared-contact-seeding-helper",
+      "title": "E2E Infra: Shared Contact-Seeding + Picker Helper",
+      "description": "Add one shared 'ensure contact via the production add-contact path, then invite via invite-contact-select' helper to group-setup.ts, replacing createGroupAndInvite's direct invite-npub-input fill. Update the 25 directly-affected specs (including the 11 transitive group-setup.ts importers) plus the two bespoke specs (groups-error-cases, groups-member-profiles) so no e2e file references invite-npub-input, and add new coverage specs for the guidance state and pending-contact-selectable behavior.",
+      "acceptance_criteria": [
+        "AC-E2E-1",
+        "AC-E2E-2",
+        "AC-E2E-3",
+        "AC-E2E-4",
+        "AC-E2E-5",
+        "AC-E2E-6",
+        "AC-E2E-7",
+        "AC-E2E-8"
+      ],
+      "scope": {
+        "includes": [
+          "One shared helper in app/tests/e2e/helpers/group-setup.ts: page.goto('/add#c=' + npub) on the inviter's page, then drive invite-contact-select + invite-submit-btn",
+          "Replace createGroupAndInvite's direct invite-npub-input fill with the new helper",
+          "Update all specs/importers so zero files under app/tests/e2e/ contain 'invite-npub-input' (AC-E2E-2)",
+          "groups-error-cases.spec.ts: seed the unpublished-KeyPackage contact before selecting it (AC-E2E-4); delete 'Invalid npub format shows error' and replace with a disabled-option-cannot-be-selected test in the same commit (AC-E2E-5)",
+          "groups-member-profiles.spec.ts: seed the invitee as a contact before driving the picker in both affected tests (AC-E2E-6)",
+          "New spec: guidance state end-to-end for a user with zero selectable contacts (AC-E2E-7)",
+          "New spec: pending-contact-is-already-member (disabled, no re-invite path) (AC-E2E-8, corrected post-implementation)"
+        ],
+        "excludes": [
+          "Any production code change (contacts.ts, InviteMemberModal.tsx, i18n.ts are frozen inputs to this story)",
+          "Ad-hoc per-spec seeding logic outside the shared helper"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "E2E seeding infra",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "notes": "Drives the real invite-contact-select picker shipped by S2 (must land after S2) \u2014 no mock of the modal is used or needed since implementation is sequential, not parallel."
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3"
+  ],
+  "dependency_notes": "Strict linear chain S1 -> S2 -> S3, matching the spec's own sketch: S2 consumes the ContactSelectabilityEntry seam S1 creates (the predicate must exist before the modal can be reshaped to use it), and S3's e2e helper drives the invite-contact-select picker S2 builds (there is nothing to seed-and-select until the picker exists). No parallel implementation is intended or needed. One AC reassignment from the spec's story sketch: AC-ERR-4 moved from S1 to S2 because its Observable clause governs InviteMemberModal.tsx (S2's owning_module, and the only file architecture.md permits for UI/JSX changes this epic), not contacts.ts \u2014 see S1.notes and S2.notes for the full rationale.",
+  "mock_resolution_plan": "No temporary mocks are introduced. Stories are implemented sequentially (S1 before S2 before S3), so each downstream story consumes the real upstream artifact rather than a stand-in.",
+  "seams": [
+    {
+      "data": "Per-contact selectability partition for a group's contact-invite picker",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/contacts.ts (new 'selectable contacts for a group' predicate)"
+      },
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/components/groups/InviteMemberModal.tsx"
+      },
+      "contract": {
+        "type_name": "ContactSelectabilityEntry",
+        "fields": [
+          {
+            "name": "contact",
+            "type": "ContactListItem"
+          },
+          {
+            "name": "selectable",
+            "type": "boolean"
+          },
+          {
+            "name": "disabledReason",
+            "type": "'already_member' | 'blocked'",
+            "optional": true
+          }
+        ],
+        "invariants": [
+          "Output array has exactly one entry per input ContactListItem, in the same order as the input array (order-preservation, AC-STRUCT-1 / AC-TEST-1f).",
+          "disabledReason is present if and only if selectable is false.",
+          "A contact whose pubkeyHex matches, case-insensitively, an entry in group.memberPubkeys is always { selectable: false, disabledReason: 'already_member' }, regardless of isArchived \u2014 already-member precedence over blocked (AC-ERR-1, AC-TEST-1e).",
+          "A contact not matching memberPubkeys with isArchived === true is { selectable: false, disabledReason: 'blocked' } (AC-ERR-2).",
+          "A contact satisfying neither condition is { selectable: true, disabledReason: undefined } (AC-ERR-3).",
+          "The all-disabled/empty condition (every entry selectable: false, including the empty-input case) is detectable directly from the output array with no additional re-derived check, since AC-ERR-4 requires the consuming modal to use exactly this condition."
+        ]
+      }
+    }
+  ]
+}

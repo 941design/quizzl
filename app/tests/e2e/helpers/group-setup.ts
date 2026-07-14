@@ -17,6 +17,91 @@ import { Page, expect } from '@playwright/test';
 import { nip19 } from 'nostr-tools';
 import { dismissErrorOverlay } from './dismiss-error-overlay';
 
+/** Decode a bech32 npub to its hex pubkey. */
+function npubToHex(npub: string): string {
+  return npub.startsWith('npub') ? (nip19.decode(npub).data as string) : npub;
+}
+
+/**
+ * Drive the app's REAL add-contact path (epic: invite-group-member-from-
+ * contacts, S3 — AC-E2E-1/AC-E2E-2/AC-E2E-3) so a contact seeded this way is
+ * indistinguishable from one a user added by hand: `page.goto('/add#c=' +
+ * npub)`, the exact bare-npub payload `parseContactCard` accepts
+ * (contactCard.ts's npub-branch), which drives `resolveAddDeepLink` ->
+ * `processContactInput` -> `addContactByNpub` and lands on
+ * `/contacts?id=<hex>&added=1`.
+ *
+ * Idempotent by design: re-seeding an npub that is already a contact lands on
+ * `add.tsx`'s `already_exists` error branch (`add-page-error`) instead of the
+ * success redirect (`contact-added-success`) — both outcomes mean the
+ * contact is present in `page`'s contact list afterward, so both are treated
+ * as success here. This lets `inviteContactViaPicker` be called more than
+ * once for the same invitee (AC-E2E-8's re-invite) without a special case.
+ *
+ * This is the ONLY function in the e2e suite that may navigate to `/add#c=`
+ * — every spec that needs a seeded contact goes through this helper (or
+ * `inviteContactViaPicker`, which calls it), rather than duplicating the
+ * navigation inline. No production code is bypassed: this is the same
+ * `page.goto` a real user's deep-link tap would trigger.
+ */
+export async function seedContact(page: Page, npub: string): Promise<void> {
+  await page.goto('/add#c=' + npub);
+  await expect(
+    page.getByTestId('contact-added-success').or(page.getByTestId('add-page-error')),
+  ).toBeVisible({ timeout: 30_000 });
+  await dismissErrorOverlay(page);
+}
+
+/**
+ * The shared "ensure the invitee is a contact, then invite via the picker"
+ * helper (epic: invite-group-member-from-contacts, S3 — AC-E2E-1). Replaces
+ * every e2e spec's former direct fill of the now-removed npub free-text
+ * input, now that `InviteMemberModal` only exposes a contact picker
+ * (`invite-contact-select`).
+ *
+ * Precondition: `inviterPage` is currently ON the target group's detail page
+ * (`group-detail-page` visible, i.e. at `/groups?id=<groupId>`), with the
+ * invite modal NOT open yet — this helper opens it itself. `inviteeNpub` is
+ * a bech32 npub (not hex).
+ *
+ * Steps: (1) seed the invitee as a contact via `seedContact` — this
+ * navigates the page away to `/add` and on to `/contacts`; (2) navigate back
+ * to the group-detail URL captured before step 1; (3) open
+ * `InviteMemberModal` and wait for the seeded contact's `<option>` to be
+ * attached to `invite-contact-select` before interacting with it (never
+ * clicks into a stale/empty picker); (4) select it and click
+ * `invite-submit-btn`.
+ *
+ * Deliberately does NOT assert the outcome (`invite-success` / `invite-
+ * error`) — that stays the caller's responsibility, exactly as it already
+ * varies per spec (a 60s success wait in the happy-path specs, an
+ * `invite-error` assertion in the KeyPackage-less error case).
+ */
+export async function inviteContactViaPicker(inviterPage: Page, inviteeNpub: string): Promise<void> {
+  const groupDetailUrl = inviterPage.url();
+  const inviteeHex = npubToHex(inviteeNpub);
+
+  await seedContact(inviterPage, inviteeNpub);
+
+  // Seeding navigated away from the group detail page — return to it and
+  // re-open the invite modal.
+  await inviterPage.goto(groupDetailUrl);
+  await expect(inviterPage.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+  await dismissErrorOverlay(inviterPage);
+
+  await inviterPage.getByTestId('invite-member-btn').click();
+  await expect(inviterPage.getByTestId('invite-member-modal-content')).toBeVisible();
+
+  const select = inviterPage.getByTestId('invite-contact-select');
+  await expect(select).toBeVisible({ timeout: 10_000 });
+  // Wait for the just-seeded contact's option to actually be present before
+  // selecting it — avoids racing listContacts()'s localStorage read against
+  // a stale render (VQ-S3-006).
+  await expect(select.locator(`option[value="${inviteeHex}"]`)).toBeAttached({ timeout: 30_000 });
+  await select.selectOption(inviteeHex);
+  await inviterPage.getByTestId('invite-submit-btn').click();
+}
+
 /**
  * Alice creates a named group, invites Bob by npub, and waits for Bob to join.
  *
@@ -71,14 +156,13 @@ export async function createGroupAndInvite(
   // Give the group state time to stabilise before inviting.
   await alicePage.waitForTimeout(3_000);
 
-  // Step 6: Open the group detail and invite Bob.
+  // Step 6: Open the group detail and invite Bob — seeded as a contact via
+  // the production add-contact path, then invited through the picker
+  // (epic: invite-group-member-from-contacts, S3).
   await alicePage.locator('[data-testid^="group-card-"]', { hasText: groupName }).click();
   await expect(alicePage.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
-  await alicePage.getByTestId('invite-member-btn').click();
-  await expect(alicePage.getByTestId('invite-member-modal-content')).toBeVisible();
-  await alicePage.getByTestId('invite-npub-input').fill(inviteeNpub);
-  await alicePage.getByTestId('invite-submit-btn').click();
+  await inviteContactViaPicker(alicePage, inviteeNpub);
 
   // Step 7: Wait for invite-success before timing relay delivery.
   await expect(alicePage.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });

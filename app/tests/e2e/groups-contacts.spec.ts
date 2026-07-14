@@ -2,6 +2,7 @@ import { test, expect, BrowserContext, Page } from '@playwright/test';
 import { USER_A, USER_C, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 // USER_B is configured as the maintainer in the e2e test environment
 // (NEXT_PUBLIC_MAINTAINER_NPUBS in run-e2e.mjs). The contacts page filters out
@@ -61,9 +62,7 @@ test.describe.serial('Contacts and direct chat', () => {
 
     await pageA.locator('[data-testid^="group-card-"]', { hasText: 'Contacts Test Group' }).click();
     await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
-    await pageA.getByTestId('invite-member-btn').click();
-    await pageA.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await pageA.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(pageA, USER_B.npub);
     await expect(pageA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
 
     // AC-TEST-9: Bob sees pending invitation and explicitly Accepts it

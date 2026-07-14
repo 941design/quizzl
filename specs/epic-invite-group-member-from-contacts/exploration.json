@@ -1,0 +1,83 @@
+{
+  "created_at": "2026-07-14T14:37:45Z",
+  "prior_learnings": [
+    {
+      "id": "storedcontact-keys-lowercase-only-via-transitive",
+      "title": "StoredContact keys are lowercase only via a transitive noble-hashes guarantee, not explicit normalization",
+      "relevance": "Confirms the spec's case-insensitive isMember comparison is required defensive practice, not gold-plating: pubkey casing is only empirically lowercase today (via bytesToHex in marmot-ts/nostr-tools), never explicitly normalized at StoredContact write sites."
+    }
+  ],
+  "explorers": [
+    {
+      "focus": "similar-features",
+      "key_files": [
+        "app/pages/profile.tsx:557-746",
+        "app/src/lib/contacts.ts:139-171 (listContacts)",
+        "app/src/lib/contacts.ts:215-248 (eligibleGroupsForContact/addableGroupsForContact)",
+        "app/src/components/groups/InviteMemberModal.tsx:1-248",
+        "app/tests/unit/cards/inviteByCard.test.ts",
+        "app/tests/unit/contacts-groups.test.ts",
+        "app/tests/e2e/helpers/group-setup.ts:34-100 (createGroupAndInvite)",
+        "app/pages/groups.tsx:303-311 (case-insensitive isAdmin)",
+        "app/src/lib/i18n.ts:113-136,343-347,707-730,897-901,1232-1255,1421-1425",
+        "app/src/context/MarmotContext.tsx:260,1477 (inviteByNpub)"
+      ],
+      "findings": [
+        "profile.tsx's <Select> (profile-add-to-group-select, ~704-720) has NO disabled-option precedent anywhere in the codebase — it pre-filters via addableGroupsForContact rather than disabling in place. The new modal's show-all/disable-some pattern is genuinely new UI, not copied.",
+        "profile.tsx's handleAddToGroup error handling is a coarse single-status catch-all — the four-way getErrorMessage mapping (invalid_npub/no_key_package/offline/timeout/default) that must be preserved lives ONLY in the current InviteMemberModal.tsx (lines 105-118), not in the profile-page mirror.",
+        "DD-10's 'nickname || truncateNpub(npub)' fallback citation (profile.tsx:620) is conceptually correct but is literally rendering the page heading, not inside the <Select> itself (whose options render group.name) — reuse the expression, not the exact call site.",
+        "inviteByNpub signature confirmed: (groupId: string, npub: string) => Promise<{ ok: boolean; error?: string }> (MarmotContext.tsx:260).",
+        "listContacts sort: archived-last, then updatedAt-desc, then nickname/pubkeyHex tiebreak — already applied; new predicate must only partition/annotate, never re-sort.",
+        "The group->contact-membership case-insensitive idiom (member.toLowerCase() === target) is used identically in eligibleGroupsForContact, addableGroupsForContact, commonGroups, and groups.tsx's isAdmin computation — the new inverse predicate (contact-selectable-for-group) has no direct existing analog but should mirror this exact idiom."
+      ]
+    },
+    {
+      "focus": "architecture",
+      "key_files": [
+        "app/src/components/groups/InviteMemberModal.tsx:36-94 (resolveInviteTarget/submitInvite, doc-comments cite DD-1/DD-8)",
+        "app/src/lib/contactCard.ts:641-725 (parseContactCard — the actual single decode seam)",
+        "specs/epic-contact-card-exchange/architecture.md:1-49 (DD-1, DD-8 canonical source)",
+        "app/src/context/MarmotContext.tsx:1477-1620 (inviteByNpub impl), :2051 (no-op stub)",
+        "app/pages/groups.tsx:301-311 (isAdmin), :439/463 (memberPubkeys), :517 (modal mount site)",
+        "app/src/lib/contacts.ts:9-22 (StoredContact/ContactListItem shape, isArchived/archivedAt)",
+        "app/tests/e2e/helpers/group-setup.ts:78-81 (single e2e chokepoint)"
+      ],
+      "findings": [
+        "The 'DD-1/DD-8 single decode seam' doc-comments in InviteMemberModal.tsx actually point to parseContactCard in contactCard.ts (not to resolveInviteTarget/submitInvite themselves, which are thin callers) — confirmed verbatim against specs/epic-contact-card-exchange/architecture.md: 'The single card decode seam is parseContactCard... inviteByNpub stays npub/pubkey-only; card->pubkey down-conversion happens at the caller.' Narrowing the modal's entry point to a pubkey does NOT touch the seam itself — only the caller-side down-conversion changes, exactly as spec DD-11 intends.",
+        "inviteByNpub internals confirmed unaffected: decodes npub -> invalid_npub; fetches KeyPackage kinds 443/30443 with timeout -> no_key_package/timeout; resolves mlsGroup -> group_not_found; inviteByKeyPackageEvent; refreshes memberPubkeys; re-publishes inviter profile as an MLS-application-rumor ONLY (never a public relay event) into the group. offline fires when getNdk() is null.",
+        "isAdmin is derived live every render from mlsGroup.groupData.adminPubkeys (MLS state, not the persisted Group record) — any new admin-gated UI must re-derive the same way, never cache it.",
+        "inviteByCard.test.ts drives resolveInviteTarget/submitInvite directly (no jsdom), 5 describe blocks / 9 tests, all exercising free-text/card-parsing behavior (DD-8 privacy: zero contactCache/knownPeers writes during down-conversion; signature-tamper rejection; garbage-input rejection; bare-npub round-trip; KeyPackage-dependency parity). Every one of these tests exercises an input surface the picker removes — confirms DD-11's mandate to reconcile this file in the same change.",
+        "Architecture paradigm confirmed by 3 prior epics' architecture.md (contact-card-exchange, block-contact, direct-contact-profile-exchange): modular monolith, package-by-feature, pure-logic-core isolated from React/NDK/storage with thin adapters at I/O edges — convention-enforced via doc-comments, not a DI framework. This epic's plan (pure predicate in contacts.ts + thin modal reshape) matches exactly.",
+        "Privacy invariant confirmed structurally: contacts.ts has zero relay/NDK/network imports (only types/storage/walledGarden/nostrKeys/knownPeers). listContacts is a pure localStorage read. The dropdown will be a pure local read; only inviteByNpub's existing KeyPackage fetch + MLS commit remain as outbound (targeted-encrypted, unchanged) network activity — consistent with CLAUDE.md's privacy invariant.",
+        "E2E blast radius verified exact via grep+comm: 25 specs reference invite-npub-input directly, 11 specs import group-setup.ts transitively, ZERO overlap between the two sets. Total 36 of 66 spec files affected. Spec's '~26' figure is a minor rounding slip in one bullet only — not a real discrepancy."
+      ]
+    },
+    {
+      "focus": "testing-and-conventions",
+      "key_files": [
+        "app/tests/e2e/helpers/group-setup.ts:34-163 (createGroupAndInvite)",
+        "app/src/lib/processContactInput.ts:1-180",
+        "app/src/lib/addDeepLink.ts:83-93",
+        "app/src/lib/contactCard.ts:669-696 (parseContactCard bare-npub branch)",
+        "app/tests/e2e/helpers/contact-card.ts:85-102",
+        "app/tests/e2e/groups-error-cases.spec.ts:21-63",
+        "app/tests/e2e/groups-member-profiles.spec.ts:74-114,138-173",
+        "app/pages/add.tsx (full file)",
+        "app/pages/contacts.tsx (list view, no add-contact UI)",
+        "app/src/lib/i18n.ts (verified key presence)"
+      ],
+      "findings": [
+        "CONFIRMED BY LEAD (direct read of add.tsx/contacts.tsx/settings.tsx/profile.tsx): there is NO manual 'add contact by npub' UI anywhere in the app today. /contacts is a read-only list (no add button/input). /add only completes when a #c= hash is present on load; with no hash it shows a 'no card' warning, not an entry form. NpubQrModal on settings.tsx/profile.tsx is display-mode only (shows YOUR OWN npub/QR/share-card), never a scanner-to-add affordance outside the /add deep-link flow. Confirmed via user: this is INTENTIONAL, confirmed product behavior (contacts are added via a mutual contact-card handshake), not a gap — resolved via AskUserQuestion; spec.md updated accordingly (Design Decisions 1 and 6).",
+        "The real add-contact mutation path for e2e seeding is `page.goto('/add#c=' + npub)` — parseContactCard's npub-branch (contactCard.ts:692) accepts a bare npub as a valid #c= payload, so seeding a contact does NOT require opening the invitee's own browser/profile — the inviter's page alone, with the npub it already has, can drive the full production add path (resolveAddDeepLink -> processContactInput -> addContactByNpub), landing on /contacts?id=<hex>&added=1. Materially simpler than the share-card-link pattern.",
+        "Caveat: a bare-npub add carries no profile field, so the seeded contact has nickname: '' in the cache — exactly the case spec DD-10 already anticipates (truncateNpub fallback).",
+        "Blast radius counts confirmed precisely: 25 (not 26) direct invite-npub-input references; 11 group-setup.ts importers with ZERO overlap; total 36/66 spec files.",
+        "groups-error-cases.spec.ts: 'Invite without KeyPackage shows error' converts mechanically (seed contact for a fixed unpublished-KeyPackage keypair, select via picker, same no_key_package mapping). 'Invalid npub format shows error' has NO reachable UI surface under the new design (free-text input is gone) — must be deleted from e2e and its assertion (if any residual value) moved to a unit test of resolveInviteTarget/submitInvite, or replaced entirely by the new disabled-member/disabled-blocked AC per the spec's OQ2 resolution.",
+        "groups-member-profiles.spec.ts: both flagged tests ('Invited member profile replaces npub…', 'A creates group and invites B') invite a stranger with NO prior shared group — confirms auto-seeding cannot be relied on and the shared seed-then-invite helper is mandatory for these specific tests, not just a generic precaution.",
+        "contacts-groups.test.ts (full file, 32 lines/blocks) is the template to mirror for the new predicate's unit test: empty-input, no-match, some-match, all-match, case-insensitivity, both-conditions-required, and order-preservation cases.",
+        "All i18n keys named in the spec confirmed present verbatim in both en and de: inviteTitle, inviteNpubLabel, inviteNpubPlaceholder, inviteHelp, inviteSubmit, inviteSuccess, inviteErrorNoKeyPackage, inviteErrorOffline, inviteErrorTimeout, inviteErrorGeneric, and the separate profile.addToGroup* family.",
+        "Vitest conventions confirmed current: no jsdom/@testing-library dependency at all in package.json; vitest.config.ts defaults to node environment; sampled 3 recent unit test files, all plain describe/it with hand-rolled localStorage mocks where needed."
+      ],
+      "retrospective_flag": "Two stale-doc discrepancies cost real exploration time: (1) several non-test source files still reference a removed AddContactModal component in comments as if it exists; (2) the epic pre-spec itself assumed /contacts had a self-service add mechanism it does not have. Both resolved via direct verification + user confirmation before planning proceeded."
+    }
+  ]
+}

@@ -247,6 +247,64 @@ export function addableGroupsForContact(
   );
 }
 
+/**
+ * One partition entry per input contact, returned by
+ * {@link selectableContactsForGroup}. Cross-story seam contract consumed by
+ * `InviteMemberModal.tsx` (epic: invite-group-member-from-contacts, S2) to
+ * build the contact-invite `<Select>` picker's options.
+ *
+ * `disabledReason` is present if and only if `selectable` is `false`.
+ */
+export type ContactSelectabilityEntry = {
+  contact: ContactListItem;
+  selectable: boolean;
+  disabledReason?: 'already_member' | 'blocked';
+};
+
+/**
+ * Partitions `contacts` into selectable / disabled-with-reason entries for a
+ * given group's membership — the inverse of {@link eligibleGroupsForContact}
+ * (which partitions groups for one contact; this partitions contacts for one
+ * group). Pubkey comparison against `group.memberPubkeys` is case-insensitive,
+ * consistent with {@link commonGroups}/{@link eligibleGroupsForContact} and
+ * `listContacts` elsewhere in this module — stored contact keys and group
+ * member keys are not case-normalised, so an exact-match `.includes()` would
+ * wrongly treat an already-member contact as selectable.
+ *
+ * Precedence: a contact matching `group.memberPubkeys` is always
+ * `{ selectable: false, disabledReason: 'already_member' }`, regardless of
+ * `isArchived` — already-member wins over blocked when both apply. A
+ * non-member contact with `isArchived === true` is `{ selectable: false,
+ * disabledReason: 'blocked' }`. Every other contact is `{ selectable: true }`
+ * — the `disabledReason` key is omitted entirely, not set to `undefined`.
+ *
+ * Pure and synchronous: no storage or network access. Callers pass
+ * `listContacts(ownPubkeyHex, { includeArchived: true })` output directly.
+ *
+ * @param contacts - Contacts to partition (typically the full
+ *   `includeArchived: true` list, so blocked contacts are still shown,
+ *   disabled).
+ * @param group    - The group to check membership against.
+ * @returns One {@link ContactSelectabilityEntry} per input contact,
+ *   preserving `contacts`' order exactly (order-preservation, not just
+ *   membership).
+ */
+export function selectableContactsForGroup(
+  contacts: ContactListItem[],
+  group: { memberPubkeys: string[] },
+): ContactSelectabilityEntry[] {
+  const memberPubkeys = new Set(group.memberPubkeys.map((pubkey) => pubkey.toLowerCase()));
+  return contacts.map((contact) => {
+    if (memberPubkeys.has(contact.pubkeyHex.toLowerCase())) {
+      return { contact, selectable: false, disabledReason: 'already_member' };
+    }
+    if (contact.isArchived) {
+      return { contact, selectable: false, disabledReason: 'blocked' };
+    }
+    return { contact, selectable: true };
+  });
+}
+
 export type AddContactResult =
   | { ok: true; pubkeyHex: string; reactivated: boolean }
   | {

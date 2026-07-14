@@ -1,0 +1,199 @@
+{
+  "epic_name": "invite-group-member-from-contacts",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-14T14:37:45Z",
+  "updated_at": "2026-07-14T21:00:00Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md",
+    "specs/block-contact-spec-request.md",
+    "specs/contact-pairing-code-spec-request.md",
+    "specs/direct-contact-profile-exchange-spec-request.md",
+    "specs/invite-group-member-from-contacts-spec-request.md",
+    "themes.json"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-14T14:37:45Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-14T19:30:00Z",
+      "trigger": "all_stories_done_ac_closure_clean"
+    }
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "bd9b7fe08a217f08aa8b203c0ad400dc701c4dfa",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "reviewer_agent_id": "a8486a5b3450039c3",
+  "ac_closure": [
+    {
+      "ac_id": "AC-STRUCT-1",
+      "status": "met",
+      "evidence": "selectableContactsForGroup exported contacts.ts:292-306; VQ-S1-007/013 YES; contacts-selectable.test.ts real-symbol tests"
+    },
+    {
+      "ac_id": "AC-STRUCT-2",
+      "status": "met",
+      "evidence": "inviteByCard.test.ts reshaped, 10 tests pass against pubkeyHex-in adapter; VQ-S2-017 YES"
+    },
+    {
+      "ac_id": "AC-STRUCT-3",
+      "status": "met",
+      "evidence": "doc-comments correctly attribute decode seam to parseContactCard; VQ-S2-018/022 YES"
+    },
+    {
+      "ac_id": "AC-STRUCT-4",
+      "status": "met",
+      "evidence": "zero react/ndk/context imports in contacts.ts; VQ-S1-012 YES (mutation-tested)"
+    },
+    {
+      "ac_id": "AC-ERR-1",
+      "status": "met",
+      "evidence": "already_member precedence over blocked; VQ-S1-008 YES, mutation-discrimination test VQ-S1-004 YES"
+    },
+    {
+      "ac_id": "AC-ERR-2",
+      "status": "met",
+      "evidence": "blocked branch; VQ-S1-009 YES"
+    },
+    {
+      "ac_id": "AC-ERR-3",
+      "status": "met",
+      "evidence": "selectable branch, key omitted; VQ-S1-010 YES"
+    },
+    {
+      "ac_id": "AC-ERR-4",
+      "status": "met",
+      "evidence": "guidance gating derived directly from predicate output, no re-derived check; VQ-S2-001/007 YES"
+    },
+    {
+      "ac_id": "AC-TEST-1",
+      "status": "met",
+      "evidence": "6 discrete cases a-f present and independent; VQ-S1-011 YES"
+    },
+    {
+      "ac_id": "AC-UX-1",
+      "status": "met",
+      "evidence": "inviteByNpub called with pubkeyToNpub(selected contact); VQ-S2-008 YES"
+    },
+    {
+      "ac_id": "AC-UX-2",
+      "status": "met",
+      "evidence": "already-member disabled option + i18n reason; VQ-S2-009 YES"
+    },
+    {
+      "ac_id": "AC-UX-3",
+      "status": "met",
+      "evidence": "blocked disabled option + i18n reason; VQ-S2-010 YES"
+    },
+    {
+      "ac_id": "AC-UX-4",
+      "status": "met",
+      "evidence": "CORRECTED post-implementation via live e2e testing: memberPubkeys updates on invite, not accept, so a pending contact IS already_member and correctly renders disabled ('already in group'), same as any other member. User-confirmed 2026-07-14 to ship without a re-invite path; original 'stays selectable' premise was factually wrong about runtime behavior. Follow-up filed: invite-modal-picker-cannot-re-invite."
+    },
+    {
+      "ac_id": "AC-UX-5",
+      "status": "met",
+      "evidence": "no_key_package error unchanged via picker path; VQ-S2-012 YES"
+    },
+    {
+      "ac_id": "AC-UX-6",
+      "status": "met",
+      "evidence": "guidance copy names profile-card mechanism, excludes npub in both locales; VQ-S2-005/013 YES"
+    },
+    {
+      "ac_id": "AC-UX-7",
+      "status": "met",
+      "evidence": "invite-npub-input/invite-scan-qr-btn absent from DOM; VQ-S2-014 YES"
+    },
+    {
+      "ac_id": "AC-DEP-1",
+      "status": "met",
+      "evidence": "groups.tsx/MarmotContext.tsx zero diff; VQ-S2-015 YES"
+    },
+    {
+      "ac_id": "AC-DEP-2",
+      "status": "met",
+      "evidence": "en/de key parity for all new keys; VQ-S2-019 YES"
+    },
+    {
+      "ac_id": "AC-SEC-1",
+      "status": "met",
+      "evidence": "zero network calls on modal open, pure local reads; VQ-S2-016 YES"
+    },
+    {
+      "ac_id": "AC-E2E-1",
+      "status": "met",
+      "evidence": "shared helper exported, replaces direct fill; VQ-S3-007 YES"
+    },
+    {
+      "ac_id": "AC-E2E-2",
+      "status": "met",
+      "evidence": "grep -rl invite-npub-input app/tests/e2e returns zero; VQ-S3-008 YES"
+    },
+    {
+      "ac_id": "AC-E2E-3",
+      "status": "met",
+      "evidence": "AC text remediated + re-verified against actual import graph (35 seeding-only + 3 named exceptions); VQ-S3-009 YES post-remediation"
+    },
+    {
+      "ac_id": "AC-E2E-4",
+      "status": "met",
+      "evidence": "KeyPackage-less test seeds then picks; VQ-S3-010 YES"
+    },
+    {
+      "ac_id": "AC-E2E-5",
+      "status": "met",
+      "evidence": "invalid-npub test deleted+replaced with blocked-contact test, hardened with DOM-value assertion; VQ-S3-011/015/018 YES post-remediation"
+    },
+    {
+      "ac_id": "AC-E2E-6",
+      "status": "met",
+      "evidence": "groups-member-profiles.spec.ts both tests seed before picking; VQ-S3-012 YES"
+    },
+    {
+      "ac_id": "AC-E2E-7",
+      "status": "met",
+      "evidence": "new guidance-state spec, non-vacuous fixture, picker absence scoped assertion; VQ-S3-013 YES"
+    },
+    {
+      "ac_id": "AC-E2E-8",
+      "status": "met",
+      "evidence": "CORRECTED and inverted post-implementation: groups-invite-pending-contact-selectable.spec.ts rewritten to assert the verified-real behavior (pending contact becomes disabled 'already in group', cannot be re-submitted) rather than the original false premise. Directly run live against Docker relay, passes."
+    }
+  ],
+  "manual_validation": [],
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_pass",
+      "structural_findings": {
+        "surfaced": 0,
+        "acted": 0,
+        "disclosed_unacted": 0
+      }
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_remediated",
+      "detail": "All 27 epic-touched e2e spec files (25 migrated + 2 new) run directly against Docker/strfry relay, all pass. 4 real bugs found and fixed during verification: (1) invalid bech32 checksum in a pre-existing test npub fixture, latent since before this epic, surfaced by the new helper's decode step; (2) incorrect assumption that Playwright's selectOption cannot force-select a disabled <option> -- it can in this Chromium build, test hardened to rely on the app's own isSelectionValid guard instead; (3) Next.js static-export trailing-slash href mismatch in a new spec; (4) DD-4 product-decision contradiction -- memberPubkeys updates on invite not on accept, so 'pending stays selectable' was factually wrong; user-confirmed correction, AC-UX-4/AC-E2E-8 and the corresponding test rewritten. 2 additional live-run failures (groups-profile-reactive, groups-lazy-updates) confirmed as pre-existing flakiness via direct git-stash baseline comparison, unrelated to this epic."
+    }
+  ]
+}

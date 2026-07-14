@@ -1,0 +1,107 @@
+{
+  "epic": "invite-group-member-from-contacts",
+  "concepts": [
+    {
+      "id": "contact-selectability-partitioning",
+      "name": "Contact selectability partitioning (already_member precedence over blocked)",
+      "owning_module": "Contact eligibility predicates",
+      "type": "invariant",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "invite-picker-guidance-contract",
+      "name": "Invite modal picker/guidance-state DOM contract (invite-contact-select, disabled-option reasons, guidance empty state)",
+      "owning_module": "Invite modal UI",
+      "type": "public_contract",
+      "added_by_story": "S2"
+    },
+    {
+      "id": "single-decode-seam",
+      "name": "parseContactCard as the single npub/card decode seam app-wide (DD-1)",
+      "owning_module": "Contact-card decode seam",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "invite-by-npub-contract",
+      "name": "inviteByNpub(groupId, npub) MLS add-member contract, npub/pubkey-only (DD-8)",
+      "owning_module": "MLS add-member",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "i18n-locale-key-parity",
+      "name": "en/de key parity for all new user-facing copy",
+      "owning_module": "i18n copy",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "e2e-single-shared-seeding-helper",
+      "name": "One shared contact-seeding-then-invite helper in group-setup.ts, no per-spec ad-hoc seeding",
+      "owning_module": "E2E seeding infra",
+      "type": "invariant",
+      "added_by_story": null
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "contact-selectable-predicate",
+      "owning_module": "Contact eligibility predicates",
+      "surfaces_touched": [
+        "app/src/lib/contacts.ts (new export: selectableContactsForGroup)",
+        "app/src/lib/contacts.ts (new exported type: ContactSelectabilityEntry)",
+        "app/tests/unit/contacts-selectable.test.ts (new colocated unit test)"
+      ],
+      "concepts_claimed": [
+        "contact-selectability-partitioning"
+      ],
+      "creates_seam": "ContactSelectabilityEntry (consumed by S2 InviteMemberModal.tsx)",
+      "reviewed_at": "2026-07-14T21:15:00Z",
+      "verdict": "clean",
+      "notes": "Pure predicate mirrors eligibleGroupsForContact/addableGroupsForContact/commonGroups in the same module: case-insensitive pubkey match via a lowercased Set, order-preserving .map, member-precedence-over-archived. No react/ndk/context imports added. Seam shape matches stories.json#seams exactly. Gate-remediation applied 2026-07-14: selectable branch omits disabledReason key; doc comment corrected; test assertions upgraded to toStrictEqual + explicit 'in' check. Re-review clean, unit suite green (3141 passed / 1 skipped)."
+    },
+    {
+      "id": "S2",
+      "name": "invite-modal-contact-picker",
+      "owning_module": "Invite modal UI",
+      "surfaces_touched": [
+        "app/src/components/groups/InviteMemberModal.tsx (npub Input + QR-scan removed; Chakra <Select> picker testid=invite-contact-select; guidance empty-state testid=invite-guidance-state + /contacts link; resolveInviteTarget/submitInvite narrowed to pubkeyHex-in adapter; DD-1/DD-8 doc-comments rewritten to attribute the decode seam to parseContactCard)",
+        "app/src/lib/i18n.ts (new keys en+de: inviteContactLabel, inviteReasonAlreadyMember, inviteReasonBlocked, inviteGuidanceMessage, inviteGuidanceLink; inviteTitle reworded)",
+        "app/tests/unit/cards/inviteByCard.test.ts (card/QR/tampered-signature/bare-npub/KeyPackage-parity tests removed; replaced with pubkeyHex-in adapter tests + verbatim-failure-forwarding it.each)"
+      ],
+      "concepts_claimed": [
+        "invite-picker-guidance-contract"
+      ],
+      "consumes_seam": "S1 selectableContactsForGroup + ContactSelectabilityEntry (via listContacts(ownPubkeyHex,{includeArchived:true}))",
+      "reviewed_at": "2026-07-14T21:15:00Z",
+      "verdict": "clean",
+      "notes": "AC-UX-6 guidance copy verified in both locales: en names 'profile card'+'sharing', de names 'Profilkarte'+'teilst', neither contains 'npub'. AC-UX-7 both removed testids (invite-npub-input, invite-scan-qr-btn) gone from JSX. AC-ERR-4 guidance gating derived from predicate output (hasSelectable=entries.some(selectable)), not a re-derived check. AC-SEC-1 pure local reads only (readStoredContacts/readContactCacheSnapshot + in-memory groups), isOpen-guarded. AC-DEP-1 untouched (MarmotContext.tsx/groups.tsx not in diff). AC-DEP-2 en/de parity for all 5 new keys confirmed. AC-STRUCT-2 remaining tests meaningful (real cache/contacts/knownPeers zero-write assertions retained; removed tests deleted not skipped). AC-STRUCT-3 self-correction landed: doc-comment correctly names parseContactCard as the seam. No cross-module reach-in \u2014 all imports are public exports/hooks; contacts.ts/contactCard.ts/MarmotContext.tsx not modified. Opus finding (3 dead i18n keys: inviteNpubLabel/inviteNpubPlaceholder/inviteHelp) fixed directly by lead post-review; typecheck+unit suite reconfirmed green (3141/1 skipped). Codex P1 finding (e2e specs still drive invite-npub-input, make test-e2e-all will fail) is EXPECTED transient breakage from sequential story implementation \u2014 S3 (next story, not yet started) exists specifically to migrate group-setup.ts and all affected specs to the new picker. Not a defect in S2; deferred to S3, not remediated here."
+    },
+    {
+      "id": "S3",
+      "name": "e2e-shared-contact-seeding-helper",
+      "owning_module": "E2E seeding infra",
+      "surfaces_touched": [
+        "app/tests/e2e/helpers/group-setup.ts (new exports seedContact + inviteContactViaPicker driving real /add#c= add-contact path then S2 picker; createGroupAndInvite rewired through inviteContactViaPicker)",
+        "app/tests/e2e/groups-error-cases.spec.ts (KeyPackage-less test converted to picker path; 'Invalid npub format' test DELETED + REPLACED by AC-E2E-5 blocked-contact-cannot-submit)",
+        "app/tests/e2e/groups-member-profiles.spec.ts (3 invite call sites -> inviteContactViaPicker)",
+        "app/tests/e2e/groups-invite-guidance-state.spec.ts (new, AC-E2E-7)",
+        "app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts (new, AC-E2E-8)",
+        "~21 further group/dm specs: local inviteMember helper or inline npub-fill block mechanically swapped to inviteContactViaPicker (verified regex transform)"
+      ],
+      "concepts_claimed": [
+        "e2e-single-shared-seeding-helper"
+      ],
+      "consumes_seam": "S2 invite-picker-guidance-contract (invite-contact-select / invite-guidance-state / invite-submit-btn testids + isSelectionValid submit-gating)",
+      "reviewed_at": "2026-07-14T21:15:00Z",
+      "verdict": "clean",
+      "notes": "CLAUDE.md e2e publish-through-app rule HELD: seedContact is page.goto('/add#c='+npub) + real UI wait (contact-added-success|add-page-error), no raw WebSocket / no direct localStorage contact write. The 3 WebSocket hits in the tree (dm-historical-recovery.spec.ts, relay-query.ts, forgedPairingAck.ts) are pre-existing and NOT in S3's file set. invite-npub-input references now ZERO across app/tests/e2e (grep -rl empty); invite-scan-qr-btn also zero. AC-E2E-5 deletion+replacement is a GENUINE assertion (not rubber-stamp): seeds Bob+Carol, blocks Bob via real BlockContactButton flow, asserts Bob's <option> isDisabled AND submit-btn stays disabled after force-select attempt AND neither invite-error nor invite-success appears \u2014 matches production isSelectionValid=entries.some(e=>e.selectable && pubkey match) exactly. Pull-only judgment call CORROBORATED against groups-admin.spec.ts:127 ('Pull-only invitations (Walled Garden v2)') and groups-pull-only-invitation-accept.spec.ts (group card NOT visible until Bob accepts) \u2014 architect's model is real, not self-consistent-only; AC-E2E-8 was INVERTED in round-2 e2e remediation: group.memberPubkeys updates synchronously on inviteByNpub success (the MLS commit), so a pending contact is already_member and its option is DISABLED, not enabled. The rewritten spec asserts Bob's option disabled + Carol stays selectable + submit stays disabled; see spec.md DD-4. Spot-checked 6 mechanical transforms (groups-admin/cancel-pending/reactions/rename/transitive-invite/lazy-updates): all correct page var + npub var, correct import add, callers no longer pre-open the modal (helper opens it). New specs well-formed: real toBeAttached/toBeVisible waits + behavioral guidance-link nav assertion; waitForTimeout only for legitimate KeyPackage/relay settle, never as a sync crutch for state. Cross-module reach-in: NONE \u2014 S3 touched only app/tests/e2e/**; the production files in the working tree (InviteMemberModal.tsx/contacts.ts/i18n.ts/inviteByCard.test.ts) are S1/S2's already-reviewed uncommitted work, not S3. Minor (sev-3, non-blocking): seedContact treats ANY add-page-error as idempotent-success, which could in principle mask a genuine add failure \u2014 but degrades to a slower picker-option-timeout failure, never a false pass. Not remediated. Round-2 e2e-driven remediation (2026-07-14): all 27 epic-touched specs run live against Docker/strfry; found and fixed 4 real bugs (invalid npub checksum fixture, wrong assumption about Playwright selectOption on disabled options, Next.js trailing-slash href, and a DD-4/memberPubkeys timing contradiction requiring a user-confirmed product-behavior correction). See result.json remediation_notes round 2. Pre-commit gate (2026-07-14): reviewed the 4 lead-made round-2 e2e fixes + spec/AC/epic-state corrections. All four fixes verified genuinely correct against production (npub dead00..beef valid+unpublished; isSelectionValid guard at InviteMemberModal.tsx:97/222; href /contacts + trailingSlash:true = /contacts/; rewritten pending spec is real, drives a true invite-success then asserts disabled+submit-gated). AC-E2E-2 holds, no raw WebSocket, ac_closure for AC-UX-4/AC-E2E-8 accurate. One residual doc contradiction found and fixed by the lead: acceptance-criteria.md's 'pending contact' terminology definition (was describing the old selectable premise) and stories.json's S3 scope description (same stale premise) both corrected to match DD-4/AC-UX-4."
+    }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "S3",
+    "model_at": "2026-07-14T21:15:00Z"
+  }
+}

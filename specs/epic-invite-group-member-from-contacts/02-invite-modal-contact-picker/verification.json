@@ -1,0 +1,154 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-14T15:18:20Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the guidance-state render condition in InviteMemberModal.tsx read directly from the S1 predicate's live output array (e.g., `entries.every(e => !e.selectable)` or `entries.length === 0` applied to the actual partition array returned this render), rather than a hard-coded `false`/frozen flag or a value that never changes across re-renders? Grep the component for any additional boolean/state variable that duplicates or shadows this condition (a second, independently-maintained 'hasSelectable' flag) and confirm none exists — AC-ERR-4 requires exactly one source of truth."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does InviteMemberModal.tsx compose the picker exclusively through the declared seams — the S1 predicate, `listContacts`, and `useMarmot().inviteByNpub` — without reaching into `MarmotContext.tsx` internals or re-implementing any logic `contacts.ts` already owns (e.g., no inline re-derivation of already-member/blocked classification inside the component)? Confirm via `grep -n 'useMarmot\\|MarmotContext'` in InviteMemberModal.tsx that only the documented `inviteByNpub` destructure is used, with no other MarmotContext export imported."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `Invite modal UI` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do the rewritten tests in app/tests/unit/cards/inviteByCard.test.ts exercise the REAL exported `resolveInviteTarget`/`submitInvite` functions against their reshaped, pubkey-based signatures (not a re-implemented stand-in), asserting on the actual `inviteByNpub` call arguments via a spy rather than merely checking the function resolved without throwing? For at least one test, confirm it would fail if `resolveInviteTarget` silently fell back to a wrong/default pubkey instead of the one derived from the selected contact."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the reshaped modal align with the epic's product-behavior note in architecture.md — that there is no self-service 'add contact by npub' UI in the app, so the guidance-state copy must describe the real contact-establishment mechanism (profile-card handshake / shared-group auto-seeding) rather than implying `/contacts` exposes a self-service add-by-npub form? Quote the actual `en` and `de` guidance strings shipped and confirm neither implies a manual-entry form exists."
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Beyond the network-call-count assertion (AC-SEC-1), does InviteMemberModal.tsx defensively handle: an empty contact list (zero entries from `listContacts`), a `group.memberPubkeys` array that is empty, and a selected `<option>` value that no longer matches any contact in the current picker state (stale DOM/race condition) — without throwing an unhandled exception or silently submitting an invite to an unintended/undefined pubkey? Cite the specific guard or validation code path handling each case."
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ERR-4",
+      "question": "Does InviteMemberModal.tsx's guidance-state conditional read directly from the S1 predicate's output array with no separately re-derived check (e.g., no independent `useEffect`-maintained boolean duplicating the same all-disabled/empty test)? Grep the component's render logic for the exact expression used and confirm it is a single, inline evaluation of the predicate's output, not two independent computations that could drift out of sync."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-1",
+      "question": "Selecting a selectable contact in `invite-contact-select` and clicking `invite-submit-btn` — does this call `useMarmot().inviteByNpub(groupId, npub)` where `npub === pubkeyToNpub(<selected contact's pubkeyHex>)`? Provide a test capturing the ACTUAL arguments passed to a spied `inviteByNpub` (not an assumption about what should be passed), and confirm `invite-success` renders on `{ ok: true }` and the modal closes after the existing auto-close delay — cite both the production code and the test exercising it end-to-end."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-2",
+      "question": "Does an already-member contact's `<option>` in `invite-contact-select` render with the `disabled` attribute set AND a visible reason suffix sourced from a new `i18n.ts` key (confirm via grep that the component references `copy.groups.<newKey>`, not a string literal)? Confirm via DOM/test assertion that this suffix's rendered text is textually distinct from the blocked-reason suffix (AC-UX-3) — cite the exact two strings compared."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-3",
+      "question": "Does a blocked contact's `<option>` in `invite-contact-select` render with the `disabled` attribute set AND a visible reason suffix sourced from a new `i18n.ts` key, distinct from the already-member suffix (AC-UX-2)? Cite the exact `en`/`de` string values used and confirm they are not the same string reused for both disabled reasons."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-4",
+      "question": "Does a selectable contact — including a pending contact previously invited to this group but not yet joined — render as a non-disabled `<option>`, selectable and submittable identically to any other selectable contact, with NO separate visual/disabled treatment (per DD-4)? Grep the component for any 'pending'-specific conditional render, badge, or style and confirm none exists — a stub that added a pending-specific label would need to be caught here."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-5",
+      "question": "Selecting a contact whose stored `pubkeyHex` has no published key package and clicking `invite-submit-btn` — does `invite-error` display `copy.groups.inviteErrorNoKeyPackage` via the unchanged `getErrorMessage('no_key_package')` mapping? Diff `getErrorMessage`'s implementation before/after this story to confirm it is byte-identical, and provide a test proving the picker path reaches the identical error-copy result the removed npub path used to produce for the same underlying `no_key_package` result."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-6",
+      "question": "When the predicate's output has zero `selectable: true` entries, does the modal render the guidance message (new i18n key), disable-or-omit `invite-submit-btn`, and render a link targeting `/contacts`? Run `grep -i 'npub'` against the shipped `en` guidance string and confirm zero matches, and confirm it contains 'profile card' or 'share'; run the equivalent check on the `de` string confirming it contains 'Profilkarte' (or an equivalent share-mechanism phrase) and excludes 'npub'. Paste both exact locale strings as evidence."
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-7",
+      "question": "Does a DOM query for `[data-testid=\"invite-npub-input\"]` and `[data-testid=\"invite-scan-qr-btn\"]`, scoped to `[data-testid=\"invite-member-modal-content\"]`, return zero elements in BOTH the populated-picker state and the guidance-empty state? Run `grep -n 'invite-npub-input\\|invite-scan-qr-btn'` against the post-implementation InviteMemberModal.tsx and confirm zero matches; run the identical grep against the pre-implementation file (git show HEAD~ or equivalent) and confirm it DOES match — establishing the check is state-discriminating, not vacuously zero in both states."
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEP-1",
+      "question": "Is the `isAdmin` gating on `invite-member-btn` (re-derived live from `mlsGroup.groupData.adminPubkeys` per groups.tsx) unchanged by this story? Run `git diff` against groups.tsx's admin-gating logic and confirm zero line changes. Does `useMarmot().inviteByNpub`'s MLS `commit()`-layer admin enforcement still reject a non-admin's invite attempt — cite the pre-existing test or manual-validation step exercising this rejection, and confirm `MarmotContext.tsx` has zero diff from this story."
+    },
+    {
+      "question_id": "VQ-S2-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-1",
+      "question": "Does opening `InviteMemberModal` and populating `invite-contact-select` trigger zero relay/NDK network calls? Provide evidence from a spy/mock on the relay/NDK layer (e.g., NDK's `fetchEvents`/`subscribe`) recording a call count of exactly 0 during modal open + picker population, exercised against the real production code path (`listContacts` + the S1 predicate) — not a stubbed/mocked component that trivially can't call the network. Confirm `inviteByNpub`'s key-package fetch fires only on submit-click, never on open, by asserting call count transitions from 0 (post-open) to >0 only after the submit click."
+    },
+    {
+      "question_id": "VQ-S2-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-2",
+      "question": "Does every test remaining in app/tests/unit/cards/inviteByCard.test.ts pass against the reshaped `submitInvite`/`resolveInviteTarget` signatures? For each of the file's original 9 tests, was it either rewritten to exercise the new pubkey-based signature or explicitly removed with a comment/commit message explaining why (dead free-text/card-parsing surface)? Run `grep -n 'it.skip\\|xit(\\|describe.skip'` against the file and confirm zero matches — none left silently skipped or commented out."
+    },
+    {
+      "question_id": "VQ-S2-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-3",
+      "question": "Do the doc-comments on `resolveInviteTarget` and `submitInvite` in InviteMemberModal.tsx accurately describe the reshaped pubkey-in contract (not free-text/card-parsing)? Run `grep -n 'single decode seam'` against the post-implementation file — if the phrase is retained, does the surrounding sentence now attribute that seam to `parseContactCard` (app/src/lib/contactCard.ts) rather than implying these two functions themselves parse input? Quote the exact updated sentence as evidence."
+    },
+    {
+      "question_id": "VQ-S2-019",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEP-2",
+      "question": "Does app/src/lib/i18n.ts define, in both `en` and `de` Copy objects, all new keys for: contact-picker label, already-member reason suffix, blocked reason suffix, guidance message, and `/contacts`-link label? Programmatically diff the `en` and `de` key sets restricted to keys added by this story and confirm the symmetric difference is empty (every key present in one locale is present in the other) — paste the diff output as evidence, not just a visual scan."
+    },
+    {
+      "question_id": "VQ-S2-020",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-6",
+      "question": "S3 (the e2e story) will need stable testids to assert the guidance state end-to-end (AC-E2E-7). The shipped implementation uses `data-testid=\"invite-guidance-state\"` on the wrapping VStack and `data-testid=\"invite-guidance-link\"` on the Button-as-anchor targeting `/contacts` (app/src/components/groups/InviteMemberModal.tsx, guidance-state JSX branch). Confirm S3's new guidance-state spec asserts against these exact testids (or that S3 explicitly renames/repoints them consistently) rather than falling back to a text-content query that would silently pass even if the wrong element were shown."
+    },
+    {
+      "question_id": "VQ-S2-021",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The `entries`/`hasSelectable`/`isSelectionValid` derivations in InviteMemberModal.tsx are recomputed on every render (no useMemo), gated only by `isOpen ? ... : []` to avoid work while closed. Confirm this does not cause an observable UI issue when `groups` (from useMarmot()) updates while the modal is open mid-invite-flow (e.g. a concurrent MLS commit changes memberPubkeys) — specifically, that a previously-selected, now-already-member contact correctly flips `isSelectionValid` to false and disables invite-submit-btn on the very next render, per the isSelectionValid guard at InviteMemberModal.tsx:97-99, rather than allowing a stale submit to reach inviteByNpub."
+    },
+    {
+      "question_id": "VQ-S2-022",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-3",
+      "question": "The final doc-comment on resolveInviteTarget reads: \"This is NOT the app's decode seam — that remains `parseContactCard` (app/src/lib/contactCard.ts, DD-1 of epic-contact-card-exchange)...\" — confirm this satisfies AC-STRUCT-3's requirement to correctly attribute the 'single decode seam' to parseContactCard rather than implying resolveInviteTarget/submitInvite still parse free text, and confirm zero import of parseContactCard remains in InviteMemberModal.tsx (`grep -n \"import.*parseContactCard\\|from '@/src/lib/contactCard'\" app/src/components/groups/InviteMemberModal.tsx` returns no matches)."
+    }
+  ]
+}

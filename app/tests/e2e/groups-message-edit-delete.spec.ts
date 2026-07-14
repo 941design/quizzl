@@ -18,6 +18,7 @@ import path from 'node:path';
 import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay, dismissErrorOverlay } from './helpers/dismiss-error-overlay';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 const FIXTURE_IMAGE = path.join(__dirname, '../fixtures/test-image.png');
@@ -164,10 +165,7 @@ test.describe.serial('Group message edit & delete — S7', () => {
     await expect(pageA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
 
     // Alice invites Bob.
-    await pageA.getByTestId('invite-member-btn').click();
-    await expect(pageA.getByTestId('invite-member-modal-content')).toBeVisible();
-    await pageA.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await pageA.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(pageA, USER_B.npub);
     await expect(pageA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
     await pageA.locator('[data-testid="invite-member-modal-content"] button[aria-label="Close"]').click().catch(() => {});
 

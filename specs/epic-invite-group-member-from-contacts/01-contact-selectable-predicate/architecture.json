@@ -1,0 +1,30 @@
+{
+  "module_name": "Contact eligibility predicates",
+  "purpose": "Pure functions partitioning a user's contacts by their relationship to a group (already a member, blocked, or selectable to invite). This story adds the inverse of the existing eligibleGroupsForContact/addableGroupsForContact pair: instead of partitioning groups for one contact, it partitions contacts for one group.",
+  "public_api": [
+    {
+      "name": "ContactSelectabilityEntry",
+      "signature": "type ContactSelectabilityEntry = { contact: ContactListItem; selectable: boolean; disabledReason?: 'already_member' | 'blocked' }",
+      "description": "Cross-story seam contract (stories.json#seams) — one partition entry per input contact. disabledReason is present iff selectable is false; 'already_member' takes precedence over 'blocked' when both apply."
+    },
+    {
+      "name": "selectableContactsForGroup",
+      "signature": "function selectableContactsForGroup(contacts: ContactListItem[], group: { memberPubkeys: string[] }): ContactSelectabilityEntry[]",
+      "description": "Partitions `contacts` (typically listContacts(ownPubkeyHex, { includeArchived: true }) output) into selectable/disabled-with-reason entries for the given group's memberPubkeys, preserving input order. Case-insensitive membership match (same .toLowerCase() idiom as eligibleGroupsForContact/commonGroups). Pure, synchronous, no storage/network access — the caller supplies both arguments."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": ["react", "@nostr-dev-kit/ndk", "app/src/context/**"],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/contacts-selectable.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S2"]
+  }
+}

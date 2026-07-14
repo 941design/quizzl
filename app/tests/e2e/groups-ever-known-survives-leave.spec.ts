@@ -23,6 +23,7 @@ import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { suppressErrorOverlay, dismissErrorOverlay } from './helpers/dismiss-error-overlay';
 import { readIdbRecord } from './helpers/idb-record';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 const GROUP_NAME = 'Ever-Known Survives Leave Group';
@@ -97,9 +98,7 @@ test.describe.serial('Ever-known peer survives group leave (AC-TEST-7)', () => {
 
     await alicePage.locator('[data-testid^="group-card-"]', { hasText: GROUP_NAME }).click();
     await expect(alicePage.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
-    await alicePage.getByTestId('invite-member-btn').click();
-    await alicePage.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await alicePage.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(alicePage, USER_B.npub);
     await expect(alicePage.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
     await alicePage.waitForTimeout(3_000);
   });

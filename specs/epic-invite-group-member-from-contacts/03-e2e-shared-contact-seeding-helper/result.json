@@ -1,0 +1,116 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "remediation_rounds": 2,
+  "files_created": [
+    "specs/epic-invite-group-member-from-contacts/03-e2e-shared-contact-seeding-helper/architecture.json",
+    "specs/epic-invite-group-member-from-contacts/03-e2e-shared-contact-seeding-helper/baseline.json",
+    "specs/epic-invite-group-member-from-contacts/03-e2e-shared-contact-seeding-helper/result.json",
+    "app/tests/e2e/groups-invite-guidance-state.spec.ts",
+    "app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts"
+  ],
+  "files_modified": [
+    "app/tests/e2e/helpers/group-setup.ts",
+    "app/tests/e2e/groups-error-cases.spec.ts",
+    "app/tests/e2e/groups-member-profiles.spec.ts",
+    "specs/epic-invite-group-member-from-contacts/03-e2e-shared-contact-seeding-helper/verification.json",
+    "specs/epic-invite-group-member-from-contacts/acceptance-criteria.md",
+    "app/tests/e2e/dm-walled-garden-group-member-allowed.spec.ts",
+    "app/tests/e2e/groups-admin.spec.ts",
+    "app/tests/e2e/groups-cancel-pending.spec.ts",
+    "app/tests/e2e/groups-contacts.spec.ts",
+    "app/tests/e2e/groups-dispatch-isolation.spec.ts",
+    "app/tests/e2e/groups-ever-known-survives-leave.spec.ts",
+    "app/tests/e2e/groups-forward-secrecy.spec.ts",
+    "app/tests/e2e/groups-image-sharing.spec.ts",
+    "app/tests/e2e/groups-lazy-updates.spec.ts",
+    "app/tests/e2e/groups-leave-intent.spec.ts",
+    "app/tests/e2e/groups-lifecycle.spec.ts",
+    "app/tests/e2e/groups-message-edit-delete.spec.ts",
+    "app/tests/e2e/groups-migration-backfill.spec.ts",
+    "app/tests/e2e/groups-poll-after-leave.spec.ts",
+    "app/tests/e2e/groups-polls.spec.ts",
+    "app/tests/e2e/groups-profile-reactive.spec.ts",
+    "app/tests/e2e/groups-profile-request.spec.ts",
+    "app/tests/e2e/groups-profile-update-propagation.spec.ts",
+    "app/tests/e2e/groups-pull-only-invitation-accept.spec.ts",
+    "app/tests/e2e/groups-pull-only-invitation-decline.spec.ts",
+    "app/tests/e2e/groups-reactions.spec.ts",
+    "app/tests/e2e/groups-rename.spec.ts",
+    "app/tests/e2e/groups-transitive-invite.spec.ts"
+  ],
+  "tests_added": {
+    "e2e_specs_new": 2,
+    "e2e_tests_new": 2,
+    "unit": 0
+  },
+  "test_counts": {
+    "baseline": 3141,
+    "final": 3141
+  },
+  "mocks": [],
+  "modules_touched": [
+    "E2E seeding infra"
+  ],
+  "remediation_notes": [
+    {
+      "round": 1,
+      "trigger": "Decider adjudication of two verification findings (VQ-S3-018, VQ-S3-009)",
+      "edits": [
+        {
+          "finding": "VQ-S3-018",
+          "file": "app/tests/e2e/groups-error-cases.spec.ts",
+          "change": "In the AC-E2E-5 test, added `await expect(select).toHaveValue('')` both before and after the `select.selectOption(...).catch(() => {})` attempt on Bob's disabled option, proving the browser itself refused the disabled <option> (selectedPubkeyHex stays at its initial '' value) independent of the app's own isSelectionValid guard, which is still asserted separately via the disabled submit button."
+        },
+        {
+          "finding": "VQ-S3-009",
+          "file": "specs/epic-invite-group-member-from-contacts/acceptance-criteria.md",
+          "change": "Rewrote AC-E2E-3 to describe the post-migration reality (zero direct invite-contact-select/invite-npub-input references in specs that use group-setup.ts purely for seeding, with an explicit exception for the three picker-behavior-testing specs that correctly reference invite-contact-select directly) instead of a stale pre-implementation '11 specs' count. No other AC wording changed."
+        }
+      ],
+      "verification_after": "make test-unit: 166 files / 3141 passed / 1 pre-existing skip (unchanged from baseline); `npx tsc --noEmit` clean, no errors in groups-error-cases.spec.ts or elsewhere."
+    },
+    {
+      "round": 2,
+      "trigger": "Step 5.8 e2e gate: lead ran all 27 epic-touched e2e spec files directly against the real Docker/strfry relay (the forked base:e2e-testing skill invocation stalled with no report-back, same failure class as the Step 5.7 mutation-gate fork stall; lead ran the suite manually instead). Found 4 real, reproducible bugs -- none caught by static review, Opus/Codex, or the verification examiners.",
+      "edits": [
+        {
+          "finding": "Invalid bech32 checksum in a pre-existing npub test fixture (npub1qqq...sclkek in groups-error-cases.spec.ts's KeyPackage-less test), latent since before this epic -- the old npub-input-driven flow let the app's own parseContactCard swallow the decode failure into a generic invalid_npub result; the new picker helper's npubToHex calls nip19.decode directly and throws, surfacing the bug as a crash.",
+          "file": "app/tests/e2e/groups-error-cases.spec.ts",
+          "change": "Replaced the fixture with a freshly-generated, genuinely valid npub (npub1m6ksqqq...hmhsmyk3s9, decoding to a fixed unused hex pubkey) that still has no KeyPackage."
+        },
+        {
+          "finding": "The round-1 VQ-S3-018 fix's premise was wrong: Playwright's selectOption CAN force-set a disabled <option>'s DOM value in this Chromium build, contradicting the 'browser refuses' assumption both Opus and the verification examiner made.",
+          "file": "app/tests/e2e/groups-error-cases.spec.ts",
+          "change": "Removed the toHaveValue('') assertions around the selectOption attempt; the test now relies solely on the app's own isSelectionValid guard (invite-submit-btn staying disabled) as the load-bearing assertion, with an updated comment explaining why."
+        },
+        {
+          "finding": "Next.js static-export trailingSlash config renders NextLink href=\"/contacts\" as \"/contacts/\" -- the new guidance-state spec asserted the un-slashed form.",
+          "file": "app/tests/e2e/groups-invite-guidance-state.spec.ts",
+          "change": "Fixed the toHaveAttribute assertion to expect '/contacts/'."
+        },
+        {
+          "finding": "DD-4 contradiction (see spec.md/acceptance-criteria.md corrections and the invitebynpub-commits-memberpubkeys-immediately learning): group.memberPubkeys updates the instant inviteByNpub succeeds (the MLS commit itself), not when the invitee accepts -- the original 'pending contact stays selectable' premise (DD-4, AC-UX-4, AC-E2E-8) is factually wrong about runtime behavior. User-confirmed 2026-07-14 to ship without a re-invite path; a pending contact is correctly already_member and disabled, same as any other member. Follow-up BACKLOG finding filed: invite-modal-picker-cannot-re-invite.",
+          "file": "app/tests/e2e/groups-invite-pending-contact-selectable.spec.ts",
+          "change": "Rewrote the spec (renamed describe block and second test) to assert the corrected, verified-real behavior: after A invites B, B's option becomes disabled with the 'already in group' reason and cannot be re-selected/re-submitted, while a second seeded contact (Carol) stays selectable to confirm the picker itself still renders. Also fixed a bug introduced in this rewrite: seedContact() alone doesn't return the page to /groups/ (only inviteContactViaPicker does), so an explicit page.goto('/groups/') was added after seeding Carol standalone."
+        }
+      ],
+      "verification_after": "All 27 epic-touched e2e spec files (25 migrated + 2 new) run directly and pass against the real Docker/strfry relay. 2 additional live failures (groups-profile-reactive, groups-lazy-updates) investigated and confirmed as pre-existing flakiness unrelated to this epic via direct git-stash baseline comparison (identical failure signature reproduces on pre-epic HEAD; groups-lazy-updates passed cleanly on an immediate re-run of the unchanged epic code, confirming non-determinism rather than a regression). make test-unit: 166 files / 3143 passed / 1 skipped."
+    }
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Two design points required more independent verification than the spec text alone gave: (1) whether Alice's local memberPubkeys reflects a newly-invited contact immediately after a successful inviteByNpub call, or only after the invitee explicitly accepts. Exploration.json's architecture finding ('refreshes memberPubkeys') reads ambiguously either way, and getting this wrong would have silently broken both AC-E2E-5's disabled-contact design (which I initially planned around a just-invited 'already_member' contact) and AC-E2E-8's whole premise (which depends on the invitee staying non-member/pending after a successful invite). I resolved it by cross-reading three existing specs' own comments (groups-admin.spec.ts, groups-member-profiles.spec.ts, groups-cancel-pending.spec.ts) that explicitly document 'Pull-only invitations (Walled Garden v2): the invitee must explicitly Accept before the group appears in their list' \u2014 confirming membership only commits on accept. I then redesigned AC-E2E-5 around a blocked contact (via the real BlockContactButton flow at /profile?pubkey=) instead, which is also simpler (no second browser context needed). (2) app/tsconfig.json excludes `tests` entirely, so there is no configured type-checking gate over app/tests/e2e/** at all. An ad-hoc extended tsconfig (extending the base one, overriding include/exclude to reach tests/e2e) was needed to get any typecheck signal, and it surfaced a widespread pre-existing TS2345 pattern (`typeof USER_A`-typed helper parameters narrowed via `as const` literal types) across the majority of e2e spec files \u2014 including many this story never touched (contact-card-deeplink.spec.ts, dm-pairing-*.spec.ts, groups-join-request-live.spec.ts, groups-invite-link.spec.ts, update-detection.spec.ts). Confirmed pre-existing via a git-stash comparison (76 errors on the pre-S3 tree vs 74 post-S3, i.e. no new errors), but this is a real coverage gap worth a future finding: ~60 e2e spec files have zero type-checking today.",
+    "surprised_by": "The e2e test tree has no TypeScript gate at all (tsconfig.json's exclude list drops `tests` wholesale) \u2014 a mistyped Page/testid argument in any of the ~60 spec files would never be caught before a live e2e run.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-14T19:20:00Z",
+  "decider_notes": [
+    "Decider RETRY verdict 2026-07-14: VQ-S3-018 (test-hardening) and VQ-S3-009 (stale AC-E2E-3 count) both remediated and re-verified clean. VQ-S3-005 (full 36-spec e2e suite not yet run) ACCEPTED as not-yet-due -- that gate is Step 5.8 of the workflow, not yet reached; caveat carried forward to the epic-level e2e gate."
+  ]
+}

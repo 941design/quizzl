@@ -2,6 +2,7 @@ import { test, expect, BrowserContext, Page } from '@playwright/test';
 import { USER_A, USER_B, USER_C, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
+import { inviteContactViaPicker } from './helpers/group-setup';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
 const TEST_AVATAR = {
@@ -77,10 +78,7 @@ test.describe.serial('Group member profiles — names instead of npubs', () => {
 
     // Invite User B
     await dismissErrorOverlay(pageA);
-    await pageA.getByTestId('invite-member-btn').click();
-    await expect(pageA.getByTestId('invite-member-modal-content')).toBeVisible();
-    await pageA.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await pageA.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(pageA, USER_B.npub);
     await expect(pageA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
 
     // User B receives Welcome and joins
@@ -154,10 +152,7 @@ test.describe.serial('New member receives all existing member profiles', () => {
 
     // Invite B
     await dismissErrorOverlay(pgA);
-    await pgA.getByTestId('invite-member-btn').click();
-    await expect(pgA.getByTestId('invite-member-modal-content')).toBeVisible();
-    await pgA.getByTestId('invite-npub-input').fill(USER_B.npub);
-    await pgA.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(pgA, USER_B.npub);
     await expect(pgA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
 
     // B receives Welcome and joins
@@ -186,10 +181,7 @@ test.describe.serial('New member receives all existing member profiles', () => {
     await pgA.goto('/groups/');
     await pgA.locator(`[data-testid^="group-card-"]`, { hasText: 'Three Member Profile Group' }).click();
     await expect(pgA.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
-    await pgA.getByTestId('invite-member-btn').click();
-    await expect(pgA.getByTestId('invite-member-modal-content')).toBeVisible();
-    await pgA.getByTestId('invite-npub-input').fill(USER_C.npub);
-    await pgA.getByTestId('invite-submit-btn').click();
+    await inviteContactViaPicker(pgA, USER_C.npub);
     await expect(pgA.getByTestId('invite-success')).toBeVisible({ timeout: 60_000 });
 
     // C receives Welcome and joins
