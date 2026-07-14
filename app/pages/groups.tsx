@@ -511,13 +511,6 @@ function GroupDetailView({ id }: { id: string }) {
               </PollStoreProvider>
             </ChatStoreProvider>
           </Box>
-
-          {/* Group ID (for debugging) */}
-          <Box>
-            <Text fontSize="xs" color="textMuted">
-              Group ID: {group.id.slice(0, 16)}...
-            </Text>
-          </Box>
         </VStack>
       </Box>
 

@@ -8,7 +8,6 @@ import {
   AlertIcon,
   Box,
   Button,
-  Code,
   Divider,
   HStack,
   Heading,
@@ -561,7 +560,7 @@ export default function ProfilePage() {
   const { pubkeyHex: ownPubkeyHex } = useNostrIdentity();
   const { groups, inviteByNpub, getGroup, groupDataVersion } = useMarmot();
   const [version, setVersion] = useState(0);
-  const [npubCopied, setNpubCopied] = useState(false);
+  // const [npubCopied, setNpubCopied] = useState(false); // npub display hidden — see handleCopyNpub/JSX below
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [addToGroupStatus, setAddToGroupStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [adminGroupIds, setAdminGroupIds] = useState<Set<string>>(new Set());
@@ -624,11 +623,11 @@ export default function ProfilePage() {
   const addableGroups = addableGroupsForContact(groups, pubkeyHex!, adminGroupIds);
   const effectiveGroupId = selectedGroupId || addableGroups[0]?.id || '';
 
-  function handleCopyNpub() {
-    navigator.clipboard.writeText(npub).catch(() => {});
-    setNpubCopied(true);
-    setTimeout(() => setNpubCopied(false), 2000);
-  }
+  // function handleCopyNpub() {
+  //   navigator.clipboard.writeText(npub).catch(() => {});
+  //   setNpubCopied(true);
+  //   setTimeout(() => setNpubCopied(false), 2000);
+  // }
 
   async function handleAddToGroup() {
     if (!effectiveGroupId || !pubkeyHex) return;
@@ -666,6 +665,7 @@ export default function ProfilePage() {
             </VStack>
           </HStack>
 
+          {/* npub display hidden on contact profile — see handleCopyNpub/npubCopied above
           <HStack spacing={3} align="center" flexWrap="wrap">
             <Code fontSize="xs" userSelect="all" data-testid="profile-npub">
               {truncateNpub(npub)}
@@ -674,6 +674,7 @@ export default function ProfilePage() {
               {npubCopied ? copy.profile.copiedNpub : copy.profile.copyNpub}
             </Button>
           </HStack>
+          */}
 
           <Button
             colorScheme="brand"

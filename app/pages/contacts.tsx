@@ -33,57 +33,8 @@ import { useProfile } from '@/src/context/ProfileContext';
 import { commonGroups, getContact, listContacts, rememberContactsFromGroups } from '@/src/lib/contacts';
 import { isMaintainerPubkey } from '@/src/config/maintainer';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
-import { directConversationId } from '@/src/lib/directMessages';
-import { loadMessages } from '@/src/lib/marmot/chatPersistence';
-import { formatThreadPreviewText } from '@/src/lib/messageEdits/messageActionUi';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import type { MemberProfile, UserProfile } from '@/src/types';
-
-/**
- * S6 (epic-feature-request-message-edit-and-delete): AC-LIST-1/AC-LIST-2 —
- * the contact list preview reflects an edit to the thread's last message and
- * falls back past a deleted last message (or to the empty state). A small
- * subcomponent (rather than an inline effect inside the parent's `.map()`)
- * so each card's async load obeys the Rules of Hooks. Loaded once per mount,
- * same relaxation as GroupCard's preview — see its comment.
- */
-function ContactCardPreview({ peerPubkeyHex }: { peerPubkeyHex: string }) {
-  const copy = useCopy();
-  const [previewText, setPreviewText] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const threadId = directConversationId(peerPubkeyHex);
-    loadMessages(threadId)
-      .then(({ messages }) => {
-        if (cancelled) return;
-        setPreviewText(formatThreadPreviewText(messages, {
-          emptyText: copy.groups.listPreviewEmpty,
-          photoText: copy.groups.listPreviewPhoto,
-          structuredText: copy.groups.listPreviewStructured,
-        }));
-      })
-      .catch(() => {
-        if (!cancelled) setPreviewText(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [peerPubkeyHex, copy.groups.listPreviewEmpty, copy.groups.listPreviewPhoto, copy.groups.listPreviewStructured]);
-
-  if (previewText === null) return null;
-  return (
-    <Text
-      mt={1}
-      fontSize="xs"
-      color="textMuted"
-      noOfLines={1}
-      data-testid={`contact-card-preview-${peerPubkeyHex}`}
-    >
-      {previewText}
-    </Text>
-  );
-}
 
 function ContactListView() {
   const copy = useCopy();
@@ -197,7 +148,6 @@ function ContactListView() {
                           {copy.contacts.commonGroups(sharedGroupNames)}
                         </Text>
                       ) : null}
-                      <ContactCardPreview peerPubkeyHex={contact.pubkeyHex} />
                     </Box>
                     {contact.isArchived ? (
                       <Badge colorScheme="gray" flexShrink={0}>
