@@ -37,7 +37,7 @@ describe('themes/treatments/elevation', () => {
 
 describe('themes/treatments/iconSets', () => {
   it('resolves a known icon name to its per-set iconify id', () => {
-    expect(resolveIconId('heart', 'line')).toBe('ph:heart-bold');
+    expect(resolveIconId('heart', 'line')).toBe('lucide:heart');
     expect(resolveIconId('heart', 'filled')).toBe('ph:heart-fill');
     expect(resolveIconId('heart', 'pixel')).toBe('pixelarticons:heart');
   });

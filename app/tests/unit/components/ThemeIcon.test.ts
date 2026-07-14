@@ -19,22 +19,25 @@ import type { IconSetName } from '@/src/themes/treatments/iconSets';
 // each new theme's treatments lives in themes-validation.test.ts.
 const THEME_IDS: AppThemeName[] = ['spring'];
 
-// FROZEN pre-refactor ICON_MAP (ThemeIcon.tsx), independently hand-copied —
-// keyed by icon name -> old sub-key (pixel/toy/default), which map to the
-// current iconSet names pixel/filled/line respectively.
+// FROZEN ICON_MAP, independently hand-copied — keyed by icon name -> old
+// sub-key (pixel/toy/default), which map to the current iconSet names
+// pixel/filled/line respectively. `default` (line) values are Lucide ids:
+// commit 5bc5a0b intentionally swapped the "line" set from Phosphor bold to
+// Lucide for a lighter outline character; `toy` (filled) and `pixel` are
+// untouched by that swap and still reflect the pre-refactor ICON_MAP.
 const FROZEN_ICON_MAP: Record<string, { pixel: string; toy: string; default: string }> = {
-  heart: { pixel: 'pixelarticons:heart', toy: 'ph:heart-fill', default: 'ph:heart-bold' },
-  check: { pixel: 'pixelarticons:check', toy: 'ph:check-circle-fill', default: 'ph:check-circle-bold' },
-  close: { pixel: 'pixelarticons:close', toy: 'ph:x-circle-fill', default: 'ph:x-circle-bold' },
-  home: { pixel: 'pixelarticons:home', toy: 'ph:house-fill', default: 'ph:house-bold' },
-  settings: { pixel: 'pixelarticons:sliders', toy: 'ph:gear-fill', default: 'ph:gear-bold' },
-  clock: { pixel: 'pixelarticons:clock', toy: 'ph:clock-fill', default: 'ph:clock-bold' },
-  prev: { pixel: 'pixelarticons:chevron-left', toy: 'ph:caret-left-fill', default: 'ph:caret-left-bold' },
-  next: { pixel: 'pixelarticons:chevron-right', toy: 'ph:caret-right-fill', default: 'ph:caret-right-bold' },
-  bell: { pixel: 'pixelarticons:notification', toy: 'ph:bell-ringing-fill', default: 'ph:bell-bold' },
-  person: { pixel: 'pixelarticons:user', toy: 'ph:user-circle-fill', default: 'ph:user-circle-bold' },
-  phone: { pixel: 'pixelarticons:phone', toy: 'ph:phone-fill', default: 'ph:phone-bold' },
-  video: { pixel: 'pixelarticons:camera', toy: 'ph:video-camera-fill', default: 'ph:video-camera-bold' },
+  heart: { pixel: 'pixelarticons:heart', toy: 'ph:heart-fill', default: 'lucide:heart' },
+  check: { pixel: 'pixelarticons:check', toy: 'ph:check-circle-fill', default: 'lucide:circle-check' },
+  close: { pixel: 'pixelarticons:close', toy: 'ph:x-circle-fill', default: 'lucide:circle-x' },
+  home: { pixel: 'pixelarticons:home', toy: 'ph:house-fill', default: 'lucide:house' },
+  settings: { pixel: 'pixelarticons:sliders', toy: 'ph:gear-fill', default: 'lucide:settings' },
+  clock: { pixel: 'pixelarticons:clock', toy: 'ph:clock-fill', default: 'lucide:clock' },
+  prev: { pixel: 'pixelarticons:chevron-left', toy: 'ph:caret-left-fill', default: 'lucide:chevron-left' },
+  next: { pixel: 'pixelarticons:chevron-right', toy: 'ph:caret-right-fill', default: 'lucide:chevron-right' },
+  bell: { pixel: 'pixelarticons:notification', toy: 'ph:bell-ringing-fill', default: 'lucide:bell' },
+  person: { pixel: 'pixelarticons:user', toy: 'ph:user-circle-fill', default: 'lucide:circle-user' },
+  phone: { pixel: 'pixelarticons:phone', toy: 'ph:phone-fill', default: 'lucide:phone' },
+  video: { pixel: 'pixelarticons:camera', toy: 'ph:video-camera-fill', default: 'lucide:video' },
 };
 
 const ICON_NAMES = Object.keys(FROZEN_ICON_MAP);

@@ -51,7 +51,13 @@ export function useUpdateChecker(): UpdateCheckerResult {
       if (!startupComplete) return;
       try {
         const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
-        if (!res.ok) return;
+        if (!res.ok) {
+          // An unread response body leaves the underlying connection open
+          // indefinitely (observed: it never reaches the browser's network-idle
+          // state), so the common 404-in-dev case must still drain it.
+          await res.body?.cancel();
+          return;
+        }
         const data = await res.json();
         if (typeof data?.version !== 'string') return;
         if (shouldShowUpdate(data.version, currentVersion, latched)) {

@@ -18,7 +18,7 @@ test.describe('Info page - How few.chat works', () => {
   test('shows the plain-language sections', async ({ page }) => {
     await page.goto('/info');
     const info = page.getByTestId('info-page');
-    await expect(info.getByRole('heading', { name: 'No account needed' })).toBeVisible();
+    await expect(info.getByRole('heading', { name: 'No Account Required' })).toBeVisible();
     await expect(info.getByRole('heading', { name: 'Your messages are private' })).toBeVisible();
     await expect(info).toContainText(/end-to-end encrypted/i);
     await expect(info.getByRole('heading', { name: 'Free' })).toBeVisible();

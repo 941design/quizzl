@@ -34,7 +34,7 @@ test.describe('Story 08: Theme Settings', () => {
 
     // Theme preview should show the spring theme
     const preview = page.getByTestId('theme-preview');
-    await expect(preview).toContainText('Aquarelle');
+    await expect(preview).toContainText('Spring');
 
     // Verify localStorage
     const stored = await page.evaluate(() => localStorage.getItem('lp_settings_v1'));
@@ -48,14 +48,14 @@ test.describe('Story 08: Theme Settings', () => {
     await page.waitForLoadState('networkidle');
 
     await page.getByTestId('theme-spring-btn').click();
-    await expect(page.getByTestId('theme-preview')).toContainText('Aquarelle');
+    await expect(page.getByTestId('theme-preview')).toContainText('Spring');
 
     // Reload
     await page.reload();
     await page.waitForLoadState('networkidle');
 
     // Should still show spring
-    await expect(page.getByTestId('theme-preview')).toContainText('Aquarelle');
+    await expect(page.getByTestId('theme-preview')).toContainText('Spring');
   });
 
   // NOTE: The "Reset All Data" UI was removed from the Settings page because an
@@ -73,7 +73,7 @@ test.describe('Story 08: Theme Settings', () => {
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByTestId('theme-preview')).toContainText('Aquarelle');
+    await expect(page.getByTestId('theme-preview')).toContainText('Spring');
     const stored = await page.evaluate(() => localStorage.getItem('lp_settings_v1'));
     // Reading settings normalizes the deprecated name; once the picker writes,
     // the persisted value is the valid spring id.
