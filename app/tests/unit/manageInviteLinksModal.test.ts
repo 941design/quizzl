@@ -106,7 +106,7 @@ describe('ManageInviteLinksModal logic', () => {
       const en = getCopy('en');
       expect(en.groups.manageLinksButton).toBe('Manage Links');
       expect(en.groups.manageLinksTitle).toBe('Manage Invite Links');
-      expect(en.groups.manageLinksMuteLabel).toBe('Muted');
+      expect(en.groups.manageLinksDeactivateLabel).toBe('Deactivated');
       expect(en.groups.manageLinksUntitled).toBe('Untitled');
     });
 
@@ -115,7 +115,7 @@ describe('ManageInviteLinksModal logic', () => {
       const de = getCopy('de');
       expect(de.groups.manageLinksButton).toBe('Links verwalten');
       expect(de.groups.manageLinksTitle).toBe('Einladungslinks verwalten');
-      expect(de.groups.manageLinksMuteLabel).toBe('Stummgeschaltet');
+      expect(de.groups.manageLinksDeactivateLabel).toBe('Deaktiviert');
       expect(de.groups.manageLinksUntitled).toBe('Ohne Titel');
     });
   });

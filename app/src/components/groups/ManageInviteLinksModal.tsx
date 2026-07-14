@@ -72,7 +72,7 @@ export default function ManageInviteLinksModal({
                 </VStack>
                 <HStack spacing={2}>
                   <Text fontSize="xs" color="textMuted">
-                    {copy.groups.manageLinksMuteLabel}
+                    {copy.groups.manageLinksDeactivateLabel}
                   </Text>
                   <Switch
                     size="sm"
@@ -80,7 +80,7 @@ export default function ManageInviteLinksModal({
                     onChange={() =>
                       void handleToggleMute(link.nonce, !link.muted)
                     }
-                    data-testid={`mute-toggle-${link.nonce}`}
+                    data-testid={`deactivate-toggle-${link.nonce}`}
                   />
                 </HStack>
               </HStack>

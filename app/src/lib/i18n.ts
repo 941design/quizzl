@@ -165,7 +165,7 @@ type Copy = {
     pendingRequestsEmpty: string;
     manageLinksButton: string;
     manageLinksTitle: string;
-    manageLinksMuteLabel: string;
+    manageLinksDeactivateLabel: string;
     manageLinksUntitled: string;
     membersHeading: string;
     chatHeading: string;
@@ -759,7 +759,7 @@ const copy: Record<LanguageCode, Copy> = {
       pendingRequestsEmpty: 'No pending requests.',
       manageLinksButton: 'Manage Links',
       manageLinksTitle: 'Manage Invite Links',
-      manageLinksMuteLabel: 'Muted',
+      manageLinksDeactivateLabel: 'Deactivated',
       manageLinksUntitled: 'Untitled',
       membersHeading: 'Members',
       chatHeading: 'Chat',
@@ -1114,7 +1114,7 @@ const copy: Record<LanguageCode, Copy> = {
       nicknameHeading: 'Name',
       nicknameLimit: (max: number) => `Der Name hat die Grenze von ${max} Zeichen erreicht (Umlaute und Emojis zählen mehr).`,
       avatarHeading: 'Avatar',
-      changeAvatar: 'Avatar aendern',
+      changeAvatar: 'Avatar ändern',
       avatarModalTitle: 'Wähle deinen Avatar',
       fruitNames: {
         apple: 'Apfel',
@@ -1174,7 +1174,7 @@ const copy: Record<LanguageCode, Copy> = {
         zucchini: 'Zucchini',
       },
       avatarNoResults: 'Zu dieser Frucht gibt es noch keine Avatare. Versuche eine andere.',
-      selectedAvatarAlt: 'Ausgewaehlter Avatar',
+      selectedAvatarAlt: 'Ausgewählter Avatar',
       avatarOptionAlt: 'Avataroption',
       languageHeading: 'Sprache',
       languageDescription: 'Lege fest, in welcher Sprache die App angezeigt wird.',
@@ -1284,7 +1284,7 @@ const copy: Record<LanguageCode, Copy> = {
       pendingRequestsEmpty: 'Keine offenen Anfragen.',
       manageLinksButton: 'Links verwalten',
       manageLinksTitle: 'Einladungslinks verwalten',
-      manageLinksMuteLabel: 'Stummgeschaltet',
+      manageLinksDeactivateLabel: 'Deaktiviert',
       manageLinksUntitled: 'Ohne Titel',
       membersHeading: 'Mitglieder',
       chatHeading: 'Chat',

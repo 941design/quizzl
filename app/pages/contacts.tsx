@@ -302,6 +302,17 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
             {/* Voice/video call icons — rendered only while the call feature
                 is enabled (CALLS_ENABLED); feature code retained when off. */}
             {CALLS_ENABLED && <ContactCallToolbar peerPubkeyHex={contact.pubkeyHex} />}
+            {/* Link to the contact's profile — same affordance as the
+                contacts-list row's view-profile icon. */}
+            <IconButton
+              aria-label={copy.profile.viewProfile}
+              icon={<ThemeIcon name="person" size={18} />}
+              variant="ghost"
+              size="sm"
+              flexShrink={0}
+              data-testid="contact-detail-view-profile"
+              onClick={() => router.push(`/profile?pubkey=${contact.pubkeyHex}`)}
+            />
           </HStack>
         </Flex>
         {justAdded ? (
