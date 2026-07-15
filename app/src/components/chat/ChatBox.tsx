@@ -37,6 +37,7 @@ import LeaveChatAnnouncement from '@/src/components/groups/LeaveChatAnnouncement
 import GroupRenamedChatAnnouncement from '@/src/components/groups/GroupRenamedChatAnnouncement';
 import ImageAttachmentButton from '@/src/components/groups/ImageAttachmentButton';
 import ImageMessageBubble from '@/src/components/groups/ImageMessageBubble';
+import { ATTACHMENTS_ENABLED } from '@/src/config/features';
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 const SCROLL_NEAR_BOTTOM_PX = 100;
@@ -117,6 +118,10 @@ type ChatBoxProps = {
    * Whether the image-attachment button is shown. Defaults to true. The
    * feedback surface sets this false: v1 feedback is text-only (spec §7), and
    * an image send would bypass the sealed feedback marker tags.
+   *
+   * Subordinate to the ATTACHMENTS_ENABLED feature toggle: while attachments
+   * are disabled product-wide, passing true here still yields no attach
+   * surface. See `imageAttachmentsAllowed` below.
    */
   allowImageAttachments?: boolean;
   /**
@@ -159,6 +164,11 @@ export default function ChatBox({
   handleEditMessage,
   allowMessageActions = true,
 }: ChatBoxProps) {
+  // Attachments are being deprecated: ATTACHMENTS_ENABLED turns off every
+  // compose-an-attachment entry point (button, drop, paste) on every surface.
+  // A caller's own opt-out (feedback's text-only channel) still applies on top,
+  // so this can only ever remove the surface, never grant it.
+  const imageAttachmentsAllowed = ATTACHMENTS_ENABLED && allowImageAttachments;
   const copy = useCopy();
   const { language } = useLanguage();
   // Story-08: read aggregated reactions from ChatStoreContext (group surface).
@@ -425,7 +435,7 @@ export default function ChatBox({
     // Text-only surfaces (feedback) must not accept attachments via any entry
     // point — button, drag/drop, or paste — so image sends cannot bypass the
     // sealed feedback marker tags (spec §7).
-    if (!allowImageAttachments) return;
+    if (!imageAttachmentsAllowed) return;
     // Gate-remediation (S6, finding 6): edit mode is text-only (AC-IMG-2's
     // composer half) — a drop mid-edit must not attach an image the Save
     // path silently ignores, only for it to ride out on the NEXT ordinary
@@ -433,10 +443,10 @@ export default function ChatBox({
     if (editingMessage) return;
     const file = e.dataTransfer.files?.[0];
     if (file?.type.startsWith('image/')) attachFile(file);
-  }, [attachFile, allowImageAttachments, editingMessage]);
+  }, [attachFile, imageAttachmentsAllowed, editingMessage]);
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    if (!allowImageAttachments) return;
+    if (!imageAttachmentsAllowed) return;
     // Gate-remediation (S6, finding 6): see handleDrop's matching comment.
     if (editingMessage) return;
     const item = Array.from(e.clipboardData.items).find(
@@ -446,7 +456,7 @@ export default function ChatBox({
       const file = item.getAsFile();
       if (file) attachFile(file);
     }
-  }, [attachFile, allowImageAttachments, editingMessage]);
+  }, [attachFile, imageAttachmentsAllowed, editingMessage]);
 
   function getDisplayName(senderPubkey: string): string {
     const profile = profileMap[senderPubkey];
@@ -922,7 +932,7 @@ export default function ChatBox({
         )}
 
         <Flex p={2} gap={2} align="flex-end">
-          {allowImageAttachments && !editingMessage ? <ImageAttachmentButton onFileSelected={attachFile} /> : null}
+          {imageAttachmentsAllowed && !editingMessage ? <ImageAttachmentButton onFileSelected={attachFile} /> : null}
           <EmojiComposerPicker onSelect={handleEmojiSelect} handleRef={emojiPickerRef} textareaRef={textareaRef} />
           <Textarea
             ref={textareaRef}

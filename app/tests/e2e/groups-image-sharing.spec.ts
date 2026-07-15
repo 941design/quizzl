@@ -44,7 +44,12 @@ let contextB: BrowserContext;
 let pageA: Page;
 let pageB: Page;
 
-test.describe.serial('Image Sharing', () => {
+// Skipped: message attachments are disabled product-wide via the
+// ATTACHMENTS_ENABLED toggle (app/src/config/features.ts) while the feature is
+// deprecated — there is no attach button to drive. The feature code and this
+// suite are retained; flip the toggle back on to restore both.
+// Mirrors the groups-calls-video-bidirectional.spec.ts precedent (CALLS_ENABLED).
+test.describe.skip('Image Sharing', () => {
   test.beforeAll(async ({ browser }) => {
     await computeTestKeypairs();
     ({ context: contextA, page: pageA } = await bootUser(browser, USER_A));

@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Deprecated
+- Message attachments (image sharing) are disabled on every surface — contacts/DMs, groups, and developer messages (chat)
+  - New `ATTACHMENTS_ENABLED` toggle in `app/src/config/features.ts`, following the `CALLS_ENABLED` precedent: the feature code is retained in full, only the UI is gated off
+  - Gated in `ChatBox` (the single composer behind all three surfaces) so all three attach entry points — the attach button, drag/drop, and clipboard paste — go dark together and cannot drift apart
+  - Images already sent or received still render, so existing history stays readable
+  - Sending is unaffected for text; the composer, edit/delete, and reactions all behave as before
+  - Flip the toggle to `true` to restore the feature — no re-implementation needed
+
 ### Fixed
 - Fixed member profiles not propagating to newly joined group members (marmot)
   - Existing members now republish their profile when `onMembersChanged` detects a member count increase, ensuring new joiners receive current name/avatar data

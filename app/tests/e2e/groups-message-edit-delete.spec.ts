@@ -198,7 +198,21 @@ test.describe.serial('Group message edit & delete — S7', () => {
     await expectMessageGone(pageB, id);
   });
 
-  test('AC-DEL-1/AC-IMG-1: Alice deletes an authored image group message; disappears for her and Bob', async () => {
+  // Attachments are deprecated (ATTACHMENTS_ENABLED, app/src/config/features.ts).
+  // This asserts the toggle's product behavior on the GROUP surface in a real
+  // browser: the composer mounts and sends text (proved by the tests around
+  // this one), but offers no way to attach. Kept alongside the skipped image
+  // tests below so the group composer is never left without attach coverage in
+  // one direction or the other.
+  test('ATTACHMENTS_ENABLED off: the group composer offers no attach button', async () => {
+    await expect(pageA.getByTestId('chat-input')).toBeVisible({ timeout: 30_000 });
+    await expect(pageA.getByTestId('image-attachment-button')).toHaveCount(0);
+  });
+
+  // Skipped while ATTACHMENTS_ENABLED is off: this test's fixture is an image
+  // sent through the real composer, which no longer has an attach button. The
+  // text-message delete path (AC-DEL-1) stays covered by the test above.
+  test.skip('AC-DEL-1/AC-IMG-1: Alice deletes an authored image group message; disappears for her and Bob', async () => {
     const id = await sendGroupImageAndGetId(pageA, `del-image-${Date.now()}`);
 
     await expect(pageB.locator(`[data-testid="msg-${id}"]`)).toBeVisible({ timeout: 60_000 });
@@ -291,7 +305,8 @@ test.describe.serial('Group message edit & delete — S7', () => {
     await expect(pageA.getByTestId(`edited-marker-${id}`)).not.toBeAttached();
   });
 
-  test('AC-IMG-2: an image message offers delete but not edit', async () => {
+  // Skipped while ATTACHMENTS_ENABLED is off — see AC-DEL-1/AC-IMG-1 above.
+  test.skip('AC-IMG-2: an image message offers delete but not edit', async () => {
     const id = await sendGroupImageAndGetId(pageA, `img2-${Date.now()}`);
 
     const row = pageA.locator(`[data-testid="msg-${id}"]`);

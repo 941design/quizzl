@@ -220,7 +220,20 @@ test.describe.serial('DM message edit & delete — S7', () => {
     await expectMessageGone(pageB, id);
   });
 
-  test('AC-DEL-1/AC-IMG-1: Alice deletes an authored image DM message; disappears for her and Bob', async () => {
+  // Attachments are deprecated (ATTACHMENTS_ENABLED, app/src/config/features.ts).
+  // The DM-surface twin of the same assertion in groups-message-edit-delete.spec.ts.
+  // Both surfaces are asserted because they reach ChatBox through different
+  // call sites (ContactChat passes allowImageAttachments explicitly; GroupChat
+  // relies on the default), so a regression could plausibly hit only one.
+  test('ATTACHMENTS_ENABLED off: the DM composer offers no attach button', async () => {
+    await expect(pageA.getByTestId('chat-input')).toBeVisible({ timeout: 30_000 });
+    await expect(pageA.getByTestId('image-attachment-button')).toHaveCount(0);
+  });
+
+  // Skipped while ATTACHMENTS_ENABLED is off: this test's fixture is an image
+  // sent through the real composer, which no longer has an attach button. The
+  // text-message delete path (AC-DEL-1) stays covered by the test above.
+  test.skip('AC-DEL-1/AC-IMG-1: Alice deletes an authored image DM message; disappears for her and Bob', async () => {
     const id = await sendDmImageAndGetMessageId(pageA, `del-image-${Date.now()}`);
 
     await expect(pageB.locator(`[data-testid="msg-${id}"]`)).toBeVisible({ timeout: 60_000 });
@@ -313,7 +326,8 @@ test.describe.serial('DM message edit & delete — S7', () => {
     await expect(pageA.getByTestId(`edited-marker-${id}`)).not.toBeAttached();
   });
 
-  test('AC-IMG-2: an image message offers delete but not edit', async () => {
+  // Skipped while ATTACHMENTS_ENABLED is off — see AC-DEL-1/AC-IMG-1 above.
+  test.skip('AC-IMG-2: an image message offers delete but not edit', async () => {
     const id = await sendDmImageAndGetMessageId(pageA, `img2-${Date.now()}`);
 
     const row = pageA.locator(`[data-testid="msg-${id}"]`);
