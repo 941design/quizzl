@@ -24,14 +24,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { computeThemeStyles } from '@/src/hooks/useThemeStyles';
 import {
   resolveDynamicBannerStyle,
-  shouldRenderScrim,
-  resolveScrimColor,
   resolveIdleScheduler,
   generateViaFallback,
   scheduleFallbackGeneration,
   resolveWorkerMessageOutcome,
 } from '@/src/hooks/useDynamicBanner';
-import { wcagRatio, WCAG_AA_THRESHOLD } from '@/src/themes/contrast';
 import { DYNAMIC_GENERATORS } from '@/src/themes/treatments/dynamicVisuals';
 import { APP_THEMES } from '@/src/lib/theme';
 import type { AppThemeDefinition } from '@/src/lib/theme';
@@ -173,7 +170,7 @@ describe("AC-UX-3a: generation failure (generatedSvg: null) keeps/reverts to the
     expect(result!.style.backgroundImage).toMatch(/^url\("data:image\/svg\+xml,/);
   });
 
-  it('hasDynamicBanner stays true (declaration-based) even while generation has failed, so a scrim consumer keyed off it does not flicker off during the fallback window', () => {
+  it('hasDynamicBanner stays true (declaration-based) even while generation has failed, so a consumer keyed off it does not flicker during the fallback window', () => {
     const def = withDynamicBanner();
     const result = resolveDynamicBannerStyle(def, null);
     expect(result!.hasDynamicBanner).toBe(true);
@@ -217,71 +214,6 @@ describe('AC-PERF-1: reserved box dimensions are unchanged before/after the swap
     // doesn't just prove reflexive equality against itself.
     expect(nullResult!.boxProps.h).toBe('96px');
     expect(nullResult!.boxProps.w).toBe('clamp(220px, 33vw, 420px)');
-  });
-});
-
-describe('AC-A11Y-1: legibility scrim guarantees brand.500 logo text meets WCAG AA (>= 4.5:1), independent of any generated image', () => {
-  // Every shipped theme's REAL brand.500 hex (colors.brand[5] — SCALE_STEPS
-  // in buildChakraTheme.ts: 50,100,...,900), read straight from APP_THEMES —
-  // not a hand-picked favorable example. (spring is the only shipped theme
-  // today; the arbitrary-values test below carries the breadth.)
-  const realBrand500Values = Object.values(APP_THEMES).map((def) => def.colors.brand[5]);
-
-  it('every real theme has a distinct brand.500 that this test is not vacuous', () => {
-    expect(realBrand500Values.length).toBeGreaterThanOrEqual(1);
-    expect(new Set(realBrand500Values).size).toBe(realBrand500Values.length);
-  });
-
-  it.each(realBrand500Values)(
-    'resolveScrimColor(%s) picks a scrim color whose REAL wcagRatio (imported from contrast.ts) against that brand.500 clears WCAG_AA_THRESHOLD',
-    (brand500Hex) => {
-      const scrimColor = resolveScrimColor(brand500Hex);
-      const ratio = wcagRatio(scrimColor, brand500Hex);
-      expect(ratio).toBeGreaterThanOrEqual(WCAG_AA_THRESHOLD);
-    },
-  );
-
-  it('holds for arbitrary brand.500 values too, not just the themes that exist today (the black-or-white guarantee is unconditional)', () => {
-    // A spread of colors spanning the luminance range, none of them tuned to
-    // favor this function — including ones deliberately near the black/white
-    // crossover band this property has to hold across.
-    const arbitraryHexValues = [
-      '#7f7f7f', '#123456', '#abcdef', '#336699', '#ff00ff', '#00ffcc',
-      '#111111', '#eeeeee', '#8899aa', '#204060', '#c0c0c0', '#405020',
-    ];
-    for (const hex of arbitraryHexValues) {
-      const scrimColor = resolveScrimColor(hex);
-      expect(wcagRatio(scrimColor, hex)).toBeGreaterThanOrEqual(WCAG_AA_THRESHOLD);
-    }
-  });
-
-  it('resolveScrimColor never depends on any generated banner SVG — it takes only a hex color, no theme/definition/image argument', () => {
-    // Signature check: this function cannot possibly consult banner content
-    // because it has no parameter through which to receive it.
-    expect(resolveScrimColor.length).toBe(1);
-  });
-});
-
-describe('AC-A11Y-2: the scrim is present whenever a dynamic banner is active, and does not regress static-only themes', () => {
-  it('shouldRenderScrim(true) is true — scrim renders when the active theme declares a dynamic banner', () => {
-    expect(shouldRenderScrim(true)).toBe(true);
-  });
-
-  it('shouldRenderScrim(false) is false — no scrim (no-op) for a theme that declares only a static banner', () => {
-    expect(shouldRenderScrim(false)).toBe(false);
-  });
-
-  it('keys off the exact same declaration-based hasDynamicBanner resolveDynamicBannerStyle returns, including during the AC-UX-3a fallback window (generation failed, generatedSvg: null)', () => {
-    const def = withDynamicBanner();
-    const staticOnly = resolveDynamicBannerStyle(STATIC_ONLY, null);
-    const declaredButFailed = resolveDynamicBannerStyle(def, null);
-    const declaredAndGenerated = resolveDynamicBannerStyle(def, SVG_A);
-
-    expect(shouldRenderScrim(staticOnly!.hasDynamicBanner)).toBe(false);
-    // Scrim must NOT flicker off just because the most recent generation
-    // attempt failed — hasDynamicBanner reflects the manifest declaration.
-    expect(shouldRenderScrim(declaredButFailed!.hasDynamicBanner)).toBe(true);
-    expect(shouldRenderScrim(declaredAndGenerated!.hasDynamicBanner)).toBe(true);
   });
 });
 

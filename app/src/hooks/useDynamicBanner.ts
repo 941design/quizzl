@@ -20,7 +20,6 @@ import type React from 'react';
 import { computeThemeStyles } from '@/src/hooks/useThemeStyles';
 import { DYNAMIC_GENERATORS } from '@/src/themes/treatments/dynamicVisuals';
 import type { StyleToken } from '@/src/themes/treatments/dynamicVisuals';
-import { wcagRatio } from '@/src/themes/contrast';
 import type { AppThemeDefinition } from '@/src/lib/theme';
 // Type-only: banner.worker.ts's top-level self.addEventListener(...) is a
 // real side effect that must only ever execute inside an actual Worker
@@ -30,7 +29,7 @@ import type { AppThemeDefinition } from '@/src/lib/theme';
 import type { BannerWorkerResponse } from '@/src/workers/banner.worker';
 
 /**
- * The seam type Layout.tsx (S3) and S4's shouldRenderScrim consume.
+ * The seam type Layout.tsx (S3) consumes.
  *
  * HARD CONTRACT (architecture.md's single highest-risk silent-failure point
  * in this epic — not detectable by any test in this jsdom-less repo, so
@@ -48,9 +47,9 @@ export type ResolveDynamicBannerStyleReturn = {
   /**
    * Whether this theme DECLARES a dynamic banner (treatments.dynamic?.banner
    * is present) — reflects the manifest declaration, not whether the most
-   * recent generation attempt succeeded. This is the boolean S4's
-   * shouldRenderScrim(hasDynamicBanner) keys off (AC-A11Y-2), so it must
-   * stay true even during the static-fallback window (AC-UX-3a).
+   * recent generation attempt succeeded. Layout.tsx keys the generated
+   * banner's full-bleed/multiply box props off this, so it must stay true
+   * even during the static-fallback window (AC-UX-3a).
    */
   hasDynamicBanner: boolean;
   /** Identical to useThemeStyles.ts's BannerDecor.boxProps — never mutated by the dynamic swap. */
@@ -111,70 +110,6 @@ export function resolveDynamicBannerStyle(
     boxProps: bannerDecorStyle.boxProps,
     style: { ...bannerDecorStyle.style, backgroundImage: encodeSvgDataUri(generatedSvg) },
   };
-}
-
-/**
- * S4 (AC-A11Y-2, architecture.md Module Map: "Layout.tsx (modified) ...
- * render legibility scrim behind logo | Owned Data: scrim presence/contrast").
- *
- * Pure passthrough of the SAME declaration-based `hasDynamicBanner` boolean
- * S3 established on `ResolveDynamicBannerStyleReturn` (true whenever the
- * active theme's manifest DECLARES `treatments.dynamic.banner`, independent
- * of whether the most recent generation attempt succeeded — see that
- * field's docstring above). The scrim's presence MUST be gated on the exact
- * same semantic, not a fresh condition, so it never flickers off during the
- * AC-UX-3a static-fallback window.
- *
- * This is intentionally a one-line passthrough, not because it's a stub
- * awaiting more logic, but because the whole point of naming it is API
- * stability: it gives Layout.tsx an explicit, documented seam for "should I
- * show the scrim" instead of inlining `dynamicBanner?.hasDynamicBanner`
- * ad hoc at the render site. If a future story ever needs to narrow when
- * the scrim appears (e.g. a per-theme opt-out), this is the one place that
- * changes.
- */
-export function shouldRenderScrim(hasDynamicBanner: boolean): boolean {
-  return hasDynamicBanner;
-}
-
-/** Opaque black/white — the only two candidates `resolveScrimColor` picks between. */
-const SCRIM_BLACK = '#000000';
-const SCRIM_WHITE = '#ffffff';
-
-/**
- * S4 (AC-A11Y-1, architecture.md Boundary Rule 9: reuse contrast.ts's
- * `wcagRatio(hexA, hexB)` primitive directly, at the existing
- * `WCAG_AA_THRESHOLD = 4.5`; `evaluateThemeContrast()` is NOT reusable here
- * since it takes a `ThemeManifest`, not arbitrary colors).
- *
- * WHY this isn't a single fixed scrim color: `brand.500` is not a fixed,
- * app-wide value — every theme (`app/src/themes/<id>/manifest.ts`) declares
- * its own 10-step `colors.brand` scale (index 5 = the 500 shade), and theme
- * authors are free to pick any hex (the pluggable-themes epic's whole
- * point). A scrim color hardcoded against one theme's brand.500 would
- * silently fail WCAG AA the moment a *different* theme (including Phase B's
- * still-undesigned `aquarelle`, the first theme that will actually declare
- * a dynamic banner) is active. This function is handed the ACTIVE theme's
- * real brand.500 hex at render time instead of a guessed constant.
- *
- * Because the scrim this backs is rendered fully opaque (no alpha), it
- * completely occludes whatever banner content sits behind it, so the only
- * free variable affecting contrast is the scrim's own color versus
- * `brand.500` — satisfying AC-A11Y-1's "regardless of the banner content
- * behind it" by construction, not by measurement.
- *
- * Picking whichever of pure black or pure white yields the higher ratio is
- * not just "usually good enough" — it is mathematically guaranteed to clear
- * the 4.5 threshold for ANY input color. For a color of relative luminance L
- * (0-1), ratio-vs-black = (L+0.05)/0.05 and ratio-vs-white = 1.05/(L+0.05).
- * Requiring BOTH to be < 4.5 simultaneously means L < 0.175 AND L > 0.1833,
- * which is impossible — so at least one of the two always reaches >= 4.5.
- * That is why this story does not need to special-case or re-verify against
- * Phase B's (still-undetermined) `aquarelle` brand.500 — the guarantee
- * holds for whatever value it turns out to be.
- */
-export function resolveScrimColor(brand500Hex: string): string {
-  return wcagRatio(SCRIM_BLACK, brand500Hex) >= wcagRatio(SCRIM_WHITE, brand500Hex) ? SCRIM_BLACK : SCRIM_WHITE;
 }
 
 /**

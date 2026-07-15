@@ -182,7 +182,7 @@ test.describe('Nav banner decoration', () => {
     expect(firstLoadBg).not.toBe(secondLoadBg);
   });
 
-  test('AC-A11Y-1/AC-UX-6: spring nav logo scrim is present and legible against the real generated banner', async ({ page }) => {
+  test('AC-A11Y-1/AC-UX-6: the nav logo chip is present and legible against the real generated banner', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() =>
       localStorage.setItem('lp_settings_v1', JSON.stringify({ theme: 'spring', language: 'en' })),
@@ -190,13 +190,20 @@ test.describe('Nav banner decoration', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // The scrim (S4) must be present whenever a dynamic banner is declared,
-    // regardless of what the generator actually produced this load.
-    const scrim = page.getByTestId('nav-logo-scrim');
-    await expect(scrim).toBeVisible();
+    // The logo chip is opaque and unconditional, so it fully occludes the
+    // banner behind it regardless of what the generator produced this load.
+    // It carries the same background as the header symbols' chips.
+    const chip = page.getByTestId('nav-logo-chip');
+    await expect(chip).toBeVisible();
 
-    const logoText = scrim.getByText('few.chat', { exact: false });
+    const logoText = chip.getByText('few.chat', { exact: false });
     await expect(logoText).toBeVisible();
+
+    const [chipBg, symbolBg] = await Promise.all([
+      chip.evaluate((el) => getComputedStyle(el).backgroundColor),
+      page.getByTestId('header-settings-link').evaluate((el) => getComputedStyle(el).backgroundColor),
+    ]);
+    expect(chipBg).toBe(symbolBg);
   });
 
   test('MV-2: repeatedly re-selecting the spring theme live never leaves a broken/blank banner or logs an uncaught error', async ({ page }) => {

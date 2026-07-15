@@ -569,12 +569,9 @@ export default function SettingsPage() {
         <title>{`${copy.settings.pageTitle} - ${copy.appName}`}</title>
       </Head>
       <Box data-testid="settings-page">
-        <Heading as="h1" size="xl" mb={2}>
+        <Heading as="h1" size="xl" mb={6}>
           {copy.settings.heading}
         </Heading>
-        <Text color="textMuted" mb={6}>
-          {copy.settings.description}
-        </Text>
 
         <VStack spacing={6} align="stretch">
           {/* Feedback Section — only rendered when the feature is enabled */}
@@ -689,28 +686,6 @@ export default function SettingsPage() {
                 );
               })}
             </SimpleGrid>
-
-            <Box
-              mt={4}
-              p={3}
-              borderRadius="md"
-              bg="surfaceMutedBg"
-              borderWidth="1px"
-              borderColor="borderSubtle"
-              backgroundImage={activeThemeDefinition.colors.backgroundImage}
-              backgroundSize={activeThemeDefinition.colors.backgroundImage ? '120px 120px' : undefined}
-              data-testid="theme-preview"
-            >
-              <Text fontSize="sm" color="textMuted">
-                {copy.settings.currentTheme}:{' '}
-                <Text as="span" fontWeight="semibold" textTransform="capitalize">
-                  {localizedThemeText(activeThemeDefinition.label, language)}
-                </Text>
-              </Text>
-              <Text fontSize="xs" color="textMuted" mt={1}>
-                {localizedThemeText(activeThemeDefinition.description, language)}
-              </Text>
-            </Box>
           </Box>
 
           {/* Language Section */}

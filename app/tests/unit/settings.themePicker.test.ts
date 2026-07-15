@@ -47,10 +47,11 @@ describe('settings.tsx theme picker source (AC-UX-3): reads manifest fields, not
   it('has no reference to the removed compat fields labelKey/descriptionKey/backgroundImage-off-definition', () => {
     expect(SETTINGS_SOURCE).not.toMatch(/\.labelKey\b/);
     expect(SETTINGS_SOURCE).not.toMatch(/\.descriptionKey\b/);
-    // The preview's backgroundImage now reads through colors.backgroundImage,
-    // never the removed compat top-level field.
+    // The redundant "current theme" preview box is gone (the picker cards
+    // already carry each theme's name, description and active marker), so
+    // nothing reads a backgroundImage off `activeThemeDefinition` at all —
+    // neither through `colors` nor through the removed compat top-level field.
     expect(SETTINGS_SOURCE).not.toMatch(/activeThemeDefinition\.backgroundImage\b/);
-    expect(SETTINGS_SOURCE).toMatch(/activeThemeDefinition\.colors\.backgroundImage\b/);
   });
 
   it('has no dangling copy.settings[<removed-key>]-style dynamic lookup for any removed key', () => {
@@ -67,7 +68,6 @@ describe('settings.tsx theme picker source (AC-UX-3): reads manifest fields, not
   it('still references the retained theme-section i18n keys', () => {
     expect(SETTINGS_SOURCE).toMatch(/copy\.settings\.themeHeading\b/);
     expect(SETTINGS_SOURCE).toMatch(/copy\.settings\.themeDescription\b/);
-    expect(SETTINGS_SOURCE).toMatch(/copy\.settings\.currentTheme\b/);
   });
 });
 
@@ -115,11 +115,10 @@ describe('i18n.ts (AC-UX-3): the 10 per-theme keys are removed; the 4 retained k
     }
   });
 
-  it.each(['en', 'de'] as const)('%s: themeHeading/themeDescription/currentTheme remain and are non-empty', (lang) => {
+  it.each(['en', 'de'] as const)('%s: themeHeading/themeDescription remain and are non-empty', (lang) => {
     const settings = getCopy(lang).settings;
     expect(settings.themeHeading).toBeTruthy();
     expect(settings.themeDescription).toBeTruthy();
-    expect(settings.currentTheme).toBeTruthy();
   });
 
   it('Copy type has no per-theme keys in its settings shape (compile-time check via a structural assignment)', () => {

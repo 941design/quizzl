@@ -20,7 +20,7 @@ import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import StorageWarning from '@/src/components/StorageWarning';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
-import { useDynamicBanner, shouldRenderScrim, resolveScrimColor } from '@/src/hooks/useDynamicBanner';
+import { useDynamicBanner } from '@/src/hooks/useDynamicBanner';
 import { useAppTheme } from '@/src/hooks/useMoodTheme';
 import ThemeIcon from '@/src/components/ThemeIcon';
 import NotificationBell from '@/src/components/NotificationBell';
@@ -68,17 +68,6 @@ export default function Layout({ children }: LayoutProps) {
   }, []);
   const dynamicBanner = useDynamicBanner(activeThemeDefinition, bannerSize);
   const activeBanner = dynamicBanner ?? bannerDecorStyle;
-  // AC-A11Y-1/AC-A11Y-2 (S4): legibility scrim behind the nav logo. Gated on
-  // the SAME declaration-based hasDynamicBanner semantic S3 established (see
-  // shouldRenderScrim's docstring) — never on generation success, so the
-  // scrim doesn't flicker off during a generation-failure window. Colors.brand
-  // index 5 is the 500 shade (SCALE_STEPS in buildChakraTheme.ts: 50,100,...,900),
-  // i.e. the same value the logo Text below resolves via Chakra's `brand.500`
-  // token for the CURRENTLY active theme (brand.500 is theme-specific, not a
-  // fixed app-wide color — see resolveScrimColor's docstring).
-  const showNavLogoScrim = shouldRenderScrim(dynamicBanner?.hasDynamicBanner ?? false);
-  const navLogoScrimColor = resolveScrimColor(activeThemeDefinition.colors.brand[5]);
-
   // AC-INVITE-8: reactive pending invitation count for Groups nav badge
   const pendingInvitations = useSyncExternalStore(
     subscribePendingInvitations,
@@ -158,30 +147,26 @@ export default function Layout({ children }: LayoutProps) {
           <Flex h={16} align="center" justify="space-between">
             <NextLink href="/" passHref legacyBehavior>
               <Link _hover={{ textDecoration: 'none' }}>
-                {showNavLogoScrim ? (
-                  // AC-A11Y-1: opaque scrim, fully occludes the banner behind
-                  // it — the only free variable left is navLogoScrimColor vs
-                  // brand.500, proven >= 4.5:1 by resolveScrimColor's
-                  // black-or-white guarantee (see its docstring).
-                  <Box
-                    data-testid="nav-logo-scrim"
-                    display="inline-block"
-                    bg={navLogoScrimColor}
-                    px={2}
-                    py={1}
-                    borderRadius="md"
-                  >
-                    <Text fontWeight="bold" fontSize="lg" color="brand.500">
-                      {copy.appName}
-                    </Text>
-                  </Box>
-                ) : (
-                  // AC-A11Y-2: static-only themes render exactly as before —
-                  // no scrim, no wrapping Box, no layout change.
-                  <Text fontWeight="bold" fontSize="lg" color="brand.500">
+                {/* The wordmark sits on the same permanently-filled chip as the
+                    header symbols, so the whole bar reads as one set of controls
+                    on the banner art. Opaque, so it fully occludes whatever the
+                    banner generator put behind it (AC-A11Y-1's "regardless of
+                    the banner content" holds by construction). The text is
+                    textStrong, NOT brand.500: brand.500-on-surfaceMutedBg is
+                    1.9-3.9:1 in 5 of 7 themes, while textStrong/surfaceMutedBg
+                    is a contrast.ts gate pair (>= 4.5:1 in every theme). */}
+                <Box
+                  data-testid="nav-logo-chip"
+                  display="inline-block"
+                  bg="surfaceMutedBg"
+                  px={2}
+                  py={1}
+                  borderRadius="md"
+                >
+                  <Text fontWeight="bold" fontSize="lg" color="textStrong">
                     {copy.appName}
                   </Text>
-                )}
+                </Box>
               </Link>
             </NextLink>
 

@@ -51,7 +51,6 @@ type Copy = {
   settings: {
     pageTitle: string;
     heading: string;
-    description: string;
     nicknameHeading: string;
     nicknameLimit: (max: number) => string;
     avatarHeading: string;
@@ -65,7 +64,6 @@ type Copy = {
     languageDescription: string;
     themeHeading: string;
     themeDescription: string;
-    currentTheme: string;
     cancel: string;
   };
   storage: {
@@ -613,7 +611,6 @@ const copy: Record<LanguageCode, Copy> = {
     settings: {
       pageTitle: 'Settings',
       heading: 'Settings',
-      description: 'Manage your Nostr identity and key backup.',
       nicknameHeading: 'Name',
       nicknameLimit: (max: number) => `Name reached the ${max}-character limit (accented letters and emoji count for more).`,
       avatarHeading: 'Avatar',
@@ -683,7 +680,6 @@ const copy: Record<LanguageCode, Copy> = {
       languageDescription: 'Choose which language the app should use.',
       themeHeading: 'Theme',
       themeDescription: 'Choose the visual theme for the app.',
-      currentTheme: 'Current theme',
       cancel: 'Cancel',
     },
     storage: {
@@ -1146,7 +1142,6 @@ const copy: Record<LanguageCode, Copy> = {
     settings: {
       pageTitle: 'Einstellungen',
       heading: 'Einstellungen',
-      description: 'Verwalte deine Nostr-Identität und Schlüsselsicherung.',
       nicknameHeading: 'Name',
       nicknameLimit: (max: number) => `Der Name hat die Grenze von ${max} Zeichen erreicht (Umlaute und Emojis zählen mehr).`,
       avatarHeading: 'Avatar',
@@ -1216,7 +1211,6 @@ const copy: Record<LanguageCode, Copy> = {
       languageDescription: 'Lege fest, in welcher Sprache die App angezeigt wird.',
       themeHeading: 'Design',
       themeDescription: 'Wähle das visuelle Design der App.',
-      currentTheme: 'Aktuelles Design',
       cancel: 'Abbrechen',
     },
     storage: {
@@ -1552,11 +1546,11 @@ const copy: Record<LanguageCode, Copy> = {
       dangerZone: {
         title: 'Gefahrenzone',
         wipeBtn: 'Dieses Gerät löschen',
-        wipeConfirmPrompt: 'Geben Sie WIPE ein, um zu bestätigen',
+        wipeConfirmPrompt: 'Gib WIPE ein, um zu bestätigen',
         wipeConfirmBtn: 'Löschen bestätigen',
         wipeConfirmWord: 'WIPE',
         wipeCancel: 'Abbrechen',
-        wipeWarning: 'Hierdurch werden Ihre Identität, alle Gruppen und der gesamte Nachrichtenverlauf auf diesem Gerät dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.',
+        wipeWarning: 'Hierdurch werden deine Identität, alle Gruppen und der gesamte Nachrichtenverlauf auf diesem Gerät dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.',
       },
       nip46: {
         sectionTitle: 'Externer Signierer',
