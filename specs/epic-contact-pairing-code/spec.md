@@ -263,6 +263,11 @@ sig (64 bytes)       signature per RD-4 (covers header + nonce + expires_at; not
   post-epic (`epic-block-contact` amendments, AC-PRIV-4/AC-PRIV-5); any future change to
   those paths must keep composing the block deny-gate, not just the walled-garden allow
   check.
+- **ADR-009** — Require issuer confirmation before admitting a scanned contact.
+  `epic-pending-contact-confirmation` (2026-07-15) deliberately supersedes this epic's
+  `AC-ADMIT-6` and `AC-PAIR-4` on their "both directions work *immediately*" clause only
+  — the "no second scan" guarantee still holds in full. See ADR-009 for the
+  bearer-credential rationale.
 
 ## Technical Approach (affected files)
 

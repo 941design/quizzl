@@ -2,9 +2,31 @@ import { useEffect, useRef } from 'react';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { initDirectMessageCounts } from '@/src/lib/unreadStore';
 import { readStoredContacts } from '@/src/lib/contacts';
+import type { StoredContact } from '@/src/lib/contacts';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { isAllowedDmSenderComposite, loadBlockedPeers } from '@/src/lib/blockedPeers';
 import { loadKnownPeers } from '@/src/lib/knownPeers';
+
+/**
+ * Builds the peer list the startup batch scan (`initDirectMessageCounts`)
+ * reconciles unread counts for — every stored contact except the local user.
+ *
+ * Pending contacts are NOT filtered here. `initDirectMessageCounts` drops
+ * them itself, at the entrypoint that owns the `directMessages` slice, so the
+ * bell cannot light for an unconfirmed pairing regardless of what any caller
+ * passes in. Do not re-add the filter here: duplicating it would re-derive the
+ * pending predicate at a call site, which the epic's architecture forbids.
+ *
+ * Exported as a pure function so it can be unit tested directly (this repo's
+ * no-jsdom/no-renderHook convention).
+ */
+export function buildInitDirectMessagePeerList(
+  storedContacts: Record<string, StoredContact>,
+  ownPubkeyHex: string,
+): string[] {
+  return Object.keys(storedContacts)
+    .filter((pk) => pk.toLowerCase() !== ownPubkeyHex.toLowerCase());
+}
 
 export default function DirectMessageNotificationsWatcher() {
   const { hydrated, pubkeyHex, privateKeyHex } = useNostrIdentity();
@@ -43,8 +65,7 @@ export default function DirectMessageNotificationsWatcher() {
 
     void (async () => {
       try {
-        const peerPubkeys = Object.keys(readStoredContacts())
-          .filter((pk) => pk.toLowerCase() !== ownPubkey.toLowerCase());
+        const peerPubkeys = buildInitDirectMessagePeerList(readStoredContacts(), ownPubkey);
         await initDirectMessageCounts(peerPubkeys, ownPubkey);
 
         const { connectNdk } = await import('@/src/lib/ndkClient');

@@ -20,12 +20,20 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, wri
 // store as the bottom-of-file reconciliation tests, which grab `idb.get`
 // directly and temporarily override its implementation.
 const idbStore = new Map<string, unknown>();
+// Pending join requests live in their OWN IDB database (joinRequestStorage.ts's
+// `createStore('few-join-requests', 'requests')`), not in the flat key space
+// above — so they get their own backing map here. `initJoinRequestCounts` reads
+// them via `entries(store)`; the store handle itself is opaque to this mock.
+const joinRequestIdbStore = new Map<string, unknown>();
 vi.mock('idb-keyval', () => ({
   get: vi.fn(async (key: string) => idbStore.get(key) ?? undefined),
   set: vi.fn(async (key: string, value: unknown) => { idbStore.set(key, value); }),
   del: vi.fn(async (key: string) => { idbStore.delete(key); }),
   delMany: vi.fn(async (ks: string[]) => { ks.forEach((k) => idbStore.delete(k)); }),
   keys: vi.fn(async () => [...idbStore.keys()]),
+  createStore: vi.fn(() => ({ __store: 'few-join-requests' })),
+  entries: vi.fn(async () => [...joinRequestIdbStore.entries()]),
+  clear: vi.fn(async () => { joinRequestIdbStore.clear(); }),
 }));
 
 // Mock react — useSyncExternalStore just calls getSnapshot
@@ -36,6 +44,7 @@ vi.mock('react', () => ({
 beforeEach(() => {
   localStorageMock.clear();
   idbStore.clear();
+  joinRequestIdbStore.clear();
 });
 
 describe('unreadStore join request counters', () => {
@@ -581,6 +590,65 @@ describe('initDirectMessageCounts — batch/startup path never touches self-heal
   });
 });
 
+describe('initDirectMessageCounts — pending contacts never light the bell (AC-OBS-1, gate-remediation finding C)', () => {
+  // The live-increment path (directMessageNotifications.ts) already gates on
+  // isPendingConfirmation. This is the batch-scan half of that pair: it
+  // recomputes unread counts from persisted history, so without its own gate a
+  // pending contact's stored messages would light the bell before the user ever
+  // confirmed the pairing — leaking "someone paired with you" past the
+  // confirmation gate, which is exactly what a leaked contact card would do.
+  //
+  // The filter is asserted HERE, inside the entrypoint, rather than at the
+  // caller: these tests pass the pending peer in explicitly, so they fail if
+  // anyone relocates the gate back out to a call site.
+
+  const OWN = '55'.repeat(32);
+  const PENDING_PEER = '66'.repeat(32);
+  const CONFIRMED_PEER = '77'.repeat(32);
+
+  async function seedUnreadHistory(peer: string) {
+    const idb = await import('idb-keyval');
+    await idb.set(`few:messages:dm:${peer}`, [
+      { id: 'a'.repeat(64), content: 'held', senderPubkey: peer, createdAt: 9_999_999_999 },
+    ]);
+  }
+
+  beforeEach(() => {
+    localStorageMock.clear();
+    idbStore.clear();
+  });
+
+  it('does not count a pending contact even when the caller passes it in and unread history exists', async () => {
+    const { rememberPendingContact } = await import('@/src/lib/contacts');
+    const { initDirectMessageCounts, useUnreadCounts, clearDirectMessageContact } = await import('@/src/lib/unreadStore');
+
+    clearDirectMessageContact(PENDING_PEER);
+    rememberPendingContact(PENDING_PEER, '2026-06-01T00:00:00.000Z');
+    await seedUnreadHistory(PENDING_PEER);
+
+    await initDirectMessageCounts([PENDING_PEER], OWN);
+
+    expect(useUnreadCounts().directMessages[PENDING_PEER] ?? 0).toBe(0);
+  });
+
+  it('counts the same history once the contact is confirmed', async () => {
+    const { rememberPendingContact, confirmContact } = await import('@/src/lib/contacts');
+    const { initDirectMessageCounts, useUnreadCounts, clearDirectMessageContact } = await import('@/src/lib/unreadStore');
+
+    clearDirectMessageContact(CONFIRMED_PEER);
+    rememberPendingContact(CONFIRMED_PEER, '2026-06-01T00:00:00.000Z');
+    await seedUnreadHistory(CONFIRMED_PEER);
+
+    await initDirectMessageCounts([CONFIRMED_PEER], OWN);
+    expect(useUnreadCounts().directMessages[CONFIRMED_PEER] ?? 0).toBe(0);
+
+    confirmContact(CONFIRMED_PEER);
+    await initDirectMessageCounts([CONFIRMED_PEER], OWN);
+
+    expect(useUnreadCounts().directMessages[CONFIRMED_PEER]).toBe(1);
+  });
+});
+
 describe('unreadStore mutation-gate: single-key mutations must not leak into sibling keys', () => {
   // Mutation-gate finding (Stryker id 70, line 189): `const next = { ...state.counts }`
   // is required — replacing it with `{}` produces a store where marking one
@@ -696,6 +764,126 @@ describe('unreadStore mutation-gate: reconcileInit re-read must not clobber a li
   });
 });
 
+describe('reconcileInit re-entrancy: overlapping directMessages reconciles must not clobber each other (gate-remediation, 2026-07-15)', () => {
+  // Finding A: `reconcileConfirmedContactDirectMessageCount` (fired on every
+  // pending-contact confirm) and `initDirectMessageCounts` (the startup
+  // batch scan, called once) both reconcile the SAME 'directMessages' slice,
+  // sharing the module-level `initInProgress`/`initTouched` state. Before the
+  // fix, an overlapping confirm mid-scan would reset `initTouched` and clear
+  // `initInProgress` while the batch scan was still awaiting its own reads —
+  // silently dropping any live increment the batch scan should have re-read.
+  // Fixed by serializing same-slice `reconcileInit` calls behind a promise
+  // chain. This test proves both overlap-safety (a live bump during the
+  // batch scan survives) AND actual serialization (the confirm-time read for
+  // its own peer does not start until the batch scan's reconcileInit fully
+  // completes).
+
+  it('a confirm-time reconcile that overlaps the startup batch scan does not lose the scan\'s live-increment re-read, and runs strictly after the scan completes', async () => {
+    const { directConversationId } = await import('@/src/lib/directMessages');
+    const { appendMessage } = await import('@/src/lib/marmot/chatPersistence');
+    const {
+      initDirectMessageCounts,
+      reconcileConfirmedContactDirectMessageCount,
+      useUnreadCounts,
+      clearDirectMessageContact,
+      incrementDirectMessage,
+    } = await import('@/src/lib/unreadStore');
+    const idb = await import('idb-keyval');
+    const getMock = idb.get as unknown as ReturnType<typeof vi.fn>;
+    const prev = getMock.getMockImplementation();
+
+    const OWN = 'a1'.repeat(32);
+    const SCAN_PEER = 'b2'.repeat(32);
+    const CONFIRM_PEER = 'c3'.repeat(32);
+    clearDirectMessageContact(SCAN_PEER);
+    clearDirectMessageContact(CONFIRM_PEER);
+
+    const confirmThreadId = directConversationId(CONFIRM_PEER);
+    const scanKey = `few:messages:dm:${SCAN_PEER}`;
+    const confirmKey = `few:messages:dm:${CONFIRM_PEER}`;
+
+    // The confirm-peer's history is already persisted (as it would be for a
+    // conversation opened before the contact went pending).
+    await appendMessage(confirmThreadId, { id: 'c1', content: 'hi', senderPubkey: CONFIRM_PEER, groupId: confirmThreadId, createdAt: 1000 });
+
+    // Deferred gate: the startup scan's read of SCAN_PEER blocks until we
+    // manually release it, simulating "the scan is still awaiting an idb
+    // read when a confirm fires".
+    let releaseScanRead: (() => void) | null = null;
+    const scanReadGate = new Promise<void>((resolve) => { releaseScanRead = resolve; });
+    const callOrder: string[] = [];
+    let scanReads = 0;
+    let liveBumpFired = false;
+
+    getMock.mockImplementation(async (key: string) => {
+      if (key === scanKey) {
+        scanReads += 1;
+        callOrder.push('scan-read-start');
+        if (scanReads === 1) {
+          await scanReadGate;
+        }
+        callOrder.push('scan-read-end');
+        // A live message arrives for SCAN_PEER while the scan's FIRST read
+        // for it is in flight — persisted (as a real DM would be once
+        // ContactChat has mounted) and live-bumped, exactly once, exactly as
+        // `reconcileInit`'s header comment describes. Only fired once (not
+        // on every re-read pass) so the re-read loop's bounded convergence
+        // is not itself what this test is exercising.
+        if (!liveBumpFired) {
+          liveBumpFired = true;
+          incrementDirectMessage(SCAN_PEER);
+        }
+        return [{ id: 's1', createdAt: 5000, senderPubkey: SCAN_PEER }];
+      }
+      if (key === confirmKey) {
+        callOrder.push('confirm-read');
+      }
+      return prev ? prev(key) : undefined;
+    });
+
+    // Start the batch scan but do not await it yet — it will block inside
+    // its read of SCAN_PEER until `releaseScanRead` is called below.
+    const scanPromise = initDirectMessageCounts([SCAN_PEER], OWN);
+
+    // Give the scan a tick to actually start and hit its blocked read.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(callOrder).toEqual(['scan-read-start']);
+
+    // Fire the confirm-time reconcile for a DIFFERENT peer while the scan is
+    // still blocked. Before the fix this would run concurrently and corrupt
+    // the scan's initTouched/initInProgress bookkeeping; after the fix it
+    // must queue behind the scan.
+    const confirmPromise = reconcileConfirmedContactDirectMessageCount(CONFIRM_PEER, OWN);
+
+    // Give the confirm call a chance to run if (incorrectly) unserialized —
+    // it must NOT have reached its own read yet.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(callOrder).toEqual(['scan-read-start']);
+
+    // Release the scan's blocked read, letting the batch scan finish.
+    releaseScanRead!();
+    await scanPromise;
+    await confirmPromise;
+
+    // Serialization proof: the confirm-time read only ran AFTER the scan's
+    // reconcileInit fully resolved — including its bounded re-read pass for
+    // the key the live increment touched (the scan reads scanKey twice: the
+    // initial pass, then once more because the live bump above marked it
+    // touched; the second read observes no NEW touch, so the re-read loop
+    // exits and the scan completes).
+    expect(callOrder).toEqual(['scan-read-start', 'scan-read-end', 'scan-read-start', 'scan-read-end', 'confirm-read']);
+
+    // Overlap-safety proof: the scan's own live increment for SCAN_PEER (the
+    // exact scenario this module's re-entrancy fix protects) survived intact.
+    expect(useUnreadCounts().directMessages[SCAN_PEER]).toBe(1);
+    // The confirm-time reconcile for its own (unrelated) peer completed
+    // correctly too — neither call corrupted the other's result.
+    expect(useUnreadCounts().directMessages[CONFIRM_PEER]).toBe(1);
+
+    getMock.mockImplementation(prev ?? (async () => undefined));
+  });
+});
+
 describe('unreadStore mutation-gate: reconcileConfirmedContactDirectMessageCount preserves pre-reconcile live count', () => {
   // Mutation-gate finding (Stryker id 192, line 467): `reconcileFloor[key] =
   // state.directMessages[key] ?? 0` is required — replacing `??` with `&&`
@@ -742,5 +930,154 @@ describe('unreadStore mutation-gate: reconcileConfirmedContactDirectMessageCount
     // must preserve the pre-reconcile live value (4). Mutant 192 seeds the
     // floor with 0, so the reconcile silently drops the count to 2.
     expect(useUnreadCounts().directMessages[PEER]).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('unreadStore mutation-gate: confirming a contact never re-lights the bell for a conversation already read (epic-pending-contact-confirmation:AC-OBS-2)', () => {
+  // Mutation-gate finding (Stryker ids 220 + 221, line 544): the confirm-time
+  // reconcile's `m.createdAt > lastRead` filter survives both `>=` (id 221) and
+  // `true` (id 220). The equal-boundary and already-read cases ARE asserted for
+  // the two sibling scans — initUnreadCounts (line 285) and
+  // initDirectMessageCounts (line 463), whose identical mutants both die — but
+  // nothing pinned them for the confirm path, which the pending-contact epic
+  // added. The gap: no test in this path ever put a message at or before the
+  // peer's last-read mark, so a reconcile that counted already-read history as
+  // unread would pass unnoticed.
+  //
+  // User story: AC-OBS-2 requires the bell to *correctly* reflect a confirmed
+  // contact's messages. A conversation the user has already read must stay dark
+  // when they confirm the contact — confirming is not a re-read event. The
+  // boundary itself is read back through the store's own public getter rather
+  // than reconstructed from a storage key or a clock, so this stays a statement
+  // about "already read" and not about how the mark is persisted.
+
+  it('counts only messages newer than the last time the user read the thread — a message exactly at the last-read mark is already read', async () => {
+    const { directConversationId } = await import('@/src/lib/directMessages');
+    const { appendMessage } = await import('@/src/lib/marmot/chatPersistence');
+    const {
+      reconcileConfirmedContactDirectMessageCount,
+      useUnreadCounts,
+      clearDirectMessageContact,
+      markDirectMessagesRead,
+      getDirectMessageLastReadAt,
+    } = await import('@/src/lib/unreadStore');
+
+    const OWN = '11'.repeat(32);
+    const PEER = '22'.repeat(32);
+    clearDirectMessageContact(PEER);
+
+    // Opening the thread is what makes "already read" true for this peer.
+    markDirectMessagesRead(PEER);
+    const lastRead = getDirectMessageLastReadAt(PEER);
+    expect(lastRead).toBeGreaterThan(0);
+
+    const threadId = directConversationId(PEER);
+    await appendMessage(threadId, { id: 'older', content: 'read before', senderPubkey: PEER, groupId: threadId, createdAt: lastRead - 1000 });
+    await appendMessage(threadId, { id: 'at-mark', content: 'read at the mark', senderPubkey: PEER, groupId: threadId, createdAt: lastRead });
+    await appendMessage(threadId, { id: 'newer', content: 'arrived after', senderPubkey: PEER, groupId: threadId, createdAt: lastRead + 1000 });
+
+    await reconcileConfirmedContactDirectMessageCount(PEER, OWN);
+
+    // Only the message that arrived after the read is unread. Mutant 221 (`>=`)
+    // also counts 'at-mark' (2); mutant 220 (`true`) counts all three (3).
+    expect(useUnreadCounts().directMessages[PEER]).toBe(1);
+  });
+});
+
+describe('unreadStore mutation-gate: the confirm-time floor is a floor, never a ceiling (epic-pending-contact-confirmation:AC-OBS-2)', () => {
+  // Mutation-gate finding (Stryker id 231, line 554): `floor >
+  // (state.directMessages[key] ?? 0)` survives `??` -> `&&`. The existing test
+  // above (line 891) only covers floor(4) > recomputed(2): under the mutant
+  // `2 && 0` is 0, so `4 > 0` still writes 4 and the result is identical. The
+  // untested direction is the mirror image — the recompute finding MORE unread
+  // than the bell currently shows. There, the real code correctly stands down
+  // (`2 > 5` is false, the higher authoritative count survives) while the
+  // mutant's `2 > 0` fires and drags the bell back down to 2.
+  //
+  // User story: AC-OBS-2 requires that confirming a contact loses no message.
+  // The floor exists to stop a reconcile from *lowering* a count — so it must
+  // never itself become the thing that lowers one. Whichever source knows about
+  // more unread messages wins.
+
+  it('keeps the higher recomputed count when persisted history holds more unread than the bell was showing', async () => {
+    const { directConversationId } = await import('@/src/lib/directMessages');
+    const { appendMessage } = await import('@/src/lib/marmot/chatPersistence');
+    const {
+      reconcileConfirmedContactDirectMessageCount,
+      useUnreadCounts,
+      clearDirectMessageContact,
+      incrementDirectMessage,
+    } = await import('@/src/lib/unreadStore');
+
+    const OWN = '33'.repeat(32);
+    const PEER = '44'.repeat(32);
+    clearDirectMessageContact(PEER);
+
+    // Five of this peer's messages are on disk (their conversation was opened
+    // at some point, so history persistence caught up)…
+    const threadId = directConversationId(PEER);
+    for (let i = 0; i < 5; i++) {
+      await appendMessage(threadId, { id: `held-${i}`, content: `msg ${i}`, senderPubkey: PEER, groupId: threadId, createdAt: 1000 + i * 100 });
+    }
+    // …but the bell only ever got two live bumps for them.
+    incrementDirectMessage(PEER);
+    incrementDirectMessage(PEER);
+    expect(useUnreadCounts().directMessages[PEER]).toBe(2);
+
+    await reconcileConfirmedContactDirectMessageCount(PEER, OWN);
+
+    // The reconcile knows about more unread than the bell did, so the bell rises
+    // to 5. Mutant 231 compares the floor against 0 instead of against the
+    // recomputed count, so it fires and pulls the bell back down to 2 — losing
+    // three messages the user was told about.
+    expect(useUnreadCounts().directMessages[PEER]).toBe(5);
+  });
+});
+
+describe('unreadStore mutation-gate: a join request arriving during the startup scan still reaches the badge', () => {
+  // Mutation-gate finding (Stryker id 117, line 317): the slice name in
+  // `noteLiveIncrement('joinRequests', groupId)` survives being blanked to `''`.
+  // The same literal in incrementUnread ('counts') and incrementDirectMessage
+  // ('directMessages') both die — only the join-request slice had no test, so
+  // its startup-clobber protection was silently unasserted. Under the mutant the
+  // arriving request is never queued for re-read and the stale scan snapshot
+  // overwrites it.
+  //
+  // User story (no AC; see BACKLOG finding
+  // initjoinrequestcounts-startup-scan-reconciliation — epic-group-invite-links
+  // AC-6 specs the join-request counter API but says nothing about the startup
+  // scan): a join request that lands while the app is still loading its badge
+  // counts must still show up in the badge. This mirrors the invariant already
+  // asserted for the chat-message slice at line 283.
+
+  it('a join request that lands mid-scan is still counted once the scan finishes', async () => {
+    const unread = await import('@/src/lib/unreadStore');
+    const idb = await import('idb-keyval');
+    const entriesMock = idb.entries as unknown as ReturnType<typeof vi.fn>;
+    const prev = entriesMock.getMockImplementation();
+
+    joinRequestIdbStore.set('evt-1', { groupId: 'race-jr1' });
+
+    // welcomeSubscription persists a join request (savePendingJoinRequest) BEFORE
+    // calling incrementJoinRequest, so by re-read time the store holds both — the
+    // same persist-then-increment ordering the chat-message slice relies on.
+    let reads = 0;
+    entriesMock.mockImplementation(async () => {
+      reads += 1;
+      if (reads === 1) {
+        joinRequestIdbStore.set('evt-2', { groupId: 'race-jr1' });
+        unread.incrementJoinRequest('race-jr1');
+        return [['evt-1', { groupId: 'race-jr1' }]];
+      }
+      return [...joinRequestIdbStore.entries()];
+    });
+
+    await unread.initJoinRequestCounts(['race-jr1']);
+
+    // Both requests are pending, so the badge shows 2. Mutant 117 never queues
+    // the mid-scan request for re-read, so the stale snapshot leaves it at 1.
+    expect(unread.useUnreadCounts().joinRequests['race-jr1']).toBe(2);
+
+    entriesMock.mockImplementation(prev ?? (async () => []));
   });
 });

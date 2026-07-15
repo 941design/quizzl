@@ -20,6 +20,27 @@
  * expiry simulation needed here — that is dm-pairing-expired-grace.spec.ts's
  * concern).
  *
+ * SUPERSESSION (2026-07-15, spec.md `## Amendments` — epic:
+ * pending-contact-confirmation): that epic deliberately supersedes this
+ * spec's "A auto-admits both [immediately]" framing for A's own DM-sending
+ * side. A contact card is a bearer credential — anyone who obtains a leaked
+ * card can pair with the issuer, and under the old auto-admit behavior that
+ * pairing succeeded silently and permanently, so a leak was undetectable.
+ * Requiring the card ISSUER (A) to explicitly confirm each incoming pairing
+ * converts an invisible, irreversible admission into a visible, declinable
+ * prompt — so A now holds both B and C as PENDING contacts after their
+ * respective pairing-acks, and A's own detail view for either shows
+ * `PendingConfirmationPrompt` instead of the chat thread until A confirms.
+ * Step 5 below (the DM sanity check from A to C) now drives that real
+ * confirm tap for C (reusing `dm-pairing-pending-confirmation.spec.ts`'s own
+ * `pending-confirmation-prompt` / `pending-confirmation-confirm-btn`
+ * testids) before A can send. This spec's actual point — the nonce is
+ * multi-use and BOTH B and C get admitted from the SAME code, with no
+ * re-share and no second code — is UNCHANGED and still fully proven by
+ * `waitForAdmission` succeeding for both in step 4 (which reads
+ * `knownPeers`, unaffected by pending-confirmation); only the DM-sending
+ * sanity check needed the confirm step inserted ahead of it.
+ *
  * Requires the strfry relay harness: make e2e-up (or make test-e2e-groups).
  * Run: E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/dm-pairing-multi-use.spec.ts
  */
@@ -69,6 +90,16 @@ test.describe('Pairing: multi-use within the active window (AC-PAIR-4)', () => {
       // is already covered by dm-pairing-single-scan-mutual.spec.ts). ──────
       await a.page.goto(`/contacts?id=${USER_C.pubkeyHex}`);
       await expect(a.page.getByTestId('contact-detail-page')).toBeVisible({ timeout: 15_000 });
+
+      // Epic: pending-contact-confirmation (2026-07-15 supersession, see
+      // header comment). A is the card ISSUER — C's pairing-ack admitted C
+      // as a PENDING contact on A's side, so A's detail view for C shows the
+      // confirmation prompt in place of the chat thread until A explicitly
+      // confirms. This is the new required step; it is not a second scan.
+      await expect(a.page.getByTestId('pending-confirmation-prompt')).toBeVisible({ timeout: 20_000 });
+      await a.page.getByTestId('pending-confirmation-confirm-btn').click();
+      await expect(a.page.getByTestId('chat-input')).toBeVisible({ timeout: 20_000 });
+
       const fromA = `hello-from-A-to-C-${Date.now()}`;
       await a.page.getByTestId('chat-input').fill(fromA);
       await a.page.getByTestId('chat-send-btn').click();

@@ -23,6 +23,12 @@ function readSource(relPath: string): string {
   return fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf-8');
 }
 
+// Stryker runs the suite from an instrumented copy under .stryker-tmp/sandbox-*/,
+// where every source-scan text match would hit mutant-switch wrappers instead of
+// the real code. These tests assert source shape rather than behavior, so a
+// mutation run has nothing to learn from them — skip there, run everywhere else.
+const itSourceScan = REPO_ROOT.includes('.stryker-tmp') ? it.skip : it;
+
 const store: Record<string, string> = {};
 const localStorageMock = {
   getItem: (key: string) => store[key] ?? null,
@@ -460,12 +466,18 @@ describe('list-confirm path never triggers loadMessages/self-heal (gate-remediat
 
     // The handler body itself (not surrounding prose/comments, which may
     // legitimately name these identifiers for context) calls confirmContact
-    // directly and nothing reconciliation-shaped.
+    // directly and nothing reconciliation-shaped. Gate-remediation
+    // (2026-07-15, finding G): the handler is plain/synchronous now — the
+    // prior `async` declaration had nothing to await and its
+    // `if (!pubkeyHex) return;` guard was dead code that silently no-op'd
+    // the confirm action before identity state hydrated.
     const handlerMatch = source.match(
-      /async function handleConfirmFromList\(peerPubkeyHex: string\) \{[\s\S]*?\n {2}\}/,
+      /function handleConfirmFromList\(peerPubkeyHex: string\) \{[\s\S]*?\n {2}\}/,
     );
     expect(handlerMatch).not.toBeNull();
     const handlerBody = handlerMatch![0];
+    expect(handlerBody).not.toMatch(/^async /);
+    expect(handlerBody).not.toContain('if (!pubkeyHex)');
     expect(handlerBody).toContain('confirmContact(peerPubkeyHex)');
     expect(handlerBody).not.toContain('confirmPendingContact');
     expect(handlerBody).not.toContain('reconcileConfirmedContactDirectMessageCount');
@@ -494,6 +506,63 @@ describe('list-confirm path never triggers loadMessages/self-heal (gate-remediat
   it('the detail-view confirm path (PendingConfirmationPrompt.tsx) is unchanged — still wires confirmPendingContact to reconcileConfirmedContactDirectMessageCount (covered end-to-end by unreadStore.test.ts)', () => {
     const source = readSource('src/components/contacts/PendingConfirmationPrompt.tsx');
     expect(source).toContain('reconcileConfirmedContactDirectMessageCount(peerPubkeyHex, ownPubkeyHex)');
+  });
+});
+
+// ── Gate-remediation (2026-07-15, finding E — user-approved): the pending-
+// confirmation prompt must offer a genuine decline affordance ─────────────
+// The prompt asks a yes/no question ("Confirm this contact?") but previously
+// offered only "yes"; per spec.md Non-Goals, declining reuses the existing
+// block/archive flow (BlockContactButton), so the prompt now renders it
+// alongside Confirm. Verified via source assertion — no jsdom/renderHook
+// per project convention.
+describe('PendingConfirmationPrompt.tsx renders a Block affordance alongside Confirm (finding E)', () => {
+  it('imports and renders BlockContactButton with isArchived={false}, reusing the existing component', () => {
+    const source = readSource('src/components/contacts/PendingConfirmationPrompt.tsx');
+    expect(source).toMatch(/import BlockContactButton from ['"]@\/src\/components\/contacts\/BlockContactButton['"]/);
+    expect(source).toMatch(/<BlockContactButton[\s\S]*?isArchived=\{false\}/);
+  });
+
+  it('the Confirm button remains the primary (brand-colored) action; BlockContactButton is the secondary control', () => {
+    const source = readSource('src/components/contacts/PendingConfirmationPrompt.tsx');
+    const confirmBtnMatch = source.match(/<Button[\s\S]*?data-testid="pending-confirmation-confirm-btn"/);
+    expect(confirmBtnMatch).not.toBeNull();
+    expect(confirmBtnMatch![0]).toContain('colorScheme="brand"');
+  });
+
+  it('new decline-framing copy is read via useCopy(), never hardcoded', () => {
+    const source = readSource('src/components/contacts/PendingConfirmationPrompt.tsx');
+    expect(source).toContain('copy.contacts.pendingConfirmDeclineHint');
+  });
+});
+
+// ── Gate-remediation (2026-07-15, finding B): the contacts-LIST row must
+// honor "blocked wins over pending" (spec.md Design Decision 9) ───────────
+// Before the fix, the list row rendered the pending badge + live "Confirm
+// contact" button independently of `isArchived`, reachable whenever
+// `showHidden` is toggled on (which lists blocked contacts too, via
+// `listContacts(pubkeyHex, { includeArchived: showHidden })`). Since
+// blocking IS this epic's decline mechanism (spec.md Non-Goals — there is
+// no separate "reject" action), a user who just declined a pending contact
+// by blocking them would see a working un-decline ("Confirm contact")
+// button on the very row that represents their decline. No render test
+// exists for `contacts.tsx` (no jsdom/renderHook per project convention),
+// so this is verified via source assertion, mirroring the existing
+// `readSource()` pattern used throughout this file.
+describe('contacts.tsx list row — pending badge/confirm button gated on !isArchived (AC-UX-1, spec.md Design Decision 9)', () => {
+  it('the pending-badge/confirm-button block is gated on `contact.isPendingConfirmation && !contact.isArchived`', () => {
+    const source = readSource('pages/contacts.tsx');
+    expect(source).toContain('{contact.isPendingConfirmation && !contact.isArchived ? (');
+    // The bare (ungated) condition must not appear anywhere in the file —
+    // this is the exact regression finding B fixed.
+    expect(source).not.toMatch(/\{contact\.isPendingConfirmation \? \(/);
+  });
+
+  it('the inline comment no longer claims blocked+pending "only ever happens if" a pre-epic contact was blocked — it must cite DD-9\'s actual decline-by-blocking rationale', () => {
+    const source = readSource('pages/contacts.tsx');
+    expect(source).not.toMatch(/only ever happens if the user's own\s*contact was blocked before this epic's admission gate\s*existed/);
+    expect(source).toMatch(/Design Decision 9/);
+    expect(source).toMatch(/decline/i);
   });
 });
 
@@ -528,13 +597,13 @@ describe('isPendingConfirmation (AC-STRUCT-3)', () => {
     expect(isPendingConfirmation(pubkeyHex)).toBe(false); // storage is now empty
   });
 
-  it.skip('is exported from exactly one location in contacts.ts (AC-STRUCT-3 — single export site) [gate-mode: source-scan test skipped during Stryker mutation of contacts.ts — instrumentation breaks the readFileSync text match, see mutation-tester agent memory]', () => {
+  itSourceScan('is exported from exactly one location in contacts.ts (AC-STRUCT-3 — single export site)', () => {
     const source = readSource('src/lib/contacts.ts');
     const exportMatches = source.match(/export function isPendingConfirmation\(/g) ?? [];
     expect(exportMatches).toHaveLength(1);
   });
 
-  it.skip('contacts.ts never imports blockedPeers.ts, and never CALLS isBlockedPeer/isAllowedDmSenderComposite — the predicate cannot be folded into either (AC-STRUCT-3, ADR-008 exception) [gate-mode: source-scan test skipped during Stryker mutation of contacts.ts]', () => {
+  itSourceScan('contacts.ts never imports blockedPeers.ts, and never CALLS isBlockedPeer/isAllowedDmSenderComposite — the predicate cannot be folded into either (AC-STRUCT-3, ADR-008 exception)', () => {
     // Matches actual usage (an import statement or a function call), not
     // this module's own JSDoc prose documenting the ADR-008 exception (which
     // legitimately names these functions in plain text without calling them).

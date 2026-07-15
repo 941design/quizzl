@@ -7,6 +7,7 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { isPendingConfirmation, readStoredContacts } from '@/src/lib/contacts';
 import { isAllowedDmSender } from '@/src/lib/walledGarden';
 import type { WhitelistArgs } from '@/src/lib/walledGarden';
 
@@ -76,12 +77,23 @@ function noteLiveIncrement(slice: CountSlice, key: string) {
 // live bell bump fired by directMessageNotifications.ts) does NOT persist
 // message content — only `ContactChat` mounting does, via a historical relay
 // fetch. So for `reconcileConfirmedContactDirectMessageCount`'s single-peer
-// confirm-time call specifically, a DM that lands while its `loadMessages`
+// confirm-time call specifically, a DM that lands while its raw idb-keyval
 // read is in flight can never be "seen" by the recompute, and the recompute
-// must not be allowed to overwrite that live bump back down. This tracks the
-// highest live count observed for one key while that one call is in flight,
-// so the caller can floor the final value at it — scoped to this one key/
-// call, never touching `reconcileInit` or its other callers.
+// must not be allowed to overwrite that live bump back down.
+//
+// Contract (corrected 2026-07-15 — the previous wording here claimed this
+// "tracks the highest live count observed... while that one call is in
+// flight", which does not match the code below): `reconcileFloor[key]` is
+// seeded with the PRE-CALL count (`state.directMessages[key] ?? 0`) at the
+// moment the reconcile starts — not with a live-observed increment — so the
+// actual rule is "the reconcile never lowers a peer's count below its
+// pre-call value". `noteLiveIncrementFloor` then raises that floor via
+// `Math.max` for any live bump that fires while this key is tracked, so a DM
+// landing mid-call is ALSO protected. Net effect: the `finally` block below
+// floors the post-recompute count at whichever is higher — the value the
+// peer already had when the reconcile started, or any live bump that
+// happened during it. Scoped to this one key/call, never touching
+// `reconcileInit` or its other callers.
 const reconcileFloor: Record<string, number> = {};
 
 function noteLiveIncrementFloor(key: string, value: number) {
@@ -90,7 +102,50 @@ function noteLiveIncrementFloor(key: string, value: number) {
   }
 }
 
+// --- Serialize concurrent reconciles for the same slice ---
+// `reconcileInit` mutates the per-slice `initInProgress`/`initTouched` state
+// declared above, which was only ever safe with ONE call in flight per slice
+// at a time. The `directMessages` slice gained a SECOND caller in the
+// pending-contact-confirmation epic — `reconcileConfirmedContactDirectMessageCount`,
+// fired on every pending-contact confirm — alongside the pre-existing
+// startup batch scan (`initDirectMessageCounts`, invoked once by
+// `DirectMessageNotificationsWatcher` at load). If a confirm overlaps the
+// startup scan (a real window: the scan `await`s one idb `get()` per known
+// peer), the confirm's `reconcileInit` call would clear
+// `initTouched['directMessages']` mid-scan — discarding the batch scan's
+// accumulated live-increment keys — and then set
+// `initInProgress['directMessages'] = false` while the batch scan is still
+// awaiting its own reads, so a later live bump the batch scan should have
+// re-read goes unnoted. That reintroduces exactly the startup-clobber bug
+// this module's very first comment block (above `initInProgress`/
+// `initTouched`) exists to prevent. Fixed by serializing same-slice calls
+// behind a promise chain: a second call for a slice already in flight simply
+// awaits the first call's completion before it starts its own
+// `initInProgress`/`initTouched` bookkeeping. This keeps the existing
+// single-call invariants intact rather than reworking them into per-call
+// state (this module never needs more than one reconcile per slice actually
+// RUNNING at a time — queuing is sufficient and much smaller a change).
+const reconcileChain: Record<CountSlice, Promise<void>> = {
+  counts: Promise.resolve(),
+  joinRequests: Promise.resolve(),
+  directMessages: Promise.resolve(),
+};
+
 async function reconcileInit(
+  slice: CountSlice,
+  keys: string[],
+  computeForKey: (key: string) => Promise<number>,
+): Promise<void> {
+  const run = reconcileChain[slice].then(() => reconcileInitExclusive(slice, keys, computeForKey));
+  // Keep the queue alive even if this call rejects — one caller's failure
+  // must not wedge every later same-slice reconcile behind a rejected
+  // promise forever. The caller of `reconcileInit` still observes the real
+  // rejection via `run`, returned below.
+  reconcileChain[slice] = run.catch(() => undefined);
+  return run;
+}
+
+async function reconcileInitExclusive(
   slice: CountSlice,
   keys: string[],
   computeForKey: (key: string) => Promise<number>,
@@ -98,34 +153,41 @@ async function reconcileInit(
   initInProgress[slice] = true;
   initTouched[slice].clear();
 
-  const next: Record<string, number> = {};
-  for (const key of keys) {
-    const n = await computeForKey(key);
-    if (n > 0) next[key] = n;
-  }
-
-  // Re-read keys a live increment touched during the scan; the authoritative IDB
-  // count supersedes both the stale `next` and the live bump. Bounded so a
-  // steady message stream cannot loop forever (residual staleness ≤ a handful of
-  // messages arriving in the final window — vs. the old bug losing them all).
-  let passes = 0;
-  while (initTouched[slice].size > 0 && passes < 3) {
-    passes++;
-    const toReread = Array.from(initTouched[slice]);
-    initTouched[slice].clear();
-    for (const key of toReread) {
+  try {
+    const next: Record<string, number> = {};
+    for (const key of keys) {
       const n = await computeForKey(key);
       if (n > 0) next[key] = n;
-      else delete next[key];
     }
-  }
 
-  initInProgress[slice] = false;
-  // `next` (authoritative) wins for every recomputed key; any live-only key not
-  // in `keys` is preserved. No await between here and the write, so no increment
-  // can interleave and be lost.
-  state = { ...state, [slice]: { ...state[slice], ...next } };
-  emit();
+    // Re-read keys a live increment touched during the scan; the authoritative IDB
+    // count supersedes both the stale `next` and the live bump. Bounded so a
+    // steady message stream cannot loop forever (residual staleness ≤ a handful of
+    // messages arriving in the final window — vs. the old bug losing them all).
+    let passes = 0;
+    while (initTouched[slice].size > 0 && passes < 3) {
+      passes++;
+      const toReread = Array.from(initTouched[slice]);
+      initTouched[slice].clear();
+      for (const key of toReread) {
+        const n = await computeForKey(key);
+        if (n > 0) next[key] = n;
+        else delete next[key];
+      }
+    }
+
+    // `next` (authoritative) wins for every recomputed key; any live-only key not
+    // in `keys` is preserved. No await between the last compute and the write, so
+    // no increment can interleave and be lost.
+    state = { ...state, [slice]: { ...state[slice], ...next } };
+    emit();
+  } finally {
+    // Reset even if computeForKey rejects. Counts stay correct either way — the
+    // flag's only reader is noteLiveIncrement, and every scan clears initTouched
+    // at entry — so a stranded `true` leaks memory (live increments keep
+    // inserting into a set nothing drains) rather than corrupting a badge.
+    initInProgress[slice] = false;
+  }
 }
 
 // --- Persistence helpers ---
@@ -384,7 +446,14 @@ export async function initDirectMessageCounts(peerPubkeysHex: string[], ownPubke
   // state.directMessages. reconcileInit re-reads any peer touched by a live DM
   // during the scan, so a stale computed value can no longer overwrite a newer
   // live count (the bug this finding flagged at the merge site).
-  const keys = peerPubkeysHex.map(dmKey);
+  // A pending contact's bell stays dark until the user confirms them, so this
+  // recompute drops them here — at the entrypoint that owns the slice — rather
+  // than trusting each caller to pre-filter. The live-increment path gates the
+  // same way (directMessageNotifications.ts); this is the batch-scan half of
+  // that pair, and it is the reason a leaked contact card cannot light the bell
+  // before its pairing has been confirmed. See spec AC-OBS-1 / Design Decision 9.
+  const storedList = Object.values(readStoredContacts());
+  const keys = peerPubkeysHex.map(dmKey).filter((key) => !isPendingConfirmation(key, storedList));
   await reconcileInit('directMessages', keys, async (key) => {
     const lastRead = timestamps[key] ?? 0;
     try {

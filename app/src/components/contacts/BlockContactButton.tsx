@@ -26,6 +26,8 @@ type BlockContactButtonProps = {
   onChanged: () => void;
   /** Overrides the trigger button's data-testid. Defaults to 'profile-archive' (DD-10 — kept stable for the existing e2e consumer, groups-contacts.spec.ts). */
   testId?: string;
+  /** Disables the trigger. Used where a sibling mutually-exclusive action is already in flight (e.g. PendingConfirmationPrompt's Confirm), so both decisions cannot be actioned at once. */
+  isDisabled?: boolean;
 };
 
 /**
@@ -52,6 +54,7 @@ export default function BlockContactButton({
   isArchived,
   onChanged,
   testId = 'profile-archive',
+  isDisabled = false,
 }: BlockContactButtonProps) {
   const copy = useCopy();
   const { notifyBlockedPeersChanged } = useMarmot();
@@ -83,6 +86,7 @@ export default function BlockContactButton({
       <Button
         variant="outline"
         onClick={handleUnblock}
+        isDisabled={isDisabled}
         data-testid={testId}
       >
         {copy.profile.unarchiveAction}
@@ -95,6 +99,7 @@ export default function BlockContactButton({
       <Button
         variant="outline"
         onClick={onOpen}
+        isDisabled={isDisabled}
         data-testid={testId}
       >
         {copy.profile.archiveAction}

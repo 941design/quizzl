@@ -1,0 +1,97 @@
+{
+  "spec_sha": "a410a93efa61",
+  "git_sha": "e73c0265c0ac03b465b97c39f47aa035dfadc0b6",
+  "computed_at": "2026-07-15T12:07:44Z",
+  "verdicts": [
+    {
+      "ac_id": "AC-STRUCT-1",
+      "verdict": "holds",
+      "evidence": "contacts.ts:49-60 normalizeStoredContact defaults pendingConfirmationSince via ?? null; contacts.test.ts:201-217 legacy fixture (line drift from recorded 189-205, content unchanged)"
+    },
+    {
+      "ac_id": "AC-STRUCT-2",
+      "verdict": "holds",
+      "evidence": "contacts.test.ts:219-236 legacy BLOCKED fixture preserves archivedAt, defaults pendingConfirmationSince to null (drift from recorded 207-224)"
+    },
+    {
+      "ac_id": "AC-STRUCT-3",
+      "verdict": "holds",
+      "evidence": "contacts.ts:262 single export site; no blockedPeers import/call. RECONCILE 2026-07-15 initially found partially-holds: the two source-scan regression tests guarding this AC were hard it.skip (mutation-run leftover). Fixed under `keep` adjudication — contacts.test.ts now gates them on itSourceScan (skips only inside .stryker-tmp sandbox); both verified running and passing."
+    },
+    {
+      "ac_id": "AC-STRUCT-4",
+      "verdict": "holds",
+      "evidence": "contacts.ts:149-180 rememberPendingContact + :199-222 confirmContact both use case-insensitive matchingKeys; contacts.test.ts:315-344, 390-432 (drift from recorded 303-388)"
+    },
+    {
+      "ac_id": "AC-ADMIT-1",
+      "verdict": "holds",
+      "evidence": "pairingAck.ts:452-453 rememberPendingContact at Step 9; pairingAck.test.ts:1383-1406"
+    },
+    {
+      "ac_id": "AC-ADMIT-2",
+      "verdict": "holds",
+      "evidence": "contacts.ts:149-180 re-pairing branch bumps lastSeenAt only; contacts.test.ts:277-293 (drift from recorded 265-281); e2e-adjacent coverage pairingAck.test.ts:1408-1470"
+    },
+    {
+      "ac_id": "AC-ADMIT-3",
+      "verdict": "holds",
+      "evidence": "contacts.ts:561-597 addContactByNpub calls plain rememberContact; contacts-add-by-npub.test.ts:44-52 asserts null pendingConfirmationSince"
+    },
+    {
+      "ac_id": "AC-CONFIRM-1",
+      "verdict": "holds",
+      "evidence": "contacts.ts:199-222 clears to null, preserves firstSeenAt/lastSeenAt/archivedAt; contacts.test.ts:355-367 (drift from recorded 343-355)"
+    },
+    {
+      "ac_id": "AC-CONFIRM-2",
+      "verdict": "holds",
+      "evidence": "contacts.ts:208-220 early return + changed-flag guards the write; contacts.test.ts:369-388 two no-op cases (drift from recorded 357-376)"
+    },
+    {
+      "ac_id": "AC-GROUP-1",
+      "verdict": "holds",
+      "evidence": "contacts.ts:469-486 selectableContactsForGroup precedence member > blocked > pending; contacts-selectable.test.ts:95-142 (no drift)"
+    },
+    {
+      "ac_id": "AC-SEC-1",
+      "verdict": "holds",
+      "evidence": "pairingAck.ts:471-519 Steps 10-11 gated only on opts?.ndk and !senderIsBlocked, never on pending; pairingAck.test.ts:1473-1520"
+    },
+    {
+      "ac_id": "AC-MSG-1",
+      "verdict": "holds",
+      "evidence": "chatPersistence.ts appendMessage (:325) and callers (ChatStoreContext.tsx, handlers/chatHandler.ts) contain zero pending-state references; the only gate lives in directMessageNotifications.ts (bell path)"
+    },
+    {
+      "ac_id": "AC-MSG-2",
+      "verdict": "holds",
+      "evidence": "contacts.tsx:398-437 three-way branch; ContactChat not mounted while pending; onConfirmed bumps pendingConfirmationRevision to swap branch in-session. e2e dm-pairing-pending-confirmation.spec.ts (asserted at Step 5.8 gate)"
+    },
+    {
+      "ac_id": "AC-OBS-1",
+      "verdict": "holds",
+      "evidence": "directMessageNotifications.ts:98,146 gate incrementDirectMessage on !isPendingConfirmation after unconditional rememberContact; directMessageNotifications.test.ts:632-696, -property.test.ts:560-590. Post-epic commit e73c026 touched NotificationBell.tsx cosmetically only (headerIconChipStyle), no unread-count logic."
+    },
+    {
+      "ac_id": "AC-OBS-2",
+      "verdict": "holds",
+      "evidence": "Verified against AMENDED text (spec.md ## Amendments, both 2026-07-15 entries). unreadStore.ts:458-491 reconcileConfirmedContactDirectMessageCount uses raw side-effect-free idb-keyval get (post-amendment revert away from loadMessages, preserving the one-time thread self-heal); PendingConfirmationPrompt.tsx:56-57 confirm chain; ContactChat.tsx:861 markDirectMessagesRead on mount"
+    },
+    {
+      "ac_id": "AC-UX-1",
+      "verdict": "holds",
+      "evidence": "contacts.tsx:198-217 purple pending badge (contact-pending-badge-*) + confirm button (contact-pending-confirm-*); pendingConfirmation.i18n.test.ts:81-88 asserts pendingBadge distinct from blocked hiddenBadge"
+    },
+    {
+      "ac_id": "AC-UX-2",
+      "verdict": "holds",
+      "evidence": "contacts.tsx:398 isArchived branch precedes :426 isPendingConfirmation branch; blocked-wins comment at :407-411 cites spec Design Decision 9"
+    },
+    {
+      "ac_id": "AC-UX-3",
+      "verdict": "holds",
+      "evidence": "i18n.ts en+de entries for pendingBadge/pendingConfirmButton/pendingConfirmHeading/pendingConfirmBody; pendingConfirmation.i18n.test.ts asserts both locales non-empty, en!=de, name interpolation"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Alert, AlertDescription, AlertIcon, Box, Button, Text } from '@chakra-ui/react';
+import { Alert, AlertDescription, AlertIcon, Box, Button, HStack, Text } from '@chakra-ui/react';
 import ProfileSummary from '@/src/components/ProfileSummary';
+import BlockContactButton from '@/src/components/contacts/BlockContactButton';
 import { useCopy } from '@/src/context/LanguageContext';
 import { confirmContact } from '@/src/lib/contacts';
 import { reconcileConfirmedContactDirectMessageCount } from '@/src/lib/unreadStore';
@@ -109,14 +110,45 @@ export default function PendingConfirmationPrompt({
         </Box>
       </Alert>
       <Box mt={4}>
-        <Button
-          colorScheme="brand"
-          onClick={() => void handleConfirm()}
-          isLoading={isConfirming}
-          data-testid="pending-confirmation-confirm-btn"
-        >
-          {copy.contacts.pendingConfirmButton}
-        </Button>
+        <HStack spacing={3} align="center" flexWrap="wrap">
+          <Button
+            colorScheme="brand"
+            onClick={() => void handleConfirm()}
+            isLoading={isConfirming}
+            data-testid="pending-confirmation-confirm-btn"
+          >
+            {copy.contacts.pendingConfirmButton}
+          </Button>
+          {/*
+           * Gate-remediation (2026-07-15, finding E — user-approved). The
+           * prompt above asks a yes/no question ("Confirm this contact?")
+           * but previously offered only "yes". Per spec.md Non-Goals,
+           * declining a pending contact reuses the existing block/archive
+           * flow (there is no separate "reject" action) — so this is that
+           * flow's real entry point for this prompt, not a bolted-on extra.
+           * Reuses `BlockContactButton` exactly as the isArchived branch in
+           * `contacts.tsx#ContactDetailView` already does, with
+           * `isArchived={false}` (this contact is only pending, never yet
+           * archived, on this branch — the isArchived branch there is
+           * checked FIRST and would already have taken over otherwise, per
+           * DD-9). No local `onChanged` bump is needed: blocking calls
+           * `notifyBlockedPeersChanged`, which bumps `blockedPeersRevision`
+           * (`useMarmot`) that `ContactDetailView`'s own `contact` derivation
+           * already depends on — the very next render swaps this whole
+           * component out for the Blocked banner (DD-9's "blocked wins over
+           * pending"), with no action needed here.
+           */}
+          <Text fontSize="sm" color="textMuted">
+            {copy.contacts.pendingConfirmDeclineHint}
+          </Text>
+          <BlockContactButton
+            peerPubkeyHex={contact.pubkeyHex}
+            isArchived={false}
+            onChanged={() => { /* blockedPeersRevision bump already drives ContactDetailView's re-derive */ }}
+            testId="pending-confirmation-block-btn"
+            isDisabled={isConfirming}
+          />
+        </HStack>
       </Box>
     </Box>
   );

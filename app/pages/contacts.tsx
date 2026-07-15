@@ -100,8 +100,18 @@ function ContactListView() {
   // idb-keyval read. See that function's doc comment in unreadStore.ts.
   // Skipping the call here remains correct regardless, since this row has
   // no use for reconciliation in the first place.)
-  async function handleConfirmFromList(peerPubkeyHex: string) {
-    if (!pubkeyHex) return;
+  //
+  // Gate-remediation (2026-07-15, finding G): this handler is a plain
+  // synchronous function, not `async` — both `confirmContact` and
+  // `setContactsRevision` are synchronous, so there was never anything to
+  // await. A prior version was declared `async` with a dead
+  // `if (!pubkeyHex) return;` guard (a residue of an earlier call shape that
+  // once needed the signed-in user's own pubkey); that guard silently
+  // no-op'd the whole confirm action whenever identity state had not yet
+  // hydrated. Dropped both — the guard was never load-bearing since
+  // `peerPubkeyHex` (the confirm target) is unrelated to `pubkeyHex` (the
+  // local user).
+  function handleConfirmFromList(peerPubkeyHex: string) {
     confirmContact(peerPubkeyHex);
     setContactsRevision((r) => r + 1);
   }
@@ -187,15 +197,23 @@ function ContactListView() {
                         {copy.contacts.hiddenBadge}
                       </Badge>
                     ) : null}
-                    {/* Epic: pending-contact-confirmation, S2 (AC-UX-1). A distinct
-                        badge/action pair from the archived badge above — Design
-                        Decision 9 has blocked win over pending in the detail view,
-                        but the two badges are independent, non-mutually-exclusive
-                        indicators here in the list (a contact CAN be both, though
-                        that combination only ever happens if the user's own
-                        contact was blocked before this epic's admission gate
-                        existed). */}
-                    {contact.isPendingConfirmation ? (
+                    {/* Epic: pending-contact-confirmation, S2 (AC-UX-1).
+                        Gate-remediation (2026-07-15, finding B): gated on
+                        `!contact.isArchived` per spec.md Design Decision 9
+                        ("blocked always wins over pending") — a contact CAN
+                        be both pending and blocked at once, and DD-9 names
+                        that combination as the EXPECTED post-decline state:
+                        blocking is this epic's only decline mechanism (there
+                        is no separate "reject" action, spec.md Non-Goals),
+                        so a user who just blocked a pending contact to
+                        decline them would otherwise be shown a live
+                        "Confirm contact" button — an un-decline affordance
+                        DD-9's precedence forbids. The detail view below and
+                        the group-invite picker
+                        (`contacts.ts#selectableContactsForGroup`) already
+                        resolve blocked+pending to the blocked outcome; this
+                        list row must match both. */}
+                    {contact.isPendingConfirmation && !contact.isArchived ? (
                       <>
                         <Badge colorScheme="purple" flexShrink={0} data-testid={`contact-pending-badge-${contact.pubkeyHex}`}>
                           {copy.contacts.pendingBadge}
@@ -208,7 +226,7 @@ function ContactListView() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            void handleConfirmFromList(contact.pubkeyHex);
+                            handleConfirmFromList(contact.pubkeyHex);
                           }}
                         >
                           {copy.contacts.pendingConfirmButton}

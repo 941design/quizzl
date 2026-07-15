@@ -1,9 +1,9 @@
 {
   "epic_name": "pending-contact-confirmation",
-  "status": "in_progress",
-  "phase": "IMPLEMENTATION_COMPLETE_GATES_PENDING",
+  "status": "done",
+  "phase": "COMPLETE",
   "created_at": "2026-07-14T21:49:33Z",
-  "updated_at": "2026-07-15T13:17:00Z",
+  "updated_at": "2026-07-15T17:45:00Z",
   "pre_existing_dirty_files": [
     ".serena/project.yml",
     "CLAUDE.md",
@@ -27,6 +27,11 @@
       "phase": "SPEC_VALIDATED",
       "timestamp": "2026-07-14T21:49:33Z",
       "trigger": "validation_passed"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-15T17:45:00Z",
+      "trigger": "all_gates_passed"
     }
   ],
   "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
@@ -52,7 +57,7 @@
     {
       "ac_id": "AC-STRUCT-3",
       "status": "met",
-      "evidence": "contacts.ts:262 isPendingConfirmation single export; contacts.test.ts:442-453; directMessageNotifications.ts:32,98,146; contacts.tsx imports"
+      "evidence": "contacts.ts:262 single export site; no blockedPeers import/call; imported (never re-derived) by directMessageNotifications.ts:32 and unreadStore.ts. RECONCILE 2026-07-15 found the two source-scan regression tests guarding this AC were hard it.skip (mutation-run leftover) \u2014 fixed: contacts.test.ts now gates them on itSourceScan (skips only inside the .stryker-tmp sandbox); both verified running and passing."
     },
     {
       "ac_id": "AC-STRUCT-4",
@@ -107,7 +112,7 @@
     {
       "ac_id": "AC-OBS-1",
       "status": "met",
-      "evidence": "directMessageNotifications.ts:98,146; directMessageNotifications.test.ts:637-696, -property.test.ts:533-587"
+      "evidence": "Gated on BOTH writers that can raise a DM count: live path directMessageNotifications.ts:99,147 (directMessageNotifications.test.ts:632-696, -property.test.ts:560-590) and batch path unreadStore.ts initDirectMessageCounts (added 2026-07-15 pre-ship review gate; unreadStore.test.ts pending-exclusion pair). Mutation gate: the filter's 5 mutants all killed incl. negation-removal and whole-filter removal. Reviewer verified structurally by enumerating every writer."
     },
     {
       "ac_id": "AC-OBS-2",
@@ -136,6 +141,32 @@
       "gate_id": "mutation",
       "outcome": "interrupted",
       "detail": "4/6 modules audited and passed (contacts.ts, pairingAck.ts, unreadStore.ts, directMessageNotifications.ts \u2014 13 real gaps found across them, all closed with new tests). contacts.tsx and InviteMemberModal.tsx were still running when the run was stopped by user request (2026-07-15) before completing. i18n.ts was correctly excluded (pure translation data, no logic to mutate)."
+    },
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_pass",
+      "detail": "Resumed 2026-07-15 and completed the 2 modules the interrupted run left: InviteMemberModal.tsx passed (49/49 covered mutants killed across its 5 exported pure fns; 0 real gaps, 0 tests needed; NoCoverage remainder is JSX render body, covered by e2e per project no-jsdom convention). contacts.tsx skipped (skip_reason: no behavior-bearing exports \u2014 only export is the default React component; behavioral core confirmContact lives in contacts.ts, audited today at 0.969). Combined with the prior run's 4 passing modules, all 6 touched files are now audited. i18n.ts correctly excluded (pure translation data)."
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_remediated",
+      "detail": "Full gate (make test-e2e-all) run twice. Run 1 (epic as committed): 68/68 non-relay; relay 240 passed / 8 failed. Two failures were GENUINE epic regressions, proven by baseline worktree at 6ce9cfd where both pass: dm-pairing-multi-use (AC-PAIR-4) and dm-pairing-single-scan-mutual (AC-ADMIT-6) \u2014 both timed out on chat-input because the issuer now sees PendingConfirmationPrompt. Root cause: this epic deliberately supersedes contact-pairing-code's AC-ADMIT-6/AC-PAIR-4 (bearer-credential rationale; see spec.md Amendments 2026-07-15) and neither the spec nor validation noticed; the e2e gate had never run before the epic was committed. Both specs updated to drive the issuer's confirm step; assertions not weakened (reviewer confirmed diffs purely additive). Run 2 (final tree): 68/68 non-relay; relay 251 passed / 4 failed / 6 skipped, all 3 epic specs + both repaired specs green. Remaining 4 failures are NOT epic-attributable: dm-self-heal AC-29 fails identically at pre-epic baseline (pre-existing genuine failure), and groups-lazy-updates / groups-poll-after-leave / groups-profile-reactive are the known shared-relay contamination (the failing set shifts between runs \u2014 groups-contacts, groups-dm-reactions, groups-polls failed run 1 and passed run 2). Epic contributes zero e2e failures, down from 2."
+    },
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_remediated",
+      "detail": "Step 5.7 re-entry after the review-gate remediation changed production code. unreadStore.ts PASSED (score 0.81, 219 killed / 27 survived / 23 no-coverage; 3 real gaps found and closed with 3 property tests appended to unreadStore.test.ts \u2014 mutants #220/#221 L544, #231 L554, #117 L317 all now Killed; remaining 26 survivors individually sandbox-verified as equivalent or side-effect-only). SECURITY: the new !isPendingConfirmation filter in initDirectMessageCounts carries 5 mutants, ALL KILLED, including negation-removal and whole-filter removal \u2014 no mutant permits a leaked contact card to light the bell pre-confirmation. DirectMessageNotificationsWatcher.tsx PASSED (8 killed / 0 survived). PendingConfirmationPrompt.tsx PASSED (0 survived). BlockContactButton.tsx and contacts.tsx skipped (no behavior-bearing exports; repo has no jsdom by convention). Auditor flagged two Stryker/harness reliability issues: #36 while(true) reported Survived but actually hangs the suite (Stryker related-test filtering under-reported), and its own first harness run falsely reported 6/6 killed because the sandbox lacked pages/ \u2014 both corrected before the verdict."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_remediated",
+      "detail": "Converge-first: Opus (resumable, rehydrated from ownership-ledger) x3 passes to fixpoint, then Codex cross-vendor. Pass 1 over commit d267530: 10 findings, 0 critical; 8 fixed by a gate-remediation architect. Pass 2 over the remediation diff: 5 findings, verdict 'substantially clean'; 4 fixed, 1 deferred (reconcileFloor seed ordering \u2014 unreachable, mechanism recorded, trigger surface removed by the Block-button lockout fix). Pass 3: CONVERGED \u2014 3 sev-3 doc/test-hygiene findings, all fixed. Codex: 1 P1 raised and rejected as a false positive with evidence (the flagged file runs 14/14 green; reviewer confirmed the mechanism \u2014 vitest's mock Proxy throws on property ACCESS, and the watcher only touches initDirectMessageCounts inside a useEffect that never runs without jsdom); its real latent version (total-replace mock leaving initDirectMessageCounts undefined) was fixed via a partial importOriginal mock. Privacy invariant CLEAR (pairingAck Steps 10-11 profile-announce is a NIP-59 gift wrap addressed to the recipient; no kind-0, no unaddressed publish). i18n CLEAR (all new keys en+de, typed in Copy).",
+      "structural_findings": {
+        "surfaced": 18,
+        "acted": 15,
+        "disclosed_unacted": 3
+      }
     }
-  ]
+  ],
+  "completed_at": "2026-07-15T17:45:00Z"
 }

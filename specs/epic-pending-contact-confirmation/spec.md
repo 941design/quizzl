@@ -179,6 +179,11 @@ continues to be admitted immediately, exactly as today.
   unchanged) is what makes two-way messaging work at all; pending-
   confirmation only affects what the local user *sees and is notified of*
   after that admission.
+- **ADR-009** — Require issuer confirmation before admitting a scanned
+  contact. Codifies this epic's core decision (bearer-credential
+  rationale, the issuer/scanner asymmetry) as a cross-epic ADR, and
+  records the deliberate supersession of `epic-contact-pairing-code`'s
+  `AC-ADMIT-6`/`AC-PAIR-4` "immediately" clause.
 
 ## Technical Approach
 
@@ -373,3 +378,71 @@ See [`acceptance-criteria.md`](./acceptance-criteria.md).
   rationale). This is an implementation-mechanism correction only — AC-OBS-2's
   amended wording (bell/messages catch up on first open) is unaffected and
   still holds.
+
+- **2026-07-15 (pre-ship e2e gate)** — Recorded that this epic **deliberately
+  supersedes the `contact-pairing-code` epic's `AC-ADMIT-6` and `AC-PAIR-4`**.
+  Source: the pre-ship e2e gate (which had not run before the epic was
+  committed) surfaced two failing specs —
+  `app/tests/e2e/dm-pairing-single-scan-mutual.spec.ts` (AC-ADMIT-6, that
+  epic's self-described "anchor scenario") and
+  `app/tests/e2e/dm-pairing-multi-use.spec.ts` (AC-PAIR-4). Both were
+  confirmed genuine behavior changes, not flakes, by running them against the
+  pre-epic baseline (`6ce9cfd`), where both pass. Neither this spec nor spec
+  validation had noticed the collision.
+
+  **The conflict.** `AC-ADMIT-6` promised that after B scans A's card once,
+  *both* DM directions work immediately with no second scan. This epic makes
+  that false on A's side by design: A holds B as pending until A confirms.
+
+  **Product decision (rationale).** The supersession is intended, and the
+  reason is security, not convenience. **A contact card is a bearer
+  credential: anyone who obtains a leaked card can pair with the issuer.**
+  Under the old auto-admit behavior that pairing succeeds *silently and
+  permanently*, so a leak is undetectable at worst — the issuer never learns
+  it happened. Requiring the card issuer to confirm incoming contact requests
+  converts an invisible, irreversible pairing into a visible, declinable
+  prompt. That is the better pattern, and it is worth the cost of
+  `AC-ADMIT-6`'s immediate-both-directions promise.
+
+  **Why the asymmetry is principled.** Only the party who *provided* the card
+  confirms. The scanner is unaffected and still admits immediately, because
+  scanning is itself an intentional act that expresses consent; the issuer
+  performed no such act — someone simply presented their card. This is the
+  same reasoning as Design Decision 9 (an explicit decision supersedes an
+  undecided pending state), applied to admission rather than blocking.
+
+  **Scope of the supersession.** `AC-ADMIT-6`'s "no second scan" guarantee
+  still holds in full — no rescan is ever required, and a confirm tap is not
+  a scan. What is superseded is only the "both directions work *immediately*"
+  clause, which now reads "both directions work once the card issuer
+  confirms". The two e2e specs above were updated in this round to drive the
+  confirm step and assert the new behavior; their headers now cite this
+  amendment.
+
+- **2026-07-15 (curator, post-ship)** — Tightened `AC-OBS-1`. Source:
+  pre-ship review + mutation-testing gate (`epic-state.json` `gate_runs`)
+  found and closed a real gap in `unreadStore.ts#initDirectMessageCounts`
+  (the batch/startup recompute path) that could re-light a pending
+  contact's bell count on a full state rebuild, even though the live
+  increment path (`directMessageNotifications.ts`) already excluded it. The
+  original AC-OBS-1 text ("at the time it is received") described only the
+  live half of this guarantee. `initDirectMessageCounts` now carries the
+  same exclusion, with all 5 mutants of the exclusion filter killed
+  (`app/tests/unit/unreadStore.test.ts`, describe block "`initDirectMessageCounts`
+  — pending contacts never light the bell (AC-OBS-1, gate-remediation finding
+  C)"). AC-OBS-1 now names both writers explicitly so a future contributor
+  reading the AC alone knows the guarantee is structural, not
+  luck-of-the-live-path.
+
+- **2026-07-15 (curator, post-ship)** — Tightened `AC-UX-1`. Source:
+  gate-remediation (`app/pages/contacts.tsx:200-215`, comment "finding B")
+  found the contacts-list row's pending badge/confirm button was not
+  originally gated on Design Decision 9's blocked-wins-over-pending
+  precedence, which AC-UX-2 (detail view) and AC-GROUP-1 (group picker)
+  already required. Fixed by gating the list row on
+  `contact.isPendingConfirmation && !contact.isArchived`, guarded by a
+  source-scan unit test
+  (`app/tests/unit/contacts.test.ts`, "the pending-badge/confirm-button
+  block is gated on `contact.isPendingConfirmation && !contact.isArchived`").
+  AC-UX-1 now states the precedence explicitly as the third site it must
+  hold at, alongside AC-UX-2 and AC-GROUP-1.

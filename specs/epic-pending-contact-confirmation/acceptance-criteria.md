@@ -113,9 +113,17 @@ the thread without requiring a page reload.
 
 ## Notification bell (S2)
 
-**AC-OBS-1** — A direct message received from a pending contact MUST NOT
-increment that contact's unread count in the notification-bell store
-(`app/src/lib/unreadStore.ts`) at the time it is received.
+**AC-OBS-1** — *(Tightened 2026-07-15 — see spec.md `## Amendments`.)* A
+direct message received from a pending contact MUST NOT increment that
+contact's unread count in the notification-bell store
+(`app/src/lib/unreadStore.ts`), at every writer capable of raising that
+count: both the live per-event increment path (`directMessageNotifications.ts`
+`kind4Handler`/`kind1059Handler`) at the time the message is received, and
+the batch/startup reconciliation path (`unreadStore.ts#initDirectMessageCounts`)
+when it recomputes counts from persisted history. A pending contact's
+messages MUST be excluded from the count at both writers, not just the live
+one — the guarantee is structural (verified by killing all mutants of the
+exclusion filter), not merely a property of the common case.
 
 **AC-OBS-2** — *(Amended 2026-07-15 — see spec.md `## Amendments`.)*
 Confirming a pending contact (`confirmContact`) MUST NOT lose or hide any
@@ -132,10 +140,16 @@ session is sufficient.
 
 ## Contacts UI (S2)
 
-**AC-UX-1** — The contacts list MUST render a pending contact with a
-visibly distinct indicator (e.g. a badge), separate from the existing
-archived/blocked indicator, and MUST offer an explicit confirm action for
-it.
+**AC-UX-1** — *(Tightened 2026-07-15 — see spec.md `## Amendments`.)* The
+contacts list MUST render a pending contact with a visibly distinct
+indicator (e.g. a badge), separate from the existing archived/blocked
+indicator, and MUST offer an explicit confirm action for it — UNLESS the
+contact is also blocked (`archivedAt != null`), in which case the list row
+MUST show only the existing archived/blocked indicator and MUST NOT show
+the pending badge or confirm action (spec.md Design Decision 9: blocked
+always wins over pending). This is the same precedence AC-UX-2 already
+requires of the detail view and AC-GROUP-1 requires of the group-invite
+picker; the contacts-list row is the third site it must hold at.
 
 **AC-UX-2** — Opening a pending contact's detail view MUST present a
 confirmation prompt in place of the normal message thread, UNLESS the

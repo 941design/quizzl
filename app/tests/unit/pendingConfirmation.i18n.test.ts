@@ -37,6 +37,10 @@ const REQUIRED_KEYS: RequiredKey[] = [
   { section: 'contacts', key: 'pendingConfirmHeading', kind: 'string' },
   { section: 'contacts', key: 'pendingConfirmBody', kind: 'fn', sampleArg: 'Alice' },
   { section: 'contacts', key: 'pendingConfirmButton', kind: 'string' },
+  // Gate-remediation (2026-07-15, finding E — user-approved): the decline
+  // hint framing the Block button PendingConfirmationPrompt.tsx now renders
+  // alongside Confirm.
+  { section: 'contacts', key: 'pendingConfirmDeclineHint', kind: 'string' },
 ];
 
 function resolve(copy: ReturnType<typeof getCopy>, entry: RequiredKey): string {
@@ -103,5 +107,12 @@ describe('epic pending-contact-confirmation, story S2 — i18n completeness (AC-
     expect(de.pendingBadge).toBe('Ausstehend');
     expect(de.pendingConfirmHeading).toBe('Diesen Kontakt bestätigen?');
     expect(de.pendingConfirmButton).toBe('Kontakt bestätigen');
+  });
+
+  it('spot-checks the exact gate-remediation decline-hint copy (finding E)', () => {
+    const en = getCopy('en').contacts;
+    const de = getCopy('de').contacts;
+    expect(en.pendingConfirmDeclineHint).toBe("Don't recognize them? You can block them instead.");
+    expect(de.pendingConfirmDeclineHint).toBe('Kennst du die Person nicht? Du kannst sie stattdessen blockieren.');
   });
 });

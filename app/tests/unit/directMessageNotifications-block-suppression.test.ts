@@ -106,15 +106,26 @@ vi.mock('@/src/lib/directMessages', async () => {
   };
 });
 
-vi.mock('@/src/lib/unreadStore', () => ({
-  getDirectMessageLastReadAt: vi.fn(() => 0),
-  incrementDirectMessage: vi.fn(),
-}));
+// Partial mock (spread the real module) rather than a total replace: this file
+// also imports DirectMessageNotificationsWatcher, which imports
+// `initDirectMessageCounts` from here. A total mock leaves that export
+// undefined and only survives because nothing touches it — it would start
+// throwing the moment the watcher referenced it at module scope. Mirrors the
+// directMessages mock above.
+vi.mock('@/src/lib/unreadStore', async () => {
+  const mod = await vi.importActual<typeof import('@/src/lib/unreadStore')>('@/src/lib/unreadStore');
+  return {
+    ...mod,
+    getDirectMessageLastReadAt: vi.fn(() => 0),
+    incrementDirectMessage: vi.fn(),
+  };
+});
 
 const { unwrapAndOpen } = await import('@/src/lib/directMessages');
 const { incrementDirectMessage } = await import('@/src/lib/unreadStore');
 const { subscribeDirectMessageNotifications } = await import('@/src/lib/directMessageNotifications');
-const { rememberContact, readStoredContacts, archiveContact, unarchiveContact } = await import('@/src/lib/contacts');
+const { rememberContact, readStoredContacts, archiveContact, unarchiveContact, rememberPendingContact, confirmContact } = await import('@/src/lib/contacts');
+const { buildInitDirectMessagePeerList } = await import('@/src/components/DirectMessageNotificationsWatcher');
 const { isAllowedDmSenderComposite, loadBlockedPeers } = await import('@/src/lib/blockedPeers');
 const { rememberKnownPeers } = await import('@/src/lib/knownPeers');
 
@@ -336,5 +347,31 @@ describe('DirectMessageNotificationsWatcher.tsx — block-set ref wiring (source
     // The subscription effect's own closing dependency array line.
     expect(WATCHER_SOURCE).toMatch(/\},\s*\[hydrated,\s*pubkeyHex,\s*privateKeyHex\]\);/);
     expect(WATCHER_SOURCE).not.toMatch(/\[hydrated,\s*pubkeyHex,\s*privateKeyHex,\s*blockedPeersRevision\]/);
+  });
+});
+
+// ── buildInitDirectMessagePeerList — startup batch-scan peer list. The
+// pending-contact exclusion deliberately does NOT live here: it lives inside
+// `initDirectMessageCounts`, the entrypoint that owns the `directMessages`
+// slice, so the bell cannot light for an unconfirmed pairing no matter what a
+// caller passes in (see unreadStore.test.ts for that coverage).
+
+describe('buildInitDirectMessagePeerList', () => {
+  const OWN = 'e1'.repeat(32);
+  const CONFIRMED_PEER = 'e2'.repeat(32);
+  const PENDING_PEER = 'e3'.repeat(32);
+
+  beforeEach(() => {
+    localStorageMock.clear();
+  });
+
+  it('excludes the local user\'s own pubkey', () => {
+    rememberContact(OWN, '2026-06-01T00:00:00.000Z');
+    rememberContact(CONFIRMED_PEER, '2026-06-01T00:00:00.000Z');
+
+    const peers = buildInitDirectMessagePeerList(readStoredContacts(), OWN);
+
+    expect(peers).not.toContain(OWN);
+    expect(peers).toContain(CONFIRMED_PEER);
   });
 });

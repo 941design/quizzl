@@ -46,7 +46,22 @@ folded into `isAllowedDmSender`).
   `archivedAt` is already preserved.
 - **`contacts.ts` → `directMessageNotifications.ts`**: the shared pending
   predicate is imported and checked before both `incrementDirectMessage`
-  calls (`directMessageNotifications.ts:94`, `:138`).
+  calls (`directMessageNotifications.ts:94`, `:138`). This is the
+  *live-increment* half of the bell gate.
+- **`contacts.ts` → `unreadStore.ts`** *(added 2026-07-15, pre-ship review
+  gate)*: the same pending predicate is imported and applied inside
+  `initDirectMessageCounts`, which drops pending peers from the startup
+  batch scan. This is the *batch-recompute* half of the bell gate, and it
+  completes the pair — the live path and the recompute path are the only two
+  writers that can *raise* a count (`markDirectMessagesRead`,
+  `clearDirectMessageContact` and the stranger-purge sweep only ever delete;
+  `reconcileConfirmedContactDirectMessageCount`'s floor only ever restores a
+  peer's own pre-call value), so with both gated a pending contact cannot
+  light the bell by any route. The filter lives inside the
+  entrypoint that owns the slice, deliberately NOT at its caller
+  (`DirectMessageNotificationsWatcher.tsx`): a call-site filter would hold
+  only while exactly one caller exists, and would silently lapse the moment a
+  second one appeared. Callers must not re-derive the predicate themselves.
 - **`contacts.ts` → `contacts.tsx`**: `ContactListItem.isPendingConfirmation`
   (new derived field, mirrors `isArchived`) drives both the contacts-list
   badge and `ContactDetailView`'s three-way branch; `confirmContact` is

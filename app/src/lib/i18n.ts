@@ -322,6 +322,17 @@ type Copy = {
     pendingConfirmBody: (name: string) => string;
     /** Confirm action label, reused by both the contacts-list row and the detail-view prompt. */
     pendingConfirmButton: string;
+    /**
+     * Gate-remediation (2026-07-15, finding E — user-approved). The detail-
+     * view pending-confirmation prompt asks a yes/no question ("Confirm this
+     * contact?") but previously offered only the "yes" affordance; declining
+     * reuses the existing block/archive flow (spec.md Non-Goals — there is
+     * no separate "reject" action), so `PendingConfirmationPrompt` now also
+     * renders the existing `BlockContactButton` alongside Confirm. This hint
+     * line frames the block button as the prompt's genuine second choice
+     * rather than an unrelated stray control.
+     */
+    pendingConfirmDeclineHint: string;
   };
   /**
    * `/add#c=…` static deep-link/onboarding page (epic: contact-card-exchange,
@@ -889,6 +900,7 @@ const copy: Record<LanguageCode, Copy> = {
       pendingConfirmHeading: 'Confirm this contact?',
       pendingConfirmBody: (name: string) => `${name} scanned your contact card. Their messages are held until you confirm you recognize them.`,
       pendingConfirmButton: 'Confirm contact',
+      pendingConfirmDeclineHint: "Don't recognize them? You can block them instead.",
     },
     add: {
       pageTitle: 'Add Contact',
@@ -1420,6 +1432,7 @@ const copy: Record<LanguageCode, Copy> = {
       pendingConfirmHeading: 'Diesen Kontakt bestätigen?',
       pendingConfirmBody: (name: string) => `${name} hat deine Kontaktkarte gescannt. Ihre Nachrichten werden zurückgehalten, bis du bestätigst, dass du sie kennst.`,
       pendingConfirmButton: 'Kontakt bestätigen',
+      pendingConfirmDeclineHint: 'Kennst du die Person nicht? Du kannst sie stattdessen blockieren.',
     },
     add: {
       pageTitle: 'Kontakt hinzufügen',
