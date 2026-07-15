@@ -22,6 +22,7 @@ import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useCopy } from '@/src/context/LanguageContext';
 import ThemeIcon from '@/src/components/ThemeIcon';
+import { headerIconChipStyle } from '@/src/components/headerIconChip';
 import { listContacts } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import { isMaintainerPubkey, MAINTAINER_DISPLAY_NAME } from '@/src/config/maintainer';
@@ -82,16 +83,8 @@ export default function NotificationBell() {
           as="button"
           ref={btnRef}
           onClick={onToggle}
-          position="relative"
-          display="inline-flex"
-          alignItems="center"
-          justifyContent="center"
-          w={10}
-          h={10}
-          borderRadius="md"
+          {...headerIconChipStyle}
           color="textMuted"
-          _hover={{ bg: 'surfaceMutedBg' }}
-          _focusVisible={{ boxShadow: 'outline' }}
           aria-label={copy.layout.notificationsLabel}
           data-testid="notification-bell"
         >

@@ -24,6 +24,7 @@ import { useDynamicBanner, shouldRenderScrim, resolveScrimColor } from '@/src/ho
 import { useAppTheme } from '@/src/hooks/useMoodTheme';
 import ThemeIcon from '@/src/components/ThemeIcon';
 import NotificationBell from '@/src/components/NotificationBell';
+import { headerIconChipStyle } from '@/src/components/headerIconChip';
 import DirectMessageNotificationsWatcher from '@/src/components/DirectMessageNotificationsWatcher';
 import PendingPairingIntentWatcher from '@/src/components/PendingPairingIntentWatcher';
 import ProfileHealWatcher from '@/src/components/ProfileHealWatcher';
@@ -185,8 +186,8 @@ export default function Layout({ children }: LayoutProps) {
             </NextLink>
 
             {/* Desktop nav */}
-            <HStack spacing={6} display={{ base: 'none', md: 'flex' }}>
-              <HStack as="ul" spacing={{ base: 2, md: 6 }} listStyleType="none">
+            <HStack spacing={2} display={{ base: 'none', md: 'flex' }}>
+              <HStack as="ul" spacing={2} listStyleType="none">
                 {navItems.map((item) => {
                   const isActive = router.pathname === item.href;
                   const isGroups = item.href === '/groups';
@@ -196,19 +197,17 @@ export default function Layout({ children }: LayoutProps) {
                       <NextLink href={item.href} passHref legacyBehavior>
                         <Link
                           aria-label={item.label}
-                          fontWeight={isActive ? 'semibold' : 'normal'}
+                          {...headerIconChipStyle}
                           color={isActive ? 'brand.500' : 'textMuted'}
-                          _hover={{ color: 'brand.500', textDecoration: 'none' }}
                           aria-current={isActive ? 'page' : undefined}
-                          position="relative"
-                          display="inline-flex"
-                          alignItems="center"
-                          gap={1}
                         >
                           <ThemeIcon name={item.icon} size={20} aria-hidden />
                           {showBadge && (
                             <Box
                               as="span"
+                              position="absolute"
+                              top="1"
+                              right="1"
                               display="inline-flex"
                               alignItems="center"
                               justifyContent="center"
@@ -235,16 +234,8 @@ export default function Layout({ children }: LayoutProps) {
               <NextLink href="/info" passHref legacyBehavior>
                 <Link
                   aria-label={copy.layout.nav.info}
-                  display="inline-flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  w={10}
-                  h={10}
-                  borderRadius="md"
-                  position="relative"
+                  {...headerIconChipStyle}
                   color={router.pathname === '/info' ? 'brand.500' : 'textMuted'}
-                  _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
-                  _focusVisible={{ boxShadow: 'outline' }}
                   data-testid="header-info-link"
                 >
                   <ThemeIcon name="info" size={20} aria-hidden />
@@ -253,16 +244,8 @@ export default function Layout({ children }: LayoutProps) {
               <NextLink href="/settings" passHref legacyBehavior>
                 <Link
                   aria-label={copy.layout.nav.settings}
-                  display="inline-flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  w={10}
-                  h={10}
-                  borderRadius="md"
-                  position="relative"
+                  {...headerIconChipStyle}
                   color={router.pathname === '/settings' ? 'brand.500' : 'textMuted'}
-                  _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
-                  _focusVisible={{ boxShadow: 'outline' }}
                   data-testid="header-settings-link"
                 >
                   <ThemeIcon name="settings" size={20} aria-hidden />
@@ -310,16 +293,8 @@ export default function Layout({ children }: LayoutProps) {
               <NextLink href="/info" passHref legacyBehavior>
                 <Link
                   aria-label={copy.layout.nav.info}
-                  display="inline-flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  w={10}
-                  h={10}
-                  borderRadius="md"
-                  position="relative"
+                  {...headerIconChipStyle}
                   color={router.pathname === '/info' ? 'brand.500' : 'textMuted'}
-                  _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
-                  _focusVisible={{ boxShadow: 'outline' }}
                   data-testid="mobile-header-info-link"
                 >
                   <ThemeIcon name="info" size={20} aria-hidden />
@@ -328,16 +303,8 @@ export default function Layout({ children }: LayoutProps) {
               <NextLink href="/settings" passHref legacyBehavior>
                 <Link
                   aria-label={copy.layout.nav.settings}
-                  display="inline-flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  w={10}
-                  h={10}
-                  borderRadius="md"
-                  position="relative"
+                  {...headerIconChipStyle}
                   color={router.pathname === '/settings' ? 'brand.500' : 'textMuted'}
-                  _hover={{ bg: 'surfaceMutedBg', textDecoration: 'none' }}
-                  _focusVisible={{ boxShadow: 'outline' }}
                   data-testid="mobile-header-settings-link"
                 >
                   <ThemeIcon name="settings" size={20} aria-hidden />
@@ -358,7 +325,9 @@ export default function Layout({ children }: LayoutProps) {
               </NextLink>
               <IconButton
                 onClick={onToggle}
-                variant="ghost"
+                variant="unstyled"
+                {...headerIconChipStyle}
+                color="textMuted"
                 aria-label={copy.layout.mobileMenuLabel}
                 data-testid="mobile-menu-btn"
                 icon={
