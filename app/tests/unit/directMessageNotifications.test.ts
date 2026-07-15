@@ -98,8 +98,12 @@ vi.mock('@/src/lib/unreadStore', () => ({
   incrementDirectMessage: vi.fn(),
 }));
 
+// isPendingConfirmation defaults to false so every pre-existing test in this
+// file (authored before the pending-contact-confirmation epic) keeps ringing
+// the bell exactly as before; individual AC-OBS-1 tests below override it.
 vi.mock('@/src/lib/contacts', () => ({
   rememberContact: vi.fn(),
+  isPendingConfirmation: vi.fn(() => false),
 }));
 
 vi.mock('@/src/lib/logger', () => {
@@ -112,7 +116,7 @@ vi.mock('@/src/lib/logger', () => {
 
 const { unwrapAndOpen } = await import('@/src/lib/directMessages');
 const { incrementDirectMessage } = await import('@/src/lib/unreadStore');
-const { rememberContact } = await import('@/src/lib/contacts');
+const { rememberContact, isPendingConfirmation } = await import('@/src/lib/contacts');
 
 // ── Import SUT after mocks ─────────────────────────────────────────────────────
 
@@ -138,6 +142,8 @@ describe('subscribeDirectMessageNotifications', () => {
     vi.mocked(unwrapAndOpen).mockReset();
     vi.mocked(incrementDirectMessage).mockReset();
     vi.mocked(rememberContact).mockReset();
+    vi.mocked(isPendingConfirmation).mockReset();
+    vi.mocked(isPendingConfirmation).mockReturnValue(false);
     if (capturedLoggerInfo) capturedLoggerInfo.mockClear();
   });
 
@@ -621,5 +627,71 @@ describe('subscribeDirectMessageNotifications', () => {
     await emitEvent(kind1059Sub, { id: 'wrap-self', kind: 1059, pubkey: 'ephemeral' });
 
     expect(incrementDirectMessage).not.toHaveBeenCalled();
+  });
+
+  // ── AC-OBS-1 (epic: pending-contact-confirmation, story S2) ────────────────
+  // A message from a pending contact must not bump the bell; rememberContact
+  // still fires unconditionally (spec.md §"Technical Approach" —
+  // directMessageNotifications.ts).
+
+  it('AC-OBS-1 (kind-4): a message from a pending contact calls rememberContact but not incrementDirectMessage', async () => {
+    vi.mocked(isPendingConfirmation).mockImplementation((peer: string) => peer === PEER_PUB.toLowerCase());
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowPeerOnly });
+
+    const kind4Sub = ndk.subs.find((s) => JSON.stringify(s.filter).includes('"kinds":[4]'))!;
+    await emitEvent(kind4Sub, { id: 'pending-e1', pubkey: PEER_PUB, created_at: 1_700_000_000 });
+
+    expect(rememberContact).toHaveBeenCalledTimes(1);
+    expect(rememberContact).toHaveBeenCalledWith(PEER_PUB);
+    expect(incrementDirectMessage).not.toHaveBeenCalled();
+  });
+
+  it('AC-OBS-1 (kind-1059): a rumor from a pending contact calls rememberContact but not incrementDirectMessage', async () => {
+    vi.mocked(isPendingConfirmation).mockImplementation((peer: string) => peer === PEER_PUB.toLowerCase());
+    vi.mocked(unwrapAndOpen).mockResolvedValue({
+      id: 'pending-rumor-id',
+      pubkey: PEER_PUB,
+      kind: 14,
+      content: 'held while pending',
+      tags: [['p', OWN_PUB]],
+      created_at: 1_700_000_000,
+    });
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowPeerOnly });
+
+    const kind1059Sub = ndk.subs.find((s) => JSON.stringify(s.filter).includes('"kinds":[1059]'))!;
+    await emitEvent(kind1059Sub, { id: 'pending-wrap', kind: 1059, pubkey: 'ephemeral' });
+
+    expect(rememberContact).toHaveBeenCalledTimes(1);
+    expect(rememberContact).toHaveBeenCalledWith(PEER_PUB);
+    expect(incrementDirectMessage).not.toHaveBeenCalled();
+  });
+
+  it('AC-OBS-1: once a contact is no longer pending, the same peer rings the bell normally (kind-4)', async () => {
+    vi.mocked(isPendingConfirmation).mockReturnValue(false);
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowPeerOnly });
+
+    const kind4Sub = ndk.subs.find((s) => JSON.stringify(s.filter).includes('"kinds":[4]'))!;
+    await emitEvent(kind4Sub, { id: 'confirmed-e1', pubkey: PEER_PUB, created_at: 1_700_000_000 });
+
+    expect(incrementDirectMessage).toHaveBeenCalledTimes(1);
+    expect(incrementDirectMessage).toHaveBeenCalledWith(PEER_PUB.toLowerCase());
+  });
+
+  it('AC-STRUCT-3: isPendingConfirmation is called with the lowercased peer, not a hand-derived value', async () => {
+    vi.mocked(isPendingConfirmation).mockReturnValue(false);
+
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as unknown as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowPeerOnly });
+
+    const kind4Sub = ndk.subs.find((s) => JSON.stringify(s.filter).includes('"kinds":[4]'))!;
+    await emitEvent(kind4Sub, { id: 'gate-check', pubkey: PEER_PUB.toUpperCase(), created_at: 1_700_000_000 });
+
+    expect(isPendingConfirmation).toHaveBeenCalledWith(PEER_PUB.toLowerCase());
   });
 });

@@ -62,7 +62,8 @@
  *     the announce here needs no new import surface beyond `send.ts` and a
  *     read of the current local profile.
  *   - **Issuer side** (`handlePairingAck`): fires right after admission
- *     (`rememberKnownPeers`/`rememberContact`). This function's signature
+ *     (`rememberKnownPeers`/`rememberPendingContact`, epic:
+ *     pending-contact-confirmation). This function's signature
  *     deliberately carries no `ndk` (architecture.md: receive-path modules
  *     never hold a singleton NDK reference) — the optional `opts.ndk` lets a
  *     caller that already has a live NDK instance in scope (e.g.
@@ -88,7 +89,7 @@
  * primitive here is safe and correct — NOT the stranger-injection concern the
  * announce receive path (S04) guards against — because nonce possession
  * already legitimately admitted this contact one step earlier in this same
- * function (`rememberKnownPeers`/`rememberContact` above).
+ * function (`rememberKnownPeers`/`rememberPendingContact` above).
  */
 
 import type NDK from '@nostr-dev-kit/ndk';
@@ -101,7 +102,14 @@ import { sealAndWrap, unwrapAndOpen } from '@/src/lib/directMessages';
 import type { UnsignedRumor } from '@/src/lib/directMessages';
 import { isNonceAdmissible, pruneExpiredNonces } from '@/src/lib/pairing/nonceStore';
 import { rememberKnownPeers } from '@/src/lib/knownPeers';
-import { rememberContact } from '@/src/lib/contacts';
+// Epic: pending-contact-confirmation, S1 — the issuer-side (passive)
+// admission at Step 9 below uses this pending-admission primitive INSTEAD
+// OF rememberContact, so a brand-new sender is admitted with
+// pendingConfirmationSince set rather than immediately confirmed. A
+// re-pairing sender's existing pendingConfirmationSince (and archivedAt) is
+// preserved exactly, mirroring the archivedAt-preservation precedent
+// immediately below this import.
+import { rememberPendingContact } from '@/src/lib/contacts';
 import { hexToBytes, derivePublicKeyHex } from '@/src/lib/nostrKeys';
 // §10.1 fix seam (epic: direct-contact-profile-exchange, story 07; AC-CARD-1)
 // — reuses story 04's already-landed neutralized cache-write primitive
@@ -309,7 +317,7 @@ export type HandlePairingAckResult =
   | { status: 'sender-mismatch' }
   /** AC-ACK-3: this sender was already admitted via a prior pairing-ack this session — idempotent no-op. */
   | { status: 'already-admitted'; senderPubkeyHex: string }
-  /** Successful admission: `rememberKnownPeers` then `rememberContact` were called for `senderPubkeyHex` (ADR-005 ordering, AC-ADMIT-1). */
+  /** Successful admission: `rememberKnownPeers` then `rememberPendingContact` were called for `senderPubkeyHex` (ADR-005 ordering, AC-ADMIT-1; epic: pending-contact-confirmation). */
   | { status: 'admitted'; senderPubkeyHex: string };
 
 /**
@@ -340,7 +348,8 @@ export type GiftWrapEventLike = {
  * pubkey equals the authenticated sender (AC-SEC-1). On admission: calls
  * `pruneExpiredNonces` (AC-NONCE-6's ack-processing-pass trigger), then
  * `rememberKnownPeers([senderPubkeyHex])` strictly before
- * `rememberContact(senderPubkeyHex)` (ADR-005, AC-ADMIT-1) — WITHOUT ever
+ * `rememberPendingContact(senderPubkeyHex)` (ADR-005, AC-ADMIT-1; epic:
+ * pending-contact-confirmation) — WITHOUT ever
  * calling `isAllowedDmSender` (AC-ADMIT-4). Never constructs or sends a
  * further ack (AC-ACK-2). Idempotent for a sender already admitted this
  * session (AC-ACK-3).
@@ -433,15 +442,21 @@ export async function handlePairingAck(
       return { status: 'already-admitted', senderPubkeyHex: senderHex };
     }
 
-    // Step 9: admit — rememberKnownPeers strictly BEFORE rememberContact
-    // (ADR-005, AC-ADMIT-1). isAllowedDmSender is never called here (AC-ADMIT-4).
+    // Step 9: admit — rememberKnownPeers strictly BEFORE the pending-
+    // admission primitive (ADR-005, AC-ADMIT-1). isAllowedDmSender is never
+    // called here (AC-ADMIT-4). Epic: pending-contact-confirmation — this is
+    // the issuer (passive) side of the handshake, so a brand-new sender is
+    // admitted with pendingConfirmationSince set (AC-ADMIT-1); a re-pairing
+    // sender's existing pendingConfirmationSince is left exactly as it was
+    // (AC-ADMIT-2), mirroring the archivedAt-preservation comment below.
     rememberKnownPeers([senderHex]);
-    rememberContact(senderHex);
+    rememberPendingContact(senderHex);
     pairingAckAdmissions.set(senderHex, payload.nonce);
 
     // Privacy gate (gate-remediation finding 1, epic: block-contact DD-1):
     // Step 9 above deliberately PRESERVES a re-pairing sender's existing
-    // `archivedAt` (rememberContact never clears it) — a blocked peer who
+    // `archivedAt` (rememberPendingContact never clears it, exactly like
+    // rememberContact before it) — a blocked peer who
     // still possesses a live nonce is re-admitted as a known-but-blocked
     // contact, not un-blocked. Steps 10/11 below are OUTBOUND signals (a
     // gift-wrapped profile-announce, and a cache write derived from THIS
@@ -478,7 +493,7 @@ export async function handlePairingAck(
     // scanner's submitted name. `decoded.profile` was decoded and sender-
     // bound above (Steps 6-7) but, before this fix, was discarded here. The
     // contact was ALREADY legitimately admitted a few lines above
-    // (rememberKnownPeers/rememberContact, Step 9) — nonce possession is
+    // (rememberKnownPeers/rememberPendingContact, Step 9) — nonce possession is
     // itself the authorization decision for this flow (see this module's
     // header) — so reusing the NEUTRALIZED write (no further rememberContact
     // side effect) here is correct and avoids a redundant second injection
@@ -524,7 +539,7 @@ export async function handlePairingAck(
  * itself; this is only the exposed read surface.
  *
  * Resets on page reload (in-memory only, like `nonceStore.ts`'s
- * `activeNonce` pointer). This is safe: `rememberKnownPeers`/`rememberContact`
+ * `activeNonce` pointer). This is safe: `rememberKnownPeers`/`rememberPendingContact`
  * are independently idempotent across reloads via their own persisted
  * stores, so a reload can never produce a duplicate contact — at most a
  * repeat ack after a reload is re-counted once in the digest signal, which

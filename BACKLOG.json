@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-14T21:11:56Z",
+  "updated_at": "2026-07-14T21:49:54Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -181,6 +181,11 @@
       "path": "specs/epic-invite-contact-picker-redesign/",
       "status": "DONE",
       "next_action": "completed 2026-07-14"
+    },
+    {
+      "path": "specs/epic-pending-contact-confirmation/",
+      "status": "IN_PROGRESS",
+      "next_action": "created 2026-07-14"
     }
   ],
   "findings": [

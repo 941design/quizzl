@@ -92,6 +92,7 @@ vi.mock('@/src/lib/unreadStore', () => ({
 
 vi.mock('@/src/lib/contacts', () => ({
   rememberContact: vi.fn(),
+  isPendingConfirmation: vi.fn(() => false),
 }));
 
 vi.mock('@/src/lib/logger', () => {
@@ -104,13 +105,14 @@ vi.mock('@/src/lib/logger', () => {
 
 const { unwrapAndOpen } = await import('@/src/lib/directMessages');
 const { incrementDirectMessage, getDirectMessageLastReadAt } = await import('@/src/lib/unreadStore');
-const { rememberContact } = await import('@/src/lib/contacts');
+const { rememberContact, isPendingConfirmation } = await import('@/src/lib/contacts');
 const { subscribeDirectMessageNotifications } = await import('@/src/lib/directMessageNotifications');
 
 beforeEach(() => {
   vi.clearAllMocks();
   lastReadAt = 0;
   vi.mocked(getDirectMessageLastReadAt).mockImplementation(() => lastReadAt);
+  vi.mocked(isPendingConfirmation).mockReturnValue(false);
   if (capturedLoggerInfo) capturedLoggerInfo.mockClear();
 });
 
@@ -495,6 +497,49 @@ describe('kind-1059 handler — last-read boundary (createdMs <= lastReadAt)', (
   });
 });
 
+// ── kind-1059 handler — gift-wrap event fields threaded to unwrapAndOpen ─────
+//
+// Closes the ObjectLiteral survivor on line 118 that Stryker's default `{}`
+// replacement produces. That mutation strips id/kind/pubkey/content from the
+// object handed to `unwrapAndOpen`; in production, `unwrapAndOpen`'s first
+// gate is `giftWrap.kind !== GIFT_WRAP_KIND` (throws 'not a gift wrap'), so
+// the mutation silently drops EVERY inbound NIP-17 DM. A static
+// `mockResolvedValue` hides this because it returns the same rumor whatever
+// the argument. Using `mockImplementation` to mirror the real function's
+// kind check makes the plumbing observable at the mock boundary without
+// pinning down which specific event fields must be threaded.
+//
+// This is a differential-style property: the mock behaves like the real
+// contract (respects kind), and the test asserts the user-visible outcome
+// (bell rings for a well-formed 1059 wrap) rather than pointing at
+// individual event fields.
+
+describe('kind-1059 handler — well-formed gift wrap reaches unwrapAndOpen with its payload', () => {
+  it('a well-formed kind-1059 event rings the bell — unwrapAndOpen sees kind===1059 (differential mock)', async () => {
+    vi.mocked(unwrapAndOpen).mockImplementation(async (giftWrap) => {
+      if (giftWrap.kind !== 1059) throw new Error('not a gift wrap');
+      return {
+        id: 'rumor-thread-1',
+        pubkey: PEER_PUB,
+        kind: 14,
+        content: 'hi',
+        tags: [['p', OWN_PUB]],
+        created_at: 1_700_000_000,
+      };
+    });
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowPeerOnly });
+    await emitEvent(kind1059Sub(ndk), {
+      id: 'wrap-thread-1',
+      kind: 1059,
+      pubkey: 'ephemeral-pub-abc',
+      content: 'nip44-ciphertext-payload',
+      created_at: 1_700_000_000,
+    });
+    expect(incrementDirectMessage).toHaveBeenCalledOnce();
+  });
+});
+
 // ── logger string literal (line 141) ─────────────────────────────────────────
 
 describe('kind-1059 handler — unwrap failure logs a non-empty event tag', () => {
@@ -513,6 +558,75 @@ describe('kind-1059 handler — unwrap failure logs a non-empty event tag', () =
     expect(typeof firstArg).toBe('string');
     expect(firstArg.length).toBeGreaterThan(0);
     expect(firstArg).toBe('dm:unwrap-failed');
+  });
+});
+
+// ── pending-confirmation bell gate (epic: pending-contact-confirmation, S2) ──
+
+describe('kind-4 / kind-1059 handlers — pending-confirmation bell gate (AC-OBS-1)', () => {
+  /**
+   * Property: incrementDirectMessage fires iff isPendingConfirmation(peer) is
+   * false. rememberContact fires unconditionally either way. Both must hold
+   * independently of the other gates (isAllowedSender, dedup, boundary).
+   * Kills: ConditionalExpression negation flip (`!isPendingConfirmation` ->
+   * `isPendingConfirmation`), and the gate being removed/short-circuited
+   * entirely (BlockStatement repl='{}' on the guard).
+   */
+
+  it('kind-4: isPendingConfirmation=true suppresses incrementDirectMessage but not rememberContact', async () => {
+    vi.mocked(isPendingConfirmation).mockReturnValue(true);
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowPeerOnly });
+    await emitEvent(kind4Sub(ndk), { id: 'pg-1', pubkey: PEER_PUB, created_at: 1_700_000_000 });
+    expect(rememberContact).toHaveBeenCalledWith(PEER_PUB.toLowerCase());
+    expect(incrementDirectMessage).not.toHaveBeenCalled();
+  });
+
+  it('kind-4: isPendingConfirmation=false lets incrementDirectMessage fire (negation of the above)', async () => {
+    vi.mocked(isPendingConfirmation).mockReturnValue(false);
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowPeerOnly });
+    await emitEvent(kind4Sub(ndk), { id: 'pg-2', pubkey: PEER_PUB, created_at: 1_700_000_000 });
+    expect(incrementDirectMessage).toHaveBeenCalledOnce();
+  });
+
+  it('kind-1059: isPendingConfirmation=true suppresses incrementDirectMessage but not rememberContact', async () => {
+    vi.mocked(isPendingConfirmation).mockReturnValue(true);
+    vi.mocked(unwrapAndOpen).mockResolvedValue({
+      id: 'pg-rumor-1', pubkey: PEER_PUB, kind: 14, content: 'x', tags: [['p', OWN_PUB]], created_at: 1_700_000_000,
+    });
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowPeerOnly });
+    await emitEvent(kind1059Sub(ndk), { id: 'pg-wrap-1', kind: 1059, pubkey: 'eph' });
+    expect(rememberContact).toHaveBeenCalledWith(PEER_PUB.toLowerCase());
+    expect(incrementDirectMessage).not.toHaveBeenCalled();
+  });
+
+  it('kind-1059: isPendingConfirmation=false lets incrementDirectMessage fire (negation of the above)', async () => {
+    vi.mocked(isPendingConfirmation).mockReturnValue(false);
+    vi.mocked(unwrapAndOpen).mockResolvedValue({
+      id: 'pg-rumor-2', pubkey: PEER_PUB, kind: 14, content: 'x', tags: [['p', OWN_PUB]], created_at: 1_700_000_000,
+    });
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({ ndk: ndk as any, ownPubkeyHex: OWN_PUB, privateKeyHex: OWN_PRIV, isAllowedSender: allowPeerOnly });
+    await emitEvent(kind1059Sub(ndk), { id: 'pg-wrap-2', kind: 1059, pubkey: 'eph' });
+    expect(incrementDirectMessage).toHaveBeenCalledOnce();
+  });
+
+  it('pending gate is evaluated per-peer, not globally: peer A pending does not suppress peer B', async () => {
+    const PEER_B = 'c'.repeat(64);
+    vi.mocked(isPendingConfirmation).mockImplementation((peer: string) => peer === PEER_PUB.toLowerCase());
+    const ndk = makeFakeNdk();
+    subscribeDirectMessageNotifications({
+      ndk: ndk as any,
+      ownPubkeyHex: OWN_PUB,
+      privateKeyHex: OWN_PRIV,
+      isAllowedSender: (p) => p === PEER_PUB.toLowerCase() || p === PEER_B.toLowerCase(),
+    });
+    await emitEvent(kind4Sub(ndk), { id: 'pg-a', pubkey: PEER_PUB, created_at: 1_700_000_000 });
+    await emitEvent(kind4Sub(ndk), { id: 'pg-b', pubkey: PEER_B, created_at: 1_700_000_000 });
+    expect(incrementDirectMessage).toHaveBeenCalledTimes(1);
+    expect(incrementDirectMessage).toHaveBeenCalledWith(PEER_B.toLowerCase());
   });
 });
 

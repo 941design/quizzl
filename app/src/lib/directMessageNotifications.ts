@@ -29,7 +29,7 @@ import {
   getDirectMessageLastReadAt,
   incrementDirectMessage,
 } from '@/src/lib/unreadStore';
-import { rememberContact } from '@/src/lib/contacts';
+import { isPendingConfirmation, rememberContact } from '@/src/lib/contacts';
 
 const logger = createLogger('dm');
 
@@ -91,7 +91,13 @@ export function subscribeDirectMessageNotifications(params: {
     const createdMs = (event.created_at ?? 0) * 1000;
     if (createdMs <= getDirectMessageLastReadAt(peer)) return;
     rememberContact(peer);
-    incrementDirectMessage(peer);
+    // Epic: pending-contact-confirmation (AC-OBS-1). rememberContact still
+    // fires unconditionally above — only the bell bump is held back while
+    // the sender is a still-pending contact. Imports the single exported
+    // predicate (AC-STRUCT-3) rather than re-deriving pendingConfirmationSince.
+    if (!isPendingConfirmation(peer)) {
+      incrementDirectMessage(peer);
+    }
   };
 
   kind4Sub.on?.('event', kind4Handler);
@@ -135,7 +141,11 @@ export function subscribeDirectMessageNotifications(params: {
       seenRumorIds.add(rumor.id);
 
       rememberContact(peer);
-      incrementDirectMessage(peer);
+      // Epic: pending-contact-confirmation (AC-OBS-1) — see kind4Handler's
+      // matching comment above.
+      if (!isPendingConfirmation(peer)) {
+        incrementDirectMessage(peer);
+      }
     } catch {
       // Foreign key, not addressed to us, malformed — silently skip per D3.
       logger.info('dm:unwrap-failed', { eventId: (event as any).id ?? 'unknown', reason: 'unwrap-threw' });

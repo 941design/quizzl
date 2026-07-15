@@ -1,0 +1,60 @@
+{
+  "module_name": "contacts.tsx / ContactDetailView",
+  "purpose": "Consumes S1's pending-confirmation seam to hold back a pending contact's rendered thread and bell notifications until the user explicitly confirms, surfaces the pending state in the contacts list and detail view, wires the confirm action, reconciles the bell on confirm, and adds all new i18n copy.",
+  "public_api": [
+    {
+      "name": "PendingConfirmationPrompt",
+      "signature": "function PendingConfirmationPrompt(props: { contact: ContactListItem; ownPubkeyHex: string; displayName: string; onConfirmed: () => void }): JSX.Element",
+      "description": "New component (app/src/components/contacts/PendingConfirmationPrompt.tsx). Renders the pending contact's cached nickname/avatar (ProfileSummary) and a Confirm button. Rendered by ContactDetailView IN PLACE OF ContactChat while contact.isPendingConfirmation is true and the contact is not archived (blocked wins, spec.md Design Decision 9)."
+    },
+    {
+      "name": "confirmPendingContact",
+      "signature": "function confirmPendingContact(peerPubkeyHex: string, ownPubkeyHex: string): Promise<void>",
+      "description": "Exported alongside PendingConfirmationPrompt (same file — S2's scope has no new app/src/lib/*.ts file available for this orchestration). Calls S1's confirmContact(peerPubkeyHex) then unreadStore.ts's initDirectMessageCounts([peerPubkeyHex], ownPubkeyHex) to reconcile the bell (spec.md Design Decision 8). Used by both the contacts-list row's inline confirm button (ContactListView) and PendingConfirmationPrompt's own confirm button (ContactDetailView)."
+    },
+    {
+      "name": "isPendingConfirmation gate",
+      "signature": "directMessageNotifications.ts: kind4Handler/kind1059Handler call `if (!isPendingConfirmation(peer)) incrementDirectMessage(peer);` after the unconditional rememberContact(peer)",
+      "description": "AC-OBS-1. Imports S1's single exported predicate — no inline re-derivation (AC-STRUCT-3)."
+    },
+    {
+      "name": "initDirectMessageCounts (unreadStore.ts, signature unchanged)",
+      "signature": "async function initDirectMessageCounts(peerPubkeysHex: string[], ownPubkeyHex: string): Promise<void>",
+      "description": "Internal read path changed (Design Decision 8): now reads via directConversationId(peerHex) + chatPersistence.ts#loadMessages (both dynamically imported to avoid a circular import — chatPersistence.ts statically imports clearDirectMessageContact from this same module), rather than a hand-built `few:messages:dm:<peer>` idb-keyval key. Same external signature, same callers (DirectMessageNotificationsWatcher startup scan, and now also PendingConfirmationPrompt's confirmPendingContact)."
+    }
+  ],
+  "private_files": [
+    "app/src/components/contacts/PendingConfirmationPrompt.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/contacts.ts (S1's isPendingConfirmation, confirmContact, ContactListItem)",
+    "app/src/lib/unreadStore.ts",
+    "app/src/lib/marmot/chatPersistence.ts (loadMessages, dynamic import)",
+    "app/src/lib/directMessages.ts (directConversationId, dynamic import)",
+    "app/src/context/LanguageContext (useCopy)",
+    "app/src/components/ProfileSummary.tsx"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/blockedPeers.ts (the pending predicate is S1's, imported as-is; S2 does not fold it into or call isAllowedDmSenderComposite/isAllowedDmSender/isBlockedPeer)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/directMessageNotifications.test.ts",
+    "app/tests/unit/directMessageNotifications-property.test.ts",
+    "app/tests/unit/unreadStore.test.ts",
+    "app/tests/unit/pendingConfirmation.i18n.test.ts",
+    "app/tests/e2e/dm-pairing-pending-confirmation.spec.ts"
+  ],
+  "seam": {
+    "cross_story": false,
+    "note": "S2 is a pure consumer of S1's PendingConfirmationPredicate seam (contacts.ts). S2 creates no new seam consumed by a later story."
+  },
+  "implementation_notes": [
+    "The pendingConfirmationRevision reactive counter (architecture.md's open question) is a LOCAL useState in ContactDetailView, not MarmotContext-hosted like blockedPeersRevision — the only reactive consumer of pending state is this one component (the bell gate reads the predicate live, not via React state), and MarmotContext.tsx is outside this story's scope.includes.",
+    "ContactChat.tsx required NO functional change, confirmed by inspection: markDirectMessagesRead only fires from inside ContactChat's own mount effect, and ContactChat is never mounted while pending (matches the existing isArchived -> BlockedBanner precedent) — the render hold is entirely a mount decision in contacts.tsx, not an internal filter.",
+    "ARCHITECTURAL FINDING (empirically verified against a live strfry relay, see verification.json VQ-S2-POST-001): this repo's DM pipeline persists a peer's message CONTENT to local IDB only the first time that peer's ContactChat mounts (a historical relay fetch) — the always-on bell watcher never calls appendMessage. A pending contact's ContactChat, by definition, has never mounted, so confirming FROM THE CONTACTS LIST (without opening the thread) reconciles the bell against an empty local store and computes 0, not the true held count. Confirming FROM THE DETAIL VIEW works correctly end-to-end (ContactChat mounts right after, historical-fetches, persists, and renders the held messages) — verified by dm-pairing-pending-confirmation.spec.ts against a real relay. No message is ever lost either way. This is a pre-existing DM-architecture property (Design Decision 4 declares it untouched), not a defect introduced by this story's implementation, which follows spec.md Design Decision 8 exactly as written."
+  ]
+}

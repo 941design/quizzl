@@ -114,6 +114,7 @@ type Copy = {
     inviteContactLabel: string;
     inviteReasonAlreadyMember: string;
     inviteReasonBlocked: string;
+    inviteReasonPendingConfirmation: string;
     inviteGuidanceMessage: string;
     inviteGuidanceLink: string;
     inviteSubmit: string;
@@ -307,6 +308,20 @@ type Copy = {
      * admission. `count` is always >= 2 at the call site.
      */
     pairingAdmissionDigest: (count: number) => string;
+    /**
+     * Epic: pending-contact-confirmation, story S2 (AC-UX-1/2/3). A pending
+     * contact — one who scanned the local user's contact card but has not yet
+     * been explicitly confirmed — is visibly distinct from the existing
+     * `hiddenBadge` (blocked) indicator, per Design Decision 9's
+     * "blocked always wins over pending" precedence.
+     */
+    pendingBadge: string;
+    /** Confirmation-prompt heading shown in place of the chat thread while pending. */
+    pendingConfirmHeading: string;
+    /** Confirmation-prompt body, naming the pending contact. */
+    pendingConfirmBody: (name: string) => string;
+    /** Confirm action label, reused by both the contacts-list row and the detail-view prompt. */
+    pendingConfirmButton: string;
   };
   /**
    * `/add#c=…` static deep-link/onboarding page (epic: contact-card-exchange,
@@ -710,6 +725,7 @@ const copy: Record<LanguageCode, Copy> = {
       inviteContactLabel: 'Choose a contact',
       inviteReasonAlreadyMember: 'already in group',
       inviteReasonBlocked: 'blocked',
+      inviteReasonPendingConfirmation: 'not yet confirmed',
       inviteGuidanceMessage: 'No contacts available to invite. Add contacts by sharing your profile card from the Contacts page.',
       inviteGuidanceLink: 'Go to Contacts',
       inviteSubmit: 'Send Invite',
@@ -869,6 +885,10 @@ const copy: Record<LanguageCode, Copy> = {
       addContactErrorGeneric: "Couldn't add this contact. Please try again.",
       addContactErrorUnsupportedVersion: 'This contact card needs a newer version of the app. Please update and try again.',
       pairingAdmissionDigest: (count: number) => `${count} people paired with your code`,
+      pendingBadge: 'Pending',
+      pendingConfirmHeading: 'Confirm this contact?',
+      pendingConfirmBody: (name: string) => `${name} scanned your contact card. Their messages are held until you confirm you recognize them.`,
+      pendingConfirmButton: 'Confirm contact',
     },
     add: {
       pageTitle: 'Add Contact',
@@ -1237,6 +1257,7 @@ const copy: Record<LanguageCode, Copy> = {
       inviteContactLabel: 'Kontakt auswählen',
       inviteReasonAlreadyMember: 'bereits in der Gruppe',
       inviteReasonBlocked: 'blockiert',
+      inviteReasonPendingConfirmation: 'noch nicht bestätigt',
       inviteGuidanceMessage: 'Keine Kontakte zum Einladen verfügbar. Füge Kontakte hinzu, indem du deine Profilkarte über die Kontakte-Seite teilst.',
       inviteGuidanceLink: 'Zu den Kontakten',
       inviteSubmit: 'Einladung senden',
@@ -1395,6 +1416,10 @@ const copy: Record<LanguageCode, Copy> = {
       addContactErrorGeneric: 'Der Kontakt konnte nicht hinzugefügt werden. Bitte versuche es erneut.',
       addContactErrorUnsupportedVersion: 'Diese Kontaktkarte benötigt eine neuere Version der App. Bitte aktualisiere die App und versuche es erneut.',
       pairingAdmissionDigest: (count: number) => `${count} Personen haben sich über deinen Code verbunden`,
+      pendingBadge: 'Ausstehend',
+      pendingConfirmHeading: 'Diesen Kontakt bestätigen?',
+      pendingConfirmBody: (name: string) => `${name} hat deine Kontaktkarte gescannt. Ihre Nachrichten werden zurückgehalten, bis du bestätigst, dass du sie kennst.`,
+      pendingConfirmButton: 'Kontakt bestätigen',
     },
     add: {
       pageTitle: 'Kontakt hinzufügen',

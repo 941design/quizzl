@@ -1,0 +1,57 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-15T02:10:00Z",
+  "files_created": [
+    "app/src/components/contacts/PendingConfirmationPrompt.tsx",
+    "app/tests/e2e/dm-pairing-pending-confirmation.spec.ts",
+    "app/tests/unit/pendingConfirmation.i18n.test.ts",
+    "specs/epic-pending-contact-confirmation/02-message-hold-bell-and-confirmation-ui/baseline.json",
+    "specs/epic-pending-contact-confirmation/02-message-hold-bell-and-confirmation-ui/architecture.json",
+    "specs/epic-pending-contact-confirmation/02-message-hold-bell-and-confirmation-ui/result.json"
+  ],
+  "files_modified": [
+    "app/pages/contacts.tsx",
+    "app/src/components/groups/InviteMemberModal.tsx",
+    "app/src/lib/directMessageNotifications.ts",
+    "app/src/lib/i18n.ts",
+    "app/src/lib/unreadStore.ts",
+    "app/tests/unit/cards/inviteByCard.test.ts",
+    "app/tests/unit/directMessageNotifications.test.ts",
+    "app/tests/unit/directMessageNotifications-property.test.ts",
+    "app/tests/unit/unreadStore.test.ts",
+    "specs/epic-pending-contact-confirmation/02-message-hold-bell-and-confirmation-ui/verification.json",
+    "specs/epic-pending-contact-confirmation/spec.md",
+    "specs/epic-pending-contact-confirmation/acceptance-criteria.md"
+  ],
+  "tests_added": {
+    "unit": 22,
+    "e2e": 3
+  },
+  "test_counts": {
+    "baseline": 3189,
+    "final": 3217
+  },
+  "mocks": [],
+  "remediation_rounds": 5,
+  "modules_touched": [
+    "contacts.tsx / ContactDetailView",
+    "directMessageNotifications.ts",
+    "unreadStore.ts",
+    "i18n.ts"
+  ],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Design Decision 8 (spec.md) directs confirmPendingContact to reconcile the bell purely via unreadStore.ts's initDirectMessageCounts reading LOCAL persisted chat history (chatPersistence.ts#loadMessages) — with no relay fetch. Empirically verifying against a real strfry relay (docker compose e2e harness, available in this environment) revealed that this repo's DM architecture (unchanged by this epic, Design Decision 4) only ever persists a peer's message CONTENT to local IDB the first time that specific peer's ContactChat component mounts (a historical relay fetch) — the always-on bell watcher (directMessageNotifications.ts) updates counts and rememberContact but never calls appendMessage. A pending contact's ContactChat, by construction, has never mounted, so confirming from the CONTACTS LIST (without opening the thread) reconciles against an empty local store and the bell computes 0, not the true held-message count — an initial version of the e2e spec asserted exactly 2 after a list-only confirm and failed against the live relay for exactly this reason. No message is ever lost (confirmed via the same e2e run, and via unit tests directly exercising initDirectMessageCounts's canonical read path against seeded persisted messages) and the natural UX path (open the pending contact -> see the prompt -> confirm -> see messages) delivers the intended AC-OBS-2 outcome end to end (also e2e-verified against the live relay) — the gap is narrowly 'confirm from the list without ever opening the thread', where the bell under-counts until the thread is later opened, self-correcting immediately at that point. This is a genuine, empirically-verified architectural property of the pre-existing DM pipeline, not a defect in this story's own code (which follows Design Decision 8 exactly as written) — documented as a post-impl verification question (VQ-S2-POST-001) and in architecture.json's implementation_notes for the epic owner to weigh: is a relay-backed fetch on confirm (a materially bigger, likely separate-story change) worth it, or is 'undercounts only until first open' acceptable.",
+    "surprised_by": "The Docker-based strfry relay harness (make e2e-up) and a scoped node scripts/run-e2e.mjs <spec> invocation were both usable directly in this sandboxed environment, which let a genuine architectural hypothesis be tested empirically against a live relay rather than left as an untested guess in the delivered e2e spec — worth normalizing as the default move when a spec's behavioral claim depends on cross-module timing/ordering that isn't obvious from reading the source alone.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      "Lead resolution (2026-07-15): the VQ-S2-POST-001 tradeoff was brought to the user, who chose 'accept as-is'. AC-OBS-2 and spec.md Design Decision 8 were amended accordingly. A follow-up Stage-1/Codex review cycle then found a deeper, related bug the architect's retrospective did not anticipate: reconcileConfirmedContactDirectMessageCount's use of chatPersistence.ts#loadMessages had a self-heal side effect that could permanently consume a DM thread's one-time repair signal (refetchIds) regardless of which UI path triggered confirm, plus a narrow live-increment race during the async reconcile, plus a missing invite-modal reason label for the new disabledReason value. All three were fixed in gate-remediation rounds: reconcileConfirmedContactDirectMessageCount switched to a raw idb-keyval read (matching initDirectMessageCounts's own earlier fix), a peer-scoped floor mechanism was added so a live bell bump can never be clobbered by a slower recompute, list-confirm was changed to skip reconciliation entirely (calling confirmContact directly), and InviteMemberModal gained a 'pending_confirmation' reason label."
+    ],
+    "lead_clarifications": []
+  }
+}

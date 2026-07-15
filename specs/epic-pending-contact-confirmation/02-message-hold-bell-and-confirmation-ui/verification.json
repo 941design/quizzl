@@ -1,0 +1,99 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-15T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the three-way blocked/pending/normal branch in ContactDetailView a real conditional against live contact state (via ContactListItem.isPendingConfirmation and the existing archived/blocked flag) — not a hardcoded branch order or a condition that always resolves to one path — and does the confirm-prompt component's onConfirm handler genuinely call contacts.ts's confirmContact rather than a local stand-in that only toggles UI state without touching storage?"
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does S2 import the pending predicate from contacts.ts's single export site at every gating call site it owns (directMessageNotifications.ts's kind4Handler/kind1059Handler bell gates, the ContactChat.tsx import-site check, contacts.tsx's mount decision) rather than re-deriving `pendingConfirmationSince != null` inline anywhere? Show each call site's import statement and grep evidence no second inline check was added in S2's files."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could contacts.tsx / ContactDetailView be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do directMessageNotifications.test.ts, directMessageNotifications-property.test.ts, unreadStore.test.ts, and pendingConfirmation.i18n.test.ts each carry passing assertions for the bell-bump gate on pending (AC-OBS-1), the confirm-triggered reconciliation via initDirectMessageCounts (AC-OBS-2), and en/de translation completeness (AC-UX-3)? Show the actual assertions and confirm the property test exercises the pending gate across generated inputs, not a single fixed example."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the implementation match spec.md's Design Decision 8 (bell reconciliation reuses unreadStore.ts's existing initDirectMessageCounts with a one-element peer array, reading persisted history via directConversationId + chatPersistence.ts#loadMessages, rather than a hand-rolled recompute) and Design Decision 9 (blocked always wins over pending in the three-way branch)? Show the reconciliation call site and the branch-ordering code."
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the render gate correctly withhold a pending contact's message content from ContactChat (no message text, sender info, or count leaks into the DOM/bell before confirmation) while markDirectMessagesRead correctly does NOT fire for a still-pending contact (since ContactChat is not mounted while pending)? Show the mount-decision code and a test proving no ContactChat instance — and therefore no markDirectMessagesRead call — exists for a pending contact's detail view."
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MSG-1",
+      "question": "Is a direct message from a pending contact persisted via the existing appendMessage / chatPersistence.ts path exactly as for a confirmed contact, with persistence never gated on pendingConfirmationSince? Show the ingestion code path (confirming it is unchanged from before this epic) and a test asserting the message lands in storage for a pending sender, not merely that no error was thrown."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MSG-2",
+      "question": "Does a pending contact's received message stay absent from ContactChat's rendered thread while pending, and does every message persisted during the pending period (not only messages received after confirmation) render immediately upon confirmContact, with no page reload? Show the render-gate code, the post-confirm re-render trigger (the reactive revision counter), and an e2e or unit test that persists a message while pending, confirms, and asserts the pre-pending message appears without a reload."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-OBS-1",
+      "question": "Does a direct message received from a pending contact leave that contact's unread count in unreadStore.ts unchanged at the moment it is received? Show the kind4Handler/kind1059Handler gate placed before incrementDirectMessage and a directMessageNotifications.test.ts case asserting the observable unread-count state is unchanged, not just that incrementDirectMessage wasn't called as an implementation-detail spy check."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-OBS-2",
+      "question": "Does confirming a pending contact cause the bell's unread count for that contact to reflect every message received while pending, sourced from persisted chat history via initDirectMessageCounts rather than re-derived from live relay events, and without requiring the user to leave and re-enter the app? Show the confirm-triggered reconciliation call and a test that persists N messages while pending, confirms, and asserts the unread count becomes exactly N with no page/app reload in the test."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-1",
+      "question": "Does the contacts list render a visibly distinct pending indicator (badge), separate from the existing archived/blocked indicator, with an explicit confirm action offered on it? Show the rendering code distinguishing the pending badge from the blocked badge and a test or snapshot asserting a contact that is only pending vs. only blocked render different, distinguishable indicators."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-2",
+      "question": "Does opening a pending, non-blocked contact's detail view show the confirmation prompt in place of the normal thread; does a pending+blocked contact show the existing Blocked banner instead (never the confirm prompt); and after confirming does the same view render the normal chat thread — including pre-confirmation messages — without navigating away and back? Show the three-way branch code and a test/e2e covering all three states (pending-only, pending+blocked, post-confirm) within one mounted session."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-3",
+      "question": "Does every new user-facing string (pending badge, confirmation-prompt copy, confirm action label) have both en and de entries in i18n.ts's Copy type and both language objects, and is no such string hardcoded in contacts.tsx or any component it renders? Show the i18n.ts additions and the pendingConfirmation.i18n.test.ts REQUIRED_KEYS assertion confirming both locales resolve and differ, plus a grep across contacts.tsx and its components confirming no literal pending-related string is inlined."
+    },
+    {
+      "question_id": "VQ-S2-POST-001",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-OBS-2",
+      "question": "AC-OBS-2's reconciliation is wired exactly per spec.md Design Decision 8 (confirmPendingContact calls S1's confirmContact then unreadStore.ts's initDirectMessageCounts, now reading via directConversationId + chatPersistence.ts#loadMessages instead of a hand-built key). Empirically verified against a real strfry relay (docker compose e2e harness) that this correctly reconciles the bell WHEN the confirming user opens the contact's detail view (ContactChat mounts, performs its historical relay fetch, persists the held messages, and the thread renders them — dm-pairing-pending-confirmation.spec.ts's second test passes this end to end). However, this repo's DM architecture (unchanged by this epic, Design Decision 4) persists a peer's message CONTENT to local IDB only the first time that peer's ContactChat mounts — the always-on bell watcher (directMessageNotifications.ts) updates counts/rememberContact but never calls appendMessage. A pending contact, by definition, has never had its ContactChat mounted (AC-ADMIT-1: it's always a brand-new sender), so at the moment of confirming FROM THE CONTACTS LIST (without opening the thread), chatPersistence.ts#loadMessages legitimately finds zero locally-persisted messages for that peer, and initDirectMessageCounts computes 0 — not the number of messages actually sent while pending. This was confirmed empirically: an earlier version of dm-pairing-pending-confirmation.spec.ts asserted the bell reads exactly 2 immediately after a list-only confirm, and it failed against the live relay (received 0, timed out waiting for an IDB write that never happens without ContactChat mounting) — the test was rewritten to assert only what the architecture actually delivers (no bell bump while pending; no message loss, recoverable once the thread is opened; list confirm clears the pending badge). No message is ever lost (AC-MSG-1 holds — messages remain fetchable from the relay indefinitely, matching this repo's existing DM pipeline for ANY brand-new contact, pending or not), and the natural UX path (open the pending contact, see the prompt, confirm, see messages) satisfies AC-OBS-2 in spirit — the gap is specifically the 'confirm from the list without ever opening the thread' path, where the bell undercounts until the thread is later opened, at which point it renders correctly and immediately gets marked read. This is a genuine, empirically-verified architectural gap between the spec's literal AC-OBS-2 wording and the pre-existing (out-of-this-story's-scope) DM persistence pipeline — not a code defect in this story's own implementation, which correctly follows Design Decision 8 as written. Flagging for epic owner / product decision: is a relay-backed historical fetch on confirm (mirroring ContactChat's own fetch, likely a new S3 story) warranted, or is the current 'undercounts only until first open, self-corrects immediately' behavior acceptable?"
+    }
+  ]
+}

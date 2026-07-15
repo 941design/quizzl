@@ -41,6 +41,16 @@ describe('addContactByNpub', () => {
     expect(contacts[pubkeyHex].archivedAt).toBeNull();
   });
 
+  it('creates the new contact with pendingConfirmationSince: null — scanning a card MUST NOT produce a pending contact (AC-ADMIT-3, epic: pending-contact-confirmation)', () => {
+    const pubkeyHex = '6'.repeat(64);
+    const npub = pubkeyToNpub(pubkeyHex);
+
+    const result = addContactByNpub(npub, null);
+
+    expect(result).toEqual({ ok: true, pubkeyHex, reactivated: false });
+    expect(readStoredContacts()[pubkeyHex].pendingConfirmationSince).toBeNull();
+  });
+
   it('reports blocked rather than reactivating an archived (blocked) contact, leaving archivedAt untouched (AC-CORE-5, DD-9)', () => {
     const pubkeyHex = 'b'.repeat(64);
     const npub = pubkeyToNpub(pubkeyHex);

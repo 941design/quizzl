@@ -1,0 +1,142 @@
+{
+  "epic_name": "pending-contact-confirmation",
+  "created_at": "2026-07-14T22:10:00Z",
+  "total_stories": 2,
+  "story_order": [
+    "S1",
+    "S2"
+  ],
+  "dependency_notes": "S2 depends on three real (non-mocked) exports S1 lands first: confirmContact(pubkeyHex), the shared pending-confirmation predicate, and ContactListItem.isPendingConfirmation, all from app/src/lib/contacts.ts. Because story implementation is strictly sequential (S1 before S2, per project convention \u2014 see owning_module principle), S2 consumes S1's real implementation directly; no temporary mock is introduced for this seam. S1 has no dependency on S2 and is independently testable via its own unit suites (contacts.test.ts, contacts-selectable.test.ts, contacts-add-by-npub.test.ts, pairingAck.test.ts) without any S2 code existing.",
+  "mock_resolution_plan": "None required. The only cross-story seam (S1 -> S2) is resolved by implementation order, not by mocking.",
+  "seams": [
+    {
+      "data": "Pending-confirmation primitives exported by contacts.ts: the confirm action, the shared pure predicate, and the derived list-item flag.",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/contacts.ts: confirmContact(pubkeyHex), the exported pending-confirmation predicate (single export site per AC-STRUCT-3), ContactListItem.isPendingConfirmation"
+      },
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/lib/directMessageNotifications.ts bell-bump gate (kind4Handler/kind1059Handler); the contacts.tsx / ContactDetailView three-way mount decision and contacts-list badge; the confirm-prompt component's onConfirm handler"
+      },
+      "contract": {
+        "type_name": "PendingConfirmationPredicate",
+        "fields": [
+          {
+            "name": "confirmContact",
+            "type": "(pubkeyHex: string) => void"
+          },
+          {
+            "name": "isPendingConfirmation",
+            "type": "(pubkeyHex: string, contacts?: StoredContact[]) => boolean"
+          },
+          {
+            "name": "ContactListItem.isPendingConfirmation",
+            "type": "boolean"
+          }
+        ],
+        "invariants": [
+          "isPendingConfirmation reads only from readStoredContacts() or an equivalent explicit parameter, never from any other store (AC-STRUCT-3).",
+          "isPendingConfirmation MUST NOT call, or be folded into, isAllowedDmSenderComposite / isAllowedDmSender / isBlockedPeer (AC-STRUCT-3, ADR-008 documented exception).",
+          "isPendingConfirmation and confirmContact resolve pubkeyHex against stored keys case-insensitively, mirroring addContactByNpub's matchingKeys pattern (AC-STRUCT-4).",
+          "confirmContact(pubkeyHex) is a no-op \u2014 no throw, no storage write \u2014 for an unknown pubkey or a pubkey whose pendingConfirmationSince is already null (AC-CONFIRM-2).",
+          "confirmContact(pubkeyHex) clears pendingConfirmationSince to null and MUST NOT modify firstSeenAt, lastSeenAt, or archivedAt on that entry (AC-CONFIRM-1)."
+        ]
+      }
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "pending-admission-core",
+      "title": "Pending Admission Core",
+      "description": "Adds the StoredContact.pendingConfirmationSince field and its default-null normalization, the pending-admission primitive used only by handlePairingAck's Step 9 for a brand-new sender (re-pairing preserves the existing value, mirroring archivedAt), confirmContact(pubkeyHex), the single exported pending-confirmation predicate that S2's call sites will import, and the selectableContactsForGroup disabledReason precedence extension (already_member > blocked > pending_confirmation > selectable). Also covers the wire-level non-regression guarantee that admission and confirmation never publish kind-0 or otherwise change the existing gift-wrap/name-drop side effects.",
+      "acceptance_criteria": [
+        "AC-STRUCT-1",
+        "AC-STRUCT-2",
+        "AC-STRUCT-3",
+        "AC-STRUCT-4",
+        "AC-ADMIT-1",
+        "AC-ADMIT-2",
+        "AC-ADMIT-3",
+        "AC-CONFIRM-1",
+        "AC-CONFIRM-2",
+        "AC-GROUP-1",
+        "AC-SEC-1"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/contacts.ts",
+          "app/src/lib/pairing/pairingAck.ts",
+          "app/tests/unit/contacts.test.ts",
+          "app/tests/unit/contacts-selectable.test.ts",
+          "app/tests/unit/contacts-add-by-npub.test.ts",
+          "app/tests/unit/pairing/pairingAck.test.ts"
+        ],
+        "excludes": [
+          "app/src/lib/directMessageNotifications.ts",
+          "app/src/components/contacts/ContactChat.tsx",
+          "app/pages/contacts.tsx",
+          "app/src/lib/unreadStore.ts",
+          "app/src/lib/i18n.ts",
+          "app/src/lib/blockedPeers.ts"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "contacts.ts",
+      "lighter_path": false,
+      "creates_seam": true,
+      "consumes_seams": [],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "notes": "Touches pairingAck.ts as a one-line call-site swap (rememberContact -> the new pending-admission primitive at Step 9 only; Steps 10-11 and rememberKnownPeers are unchanged, Design Decisions 4 and 7) rather than as a second owned module \u2014 pairingAck.ts owns no data of its own for this epic (architecture.md module map: 'none, orchestration only') and is purely a consumer of the primitive this story defines, so it stays inside S1 rather than forming a third story. AC-STRUCT-3 is defined and given its one canonical export here; S2 verifies the 'no inline re-derivation' clause again at its own call sites (bell gate, render/mount gate) but does not redefine or re-export the predicate. Case-insensitive matching (AC-STRUCT-4) must reuse contacts.ts's existing matchingKeys pattern (contacts.ts:399), per architecture.md Implementation constraints and prior learning storedcontact-keys-lowercase-only-via-transitive in exploration.json \u2014 do not assume stored keys are lowercase."
+    },
+    {
+      "id": "S2",
+      "name": "message-hold-bell-and-confirmation-ui",
+      "title": "Message Hold, Bell Delay, and Confirmation UI",
+      "description": "Gates the notification bell (directMessageNotifications.ts's kind4Handler/kind1059Handler) on S1's pending predicate before incrementDirectMessage. Holds back a pending contact's rendered thread by not mounting ContactChat while pending, extending contacts.tsx / ContactDetailView's existing blocked/normal branch into a three-way blocked/pending/normal branch (blocked always wins, Design Decision 9), backed by a new pendingConfirmationRevision-equivalent reactive counter so confirming a contact updates the view within the same mounted session with no navigation away and back. Adds the contacts-list pending badge and confirm action, wires it to S1's confirmContact, and triggers bell reconciliation on confirm by reusing unreadStore.ts's existing initDirectMessageCounts with a one-element peer array (not a hand-rolled recount). Adds en/de i18n Copy entries for every new string.",
+      "acceptance_criteria": [
+        "AC-MSG-1",
+        "AC-MSG-2",
+        "AC-OBS-1",
+        "AC-OBS-2",
+        "AC-UX-1",
+        "AC-UX-2",
+        "AC-UX-3"
+      ],
+      "scope": {
+        "includes": [
+          "app/pages/contacts.tsx",
+          "app/src/components/contacts/ContactChat.tsx",
+          "app/src/components/contacts/*.tsx",
+          "app/src/lib/directMessageNotifications.ts",
+          "app/src/lib/unreadStore.ts",
+          "app/src/lib/i18n.ts",
+          "app/tests/unit/directMessageNotifications.test.ts",
+          "app/tests/unit/directMessageNotifications-property.test.ts",
+          "app/tests/unit/unreadStore.test.ts",
+          "app/tests/unit/pendingConfirmation.i18n.test.ts",
+          "app/tests/e2e/dm-pairing-*.spec.ts"
+        ],
+        "excludes": [
+          "app/src/lib/contacts.ts",
+          "app/src/lib/pairing/pairingAck.ts",
+          "app/src/lib/blockedPeers.ts"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "contacts.tsx / ContactDetailView",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "PendingConfirmationPredicate"
+      ],
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "notes": "The AC-MSG-2 render hold is implemented as contacts.tsx's ContactDetailView mount decision (ContactChat is simply not mounted while pending, matching the existing isArchived -> BlockedBanner precedent), not as an internal filter inside ContactChat.tsx itself \u2014 per exploration.json's architecture finding that no 'visible messages' derivation point exists inside ContactChat today. ContactChat.tsx stays in scope only for the AC-STRUCT-3 import-site check, not for a rendering-logic change; the dev/architect implementing this story should confirm no inline predicate re-derivation is needed there before touching the file. Where exactly the new pendingConfirmationRevision-equivalent counter lives (local useState in contacts.tsx vs. a MarmotContext-hosted counter like blockedPeersRevision) is left to the implementing architect per architecture.md's Seams section \u2014 no existing precedent to follow mechanically. Bell reconciliation (AC-OBS-2) must call the existing initDirectMessageCounts([peer], ownPubkeyHex) via directConversationId + chatPersistence.ts#loadMessages (the canonical read path) rather than the raw few:messages:dm:<peer> key initDirectMessageCounts currently builds inline internally \u2014 unreadStore.ts itself may need no functional change, only a new call site, per architecture.md's seam note."
+    }
+  ]
+}

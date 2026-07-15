@@ -1,0 +1,84 @@
+{
+  "module_name": "contacts.ts",
+  "purpose": "Adds pending-confirmation state to the local contact store: the StoredContact.pendingConfirmationSince field and its default-null normalization, the pending-admission primitive consumed by pairingAck.ts's handlePairingAck for a brand-new issuer-side sender, confirmContact() to finalize a pending contact, the single exported pending-confirmation predicate S2 will import at its render/bell gates, ContactListItem.isPendingConfirmation, and the selectableContactsForGroup disabledReason precedence extension.",
+  "public_api": [
+    {
+      "name": "StoredContact",
+      "signature": "type StoredContact = { pubkeyHex: string; firstSeenAt: string; lastSeenAt: string; archivedAt?: string | null; pendingConfirmationSince?: string | null }",
+      "description": "Adds pendingConfirmationSince, mirroring the existing archivedAt null-means-normal convention (Design Decision 2)."
+    },
+    {
+      "name": "ContactListItem",
+      "signature": "type ContactListItem = StoredContact & { nickname: string; avatar: ProfileAvatar | null; updatedAt: string | null; archivedAt: string | null; isArchived: boolean; isPendingConfirmation: boolean }",
+      "description": "Adds the derived isPendingConfirmation boolean, mirroring the existing isArchived derivation."
+    },
+    {
+      "name": "rememberPendingContact",
+      "signature": "function rememberPendingContact(pubkeyHex: string, seenAt?: string): void",
+      "description": "New admission primitive used ONLY by handlePairingAck's Step 9 for the issuer-side (passive) sender. Resolves pubkeyHex case-insensitively against readStoredContacts() (AC-STRUCT-4, matchingKeys pattern). Brand-new sender: creates the entry with pendingConfirmationSince set to seenAt (AC-ADMIT-1). Existing sender (re-pairing): bumps lastSeenAt exactly like rememberContact, leaving pendingConfirmationSince (and archivedAt) exactly as they were — never resets null->non-null, never clears an already-pending value (AC-ADMIT-2)."
+    },
+    {
+      "name": "confirmContact",
+      "signature": "function confirmContact(pubkeyHex: string): void",
+      "description": "Clears pendingConfirmationSince to null for the case-insensitively-matched stored entry (AC-STRUCT-4). No-op (no throw, no storage write) for an unknown pubkey or one whose pendingConfirmationSince is already null (AC-CONFIRM-2). Never modifies firstSeenAt, lastSeenAt, or archivedAt (AC-CONFIRM-1)."
+    },
+    {
+      "name": "isPendingConfirmation",
+      "signature": "function isPendingConfirmation(pubkeyHex: string, contacts?: StoredContact[]): boolean",
+      "description": "The single exported pending-confirmation predicate (AC-STRUCT-3). Reads only from readStoredContacts() (Object.values) when contacts is omitted, or the supplied explicit array otherwise. Matches pubkeyHex case-insensitively. MUST NOT call or be folded into isAllowedDmSenderComposite/isAllowedDmSender/isBlockedPeer (ADR-008 documented exception, spec.md Design Decision 5). listContacts() also calls this function (not a second inline check) to derive ContactListItem.isPendingConfirmation, so there is exactly one site in the codebase that inspects pendingConfirmationSince != null."
+    },
+    {
+      "name": "selectableContactsForGroup",
+      "signature": "function selectableContactsForGroup(contacts: ContactListItem[], group: { memberPubkeys: string[] }): ContactSelectabilityEntry[]",
+      "description": "Extended precedence: already_member > blocked > pending_confirmation > selectable (AC-GROUP-1, spec.md Design Decision 6/9). Unchanged signature and existing already_member/blocked behavior."
+    },
+    {
+      "name": "ContactSelectabilityEntry",
+      "signature": "type ContactSelectabilityEntry = { contact: ContactListItem; selectable: boolean; disabledReason?: 'already_member' | 'blocked' | 'pending_confirmation' }",
+      "description": "disabledReason gains 'pending_confirmation'."
+    }
+  ],
+  "private_files": [],
+  "owned_data": ["lp_contacts_v1 (localStorage, via STORAGE_KEYS.contacts) — unchanged storage key, additive field only"],
+  "dependencies_allowed": [
+    "app/src/lib/storage.ts",
+    "app/src/lib/walledGarden.ts",
+    "app/src/lib/nostrKeys.ts",
+    "app/src/lib/knownPeers.ts",
+    "app/src/types"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/blockedPeers.ts (isPendingConfirmation must not call/fold into isAllowedDmSenderComposite/isAllowedDmSender/isBlockedPeer, ADR-008 exception)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/contacts.test.ts",
+    "app/tests/unit/contacts-selectable.test.ts",
+    "app/tests/unit/contacts-add-by-npub.test.ts",
+    "app/tests/unit/pairing/pairingAck.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S2"],
+    "name": "PendingConfirmationPredicate",
+    "note": "confirmContact(pubkeyHex), isPendingConfirmation(pubkeyHex, contacts?), and ContactListItem.isPendingConfirmation — all exported from contacts.ts by this story — are the declared cross-story seam in stories.json, consumed directly (no mock; sequential-story real-implementation dependency) by S2's directMessageNotifications.ts bell gate, ContactChat.tsx render-gate import-site check, and contacts.tsx/ContactDetailView's three-way branch + confirm action."
+  },
+  "second_module": {
+    "module_name": "pairingAck.ts",
+    "purpose": "Swaps handlePairingAck's Step 9 admission call for a brand-new/re-pairing issuer-side sender from rememberContact to the new rememberPendingContact primitive. No other behavior change — Steps 10-11 (profile-announce, name-drop cache write) and rememberKnownPeers are unchanged (Design Decisions 4, 7; AC-SEC-1).",
+    "directory": "app/src/lib/pairing/pairingAck.ts",
+    "owned_data": "none (orchestration only, per architecture.md module map)",
+    "seam": {
+      "cross_story": true,
+      "consumed_by": ["S2"],
+      "note": "PendingConfirmationPredicate (confirmContact, isPendingConfirmation, ContactListItem.isPendingConfirmation) exported here is the declared seam contract in stories.json, consumed directly (no mock) by S2's directMessageNotifications.ts bell gate, ContactChat.tsx render gate, and contacts.tsx UI."
+    }
+  },
+  "implementation_notes": [
+    "rememberContact (existing export) is left completely unchanged — addContactByNpub continues to call it (AC-ADMIT-3); it is not case-insensitive by design (pre-existing behavior, not touched by this story).",
+    "rememberPendingContact IS case-insensitive on lookup (unlike rememberContact) because AC-STRUCT-4 explicitly names 'the pending-admission primitive' alongside confirmContact as requiring case-insensitive matchingKeys-style resolution. This is a deliberate, scoped divergence from rememberContact's own behavior, not an inconsistency.",
+    "isPendingConfirmation's contract signature (pubkeyHex, contacts?: StoredContact[]) matches stories.json's seam contract exactly — the optional second param is an array (StoredContact[]), not the Record<string,StoredContact> map readStoredContacts() returns, so callers passing an explicit list must supply Object.values(...) themselves."
+  ]
+}

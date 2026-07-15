@@ -23,6 +23,7 @@ import ThemeIcon from '@/src/components/ThemeIcon';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import ContactChat from '@/src/components/contacts/ContactChat';
 import BlockContactButton from '@/src/components/contacts/BlockContactButton';
+import PendingConfirmationPrompt from '@/src/components/contacts/PendingConfirmationPrompt';
 // Voice/video calls are gated behind the CALLS_ENABLED feature toggle.
 import { ContactCallToolbar } from '@/src/components/calls/CallToolbar';
 import { CALLS_ENABLED } from '@/src/config/features';
@@ -30,7 +31,7 @@ import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useProfile } from '@/src/context/ProfileContext';
-import { commonGroups, getContact, listContacts, rememberContactsFromGroups } from '@/src/lib/contacts';
+import { commonGroups, confirmContact, getContact, listContacts, rememberContactsFromGroups } from '@/src/lib/contacts';
 import { isMaintainerPubkey } from '@/src/config/maintainer';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
@@ -72,6 +73,38 @@ function ContactListView() {
     [pubkeyHex, contactsRevision],
   );
   const hasAnyContacts = contacts.length > 0 || hiddenCount > 0;
+
+  // Epic: pending-contact-confirmation, S2 (AC-UX-1). Confirms a pending
+  // contact directly from the list row, then bumps the existing
+  // `contactsRevision` counter (already used to re-derive `listContacts`
+  // after `rememberContactsFromGroups`) so the badge/row re-renders in the
+  // same session — no new revision counter needed here, unlike the detail
+  // view's `ContactDetailView` below.
+  //
+  // Gate-remediation (Codex P2, 2026-07-15): deliberately calls
+  // `confirmContact` directly instead of `PendingConfirmationPrompt`'s
+  // `confirmPendingContact` (which also runs
+  // `reconcileConfirmedContactDirectMessageCount`) — this list row never
+  // mounts `ContactChat` afterward, so there is no reason to reconcile the
+  // bell here at all; AC-OBS-1/AC-OBS-2 already guarantee it was never
+  // incorrectly bumped while pending, and it simply catches up the next
+  // time the user actually opens the conversation (ContactChat's own
+  // mount-time `loadMessages` + `markDirectMessagesRead`).
+  //
+  // (Historical note: at the time this list-path fix landed,
+  // `reconcileConfirmedContactDirectMessageCount` itself routed through
+  // `chatPersistence.ts#loadMessages`, whose one-time-per-thread self-heal
+  // side effect this list row could never consume — that was a second,
+  // independent bug, since fixed directly in
+  // `reconcileConfirmedContactDirectMessageCount` by switching it to a raw
+  // idb-keyval read. See that function's doc comment in unreadStore.ts.
+  // Skipping the call here remains correct regardless, since this row has
+  // no use for reconciliation in the first place.)
+  async function handleConfirmFromList(peerPubkeyHex: string) {
+    if (!pubkeyHex) return;
+    confirmContact(peerPubkeyHex);
+    setContactsRevision((r) => r + 1);
+  }
 
   return (
     <>
@@ -154,6 +187,34 @@ function ContactListView() {
                         {copy.contacts.hiddenBadge}
                       </Badge>
                     ) : null}
+                    {/* Epic: pending-contact-confirmation, S2 (AC-UX-1). A distinct
+                        badge/action pair from the archived badge above — Design
+                        Decision 9 has blocked win over pending in the detail view,
+                        but the two badges are independent, non-mutually-exclusive
+                        indicators here in the list (a contact CAN be both, though
+                        that combination only ever happens if the user's own
+                        contact was blocked before this epic's admission gate
+                        existed). */}
+                    {contact.isPendingConfirmation ? (
+                      <>
+                        <Badge colorScheme="purple" flexShrink={0} data-testid={`contact-pending-badge-${contact.pubkeyHex}`}>
+                          {copy.contacts.pendingBadge}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          flexShrink={0}
+                          data-testid={`contact-pending-confirm-${contact.pubkeyHex}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void handleConfirmFromList(contact.pubkeyHex);
+                          }}
+                        >
+                          {copy.contacts.pendingConfirmButton}
+                        </Button>
+                      </>
+                    ) : null}
                     <IconButton
                       aria-label={copy.profile.viewProfile}
                       icon={<ThemeIcon name="person" size={18} />}
@@ -233,9 +294,19 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
   // from the Blocked banner's own button (below) re-derives `contact` the
   // same way, swapping back to ContactChat without a page navigation.
   const { blockedPeersRevision } = useMarmot();
+  // Epic: pending-contact-confirmation, S2 (AC-UX-2). Mirrors
+  // `blockedPeersRevision` above, but local rather than MarmotContext-hosted
+  // — this epic's only reactive consumer of pending-confirmation state is
+  // this component (the bell gate in directMessageNotifications.ts reads the
+  // predicate live at message-arrival time, not via React state), and
+  // MarmotContext.tsx is outside this story's scope. Bumped by
+  // `PendingConfirmationPrompt`'s `onConfirmed` callback after
+  // `confirmContact` + the bell reconciliation resolve, so `contact` below
+  // re-derives within the same mounted session — no navigation away and back.
+  const [pendingConfirmationRevision, setPendingConfirmationRevision] = useState(0);
   const contact = useMemo(
     () => getContact(contactPubkeyHex, pubkeyHex, { includeArchived: true }),
-    [contactPubkeyHex, pubkeyHex, blockedPeersRevision],
+    [contactPubkeyHex, pubkeyHex, blockedPeersRevision, pendingConfirmationRevision],
   );
   const signer = useMemo(
     () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
@@ -332,6 +403,12 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
           // first render (no async fetch gates it), so a direct navigation to
           // /contacts?id=<blockedPeerHex> renders this branch immediately,
           // with no intermediate composer frame (AC-VIEW-7).
+          //
+          // Epic: pending-contact-confirmation, S2 (AC-UX-2, spec.md Design
+          // Decision 9): this branch is checked FIRST, ahead of
+          // `isPendingConfirmation` below — blocked always wins over pending,
+          // so a contact that is both archived and pending still renders the
+          // existing Blocked banner, never the confirmation prompt.
           <>
             <Alert status="info" borderRadius="md" mt={4} data-testid="contact-archived-alert">
               <AlertIcon />
@@ -346,6 +423,19 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
               />
             </Box>
           </>
+        ) : contact.isPendingConfirmation ? (
+          // AC-UX-2: a pending, non-blocked contact shows the confirmation
+          // prompt IN PLACE OF ContactChat — ContactChat is not mounted at
+          // all in this branch either (matching the archived-branch
+          // precedent above), which is also why `markDirectMessagesRead`
+          // (fired from inside ContactChat on mount) correctly does not fire
+          // for a still-pending contact.
+          <PendingConfirmationPrompt
+            contact={contact}
+            ownPubkeyHex={pubkeyHex}
+            displayName={displayName}
+            onConfirmed={() => setPendingConfirmationRevision((r) => r + 1)}
+          />
         ) : (
           <>
             <Divider my={6} />

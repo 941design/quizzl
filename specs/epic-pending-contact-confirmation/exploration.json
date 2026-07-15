@@ -1,0 +1,25 @@
+{
+  "created_at": "2026-07-14T21:49:33Z",
+  "prior_learnings": [
+    {
+      "id": "storedcontact-keys-lowercase-only-via-transitive",
+      "title": "StoredContact keys are lowercase only via a transitive noble-hashes guarantee, not explicit normalization",
+      "tags": ["casing", "pubkey-normalization", "contacts", "marmot-ts", "nostr-tools", "storage"],
+      "relevance": "The new pendingConfirmationSince field and confirmContact() must do case-insensitive lookups against readStoredContacts(), mirroring addContactByNpub's existing matchingKeys pattern (contacts.ts:399) rather than assuming stored keys are lowercase."
+    }
+  ],
+  "explorers": [
+    {
+      "focus": "similar-features + architecture (lead-gathered, pre-spec research phase)",
+      "findings": "Contact data model: StoredContact (contacts.ts:9-14) has no status enum today, only archivedAt (null=active). rememberContact (contacts.ts:81) is the sole admission primitive; two call sites matter for this epic: addContactByNpub (contacts.ts:415, scanner-side, reached only via processContactInput.ts's /add card-link flow) and handlePairingAck (pairingAck.ts:439, issuer-side, fires on receiving a valid gift-wrapped pairing-ack). The pairing-code epic's nonce+ack handshake is a cryptographic confirmation of mutual intent but resolves synchronously with no held/pending state. Bell: directMessageNotifications.ts's kind4Handler/kind1059Handler both call rememberContact(peer); incrementDirectMessage(peer) after an isAllowedSender gate. Block precedent: blockedPeers.ts's isBlockedPeer/isAllowedDmSenderComposite is the pure-predicate, read-from-storage pattern to imitate structurally (not to reuse/fold into) for the new pending predicate, per ADR-008 exception documented in spec.md Design Decision 5."
+    },
+    {
+      "focus": "testing-and-conventions",
+      "findings": "contacts.ts tests: app/tests/unit/contacts.test.ts + siblings, hand-rolled localStorage mock (no jsdom), pure-function calls, describe blocks grouped by AC ID, 'assert storage untouched on rejected write' idiom directly reusable for pendingConfirmationSince gate tests. pairingAck.ts tests: app/tests/unit/pairing/pairingAck.test.ts (1262 lines), real webcrypto polyfill + fake-indexeddb, vi.mock factory mocks with vi.hoisted shared state for contacts.ts/knownPeers.ts enabling call-order assertions (ADR-005 ordering), existing 'blocked re-pairing sender' test block (pairingAck.test.ts:1193-1262) is the direct template for a pendingConfirmationSince-set-before-admission test. i18n tests: *.i18n.test.ts pattern (e.g. addPage.i18n.test.ts) with a maintained REQUIRED_KEYS list + 3 standard assertions (en resolves, de resolves, en!=de) + spot-check block; new pending-confirmation copy keys should follow this shape. e2e: app/tests/e2e/dm-pairing-*.spec.ts (6 files) use two-browser-context bootIdentity/getShareCardLink/waitForAdmission helpers, drive everything through real app UI/deep-links, poll persisted localStorage/rendered DOM state rather than raw WebSocket. unreadStore.ts tests: hand-rolled localStorage + idb-keyval mock + useSyncExternalStore shim, dynamic per-test import for module-state isolation. Reconciliation precedent: unreadStore.ts's reconcileInit (:71) + initDirectMessageCounts (:331) already implement exactly the 'recompute a counter from persisted history, race-safe against live increments' mechanism this epic's bell-catch-up-on-confirm needs — reuse directly rather than reimplementing, per spec.md's Bell reconciliation Technical Approach section."
+    },
+    {
+      "focus": "architecture (render + notification pipeline)",
+      "findings": "ContactChat.tsx has no single 'visible messages' derivation point — messages is raw useState mutated at every ingestion site, passed straight to ChatBox with no render-time filter. The 3 shouldIngestRumor sites (:465, :636, :767) plus paired shouldIngestDmFromSender checks gate ingestion, not rendering. Codebase's own precedent for holding back a whole contact's thread is NOT a render-time filter inside ContactChat — it's the contacts.tsx ContactDetailView mount decision: contact.isArchived ? <BlockedBanner/> : <ContactChat/> (contacts.tsx:236-362), reactive on a blockedPeersRevision counter from MarmotContext. This epic's three-way branch (blocked/pending/normal) should follow the same shape: don't mount ContactChat while pending. Gap: no pendingConfirmationRevision-equivalent reactive counter exists yet — confirmContact must introduce one for same-session reactivity (AC-UX-2's 'no navigation away and back' requirement). unreadStore.ts: incrementDirectMessage is the only live-increment path; initDirectMessageCounts(:331) is the closest 'recompute from history' primitive, reads few:messages:dm:<peer> via a hand-duplicated raw IDB key rather than chatPersistence.ts's own directConversationId+loadMessages canonical path. DirectMessageNotificationsWatcher.tsx wires isAllowedSender as a closure at subscribe-time; the new pending-check is a separate, later conditional (before incrementDirectMessage), not a change to that wiring."
+    }
+  ]
+}

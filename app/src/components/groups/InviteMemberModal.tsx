@@ -129,6 +129,38 @@ export function getErrorMessage(
   }
 }
 
+/**
+ * Pure disabledReason → user-facing copy mapping (same hooks-via-pure-
+ * function-extraction convention as getErrorMessage/computeSelectionState
+ * above — lifted out so this branch is unit-testable without rendering the
+ * component, per this repo's no-jsdom-hooks testing convention).
+ *
+ * Gate-remediation (Codex P3, 2026-07-15): previously an inline ternary that
+ * only handled `'already_member'` and `'blocked'`, falling through to `null`
+ * for `'pending_confirmation'` (epic: pending-contact-confirmation added
+ * that disabledReason value to `selectableContactsForGroup`, contacts.ts) —
+ * a pending contact's invite row rendered disabled with no explanation.
+ */
+export function getInviteReasonText(
+  disabledReason: 'already_member' | 'blocked' | 'pending_confirmation' | undefined,
+  copy: {
+    inviteReasonAlreadyMember: string;
+    inviteReasonBlocked: string;
+    inviteReasonPendingConfirmation: string;
+  },
+): string | null {
+  switch (disabledReason) {
+    case 'already_member':
+      return copy.inviteReasonAlreadyMember;
+    case 'blocked':
+      return copy.inviteReasonBlocked;
+    case 'pending_confirmation':
+      return copy.inviteReasonPendingConfirmation;
+    default:
+      return null;
+  }
+}
+
 export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMemberModalProps) {
   const copy = useCopy();
   const { inviteByNpub, groups } = useMarmot();
@@ -218,12 +250,7 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
                   {entries.map((entry) => {
                     const isSelected = entry.selectable && entry.contact.pubkeyHex === selectedPubkeyHex;
                     const fallbackName = truncateNpub(pubkeyToNpub(entry.contact.pubkeyHex));
-                    const reasonText =
-                      entry.disabledReason === 'already_member'
-                        ? copy.groups.inviteReasonAlreadyMember
-                        : entry.disabledReason === 'blocked'
-                          ? copy.groups.inviteReasonBlocked
-                          : null;
+                    const reasonText = getInviteReasonText(entry.disabledReason, copy.groups);
                     return (
                       <Box
                         key={entry.contact.pubkeyHex}

@@ -79,7 +79,12 @@ const { pubkeyToNpub } = await import('@/src/lib/nostrKeys');
 // were inline closures inside the component (100% NoCoverage under Stryker,
 // 0 unit tests) with no behavior change; see their docstrings in
 // InviteMemberModal.tsx.
-const { resolveInviteTarget, submitInvite, computeSelectionState, getErrorMessage } = await import(
+// getInviteReasonText: gate-remediation extraction (Codex P3, 2026-07-15,
+// epic: pending-contact-confirmation) — same rationale as
+// computeSelectionState/getErrorMessage above; previously an inline ternary
+// that silently fell through to `null` (no explanation shown) for the
+// `'pending_confirmation'` disabledReason this epic added.
+const { resolveInviteTarget, submitInvite, computeSelectionState, getErrorMessage, getInviteReasonText } = await import(
   '@/src/components/groups/InviteMemberModal'
 );
 
@@ -259,5 +264,25 @@ describe('getErrorMessage — maps each known error code to its own copy key, un
 
   it('falls back to the generic copy for undefined (e.g. a thrown, code-less error)', () => {
     expect(getErrorMessage(undefined, copy)).toBe(copy.inviteErrorGeneric);
+  });
+});
+
+describe('getInviteReasonText — maps each disabledReason to its own copy key, including pending_confirmation (Codex P3, gate-remediation 2026-07-15)', () => {
+  const copy = {
+    inviteReasonAlreadyMember: 'already-member-copy',
+    inviteReasonBlocked: 'blocked-copy',
+    inviteReasonPendingConfirmation: 'pending-confirmation-copy',
+  };
+
+  it.each([
+    ['already_member', copy.inviteReasonAlreadyMember],
+    ['blocked', copy.inviteReasonBlocked],
+    ['pending_confirmation', copy.inviteReasonPendingConfirmation],
+  ] as const)('maps %s to its own distinct copy string', (reason, expected) => {
+    expect(getInviteReasonText(reason, copy)).toBe(expected);
+  });
+
+  it('returns null for undefined (a selectable row has no disabledReason)', () => {
+    expect(getInviteReasonText(undefined, copy)).toBeNull();
   });
 });

@@ -68,6 +68,28 @@ function noteLiveIncrement(slice: CountSlice, key: string) {
   if (initInProgress[slice]) initTouched[slice].add(key);
 }
 
+// --- Confirm-time single-peer reconcile floor ---
+// `reconcileInit`'s "authoritative IDB count supersedes both the stale next
+// and the live bump" comment above is correct for slices where persistence
+// keeps pace with live events — the batch/startup DM scan and the non-DM
+// slices all persist BEFORE incrementing. But `incrementDirectMessage` (the
+// live bell bump fired by directMessageNotifications.ts) does NOT persist
+// message content — only `ContactChat` mounting does, via a historical relay
+// fetch. So for `reconcileConfirmedContactDirectMessageCount`'s single-peer
+// confirm-time call specifically, a DM that lands while its `loadMessages`
+// read is in flight can never be "seen" by the recompute, and the recompute
+// must not be allowed to overwrite that live bump back down. This tracks the
+// highest live count observed for one key while that one call is in flight,
+// so the caller can floor the final value at it — scoped to this one key/
+// call, never touching `reconcileInit` or its other callers.
+const reconcileFloor: Record<string, number> = {};
+
+function noteLiveIncrementFloor(key: string, value: number) {
+  if (key in reconcileFloor) {
+    reconcileFloor[key] = Math.max(reconcileFloor[key], value);
+  }
+}
+
 async function reconcileInit(
   slice: CountSlice,
   keys: string[],
@@ -285,6 +307,7 @@ export function incrementDirectMessage(peerPubkeyHex: string) {
   const next = { ...state.directMessages };
   next[key] = (next[key] ?? 0) + 1;
   state = { ...state, directMessages: next };
+  noteLiveIncrementFloor(key, next[key]);
   emit();
 }
 
@@ -327,6 +350,31 @@ export function clearDirectMessageContact(peerPubkeyHex: string) {
 /**
  * Initialise direct-message unread counts from persisted DM threads.
  * Reads `few:messages:dm:<peer>` keys (the same store ContactChat uses).
+ *
+ * This is the BATCH/STARTUP path — called by `DirectMessageNotificationsWatcher`
+ * for every known peer on app load. It deliberately reads the raw idb-keyval
+ * entry directly rather than going through `chatPersistence.ts#loadMessages`:
+ * `loadMessages` runs a DM-thread self-heal pass on first access (rewrites
+ * malformed rows, returns non-canonical-id rows as `refetchIds` for the
+ * caller to enqueue a relay repair-refetch) and marks the thread healed as a
+ * side effect. Marking a thread healed here — before the user has ever
+ * opened it and before anyone consumes the `refetchIds` this function
+ * discards — would silently rob `ContactChat`'s own `loadMessages` call of
+ * the self-heal/refetch signal when the user finally does open that thread,
+ * since `loadMessages` short-circuits to an empty `refetchIds` for
+ * already-healed threads. That was a real regression: reviewed and reverted
+ * (epic: pending-contact-confirmation, S2 gate-remediation) after a canonical-
+ * read-path change briefly routed this batch scan through `loadMessages`.
+ *
+ * The confirm-action bell reconciliation for a single peer
+ * (`reconcileConfirmedContactDirectMessageCount`) uses this exact same raw
+ * read pattern, for the identical reason: no caller whose job is only to
+ * *count* held messages may be the one to trigger or consume
+ * `loadMessages`' one-time-per-thread self-heal side effect. There is no
+ * "safe" case for a reconciliation-only caller to route through
+ * `loadMessages` — that was tried once for this function (see the revert
+ * noted above) and once more for `reconcileConfirmedContactDirectMessageCount`
+ * (see that function's doc comment) before both converged on the raw read.
  */
 export async function initDirectMessageCounts(peerPubkeysHex: string[], ownPubkeyHex: string) {
   const own = ownPubkeyHex.toLowerCase();
@@ -351,6 +399,96 @@ export async function initDirectMessageCounts(peerPubkeysHex: string[], ownPubke
     }
     return 0;
   });
+}
+
+/**
+ * Reconciles a single peer's direct-message unread count via a raw,
+ * side-effect-free `idb-keyval` read — the SAME pattern `initDirectMessageCounts`
+ * uses, not `chatPersistence.ts#loadMessages`.
+ *
+ * Used ONLY by the pending-confirmation confirm action (`contacts.tsx` /
+ * `PendingConfirmationPrompt.tsx#confirmPendingContact`) to reconcile the
+ * bell for messages held while the contact was pending (AC-OBS-2).
+ *
+ * Gate-remediation (2026-07-15, second round): this function was originally
+ * routed through `chatPersistence.ts#loadMessages` on the theory that doing
+ * so was safe here because the user is "about to view this thread anyway."
+ * That reasoning was wrong. `loadMessages` runs a DM-thread self-heal pass
+ * exactly ONCE per thread per session — the first call for a given thread
+ * marks it "healed" and returns real `refetchIds` for malformed/non-canonical
+ * rows; every later call to that same thread short-circuits to `refetchIds:
+ * []`. This function is called on EVERY confirm, including the still-live
+ * detail-view confirm path (`PendingConfirmationPrompt.tsx`), so it can
+ * easily be the FIRST caller to touch `loadMessages` for that thread —
+ * permanently consuming the one-time repair opportunity before
+ * `ContactChat`'s own later `loadMessages` call (the one that actually acts
+ * on `refetchIds` to trigger a relay repair-refetch) ever gets a chance to
+ * see them. This function discards `refetchIds` entirely, so that
+ * consumption was pure loss: a genuine repair opportunity silently and
+ * permanently dropped for a reconciliation-only read. Switching to the raw
+ * idb-keyval read below removes the self-heal side effect from this call
+ * site altogether — mirrors `initDirectMessageCounts`'s own identical fix
+ * earlier in this same remediation session (see that function's doc comment
+ * above), and for the identical reason: a reconciliation-only caller must
+ * never be the first to trigger a one-time repair signal it cannot consume.
+ *
+ * AC-OBS-2 was amended 2026-07-15 (spec.md `## Amendments`): for a contact
+ * whose conversation was never opened while pending, this read finds
+ * nothing persisted yet (message content is only written once `ContactChat`
+ * has mounted at least once) and resolves to 0 — a no-op in that common
+ * case. The bell still ends up correct because AC-OBS-1 guarantees it was
+ * never incorrectly bumped for those messages in the first place; the real
+ * catch-up happens the next time the user opens the conversation, when
+ * `ContactChat` loads the now-fetchable history and marks it read via its
+ * own `markDirectMessagesRead` mount effect (not via this function).
+ *
+ * Gate-remediation (Codex P2, 2026-07-15, first round): `reconcileInit`'s
+ * shared re-read loop assumes an authoritative recompute always supersedes a
+ * live bump — true when persistence keeps pace with live events (the
+ * batch/startup scan and the non-DM slices), false here, since
+ * `incrementDirectMessage` never persists content. If the just-confirmed
+ * peer's next DM lands while the raw read below is in flight, the live bell
+ * bump fires but the recompute (reading only already-persisted history)
+ * can't see it — so this floors the final count at the highest live value
+ * observed during the call, ensuring that live bump is never silently
+ * dropped. See `reconcileFloor`'s comment near `noteLiveIncrement` for why
+ * this is scoped to this one key/call rather than changed in the shared
+ * helper.
+ */
+export async function reconcileConfirmedContactDirectMessageCount(
+  peerPubkeyHex: string,
+  ownPubkeyHex: string,
+): Promise<void> {
+  const own = ownPubkeyHex.toLowerCase();
+  const timestamps = loadDirectMessageLastRead();
+  const { get } = await import('idb-keyval');
+  const key = dmKey(peerPubkeyHex);
+
+  reconcileFloor[key] = state.directMessages[key] ?? 0;
+  try {
+    await reconcileInit('directMessages', [key], async (k) => {
+      const lastRead = timestamps[k] ?? 0;
+      try {
+        const messages: Array<{ createdAt: number; senderPubkey: string }> | undefined = await get(
+          `few:messages:dm:${k}`,
+        );
+        if (messages && messages.length > 0) {
+          return messages.filter((m) => m.createdAt > lastRead && m.senderPubkey.toLowerCase() !== own).length;
+        }
+      } catch {
+        // Non-fatal — DM thread may not exist yet
+      }
+      return 0;
+    });
+  } finally {
+    const floor = reconcileFloor[key];
+    delete reconcileFloor[key];
+    if (floor > (state.directMessages[key] ?? 0)) {
+      const next = { ...state.directMessages, [key]: floor };
+      state = { ...state, directMessages: next };
+      emit();
+    }
+  }
 }
 
 /**

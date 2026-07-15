@@ -1,0 +1,21 @@
+{
+  "captured_at": "2026-07-15T01:14:17Z",
+  "method": "git stash of S2's own modified files (contacts.tsx, directMessageNotifications.ts, i18n.ts, unreadStore.ts, and their test files) plus temporary removal of S2's new files, leaving S1's already-landed working-tree changes in place — S1 is described as already implemented and merged into the working tree per this story's task brief.",
+  "tests": {
+    "command": "npx vitest run",
+    "status": "PASS",
+    "test_files": 166,
+    "tests_passed": 3188,
+    "tests_skipped": 1,
+    "tests_total": 3189
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "note": "next lint has no eslint config in this repo and prompts interactively to create one (Strict/Base/Cancel) — not a usable non-interactive command. Recorded NO_LINT per Step 0's NO_TESTS-style tolerance."
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit",
+    "status": "clean",
+    "exit_code": 0
+  }
+}

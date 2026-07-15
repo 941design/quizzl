@@ -11,6 +11,16 @@ export type StoredContact = {
   firstSeenAt: string;
   lastSeenAt: string;
   archivedAt?: string | null;
+  /**
+   * Non-null ISO timestamp while this contact is awaiting the user's
+   * explicit confirmation (epic: pending-contact-confirmation); `null`
+   * (the default for every contact-add path except `handlePairingAck`'s
+   * issuer-side admission of a brand-new sender) means confirmed/normal.
+   * Mirrors the existing `archivedAt` null-means-normal convention
+   * (spec.md Design Decision 2) — a second, independent nullable-timestamp
+   * axis, not a combined status enum.
+   */
+  pendingConfirmationSince?: string | null;
 };
 
 export type ContactListItem = StoredContact & {
@@ -19,6 +29,8 @@ export type ContactListItem = StoredContact & {
   updatedAt: string | null;
   archivedAt: string | null;
   isArchived: boolean;
+  /** Derived from `pendingConfirmationSince != null`, mirroring `isArchived`. */
+  isPendingConfirmation: boolean;
 };
 
 type StoredContactMap = Record<string, StoredContact>;
@@ -40,6 +52,10 @@ function normalizeStoredContact(pubkeyHex: string, value: Partial<StoredContact>
     firstSeenAt: value?.firstSeenAt || new Date(0).toISOString(),
     lastSeenAt: value?.lastSeenAt || value?.firstSeenAt || new Date(0).toISOString(),
     archivedAt: value?.archivedAt ?? null,
+    // AC-STRUCT-1/AC-STRUCT-2: any persisted entry lacking this field
+    // (every contact stored before this epic shipped) resolves to `null` —
+    // purely additive, never a source of a spontaneously-pending contact.
+    pendingConfirmationSince: value?.pendingConfirmationSince ?? null,
   };
 }
 
@@ -102,6 +118,156 @@ export function rememberContact(
   writeStoredContacts(contacts);
 }
 
+/**
+ * Admits the ISSUER-side (passive) sender of a pairing handshake — the
+ * pending-admission primitive used ONLY by `handlePairingAck`'s Step 9
+ * (`pairingAck.ts`), in place of {@link rememberContact}, for the person
+ * whose contact card was scanned. Epic: pending-contact-confirmation.
+ *
+ * Unlike {@link rememberContact}, lookup against `readStoredContacts()` is
+ * **case-insensitive** (AC-STRUCT-4), mirroring `addContactByNpub`'s
+ * `matchingKeys` pattern (below) — stored keys are not guaranteed
+ * lowercase, and this primitive must still find (and correctly preserve)
+ * an existing entry regardless of the casing it was stored under.
+ *
+ * - **Brand-new sender** (no case-insensitive match): creates the entry
+ *   with `pendingConfirmationSince` set to `seenAt` (AC-ADMIT-1).
+ * - **Re-pairing sender** (a match already exists): bumps `lastSeenAt`
+ *   exactly like `rememberContact` does today, leaving `archivedAt` AND
+ *   `pendingConfirmationSince` byte-for-byte as they were — a re-pairing
+ *   MUST NOT set a previously-`null` `pendingConfirmationSince` to
+ *   non-null, and MUST NOT clear an already-pending value (AC-ADMIT-2),
+ *   mirroring the existing `archivedAt`-preservation precedent right next
+ *   to this call site in `pairingAck.ts`.
+ *
+ * @param pubkeyHex - Hex pubkey of the admitted sender (already
+ *                    lowercase — `handlePairingAck` derives it from
+ *                    `rumor.pubkey.toLowerCase()` — but this function does
+ *                    not assume that of the STORED key it matches against).
+ * @param seenAt    - ISO timestamp of the admission event.
+ */
+export function rememberPendingContact(
+  pubkeyHex: string,
+  seenAt: string = new Date().toISOString(),
+): void {
+  if (!pubkeyHex) return;
+  const contacts = readStoredContacts();
+  const target = pubkeyHex.toLowerCase();
+  // Gather ALL case-insensitive matches (not just the first) — legacy
+  // storage can hold two entries for one pubkey differing only in case,
+  // and updating a single arbitrarily-chosen match could leave a
+  // differently-cased duplicate stale. Mirrors addContactByNpub's
+  // `matchingKeys` pattern above.
+  const matchingKeys = Object.keys(contacts).filter((key) => key.toLowerCase() === target);
+  if (matchingKeys.length > 0) {
+    for (const matchingKey of matchingKeys) {
+      const existing = contacts[matchingKey];
+      contacts[matchingKey] = {
+        ...existing,
+        lastSeenAt: existing.lastSeenAt >= seenAt ? existing.lastSeenAt : seenAt,
+      };
+    }
+  } else {
+    contacts[pubkeyHex] = {
+      pubkeyHex,
+      firstSeenAt: seenAt,
+      lastSeenAt: seenAt,
+      archivedAt: null,
+      pendingConfirmationSince: seenAt,
+    };
+  }
+  writeStoredContacts(contacts);
+}
+
+/**
+ * Finalizes a pending contact, clearing `pendingConfirmationSince` to
+ * `null`. Epic: pending-contact-confirmation (AC-CONFIRM-1, AC-CONFIRM-2).
+ *
+ * Resolves `pubkeyHex` against `readStoredContacts()` **case-insensitively**
+ * (AC-STRUCT-4), mirroring `addContactByNpub`'s `matchingKeys` pattern — a
+ * pending contact stored under a differently-cased key is still found and
+ * still cleared.
+ *
+ * A true no-op — no throw, no storage write — for a pubkey with no matching
+ * stored contact, or whose `pendingConfirmationSince` is already `null`
+ * (AC-CONFIRM-2). Otherwise, sets `pendingConfirmationSince` to `null` and
+ * leaves every other field (`firstSeenAt`, `lastSeenAt`, `archivedAt`)
+ * byte-for-byte unchanged (AC-CONFIRM-1).
+ *
+ * @param pubkeyHex - Hex pubkey of the contact to confirm (any case).
+ */
+export function confirmContact(pubkeyHex: string): void {
+  if (!pubkeyHex) return;
+  const contacts = readStoredContacts();
+  const target = pubkeyHex.toLowerCase();
+  // Gather ALL case-insensitive matches (not just the first) — legacy
+  // storage can hold two entries for one pubkey differing only in case.
+  // Clearing only an arbitrarily-chosen first match could leave the
+  // actually-pending duplicate never confirmed. Mirrors addContactByNpub's
+  // `matchingKeys` pattern above.
+  const matchingKeys = Object.keys(contacts).filter((key) => key.toLowerCase() === target);
+  if (matchingKeys.length === 0) return;
+  let changed = false;
+  for (const matchingKey of matchingKeys) {
+    const existing = contacts[matchingKey];
+    if (!existing.pendingConfirmationSince) continue;
+    contacts[matchingKey] = {
+      ...existing,
+      pendingConfirmationSince: null,
+    };
+    changed = true;
+  }
+  if (!changed) return;
+  writeStoredContacts(contacts);
+}
+
+/**
+ * The single exported pending-confirmation predicate (AC-STRUCT-3). Every
+ * call site that needs to know whether a contact is still awaiting
+ * confirmation MUST import and call this function — never re-derive the
+ * `pendingConfirmationSince != null` check inline. `listContacts` below
+ * calls this same function (not a second inline check) to derive
+ * {@link ContactListItem.isPendingConfirmation}, so there is exactly one
+ * place in this module (and the codebase) that inspects the field.
+ *
+ * This predicate is a deliberate, documented exception to ADR-008's
+ * "compose through the shared deny-layer composite" rule (spec.md Design
+ * Decision 5): it MUST NOT call, or be folded into,
+ * `isAllowedDmSenderComposite` / `isAllowedDmSender` / `isBlockedPeer`
+ * (`blockedPeers.ts`). Blocking is a full storage/ingestion cut-off;
+ * pending-confirmation is a visibility/notification gate layered on top of
+ * an already-admitted, already-stored contact — the two cannot share one
+ * predicate without gating message *persistence*, which this epic must not
+ * do (spec.md §"Design Decisions" 4-5).
+ *
+ * Pure and synchronous. Reads only from `readStoredContacts()` when
+ * `contacts` is omitted, or the supplied explicit array otherwise — never
+ * any other store. Matches `pubkeyHex` case-insensitively against each
+ * candidate's own `pubkeyHex` field.
+ *
+ * Checks ALL case-insensitive matches (not just the first) — legacy
+ * storage can hold two entries for one pubkey differing only in case, and
+ * only one of them may have `pendingConfirmationSince` set. Mirrors the
+ * `matchingKeys` pattern in `confirmContact` and `rememberPendingContact`
+ * above: any matching duplicate with the field set counts as pending.
+ *
+ * @param pubkeyHex - Hex pubkey to check (any case).
+ * @param contacts  - Optional explicit contact list to check against,
+ *                    instead of reading `readStoredContacts()` fresh
+ *                    (callers that already hold a list, e.g. `listContacts`,
+ *                    pass it directly to avoid a redundant storage read).
+ * @returns `true` iff ANY case-insensitively matching stored contact has a
+ *   non-null `pendingConfirmationSince`.
+ */
+export function isPendingConfirmation(pubkeyHex: string, contacts?: StoredContact[]): boolean {
+  if (!pubkeyHex) return false;
+  const list = contacts ?? Object.values(readStoredContacts());
+  const target = pubkeyHex.toLowerCase();
+  return list.some(
+    (contact) => contact.pubkeyHex.toLowerCase() === target && Boolean(contact.pendingConfirmationSince),
+  );
+}
+
 export function rememberContactsFromGroups(groups: Group[], ownPubkeyHex: string | null | undefined): void {
   const seenAt = new Date().toISOString();
   for (const group of groups) {
@@ -141,10 +307,11 @@ export function listContacts(
   options?: { includeArchived?: boolean },
 ): ContactListItem[] {
   const stored = readStoredContacts();
+  const storedList = Object.values(stored);
   const cache = readContactCacheSnapshot();
   const includeArchived = options?.includeArchived ?? false;
 
-  return Object.values(stored)
+  return storedList
     .filter((contact) => {
       if (!ownPubkeyHex) return true;
       return contact.pubkeyHex.toLowerCase() !== ownPubkeyHex.toLowerCase();
@@ -159,6 +326,7 @@ export function listContacts(
         updatedAt: cached?.updatedAt ?? null,
         archivedAt: contact.archivedAt ?? null,
         isArchived: Boolean(contact.archivedAt),
+        isPendingConfirmation: isPendingConfirmation(contact.pubkeyHex, storedList),
       };
     })
     .sort((a, b) => {
@@ -258,7 +426,7 @@ export function addableGroupsForContact(
 export type ContactSelectabilityEntry = {
   contact: ContactListItem;
   selectable: boolean;
-  disabledReason?: 'already_member' | 'blocked';
+  disabledReason?: 'already_member' | 'blocked' | 'pending_confirmation';
 };
 
 /**
@@ -271,12 +439,21 @@ export type ContactSelectabilityEntry = {
  * member keys are not case-normalised, so an exact-match `.includes()` would
  * wrongly treat an already-member contact as selectable.
  *
- * Precedence: a contact matching `group.memberPubkeys` is always
+ * Precedence (epic: pending-contact-confirmation extends this to a third
+ * tier — spec.md Design Decisions 6/9, AC-GROUP-1):
+ * `'already_member'` > `'blocked'` > `'pending_confirmation'` > selectable.
+ * A contact matching `group.memberPubkeys` is always
  * `{ selectable: false, disabledReason: 'already_member' }`, regardless of
- * `isArchived` — already-member wins over blocked when both apply. A
+ * `isArchived`/`isPendingConfirmation` — already-member wins over both. A
  * non-member contact with `isArchived === true` is `{ selectable: false,
- * disabledReason: 'blocked' }`. Every other contact is `{ selectable: true }`
- * — the `disabledReason` key is omitted entirely, not set to `undefined`.
+ * disabledReason: 'blocked' }`, regardless of `isPendingConfirmation` —
+ * blocking is a terminal decision that supersedes an undecided pending
+ * state (spec.md Design Decision 9): a contact that is both pending AND
+ * blocked resolves to `'blocked'`, never `'pending_confirmation'`. A
+ * non-member, non-archived contact with `isPendingConfirmation === true` is
+ * `{ selectable: false, disabledReason: 'pending_confirmation' }`. Every
+ * other contact is `{ selectable: true }` — the `disabledReason` key is
+ * omitted entirely, not set to `undefined`.
  *
  * Pure and synchronous: no storage or network access. Callers pass
  * `listContacts(ownPubkeyHex, { includeArchived: true })` output directly.
@@ -300,6 +477,9 @@ export function selectableContactsForGroup(
     }
     if (contact.isArchived) {
       return { contact, selectable: false, disabledReason: 'blocked' };
+    }
+    if (contact.isPendingConfirmation) {
+      return { contact, selectable: false, disabledReason: 'pending_confirmation' };
     }
     return { contact, selectable: true };
   });

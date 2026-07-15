@@ -39,7 +39,7 @@ vi.stubGlobal('localStorage', {
 });
 
 // ── SUT import (after mocks) ──────────────────────────────────────────────────
-const { purgeStrangerContacts } = await import('@/src/lib/contacts');
+const { purgeStrangerContacts, listContacts, rememberContact } = await import('@/src/lib/contacts');
 
 // ── Whitelist factory ─────────────────────────────────────────────────────────
 const OWN = 'cc'.repeat(32);
@@ -88,5 +88,45 @@ describe('purgeStrangerContacts — SSR guard (contacts.ts:192)', () => {
    */
   it('returns { deleted: 0 } — not an empty object — when storage is unavailable', () => {
     expect(purgeStrangerContacts(getWhitelist)).toEqual({ deleted: 0 });
+  });
+});
+
+/**
+ * SSR-guard test for contacts.ts:40 (readContactCacheSnapshot).
+ *
+ * `readContactCacheSnapshot` — reached only indirectly via `listContacts` —
+ * bails when `isStorageAvailable()` returns false, so no localStorage.getItem
+ * happens on the contactCache key. Under the mutation `if (false) return {}`
+ * → guard removed → the function would call localStorage.getItem, which the
+ * spy below catches.
+ */
+describe('readContactCacheSnapshot — SSR guard (contacts.ts:40)', () => {
+  it('listContacts does not call localStorage.getItem when storage is unavailable (covers both readStoredContacts and readContactCacheSnapshot guards)', () => {
+    getItemSpy.mockClear();
+
+    listContacts(null);
+
+    // Under original code both guards bail and nothing gets read. Under the
+    // readContactCacheSnapshot guard mutation, at least one getItem call to
+    // the contactCache key happens.
+    expect(getItemSpy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * SSR-guard test for contacts.ts:77 (writeStoredContacts).
+ *
+ * `writeStoredContacts` — reached indirectly via `rememberContact` — bails
+ * when `isStorageAvailable()` returns false, so no localStorage.setItem
+ * happens. Under the mutation `if (false) return` → guard removed → the
+ * function would call localStorage.setItem, which the spy below catches.
+ */
+describe('writeStoredContacts — SSR guard (contacts.ts:77)', () => {
+  it('rememberContact does not call localStorage.setItem when storage is unavailable', () => {
+    setItemSpy.mockClear();
+
+    rememberContact('a'.repeat(64), '2026-06-01T00:00:00.000Z');
+
+    expect(setItemSpy).not.toHaveBeenCalled();
   });
 });

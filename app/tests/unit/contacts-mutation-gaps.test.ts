@@ -16,8 +16,11 @@ import { nip19 } from 'nostr-tools';
 import {
   addContactByNpub,
   archiveContact,
+  confirmContact,
+  isPendingConfirmation,
   unarchiveContact,
   rememberContact,
+  rememberPendingContact,
   readStoredContacts,
   listContacts,
   eligibleGroupsForContact,
@@ -245,6 +248,10 @@ describe('readStoredContacts — corrupt input and partial-entry normalization',
       firstSeenAt: EPOCH,
       lastSeenAt: EPOCH,
       archivedAt: null,
+      // Epic: pending-contact-confirmation (AC-STRUCT-1/AC-STRUCT-2) — purely
+      // additive default for any entry (including this null-valued legacy
+      // one) that lacks the field.
+      pendingConfirmationSince: null,
     });
   });
 });
@@ -261,5 +268,107 @@ describe('listContacts — corrupt contactCache resilience', () => {
     expect(listed.map((c) => c.pubkeyHex)).toContain(pubkeyHex);
     // Corrupt cache degrades to empty profile fields rather than crashing.
     expect(listed.find((c) => c.pubkeyHex === pubkeyHex)?.nickname).toBe('');
+  });
+});
+
+// ── Gap 8: pending-confirmation empty-pubkey guards (epic: pending-contact-confirmation) ──
+describe('rememberPendingContact — empty-pubkey guard', () => {
+  it('rememberPendingContact("") persists nothing — no empty-key contact leaks in', () => {
+    rememberPendingContact('', '2026-06-01T00:00:00.000Z');
+    expect(readStoredContacts()).toEqual({});
+    expect(Object.keys(readStoredContacts())).not.toContain('');
+  });
+});
+
+describe('isPendingConfirmation — empty-pubkey guard', () => {
+  it('isPendingConfirmation("") returns false, never true', () => {
+    rememberPendingContact('a'.repeat(64), '2026-06-01T00:00:00.000Z');
+    expect(isPendingConfirmation('')).toBe(false);
+  });
+});
+
+// ── Gap 9: rememberPendingContact must not regress lastSeenAt on a stale re-pair ──
+describe('rememberPendingContact — lastSeenAt is monotonic-forward on re-pairing', () => {
+  it('does not regress lastSeenAt when a re-pairing arrives with an earlier seenAt than the stored one', () => {
+    const pubkeyHex = 'b'.repeat(64);
+    const newerSeenAt = '2026-06-01T00:00:00.000Z';
+    const staleSeenAt = '2020-01-01T00:00:00.000Z';
+    rememberPendingContact(pubkeyHex, newerSeenAt);
+
+    rememberPendingContact(pubkeyHex, staleSeenAt); // older re-pair
+
+    // Regression pin: the ternary `existing.lastSeenAt >= seenAt ? existing.lastSeenAt : seenAt`
+    // must keep the newer stored value. A collapse to always-seenAt would rewind to staleSeenAt.
+    expect(readStoredContacts()[pubkeyHex].lastSeenAt).toBe(newerSeenAt);
+  });
+});
+
+// ── Gap 10: confirmContact must isolate its cleared pubkey ────────────────────
+describe('confirmContact — isolation across independently-stored pending contacts', () => {
+  it('clears only the target pending contact and leaves other pending contacts untouched', () => {
+    // Two independently-stored pending contacts. A confirm on the first must
+    // NOT clear the second — a filter-collapse mutation (all keys "match")
+    // would clear both.
+    const target = 'a'.repeat(64);
+    const other = 'b'.repeat(64);
+    rememberPendingContact(target, '2026-06-01T00:00:00.000Z');
+    rememberPendingContact(other, '2026-06-02T00:00:00.000Z');
+
+    confirmContact(target);
+
+    const contacts = readStoredContacts();
+    expect(contacts[target].pendingConfirmationSince).toBeNull();
+    expect(contacts[other].pendingConfirmationSince).toBe('2026-06-02T00:00:00.000Z');
+  });
+});
+
+// ── Gap 11: listContacts sort — force the sort into both comparator orders ────
+// The Gap 6 test above pins the "archived at the end" outcome but does not
+// exhaustively cover the `-1` limb of `a.isArchived ? 1 : -1`. V8's TimSort on
+// the seed order [active, active, archived] happens to never invoke the
+// comparator with (active, archived) — the seed already agrees with the
+// desired order for that pair. This block seeds in an order that forces V8 to
+// invoke the comparator with the second argument archived (and vice versa).
+describe('listContacts — archived-sort under adversarial seed orders', () => {
+  it('places archived at the end when the seed order interleaves active/archived', () => {
+    const active1 = 'c'.repeat(63) + '1';
+    const active2 = 'c'.repeat(63) + '2';
+    const archived1 = 'c'.repeat(63) + '3';
+    const archived2 = 'c'.repeat(63) + '4';
+    // Interleave: active, archived, active, archived — every comparison the
+    // sort makes between an adjacent pair straddles the archive boundary.
+    rememberContact(active1, '2021-01-01T00:00:00.000Z');
+    rememberContact(archived1, '2021-02-01T00:00:00.000Z');
+    archiveContact(archived1, '2021-02-01T00:00:00.000Z');
+    rememberContact(active2, '2021-03-01T00:00:00.000Z');
+    rememberContact(archived2, '2021-04-01T00:00:00.000Z');
+    archiveContact(archived2, '2021-04-01T00:00:00.000Z');
+
+    const listed = listContacts(null, { includeArchived: true });
+
+    // Both actives must precede both archived, regardless of lastSeenAt.
+    const archivedFlags = listed.map((c) => c.isArchived);
+    expect(archivedFlags).toEqual([false, false, true, true]);
+  });
+
+  it('places archived at the end when the seed order lists all archived before actives', () => {
+    const active1 = 'd'.repeat(63) + '1';
+    const active2 = 'd'.repeat(63) + '2';
+    const archived1 = 'd'.repeat(63) + '3';
+    const archived2 = 'd'.repeat(63) + '4';
+    // Archived-first seed forces the sort to actively move them past every
+    // active — the comparator must return positive for (archived, active) AND
+    // negative for (active, archived).
+    rememberContact(archived1, '2021-01-01T00:00:00.000Z');
+    archiveContact(archived1, '2021-01-01T00:00:00.000Z');
+    rememberContact(archived2, '2021-02-01T00:00:00.000Z');
+    archiveContact(archived2, '2021-02-01T00:00:00.000Z');
+    rememberContact(active1, '2021-03-01T00:00:00.000Z');
+    rememberContact(active2, '2021-04-01T00:00:00.000Z');
+
+    const listed = listContacts(null, { includeArchived: true });
+
+    const archivedFlags = listed.map((c) => c.isArchived);
+    expect(archivedFlags).toEqual([false, false, true, true]);
   });
 });

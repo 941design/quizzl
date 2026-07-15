@@ -1,0 +1,145 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-15T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is confirmContact(pubkeyHex) a real state-mutating implementation — not a stub that always returns without checking storage — and does the pending-admission primitive write a live, non-frozen ISO timestamp (not a hardcoded constant) to pendingConfirmationSince? Show the production code for both and confirm neither degrades to a no-op when readStoredContacts/writeStoredContacts are exercised for real (not mocked away)."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the pending predicate's placement and export shape comply with architecture.md's Boundary rules — exported from exactly one location in contacts.ts, never re-derived inline, and NOT folded into or calling isAllowedDmSender / isBlockedPeer / isAllowedDmSenderComposite (the documented ADR-008 exception, spec.md Design Decision 5)? Cite the file:line of the single export site and confirm no second definition exists anywhere in the diff."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could contacts.ts be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do contacts.test.ts, contacts-selectable.test.ts, contacts-add-by-npub.test.ts, and pairingAck.test.ts each carry a passing unit test exercising the new pendingConfirmationSince field default (AC-STRUCT-1/2), the pending-admission primitive at handlePairingAck's Step 9 for both new-sender and re-pairing cases (AC-ADMIT-1/2), confirmContact's both success and no-op cases (AC-CONFIRM-1/2), the selectableContactsForGroup precedence extension across all four combinations (AC-GROUP-1), and the case-insensitive matchingKeys-style lookup (AC-STRUCT-4)? Show the actual assertions, not just that the function under test was invoked."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the implementation match spec.md's Design Decision 2 (a new nullable field, not a new combined status enum) and Design Decision 3 (no auto-expiry or timer-based fallback anywhere in the pending-admission or confirmContact code paths)? Show the StoredContact field declaration and confirm no timer, setTimeout, or expiry-comparison logic was introduced anywhere in contacts.ts or pairingAck.ts."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does AC-SEC-1 hold end to end — do neither the pending-admission primitive nor confirmContact ever call a kind-0 metadata publish to any relay, and do pairingAck.ts's existing Steps 10-11 (gift-wrapped profile-announce, name-drop cache write) still fire identically regardless of the newly-admitted contact's pending state? Show a diff/grep proving no new publish call was added in either function, and a pairingAck.test.ts assertion that Steps 10-11 fire the same number of times whether or not the admitted contact ends up pending."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-3",
+      "question": "CONTRACT: Does the exported PendingConfirmationPredicate seam (consumed by S2, no mock in between per stories.json's dependency_notes) match its declared contract exactly — confirmContact: (pubkeyHex: string) => void; isPendingConfirmation: (pubkeyHex: string, contacts?: StoredContact[]) => boolean; ContactListItem.isPendingConfirmation: boolean — and do all five contract invariants hold: (1) isPendingConfirmation reads only from readStoredContacts() or an equivalent explicit parameter, never any other store; (2) it MUST NOT call or be folded into isAllowedDmSenderComposite/isAllowedDmSender/isBlockedPeer; (3) both isPendingConfirmation and confirmContact resolve pubkeyHex case-insensitively, mirroring addContactByNpub's matchingKeys pattern; (4) confirmContact is a no-op (no throw, no write) for an unknown pubkey or one already null; (5) confirmContact clears only pendingConfirmationSince, leaving firstSeenAt/lastSeenAt/archivedAt untouched? Show the exact exported type signatures and, for each invariant, the specific test that proves it — since S2 consumes this contract directly with no mock, any mismatch here breaks S2 silently rather than loudly."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "Does StoredContact in contacts.ts declare pendingConfirmationSince: string | null, and does normalizeStoredContact resolve it to null for any persisted entry lacking the field (including every contact stored before this epic)? Show the production normalization code, the unit test that loads a legacy stored-contact fixture missing the field and asserts it resolves to null, and confirm the test reads through the real readStoredContacts/normalizeStoredContact path rather than a mock-spy standing in for normalization."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-2",
+      "question": "Is every pre-epic StoredContact entry (blocked, archived, or otherwise) guaranteed to resolve pendingConfirmationSince to null after upgrade, purely via AC-STRUCT-1's default resolution, with no separate migration or write-back path introduced? Show the test covering a blocked/archived legacy fixture specifically (not just a plain unremarkable one) and confirm it exercises the real normalization path, not a hand-mocked stand-in."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-3",
+      "question": "Is the pending-confirmation predicate exported from exactly one site in contacts.ts, reading only from readStoredContacts() or an equivalent explicit parameter, imported (not re-derived inline) at every call site that gates on it, and never folded into or calling isAllowedDmSenderComposite/isAllowedDmSender/isBlockedPeer? Show the single export site, grep evidence there is no second inline `pendingConfirmationSince != null` check anywhere else in the diff, and the unit test asserting the single-export-site shape."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-4",
+      "question": "Do the pending-admission primitive and confirmContact(pubkeyHex) resolve pubkeyHex against readStoredContacts() entries case-insensitively, mirroring addContactByNpub's matchingKeys pattern? Show the production lookup code and the unit test (per acceptance-criteria.md's Manual Validation section) that stores a contact under a mixed-case key and calls confirmContact with the opposite-cased form, confirming it is a real storage read, not a mocked matchingKeys stand-in."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ADMIT-1",
+      "question": "Does handlePairingAck, when admitting a sender with no prior StoredContact entry, create that entry with pendingConfirmationSince set to a non-null timestamp? Show the Step 9 production code change and the pairingAck.test.ts case for a brand-new sender, confirming the test inspects the actually-persisted StoredContact rather than a spied write call."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ADMIT-2",
+      "question": "Does handlePairingAck, when re-pairing a sender with an existing StoredContact entry, leave that entry's existing pendingConfirmationSince value exactly unchanged (never null->non-null, never clearing an already-pending value)? Show the re-pairing branch and two pairingAck.test.ts cases — previously-null and previously-pending — proving both are preserved, not just one."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ADMIT-3",
+      "question": "Does addContactByNpub continue to create a brand-new contact with pendingConfirmationSince: null, unaffected by this epic's admission changes? Show the unchanged/updated production code path and the contacts-add-by-npub.test.ts assertion that checks the field explicitly, not merely that the contact was created."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CONFIRM-1",
+      "question": "Does confirmContact(pubkeyHex), called against a contact whose pendingConfirmationSince is non-null, set that field to null while leaving firstSeenAt, lastSeenAt, and archivedAt on that entry byte-for-byte unchanged? Show the production function and a contacts.test.ts case that asserts all three untouched fields explicitly, not just that pendingConfirmationSince became null."
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CONFIRM-2",
+      "question": "Is confirmContact(pubkeyHex) a true no-op — no thrown error, no storage write — for an unknown pubkey and for a pubkey whose pendingConfirmationSince is already null? Show both test cases and confirm the test asserts on the storage-write call count/absence (e.g. localStorage not touched), not merely that no exception surfaced."
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GROUP-1",
+      "question": "Does selectableContactsForGroup resolve disabledReason by the precedence already_member > blocked > pending_confirmation > selectable, including the pending+blocked-at-once case resolving to 'blocked' (never 'pending_confirmation') and the pending+already-member case resolving to 'already_member'? Show the precedence-ordering production code and contacts-selectable.test.ts cases for all four combinations (pending-only, pending+blocked, pending+already-member, none), not just the pending-only case."
+    },
+    {
+      "question_id": "VQ-S1-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-1",
+      "question": "Does neither the pending-admission primitive's write nor confirmContact's write ever trigger a kind-0 metadata publish to any relay, and do pairingAck.ts's Steps 10-11 (existing gift-wrap profile-announce, name-drop cache write) still fire identically regardless of pending state? Show a grep/diff proving no new kind-0 publish call exists in either function and a pairingAck.test.ts assertion that Steps 10-11's existing calls are invoked the same number of times whether or not the admitted contact ends up pending."
+    },
+    {
+      "question_id": "VQ-S1-019",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "pairingAck.test.ts mocks `@/src/lib/contacts` wholesale, and the mock's `rememberPendingContact` stand-in does a DIRECT (non-case-insensitive) key lookup against `contactsState`, unlike the real `rememberPendingContact` in contacts.ts (which does a case-insensitive `matchingKeys`-style scan per AC-STRUCT-4). Does this divergence between the mock and the real implementation leave any AC-STRUCT-4 behavior at the `handlePairingAck` call site unverified — i.e. could a real differently-cased pre-existing StoredContact entry be mishandled by the real `rememberPendingContact` when reached via `handlePairingAck`, in a way the mocked pairingAck.test.ts suite cannot detect? (`rumor.pubkey.toLowerCase()` guarantees `senderHex` itself is always lowercase, but the STORED key it must match against is not guaranteed to be.) Cross-check against contacts.test.ts's own direct case-insensitivity coverage of `rememberPendingContact` (unmocked) to determine whether the AC is still fully covered end-to-end, just split across two files rather than exercised through the integration path."
+    },
+    {
+      "question_id": "VQ-S1-020",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "listContacts() now computes `ContactListItem.isPendingConfirmation` by calling the exported `isPendingConfirmation(contact.pubkeyHex, storedList)` for every contact in the list (an O(n) linear scan per contact, O(n^2) for the full list), rather than the cheaper inline `Boolean(contact.pendingConfirmationSince)` that mirrors how `isArchived` is derived one line above it. This was a deliberate choice to keep pendingConfirmationSince != null inspection to the single AC-STRUCT-3 export site rather than a second inline re-derivation. Given this codebase's contact lists are locally-bounded (no pagination, no server-side contact directories), is the O(n^2) cost negligible in practice, or does it warrant a follow-up note for a future story if contact lists grow large? This is a design-tradeoff question, not a correctness question — the behavior is identical either way."
+    },
+    {
+      "question_id": "VQ-S1-021",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The Regression Prevention pass surfaced one previously-passing test in `app/tests/unit/contacts-mutation-gaps.test.ts` (NOT listed in this story's `scope.includes`) that broke on an exact-shape `toEqual` assertion because of the new additive `pendingConfirmationSince` field, and it was fixed with a one-line addition to the expected fixture. Is this the ONLY such out-of-scope collateral test fixed, or could other exact-shape assertions elsewhere in the test suite (outside the 4 files this story's scope.includes names) be silently tolerating the new field via partial-property assertions (`.toMatchObject`, `.toEqual(expect.objectContaining(...))`, or individual `.property` checks) that would not fail loudly but also don't verify the new field's value? A repo-wide grep for other `readStoredContacts()`/`listContacts()`/`normalizeStoredContact`-adjacent exact-`toEqual` fixtures would confirm whether this was the only gap."
+    }
+  ]
+}

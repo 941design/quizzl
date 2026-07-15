@@ -18,6 +18,9 @@
  */
 import 'fake-indexeddb/auto';
 import { webcrypto } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 if (!globalThis.crypto?.subtle) {
   Object.defineProperty(globalThis, 'crypto', {
@@ -46,6 +49,10 @@ import {
   getStoredNonce,
   NONCE_GRACE_SEC,
 } from '@/src/lib/pairing/nonceStore';
+// Namespace import: enables vi.spyOn on individual nonceStore exports without
+// mocking the whole module (mutation-gate: forces a downstream throw so the
+// outer catch fallback in handlePairingAck is observably exercised).
+import * as nonceStoreModule from '@/src/lib/pairing/nonceStore';
 
 // ── localStorage mock (story 06 push-trigger tests only) ───────────────────
 // Hand-rolled, no jsdom — mirrors contacts-property.test.ts's precedent.
@@ -84,19 +91,20 @@ function clearLocalUserProfile(): void {
 // stores — lets tests assert exact call order (AC-ADMIT-1) and exact
 // dedup/idempotency behavior (AC-ACK-3) without jsdom.
 
-const { knownPeersState, rememberKnownPeersCalls, rememberContactCalls, callOrder, contactsState } = vi.hoisted(() => ({
+const { knownPeersState, rememberKnownPeersCalls, rememberPendingContactCalls, callOrder, contactsState } = vi.hoisted(() => ({
   knownPeersState: new Set<string>(),
   rememberKnownPeersCalls: [] as string[][],
-  rememberContactCalls: [] as string[],
+  rememberPendingContactCalls: [] as string[],
   callOrder: [] as Array<'knownPeers' | 'contact'>,
   // Gate-remediation finding 1: `@/src/lib/contacts` is mocked wholesale
   // below, which would otherwise leave `readStoredContacts` undefined —
   // `blockedPeers.ts#loadBlockedPeers()` (now called from handlePairingAck)
   // imports exactly that export. Tracked state here stands in for
-  // `lp_contacts_v1`, mirroring `rememberContact`'s real archivedAt-preserving
-  // upsert semantics closely enough for these tests, and lets a test seed a
-  // sender as already-blocked (archivedAt set) BEFORE a pairing-ack arrives.
-  contactsState: {} as Record<string, { pubkeyHex: string; firstSeenAt: string; lastSeenAt: string; archivedAt: string | null }>,
+  // `lp_contacts_v1`, mirroring `rememberPendingContact`'s real
+  // archivedAt/pendingConfirmationSince-preserving upsert semantics closely
+  // enough for these tests, and lets a test seed a sender as already-blocked
+  // (archivedAt set) or already-pending BEFORE a pairing-ack arrives.
+  contactsState: {} as Record<string, { pubkeyHex: string; firstSeenAt: string; lastSeenAt: string; archivedAt: string | null; pendingConfirmationSince?: string | null }>,
 }));
 
 vi.mock('@/src/lib/knownPeers', () => ({
@@ -108,16 +116,37 @@ vi.mock('@/src/lib/knownPeers', () => ({
 }));
 
 vi.mock('@/src/lib/contacts', () => ({
-  rememberContact: (hex: string) => {
-    rememberContactCalls.push(hex);
+  // Retained as a no-op stand-in — contactCache.ts imports this name (used
+  // only by its non-neutralized `writeContactEntry`, which none of
+  // handlePairingAck's exercised code paths ever call), but production
+  // admission at Step 9 now uses `rememberPendingContact` instead (epic:
+  // pending-contact-confirmation, S1).
+  rememberContact: () => {},
+  // Epic: pending-contact-confirmation, S1 — the pending-admission
+  // primitive that REPLACES `rememberContact` at handlePairingAck's Step 9.
+  // Mirrors contacts.ts#rememberPendingContact's real
+  // archivedAt/pendingConfirmationSince-preserving upsert: a brand-new
+  // sender gets `pendingConfirmationSince` set to `seenAt` (AC-ADMIT-1); a
+  // re-pairing sender's existing `archivedAt` AND `pendingConfirmationSince`
+  // are both left exactly as they were (AC-ADMIT-2, Step 9's comment:
+  // "correctly PRESERVES their archivedAt").
+  rememberPendingContact: (hex: string, seenAt: string = new Date().toISOString()) => {
+    rememberPendingContactCalls.push(hex);
     callOrder.push('contact');
-    // Mirrors contacts.ts#rememberContact's real archivedAt-preserving upsert
-    // (Step 9's comment: "correctly PRESERVES their archivedAt").
-    const existing = contactsState[hex];
-    const seenAt = new Date().toISOString();
-    contactsState[hex] = existing
-      ? { ...existing, lastSeenAt: seenAt }
-      : { pubkeyHex: hex, firstSeenAt: seenAt, lastSeenAt: seenAt, archivedAt: null };
+    // Case-insensitive gather-all-matches lookup, mirroring the real
+    // rememberPendingContact's `matchingKeys` pattern (contacts.ts lines
+    // 149-180, AC-STRUCT-4) — a differently-cased stored key must still be
+    // found and updated, not shadowed by a fresh entry under `hex`.
+    const target = hex.toLowerCase();
+    const matchingKeys = Object.keys(contactsState).filter((key) => key.toLowerCase() === target);
+    if (matchingKeys.length > 0) {
+      for (const matchingKey of matchingKeys) {
+        const existing = contactsState[matchingKey];
+        contactsState[matchingKey] = { ...existing, lastSeenAt: seenAt };
+      }
+    } else {
+      contactsState[hex] = { pubkeyHex: hex, firstSeenAt: seenAt, lastSeenAt: seenAt, archivedAt: null, pendingConfirmationSince: seenAt };
+    }
   },
   readStoredContacts: () => contactsState,
 }));
@@ -144,6 +173,8 @@ function makeIdentity() {
   const pubHex = getPublicKey(priv);
   return { priv, privHex, pubHex, signer: createPrivateKeySigner(privHex) };
 }
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const T0 = 1_700_000_000; // unix seconds, matches nonceStore.integration.test.ts's anchor
 
@@ -186,7 +217,7 @@ beforeEach(async () => {
   vi.restoreAllMocks();
   knownPeersState.clear();
   rememberKnownPeersCalls.length = 0;
-  rememberContactCalls.length = 0;
+  rememberPendingContactCalls.length = 0;
   callOrder.length = 0;
   for (const key of Object.keys(contactsState)) delete contactsState[key];
   await clearAllNonces();
@@ -377,7 +408,7 @@ describe('sendPairingAck (AC-ACK-1, AC-PRIV-1)', () => {
 // ── AC-ADMIT-1/2/3 + AC-SEC-1/2 — handlePairingAck core ─────────────────
 
 describe('handlePairingAck', () => {
-  it('AC-ADMIT-1/AC-ADMIT-2: admissible nonce + valid card → admits, calling rememberKnownPeers strictly BEFORE rememberContact (ADR-005)', async () => {
+  it('AC-ADMIT-1/AC-ADMIT-2: admissible nonce + valid card → admits, calling rememberKnownPeers strictly BEFORE rememberPendingContact (ADR-005)', async () => {
     const issuer = makeIdentity();
     const scanner = makeIdentity();
     const minted = await getOrMintActiveNonce(T0);
@@ -393,8 +424,8 @@ describe('handlePairingAck', () => {
 
     expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
     expect(rememberKnownPeersCalls).toEqual([[scanner.pubHex]]);
-    expect(rememberContactCalls).toEqual([scanner.pubHex]);
-    // ADR-005: rememberKnownPeers must appear BEFORE rememberContact in the recorded order.
+    expect(rememberPendingContactCalls).toEqual([scanner.pubHex]);
+    // ADR-005: rememberKnownPeers must appear BEFORE rememberPendingContact in the recorded order.
     expect(callOrder).toEqual(['knownPeers', 'contact']);
   });
 
@@ -413,7 +444,7 @@ describe('handlePairingAck', () => {
     const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 });
     expect(result).toEqual({ status: 'nonce-inadmissible' });
     expect(rememberKnownPeersCalls).toEqual([]);
-    expect(rememberContactCalls).toEqual([]);
+    expect(rememberPendingContactCalls).toEqual([]);
   });
 
   it('AC-ADMIT-2: nonce past its grace window → no admission, no error thrown, real isNonceAdmissible consulted', async () => {
@@ -433,7 +464,7 @@ describe('handlePairingAck', () => {
 
     expect(result).toEqual({ status: 'nonce-inadmissible' });
     expect(rememberKnownPeersCalls).toEqual([]);
-    expect(rememberContactCalls).toEqual([]);
+    expect(rememberPendingContactCalls).toEqual([]);
   });
 
   it('AC-ADMIT-3: two distinct senders echoing the SAME still-admissible nonce are BOTH independently admitted; the nonce is not consumed by the first admission', async () => {
@@ -465,7 +496,7 @@ describe('handlePairingAck', () => {
 
     expect(knownPeersState.has(bob.pubHex)).toBe(true);
     expect(knownPeersState.has(carol.pubHex)).toBe(true);
-    expect(rememberContactCalls).toEqual([bob.pubHex, carol.pubHex]);
+    expect(rememberPendingContactCalls).toEqual([bob.pubHex, carol.pubHex]);
   });
 
   it('AC-ACK-3: a second ack from an already-admitted sender is idempotent — no duplicate remember calls, digest count unchanged', async () => {
@@ -491,7 +522,7 @@ describe('handlePairingAck', () => {
     // No duplicate side effects, and the digest source (the SAME map backing
     // the idempotency check, VQ-S3-011) did not grow.
     expect(rememberKnownPeersCalls).toHaveLength(1);
-    expect(rememberContactCalls).toHaveLength(1);
+    expect(rememberPendingContactCalls).toHaveLength(1);
     expect(getPairingAckAdmissions().size).toBe(1);
   });
 
@@ -646,7 +677,7 @@ describe('handlePairingAck — sender binding (AC-SEC-1, AC-SEC-2)', () => {
     expect(knownPeersState.has(victim.pubHex)).toBe(false);
     expect(knownPeersState.has(attacker.pubHex)).toBe(false);
     expect(rememberKnownPeersCalls).toEqual([]);
-    expect(rememberContactCalls).toEqual([]);
+    expect(rememberPendingContactCalls).toEqual([]);
   });
 
   it('AC-SEC-2: sender binding is authenticated (unwrapAndOpen), not tautological — swapping ONLY the enclosed card pubkey (self-consistent forged wrap) still fails to admit the forged identity', async () => {
@@ -784,7 +815,7 @@ describe('handlePairingAck — content-shape rejection (mutation gate)', () => {
     expect(result.status).toBe('malformed-content');
     // A structurally-broken ack never reaches admission.
     expect(rememberKnownPeersCalls).toEqual([]);
-    expect(rememberContactCalls).toEqual([]);
+    expect(rememberPendingContactCalls).toEqual([]);
   });
 
   it('AC-ADMIT-2: a well-shaped ack echoing an admissible nonce but carrying an undecodable card → "card-invalid" (never admitted)', async () => {
@@ -803,7 +834,7 @@ describe('handlePairingAck — content-shape rejection (mutation gate)', () => {
     const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 60 });
     expect(result.status).toBe('card-invalid');
     expect(rememberKnownPeersCalls).toEqual([]);
-    expect(rememberContactCalls).toEqual([]);
+    expect(rememberPendingContactCalls).toEqual([]);
   });
 
   it('AC-ADMIT-2: a well-shaped ack whose card DECODES but carries no profile (an unsigned/nameless bare-pubkey card) → "card-invalid" (never admitted)', async () => {
@@ -828,7 +859,88 @@ describe('handlePairingAck — content-shape rejection (mutation gate)', () => {
     const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 60 });
     expect(result.status).toBe('card-invalid');
     expect(rememberKnownPeersCalls).toEqual([]);
-    expect(rememberContactCalls).toEqual([]);
+    expect(rememberPendingContactCalls).toEqual([]);
+  });
+});
+
+// ── Mutation-gate: opts default handling + outer catch fallback ────────────
+// Two Stryker-surfaced gaps in handlePairingAck's boundary behavior that the
+// existing suite never exercised: (1) EVERY prior test passed a non-null `opts`,
+// leaving the `opts?.nowSec` / `opts?.ndk` optional-chaining guards alive under
+// mutation — a caller that omits `opts` entirely (documented as supported: "so
+// existing call sites that have not yet been updated to pass their own ndk keep
+// working unchanged") must still admit normally without publishing; (2) no test
+// forced an unexpected throw past the inner try/catches into the function's
+// outer catch, leaving the whole `catch (err) { … return { status: 'malformed-
+// content' } }` fallback (block, returned object, and status string) alive.
+// Together these two tests kill mutants 89 / 123 / 139 / 141 / 142.
+describe('handlePairingAck — opts omission + outer-catch fallback (mutation gate)', () => {
+  it('admits normally when opts is omitted entirely — opts?.nowSec falls through to Date.now(), opts?.ndk falls through to no-push', async () => {
+    // Both `opts?.nowSec` (Step 4) and `opts?.ndk` (Step 10) are guarded with
+    // optional chaining precisely because the whole `opts` object is optional
+    // (per the function signature and its doc comment). Under Stryker, replacing
+    // either chain with a plain member access (`opts.nowSec` / `opts.ndk`)
+    // throws when `opts` is undefined, which the outer catch would then convert
+    // to 'malformed-content'. An admissible ack called WITHOUT opts must
+    // therefore still return 'admitted', with no publish attempted (no ndk).
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    // Mint the nonce relative to REAL time (Date.now()) — the omitted opts.nowSec
+    // means handlePairingAck uses Date.now() itself, so the nonce must be
+    // admissible in that timeframe, not at T0.
+    const nowSec = Math.floor(Date.now() / 1000);
+    const minted = await getOrMintActiveNonce(nowSec);
+    const card = await buildIdentityCard(scanner, 'Bob');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    const publishSpy = vi.spyOn(NDKEvent.prototype, 'publish').mockResolvedValue(new Set() as never);
+
+    // No third argument at all — this is the "opts omitted" call shape.
+    const result = await handlePairingAck(wrap as never, issuer.privHex);
+
+    expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
+    // No ndk supplied → the Step 10 push-announce block is skipped, so no
+    // publish ever happens on this path.
+    expect(publishSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns 'malformed-content' (never rejects, never admits) when a downstream primitive throws unexpectedly — the outer catch fallback", async () => {
+    // Steps 1-3 have their own inner try/catches, but Steps 4-11 rely on the
+    // function's outer `try { … } catch (err) { … return { status: 'malformed-
+    // content' } }` as the last line of defense. Under Stryker, emptying that
+    // catch (BlockStatement mutation) makes the function resolve to `undefined`
+    // instead of the documented `HandlePairingAckResult`; mutating the returned
+    // object or its `'malformed-content'` string yields other observable
+    // divergences. Force an unexpected throw at Step 4 (pruneExpiredNonces) —
+    // the earliest reachable Step-4+ primitive — so the outer catch is the ONLY
+    // thing between the caller and an uncaught rejection / a shape-broken result.
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Bob');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    vi.spyOn(nonceStoreModule, 'pruneExpiredNonces').mockRejectedValueOnce(
+      new Error('nonce-store IO failure (simulated)'),
+    );
+
+    // Never rejects, never admits — exact shape must be `{ status: 'malformed-content' }`.
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5 });
+    expect(result).toEqual({ status: 'malformed-content' });
+    // The throw happens at Step 4, BEFORE Step 9's admission side effects, so
+    // neither remember-primitive is called.
+    expect(rememberKnownPeersCalls).toEqual([]);
+    expect(rememberPendingContactCalls).toEqual([]);
   });
 });
 
@@ -1220,10 +1332,10 @@ describe('handlePairingAck — privacy gate for a blocked re-pairing sender (gat
     const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5, ndk: {} as never });
 
     // Admission (Step 9) is unaffected — the re-pairing sender is still
-    // admitted, and rememberKnownPeers/rememberContact both still ran.
+    // admitted, and rememberKnownPeers/rememberPendingContact both still ran.
     expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
     expect(rememberKnownPeersCalls).toEqual([[scanner.pubHex]]);
-    expect(rememberContactCalls).toEqual([scanner.pubHex]);
+    expect(rememberPendingContactCalls).toEqual([scanner.pubHex]);
     // archivedAt is PRESERVED, never cleared by admission.
     expect(contactsState[scanner.pubHex].archivedAt).toBe(blockedAt);
 
@@ -1258,5 +1370,151 @@ describe('handlePairingAck — privacy gate for a blocked re-pairing sender (gat
     expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
     expect(published).toHaveLength(1);
     expect(readContactEntry(scanner.pubHex)?.nickname).toBe('Unblocked-Carol');
+  });
+});
+
+// ── Epic: pending-contact-confirmation, S1 — issuer-side admission gains a
+// pending-confirmation state (AC-ADMIT-1, AC-ADMIT-2, AC-SEC-1). Direct
+// template: the "privacy gate for a blocked re-pairing sender" block above.
+// Step 9 now calls `rememberPendingContact` (mocked above) instead of
+// `rememberContact` — these tests assert the resulting `pendingConfirmationSince`
+// state on the admitted entry, both for a brand-new sender and a re-pairing one.
+
+describe('handlePairingAck — pending-confirmation admission (epic: pending-contact-confirmation, AC-ADMIT-1)', () => {
+  it('AC-ADMIT-1: admitting a brand-new sender (no prior StoredContact entry) sets pendingConfirmationSince to a non-null timestamp', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Fresh-Bob');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    // No prior entry for this sender.
+    expect(contactsState[scanner.pubHex]).toBeUndefined();
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5 });
+
+    expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
+    expect(rememberPendingContactCalls).toEqual([scanner.pubHex]);
+    expect(contactsState[scanner.pubHex].pendingConfirmationSince).toBeTruthy();
+    expect(typeof contactsState[scanner.pubHex].pendingConfirmationSince).toBe('string');
+  });
+});
+
+describe('handlePairingAck — pending-confirmation re-pairing preservation (epic: pending-contact-confirmation, AC-ADMIT-2)', () => {
+  it('AC-ADMIT-2: re-pairing a sender whose pendingConfirmationSince was previously null leaves it null (never sets it non-null)', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Already-Confirmed-Bob');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    // Seed the sender as an already-CONFIRMED contact (as if a prior
+    // handlePairingAck admission had already been confirmed by the user).
+    const seededAt = new Date('2026-01-01T00:00:00.000Z').toISOString();
+    contactsState[scanner.pubHex] = {
+      pubkeyHex: scanner.pubHex,
+      firstSeenAt: seededAt,
+      lastSeenAt: seededAt,
+      archivedAt: null,
+      pendingConfirmationSince: null,
+    };
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5 });
+
+    expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
+    expect(rememberPendingContactCalls).toEqual([scanner.pubHex]);
+    // Still null — a re-pairing MUST NOT flip a confirmed contact back to pending.
+    expect(contactsState[scanner.pubHex].pendingConfirmationSince).toBeNull();
+    // lastSeenAt IS bumped, exactly like an ordinary re-pairing.
+    expect(contactsState[scanner.pubHex].lastSeenAt).not.toBe(seededAt);
+  });
+
+  it('AC-ADMIT-2: re-pairing a sender who is already pending leaves pendingConfirmationSince exactly as it was (never clears it)', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Still-Pending-Bob');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    // Seed the sender as already PENDING from an earlier admission.
+    const firstAdmittedAt = new Date('2026-01-01T00:00:00.000Z').toISOString();
+    contactsState[scanner.pubHex] = {
+      pubkeyHex: scanner.pubHex,
+      firstSeenAt: firstAdmittedAt,
+      lastSeenAt: firstAdmittedAt,
+      archivedAt: null,
+      pendingConfirmationSince: firstAdmittedAt,
+    };
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5 });
+
+    expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
+    // pendingConfirmationSince is exactly the ORIGINAL admission timestamp,
+    // not bumped/replaced by this second pairing-ack.
+    expect(contactsState[scanner.pubHex].pendingConfirmationSince).toBe(firstAdmittedAt);
+  });
+});
+
+describe('handlePairingAck — AC-SEC-1: pending state never gates Steps 10-11 (epic: pending-contact-confirmation)', () => {
+  it('a brand-new (freshly-pending) sender still gets the profile-announce publish AND the name-drop cache write, identically to a normal admission', async () => {
+    const issuer = makeIdentity();
+    const scanner = makeIdentity();
+    const minted = await getOrMintActiveNonce(T0);
+    const card = await buildIdentityCard(scanner, 'Pending-But-Unblocked-Dana');
+    const wrap = await buildGiftWrap({
+      senderIdentity: scanner,
+      recipientPubHex: issuer.pubHex,
+      kind: PAIRING_ACK_KIND,
+      content: ackContent(minted.nonce, card),
+    });
+
+    setLocalUserProfile({ nickname: 'Alice', avatar: null });
+    const published: NDKEvent[] = [];
+    vi.spyOn(NDKEvent.prototype, 'publish').mockImplementation(async function (this: NDKEvent) {
+      published.push(this);
+      return new Set() as never;
+    });
+
+    const result = await handlePairingAck(wrap as never, issuer.privHex, { nowSec: T0 + 5, ndk: {} as never });
+
+    expect(result).toEqual({ status: 'admitted', senderPubkeyHex: scanner.pubHex });
+    // The admitted entry IS pending...
+    expect(contactsState[scanner.pubHex].pendingConfirmationSince).toBeTruthy();
+    // ...but Step 10 (profile-announce) and Step 11 (name-drop cache write)
+    // fired exactly as they would for any other fresh, unblocked admission —
+    // no new gate on pending state was introduced at these call sites, and
+    // no kind-0 was published (AC-SEC-1's "no public metadata" half).
+    expect(published).toHaveLength(1);
+    const announceWrap = (published[0] as unknown as { rawEvent: () => { kind: number } }).rawEvent();
+    expect(announceWrap.kind).not.toBe(0);
+    expect(readContactEntry(scanner.pubHex)?.nickname).toBe('Pending-But-Unblocked-Dana');
+  });
+
+  it('confirmContact is never imported/called by pairingAck.ts — admission and confirmation are separate primitives, so nothing here can trigger a kind-0 publish on confirm either', () => {
+    // Structural guard (AC-SEC-1's second half — confirmContact never
+    // publishes kind-0). pairingAck.ts's own admission path never imports
+    // confirmContact at all; confirmContact's own kind-0-freedom is covered
+    // directly by contacts.ts's implementation (it never imports any
+    // Nostr-publish-capable module) and by contacts.test.ts's unit coverage.
+    const source = fs.readFileSync(
+      path.resolve(__dirname, '../../../src/lib/pairing/pairingAck.ts'),
+      'utf-8',
+    );
+    expect(source).not.toMatch(/confirmContact/);
   });
 });

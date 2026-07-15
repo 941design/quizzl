@@ -1,0 +1,141 @@
+{
+  "epic_name": "pending-contact-confirmation",
+  "status": "in_progress",
+  "phase": "IMPLEMENTATION_COMPLETE_GATES_PENDING",
+  "created_at": "2026-07-14T21:49:33Z",
+  "updated_at": "2026-07-15T13:17:00Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md",
+    "specs/block-contact-spec-request.md",
+    "specs/contact-pairing-code-spec-request.md",
+    "specs/direct-contact-profile-exchange-spec-request.md",
+    "specs/epic-pending-contact-confirmation/acceptance-criteria.md",
+    "specs/epic-pending-contact-confirmation/spec.md",
+    "specs/invite-group-member-from-contacts-spec-request.md",
+    "themes.json"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-14T21:49:33Z",
+      "trigger": "validation_passed"
+    }
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "6ce9cfd7e2211804083c086105e318fa1eee9151",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "reviewer_agent_id": "a3c12fd29cf1f7c47",
+  "ac_closure": [
+    {
+      "ac_id": "AC-STRUCT-1",
+      "status": "met",
+      "evidence": "app/src/lib/contacts.ts normalizeStoredContact; contacts.test.ts:189-205"
+    },
+    {
+      "ac_id": "AC-STRUCT-2",
+      "status": "met",
+      "evidence": "contacts.test.ts:207-224 (blocked legacy fixture)"
+    },
+    {
+      "ac_id": "AC-STRUCT-3",
+      "status": "met",
+      "evidence": "contacts.ts:262 isPendingConfirmation single export; contacts.test.ts:442-453; directMessageNotifications.ts:32,98,146; contacts.tsx imports"
+    },
+    {
+      "ac_id": "AC-STRUCT-4",
+      "status": "met",
+      "evidence": "contacts.ts rememberPendingContact/confirmContact matchingKeys pattern; contacts.test.ts:303-388"
+    },
+    {
+      "ac_id": "AC-ADMIT-1",
+      "status": "met",
+      "evidence": "pairingAck.ts:453 rememberPendingContact; pairingAck.test.ts:397-416"
+    },
+    {
+      "ac_id": "AC-ADMIT-2",
+      "status": "met",
+      "evidence": "contacts.ts rememberPendingContact re-pairing branch; contacts.test.ts:265-281"
+    },
+    {
+      "ac_id": "AC-ADMIT-3",
+      "status": "met",
+      "evidence": "contacts.ts addContactByNpub unchanged; contacts-add-by-npub.test.ts:44-52"
+    },
+    {
+      "ac_id": "AC-CONFIRM-1",
+      "status": "met",
+      "evidence": "contacts.ts:199-222 confirmContact; contacts.test.ts:343-355"
+    },
+    {
+      "ac_id": "AC-CONFIRM-2",
+      "status": "met",
+      "evidence": "contacts.test.ts:357-376 no-op cases"
+    },
+    {
+      "ac_id": "AC-GROUP-1",
+      "status": "met",
+      "evidence": "contacts.ts:469-486 selectableContactsForGroup precedence; contacts-selectable.test.ts:95-142"
+    },
+    {
+      "ac_id": "AC-SEC-1",
+      "status": "met",
+      "evidence": "pairingAck.ts Steps 10-11 unconditional on pending; pairingAck.test.ts:1379-1411"
+    },
+    {
+      "ac_id": "AC-MSG-1",
+      "status": "met",
+      "evidence": "ContactChat.tsx ingestion sites unchanged; verified by examiner trace"
+    },
+    {
+      "ac_id": "AC-MSG-2",
+      "status": "met",
+      "evidence": "contacts.tsx three-way branch (ContactChat unmounted while pending); dm-pairing-pending-confirmation.spec.ts"
+    },
+    {
+      "ac_id": "AC-OBS-1",
+      "status": "met",
+      "evidence": "directMessageNotifications.ts:98,146; directMessageNotifications.test.ts:637-696, -property.test.ts:533-587"
+    },
+    {
+      "ac_id": "AC-OBS-2",
+      "status": "met",
+      "evidence": "unreadStore.ts reconcileConfirmedContactDirectMessageCount + markDirectMessagesRead-on-open; amended 2026-07-15; e2e badge-clear assertions"
+    },
+    {
+      "ac_id": "AC-UX-1",
+      "status": "met",
+      "evidence": "contacts.tsx:198-217 pending badge + confirm button; e2e assertions"
+    },
+    {
+      "ac_id": "AC-UX-2",
+      "status": "met",
+      "evidence": "contacts.tsx:397-452 three-way branch incl. blocked-wins; e2e tests 2 and 3"
+    },
+    {
+      "ac_id": "AC-UX-3",
+      "status": "met",
+      "evidence": "i18n.ts Copy entries; pendingConfirmation.i18n.test.ts"
+    }
+  ],
+  "manual_validation": [],
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "interrupted",
+      "detail": "4/6 modules audited and passed (contacts.ts, pairingAck.ts, unreadStore.ts, directMessageNotifications.ts \u2014 13 real gaps found across them, all closed with new tests). contacts.tsx and InviteMemberModal.tsx were still running when the run was stopped by user request (2026-07-15) before completing. i18n.ts was correctly excluded (pure translation data, no logic to mutate)."
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-15T01:00:00Z",
+  "files_created": [
+    "specs/epic-pending-contact-confirmation/01-pending-admission-core/architecture.json",
+    "specs/epic-pending-contact-confirmation/01-pending-admission-core/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/contacts.ts",
+    "app/src/lib/pairing/pairingAck.ts",
+    "app/tests/unit/contacts.test.ts",
+    "app/tests/unit/contacts-selectable.test.ts",
+    "app/tests/unit/contacts-add-by-npub.test.ts",
+    "app/tests/unit/pairing/pairingAck.test.ts",
+    "app/tests/unit/contacts-mutation-gaps.test.ts",
+    "specs/epic-pending-contact-confirmation/01-pending-admission-core/verification.json"
+  ],
+  "tests_added": {
+    "unit": 31
+  },
+  "test_counts": {
+    "baseline": 3154,
+    "final": 3185
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": ["contacts.ts", "pairingAck.ts"],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The swap of pairingAck.ts's Step 9 admission call from rememberContact to the new rememberPendingContact required rewiring pairingAck.test.ts's vi.mock('@/src/lib/contacts', ...) factory and renaming its tracked-calls array across roughly a dozen existing assertions spanning unrelated AC blocks (nonce admissibility, sender-mismatch, content-shape rejection) that had nothing to do with pending-confirmation semantics but all asserted against the same mocked admission call. This was mechanical but required touching a large, security-critical 1260+-line test file end to end rather than a localized diff. Separately, the full-suite Regression Prevention pass surfaced one previously-passing test (app/tests/unit/contacts-mutation-gaps.test.ts) breaking on an exact-shape toEqual fixture because of the new additive pendingConfirmationSince field — that file was not listed in this story's stories.json scope.includes (only contacts.test.ts, contacts-selectable.test.ts, contacts-add-by-npub.test.ts, and pairingAck.test.ts were). Fixed with a one-line, clearly-commented fixture addition since it is a direct, unavoidable consequence of the in-scope normalizeStoredContact change (AC-STRUCT-1/2), not a scope expansion into unrelated behavior — flagged here rather than silently absorbed.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

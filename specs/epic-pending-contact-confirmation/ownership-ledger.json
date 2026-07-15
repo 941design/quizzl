@@ -1,0 +1,85 @@
+{
+  "epic": "pending-contact-confirmation",
+  "concepts": [
+    {
+      "id": "pending-predicate-single-export",
+      "name": "Pending-confirmation predicate: single export, no inline re-derivation",
+      "owning_module": "contacts.ts",
+      "type": "invariant",
+      "added_by_story": "S1",
+      "note": "isPendingConfirmation (contacts.ts) confirmed by Stage-1 review + 3 independent examiners: single export site, no second inline pendingConfirmationSince check, not folded into isAllowedDmSenderComposite/isAllowedDmSender/isBlockedPeer. S2's two future call sites (directMessageNotifications.ts bell gate, ContactChat.tsx-adjacent render gate) MUST import this function, never re-derive."
+    },
+    {
+      "id": "repairing-preserves-pending-timestamp",
+      "name": "Re-pairing preserves an existing pendingConfirmationSince value (never resets it, never clears it)",
+      "owning_module": "pairingAck.ts",
+      "type": "invariant",
+      "added_by_story": "S1",
+      "note": "Confirmed via rememberPendingContact's spread-preserving re-pairing branch; both previously-null and previously-pending cases directly tested."
+    },
+    {
+      "id": "case-insensitive-match-all-duplicates",
+      "name": "rememberPendingContact, confirmContact, and isPendingConfirmation all resolve pubkeyHex case-insensitively against ALL matching stored keys (not first-match), mirroring addContactByNpub's matchingKeys pattern",
+      "owning_module": "contacts.ts",
+      "type": "invariant",
+      "added_by_story": "S1",
+      "note": "Landed after two remediation rounds (Stage-1 review + Codex both caught first-match .find() bugs at different call sites — write-side then read-side). Any future function touching pendingConfirmationSince must follow the same plural-match discipline."
+    },
+    {
+      "id": "bell-bump-gated-on-pending-predicate",
+      "name": "Bell increment (incrementDirectMessage) is gated on the pending-confirmation predicate at both kind4Handler and kind1059Handler call sites",
+      "owning_module": "directMessageNotifications.ts",
+      "type": "validation_rule",
+      "added_by_story": "S2",
+      "note": "Confirmed at directMessageNotifications.ts:98,146; rememberContact still fires unconditionally, only incrementDirectMessage is gated."
+    },
+    {
+      "id": "dm-loadmessages-self-heal-side-effect",
+      "name": "chatPersistence.ts#loadMessages has a one-time-per-thread-per-session self-heal side effect (marks thread healed, returns refetchIds only on the FIRST call); any reconciliation/count-only caller must use a raw idb-keyval read instead, never loadMessages, or it will permanently starve the thread's one real repair opportunity from ContactChat's own later call",
+      "owning_module": "unreadStore.ts / chatPersistence.ts",
+      "type": "guarantee",
+      "added_by_story": "S2",
+      "note": "Discovered via Codex review across three rounds: first at initDirectMessageCounts (startup batch scan), then at reconcileConfirmedContactDirectMessageCount (both list- and detail-confirm paths). Both were fixed to use raw idb-keyval reads. Any future function reading persisted DM history for counting/reconciliation purposes only (not for rendering) must follow this same discipline."
+    },
+    {
+      "id": "initdirectmessagecounts-sole-reconciliation-entrypoint",
+      "name": "initDirectMessageCounts (batch/startup) and reconcileConfirmedContactDirectMessageCount (single-peer, confirm-time) are the two sanctioned recompute-from-persisted-history entrypoints; both use raw idb-keyval reads, never chatPersistence.ts#loadMessages; callers must not hand-duplicate the count logic",
+      "owning_module": "unreadStore.ts",
+      "type": "public_contract",
+      "added_by_story": "S2",
+      "note": "Amended from the original single-entrypoint framing: S2 added a second, single-peer entrypoint (reconcileConfirmedContactDirectMessageCount) rather than overloading the batch one, specifically to keep the self-heal-avoidance fix isolated per call shape."
+    },
+    {
+      "id": "blocked-wins-over-pending",
+      "name": "Blocked always wins over pending in ContactDetailView's three-way branch (already_member > blocked > pending_confirmation > selectable/normal)",
+      "owning_module": "contacts.tsx / ContactDetailView",
+      "type": "invariant",
+      "added_by_story": "S2",
+      "note": "Confirmed at contacts.tsx: isArchived branch checked before isPendingConfirmation branch; e2e-verified for the both-blocked-and-pending case."
+    },
+    {
+      "id": "pending-copy-i18n-completeness",
+      "name": "Every new pending-confirmation user-facing string has both en and de entries in i18n.ts's Copy type; no hardcoded strings in contacts.tsx or its components",
+      "owning_module": "i18n.ts",
+      "type": "validation_rule",
+      "added_by_story": "S2",
+      "note": "Includes the InviteMemberModal 'pending_confirmation' reason label added during gate-remediation, not just the original four badge/prompt/button keys."
+    },
+    {
+      "id": "live-increment-floor-on-reconcile",
+      "name": "A live incrementDirectMessage bump for a peer currently being reconciled (reconcileConfirmedContactDirectMessageCount) must never be reduced by the reconcile's recompute — the final count floors at whichever is higher",
+      "owning_module": "unreadStore.ts",
+      "type": "invariant",
+      "added_by_story": "S2",
+      "note": "reconcileFloor/noteLiveIncrementFloor mechanism, added in gate-remediation after Codex flagged a narrow async race. Scoped to this file only; does not change the shared reconcileInit helper's behavior for its other callers."
+    }
+  ],
+  "stories": [
+    { "story": "S1", "surfaces_touched": ["contacts.ts", "pairingAck.ts"], "reviewed": true },
+    { "story": "S2", "surfaces_touched": ["contacts.tsx", "directMessageNotifications.ts", "unreadStore.ts", "i18n.ts", "PendingConfirmationPrompt.tsx", "InviteMemberModal.tsx"], "reviewed": true }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "S2",
+    "model_at": "2026-07-15T03:30:00Z"
+  }
+}
