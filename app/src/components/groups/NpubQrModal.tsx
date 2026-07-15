@@ -18,6 +18,7 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import NpubQrScanner from '@/src/components/groups/NpubQrScanner';
+import { generateQrDataUrl } from '@/src/lib/qr';
 
 /**
  * S5 (epic: contact-pairing-code, AC-UI-1) — the validity-hint render gate.
@@ -125,12 +126,7 @@ export default function NpubQrModal({
       setQrError(null);
 
       try {
-        const { default: QRCode } = await import('qrcode');
-        const dataUrl = await QRCode.toDataURL(qrValue, {
-          errorCorrectionLevel: eccLevel,
-          margin: 2,
-          width: 320,
-        });
+        const dataUrl = await generateQrDataUrl(qrValue, eccLevel);
 
         if (!cancelled) {
           setQrDataUrl(dataUrl);

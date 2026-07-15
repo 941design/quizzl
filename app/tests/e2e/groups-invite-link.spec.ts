@@ -88,6 +88,13 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
     expect(inviteUrl).toContain('&admin=');
     expect(inviteUrl).toContain('&name=');
 
+    // The same link is offered as a QR for in-person hand-over. Its alt text is
+    // the encoded value, so this also asserts the QR encodes the link shown.
+    const qrImage = pageA.getByTestId('invite-link-qr-image');
+    await expect(qrImage).toBeVisible({ timeout: 10_000 });
+    await expect(qrImage).toHaveAttribute('alt', inviteUrl);
+    await expect(qrImage).toHaveAttribute('src', /^data:image\/png;base64,/);
+
     // Copy the link (persists the InviteLink to IDB)
     await pageA.getByTestId('invite-link-copy-btn').click();
     await pageA.waitForTimeout(1_000);

@@ -51,6 +51,38 @@ export function normaliseScanPayload(value: string): string | null {
   return stripped;
 }
 
+/** Error-correction levels this app encodes at. */
+export type QrErrorCorrectionLevel = 'L' | 'M';
+
+/**
+ * Shared QR *generation* seam (sibling of the scan-validation seams above).
+ *
+ * Both display surfaces that render a QR — `NpubQrModal` (npub / contact card)
+ * and `GenerateInviteLinkModal` (group invite link) — encode through this one
+ * function, so the raster options (margin, width) and the dynamic `qrcode`
+ * import stay defined once. It is deliberately a plain async function rather
+ * than a hook: this repo's vitest environment has no DOM renderer, so a hook
+ * could not be unit-tested, whereas this can (see `qr.test.ts`).
+ *
+ * `qrcode` is imported dynamically to keep it out of the initial bundle — it is
+ * only needed once a user actually opens a QR surface.
+ *
+ * Longer payloads (contact cards) encode at ECC-L to keep the module count —
+ * and therefore the printed density — manageable; short payloads (a bare npub,
+ * an invite URL) use the more forgiving ECC-M default.
+ */
+export async function generateQrDataUrl(
+  value: string,
+  errorCorrectionLevel: QrErrorCorrectionLevel = 'M',
+): Promise<string> {
+  const { default: QRCode } = await import('qrcode');
+  return QRCode.toDataURL(value, {
+    errorCorrectionLevel,
+    margin: 2,
+    width: 320,
+  });
+}
+
 export function canUseCameraQrScanner(): boolean {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
   return Boolean(window.isSecureContext && navigator.mediaDevices?.getUserMedia);
