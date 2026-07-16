@@ -22,6 +22,7 @@ import {
 import ThemeIcon from '@/src/components/ThemeIcon';
 import ProfileSummary from '@/src/components/ProfileSummary';
 import ContactChat from '@/src/components/contacts/ContactChat';
+import ShareContactCard from '@/src/components/contacts/ShareContactCard';
 import BlockContactButton from '@/src/components/contacts/BlockContactButton';
 import PendingConfirmationPrompt from '@/src/components/contacts/PendingConfirmationPrompt';
 // Voice/video calls are gated behind the CALLS_ENABLED feature toggle.
@@ -126,6 +127,14 @@ function ContactListView() {
           <Heading as="h1" size="xl" mb={2}>
             {copy.contacts.heading}
           </Heading>
+        </Box>
+
+        {/* The same "Share contact card" surface the profile page offers,
+            duplicated here because handing out your own card is what a user
+            comes to this page to do when the list is still short or empty. */}
+        <Box mb={6}>
+          <ShareContactCard />
+          <Divider mt={6} />
         </Box>
 
         {!hasAnyContacts ? (

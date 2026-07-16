@@ -23,8 +23,8 @@ import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useProfile } from '@/src/context/ProfileContext';
 import AvatarBrowserModal from '@/src/components/AvatarBrowserModal';
-import NpubQrModal from '@/src/components/groups/NpubQrModal';
-import { getOwnShareCard, hasShareableName, type ShareCardCacheEntry } from '@/src/lib/shareCard';
+import ShareContactCard from '@/src/components/contacts/ShareContactCard';
+import { hasShareableName } from '@/src/lib/shareCard';
 import { addableGroupsForContact, eligibleGroupsForContact, getContact, listContacts } from '@/src/lib/contacts';
 import BlockContactButton from '@/src/components/contacts/BlockContactButton';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
@@ -188,11 +188,10 @@ function AvatarDisplay({ avatar, displayName, size }: { avatar: ProfileAvatar | 
 function OwnProfileSection() {
   const copy = useCopy();
   const router = useRouter();
-  const { backedUp, npub, pubkeyHex, privateKeyHex, signerMode } = useNostrIdentity();
+  const { backedUp, pubkeyHex, privateKeyHex } = useNostrIdentity();
   const { profile: savedProfile, hydrated, saveProfile } = useProfile();
   const { publishProfileUpdate } = useMarmot();
   const avatarDisclosure = useDisclosure();
-  const shareCardDisclosure = useDisclosure();
   const [profile, setProfile] = useState<UserProfile>({ nickname: '', avatar: null });
   // True when the last keystroke/paste was clamped to the byte cap, so we can
   // surface a translated "limit reached" notice.
@@ -245,54 +244,6 @@ function OwnProfileSection() {
       // error.
     });
   }, [savedProfile.nickname, pubkeyHex, privateKeyHex]);
-
-  // --- Share contact card (epic: contact-card-exchange) ---
-  // In-memory only (never persisted, never holds signer/key material — the
-  // signer is re-derived on each cache MISS via the existing
-  // activeEventSignerOverride ?? createPrivateKeySigner precedent). Keyed by
-  // (nickname, signerMode, pubkeyHex) so a repeat open with an unchanged key
-  // reuses the cached card instead of re-signing, while a nickname edit,
-  // signer-mode switch, or identity restore invalidates it.
-  const shareCardCacheRef = useRef<ShareCardCacheEntry | null>(null);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [shareCardLoading, setShareCardLoading] = useState(false);
-  const [shareCardError, setShareCardError] = useState<string | null>(null);
-
-  // Sharing is only allowed once a name is set — a card must never go out as a
-  // bare npub. Mirrors the disabled Share button below and getOwnShareCard's
-  // own guard.
-  const canShareCard = hasShareableName(savedProfile.nickname);
-
-  const handleShareCard = useCallback(async () => {
-    setShareCardError(null);
-    if (!npub || !privateKeyHex || !pubkeyHex) return;
-    if (!hasShareableName(savedProfile.nickname)) return;
-
-    setShareCardLoading(true);
-    try {
-      const result = await getOwnShareCard({
-        pubkeyHex,
-        nickname: savedProfile.nickname,
-        signerMode,
-        cache: shareCardCacheRef.current,
-        getSignEvent: async () => {
-          const { activeEventSignerOverride, createPrivateKeySigner } = await import(
-            '@/src/lib/marmot/signerAdapter'
-          );
-          const signer = activeEventSignerOverride.current ?? createPrivateKeySigner(privateKeyHex);
-          return signer.signEvent;
-        },
-      });
-      shareCardCacheRef.current = result.cache;
-      setShareUrl(result.shareUrl);
-      shareCardDisclosure.onOpen();
-    } catch (err) {
-      console.error('[Profile] Failed to build share card:', err);
-      setShareCardError(copy.profile.shareCardError);
-    } finally {
-      setShareCardLoading(false);
-    }
-  }, [npub, privateKeyHex, pubkeyHex, savedProfile.nickname, signerMode, copy.profile.shareCardError, shareCardDisclosure]);
 
   // Tracks the nickname value as of the last broadcast so a blur that didn't
   // change the text doesn't re-broadcast a profile-update to every group.
@@ -481,36 +432,10 @@ function OwnProfileSection() {
 
         <Divider />
 
-        {/* Share contact card */}
-        <Box>
-          <Heading as="h2" size="md" mb={1}>
-            {copy.profile.shareCardHeading}
-          </Heading>
-          <Text fontSize="sm" color="textMuted" mb={4}>
-            {copy.profile.shareCardDescription}
-          </Text>
-          <Button
-            colorScheme="brand"
-            onClick={() => void handleShareCard()}
-            isLoading={shareCardLoading}
-            isDisabled={!canShareCard}
-            data-testid="profile-share-card-btn"
-          >
-            {copy.profile.shareCardButton}
-          </Button>
-          {!canShareCard && (
-            <Alert status="warning" borderRadius="md" mt={3} data-testid="profile-share-card-needs-name">
-              <AlertIcon />
-              <AlertDescription fontSize="sm">{copy.profile.shareCardNeedsName}</AlertDescription>
-            </Alert>
-          )}
-          {shareCardError && (
-            <Alert status="error" borderRadius="md" mt={3} data-testid="profile-share-card-error">
-              <AlertIcon />
-              <AlertDescription fontSize="sm">{shareCardError}</AlertDescription>
-            </Alert>
-          )}
-        </Box>
+        {/* Share contact card — the same surface the contacts page mounts at
+            the top of its list; see ShareContactCard for the cache/signer
+            rationale. */}
+        <ShareContactCard />
 
         {/* Backup hint — shown when the identity seed phrase hasn't been backed up */}
         {!backedUp && (
@@ -536,19 +461,6 @@ function OwnProfileSection() {
         onClose={avatarDisclosure.onClose}
         onSelect={handleAvatarSelect}
         initialAvatar={profile.avatar}
-      />
-
-      <NpubQrModal
-        isOpen={shareCardDisclosure.isOpen}
-        onClose={shareCardDisclosure.onClose}
-        title={copy.profile.shareCardTitle}
-        mode="display"
-        npub={npub ?? undefined}
-        shareUrl={shareUrl ?? undefined}
-        copyButtonLabel={copy.profile.copyCardLink}
-        copiedButtonLabel={copy.profile.copiedCardLink}
-        validityHint={copy.profile.shareCardValidityHint}
-        qrErrorMessage={copy.identity.qrGenerationError}
       />
     </>
   );
