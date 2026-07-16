@@ -1,0 +1,54 @@
+{
+  "module_name": "Join-request handler",
+  "purpose": "Carry the requester's nickname inside the existing gift-wrapped kind-21059 join-request rumor under a new requesterName field distinct from the group's own name field; parse it tolerantly on receive; enforce a receive-side 32-UTF-8-byte cap (the security control, independent of any send-side cap); and confirm the admin's pending row already co-renders the nickname alongside the truncated npub.",
+  "public_api": [
+    {
+      "name": "buildJoinRequestRumor",
+      "signature": "(params: { requesterPubkeyHex: string; adminPubkeyHex: string; nonce: string; groupName: string; requesterName?: string }) => Omit<JoinRequestRumor, 'id'>",
+      "description": "Adds requesterName to the rumor's JSON content, distinct from the group-name-carrying `name` field. Omitted from the JSON entirely when undefined (JSON.stringify drops undefined-valued keys) -- this is how an older-client/no-nickname sender naturally produces an absent field on the wire, satisfying AC-NAME-2 without a separate code path."
+    },
+    {
+      "name": "sendJoinRequest",
+      "signature": "(params: { requesterPubkeyHex: string; adminPubkeyHex: string; nonce: string; groupName: string; requesterName?: string; signer: EventSigner }) => Promise<void>",
+      "description": "Forwards requesterName through to buildJoinRequestRumor. No change to the gift-wrap/publish path (still kind 21059 -> kind 13 seal -> kind 1059 gift wrap -> existing relay publish)."
+    },
+    {
+      "name": "parseJoinRequestContent",
+      "signature": "(content: string) => JoinRequestPayload | null",
+      "description": "JoinRequestPayload now carries an optional requesterName. Absent, empty, non-string, or otherwise malformed requesterName is coalesced to undefined WITHOUT rejecting the rumor -- only the pre-existing type/nonce/name checks can still return null."
+    },
+    {
+      "name": "handleJoinRequest",
+      "signature": "(rumor: { pubkey: string; content: string }, eventId: string, groupMemberPubkeys: (groupId: string) => string[]) => Promise<PendingJoinRequest | null>",
+      "description": "Populates PendingJoinRequest.nickname from the parsed requesterName, capped at 32 UTF-8 bytes on receive via capNickname (app/src/config/profile.ts) -- replaces the hardcoded `undefined` at the former joinRequestHandler.ts:88. This is the security-enforcing cap; the sender is untrusted regardless of any cap it claims to have already applied."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/marmot/joinRequestSender.ts",
+    "app/src/lib/marmot/joinRequestHandler.ts"
+  ],
+  "owned_data": [
+    "PendingJoinRequest.nickname (app/src/lib/marmot/joinRequestStorage.ts) -- doc comment corrected: no longer claims kind-0 resolution; nickname now documented as sourced exclusively from the gift-wrapped rumor's requesterName field."
+  ],
+  "dependencies_allowed": [
+    "app/src/config/profile.ts (capNickname) -- NEW edge added by this story: reused rather than hand-rolling a second UTF-8 byte-cap implementation. Not previously listed in architecture.md's module map or boundary rules (which predate this file existing as a cross-epic shared utility); it is a pure, side-effect-free leaf function (no React, no storage), analogous in risk profile to the already-permitted hasShareableName (shareCard.ts) reuse. Documented here per Step 1.5's compliance check rather than escalated, since it does not touch any excluded file (buildGiftWrap/unwrapGiftWrap/welcomeSubscription.ts) and does not widen this story's file set beyond joinRequestSender.ts/joinRequestHandler.ts/JoinRequestCard.tsx/joinRequestStorage.ts (comment-only).",
+    "app/src/lib/marmot/inviteLinkStorage.ts (getInviteLink) -- pre-existing",
+    "app/src/lib/marmot/joinRequestStorage.ts (savePendingJoinRequest, loadPendingJoinRequests, PendingJoinRequest) -- pre-existing"
+  ],
+  "dependencies_forbidden": [
+    "Any kind-0 fetch, cache read, or profile-lookup fallback for the nickname (AC-NAME-5, AC-SEC-4)",
+    "app/src/lib/marmot/welcomeSubscription.ts internals (unwrapGiftWrap, seal signing) -- S3's concern",
+    "New relay publish target or new event kind"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/joinRequestSender.test.ts",
+    "app/tests/unit/marmot/joinRequestHandler.test.ts"
+  ],
+  "note_call_site_wiring": "Production wiring (JoinRequestCard.tsx's call to sendJoinRequest) is not in stories.json's scope.includes bullet list, but S3/S4/S5's scopes confirm no other story touches this call site, and S5's notes state 'no production code changes beyond what S1-S4 already delivered' -- i.e. the epic's own dependency graph requires S2 to complete this wiring, or the nickname never reaches the wire in production despite passing unit tests in isolation. Treated as an in-scope completion of this story's own named responsibility (nickname TRANSPORT), not a scope expansion into another module: the edit adds one argument to an already-imported, already-called function (sendJoinRequest) and does not add any new cross-module import, consistent with JoinRequestCard.test.ts's existing boundary assertion (VQ-S1-002) that only forbids NEW imports of joinRequestHandler/welcomeSubscription/outboundJoinRequests.",
+  "seam": {
+    "cross_story": false
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-16T12:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the correlation check a real match against the `AuthenticatedUnwrapResult.pubkey` and each unexpired record's `adminPubkeyHex` (not a vacuous check that always returns a match, or one that silently ignores expiry/disambiguation and treats any record for that admin as sufficient)? Is the AC-AUTO-4a disambiguation a genuine comparison of `readWelcomeMarmotGroupData`'s group name against each candidate record's stored `groupName` (not a stub that always picks the first record sharing an admin, which would happen to pass a single-record test while failing the moment a second record exists)? Provide a test with exactly two unexpired records sharing one admin but different group names, asserting the correct one is selected — not merely a test with one record."
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the diff confine itself to the new `app/src/lib/marmot/outboundJoinRequests.ts` (Outbound records module, mirroring `joinRequestStorage.ts`/`inviteLinkStorage.ts` conventions) and the correlation/extraction edits inside `welcomeSubscription.ts` (Welcome/join unwrap module, explicitly documented as shared with S3 in architecture.md)? Confirm no new import reaches into `joinRequestHandler.ts` internals, `PendingRequestsSection.tsx`, or `MarmotContext.tsx`'s `approveJoinRequest`/`denyJoinRequest` beyond calling the existing `joinGroupFromWelcome` export."
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could 'Outbound records' (`app/src/lib/marmot/outboundJoinRequests.ts`) be deleted and rewritten without modifying any file outside its dependencies_allowed list — its sole consumer being the correlation logic inside `welcomeSubscription.ts` (which reads records through this module's exported read/write/consume functions, not internal storage details) and its sole producer being `sendJoinRequest` (`joinRequestSender.ts`, writing a record only via this module's exported write function)? If not, which cross-module dependency exists, and does architecture.md's documented shared ownership of `welcomeSubscription.ts` between S3 and S4 account for it, or does it reach beyond that documented seam?"
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does the test suite cover, as separate dedicated tests (not one composite test): (a) the two-records-one-admin disambiguation case (AC-AUTO-4a) asserting the group-name match selects the correct record and does NOT arbitrarily consume the first; (b) an uncorrelated-Welcome negative test (AC-AUTO-3) asserting it is enqueued exactly as today; (c) an expired-record test (AC-AUTO-6) asserting an expired record does not correlate; and (d) a record-consumption/replay test (AC-AUTO-5) asserting a second delivery of the same Welcome after a correlated auto-accept finds no matching record and takes the uncorrelated path? List the specific test names for each."
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Is the shared join core (`joinGroupFromWelcome` + record cleanup) genuinely extracted and called by BOTH manual accept and auto-accept — with auto-accept never using an enqueue-then-immediately-dequeue shortcut (which would briefly render the pending card and violate AC-AUTO-2's 'no second click' / no-flash guarantee)? Provide the extracted function's call sites in both the manual-accept path and the new auto-accept path, and a test asserting `knownPeers` population after an auto-accept matches, field-for-field, what a manual accept produces for an equivalent Welcome."
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does correlation strictly use the AUTHENTICATED sender (`AuthenticatedUnwrapResult.pubkey`, never the raw, self-claimed `rumor.pubkey`) against unexpired records' `adminPubkeyHex`? Provide a test for a forged Welcome whose raw `rumor.pubkey` happens to match a stored outbound record's `adminPubkeyHex`, but whose seal fails authentication (or whose authenticated pubkey differs) — assert this is treated as UNCORRELATED (gated into the pending queue, requiring explicit Accept), never auto-accepted, even though a naive raw-pubkey-based correlation would have matched it."
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTO-1",
+      "question": "On a successful `sendJoinRequest`, does the device persist an outbound record `{ nonce, adminPubkeyHex, groupName, sentAt }` keyed by `nonce`, and on a FAILED send, is no record written? Provide a test asserting a simulated send failure (e.g. publish rejection) leaves the outbound-records store unchanged (no new entry)."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTO-2",
+      "question": "Is a correlated Welcome accepted without user interaction — never enqueued into the pending-invitation queue, with the invitee landing in the group with no second click — and does acceptance route through the shared join core (`joinGroupFromWelcome` + record cleanup) so `knownPeers` population and downstream effects match a manual accept exactly? Provide a test asserting the pending-invitation queue never transiently contains the correlated Welcome's entry (not even briefly) and that the group appears in the invitee's group list without any Accept call."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTO-3",
+      "question": "Is an uncorrelated Welcome enqueued into the pending-invitation queue exactly as today, requiring explicit Accept — and is this asserted by a DEDICATED negative test (not merely implied by AC-AUTO-2's positive-path test passing)? Provide the specific test that constructs a Welcome with no matching outbound record and asserts it appears in the pending queue and requires an explicit Accept call to join."
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTO-4",
+      "question": "Is correlation performed on the AUTHENTICATED sender (per AUTH), matched against an unexpired outbound record's `adminPubkeyHex`, with the nonce explicitly NOT part of correlation (since it never reaches the Welcome)? Provide a test for a Welcome whose raw `rumor.pubkey` matches a record but whose authenticated sender does not (spoofed) — assert it is treated as uncorrelated — and confirm no code path attempts to read or compare a nonce value from the Welcome side."
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTO-4a",
+      "question": "When more than one unexpired outbound record shares the authenticated admin's `adminPubkeyHex`, does auto-accept disambiguate by comparing the Welcome's pre-join group data (via `readWelcomeMarmotGroupData`, without joining) against each candidate record's stored `groupName`, auto-accepting and consuming ONLY the single matching record — and treating zero-or-multiple matches as uncorrelated (AC-AUTO-3)? Provide the specific two-records-one-admin test asserting the implementation does NOT arbitrarily consume the first record sharing the admin pubkey, but correctly selects the group-name match."
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTO-5",
+      "question": "Is the specific disambiguated record (per AC-AUTO-4a, not merely 'a record for this admin') removed after a correlated auto-accept, such that a replay of the same Welcome on its second arrival finds no matching record and takes the AC-AUTO-3 uncorrelated path — while OTHER unexpired records for the same admin survive? Provide a test that delivers the same Welcome twice: the first delivery auto-accepts and consumes the record; the second delivery (replay) is asserted to be enqueued as uncorrelated; and a sibling record for the same admin but a different group is asserted to still be present and correlatable afterward."
+    },
+    {
+      "question_id": "VQ-S4-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTO-6",
+      "question": "Is the outbound record store bounded at 256 total records, consistent with the existing pending-invitation cap (`epic-walled-garden-v2` AC-INVITE-3), with a TTL of no less than 7 days, and does an expired record fail to correlate (its Welcome taking the AC-AUTO-3 path)? Provide a test asserting a record older than the TTL does not correlate even though its `adminPubkeyHex` and `groupName` would otherwise match, and a test/assertion confirming the store enforces (or documents enforcement of) the 256-record bound."
+    },
+    {
+      "question_id": "VQ-S4-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTO-7",
+      "question": "Is the `PendingInvitations` component's rendered content unchanged by this epic (beyond AC-AUTH-6's correction of which pubkey is recorded) — still showing only truncated pubkey, relative timestamp, Accept, and Decline, no group name? Confirm the `PendingInvitations.tsx` diff is empty (or contains only pass-through changes required by AC-AUTH-6) and that the existing `epic-walled-garden-v2` AC-INVITE-4 tests pass unmodified."
+    },
+    {
+      "question_id": "VQ-S4-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-5",
+      "question": "Do `approveJoinRequest` and `denyJoinRequest` (`MarmotContext.tsx:1675-1695` / `:1697-1709`) retain their current behavior unchanged by this story — with no AC in this epic satisfied by weakening, skipping, or auto-firing admin approval for join REQUESTS (as distinct from Welcome auto-accept, which is the invitee side, not the admin's join-request approval)? Confirm the diff for these two functions is empty, and that no test asserts an admin-side join request is auto-approved."
+    },
+    {
+      "question_id": "VQ-S4-016",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "`MarmotClient.readInviteGroupInfo` (the client's own pre-join preview convenience method) internally calls `readWelcomeGroupInfo`, whose returned `GroupInfo.extensions` is hardcoded to an empty array in the installed `@internet-privacy/marmot-ts` release -- so it can NEVER surface the Marmot Group Data extension (including the group name) needed for AC-AUTO-4a disambiguation. The implementation therefore bypasses `readInviteGroupInfo` and replicates its key-package-matching loop directly (`getWelcomeKeyPackageRefs` + `marmotClient.keyPackages.get` + `marmotClient.cryptoProvider.getCiphersuiteImpl`), then calls the lower-level `readWelcomeMarmotGroupData` export itself. Does `readPreJoinGroupName` (welcomeSubscription.ts) correctly replicate that matching loop -- trying each key-package ref returned by `getWelcomeKeyPackageRefs`, skipping any without a local `privatePackage`, and falling through to the next ref on a per-candidate failure -- rather than assuming exactly one ref or the first ref always matches? Provide the specific test(s) exercising this path and confirm none of them stub out the loop itself (i.e. the mocked `getWelcomeKeyPackageRefs` return array has more than one entry in at least one test, or the loop's per-candidate try/catch is otherwise exercised)."
+    },
+    {
+      "question_id": "VQ-S4-017",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "When correlation resolves a matching outbound record (`resolveAutoAcceptRecord` returns non-null) but the subsequent MLS join itself throws (`joinGroupFromWelcomeCore` fails) -- an edge case not explicitly named by any AC-AUTO-* acceptance criterion -- does the implementation avoid BOTH of the two failure modes a reviewer would flag: (a) silently dropping the Welcome (no fallback at all), and (b) consuming the outbound record despite the join never having succeeded (which would strand the user with neither an auto-accept nor a future retry opportunity)? Confirm the record is left intact and the Welcome falls through to the existing enqueue path in this specific failure branch, and that this behavior is covered by a test (or, if not test-covered, that the reasoning is at least documented inline at the catch site). [Covered post-writing by welcomeSubscriptionAutoAccept.test.ts's 'when correlation matches but the MLS join throws...' case -- verify that test actually asserts non-consumption AND the enqueue fallback, not just 'does not throw'.]"
+    },
+    {
+      "question_id": "VQ-S4-018",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "`joinRequestSender.ts` (Join-request send module) now imports `saveOutboundJoinRequest` from the new `outboundJoinRequests.ts` (Outbound records module) -- an edge NOT pre-declared in architecture.md's boundary rules (written before this story's module existed). Is this edge properly confined to a single call site inside `sendJoinRequest`, gated strictly on relay-publish success (never reachable on the throw path), and does it avoid reaching into any `outboundJoinRequests.ts` internals (idb-keyval store handle, key naming) rather than going through the exported `saveOutboundJoinRequest` function? If a later story or epic revisits architecture.md, should this edge be added to its documented module map so it stops looking like an undocumented deviation to the next reader?"
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-16T12:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the disabled/enabled state of the 'Request to Join' button genuinely derived from `hasShareableName(profile.nickname)` re-evaluated on every relevant state change (keystroke, profile update), rather than a frozen boolean computed once at mount, a hardcoded `disabled` prop that never flips, or a check against a stale closed-over `profile` snapshot? Provide the component code path from input `onChange` to the button's `disabled` prop, and a test that types a name then asserts the button becomes enabled without any remount or prop-forced re-render."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the diff confine itself to this story's declared scope — `JoinRequestCard.tsx` (Join card UI module) and new/edited keys in `app/src/lib/i18n.ts` — with no new cross-module import beyond the two exports architecture.md's Boundary rules permit (`saveProfile` from `ProfileContext`, `hasShareableName` from `shareCard.ts`)? Run `grep -n '^import' app/src/components/groups/JoinRequestCard.tsx` and confirm every import resolves to an existing, already-permitted source — no new import of `joinRequestSender.ts`, `welcomeSubscription.ts`, or any other module this epic touches."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could 'Join card UI' (`app/src/components/groups/JoinRequestCard.tsx`) be deleted and rewritten without modifying any file outside its dependencies_allowed list — here, the existing exports `saveProfile` (Profile state) and `hasShareableName` (Name predicate), per architecture.md's Module map and Boundary rules? If not, which cross-module dependency exists (e.g. a change forced onto `ProfileContext.tsx` beyond calling the existing `saveProfile` signature, or a new field added to `hasShareableName`'s contract), and does it flow through those declared exports or does it reach into either module's internals?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Given this repo has no jsdom / component-render / snapshot capability (vitest only — see project testing conventions and AC-GATE-4's explicit note), which parts of the gate logic were extracted into a plain, unit-testable function or hook (e.g. a pure `shouldGateJoin(profile, guardsPassed)`-style predicate) versus which parts rely exclusively on the e2e suite (AC-ETE-1, AC-ETE-2) for verification? List the specific unit test(s), if any, and confirm the render-order and reactivity claims (AC-GATE-3, AC-GATE-6, AC-GATE-7) are NOT silently left unverified by assuming e2e coverage that doesn't yet exist until S5 lands."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does this story avoid the two behaviors architecture.md and the spec explicitly exclude — no redirect to `/profile` (DD-2; the field renders in place on the join card) and no nickname write path other than `saveProfile`? Run `grep -n 'router.push\\|router.replace\\|/profile' app/src/components/groups/JoinRequestCard.tsx` and confirm no navigation to a profile route is introduced, and `grep -n 'nickname' app/src/components/groups/JoinRequestCard.tsx` to confirm the only write call is `saveProfile(...)`."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Is the 'disabled' state of the Request-to-Join button actually inert against alternate triggers — e.g. does pressing Enter inside the name input, or a form `onSubmit` handler, bypass the disabled button and still invoke `sendJoinRequest`? Provide a test that focuses the name input while nameless, presses Enter, and asserts `sendJoinRequest` was NOT called (not merely that the button's `disabled` attribute is true)."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GATE-1",
+      "question": "When a nameless user (`hasShareableName(profile.nickname)` is false) opens a valid invite link, does `JoinRequestCard` render a name `<Input>` AND render 'Request to Join' in a disabled state, and does clicking that disabled button provably NOT call `sendJoinRequest`? Provide the render output/DOM assertion (via e2e, given no component-render capability) and a click-attempt test asserting the send function's call count stays zero."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GATE-2",
+      "question": "Does the group name (from the link's `name` query param) remain visible on the card at the same time the name input is shown, for every nameless-user render of this card — i.e. is there any code path where the name input renders but the group-name element is conditionally hidden or removed?"
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GATE-3",
+      "question": "Is the gate reactive rather than evaluated once on mount: does entering a name that satisfies `hasShareableName` enable the button live (no remount), and does clearing that name back to a nameless value disable the button again live, in the same mounted instance? Provide a test performing type-then-assert-enabled, then clear-then-assert-disabled-again as two sequential assertions against one mounted component/page, not two separate fresh loads."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GATE-4",
+      "question": "When a user who already has a name (`hasShareableName` true) opens the same link, does the card render exactly as it does today — no name input, no helper text, button enabled — with zero code-path difference from the pre-epic render for this case? Since no snapshot capability exists, is this verified via AC-ETE-2 (existing named-user e2e spec, unmodified) PLUS an explicit new e2e assertion that no name input element is present for that case, rather than left as an unverified assumption?"
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GATE-5",
+      "question": "Does submitting the name call `saveProfile` (`ProfileContext.tsx:52-58`) exclusively — no other write path to the nickname field — and is the submitted name subsequently readable on `/profile` as the user's real nickname (not a per-request alias stored elsewhere)? Provide the call site and a test asserting `readStoredContacts`/profile-read state reflects the submitted name after a submit-then-navigate-to-profile sequence."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GATE-6",
+      "question": "Is the name gate evaluated only AFTER the existing hydration/identity guard (`JoinRequestCard.tsx:43-59`) and the invalid-admin-npub guard (`:61-70`) — never before them — such that a user with an unhydrated identity still sees the existing 'setting up…' state and never the name input? Provide the exact conditional ordering in the diff (line numbers) and a test that simulates an unhydrated-identity state and asserts the name input is absent while the setting-up state is present."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GATE-7",
+      "question": "Does the name gate leave the already-a-member path (`JoinRequestCard.tsx:39-41`) completely unaffected, such that a nameless user who is already a member sees the existing already-member state rather than a name prompt? Provide a test with a nameless-but-already-member fixture asserting the name input never renders and the already-member UI renders as it does today."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INTL-1",
+      "question": "Does every new user-facing string this story introduces (field label, helper text, disabled-button state) have both `en` and `de` entries in `app/src/lib/i18n.ts`, consumed exclusively via `useCopy()`, with zero hardcoded string literals in `JoinRequestCard.tsx`? Run `grep -n '\"[A-Z][a-z]' app/src/components/groups/JoinRequestCard.tsx` scoped to JSX text nodes and confirm no new hardcoded user-facing string appears outside a `copy.*` reference."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INTL-2",
+      "question": "Do the new i18n keys follow the existing `copy.groups.joinRequest*` grouping and naming convention (per `app/src/lib/i18n.ts:155-161` en / `:775-782` de-adjacent), rather than introducing a new top-level or inconsistently-named group? Provide the new key names and confirm each is nested under `copy.groups.joinRequest`."
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "authored_by": "integration-architect",
+      "authored_at": "2026-07-16T13:00:00Z",
+      "question": "The implementation calls `useProfile()`, `useState`, and the `useEffect` that syncs `nameDraft` from `profile.nickname` unconditionally at the top of the component -- BEFORE the hydration/identity/invalid-admin-npub/already-member early returns (`JoinRequestCard.tsx:43-112`) -- because React's Rules of Hooks forbid calling hooks after a conditional return. `gateActive`/`requestDisabled` are computed at that same point but are inert (unused) until the final JSX return that those guards gate. Confirm this hook-ordering is in fact required (not incidental), and that no *visible* gate behavior (the rendered name input, the button's disabled state) can reach the user before the pre-existing guards resolve -- i.e. the computation happening early is a React-mechanics necessity, not a violation of AC-GATE-6/7's intent."
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "authored_by": "integration-architect",
+      "authored_at": "2026-07-16T13:00:00Z",
+      "ac_id": "AC-GATE-5",
+      "question": "`handleSendRequest` calls `saveProfile({ ...profile, nickname: nameDraft })` BEFORE attempting `sendJoinRequest`, and does not roll it back if the subsequent send throws (the existing `catch` only sets an error message and re-enables the button -- `nameDraft`'s already-persisted value is untouched). Confirm this is the intended reading of AC-GATE-5 (\"submitting the name\" persists the profile nickname unconditionally, independent of whether the join request itself succeeds) rather than an accidental side effect -- i.e. a user who enters a name, has the send fail, and retries should NOT be asked for a name a second time, and should NOT have the name silently discarded on failure."
+    },
+    {
+      "question_id": "VQ-S1-018",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "authored_by": "integration-architect",
+      "authored_at": "2026-07-16T13:00:00Z",
+      "ac_id": "AC-SEC-4",
+      "question": "`saveProfile` (called from the new gate-submit path) only updates local React state and `writeUserProfile`'s localStorage persistence (`ProfileContext.tsx:52-58`) -- it does NOT invoke `publishProfileUpdate` or any MLS/group broadcast, unlike the profile page's own nickname-save path which separately calls `broadcastProfile`. Confirm that `JoinRequestCard.tsx` never imports or calls `publishProfileUpdate`/`broadcastProfile`/any fan-out helper, so a nameless invitee's freshly-entered name reaches the admin ONLY inside the existing gift-wrapped join-request rumor (once S2 lands), never via a public or group-wide profile broadcast triggered by this save."
+    }
+  ]
+}

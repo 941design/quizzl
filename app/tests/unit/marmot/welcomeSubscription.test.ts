@@ -62,13 +62,16 @@ vi.mock('@/src/lib/marmot/epochResolver', () => ({
 }));
 
 import { unwrapGiftWrap, subscribeToGroupMessages, subscribeToWelcomes } from '@/src/lib/marmot/welcomeSubscription';
-import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
+import { generateSecretKey, getPublicKey, getEventHash, verifyEvent } from 'nostr-tools/pure';
 import { bytesToHex } from 'nostr-tools/utils';
-import { createRumor } from 'nostr-tools/nip59';
+import { createRumor, createSeal, createWrap } from 'nostr-tools/nip59';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { encodeCard } from '@/src/lib/contactCard';
 import { sealAndWrap } from '@/src/lib/directMessages';
 import { hexToBytes } from '@/src/lib/nostrKeys';
+import { buildJoinRequestRumor, buildGiftWrap as buildJoinRequestGiftWrap } from '@/src/lib/marmot/joinRequestSender';
+import { saveInviteLink, clearAllInviteLinks } from '@/src/lib/marmot/inviteLinkStorage';
+import { loadPendingJoinRequests, clearAllPendingJoinRequests } from '@/src/lib/marmot/joinRequestStorage';
 import { PAIRING_ACK_KIND, _resetPairingAckAdmissionsForTests, type PairingAckContent } from '@/src/lib/pairing/pairingAck';
 import * as pairingAckModule from '@/src/lib/pairing/pairingAck';
 import { getOrMintActiveNonce, clearAllNonces, _resetActiveNonceForTests } from '@/src/lib/pairing/nonceStore';
@@ -76,49 +79,280 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 // ---------------------------------------------------------------------------
+// S3 (authenticated-unwrap) crypto fixtures — real NIP-59 gift wraps, no
+// mocked decrypt shortcuts, so these tests exercise genuine schnorr
+// verification (AC-AUTH-0/1/2) rather than a stub that only checks a
+// non-empty field.
+// ---------------------------------------------------------------------------
+
+function makeKeypair() {
+  const priv = generateSecretKey();
+  const privHex = bytesToHex(priv);
+  const pubHex = getPublicKey(priv);
+  return { priv, privHex, pubHex };
+}
+
+/**
+ * Build a genuine, correctly-signed NIP-59 gift wrap: rumor authored and
+ * sealed by `sender`, addressed to `recipientPubHex`. Mirrors
+ * joinRequestSender.ts's buildGiftWrap / directMessages.ts's sealAndWrap
+ * (both now use nostr-tools/nip59's wrapEvent under the hood) — this helper
+ * uses the lower-level createRumor/createSeal/createWrap primitives instead
+ * so the forged-fixture builder below can reuse the same building blocks.
+ */
+function buildGenuineWrap(params: {
+  sender: { priv: Uint8Array; pubHex: string };
+  recipientPubHex: string;
+  kind: number;
+  content: string;
+  tags?: string[][];
+}) {
+  const rumor = createRumor(
+    { kind: params.kind, content: params.content, tags: params.tags ?? [] },
+    params.sender.priv,
+  );
+  const seal = createSeal(rumor, params.sender.priv, params.recipientPubHex);
+  const wrap = createWrap(seal, params.recipientPubHex);
+  return { wrap, seal, rumor };
+}
+
+/**
+ * Build a FORGED gift wrap: the seal is genuinely signed by `attacker`, but
+ * the inner rumor claims `claimedPubHex` (e.g. a victim's real pubkey) as
+ * its sender instead of the attacker's own pubkey. This is the AC-SEC-3 /
+ * AC-AUTH-6 / VQ-S3-006 attack shape: a legitimately-signed seal wrapping a
+ * rumor with a mismatched, self-claimed pubkey.
+ */
+function buildForgedRumorPubkeyWrap(params: {
+  attacker: { priv: Uint8Array; pubHex: string };
+  claimedPubHex: string;
+  recipientPubHex: string;
+  kind: number;
+  content: string;
+  tags?: string[][];
+}) {
+  const forgedRumor = {
+    kind: params.kind,
+    content: params.content,
+    tags: params.tags ?? [],
+    created_at: Math.floor(Date.now() / 1000),
+    pubkey: params.claimedPubHex, // forged: not the attacker's real key
+    id: '',
+  };
+  forgedRumor.id = getEventHash(forgedRumor);
+  // Seal signed with the ATTACKER's real key — genuinely valid signature,
+  // but seal.pubkey (attacker) will not match forgedRumor.pubkey (victim).
+  const seal = createSeal(forgedRumor, params.attacker.priv, params.recipientPubHex);
+  const wrap = createWrap(seal, params.recipientPubHex);
+  return { wrap, seal, rumor: forgedRumor };
+}
+
+/**
+ * Build a gift wrap whose seal is genuinely signed by `attacker` over their
+ * OWN rumor.pubkey (so sealSignatureValid AND senderBound both pass), but
+ * whose rumor `id` field is an attacker-chosen value that is NOT the
+ * canonical NIP-01 hash of the rumor's own fields. This isolates AC-SEC-4 /
+ * VQ-S3-014: rumorIdValid fails in isolation, so the overall unwrap is
+ * `authenticated: false` even though the sender identity itself is genuine
+ * — a "malformed but decryptable" Welcome, distinct from the rumor.pubkey-
+ * forgery shape above. Used to prove a forged `rumor.id` can be steered to
+ * collide with an arbitrary target (e.g. an already-enqueued legit
+ * invitation's id) without that forgery ever being trusted downstream.
+ */
+function buildForgedRumorIdWrap(params: {
+  attacker: { priv: Uint8Array; pubHex: string };
+  forgedId: string;
+  recipientPubHex: string;
+  kind: number;
+  content: string;
+  tags?: string[][];
+}) {
+  const forgedRumor = {
+    kind: params.kind,
+    content: params.content,
+    tags: params.tags ?? [],
+    created_at: Math.floor(Date.now() / 1000),
+    pubkey: params.attacker.pubHex,
+    id: params.forgedId, // forged: NOT getEventHash(forgedRumor) -- rumorIdValid must fail
+  };
+  const seal = createSeal(forgedRumor, params.attacker.priv, params.recipientPubHex);
+  const wrap = createWrap(seal, params.recipientPubHex);
+  return { wrap, seal, rumor: forgedRumor };
+}
+
+/**
+ * Build a gift wrap whose seal signature is invalid (tampered `sig` after
+ * signing), while the rumor's claimed pubkey still matches the seal's
+ * pubkey field. Isolates AC-AUTH-1 (signature check) from AC-AUTH-2
+ * (pubkey-match check).
+ */
+function buildInvalidSealSignatureWrap(params: {
+  sender: { priv: Uint8Array; pubHex: string };
+  recipientPubHex: string;
+  kind: number;
+  content: string;
+  tags?: string[][];
+}) {
+  const rumor = createRumor(
+    { kind: params.kind, content: params.content, tags: params.tags ?? [] },
+    params.sender.priv,
+  );
+  const seal = createSeal(rumor, params.sender.priv, params.recipientPubHex);
+  // Tamper the signature after the fact — seal.pubkey still equals
+  // rumor.pubkey (both derived from sender's key), but the sig no longer
+  // verifies against the seal's canonical hash.
+  const tamperedSeal = { ...seal, sig: '0'.repeat(128) };
+  const wrap = createWrap(tamperedSeal, params.recipientPubHex);
+  return { wrap, seal: tamperedSeal, rumor };
+}
+
+// ---------------------------------------------------------------------------
 // unwrapGiftWrap tests
 // ---------------------------------------------------------------------------
 
 describe('unwrapGiftWrap', () => {
-  it('decrypts two-layer NIP-59 envelope to inner rumor', async () => {
-    const innerRumor = {
-      id: 'rumor-id',
-      pubkey: 'sender-pubkey',
-      created_at: 1700000000,
+  // ── S3 (AC-AUTH-0/1/2/4): genuine authenticated round trip ────────────────
+
+  it('decrypts a genuine two-layer NIP-59 envelope and reports authenticated:true with the seal pubkey', async () => {
+    const sender = makeKeypair();
+    const recipient = makeKeypair();
+    const { wrap, rumor } = buildGenuineWrap({
+      sender,
+      recipientPubHex: recipient.pubHex,
       kind: 444,
-      tags: [['e', 'group-id']],
       content: 'welcome-payload',
-      sig: '',
-    };
+      tags: [['e', 'group-id']],
+    });
 
-    const seal = {
-      pubkey: 'sender-pubkey',
-      content: 'encrypted-rumor',
-    };
+    const signer = createPrivateKeySigner(recipient.privHex);
+    const result = await unwrapGiftWrap({ pubkey: wrap.pubkey, content: wrap.content }, signer);
 
-    const mockDecrypt = vi.fn()
-      // Layer 1: decrypt gift wrap content with ephemeral pubkey → seal
-      .mockResolvedValueOnce(JSON.stringify(seal))
-      // Layer 2: decrypt seal content with sender pubkey → rumor
-      .mockResolvedValueOnce(JSON.stringify(innerRumor));
-
-    const signer = {
-      nip44: { decrypt: mockDecrypt },
-    };
-
-    const giftWrapEvent = {
-      pubkey: 'ephemeral-pubkey',
-      content: 'encrypted-seal',
-    };
-
-    const result = await unwrapGiftWrap(giftWrapEvent, signer as never);
-
-    expect(result).toEqual(innerRumor);
-    // Layer 1: decrypts against gift wrap's ephemeral pubkey
-    expect(mockDecrypt).toHaveBeenNthCalledWith(1, 'ephemeral-pubkey', 'encrypted-seal');
-    // Layer 2: decrypts against seal's sender pubkey
-    expect(mockDecrypt).toHaveBeenNthCalledWith(2, 'sender-pubkey', 'encrypted-rumor');
+    expect(result.authenticated).toBe(true);
+    expect(result.pubkey).toBe(sender.pubHex);
+    expect(result.rumor.id).toBe(rumor.id);
+    expect(result.rumor.kind).toBe(444);
+    expect(result.rumor.content).toBe('welcome-payload');
+    expect(result.rumor.pubkey).toBe(sender.pubHex);
   });
+
+  // ── AC-AUTH-1 / VQ-S3-001: wrong-key / invalid-signature negative ─────────
+
+  it('reports authenticated:false when the seal was signed with the WRONG private key relative to its claimed pubkey', async () => {
+    const sender = makeKeypair();
+    const impersonated = makeKeypair();
+    const recipient = makeKeypair();
+    expect(sender.pubHex).not.toBe(impersonated.pubHex);
+
+    const recipientSigner = createPrivateKeySigner(recipient.privHex);
+    const { wrap } = buildGenuineWrap({
+      sender,
+      recipientPubHex: recipient.pubHex,
+      kind: 444,
+      content: 'welcome-payload',
+    });
+
+    // Decrypt the outer wrap to get the genuine, validly-signed seal, then
+    // mutate its pubkey field to claim a DIFFERENT signer than the one who
+    // actually produced the signature. The schnorr signature no longer
+    // verifies against the now-different canonical hash — this is the
+    // literal "signed with the wrong key" shape (VQ-S3-001).
+    const sealJson = await recipientSigner.nip44!.decrypt(wrap.pubkey, wrap.content);
+    const tamperedSeal = { ...JSON.parse(sealJson), pubkey: impersonated.pubHex };
+
+    // Re-wrap the tampered seal under a fresh ephemeral identity so the outer
+    // gift-wrap layer still decrypts cleanly for the recipient, isolating
+    // the tamper to the seal layer only.
+    const ephemeral = makeKeypair();
+    const ephemeralSigner = createPrivateKeySigner(ephemeral.privHex);
+    const reGiftWrapContent = await ephemeralSigner.nip44!.encrypt(recipient.pubHex, JSON.stringify(tamperedSeal));
+
+    const result = await unwrapGiftWrap(
+      { pubkey: ephemeral.pubHex, content: reGiftWrapContent },
+      createPrivateKeySigner(recipient.privHex),
+    );
+
+    expect(result.authenticated).toBe(false);
+  });
+
+  // ── AC-AUTH-2 / AC-SEC-3 / AC-AUTH-6 / VQ-S3-006 / VQ-S3-009 / VQ-S3-013:
+  //    legitimately-signed seal, but the rumor forges a different sender ────
+
+  it('reports authenticated:false and returns the REAL seal signer (never the forged rumor.pubkey) when rumor.pubkey mismatches a validly-signed seal', async () => {
+    const attacker = makeKeypair();
+    const victim = makeKeypair();
+    const recipient = makeKeypair();
+
+    const { wrap } = buildForgedRumorPubkeyWrap({
+      attacker,
+      claimedPubHex: victim.pubHex,
+      recipientPubHex: recipient.pubHex,
+      kind: 444,
+      content: 'welcome-payload',
+    });
+
+    const signer = createPrivateKeySigner(recipient.privHex);
+    const result = await unwrapGiftWrap({ pubkey: wrap.pubkey, content: wrap.content }, signer);
+
+    expect(result.authenticated).toBe(false);
+    // (b) the returned pubkey is the seal's real signing pubkey...
+    expect(result.pubkey).toBe(attacker.pubHex);
+    // ...NEVER the forged, self-claimed rumor.pubkey.
+    expect(result.pubkey).not.toBe(victim.pubHex);
+    expect(result.rumor.pubkey).toBe(victim.pubHex); // the rumor's own (untrustworthy) claim
+  });
+
+  // ── AC-AUTH-1 in isolation: valid pubkey match, but the seal signature
+  //    itself is invalid (tampered sig) ──────────────────────────────────────
+
+  it('reports authenticated:false when the seal signature is invalid, even though rumor.pubkey matches seal.pubkey', async () => {
+    const sender = makeKeypair();
+    const recipient = makeKeypair();
+
+    const { wrap } = buildInvalidSealSignatureWrap({
+      sender,
+      recipientPubHex: recipient.pubHex,
+      kind: 444,
+      content: 'welcome-payload',
+    });
+
+    const signer = createPrivateKeySigner(recipient.privHex);
+    const result = await unwrapGiftWrap({ pubkey: wrap.pubkey, content: wrap.content }, signer);
+
+    expect(result.authenticated).toBe(false);
+  });
+
+  it('reports authenticated:false when the decrypted "seal" is a validly-signed event of a DIFFERENT kind (kind-confusion replay)', async () => {
+    // A genuinely-signed kind-1 event carrying the SAME nip44-encrypted rumor
+    // content a real seal would carry — its schnorr signature independently
+    // verifies (it's a real, fully-signed event), but its kind is 1, not 13.
+    // Only the explicit kind===13 check (matching unwrapAndOpen's
+    // `if (seal.kind !== SEAL_KIND) throw`) closes this replay vector; a bare
+    // verifyEvent() call alone would accept it.
+    const sender = makeKeypair();
+    const recipient = makeKeypair();
+    const senderSigner = createPrivateKeySigner(sender.privHex);
+
+    const rumor = createRumor(
+      { kind: 444, content: 'welcome-payload', tags: [] },
+      sender.priv,
+    );
+    const sealContent = await senderSigner.nip44!.encrypt(recipient.pubHex, JSON.stringify(rumor));
+    const wrongKindSeal = await senderSigner.signEvent({
+      kind: 1,
+      content: sealContent,
+      tags: [],
+      created_at: Math.floor(Date.now() / 1000),
+    });
+    expect(verifyEvent(wrongKindSeal)).toBe(true); // genuinely signed, just kind 1
+    const wrap = createWrap(wrongKindSeal, recipient.pubHex);
+
+    const signer = createPrivateKeySigner(recipient.privHex);
+    const result = await unwrapGiftWrap({ pubkey: wrap.pubkey, content: wrap.content }, signer);
+
+    expect(result.authenticated).toBe(false);
+  });
+
+  // ── Plumbing / error-path tests (unchanged behavior) ───────────────────────
 
   it('throws when signer lacks nip44.decrypt', async () => {
     const signer = { nip44: undefined };
@@ -136,8 +370,11 @@ describe('unwrapGiftWrap', () => {
     ).rejects.toThrow('Signer does not support NIP-44 decryption');
   });
 
-  it('defaults missing rumor fields', async () => {
-    // Rumor with missing optional fields
+  it('defaults missing rumor fields (and reports authenticated:false for the unsigned mock seal)', async () => {
+    // Rumor with missing optional fields; seal is a bare mock object (no id/
+    // sig/kind/created_at), so verifyEvent necessarily fails — authenticated
+    // must be false, but the defaulting logic for the rumor's own optional
+    // fields is independent of that and still exercised here.
     const partialRumor = { kind: 444, content: 'hello' };
     const seal = { pubkey: 'spk', content: 'enc' };
 
@@ -149,13 +386,15 @@ describe('unwrapGiftWrap', () => {
 
     const result = await unwrapGiftWrap({ pubkey: 'epk', content: 'c' }, signer as never);
 
-    expect(result.id).toBe('');
-    expect(result.pubkey).toBe('');
-    expect(result.created_at).toBe(0);
-    expect(result.kind).toBe(444);
-    expect(result.tags).toEqual([]);
-    expect(result.content).toBe('hello');
-    expect(result.sig).toBe('');
+    expect(result.authenticated).toBe(false);
+    expect(result.pubkey).toBe('spk');
+    expect(result.rumor.id).toBe('');
+    expect(result.rumor.pubkey).toBe('');
+    expect(result.rumor.created_at).toBe(0);
+    expect(result.rumor.kind).toBe(444);
+    expect(result.rumor.tags).toEqual([]);
+    expect(result.rumor.content).toBe('hello');
+    expect(result.rumor.sig).toBe('');
   });
 });
 
@@ -539,7 +778,13 @@ describe('subscribeToWelcomes — receipt-handler integration', () => {
     // AC-INVITE-1: enqueuePendingInvitation must have been called once with the rumor data
     expect(mockEnqueuePendingInvitation).toHaveBeenCalledTimes(1);
     const [enqueued] = mockEnqueuePendingInvitation.mock.calls[0] as [{ id: string; inviterPubkeyHex: string }];
-    expect(enqueued.id).toBe('rumor-abc');
+    // This fixture's `seal` is a hand-rolled mock object with no real schnorr
+    // signature, so verifyEvent(seal) fails and unwrapResult.authenticated is
+    // false here (this test isolates the enqueue/join dispatch, not auth --
+    // see the real-crypto AC-AUTH-3/AC-AUTH-6 and AC-SEC-4 tests below for
+    // that). Per AC-SEC-4, an unauthenticated Welcome must be keyed by the
+    // outer gift-wrap eventId, never by its self-claimed rumor.id.
+    expect(enqueued.id).toBe('giftwrap-id-001');
     expect(enqueued.inviterPubkeyHex).toBe('inviter-pubkey-hex');
 
     // AC-INVITE-1: joinGroupFromWelcome must NOT have been called
@@ -583,6 +828,305 @@ describe('subscribeToWelcomes — receipt-handler integration', () => {
     // AC-INVITE-2: no invitation enqueued, no joinGroupFromWelcome call
     expect(mockEnqueuePendingInvitation).not.toHaveBeenCalled();
     expect(mockMarmotClient.joinGroupFromWelcome).not.toHaveBeenCalled();
+
+    unsub();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// subscribeToWelcomes — authenticated unwrap dispatch (S3)
+//
+// Exercises the seal-authentication enforcement end to end through the
+// dispatch handler for both message kinds, using real NIP-59 crypto (no
+// mocked decrypt shortcuts):
+//   AC-AUTH-4: a genuinely-signed join request (built via joinRequestSender's
+//     real buildJoinRequestRumor/buildGiftWrap — the actual send-side
+//     pipeline, minus the network publish) round-trips to a PendingJoinRequest
+//     whose pubkeyHex is the authenticated seal sender.
+//   AC-AUTH-2/3/SEC-3: a join request whose rumor.pubkey is forged relative
+//     to a validly-signed seal is dropped -- no PendingJoinRequest is ever
+//     created, and onJoinRequestReceived is never invoked.
+//   AC-AUTH-3/AC-AUTH-6: a Welcome with the same forgery shape is still
+//     enqueued (this story does not add auto-accept), but inviterPubkeyHex is
+//     the REAL seal signer, never the attacker's self-claimed rumor.pubkey.
+// ---------------------------------------------------------------------------
+
+describe('subscribeToWelcomes — authenticated unwrap dispatch (S3)', () => {
+  let localStorageStore: Record<string, string> = {};
+
+  beforeEach(async () => {
+    localStorageStore = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => localStorageStore[key] ?? null,
+      setItem: (key: string, value: string) => { localStorageStore[key] = value; },
+      removeItem: (key: string) => { delete localStorageStore[key]; },
+    });
+    mockEnqueuePendingInvitation.mockReset();
+    mockCountPendingInvitations.mockReset().mockReturnValue(1);
+    await clearAllInviteLinks();
+    await clearAllPendingJoinRequests();
+  });
+
+  function makeNdkWithEventCapture() {
+    let capturedHandler: ((event: unknown) => Promise<void>) | null = null;
+    const mockSubInstance = {
+      on: vi.fn((eventName: string, handler: (event: unknown) => Promise<void>) => {
+        if (eventName === 'event') capturedHandler = handler;
+      }),
+      stop: vi.fn(),
+    };
+    const mockNdk = { subscribe: vi.fn(() => mockSubInstance) };
+    const fireEvent = async (ndkEvent: unknown) => {
+      if (!capturedHandler) throw new Error('Event handler not yet installed');
+      await capturedHandler(ndkEvent);
+    };
+    return { mockNdk, fireEvent };
+  }
+
+  it("AC-AUTH-4: a genuinely-signed join request round-trips (buildJoinRequestRumor+buildGiftWrap -> unwrapGiftWrap -> handleJoinRequest) yielding the authenticated sender as pubkey", async () => {
+    const requester = makeKeypair();
+    const admin = makeKeypair();
+    const groupId = 'group-auth4';
+    const nonce = 'nonce-auth4';
+    await saveInviteLink({ nonce, groupId, createdAt: Date.now(), muted: false });
+
+    // Real send-side pipeline (joinRequestSender.ts), minus the network publish.
+    const rumor = buildJoinRequestRumor({
+      requesterPubkeyHex: requester.pubHex,
+      adminPubkeyHex: admin.pubHex,
+      nonce,
+      groupName: 'Test Group',
+      requesterName: 'Alice',
+    });
+    const giftWrap = await buildJoinRequestGiftWrap(rumor, requester.privHex, admin.pubHex);
+
+    const { mockNdk, fireEvent } = makeNdkWithEventCapture();
+    const onJoinRequestReceived = vi.fn();
+    const mockMarmotClient = { joinGroupFromWelcome: vi.fn() };
+
+    const unsub = await subscribeToWelcomes(
+      admin.pubHex,
+      mockMarmotClient as never,
+      mockNdk as never,
+      createPrivateKeySigner(admin.privHex),
+      vi.fn(),
+      onJoinRequestReceived,
+      () => [], // groupMemberPubkeys — requester is not yet a member
+    );
+
+    await fireEvent({ id: giftWrap.id, pubkey: giftWrap.pubkey, content: giftWrap.content });
+
+    expect(onJoinRequestReceived).toHaveBeenCalledTimes(1);
+    const [request] = onJoinRequestReceived.mock.calls[0] as [{ pubkeyHex: string; nickname?: string }];
+    expect(request.pubkeyHex).toBe(requester.pubHex);
+    expect(request.nickname).toBe('Alice');
+
+    unsub();
+  });
+
+  // ── AC-SEC-3 (anti-impersonation): a genuinely-signed join request whose
+  //    *nickname* mimics another party's display name must still record its
+  //    OWN, distinct authenticated seal pubkey -- never the mimicked party's.
+  //    Unlike the forged-rumor.pubkey tests above (which isolate a CRYPTO
+  //    forgery of the sender's identity), this isolates the case where the
+  //    identity binding is entirely legitimate (real seal, real rumor.pubkey
+  //    match) and only the free-text nickname field lies. Real forged crypto
+  //    (a genuinely-signed seal from the attacker's own key), no mocked
+  //    decrypt shortcuts -- consistent with the other S3 negative tests here.
+
+  it("AC-SEC-3: a join request whose requesterName mimics another party's display name still records the sender's OWN authenticated npub, never the mimicked party's", async () => {
+    const attacker = makeKeypair(); // the actual sender -- real, distinct identity
+    const impersonated = makeKeypair(); // the party whose NAME (not key) is mimicked
+    const admin = makeKeypair();
+    const groupId = 'group-mimic-name';
+    const nonce = 'nonce-mimic-name';
+    await saveInviteLink({ nonce, groupId, createdAt: Date.now(), muted: false });
+
+    // A completely genuine, correctly-signed join request from the attacker's
+    // OWN real keypair -- no pubkey forgery anywhere in this pipeline. Only
+    // the requesterName claims to be "Alice", the impersonated party's known
+    // display name.
+    const rumor = buildJoinRequestRumor({
+      requesterPubkeyHex: attacker.pubHex,
+      adminPubkeyHex: admin.pubHex,
+      nonce,
+      groupName: 'Test Group',
+      requesterName: 'Alice',
+    });
+    const giftWrap = await buildJoinRequestGiftWrap(rumor, attacker.privHex, admin.pubHex);
+
+    const { mockNdk, fireEvent } = makeNdkWithEventCapture();
+    const onJoinRequestReceived = vi.fn();
+    const mockMarmotClient = { joinGroupFromWelcome: vi.fn() };
+
+    const unsub = await subscribeToWelcomes(
+      admin.pubHex,
+      mockMarmotClient as never,
+      mockNdk as never,
+      createPrivateKeySigner(admin.privHex),
+      vi.fn(),
+      onJoinRequestReceived,
+      () => [], // neither the attacker nor the impersonated party is yet a member
+    );
+
+    await fireEvent({ id: giftWrap.id, pubkey: giftWrap.pubkey, content: giftWrap.content });
+
+    expect(onJoinRequestReceived).toHaveBeenCalledTimes(1);
+    const [request] = onJoinRequestReceived.mock.calls[0] as [{ pubkeyHex: string; nickname?: string }];
+
+    // The mimicking nickname still renders as claimed -- nicknames are not,
+    // and were never meant to be, an identity control.
+    expect(request.nickname).toBe('Alice');
+    // But the recorded identity is provably the ATTACKER's own authenticated
+    // seal pubkey -- a distinct npub from the impersonated party's real key.
+    expect(request.pubkeyHex).toBe(attacker.pubHex);
+    expect(request.pubkeyHex).not.toBe(impersonated.pubHex);
+
+    unsub();
+  });
+
+  it('AC-AUTH-2/3/SEC-3: a join request with rumor.pubkey forged relative to a validly-signed seal is dropped -- no PendingJoinRequest is ever created', async () => {
+    const attacker = makeKeypair();
+    const victim = makeKeypair();
+    const admin = makeKeypair();
+    const groupId = 'group-forged-join';
+    const nonce = 'nonce-forged-join';
+    await saveInviteLink({ nonce, groupId, createdAt: Date.now(), muted: false });
+
+    const { wrap } = buildForgedRumorPubkeyWrap({
+      attacker,
+      claimedPubHex: victim.pubHex,
+      recipientPubHex: admin.pubHex,
+      kind: 21059,
+      content: JSON.stringify({ type: 'join_request', nonce, name: 'Test Group' }),
+    });
+
+    const { mockNdk, fireEvent } = makeNdkWithEventCapture();
+    const onJoinRequestReceived = vi.fn();
+    const mockMarmotClient = { joinGroupFromWelcome: vi.fn() };
+
+    const unsub = await subscribeToWelcomes(
+      admin.pubHex,
+      mockMarmotClient as never,
+      mockNdk as never,
+      createPrivateKeySigner(admin.privHex),
+      vi.fn(),
+      onJoinRequestReceived,
+      () => [],
+    );
+
+    await fireEvent({ id: 'forged-join-1', pubkey: wrap.pubkey, content: wrap.content });
+
+    // The admin's row must never even transiently show the forged identity.
+    expect(onJoinRequestReceived).not.toHaveBeenCalled();
+    const stored = await loadPendingJoinRequests(groupId);
+    expect(stored).toHaveLength(0);
+
+    unsub();
+  });
+
+  it('AC-AUTH-3/AC-AUTH-6: a Welcome with rumor.pubkey forged relative to a validly-signed seal is still enqueued (uncorrelated), with inviterPubkeyHex set to the REAL seal signer', async () => {
+    const attacker = makeKeypair();
+    const victim = makeKeypair();
+    const recipient = makeKeypair();
+
+    const { wrap } = buildForgedRumorPubkeyWrap({
+      attacker,
+      claimedPubHex: victim.pubHex,
+      recipientPubHex: recipient.pubHex,
+      kind: 444,
+      content: 'welcome-payload',
+    });
+
+    const { mockNdk, fireEvent } = makeNdkWithEventCapture();
+    const mockMarmotClient = { joinGroupFromWelcome: vi.fn() };
+
+    const unsub = await subscribeToWelcomes(
+      recipient.pubHex,
+      mockMarmotClient as never,
+      mockNdk as never,
+      createPrivateKeySigner(recipient.privHex),
+      vi.fn(),
+    );
+
+    await fireEvent({ id: 'forged-welcome-1', pubkey: wrap.pubkey, content: wrap.content });
+
+    // Still enqueued -- this story does not add auto-accept (S4's concern);
+    // what changes is that a future auto-accept check can never mistake this
+    // for a correlation match, since it's tagged unauthenticated internally.
+    expect(mockEnqueuePendingInvitation).toHaveBeenCalledTimes(1);
+    const [enqueued] = mockEnqueuePendingInvitation.mock.calls[0] as [{ inviterPubkeyHex: string }];
+    // AC-AUTH-6: the authenticated seal signer, never the forged rumor claim.
+    expect(enqueued.inviterPubkeyHex).toBe(attacker.pubHex);
+    expect(enqueued.inviterPubkeyHex).not.toBe(victim.pubHex);
+    expect(mockMarmotClient.joinGroupFromWelcome).not.toHaveBeenCalled();
+
+    unsub();
+  });
+
+  // ── AC-SEC-4 (pending-invitation id-collision hardening): an unauthenticated
+  //    Welcome must never be keyed by its self-claimed rumor.id, because that
+  //    id is attacker-chosen whenever authentication fails (here, specifically,
+  //    because the rumor-id canonical-hash check failed) -- and could be
+  //    steered to collide with an already-enqueued LEGITIMATE invitation's id,
+  //    corrupting enqueuePendingInvitation's id-based dedup (pendingInvitations.ts).
+  //    The fix keys any unauthenticated Welcome by the outer gift-wrap eventId
+  //    instead (a real, relay-assigned, non-grindable hash) -- only an
+  //    AUTHENTICATED Welcome may key by its canonical welcomeRumor.id. ──────────
+
+  it("AC-SEC-4: an unauthenticated Welcome with a forged rumor.id colliding with an already-enqueued legit invitation's id is keyed by its own gift-wrap eventId -- the legit entry is untouched", async () => {
+    const legitSender = makeKeypair();
+    const attacker = makeKeypair();
+    const recipient = makeKeypair();
+
+    // A completely genuine, authenticated Welcome -- enqueued first, keyed by
+    // its own canonical (authenticated) rumor id.
+    const { wrap: legitWrap, rumor: legitRumor } = buildGenuineWrap({
+      sender: legitSender,
+      recipientPubHex: recipient.pubHex,
+      kind: 444,
+      content: 'legit-welcome-payload',
+    });
+
+    // Attacker crafts a malformed-but-decryptable Welcome: seal genuinely
+    // signed by their OWN key (sealSignatureValid + senderBound both pass),
+    // but rumor.id is forged to equal the legit invitation's id rather than
+    // the canonical hash of this rumor's own fields -- rumorIdValid (and
+    // therefore authenticated) is false.
+    const { wrap: forgedWrap } = buildForgedRumorIdWrap({
+      attacker,
+      forgedId: legitRumor.id,
+      recipientPubHex: recipient.pubHex,
+      kind: 444,
+      content: 'malicious-welcome-payload',
+    });
+
+    const { mockNdk, fireEvent } = makeNdkWithEventCapture();
+    const mockMarmotClient = { joinGroupFromWelcome: vi.fn() };
+
+    const unsub = await subscribeToWelcomes(
+      recipient.pubHex,
+      mockMarmotClient as never,
+      mockNdk as never,
+      createPrivateKeySigner(recipient.privHex),
+      vi.fn(),
+    );
+
+    await fireEvent({ id: 'legit-welcome-1', pubkey: legitWrap.pubkey, content: legitWrap.content });
+    // Distinct outer gift-wrap event id from the legit Welcome above -- this
+    // is what the fix must fall back to keying by.
+    await fireEvent({ id: 'forged-collision-1', pubkey: forgedWrap.pubkey, content: forgedWrap.content });
+
+    expect(mockEnqueuePendingInvitation).toHaveBeenCalledTimes(2);
+    const [legitEnqueued] = mockEnqueuePendingInvitation.mock.calls[0] as [{ id: string }];
+    const [forgedEnqueued] = mockEnqueuePendingInvitation.mock.calls[1] as [{ id: string }];
+
+    // The legit entry is untouched: still keyed by its authenticated rumor id.
+    expect(legitEnqueued.id).toBe(legitRumor.id);
+    // The forged entry must NOT collide with the legit id -- it is keyed by
+    // its own outer gift-wrap eventId instead, since it never authenticated.
+    expect(forgedEnqueued.id).toBe('forged-collision-1');
+    expect(forgedEnqueued.id).not.toBe(legitEnqueued.id);
 
     unsub();
   });
@@ -816,7 +1360,12 @@ describe('subscribeToWelcomes — pairing-ack dispatch (S3)', () => {
     // unwrapGiftWrap path, and still falls through unchanged on
     // 'unwrap-failed'/'wrong-kind'.
     const pairingDispatchIndex = source.indexOf('const pairingResult = await handlePairingAck(');
-    const welcomeUnwrapIndex = source.indexOf('const welcomeRumor = await unwrapGiftWrap(');
+    // S3 (authenticated-unwrap) changed unwrapGiftWrap's return shape from a
+    // flattened rumor to { pubkey, authenticated, rumor }, so the call site's
+    // destination variable is now `unwrapResult` rather than `welcomeRumor` —
+    // the CALL itself (still immediately after the pairing-ack dispatch) is
+    // what this test protects, not the variable name from a prior story.
+    const welcomeUnwrapIndex = source.indexOf('const unwrapResult = await unwrapGiftWrap(');
     expect(pairingDispatchIndex).toBeGreaterThan(-1);
     expect(welcomeUnwrapIndex).toBeGreaterThan(-1);
     expect(pairingDispatchIndex).toBeLessThan(welcomeUnwrapIndex);

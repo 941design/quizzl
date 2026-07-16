@@ -154,6 +154,9 @@ type Copy = {
     inviteLinkLabelPlaceholder: string;
     joinRequestHeading: string;
     joinRequestDescription: string;
+    joinRequestNameLabel: string;
+    joinRequestNameHelper: string;
+    joinRequestNameRequiredHint: string;
     joinRequestButton: string;
     joinRequestSent: string;
     joinRequestError: string;
@@ -774,6 +777,9 @@ const copy: Record<LanguageCode, Copy> = {
       inviteLinkLabelPlaceholder: 'e.g. Sent to class chat',
       joinRequestHeading: "You've been invited to join a group",
       joinRequestDescription: 'Send a join request to the group admin?',
+      joinRequestNameLabel: 'Your name',
+      joinRequestNameHelper: 'The group admin will see this name on your join request.',
+      joinRequestNameRequiredHint: 'Enter a name to continue',
       joinRequestButton: 'Request to Join',
       joinRequestSent: "Request sent! You'll be added once the admin approves.",
       joinRequestError: 'Failed to send join request. Please try again.',
@@ -1305,6 +1311,9 @@ const copy: Record<LanguageCode, Copy> = {
       inviteLinkLabelPlaceholder: 'z. B. An Klassen-Chat gesendet',
       joinRequestHeading: 'Du wurdest zu einer Gruppe eingeladen',
       joinRequestDescription: 'Beitrittsanfrage an den Gruppenadmin senden?',
+      joinRequestNameLabel: 'Dein Name',
+      joinRequestNameHelper: 'Der Gruppenadmin sieht diesen Namen bei deiner Beitrittsanfrage.',
+      joinRequestNameRequiredHint: 'Gib einen Namen ein, um fortzufahren',
       joinRequestButton: 'Beitritt anfragen',
       joinRequestSent: 'Anfrage gesendet! Du wirst hinzugefügt, sobald der Admin zustimmt.',
       joinRequestError: 'Beitrittsanfrage fehlgeschlagen. Bitte erneut versuchen.',

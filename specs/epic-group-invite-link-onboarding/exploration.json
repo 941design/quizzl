@@ -1,0 +1,40 @@
+{
+  "created_at": "2026-07-16T10:17:40Z",
+  "language": "typescript",
+  "focuses": {
+    "contact_card_onboarding": {
+      "identity_creation": "app/src/context/NostrIdentityContext.tsx:174-183 — keypair generated silently on first mount, unconditional. No onboarding wizard exists.",
+      "name_gate_predicate": "app/src/lib/shareCard.ts:125 — hasShareableName(nickname); single source of truth, reused by 5 call sites.",
+      "profile_save_chokepoint": "app/src/context/ProfileContext.tsx:52-58 — saveProfile applies 32-byte UTF-8 nickname cap + avatar backfill; only nickname writer.",
+      "pairing_name_nudge": "app/pages/profile.tsx:342-352 — non-blocking Alert, ?pairing=1 only; NOT reused by this epic (DD-2).",
+      "contact_card_signed": "app/src/lib/contactCard.ts:617-630 — v1 verifyEvent on reconstructed kind-0; v2 signs synthetic preimage binding header/pubkey/created_at/expires_at/nonce/name.",
+      "adr_009": "docs/adr/ADR-009-*.md — issuer (passive party) requires human confirmation even with authenticated handshake; scanner (active party) auto-admits. Bearer-credential threat model. Status: Proposed."
+    },
+    "group_invite_link_flow": {
+      "url_shape": "/groups?join=<nonce>&admin=<npub>&name=<groupName> — plaintext query params, unsigned. app/src/lib/marmot/inviteLinkGeneration.ts:46-56 buildInviteUrl.",
+      "join_card": "app/src/components/groups/JoinRequestCard.tsx — rendered by pages/groups.tsx:544-554 when join+admin+name params present. Gates: hydration/identity (43-59), invalid admin npub (61-70), already-member (39-41). No name check.",
+      "join_request_send": "app/src/lib/marmot/joinRequestSender.ts:117-141 sendJoinRequest; buildJoinRequestRumor:27-44 emits {type,nonce,name:groupName}; buildGiftWrap:56-112 hand-rolls the kind-13 seal WITHOUT signing it (only outer kind-1059 signed with ephemeral key).",
+      "join_request_handler": "app/src/lib/marmot/joinRequestHandler.ts:56-94 — hardcodes nickname:undefined at :88; PendingJoinRequest.nickname? already in type.",
+      "admin_row": "app/src/components/groups/PendingRequestsSection.tsx:30-41 — ALREADY co-renders truncateNpub as secondary text alongside nickname (line 34 is only the primary-name expr). DD-6 co-render structurally satisfied.",
+      "unwrap_shared": "app/src/lib/marmot/welcomeSubscription.ts:40-68 unwrapGiftWrap — NO seal signature verify, NO rumor.pubkey===seal.pubkey check; returns rumor.pubkey??''. SHARED by kind-444 (Welcome) and kind-21059 (join request) — unwraps first, branches on kind at 165-194. Stale doc comment ~199-211 wrongly claims rumor is signed.",
+      "safe_unwrap_reference": "app/src/lib/directMessages.ts:230-274 unwrapAndOpen — verifies seal schnorr sig (:250), decrypts with authenticated seal pubkey, asserts rumor.pubkey===seal.pubkey (:262). Doc comment: 'closes the Mallory forgery vector'. Imports nostr-tools/nip59.",
+      "pull_only_queue": "app/src/lib/marmot/welcomeSubscription.ts:196-238 enqueuePendingInvitation (localStorage lp_pendingInvitations_v1); acceptPendingInvitation:451-513 -> joinGroupFromWelcome. acceptPendingInvitation returns early unless entry in queue.",
+      "pending_card": "app/src/components/groups/PendingInvitations.tsx — AC-INVITE-4 locks display to truncated pubkey + relative timestamp + Accept + Decline. Rendered at pages/groups.tsx:614.",
+      "sibling_stores": "app/src/lib/marmot/joinRequestStorage.ts, inviteLinkStorage.ts — IndexedDB, keyed by natural id; conventions to mirror for the new outbound-record store.",
+      "known_peers": "MarmotContext effect on [groups,pubkeyHex] appends member pubkeys to lp_knownPeers_v1 (append-only, ADR-002/005). Auto-accept routing through joinGroupFromWelcome populates this identically to manual accept.",
+      "welcome_wire_format": "@internet-privacy/marmot-ts createWelcomeRumor — kind-444 rumor carries base64 MLS Welcome + relays + encoding + optional e-tag. NO nonce, no injection hook. Seal IS signed (applesauce sealRumor -> signer.signEvent). readWelcomeMarmotGroupData exposes group name/id pre-join (attacker-chosen, not a correlation input).",
+      "e2e": "app/tests/e2e/groups-invite-link.spec.ts — full flow, both users pre-named (lines 65-66); nameless path unexercised. groups-join-request-live.spec.ts — live-refresh regression."
+    }
+  },
+  "i18n": {
+    "join_request_keys": "app/src/lib/i18n.ts:155-161 (en), 775-782 (de-adjacent) — copy.groups.joinRequest* grouping to follow.",
+    "profile_pairing_prompt": "app/src/lib/i18n.ts:384 pairingNameSetupPrompt (reference for tone, not reused)."
+  },
+  "constraints": {
+    "privacy_invariant": "No public kind-0 ever. Profile data only via MLS group rumors or NIP-59 gift wraps (addressed+encrypted). Join-request nickname rides the existing gift wrap to admin — compliant.",
+    "static_export": "query params only, no dynamic path segments.",
+    "i18n": "en+de in app/src/lib/i18n.ts via useCopy(); no hardcoded strings.",
+    "e2e": "publish through the app, never raw WebSocket; full suite is the gate.",
+    "testing": "vitest, tests/unit/**/*.test.ts; no jsdom/@testing-library; no component-render/snapshot capability."
+  }
+}

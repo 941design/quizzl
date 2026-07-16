@@ -1,0 +1,111 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-16T12:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is `parseJoinRequestContent`'s tolerance for a missing/malformed `requesterName` a real defensive coalesce (typeof-check + fallback to `undefined`) rather than a vacuous pass-through that only happens to work because today's only test fixture already omits the field? And is the receive-side 32-UTF-8-byte cap a real byte-counting truncation (correct for multi-byte UTF-8, e.g. emoji/CJK) rather than a `.length`-based (UTF-16 code-unit) truncation that silently mis-caps multi-byte input? Provide a test with a multi-byte-heavy nickname (e.g. repeated 4-byte emoji) asserting the truncation respects the byte boundary, not the character count."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the diff confine itself to `buildJoinRequestRumor` in `joinRequestSender.ts` (Join-request send module), `parseJoinRequestContent`/`handleJoinRequest` in `joinRequestHandler.ts` (Join-request handler module), and — read-only verification, not a rewrite — `PendingRequestsSection.tsx` (Admin pending row module)? Confirm no new event kind, no new transport function, and no new relay-publish call site is introduced (`grep -n 'kind:\\|publish(' ` across the touched files should show no new kind literal beyond the existing `21059`)."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could 'Join-request handler' (`app/src/lib/marmot/joinRequestHandler.ts`) be deleted and rewritten without modifying any file outside its dependencies_allowed list — its declared consumer `PendingRequestsSection.tsx` (which reads `PendingJoinRequest.nickname` through the existing type, not through handler internals) and its declared producer `joinRequestSender.ts`/`welcomeSubscription.ts` (which call it via the existing exported function signature)? If not, identify the specific cross-module dependency and whether it flows through the `PendingJoinRequest` type contract or reaches into either module's internals."
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does the test suite cover, as separate assertions: (a) `buildJoinRequestRumor` emitting `requesterName` distinct from the group `name` field (AC-NAME-1), (b) `parseJoinRequestContent` tolerating absent/empty/non-string `requesterName` without rejecting the rumor (AC-NAME-2), (c) `handleJoinRequest` populating `PendingJoinRequest.nickname` from the parsed value (AC-NAME-3), (d) a hostile over-long nickname fixture asserting receive-side truncation independent of any send-side cap (AC-SEC-1), and (e) a nickname containing `<script>`/HTML asserting it renders as literal text, not executed markup (AC-SEC-2)? List the specific test names for each."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does this story introduce zero code paths that resolve or fall back to a kind-0 lookup for the nickname, anywhere in the send, parse, or render path (AC-NAME-5, AC-SEC-4)? Run `grep -rn 'kind.*0\\b\\|fetchProfile\\|kind0' app/src/lib/marmot/joinRequestSender.ts app/src/lib/marmot/joinRequestHandler.ts app/src/components/groups/PendingRequestsSection.tsx` and confirm no new kind-0 fetch, cache read, or fallback is introduced by this story's diff."
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Is the requester's nickname cap enforced strictly on the RECEIVE side, inside `handleJoinRequest`, independent of and not merely inherited from any send-side cap (`saveProfile`'s 32-byte cap is a UX affordance, not a security control, since the sender is untrusted)? Provide a test that constructs a `PendingJoinRequest` input as if from a hostile client bypassing `saveProfile` entirely (an over-long raw string with no send-side cap applied) and asserts `handleJoinRequest` still truncates it to 32 UTF-8 bytes on its own — a test that only exercises the send-side cap and never independently drives the receive path would not satisfy this."
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NAME-1",
+      "question": "Does `buildJoinRequestRumor` include the requester's nickname under a field distinct from the existing `name` field (which carries the group's name), while the rumor remains kind `21059` and still travels through the existing `buildGiftWrap` path with no new event kind and no new transport? Provide the rumor content shape before and after this story's diff."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NAME-2",
+      "question": "Does `parseJoinRequestContent` treat an absent, empty, non-string, or otherwise malformed requester-name field as `undefined`, and does it NOT reject the rumor for that reason alone? Provide a test asserting a join request from an (emulated) older client that omits the field entirely still produces a valid `PendingJoinRequest`."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NAME-3",
+      "question": "Does `handleJoinRequest` populate `PendingJoinRequest.nickname` from the parsed value — replacing the hardcoded `undefined` at `joinRequestHandler.ts:88` — capped per AC-SEC-1? Provide the diff at that line and a test asserting a non-empty parsed nickname reaches `PendingJoinRequest.nickname` rather than staying hardcoded `undefined`."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NAME-4",
+      "question": "Does `PendingRequestRow` render the requester's nickname AND the truncated npub together, with the nickname never replacing the npub — and when `nickname` is `undefined`, does the row still render the truncated npub alone (today's behavior, unchanged)? Given exploration.json notes this co-render already appears structurally present at `PendingRequestsSection.tsx:30-41`, was that verified rather than assumed before editing, and does the row show BOTH name and npub simultaneously in the populated-nickname case (not name replacing npub)? Provide the rendered element structure for both the nickname-present and nickname-absent cases."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NAME-5",
+      "question": "Is the requester's nickname resolved exclusively from the parsed gift-wrapped rumor content, with no code path in this story that resolves or falls back to a kind-0 lookup? Provide a test that simulates a request with no kind-0 metadata available for the requester's pubkey (e.g. no cached profile) and asserts the pending row still shows either the transported nickname or the undefined-nickname fallback (npub alone) — never triggering a kind-0 fetch."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-1",
+      "question": "Is the requester's nickname capped at 32 UTF-8 bytes ON RECEIVE, in `handleJoinRequest`, independent of any send-side cap? Provide a test asserting an over-long nickname (constructed as if from a hostile sender that bypassed any client-side cap) is truncated by the receiver to 32 UTF-8 bytes — the test must drive the receive path directly with an uncapped input, not merely confirm the send-side `saveProfile` cap already limits it to 32 bytes before it ever reaches the wire."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-2",
+      "question": "Is the requester's nickname rendered as literal text, never as executed markup? Provide a test with a nickname containing `<script>alert(1)</script>` or an `<img onerror=...>` payload and assert the admin's row renders it as literal characters (e.g. via `textContent`/escaped-text assertion, not `innerHTML` containing an unescaped tag) with no script execution."
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-4",
+      "question": "Does no code path added by this story publish the user's kind-0, or any profile metadata, to a public relay — does the requester's nickname reach the admin exclusively inside the existing NIP-59 gift wrap addressed to the admin's pubkey? Run `grep -n 'publish\\|relay' app/src/lib/marmot/joinRequestSender.ts` scoped to this story's diff and confirm the only publish call is the existing gift-wrap publish, with no new publish target."
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Implementation added `import { capNickname } from '@/src/config/profile'` to `joinRequestHandler.ts` (a new cross-module edge not present in architecture.md's boundary rules or module map, documented in this story's architecture.json under `dependencies_allowed`). Is `capNickname` genuinely a pure, side-effect-free leaf function (no React state, no storage write, no avatar/profile-record mutation) such that importing it into a non-UI protocol module (`app/src/lib/marmot/`) carries none of `ProfileContext`'s save-time side effects (`ensureAvatar`, `writeUserProfile`, `markBackupDirty`) — i.e. does `handleJoinRequest` call only the pure byte-truncation logic and nothing profile-record-shaped?"
+    },
+    {
+      "question_id": "VQ-S2-016",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The production call site (`JoinRequestCard.tsx`'s `handleSendRequest`) was updated to pass `requesterName: nameDraft` into `sendJoinRequest` — a file not listed in stories.json's S2 `scope.includes` bullets, added because no other story (S1/S3/S4/S5 per their own scopes) wires this call site, and S5's notes state no production code changes land beyond S1-S4. Does `nameDraft` reliably hold a `hasShareableName`-satisfying value at the moment `handleSendRequest` executes in every reachable case — both the gate-active path (freshly typed and just-saved via `saveProfile`) and the gate-inactive path (already-named user, where `nameDraft` mirrors `profile.nickname` via the existing sync effect) — such that no code path can call `sendJoinRequest` with an empty or stale `requesterName`?"
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-16T12:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the seal-signature verification in `unwrapGiftWrap` a real cryptographic schnorr-signature check (via `nostr-tools/nip59` helpers, matching `unwrapAndOpen`) rather than a vacuous stub that only checks a `sig` field is non-empty, always returns `true`, or hashes-and-compares an `id` field without ever validating a signature against a pubkey? Similarly, is the kind-13 seal produced by `buildGiftWrap` genuinely signed (a real schnorr signature over the seal, recoverable and verifiable against the sender's real pubkey) rather than merely acquiring a non-empty `sig`-shaped placeholder string or an `id` hash with no verifiable signature behind it? Provide the exact signing call and the exact verification call, and a test where a seal is signed with the WRONG private key and unwrap correctly reports `authenticated: false`."
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the diff confine itself to `joinRequestSender.ts`'s `buildGiftWrap` function (Join-request send module) and `welcomeSubscription.ts`'s `unwrapGiftWrap` function (Welcome/join unwrap module), reusing the audited `nostr-tools/nip59` seal/wrap helpers already imported by `directMessages.ts` rather than extending the hand-rolled seal construction (per architecture.md's explicit preference)? Run `grep -n \"from 'nostr-tools\" app/src/lib/marmot/joinRequestSender.ts app/src/lib/marmot/welcomeSubscription.ts` and confirm the nip59 import is present rather than continued hand-rolled seal logic."
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could 'Welcome/join unwrap' (`app/src/lib/marmot/welcomeSubscription.ts`) be deleted and rewritten without modifying any file outside its dependencies_allowed list — the read-only donor pattern in `directMessages.ts` (`unwrapAndOpen`, consulted but not imported-and-mutated) and the `nostr-tools/nip59` package? If not, which cross-module dependency exists (e.g. does this story's diff require changing `directMessages.ts` itself, which is declared read-only in architecture.md's Module map), and does it flow through the declared `AuthenticatedUnwrapResult` seam contract rather than reaching into `directMessages.ts` internals?"
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do dedicated NEGATIVE tests exist (per AC-AUTH-3's explicit requirement, not merely implied by a positive-path test) asserting: (a) a forged Welcome (seal signed with a different key than the claimed rumor.pubkey, or an invalid signature) is routed to the uncorrelated/pending-queue path and never auto-accepted, with `authenticated: false`; and (b) a forged join request (same forgery) is dropped and produces NO `PendingJoinRequest`? AND does a dedicated POSITIVE round-trip test exist (AC-AUTH-4) asserting a genuinely signed join request flows `sendJoinRequest` -> `unwrapGiftWrap` -> `handleJoinRequest` and yields the request with the authenticated sender as its pubkey (proving no S2 regression)? List the specific test names for all three."
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does a message failing seal-signature verification or the `rumor.pubkey === seal.pubkey` assertion degrade gracefully — never throwing out of or halting the subscription — and is the stale doc comment in `welcomeSubscription.ts` (~lines 199-211) claiming the rumor itself is signed corrected to state that NIP-59 rumors are unsigned and the seal authenticates (AC-AUTH-5)? Provide the corrected comment text and a test asserting the subscription's event loop continues processing subsequent events after a forged message is encountered (no uncaught throw, no dropped subscription)."
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does a join request carrying a forged `rumor.pubkey` that mismatches the seal's actual signing pubkey get REJECTED before it ever reaches the admin — i.e. `unwrapGiftWrap` must never yield a trusted sender identity from the raw, self-claimed `rumor.pubkey` field, for either kind-444 or kind-21059? Provide a test with `rumor.pubkey` set to an arbitrary attacker-chosen npub while the seal is legitimately signed by a DIFFERENT key, asserting: (a) `authenticated` is `false`, (b) the returned `pubkey` field is the seal's real signing pubkey (never the forged rumor.pubkey), and (c) for the join-request kind specifically, no `PendingJoinRequest` is ever created from this input — the admin's row must never even transiently show the forged identity."
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTH-0",
+      "question": "Does `buildGiftWrap` in `joinRequestSender.ts` sign the kind-13 seal with the sender's real key before encrypting it into the gift wrap (today it carries an `id` but no `sig`), and does this land in the SAME commit/story as AC-AUTH-1's enforcement (no intermediate shippable state where verification is enforced but the seal is still unsigned, which would drop every join request)? Provide the diff showing the seal now carries a verifiable schnorr signature, preferring the `nostr-tools/nip59` seal/wrap helpers over extending the hand-rolled construction."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTH-1",
+      "question": "Does the shared `unwrapGiftWrap` apply seal-signature verification to BOTH kind-444 (Welcome) and kind-21059 (join request) dispatch branches — not just one — before trusting any field of the inner rumor, matching `unwrapAndOpen`'s semantics (`directMessages.ts:250`)? Provide evidence for both branches independently: a forged kind-444 input and a forged kind-21059 input, each asserting `authenticated: false`, since these are two separate code branches at `welcomeSubscription.ts:165-194` and a fix applied to only one would leave the other exploitable."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTH-2",
+      "question": "Does `unwrapGiftWrap` assert `rumor.pubkey === seal.pubkey` (matching `directMessages.ts:262`) and reject the sender identity on mismatch, for both kinds, such that the authenticated sender is ALWAYS the seal pubkey and the raw `rumor.pubkey` is NEVER used for any trust decision on either path? Provide a test with a mismatched `rumor.pubkey`/`seal.pubkey` pair (valid seal signature, but rumor claims a different pubkey than the one that actually signed it) asserting the mismatch is detected and the sender identity is rejected (not silently accepted as the rumor's claim)."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTH-3",
+      "question": "Does a message failing AC-AUTH-1 or AC-AUTH-2 never throw out of or halt the subscription, with a failing Welcome routed to the uncorrelated-Welcome path (AC-AUTO-3) with `authenticated: false`, and a failing join request dropped with NO `PendingJoinRequest` produced? Confirm dedicated negative tests exist for BOTH cases (a forged Welcome that reaches the pending queue and is never auto-accepted, and a forged join request that never surfaces to the admin) rather than a single shared test covering only one kind."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTH-4",
+      "question": "Does a genuine join request (seal signed per AC-AUTH-0) pass authentication and produce a valid `PendingJoinRequest` — proving the enforcement does NOT regress the S2 feature? Provide the specific round-trip test asserting `sendJoinRequest` -> `unwrapGiftWrap` -> `handleJoinRequest` yields a request whose pubkey is the authenticated sender, confirming this test actually exercises the real send-then-receive pipeline rather than constructing a `PendingJoinRequest` fixture by hand and skipping the unwrap step."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTH-5",
+      "question": "Is the stale doc comment in `welcomeSubscription.ts` (~lines 199-211), which incorrectly asserts the rumor itself is signed, corrected to accurately state that NIP-59 rumors are unsigned and the seal is what authenticates? Provide the before/after comment text."
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTH-6",
+      "question": "Is the `inviterPubkeyHex` recorded for a queued Welcome now the AUTHENTICATED seal pubkey, never the raw `rumor.pubkey`, closing the pre-existing forged-Welcome display bug? Provide a test with a forged Welcome (mismatched rumor.pubkey vs seal pubkey, seal otherwise validly signed by a third party) asserting the enqueued pending-invitation record's `inviterPubkeyHex` equals the seal's real signing pubkey, never the attacker-claimed `rumor.pubkey`."
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEC-3",
+      "question": "Does the admin's pending row keep the truncated npub visible for every request, and is that npub provably the AUTHENTICATED sender pubkey (per AC-AUTH-0/1/2), never a self-claimed field? Provide two tests: (1) a requester whose nickname mimics another party's display name is still rendered with their OWN distinct, authenticated npub (not the impersonated party's), and (2) a join request carrying a forged `rumor.pubkey` never reaches the admin's row at all (rejected at unwrap per AC-AUTH-3, not merely displayed with a corrected pubkey)."
+    },
+    {
+      "question_id": "VQ-S3-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-AUTH-2",
+      "question": "Contract check for the `AuthenticatedUnwrapResult` seam this story produces (consumed by S4's correlation check per architecture.md's 'Seams' section and stories.json's top-level `seams` entry): does `unwrapGiftWrap`'s result expose exactly `{ pubkey: string, authenticated: boolean, rumor: unknown }`, with `authenticated` true if and only if BOTH the seal's schnorr signature verifies AND `rumor.pubkey === seal.pubkey`; `pubkey` always populated with the seal's pubkey (never the raw, self-claimed `rumor.pubkey`) regardless of whether `authenticated` is true or false; and a message failing either check yielding `authenticated: false` in a shape that cannot satisfy ANY downstream trust decision, in particular S4's AC-AUTO-4 correlation match? Provide the type/interface definition and a unit test asserting all three field behaviors across one genuine input and one forged input, since S4 will consume this shape directly without re-deriving trust."
+    },
+    {
+      "question_id": "VQ-S3-016",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The implementation hardens `unwrapGiftWrap` beyond the pre-impl commitment set: once the OUTER gift-wrap layer decrypts successfully (layer 1), the seal-layer decrypt (layer 2, `signer.nip44.decrypt(seal.pubkey, seal.content)`) is now wrapped in its own try/catch and degrades to `{ authenticated: false, rumor: <all-default empty rumor>, pubkey: sealPubkey }` instead of throwing -- because NIP-44's MAC ties decryption success to `seal.pubkey` actually being the real encryptor's key, an incoherent/tampered seal (e.g. a `seal.pubkey` field that does not match whatever key produced `seal.content`) would otherwise throw an uncaught 'invalid MAC' error past the point where AC-AUTH-3 requires no throw. Does this narrower catch (scoped to ONLY the layer-2 decrypt + JSON.parse, not layer 1) correctly preserve the pre-existing 'not a message for this handler' semantics for genuine layer-1 failures (still throws, still silently dropped by the caller's outer try/catch per AC-INVITE-2), while newly guaranteeing layer-2 failures never escape as an uncaught exception? Is there a realistic gift-wrap shape (addressed to us, decryptable at layer 1) whose layer-2 failure should have propagated as a throw instead of degrading to `authenticated: false`, and if so does swallowing it here cause any observably wrong behavior downstream (e.g. masking a bug in a legitimate sender's wrap that should surface differently than 'seal auth failed')?"
+    },
+    {
+      "question_id": "VQ-S3-017",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "`buildGiftWrap` and `sendJoinRequest` (joinRequestSender.ts) changed their public parameter from an abstract `signer: EventSigner` to a raw `requesterPrivateKeyHex: string`, so the audited `nostr-tools/nip59` `wrapEvent` helper (which requires raw private-key bytes) could be called directly instead of hand-signing via the EventSigner abstraction. This was confined to the sole call site (`JoinRequestCard.tsx`, which already held `privateKeyHex` in scope) and the `createPrivateKeySigner` import there was removed as now-unused. Does a full-repo grep confirm no OTHER caller of `buildGiftWrap`/`sendJoinRequest` (test file, component, or e2e helper) still passes the old `signer` shape and would silently break at the callsite (note: this would be caught by `tsc --noEmit`, which is clean, but confirm no `as any`/`as never` cast is hiding a shape mismatch in a test mock)? Does this signature change have any consequence for a hypothetical future NIP-46 (remote-signer) join-request flow, and if so is that consequence acceptable given no such flow exists today?"
+    },
+    {
+      "question_id": "VQ-S3-018",
+      "phase": "post-impl",
+      "category": "SECURITY",
+      "question": "Beyond the pre-authored AC-AUTH-1 schnorr-signature check, the implementation added an explicit `seal.kind === 13` guard (folded into `sealSignatureValid`) matching `unwrapAndOpen`'s `if (seal.kind !== SEAL_KIND) throw` -- closing a kind-confusion replay where a validly-signed event of a DIFFERENT kind (e.g. a real, publicly-signed kind-1 note whose content happens to be nip44-decryptable as a rumor under the same sender/recipient pair) could otherwise pass `verifyEvent` alone. Is this check load-bearing (i.e. does a test exist demonstrating a validly-signed non-kind-13 event is correctly rejected, not merely relying on the coincidence that a wrong kind usually also fails to produce valid rumor JSON)? Is there any legitimate seal shape this check could reject (e.g. a future protocol version bumping the seal kind) that would need this constant revisited?"
+    }
+  ]
+}

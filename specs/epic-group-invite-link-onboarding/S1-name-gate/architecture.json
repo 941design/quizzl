@@ -1,0 +1,41 @@
+{
+  "module_name": "Join card UI",
+  "purpose": "Blocking name gate on the group-invite join card for nameless users (epic-group-invite-link-onboarding, story S1). Renders a name input and keeps the Request-to-Join button disabled until the current user has a shareable nickname, then persists the entered name exclusively through the existing saveProfile chokepoint.",
+  "public_api": [
+    {
+      "name": "JoinRequestCard",
+      "signature": "export default function JoinRequestCard(props: { nonce: string; adminNpub: string; groupName: string }): JSX.Element",
+      "description": "Unchanged public signature (rendered by pages/groups.tsx). Internal behavior gains the S1 name gate; named users see today's render unchanged (AC-GATE-4)."
+    },
+    {
+      "name": "isNameGateActive",
+      "signature": "export function isNameGateActive(savedNickname: string): boolean",
+      "description": "Pure predicate: true iff the current saved profile nickname is not shareable (wraps hasShareableName). Single source of truth for whether the name gate renders at all (AC-GATE-1, AC-GATE-4). Exported for unit testing given this repo has no component-render/snapshot capability."
+    },
+    {
+      "name": "isJoinRequestDisabled",
+      "signature": "export function isJoinRequestDisabled(gateActive: boolean, draftName: string): boolean",
+      "description": "Pure predicate: true iff the Request-to-Join button must stay disabled -- the gate is active AND the live draft name typed into the input does not yet satisfy hasShareableName (AC-GATE-3, reactive per keystroke). Exported for unit testing; this is the exact function the component calls for its `isDisabled` prop, not a re-derivation."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/context/ProfileContext.tsx#useProfile (reads profile.nickname, calls saveProfile) -- pre-existing permitted export per architecture.md Boundary rules",
+    "app/src/lib/shareCard.ts#hasShareableName -- pre-existing permitted export per architecture.md Boundary rules",
+    "app/src/lib/marmot/joinRequestSender.ts#sendJoinRequest -- already imported pre-epic, unchanged call site"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/marmot/joinRequestHandler.ts (S2 scope)",
+    "app/src/lib/marmot/welcomeSubscription.ts (S3/S4 scope)",
+    "app/src/lib/marmot/outboundJoinRequests.ts (S4 scope, does not exist yet)",
+    "any kind-0 / public-profile publish path (privacy invariant)",
+    "any router navigation to /profile (DD-2)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/components/JoinRequestCard.test.ts"
+  ]
+}

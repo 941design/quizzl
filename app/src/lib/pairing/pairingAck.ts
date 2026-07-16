@@ -14,12 +14,18 @@
  *
  *   1. Sender binding (AC-SEC-1, AC-SEC-2). The authenticated sender of a
  *      received ack MUST come from `directMessages.ts#unwrapAndOpen` — the
- *      ONLY primitive in this codebase that asserts `rumor.pubkey ===
- *      seal.pubkey` before returning. `welcomeSubscription.ts#unwrapGiftWrap`
- *      does NOT perform that assertion and MUST NEVER be used here. The
- *      enclosed card's claimed pubkey is admitted ONLY when it equals this
- *      authenticated sender — never the other way around, and never on its
- *      own.
+ *      primitive that asserts `rumor.pubkey === seal.pubkey` and THROWS on
+ *      mismatch, so a caller can treat a successful return as authenticated
+ *      without an extra check. `welcomeSubscription.ts#unwrapGiftWrap` (as of
+ *      the epic's S3 story) performs the SAME `rumor.pubkey === seal.pubkey`
+ *      assertion internally, but degrades to a non-throwing
+ *      `{ authenticated: false }` result instead of throwing — a caller that
+ *      forgot to check that flag would silently treat a spoofed sender as
+ *      genuine. It MUST NEVER be used here for exactly that reason: this
+ *      module's contract relies on a thrown exception to signal failure, not
+ *      a flag a future edit could stop checking. The enclosed card's claimed
+ *      pubkey is admitted ONLY when it equals this authenticated sender —
+ *      never the other way around, and never on its own.
  *   2. Walled-garden bypass (AC-ADMIT-4). `isAllowedDmSender` is never called
  *      from this module. Admission is gated solely by nonce-admissibility +
  *      sender-binding, mirroring `joinRequestHandler.ts`'s precedent (nonce

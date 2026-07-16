@@ -17,7 +17,14 @@ export interface PendingJoinRequest {
   groupId: string;
   /** When the request was received (Unix ms) */
   receivedAt: number;
-  /** Requester's nickname (if resolvable from kind 0 metadata) */
+  /**
+   * Requester's nickname, sourced exclusively from the `requesterName` field
+   * of the requester's own gift-wrapped join-request rumor — never from a
+   * kind-0 metadata lookup (this app's hard privacy invariant forbids
+   * fetching or relying on public kind-0 for anything). May be `undefined`
+   * when the requester is on an older client that doesn't send the field,
+   * or when the field was malformed/empty and tolerantly dropped.
+   */
   nickname?: string;
   /** Event ID of the gift wrap (for deduplication) */
   eventId: string;

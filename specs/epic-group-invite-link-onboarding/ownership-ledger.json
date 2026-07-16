@@ -1,0 +1,152 @@
+{
+  "epic": "group-invite-link-onboarding",
+  "concepts": [
+    {
+      "id": "name-gate-blocking-nameless-request",
+      "name": "Name gate blocks a nameless user's join request",
+      "owning_module": "Join card UI",
+      "type": "validation_rule",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "saveprofile-sole-nickname-writer",
+      "name": "saveProfile is the sole nickname writer",
+      "owning_module": "Profile state",
+      "type": "invariant",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "hasshareablename-single-source-of-truth",
+      "name": "hasShareableName is the single source of truth for 'has a name'",
+      "owning_module": "Name predicate",
+      "type": "invariant",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "join-request-requestername-and-signed-seal",
+      "name": "Join-request rumor carries requesterName distinct from the group name; kind-13 seal is signed before wrapping",
+      "owning_module": "Join-request send",
+      "type": "public_contract",
+      "added_by_story": "S3"
+    },
+    {
+      "id": "privacy-no-public-kind0",
+      "name": "No public kind-0 ever -- the nickname reaches the admin only via the addressed NIP-59 gift wrap",
+      "owning_module": "Join-request send",
+      "type": "invariant",
+      "added_by_story": "S2"
+    },
+    {
+      "id": "nickname-receive-side-cap-and-tolerant-parse",
+      "name": "Nickname is parsed tolerantly (absent/malformed -> undefined) and capped at 32 UTF-8 bytes on receive",
+      "owning_module": "Join-request handler",
+      "type": "validation_rule",
+      "added_by_story": "S2"
+    },
+    {
+      "id": "admin-row-nickname-and-npub-co-render",
+      "name": "Nickname and truncated npub are always co-rendered; npub is never replaced by the nickname",
+      "owning_module": "Admin pending row",
+      "type": "invariant",
+      "added_by_story": "S2"
+    },
+    {
+      "id": "authenticated-sender-is-sole-trust-basis",
+      "name": "Trust decisions use the authenticated seal pubkey, never the self-claimed rumor.pubkey",
+      "owning_module": "Welcome/join unwrap",
+      "type": "invariant",
+      "added_by_story": "S3"
+    },
+    {
+      "id": "outbound-record-bounds-and-correlation",
+      "name": "Outbound join-request records are bounded at 256, expire after a >= 7 day TTL, keyed by nonce, correlated by adminPubkeyHex",
+      "owning_module": "Outbound records",
+      "type": "invariant",
+      "added_by_story": "S4"
+    },
+    {
+      "id": "unwrapandopen-reference-pattern",
+      "name": "unwrapAndOpen is the reference implementation for authenticated gift-wrap unwrap semantics",
+      "owning_module": "Shared unwrap reference",
+      "type": "public_contract",
+      "added_by_story": "S3"
+    },
+    {
+      "id": "i18n-joinrequest-key-grouping",
+      "name": "All new user-facing strings have en+de entries under the copy.groups.joinRequest* grouping, consumed via useCopy()",
+      "owning_module": "i18n",
+      "type": "naming_scheme",
+      "added_by_story": "S1"
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "surfaces_touched": [
+        "Join card UI",
+        "i18n"
+      ],
+      "reviewed_at": "2026-07-16T10:53:03Z"
+    },
+    {
+      "id": "S2",
+      "surfaces_touched": [
+        "Join-request send",
+        "Join-request handler",
+        "Join card UI",
+        "Admin pending row (verify-only)"
+      ],
+      "findings_resolved": 3,
+      "remediation_rounds": 1,
+      "reviewed_at": "2026-07-16T11:19:37Z"
+    },
+    {
+      "id": "S3",
+      "surfaces_touched": [
+        "Join-request send",
+        "Welcome/join unwrap",
+        "Join card UI (call-site)",
+        "pairingAck (doc-only)"
+      ],
+      "creates_seam": true,
+      "seam": "AuthenticatedUnwrapResult{pubkey,authenticated,rumor}",
+      "findings_resolved": 2,
+      "remediation_rounds": 1,
+      "codex": "clean",
+      "reviewed_at": "2026-07-16T12:14:04Z"
+    },
+    {
+      "id": "S4",
+      "surfaces_touched": [
+        "Outbound records (new)",
+        "Welcome/join unwrap",
+        "Join-request send"
+      ],
+      "consumes_seam": "AuthenticatedUnwrapResult (S3)",
+      "findings_resolved": [
+        "sev5-readPreJoinGroupName",
+        "examiner-AC-AUTO-5",
+        "codex-P2-pending-id"
+      ],
+      "amendment": "Amendment 1 group-matched auto-accept",
+      "remediation_rounds": 2,
+      "reviewed_at": "2026-07-16T13:57:47Z"
+    },
+    {
+      "id": "S5",
+      "surfaces_touched": [
+        "E2E test suite",
+        "AC docs (sibling epic AC-8)"
+      ],
+      "final_outcome": "accepted_with_caveats",
+      "open_gate_item": "full make test-e2e-all pending Step 5.8",
+      "reviewed_at": "2026-07-16T14:32:38Z"
+    }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "S5",
+    "model_at": "2026-07-16T14:39:36Z",
+    "updated_at": "2026-07-16T14:32:38Z",
+    "seam_ready_for_s4": true
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "module_name": "E2E test suite",
+  "purpose": "Adds Playwright e2e coverage for the nameless-invitee onboarding path (gate blocks -> name entered -> admin sees the name -> admin approves -> invitee lands in the group with no second click) and preserves/extends coverage of the existing named-user path. No production module is created or owned by this story -- it consumes S1-S4's already-shipped production surface (JoinRequestCard, PendingRequestsSection, joinRequestSender/Handler, welcomeSubscription auto-accept) purely through the app's own UI and public helpers. A cross-epic documentation amendment (AC-8 in specs/epic-group-invite-links/) is bundled per stories.json's note that the amendment has no AC id of its own in this epic.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/e2e/groups-invite-link.spec.ts",
+    "app/tests/e2e/helpers/clear-state.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/tests/e2e/helpers/auth-helpers.ts (USER_A, USER_B, USER_C, computeTestKeypairs)",
+    "app/tests/e2e/helpers/clear-state.ts (clearAppState)",
+    "app/tests/e2e/helpers/dismiss-error-overlay.ts (dismissErrorOverlay, suppressErrorOverlay)",
+    "Production data-testid surface already shipped by S1-S4: join-request-card, join-request-name-gate, join-request-name-input, join-request-send-btn, join-request-sent, pending-requests-section, pending-request-row-*, approve-request-*, pending-invitations-section, accept-invitation-*, group-card-*, group-detail-page, notification-badge, groups-empty-state, groups-list"
+  ],
+  "dependencies_forbidden": [
+    "Any change to app/src/** (S1-S4 production files are frozen for this story)",
+    "Raw WebSocket publish to strfry from test code (AC-ETE-3) -- all peer actions go through a second browser.newContext() driving the app's own UI/helpers"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/e2e/groups-invite-link.spec.ts::Invite link flow — generate, join request, approve (existing named-user describe block, 6 tests, extended with a no-gate assertion and an auto-accept-aware final assertion)",
+    "app/tests/e2e/groups-invite-link.spec.ts::Invite link flow — nameless invitee gate, nickname transport, auto-accept (new describe block, 5 tests, AC-ETE-1)"
+  ],
+  "seam": {
+    "cross_story": false
+  },
+  "notes": "This story creates no new seam and consumes no seam annotated cross_story in stories.json (the only epic seam, AuthenticatedUnwrapResult, is S3->S4 internal). The AC-8 doc amendment touches a DIFFERENT epic's spec file (specs/epic-group-invite-links/acceptance-criteria.md), explicitly permitted by this epic's spec.md #Relationship-to-Other-Epics and stories.json S5 scope -- it is documentation, not a module, and is listed here for completeness rather than as an owned module."
+}

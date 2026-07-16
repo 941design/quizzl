@@ -1,0 +1,73 @@
+{
+  "module_name": "Outbound records",
+  "purpose": "New IndexedDB-backed store of outbound join-request records ({nonce, adminPubkeyHex, groupName, sentAt}), written only on a successful sendJoinRequest. Consumed by welcomeSubscription.ts's Welcome/join-unwrap module (shared ownership with S3, per architecture.md) to correlate an inbound Welcome's AUTHENTICATED sender (AuthenticatedUnwrapResult.pubkey, gated by .authenticated) against an admin this device requested to join. A correlated Welcome auto-accepts through a newly-extracted shared join core (joinGroupFromWelcomeCore) instead of enqueuing into the pending-invitation queue; an uncorrelated Welcome is enqueued exactly as before.",
+  "public_api": [
+    {
+      "name": "OutboundJoinRequestRecord",
+      "signature": "interface OutboundJoinRequestRecord { nonce: string; adminPubkeyHex: string; groupName: string; sentAt: number }",
+      "description": "Persisted shape. `nonce` is the idb-keyval key and a same-device lookup handle only -- it never reaches, or is read from, an inbound Welcome (AC-AUTO-4/DD-3). Correlation reads `adminPubkeyHex` exclusively."
+    },
+    {
+      "name": "saveOutboundJoinRequest",
+      "signature": "async function saveOutboundJoinRequest(record: OutboundJoinRequestRecord): Promise<void>",
+      "description": "Persists a record keyed by nonce. Enforces the 256-record global cap by evicting the single oldest record (by sentAt) on overflow. Never throws (a storage failure must not turn an already-relay-accepted send into a user-visible error)."
+    },
+    {
+      "name": "loadUnexpiredOutboundJoinRequestsForAdmin",
+      "signature": "async function loadUnexpiredOutboundJoinRequestsForAdmin(adminPubkeyHex: string): Promise<OutboundJoinRequestRecord[]>",
+      "description": "Returns only records younger than OUTBOUND_JOIN_REQUEST_TTL_MS for the given admin. Expired records are filtered here, not deleted -- this is a read path."
+    },
+    {
+      "name": "deleteOutboundJoinRequest",
+      "signature": "async function deleteOutboundJoinRequest(nonce: string): Promise<void>",
+      "description": "Consumes exactly one record by nonce after a correlated auto-accept (AC-AUTO-5). Idempotent, never throws."
+    },
+    {
+      "name": "clearAllOutboundJoinRequests",
+      "signature": "async function clearAllOutboundJoinRequests(): Promise<void>",
+      "description": "Account-wide reset, mirroring joinRequestStorage.ts/inviteLinkStorage.ts's equivalent."
+    },
+    {
+      "name": "OUTBOUND_JOIN_REQUEST_CAP",
+      "signature": "const OUTBOUND_JOIN_REQUEST_CAP: number = 256",
+      "description": "Global record bound, consistent with epic-walled-garden-v2 AC-INVITE-3's pending-invitation cap (AC-AUTO-6)."
+    },
+    {
+      "name": "OUTBOUND_JOIN_REQUEST_TTL_MS",
+      "signature": "const OUTBOUND_JOIN_REQUEST_TTL_MS: number = 7 * 24 * 60 * 60 * 1000",
+      "description": "TTL floor (>= 7 days, AC-AUTO-6). Named constant so a future retune stays a one-line change."
+    },
+    {
+      "name": "joinGroupFromWelcomeCore (welcomeSubscription.ts, module-private)",
+      "signature": "async function joinGroupFromWelcomeCore(welcomeRumor: unknown, marmotClient: MarmotClient): Promise<Group>",
+      "description": "Shared join core extracted from the pre-existing acceptPendingInvitation body: calls marmotClient.joinGroupFromWelcome, builds the overlay Group, persists via saveGroup. BOTH the manual-accept path (acceptPendingInvitation) and the new auto-accept path (inside subscribeToWelcomes) call this -- no enqueue-then-immediately-dequeue detour (AC-AUTO-2). Each caller owns its own queue/record cleanup afterward (pending-invitation queue vs outbound-record store are different stores with different semantics, deliberately not folded into this shared function)."
+    },
+    {
+      "name": "resolveAutoAcceptRecord (welcomeSubscription.ts, module-private)",
+      "signature": "async function resolveAutoAcceptRecord(unwrapResult: AuthenticatedUnwrapResult, welcomeRumor: UnwrappedRumor, marmotClient: MarmotClient): Promise<OutboundJoinRequestRecord | null>",
+      "description": "Fail-closed correlation gate: null unless unwrapResult.authenticated === true AND exactly one unexpired outbound record can be resolved for unwrapResult.pubkey (directly if only one candidate shares that admin; via AC-AUTO-4a group-name disambiguation, never arbitrary first-record selection, if more than one does)."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "few-outbound-join-requests IndexedDB store (idb-keyval), keyed by nonce"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/welcomeSubscription.ts (Welcome/join unwrap, shared S3/S4 ownership per architecture.md) -- reads/consumes via loadUnexpiredOutboundJoinRequestsForAdmin/deleteOutboundJoinRequest exports only, never touches internal storage details",
+    "app/src/lib/marmot/joinRequestSender.ts (Join-request send) -- writes via saveOutboundJoinRequest export only. NOT pre-declared as an allowed edge in architecture.md's boundary rules (which predate this story's new module); this is the story's own explicit scope ('Write a record only on successful sendJoinRequest', stories.json S4.scope.includes) creating the edge for the first time. Flagged here per Step 1.5 rather than silently added -- no Architect teammate was reachable in this standalone spawn to confirm, so this call-out is the escalation of record.",
+    "@internet-privacy/marmot-ts (getWelcome, getWelcomeKeyPackageRefs, readWelcomeMarmotGroupData) -- AC-AUTO-4a pre-join group-name disambiguation. Mirrors MarmotClient.readInviteGroupInfo's own key-package-matching loop rather than calling that convenience method directly, because readInviteGroupInfo (marmot-ts 'client/marmot-client.js') calls readWelcomeGroupInfo, whose returned GroupInfo.extensions is unconditionally an empty array in the installed release -- using it would make disambiguation always resolve to 'no group data', silently degrading every >1-record case to uncorrelated. readWelcomeMarmotGroupData is the lower-level function that actually decodes the Marmot Group Data extension."
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/MarmotContext.tsx's approveJoinRequest/denyJoinRequest -- untouched (AC-SEC-5); diff for both functions is empty",
+    "app/src/components/groups/PendingInvitations.tsx -- untouched (AC-AUTO-7); no diff",
+    "app/src/lib/marmot/joinRequestHandler.ts internals, app/src/components/groups/PendingRequestsSection.tsx -- no new import reaches either"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/outboundJoinRequests.test.ts",
+    "app/tests/unit/marmot/joinRequestSender.test.ts",
+    "app/tests/unit/marmot/welcomeSubscriptionAutoAccept.test.ts"
+  ]
+}

@@ -8,6 +8,12 @@ const INDEXEDDB_DATABASES = [
   'few-member-profiles',
   'few-invite-links',
   'few-join-requests',
+  // epic: group-invite-link-onboarding, S4 -- outbound join-request records
+  // (outboundJoinRequests.ts). Omitted here previously; a mid-test
+  // clearAppState() call on a context that had already sent a join request
+  // would leave a stale record behind, able to auto-correlate a LATER,
+  // unrelated Welcome.
+  'few-outbound-join-requests',
   'few-media-blobs',
   'few-media-meta',
   'keyval-store', // DM message storage

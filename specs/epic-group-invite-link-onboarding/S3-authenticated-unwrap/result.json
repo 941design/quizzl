@@ -1,0 +1,39 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-16T12:14:04Z",
+  "files_created": [],
+  "files_modified": [
+    "app/src/lib/marmot/joinRequestSender.ts",
+    "app/src/lib/marmot/welcomeSubscription.ts",
+    "app/src/components/groups/JoinRequestCard.tsx",
+    "app/tests/unit/marmot/joinRequestSender.test.ts",
+    "app/tests/unit/marmot/welcomeSubscription.test.ts"
+  ],
+  "tests_added": {
+    "unit": 10
+  },
+  "test_counts": {
+    "baseline": 3284,
+    "final": 3294
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "architect_skipped": false,
+  "modules_touched": [
+    "Join-request send",
+    "Welcome/join unwrap"
+  ],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The pre-authored VQ-S3-001 anticipated a 'seal signed with the wrong private key' negative test, but NIP-44's ECDH-derived shared secret means a seal whose `pubkey` field doesn't match its actual encrypting key cannot even decrypt at layer 2 -- that scenario throws 'invalid MAC' rather than degrading gracefully. Working out which forgery shapes are cryptographically constructible by a real attacker (only 'seal genuinely signed by the attacker's own key, but the inner rumor's self-claimed pubkey lies about identity' is realistic) versus an artificial post-hoc tamper that can never occur in a real attack required deriving NIP-44's ECDH-authentication properties from first principles -- this wasn't inferrable from the story spec or the pre-authored questions alone, and the first version of that specific test failed for the right underlying reason (an uncaught 'invalid MAC' throw) but the wrong observable shape (a throw, not `authenticated:false`), which led to hardening unwrapGiftWrap's layer-2 decrypt with its own try/catch.",
+    "surprised_by": "Once a seal decrypts to a JSON object at all, NIP-44's MAC already implicitly proves seal.pubkey is the real encryptor's key -- the explicit AC-AUTH-1 schnorr-signature (verifyEvent) check is a belt-and-suspenders layer on top of that implicit ECDH authentication, not the sole mechanism. This wasn't obvious from the pre-authored verification questions, which frame verifyEvent as the primary/only check.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

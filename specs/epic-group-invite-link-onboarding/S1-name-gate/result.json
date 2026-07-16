@@ -1,0 +1,33 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-16T13:00:00Z",
+  "files_created": [
+    "app/tests/unit/components/JoinRequestCard.test.ts",
+    "specs/epic-group-invite-link-onboarding/S1-name-gate/architecture.json",
+    "specs/epic-group-invite-link-onboarding/S1-name-gate/baseline.json",
+    "specs/epic-group-invite-link-onboarding/S1-name-gate/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/groups/JoinRequestCard.tsx",
+    "app/src/lib/i18n.ts",
+    "specs/epic-group-invite-link-onboarding/S1-name-gate/verification.json"
+  ],
+  "tests_added": {
+    "unit": 16
+  },
+  "test_counts": {
+    "baseline": 3247,
+    "final": 3263
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "architect_skipped": false,
+  "modules_touched": ["Join card UI"],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "routine"
+  }
+}

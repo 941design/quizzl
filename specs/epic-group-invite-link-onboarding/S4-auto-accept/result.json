@@ -1,0 +1,42 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-16T13:57:47Z",
+  "files_created": [
+    "app/src/lib/marmot/outboundJoinRequests.ts",
+    "app/tests/unit/marmot/outboundJoinRequests.test.ts",
+    "app/tests/unit/marmot/welcomeSubscriptionAutoAccept.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/welcomeSubscription.ts",
+    "app/src/lib/marmot/joinRequestSender.ts",
+    "app/tests/unit/marmot/joinRequestSender.test.ts"
+  ],
+  "tests_added": {
+    "unit": 23
+  },
+  "test_counts": {
+    "baseline": 3295,
+    "final": 3318
+  },
+  "mocks": [],
+  "remediation_rounds": 2,
+  "architect_skipped": false,
+  "modules_touched": [
+    "Outbound records",
+    "Welcome/join unwrap",
+    "Join-request send"
+  ],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "AC-AUTO-4a's disambiguation requires reading a Welcome's pre-join group name without joining. The obvious candidate, MarmotClient.readInviteGroupInfo, already does the key-package-matching legwork this story would otherwise have to duplicate -- but tracing it into marmot-ts's compiled source showed it calls readWelcomeGroupInfo (not readWelcomeMarmotGroupData) and hardcodes the returned GroupInfo.extensions to an empty array, so it can never surface the Marmot Group Data extension the disambiguation needs. That meant bypassing the client's own convenience method and replicating its key-package-matching loop by hand (getWelcomeKeyPackageRefs + marmotClient.keyPackages.get + marmotClient.cryptoProvider.getCiphersuiteImpl) to call the lower-level readWelcomeMarmotGroupData directly. This wasn't discoverable from the .d.ts signatures or doc comments alone -- readInviteGroupInfo's own JSDoc explicitly promises access to 'GroupInfo-level extensions' -- and only surfaced by reading the compiled .js implementation.",
+    "surprised_by": "readWelcomeGroupInfo's implementation actually calls the real MLS joinGroup() internally (to decrypt the Welcome's secrets) despite its doc comment describing itself as lighter than joinGroup -- it just never persists the resulting ClientState, so 'pre-join' here means 'not adopted into the client's group store', not 'a cheaper decode path'.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

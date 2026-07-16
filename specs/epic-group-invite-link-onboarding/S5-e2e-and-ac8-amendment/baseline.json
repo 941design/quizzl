@@ -1,0 +1,24 @@
+{
+  "story_id": "S5",
+  "captured_at": "2026-07-16T16:16:00Z",
+  "unit_tests": {
+    "status": "PASS_WITH_KNOWN_FLAKE",
+    "files": 172,
+    "tests": 3325,
+    "skipped": 1,
+    "notes": "One flake observed during the first full-suite run: tests/unit/directMessages/sealAndWrap.test.ts > 'rejects a tampered seal signature (verifyEvent check)' failed once (promise resolved instead of rejecting), then passed both in isolation and on an immediate full-suite rerun (172/172 files, 3325/3325 tests green). File is unrelated to this story's scope (directMessages.ts / sealAndWrap.ts are not touched by S5). Treated as a pre-existing flake, not a regression -- not fixed as part of this story (out of scope: no production code changes)."
+  },
+  "lint": "NO_LINT",
+  "lint_detail": "No ESLint config present in app/ (.eslintrc*/eslint.config* absent). `npm run lint` (next lint) launches an interactive first-run config wizard rather than running a check -- consistent with this repo having no discovered lint baseline.",
+  "typecheck": "clean",
+  "typecheck_detail": "`npx tsc --noEmit` in app/ produced zero errors/output.",
+  "e2e_scoped": {
+    "command": "E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-invite-link.spec.ts (dev-iteration aid, NOT the gate)",
+    "result": "11/11 passed on a freshly wiped relay (docker compose down -v && up -d --wait)",
+    "notes": "A first attempt on a relay NOT freshly wiped (reused from an earlier exploratory run in this same session) produced one failure: a stale, unconsumed Welcome gift-wrap from the prior run was re-delivered to a fresh browser context and enqueued as a pending invitation before that run's own outbound join-request record existed, so the new auto-accept assertion (toHaveCount(0) on accept-invitation-*) saw 1 stray row. Confirmed as pure cross-run relay contamination (exactly the scenario the Makefile's `docker compose down -v` step exists to prevent, see test-e2e's own comment), not a defect in the app or the test: a clean-relay rerun of the identical test file passed 11/11."
+  },
+  "e2e_full_gate": {
+    "command": "make test-e2e-all",
+    "result": "see result.json for the run this story used as its definitive gate"
+  }
+}

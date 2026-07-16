@@ -62,7 +62,7 @@
 
 ## AC-8: Pending Requests UI
 - `PendingRequestsSection` renders above the Members section in `GroupDetailView`, visible only to admins and only when pending requests exist for the group
-- Each `PendingRequestRow` shows: requester npub (truncated), nickname/avatar if resolvable from kind 0 metadata, "Approve" button, "Deny" button
+- Each `PendingRequestRow` shows: requester npub (truncated) and, when present, the requester's nickname (see `## Amendments` — the nickname is transported inside the NIP-59 gift-wrapped join request rumor itself, never resolved from, or falling back to, kind-0 metadata; when absent, the row renders the truncated npub alone), plus "Approve" and "Deny" buttons
 - "Approve" calls `inviteByNpub(groupId, requesterNpub)` (existing MLS ceremony), then removes the `PendingJoinRequest` from IndexedDB and decrements the bell counter
 - "Deny" removes the `PendingJoinRequest` from IndexedDB and decrements the bell counter; no notification is sent to the requester
 - If `inviteByNpub` returns an error on approve, the error is displayed inline and the request remains pending
@@ -90,3 +90,17 @@
 - User A's bell counter increments; navigating to the group shows `PendingRequestsSection` with User B's request
 - User A clicks "Approve"; User B receives a Welcome and the group appears in their group list
 - `clearAppState` includes `quizzl-invite-links` and `quizzl-join-requests` databases
+
+## Amendments
+
+- **2026-07-16** — **AC-8** amended by `specs/epic-group-invite-link-onboarding/` (story S5).
+  The original clause — "nickname/avatar if resolvable from kind 0 metadata" — was vacuous
+  under this product's privacy invariant (CLAUDE.md): no Few user ever publishes a public
+  kind-0, so the lookup could never resolve, and `joinRequestHandler.ts` had hardcoded
+  `nickname: undefined` accordingly. The requester's nickname now arrives exclusively inside
+  the NIP-59 gift-wrapped join-request rumor itself (a new `requesterName` field, distinct
+  from the rumor's existing group-name field), capped at 32 UTF-8 bytes on receive — never
+  via a kind-0 lookup or fallback. No avatar transport was introduced. See
+  `specs/epic-group-invite-link-onboarding/acceptance-criteria.md` AC-NAME-1..5 and AC-SEC-4
+  for the full contract, and that epic's `spec.md` "Relationship to Other Epics" for the
+  rationale. No other AC in this file is affected or renumbered by this amendment.

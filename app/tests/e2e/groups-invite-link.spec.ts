@@ -1,5 +1,5 @@
 import { test, expect, BrowserContext, Page } from '@playwright/test';
-import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
+import { USER_A, USER_B, USER_C, computeTestKeypairs } from './helpers/auth-helpers';
 import { clearAppState } from './helpers/clear-state';
 import { dismissErrorOverlay, suppressErrorOverlay } from './helpers/dismiss-error-overlay';
 
@@ -116,6 +116,15 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
     await expect(pageB.getByTestId('join-request-card')).toBeVisible({ timeout: 30_000 });
     await expect(pageB.getByText(GROUP_NAME)).toBeVisible();
 
+    // AC-ETE-2 / AC-GATE-4: User B already has a name ('Invitee', set at
+    // boot), so the card MUST render exactly as it does today -- no name
+    // gate, no name input. This repo has no component-render/snapshot
+    // capability (vitest only, no jsdom), so this explicit e2e assertion is
+    // what verifies AC-GATE-4's no-change guarantee for the named-user case.
+    await expect(pageB.getByTestId('join-request-name-gate')).toHaveCount(0);
+    await expect(pageB.getByTestId('join-request-name-input')).toHaveCount(0);
+    await expect(pageB.getByTestId('join-request-send-btn')).toBeEnabled();
+
     // Click "Request to Join"
     await pageB.getByTestId('join-request-send-btn').click();
 
@@ -159,27 +168,194 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
     await expect(pageA.getByTestId('pending-requests-section')).not.toBeVisible({ timeout: 60_000 });
   });
 
-  test('User B receives the Welcome and sees the group', async () => {
+  test('User B receives the Welcome and lands in the group with no second click (auto-accept)', async () => {
     // Navigate User B to the groups list
     await pageB.goto('/groups/');
     await expect(
       pageB.getByTestId('groups-empty-state').or(pageB.getByTestId('groups-list')),
     ).toBeVisible({ timeout: 60_000 });
 
-    // Walled Garden v2 pull-only flow: even Welcomes triggered by join-request
-    // approval go through the pending-invitation queue. Bob must accept before
-    // the group card appears. Stale gift wraps from earlier tests are already
-    // in Bob's seen-set by this point (this is the last test in the file), so
-    // .last() reliably picks the freshly approved invitation.
-    await expect(pageB.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
-    await expect(pageB.locator('[data-testid^="pending-invitation-row-"]').last()).toBeVisible({ timeout: 60_000 });
-    await pageB.locator('[data-testid^="accept-invitation-"]').last().click();
+    // epic: group-invite-link-onboarding, S4 (AC-AUTO-1/2/4) -- an outbound
+    // record is written for EVERY successful sendJoinRequest, independent of
+    // whether the requester supplied a name, and auto-accept correlates on
+    // it regardless. So the invite-link flow no longer goes through the
+    // Walled Garden v2 pending-invitation queue at all (superseding the
+    // previous manual-accept behavior this test asserted): the Welcome is
+    // never enqueued, and User B must land in the group directly. Verified
+    // directly against the app (2026-07-16): the unmodified pre-S4 version
+    // of this assertion (poll for a pending-invitation row, then click
+    // Accept) times out, because no such row is ever created.
+    await expect
+      .poll(
+        async () => {
+          await dismissErrorOverlay(pageB);
+          return pageB.getByText(GROUP_NAME).isVisible();
+        },
+        { timeout: 90_000, intervals: [3_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000] },
+      )
+      .toBe(true);
 
-    // Wait for the group to appear
-    await expect(pageB.getByText(GROUP_NAME)).toBeVisible({ timeout: 60_000 });
+    // Payoff: no pending-invitation row/Accept click was ever needed.
+    await expect(pageB.locator('[data-testid^="accept-invitation-"]')).toHaveCount(0);
 
     // Open the group detail and verify membership
     await openGroupDetail(pageB, GROUP_NAME);
     await expect(pageB.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// E2E: Nameless-invitee full path (AC-ETE-1) -- gate blocks the request,
+// entering a name enables it, the admin's pending row shows that name (S2
+// nickname transport, AC-NAME-4), the admin approves, and the invitee lands
+// in the group with NO second click (S4 auto-accept, AC-AUTO-2).
+//
+// A fresh admin browser context is used (same USER_A identity, but a brand
+// new context => brand new local MLS/overlay state), so this group is
+// entirely independent of the block above's "Invite Link Test Group" --
+// per auth-helpers.ts, two describe blocks in the SAME spec file sharing
+// identities is the documented, tolerated pattern (identities are salted
+// per spec FILE, not per describe block).
+// ---------------------------------------------------------------------------
+test.describe.serial('Invite link flow — nameless invitee gate, nickname transport, auto-accept', () => {
+  const GROUP_NAME = 'Invite Link Test Group (Nameless)';
+  const INVITEE_NAME = 'Nameless Nadia';
+  let ctxAdmin: BrowserContext;
+  let ctxInvitee: BrowserContext;
+  let pageAdmin: Page;
+  let pageInvitee: Page;
+  let inviteUrl = '';
+
+  test.beforeAll(async ({ browser }) => {
+    await computeTestKeypairs();
+    ({ context: ctxAdmin, page: pageAdmin } = await bootUser(browser, USER_A, { nickname: 'Admin' }));
+    // No `nickname` option: boots User C with NO name, so the join card's S1
+    // gate (AC-GATE-1..3) and S2 nickname transport (AC-NAME-*) are both
+    // exercised for real, through the app's own UI and publish helpers --
+    // never a raw WebSocket to strfry (AC-ETE-3).
+    ({ context: ctxInvitee, page: pageInvitee } = await bootUser(browser, USER_C));
+  });
+
+  test.afterAll(async () => {
+    await ctxAdmin?.close();
+    await ctxInvitee?.close();
+  });
+
+  test('Admin creates a group and generates an invite link', async () => {
+    await createGroup(pageAdmin, GROUP_NAME);
+    await openGroupDetail(pageAdmin, GROUP_NAME);
+
+    await pageAdmin.getByTestId('invite-link-btn').click();
+    await expect(pageAdmin.getByTestId('generate-invite-link-modal')).toBeVisible();
+
+    const urlElement = pageAdmin.getByTestId('invite-link-url');
+    await expect(urlElement).toBeVisible();
+    inviteUrl = (await urlElement.textContent()) ?? '';
+    expect(inviteUrl).toContain('/groups/?join=');
+
+    await pageAdmin.getByTestId('invite-link-copy-btn').click();
+    await pageAdmin.waitForTimeout(1_000);
+    await pageAdmin.getByTestId('generate-invite-link-modal').locator('[aria-label="Close"]').click();
+    await expect(pageAdmin.getByTestId('generate-invite-link-modal')).not.toBeVisible({ timeout: 5_000 });
+  });
+
+  test('Nameless invitee is gated until a name is entered, then sends the request (AC-GATE-1..3)', async () => {
+    const url = new URL(inviteUrl);
+    const pathWithQuery = url.pathname + url.search;
+
+    await pageInvitee.goto(pathWithQuery);
+    await dismissErrorOverlay(pageInvitee);
+
+    await expect(pageInvitee.getByTestId('join-request-card')).toBeVisible({ timeout: 30_000 });
+    // AC-GATE-2: the group name stays visible while the gate is shown.
+    await expect(pageInvitee.getByText(GROUP_NAME)).toBeVisible();
+
+    // AC-GATE-1: a nameless user sees the gate and a disabled button.
+    await expect(pageInvitee.getByTestId('join-request-name-gate')).toBeVisible();
+    await expect(pageInvitee.getByTestId('join-request-name-input')).toBeVisible();
+    const sendBtn = pageInvitee.getByTestId('join-request-send-btn');
+    await expect(sendBtn).toBeDisabled();
+
+    // Clicking the disabled button must not call sendJoinRequest -- force
+    // the click past Playwright's actionability check and confirm the card
+    // never transitions to the sent-confirmation view.
+    await sendBtn.click({ force: true });
+    await expect(pageInvitee.getByTestId('join-request-sent')).not.toBeVisible({ timeout: 2_000 });
+
+    // AC-GATE-3: the gate is reactive -- entering a name enables the button
+    // live, and clearing it back out disables it again (not evaluated only
+    // on mount).
+    const nameInput = pageInvitee.getByTestId('join-request-name-input');
+    await nameInput.fill(INVITEE_NAME);
+    await expect(sendBtn).toBeEnabled();
+    await nameInput.fill('');
+    await expect(sendBtn).toBeDisabled();
+    await nameInput.fill(INVITEE_NAME);
+    await expect(sendBtn).toBeEnabled();
+
+    await sendBtn.click();
+    await expect(pageInvitee.getByTestId('join-request-sent')).toBeVisible({ timeout: 30_000 });
+  });
+
+  test("Admin's pending row shows the requester's real name, not a truncated npub (AC-NAME-4)", async () => {
+    await pageAdmin.goto('/groups/');
+    await expect(
+      pageAdmin.getByTestId('groups-empty-state').or(pageAdmin.getByTestId('groups-list')),
+    ).toBeVisible({ timeout: 60_000 });
+
+    await expect
+      .poll(
+        async () => {
+          await dismissErrorOverlay(pageAdmin);
+          const badge = pageAdmin.getByTestId('notification-badge').first();
+          return badge.isVisible();
+        },
+        { timeout: 60_000, intervals: [3_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000] },
+      )
+      .toBe(true);
+
+    await openGroupDetail(pageAdmin, GROUP_NAME);
+    await expect(pageAdmin.getByTestId('pending-requests-section')).toBeVisible({ timeout: 30_000 });
+
+    // The S2 payoff: the admin sees the requester's REAL name inside the
+    // pending row, not merely a truncated npub.
+    await expect(
+      pageAdmin.locator('[data-testid^="pending-request-row-"]').filter({ hasText: INVITEE_NAME }),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('Admin approves the join request', async () => {
+    await dismissErrorOverlay(pageAdmin);
+    await pageAdmin.locator('[data-testid^="approve-request-"]').first().click();
+    await expect(pageAdmin.getByTestId('pending-requests-section')).not.toBeVisible({ timeout: 60_000 });
+  });
+
+  test('Nameless invitee lands in the group with NO second click (AC-AUTO-2 / AC-ETE-1 payoff)', async () => {
+    await pageInvitee.goto('/groups/');
+    await expect(
+      pageInvitee.getByTestId('groups-empty-state').or(pageInvitee.getByTestId('groups-list')),
+    ).toBeVisible({ timeout: 60_000 });
+
+    // The final, state-discriminating assertion: the group card appears
+    // WITHOUT any Accept interaction. This test never looks at
+    // pending-invitations-section or clicks accept-invitation-* -- if
+    // auto-accept were broken (or absent, as on a pre-S1..S4 checkout),
+    // nothing here would drive the join, so this poll would simply time out
+    // rather than passing vacuously.
+    await expect
+      .poll(
+        async () => {
+          await dismissErrorOverlay(pageInvitee);
+          return pageInvitee.getByText(GROUP_NAME).isVisible();
+        },
+        { timeout: 90_000, intervals: [3_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000] },
+      )
+      .toBe(true);
+
+    // No Accept button was ever needed for this group to appear.
+    await expect(pageInvitee.locator('[data-testid^="accept-invitation-"]')).toHaveCount(0);
+
+    await openGroupDetail(pageInvitee, GROUP_NAME);
+    await expect(pageInvitee.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
   });
 });

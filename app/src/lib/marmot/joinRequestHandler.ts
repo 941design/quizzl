@@ -9,6 +9,7 @@
 import { getInviteLink } from './inviteLinkStorage';
 import { savePendingJoinRequest, loadPendingJoinRequests } from './joinRequestStorage';
 import type { PendingJoinRequest } from './joinRequestStorage';
+import { truncateUtf8, MAX_NAME_BYTES } from '@/src/lib/contactCard';
 
 export const JOIN_REQUEST_KIND = 21059;
 
@@ -18,6 +19,7 @@ export interface JoinRequestPayload {
   type: 'join_request';
   nonce: string;
   name: string;
+  requesterName?: string;
 }
 
 /**
@@ -33,7 +35,15 @@ export function parseJoinRequestContent(content: string): JoinRequestPayload | n
       typeof parsed.nonce === 'string' &&
       typeof parsed.name === 'string'
     ) {
-      return parsed as JoinRequestPayload;
+      const trimmedRequesterName =
+        typeof parsed.requesterName === 'string' ? parsed.requesterName.trim() : '';
+      const requesterName = trimmedRequesterName.length > 0 ? trimmedRequesterName : undefined;
+      return {
+        type: 'join_request',
+        nonce: parsed.nonce,
+        name: parsed.name,
+        requesterName,
+      };
     }
     return null;
   } catch {
@@ -80,12 +90,16 @@ export async function handleJoinRequest(
   if (existingRequests.some((r) => r.pubkeyHex === rumor.pubkey)) return null;
 
   // Persist the request
+  // Cap on receive, independent of any cap the sender may have applied —
+  // the sender is untrusted, so this is the actual security control.
+  const nickname =
+    payload.requesterName !== undefined ? truncateUtf8(payload.requesterName, MAX_NAME_BYTES) : undefined;
   const request: PendingJoinRequest = {
     pubkeyHex: rumor.pubkey,
     nonce: payload.nonce,
     groupId,
     receivedAt: Date.now(),
-    nickname: undefined,
+    nickname,
     eventId,
   };
 

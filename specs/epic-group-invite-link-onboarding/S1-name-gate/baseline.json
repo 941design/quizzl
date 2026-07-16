@@ -1,0 +1,23 @@
+{
+  "captured_at": "2026-07-16T12:30:00Z",
+  "commands": {
+    "test": "make test-unit (npx vitest run)",
+    "lint": "npx next lint (no eslint config present in repo)",
+    "typecheck": "npx tsc --noEmit -p tsconfig.json"
+  },
+  "test": {
+    "status": "PASS",
+    "test_files": 168,
+    "tests_passed": 3246,
+    "tests_skipped": 1,
+    "tests_total": 3247
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "note": "next lint has no ESLint config in this repo; invoking it prompts an interactive 'How would you like to configure ESLint?' setup wizard rather than running a check. No .eslintrc*/eslint.config* file exists. Recorded as NO_LINT per Step 0's tolerance for absent tooling; not treated as failing."
+  },
+  "typecheck": {
+    "status": "clean",
+    "note": "npx tsc --noEmit -p tsconfig.json exits 0 with no diagnostics."
+  }
+}

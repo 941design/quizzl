@@ -186,6 +186,11 @@
       "path": "specs/epic-pending-contact-confirmation/",
       "status": "DONE",
       "next_action": "completed 2026-07-15"
+    },
+    {
+      "path": "specs/epic-group-invite-link-onboarding/",
+      "status": "DONE",
+      "next_action": "completed 2026-07-16"
     }
   ],
   "findings": [

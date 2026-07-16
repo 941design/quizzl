@@ -1,0 +1,240 @@
+{
+  "epic_name": "group-invite-link-onboarding",
+  "created_at": "2026-07-16T11:30:00Z",
+  "total_stories": 5,
+  "dependency_notes": "S3 -> S4 is a hard code dependency: auto-accept correlates on the authenticated sender, which only exists once S3's authenticated unwrap lands (architecture.md 'Seams'). S3 itself is two changes (sign the join-request seal in joinRequestSender.ts; enforce seal verification in welcomeSubscription.ts) that MUST ship in the same story -- enforcing verification alone would drop every join request, so they are not split. S1 -> S2 is a product-level ordering only (the gate guarantees a name exists before send), not a code dependency -- the handler must tolerate a missing requesterName regardless, so S2 is unit-testable in isolation without S1. S2 and S3 both edit joinRequestSender.ts but in disjoint functions (buildJoinRequestRumor vs buildGiftWrap); no logical dependency, only a same-file edit to be aware of during sequential implementation. S5 depends on all four prior stories because its e2e case exercises the full nameless-invitee path end to end, and its AC-8 amendment documents the outcome of S2/S3's design (kind-0 is never the source of the nickname).",
+  "mock_resolution_plan": "No temporary mocks introduced. Stories are implemented sequentially (per commands/feature.md non-goals), so S4 consumes S3's real, already-landed authenticated-unwrap output directly rather than mocking it.",
+  "seams": [
+    {
+      "data": "Authenticated sender identity produced by unwrapGiftWrap after S3's enforcement lands",
+      "source": {
+        "story": "S3",
+        "artifact": "app/src/lib/marmot/welcomeSubscription.ts:unwrapGiftWrap"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/lib/marmot/welcomeSubscription.ts auto-accept correlation check"
+      },
+      "contract": {
+        "type_name": "AuthenticatedUnwrapResult",
+        "fields": [
+          {
+            "name": "pubkey",
+            "type": "string",
+            "optional": false
+          },
+          {
+            "name": "authenticated",
+            "type": "boolean",
+            "optional": false
+          },
+          {
+            "name": "rumor",
+            "type": "unknown",
+            "optional": false
+          }
+        ],
+        "invariants": [
+          "authenticated is true only when the seal's schnorr signature verifies AND rumor.pubkey === seal.pubkey",
+          "pubkey is always the seal pubkey; it is never the raw, self-claimed rumor.pubkey",
+          "a message failing either check yields authenticated: false and MUST NOT satisfy any trust decision, including AC-AUTO-4's correlation match"
+        ]
+      }
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "name": "name-gate",
+      "title": "Name gate on the join card",
+      "description": "Adds a blocking name gate to JoinRequestCard for nameless users: renders a name input and a disabled Request-to-Join button until hasShareableName(profile.nickname) is satisfied, reactively. A user who already has a name sees today's card unchanged. The submitted name is persisted only through the existing saveProfile chokepoint. New en/de i18n keys cover the field label, helper text, and disabled-button state.",
+      "acceptance_criteria": [
+        "AC-GATE-1",
+        "AC-GATE-2",
+        "AC-GATE-3",
+        "AC-GATE-4",
+        "AC-GATE-5",
+        "AC-GATE-6",
+        "AC-GATE-7",
+        "AC-INTL-1",
+        "AC-INTL-2"
+      ],
+      "scope": {
+        "includes": [
+          "JoinRequestCard.tsx: evaluate the name gate only after the existing hydration/identity, invalid-admin-npub, and already-member guards (lines 43-70)",
+          "Render a name <Input> and keep 'Request to Join' disabled while !hasShareableName(profile.nickname); clicking the disabled button MUST NOT call sendJoinRequest",
+          "Keep the group name visible on the card while the name input is shown",
+          "Gate is reactive: entering/clearing a name toggles the button live, not only on mount",
+          "Submit persists the name via saveProfile (ProfileContext) exclusively; the name is then readable on /profile",
+          "New i18n keys (en+de) for the name field label, helper text, and disabled-button state, following the copy.groups.joinRequest* grouping"
+        ],
+        "excludes": [
+          "No change to the existing hydration/identity/invalid-admin-npub/already-member gate logic itself, only an additional gate evaluated after them",
+          "No redirect to /profile (DD-2) -- the field renders in place on the join card",
+          "No nickname write path other than saveProfile"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "Join card UI",
+      "creates_seam": false,
+      "lighter_path": false,
+      "notes": "lighter_path is false: file targets (JoinRequestCard.tsx, i18n.ts) are both .tsx/.ts, i.e. files_code is non-empty, which alone forces lighter_path = false regardless of AC completeness."
+    },
+    {
+      "id": "S2",
+      "name": "nickname-transport",
+      "title": "Requester nickname transport to the admin",
+      "description": "Carries the requester's nickname inside the existing gift-wrapped join-request rumor under a new requesterName field (distinct from the group's own name field), parses it tolerantly on receive, caps it at 32 UTF-8 bytes independently of the send-side cap, and confirms the admin's pending row co-renders the nickname alongside the truncated npub (never replacing it). No kind-0 lookup is introduced anywhere in this path.",
+      "acceptance_criteria": [
+        "AC-NAME-1",
+        "AC-NAME-2",
+        "AC-NAME-3",
+        "AC-NAME-4",
+        "AC-NAME-5",
+        "AC-SEC-1",
+        "AC-SEC-2",
+        "AC-SEC-4"
+      ],
+      "scope": {
+        "includes": [
+          "buildJoinRequestRumor (joinRequestSender.ts): add requesterName to the rumor content, distinct from the existing group-name-carrying name field",
+          "parseJoinRequestContent (joinRequestHandler.ts): treat an absent/empty/non-string requesterName as undefined without rejecting the rumor",
+          "handleJoinRequest: populate PendingJoinRequest.nickname from the parsed value, capped at 32 UTF-8 bytes on receive -- the security control, independent of any send-side cap",
+          "Nickname renders as literal text (no markup/HTML execution) in the admin's row",
+          "Verify PendingRequestRow already co-renders nickname and truncated npub (exploration.json: this appears structurally present at lines 30-41) before editing -- do not rewrite the row on the assumption the npub is missing",
+          "No code path in this story resolves or falls back to a kind-0 lookup for the nickname; the nickname reaches the admin exclusively inside the existing NIP-59 gift wrap addressed to the admin's pubkey"
+        ],
+        "excludes": [
+          "No new event kind, no new transport, no new relay publish",
+          "No seal-signing change (kind-13 seal signing is S3's concern, in the same file's buildGiftWrap function)",
+          "No change to admin approve/deny behavior"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "Join-request handler",
+      "creates_seam": false,
+      "lighter_path": false,
+      "notes": "AC-SEC-3 (authenticated npub in the same row) is owned by S3, not here, because its guarantee and test depend on the authenticated-unwrap enforcement, not on this story's parsing/rendering work."
+    },
+    {
+      "id": "S3",
+      "name": "authenticated-unwrap",
+      "title": "Authenticated gift-wrap unwrap and signed join-request seal",
+      "description": "Two changes that ship together as one unit: (a) signs the join-request kind-13 seal in joinRequestSender.ts's buildGiftWrap using the audited nostr-tools/nip59 helpers already used by the DM path, and (b) enforces seal-signature verification plus rumor.pubkey === seal.pubkey in the shared unwrapGiftWrap for both kind-444 (Welcome) and kind-21059 (join request). Corrects the stale doc comment claiming the rumor itself is signed. A failed check never throws the subscription; it degrades to the existing uncorrelated/dropped handling with authenticated-sender status false.",
+      "acceptance_criteria": [
+        "AC-AUTH-0",
+        "AC-AUTH-1",
+        "AC-AUTH-2",
+        "AC-AUTH-3",
+        "AC-AUTH-4",
+        "AC-AUTH-5",
+        "AC-AUTH-6",
+        "AC-SEC-3"
+      ],
+      "scope": {
+        "includes": [
+          "joinRequestSender.ts buildGiftWrap: sign the kind-13 seal with the sender's real key (prefer nostr-tools/nip59 seal/wrap helpers over extending the hand-rolled construction) before encrypting it into the wrap",
+          "welcomeSubscription.ts unwrapGiftWrap: verify the seal's schnorr signature and assert rumor.pubkey === seal.pubkey, for BOTH kind-444 and kind-21059, matching unwrapAndOpen's semantics (directMessages.ts:230-274)",
+          "Failure handling: a message failing either check does not throw/halt the subscription -- a Welcome degrades to the uncorrelated path (pending queue, AC-AUTO-3), a join request is dropped and produces no PendingJoinRequest",
+          "The inviterPubkeyHex recorded for a queued Welcome is the authenticated seal pubkey, never the raw rumor.pubkey (closes the pre-existing forged-Welcome display bug)",
+          "Correct the stale doc comment (~welcomeSubscription.ts lines 199-211) asserting the rumor is signed -- NIP-59 rumors are unsigned; the seal authenticates",
+          "Both halves (send-side signing, receive-side enforcement) land in this single story per architecture.md's seam rule -- enforcing (b) without (a) would drop every join request"
+        ],
+        "excludes": [
+          "No correlation or auto-accept logic (S4's concern) -- this story only makes the authenticated sender identity trustworthy",
+          "No change to PendingInvitations rendering (AC-INVITE-4 untouched)",
+          "No change to the requesterName field itself (S2's concern)"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "owning_module": "Welcome/join unwrap",
+      "creates_seam": true,
+      "lighter_path": false,
+      "notes": "Security-critical story: two coupled changes across joinRequestSender.ts and welcomeSubscription.ts must ship atomically, per architecture.md's explicit 'MUST NOT split' rule. Also touches joinRequestSender.ts's buildGiftWrap, a different function from S2's buildJoinRequestRumor edit in the same file -- a merge-order note for the implementer, not a logical dependency."
+    },
+    {
+      "id": "S4",
+      "name": "auto-accept",
+      "title": "Outbound record and authenticated-admin auto-accept",
+      "description": "Introduces a new bounded, expiring store of outbound join-request records ({nonce, adminPubkeyHex, groupName, sentAt}) and, in welcomeSubscription.ts, correlates an authenticated Welcome sender against that store to auto-accept without user interaction -- disambiguating by pre-join group data when more than one record shares an admin. Extracts a shared join core so auto-accept and manual accept both route through joinGroupFromWelcome. Depends on S3: correlation requires the authenticated sender identity S3 produces.",
+      "acceptance_criteria": [
+        "AC-AUTO-1",
+        "AC-AUTO-2",
+        "AC-AUTO-3",
+        "AC-AUTO-4",
+        "AC-AUTO-4a",
+        "AC-AUTO-5",
+        "AC-AUTO-6",
+        "AC-AUTO-7",
+        "AC-SEC-5"
+      ],
+      "scope": {
+        "includes": [
+          "New outboundJoinRequests.ts: IndexedDB store of {nonce, adminPubkeyHex, groupName, sentAt}, keyed by nonce, mirroring joinRequestStorage.ts/inviteLinkStorage.ts conventions",
+          "Write a record only on successful sendJoinRequest; no record on a failed send",
+          "Bound the store at 256 total records; TTL >= 7 days; an expired record does not correlate",
+          "welcomeSubscription.ts: correlate on the AuthenticatedUnwrapResult's pubkey against unexpired records' adminPubkeyHex (never on nonce, which never reaches the Welcome)",
+          "Disambiguate multiple records sharing an admin by comparing the Welcome's pre-join group data (readWelcomeMarmotGroupData) against each candidate's stored groupName -- exactly one match auto-accepts and consumes that record; zero or multiple matches are treated as uncorrelated",
+          "Extract a shared join core (joinGroupFromWelcome + record cleanup) called by both manual accept and auto-accept; no enqueue-then-immediately-dequeue shortcut",
+          "Consume (remove) only the disambiguated matched record after a correlated auto-accept; other records for the same admin survive",
+          "An uncorrelated Welcome (no match, expired match, or failed authentication) is enqueued exactly as today, requiring explicit Accept",
+          "Verify approveJoinRequest/denyJoinRequest (MarmotContext.tsx) and the PendingInvitations component's rendered content are unchanged by this story"
+        ],
+        "excludes": [
+          "No change to the admin's approve/deny step",
+          "No nonce-based correlation on the Welcome side",
+          "No change to what PendingInvitations renders (still truncated pubkey, timestamp, Accept, Decline only)"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "owning_module": "Outbound records",
+      "consumes_seams": [
+        "AuthenticatedUnwrapResult"
+      ],
+      "creates_seam": false,
+      "lighter_path": false,
+      "notes": "Hard dependency on S3 (architecture.md 'S3 -> S4'). owning_module is 'Outbound records' (the new module this story creates) rather than 'Welcome/join unwrap', which S3 already owns -- architecture.md explicitly assigns both S3 and S4 to touch welcomeSubscription.ts sequentially, so this is documented shared module ownership, not a conflict."
+    },
+    {
+      "id": "S5",
+      "name": "e2e-and-ac8-amendment",
+      "title": "Nameless-path e2e coverage and AC-8 amendment",
+      "description": "Adds the nameless-invitee e2e case to groups-invite-link.spec.ts (gate blocks, name entered, admin sees the name, admin approves, invitee lands in the group without a second click), asserts the existing named-user case and its no-name-input behavior still hold, and amends specs/epic-group-invite-links/acceptance-criteria.md AC-8 to remove the kind-0 clause this epic obsoletes, recording the change in that epic's Amendments section.",
+      "acceptance_criteria": [
+        "AC-ETE-1",
+        "AC-ETE-2",
+        "AC-ETE-3",
+        "AC-ETE-4"
+      ],
+      "scope": {
+        "includes": [
+          "New e2e case: nameless invitee -> gate blocks -> name entered -> admin's pending row shows the name -> admin approves -> invitee lands in the group with no second click, asserted via the group card appearing without any Accept interaction",
+          "Existing named-user path continues to pass unmodified, plus an explicit assertion that no name input renders for that case",
+          "All peer publishes in new e2e code go through the app's own helpers via a second browser.newContext() -- no raw WebSocket to strfry",
+          "The e2e gate for this epic is the full suite (make test-e2e-all), not a filtered subset",
+          "Amend specs/epic-group-invite-links/acceptance-criteria.md AC-8 to remove the kind-0-resolution clause and record the amendment in that epic's ## Amendments section, per this epic's spec.md #Relationship-to-Other-Epics"
+        ],
+        "excludes": [
+          "No production code changes beyond what S1-S4 already delivered"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "E2E test suite",
+      "creates_seam": false,
+      "lighter_path": false,
+      "notes": "Bundles the AC-8 doc amendment with e2e test code in one story because the amendment has no AC ID of its own in this epic's acceptance-criteria.md, and every story needs >=1 AC from this epic's list (schema minItems) without duplicating an AC's ownership across stories. Splitting the amendment into its own story would need to borrow an AC-ETE-* or AC-NAME-5 id already exclusively owned elsewhere, which the epic's 'exactly one story per AC' rule forbids. Since the spec.ts file target is code (non-markdown extension), this story is not lighter_path-eligible as a whole even though the amendment sub-task in isolation would be pure markdown."
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5"
+  ]
+}

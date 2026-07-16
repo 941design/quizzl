@@ -1,0 +1,23 @@
+{
+  "story_id": "S4",
+  "captured_at": "2026-07-16T14:24:27Z",
+  "tests": {
+    "command": "make test-unit (cd app && npx vitest run)",
+    "status": "PASS",
+    "test_files": 169,
+    "tests_passed": 3295,
+    "tests_skipped": 1,
+    "tests_total": 3296
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "note": "No .eslintrc/eslint.config present; `next lint` prompts for interactive first-time setup rather than running -- there is no configured lint gate in this repo (matches S3's baseline.json note)."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit",
+    "status": "clean",
+    "note": "Zero errors at baseline."
+  },
+  "working_tree_note": "S1, S2, and S3 are already implemented in the working tree but not yet committed (stories.json: done). This baseline was captured on top of that pre-existing uncommitted work, immediately before S4's own edits; S4's diff is additive to it. The 3295/1 count matches the count supplied in this story's task brief."
+}

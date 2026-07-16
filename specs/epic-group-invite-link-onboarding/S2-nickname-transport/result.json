@@ -1,0 +1,46 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-16T11:19:37Z",
+  "files_created": [
+    "specs/epic-group-invite-link-onboarding/S2-nickname-transport/architecture.json",
+    "specs/epic-group-invite-link-onboarding/S2-nickname-transport/baseline.json",
+    "specs/epic-group-invite-link-onboarding/S2-nickname-transport/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/joinRequestSender.ts",
+    "app/src/lib/marmot/joinRequestHandler.ts",
+    "app/src/lib/marmot/joinRequestStorage.ts",
+    "app/src/components/groups/JoinRequestCard.tsx",
+    "app/tests/unit/marmot/joinRequestSender.test.ts",
+    "app/tests/unit/marmot/joinRequestHandler.test.ts",
+    "specs/epic-group-invite-link-onboarding/S2-nickname-transport/verification.json"
+  ],
+  "tests_added": {
+    "unit": 18
+  },
+  "test_counts": {
+    "baseline": 3263,
+    "final": 3281
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "architect_skipped": false,
+  "modules_touched": [
+    "Join-request handler",
+    "Join-request send",
+    "Join card UI"
+  ],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "stories.json's S2 scope.includes bullet list named only joinRequestSender.ts, joinRequestHandler.ts, and (verify-only) PendingRequestsSection.tsx. It did not mention that the one production call site of sendJoinRequest (JoinRequestCard.tsx's handleSendRequest) also needed a one-line update to actually pass the requester's nickname through -- without it, the whole feature would be dead code in production (correct in isolated unit tests, but no real join request would ever carry a nickname). Confirming this was in-scope for S2 specifically (rather than a gap to escalate) required cross-referencing S3/S4/S5's own declared scopes and S5's note that 'no production code changes' land beyond S1-S4, which together establish that no other story in the epic would perform this wiring.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

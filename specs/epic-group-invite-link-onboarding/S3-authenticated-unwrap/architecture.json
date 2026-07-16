@@ -1,0 +1,59 @@
+{
+  "module_name": "Welcome/join unwrap",
+  "purpose": "Make the NIP-59 gift-wrap unwrap path (shared by kind-444 Welcomes and kind-21059 join requests) cryptographically authenticated: verify the kind-13 seal's schnorr signature, bind rumor.pubkey to the authenticated seal.pubkey, and sign the join-request seal on send so the enforcement doesn't drop every request. Two coupled halves shipped as one story per architecture.md's explicit 'MUST NOT split' rule.",
+  "public_api": [
+    {
+      "name": "unwrapGiftWrap",
+      "signature": "async function unwrapGiftWrap(giftWrapEvent: { pubkey: string; content: string }, signer: EventSigner): Promise<AuthenticatedUnwrapResult>",
+      "description": "BREAKING return-shape change (pre-authored seam contract, stories.json top-level `seams`): previously resolved to the flattened inner rumor object; now resolves to { pubkey, authenticated, rumor }. `pubkey` is always the seal's pubkey (never the raw, self-claimed rumor.pubkey). `authenticated` is true iff the seal's schnorr signature verifies (nostr-tools/pure verifyEvent) AND rumor.pubkey === seal.pubkey. Never throws for a message that decrypts successfully but fails authentication -- only decryption/parse failures (a gift wrap not meant for this handler) still throw, unchanged from before."
+    },
+    {
+      "name": "AuthenticatedUnwrapResult",
+      "signature": "interface AuthenticatedUnwrapResult { pubkey: string; authenticated: boolean; rumor: { id: string; pubkey: string; created_at: number; kind: number; tags: string[][]; content: string; sig: string } }",
+      "description": "The seam type S4 consumes directly for auto-accept correlation (stories.json seams[0].contract). S4 MUST correlate on `pubkey` gated by `authenticated`, never on the raw rumor.pubkey, and MUST NOT redefine what 'authenticated' means."
+    },
+    {
+      "name": "buildGiftWrap",
+      "signature": "async function buildGiftWrap(rumor: Omit<JoinRequestRumor, 'id'>, requesterPrivateKeyHex: string, adminPubkeyHex: string): Promise<{ id, pubkey, created_at, kind, tags, content, sig }>",
+      "description": "BREAKING param change: replaces the abstract `signer: EventSigner` parameter with a raw `requesterPrivateKeyHex` so the function can call nostr-tools/nip59's `wrapEvent` directly (the same audited helper directMessages.ts's sealAndWrap uses) instead of hand-rolling an unsigned kind-13 seal. wrapEvent signs the seal with a genuine schnorr signature and sets seal.pubkey/rumor.pubkey from the real signing key, closing AC-AUTH-0. Confined to this module's sole call site (JoinRequestCard.tsx), which already held the raw privateKeyHex in scope -- no EventSigner abstraction was lost in practice (join requests never went through a NIP-46 signer)."
+    },
+    {
+      "name": "sendJoinRequest",
+      "signature": "async function sendJoinRequest(params: { requesterPubkeyHex, adminPubkeyHex, nonce, groupName, requesterPrivateKeyHex: string, requesterName?: string }): Promise<void>",
+      "description": "Same param change as buildGiftWrap (signer -> requesterPrivateKeyHex), otherwise unchanged: builds the rumor, signs+wraps it, and raw-WebSocket-publishes to DEFAULT_RELAYS exactly as before."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "nostr-tools/nip59 (wrapEvent) -- joinRequestSender.ts send-side signing",
+    "nostr-tools/pure (verifyEvent) -- welcomeSubscription.ts seal-signature verification",
+    "joinRequestHandler.ts (handleJoinRequest, JOIN_REQUEST_KIND) -- unchanged existing dependency, now called with the authenticated pubkey instead of the raw rumor pubkey"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/directMessages.ts -- architecture.md declares it a read-only PATTERN donor (consult unwrapAndOpen's steps as the reference, do not import from it), so no new import edge was added from either touched file onto directMessages.ts"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/welcomeSubscription.test.ts",
+    "app/tests/unit/marmot/joinRequestSender.test.ts",
+    "app/tests/unit/marmot/joinRequestHandler.test.ts",
+    "app/tests/unit/components/JoinRequestCard.test.ts"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S4"],
+    "contract": {
+      "type_name": "AuthenticatedUnwrapResult",
+      "source_artifact": "app/src/lib/marmot/welcomeSubscription.ts:unwrapGiftWrap",
+      "consumer_artifact": "app/src/lib/marmot/welcomeSubscription.ts auto-accept correlation check (S4, not yet written)",
+      "fields": [
+        { "name": "pubkey", "type": "string", "optional": false, "semantics": "Always the seal's pubkey. Never the raw, self-claimed rumor.pubkey, regardless of the `authenticated` value." },
+        { "name": "authenticated", "type": "boolean", "optional": false, "semantics": "True iff the seal's schnorr signature verifies (nostr-tools/pure verifyEvent) AND rumor.pubkey === seal.pubkey. A value of false MUST NOT satisfy any trust decision, including S4's AC-AUTO-4 correlation match." },
+        { "name": "rumor", "type": "{ id: string; pubkey: string; created_at: number; kind: number; tags: string[][]; content: string; sig: string }", "optional": false, "semantics": "The unsigned inner rumor as decrypted. rumor.pubkey is the rumor's own self-claimed field (used internally to compute `authenticated`, and equal to `pubkey` when authenticated is true) -- callers must use the top-level `pubkey` field for any trust decision, never `rumor.pubkey` directly." }
+      ]
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "captured_at": "2026-07-16T00:00:00Z",
+  "test": {
+    "command": "make test-unit",
+    "status": "PASS",
+    "test_files": 169,
+    "tests_passed": 3262,
+    "tests_skipped": 1,
+    "tests_total": 3263
+  },
+  "lint": {
+    "command": "npm run lint (next lint)",
+    "status": "NO_LINT",
+    "note": "No .eslintrc/eslint.config present; `next lint` prompts an interactive first-run ESLint setup wizard rather than running a check. No lint baseline exists to regress."
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit -p tsconfig.json",
+    "status": "clean",
+    "note": "Zero errors at baseline."
+  }
+}

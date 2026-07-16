@@ -1,0 +1,90 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-16T12:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S5-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the new nameless-invitee e2e case a real end-to-end assertion of the full path — gate blocks, name entered, admin sees the name, admin approves, invitee lands in the group with no second click — rather than a vacuous test that would pass even if the gate, nickname transport, or auto-accept were broken (e.g. asserting only that SOME element is visible, or waiting on a fixed timeout instead of the actual state transition)? Confirm the test's final assertion is specifically that the group card appears WITHOUT any Accept interaction, and that this assertion would fail on a pre-S1-through-S4 checkout (proving it is state-discriminating, not a tautology)."
+    },
+    {
+      "question_id": "VQ-S5-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the diff confine itself to `app/tests/e2e/groups-invite-link.spec.ts` (E2E test suite module) and the explicitly-scoped amendment to `specs/epic-group-invite-links/acceptance-criteria.md` (a different epic's spec, permitted per this epic's spec.md #Relationship-to-Other-Epics), with NO production code changes beyond what S1-S4 already delivered? Run `git diff --stat` for this story's commit(s) and confirm every touched file is either the e2e spec file or the named cross-epic amendment file — no file under `app/src/` should appear."
+    },
+    {
+      "question_id": "VQ-S5-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could 'E2E test suite' (`app/tests/e2e/groups-invite-link.spec.ts`) be deleted and rewritten without modifying any file outside its dependencies_allowed list — since it is a leaf test file with no other module depending on it, its only 'dependents' being the CI/make gate that runs it? Confirm no production module imports from this test file, and that removing it would require no change to any file under `app/src/`."
+    },
+    {
+      "question_id": "VQ-S5-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does the new e2e case drive BOTH the admin and the nameless invitee through the app's own publish helpers via a second `browser.newContext()` — never a raw `WebSocket` publish to strfry (CLAUDE.md)? And is the existing named-user case given an explicit added assertion that no name input element renders for that case (proving AC-GATE-4's no-change guarantee, since no jsdom/component-render/snapshot capability exists in this repo)? Provide the specific Playwright selectors/assertions for both."
+    },
+    {
+      "question_id": "VQ-S5-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Is the e2e gate for this epic explicitly the full suite (`make test-e2e-all`), not a filtered subset such as `test-e2e-fast` or a pattern-scoped `run-e2e.mjs` invocation — and is the cross-epic AC-8 amendment (removing the kind-0-resolution clause from `specs/epic-group-invite-links/acceptance-criteria.md`) recorded in that epic's `## Amendments` section, not silently edited without a record? Provide the amendment's Amendments-section entry text and confirm the full-suite command was the one actually run to verify this story."
+    },
+    {
+      "question_id": "VQ-S5-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the new nameless-invitee e2e case avoid the two known flake patterns already documented for this test suite — a `waitForTimeout`-style fixed-delay wait for async gift-wrap/Welcome propagation (should use `expect.poll` or a retrying `toBeVisible` instead), and a reload()+isVisible() poll on a peer's UI for relay-propagated state (races hydration; should assert against the live-updating UI instead)? Confirm the new test's waits are state-discriminating retries, not fixed sleeps."
+    },
+    {
+      "question_id": "VQ-S5-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ETE-1",
+      "question": "Does the new e2e case cover the full nameless-invitee path: nameless user opens link -> gate blocks the request -> user enters a name -> admin's pending row shows that name -> admin approves -> invitee lands in the group with no second click, with the FINAL assertion specifically being that the group card appears without any Accept interaction (not merely that some 'joined' flag is set internally)? Provide the exact final assertion."
+    },
+    {
+      "question_id": "VQ-S5-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ETE-2",
+      "question": "Does the existing named-user path in `groups-invite-link.spec.ts` continue to pass UNMODIFIED (proving AC-GATE-4's no-change guarantee), and was it actually re-run (not merely assumed unaffected) as part of verifying this story? Provide the test run output or a diff showing the existing named-user test block is untouched aside from the added no-name-input assertion."
+    },
+    {
+      "question_id": "VQ-S5-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ETE-3",
+      "question": "Do ALL peer publishes in the new e2e code go through the app's own helpers (e.g. `sendJoinRequest`, the app's approve-flow UI action) via a second `browser.newContext()`, with zero raw `WebSocket` publish calls to strfry anywhere in the new test code? Run `grep -n 'WebSocket\\|new ws(' app/tests/e2e/groups-invite-link.spec.ts` scoped to this story's diff and confirm no match."
+    },
+    {
+      "question_id": "VQ-S5-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ETE-4",
+      "question": "Was this story verified against the full e2e suite (`make test-e2e-all`), not a filtered subset (`make test-e2e-fast`, `test-e2e-groups`, or a pattern-scoped `run-e2e.mjs` invocation)? Provide the command actually run and its pass/fail summary for the full 60-test suite, distinguishing any pre-existing chronic flakes (per project memory) from failures caused by this story's changes."
+    },
+    {
+      "question_id": "VQ-S5-011",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ETE-2",
+      "question": "VQ-S5-008 assumed the existing named-user test block would pass literally unmodified. Empirically it did NOT: running the pre-existing final test ('User B receives the Welcome and sees the group') unmodified against the live app (2026-07-16, clean-relay run) FAILS -- it times out waiting for a `pending-invitation-row-*` element, because S4's auto-accept (already shipped, status 'done' in stories.json) writes an outbound join-request record on EVERY successful sendJoinRequest (AC-AUTO-1 has no gate on whether the requester supplied a name) and therefore auto-correlates and auto-joins the NAMED user's Welcome too, bypassing the pending-invitation queue entirely. Is it correct that AC-ETE-2's intent (\"proving AC-GATE-4's no-change guarantee\") is scoped to the GATE/rendering behavior specifically, not to the invite-link flow's acceptance mechanism -- such that updating the final assertion in that test block to match auto-accept (rather than leaving the now-incorrect manual-accept assertion in place) is the correct resolution, versus treating this as a scope violation requiring escalation before touching that test block? Confirm by re-reading AC-GATE-4's own text (which is specifically about card rendering: name input, helper text, button state) against the changed assertion, and by re-running the now-updated test block on a freshly wiped relay to confirm it passes."
+    },
+    {
+      "question_id": "VQ-S5-012",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "question": "`app/tests/e2e/helpers/clear-state.ts`'s `INDEXEDDB_DATABASES` list was missing the S4-introduced `few-outbound-join-requests` IDB store (outboundJoinRequests.ts), so any test calling `clearAppState()` mid-test on a context that had already sent a join request would leave a stale outbound record behind, capable of auto-correlating a LATER, unrelated Welcome for the same admin. This story added it to the list as a boy-scout fix. Does adding this entry change behavior for any EXISTING e2e spec that calls `clearAppState` mid-test (grep the call sites that pass an already-booted page, not just the initial bootUser call), and if so was that existing spec re-run to confirm no regression from the now-more-thorough wipe?"
+    },
+    {
+      "question_id": "VQ-S5-013",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The new nameless-invitee describe block reuses USER_A's identity (already used as the admin in the existing named-user describe block earlier in the same spec file) for a SECOND, independent group, relying on a fresh `browser.newContext()` giving it fresh local IDB/MLS state despite the shared underlying keypair. Was this actually validated end-to-end on a freshly wiped relay (not just assumed safe from the auth-helpers.ts salting-strategy doc comment), including confirming that stale relay-level events from the first describe block (e.g. the first group's join-request/Welcome gift wraps, still addressed to USER_A's real pubkey and never wiped mid-file) do not get mis-processed by the second describe block's fresh USER_A context? What specifically prevents a stale, already-fulfilled join request from the first block being replayed and creating a spurious PendingJoinRequest in the second block's fresh admin context?"
+    }
+  ]
+}
