@@ -1,0 +1,336 @@
+{
+  "epic_name": "abandon-last-member-group",
+  "created_at": "2026-07-17T00:00:00Z",
+  "total_stories": 4,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "leave-eligibility-module",
+      "title": "Leave-eligibility module: isLastMember, isSoleAdmin, selectLeaveModalState",
+      "description": "Create app/src/lib/marmot/leaveEligibility.ts (pure, .ts not .tsx \u2014 vitest node env has no JSX support) exporting isLastMember (new), isSoleAdmin (moved verbatim from LeaveGroupButton.tsx), and selectLeaveModalState (new decision function that tests isLastMember BEFORE isSoleAdmin \u2014 the epic's load-bearing ordering rule, DD-2). Rename app/tests/unit/leaveGroupLastAdmin.test.ts to leaveEligibility.test.ts and repoint its import; existing isSoleAdmin assertions carry over unmodified.",
+      "acceptance_criteria": [
+        "AC-ELIG-1",
+        "AC-ELIG-2",
+        "AC-ELIG-3",
+        "AC-ELIG-4",
+        "AC-ELIG-5",
+        "AC-ELIG-6",
+        "AC-SELECT-1",
+        "AC-SELECT-2",
+        "AC-SELECT-3",
+        "AC-SELECT-4",
+        "AC-STRUCT-1"
+      ],
+      "scope": {
+        "includes": [
+          "isLastMember(memberPubkeys, ownPubkeyHex) \u2014 case-insensitive, single-member-equals-self predicate, false on any absent input",
+          "isSoleAdmin moved verbatim from LeaveGroupButton.tsx:24 \u2014 behavior unchanged, location only",
+          "selectLeaveModalState(memberPubkeys, adminPubkeys, ownPubkeyHex) -> 'abandon' | 'blocked' | 'confirm', last-member tested first",
+          "Rename + repoint app/tests/unit/leaveGroupLastAdmin.test.ts -> leaveEligibility.test.ts"
+        ],
+        "excludes": [
+          "Any component rendering or context wiring (S2)",
+          "leaveGroupImpl and its live re-read at execution time (S3) \u2014 this story only supplies the isLastMember predicate S3 consumes"
+        ]
+      },
+      "complexity": "low",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "leaveEligibility",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "notes": "DD-3: the whole modal decision moves here, not just the two predicates \u2014 an inline boolean in the component would be unassertable under this project's no-jsdom test convention, and would hide the ordering rule (DD-2) from any test vehicle. AC-SELECT-1 is the pinning case: ['alice'],['alice'],'alice' MUST return 'abandon', not 'blocked' \u2014 an admin-first implementation fails this. isLastMember is also the seam S3 consumes at execution time (see IsLastMember in the top-level seams array) \u2014 same predicate, two call sites, never forked into two implementations."
+    },
+    {
+      "id": "S2",
+      "name": "abandon-confirmation-modal",
+      "title": "Abandon confirmation modal in LeaveGroupButton",
+      "description": "LeaveGroupButton renders whichever of the three states selectLeaveModalState returns, including the new 'abandon' state (its own copy and testids, distinct from both the normal leave modal and the sole-admin blocked notice). MarmotContext gains getLiveMemberPubkeys(groupId) so the button re-derives membership from live MLS state on modal open rather than trusting a prop (DD-6) \u2014 no memberPubkeys prop is added. en/de copy for the three new i18n keys. The pre-existing dead data-testid=\"leave-group-modal\" on <Modal> (silently dropped by Chakra's portal wrapper) moves to <ModalContent> as an adjacent cleanup.",
+      "acceptance_criteria": [
+        "AC-UX-1",
+        "AC-UX-2",
+        "AC-UX-3",
+        "AC-UX-4",
+        "AC-COPY-1",
+        "AC-STRUCT-4",
+        "AC-STRUCT-5"
+      ],
+      "scope": {
+        "includes": [
+          "Three-way modal render driven by selectLeaveModalState(liveMembers, adminPubkeys, ownPubkeyHex)",
+          "getLiveMemberPubkeys(groupId) -> Promise<string[] | undefined> on MarmotContext \u2014 wraps existing getGroup (already null-safe) + the same dynamic getGroupMembers import used elsewhere in the context; resolves undefined (never []) when unreadable",
+          "abandon-group-notice / abandon-group-confirm-btn testids on real DOM nodes (Text / Button), never on <Modal>",
+          "abandonGroupTitle / abandonGroupBody / abandonGroupConfirm \u2014 Copy type + en + de entries in app/src/lib/i18n.ts",
+          "Move dead data-testid=\"leave-group-modal\" from <Modal> to <ModalContent> (AC-STRUCT-5)"
+        ],
+        "excludes": [
+          "Any change to leaveGroup()'s send or purge behavior (S3)",
+          "A memberPubkeys prop \u2014 live state via getLiveMemberPubkeys is the only source for the modal decision"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "LeaveGroupButton",
+      "creates_seam": true,
+      "consumes_seams": [
+        "SelectLeaveModalState"
+      ],
+      "notes": "getLiveMemberPubkeys placement: kept on MarmotContext and consumed only within this story (source and destination of the GetLiveMemberPubkeys seam are both S2) rather than split into its own micro-story. Rationale: ~8 lines, wraps two things (getGroup + dynamic getGroupMembers import) that already exist verbatim in the context, and has no independent product value separated from the button that calls it \u2014 splitting it would add a story boundary with nothing on the other side to integrate against. AC-STRUCT-4 stays satisfied because the component reaches this through the context, never through a new marmot-ts import site. isLoading is pre-existing shared component state (handleLeave already sets/clears it), so AC-UX-3 requires no new state plumbing, only reusing it on the abandon confirm button."
+    },
+    {
+      "id": "S3",
+      "name": "leave-group-impl-extraction",
+      "title": "leaveGroupImpl extraction, send suppression, purge hygiene",
+      "description": "Extract leaveGroup's body from MarmotContext into app/src/lib/marmot/leaveGroupImpl.ts as an injected-deps impl, following grantAdminImpl (not cancelInvitationImpl) where they differ: zero top-level marmot-ts imports, everything Deps-injected, including the two dependencies with no precedent in either sibling impl \u2014 sendRumorSafe and buildRumor, which are module-private functions in MarmotContext.tsx today and must become Deps fields rather than being exported and imported back (that would violate the zero-context-imports boundary). Inside the impl, re-derive last-member from live MLS state on every attempt and gate the kind-13 leave-intent and kind-9 announcement sends on it (skip both when true). Add clearInviteLinksForGroup to inviteLinkStorage.ts and wire it, together with the already-unused clearPendingJoinRequestsForGroup, into the purge sequence \u2014 on both the abandon path and normal leave.",
+      "acceptance_criteria": [
+        "AC-SEND-1",
+        "AC-SEND-2",
+        "AC-PURGE-1",
+        "AC-PURGE-2",
+        "AC-STRUCT-3",
+        "AC-BOUND-1"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/leaveGroupImpl.ts \u2014 Deps type, MarmotGroupLike duplicated per-impl convention, live re-read of getGroupMembers(mlsGroup.state) at execution time (never React state or a caller-passed value)",
+          "Send-skip: solo group (last member) -> no kind-13, no kind-9; two-or-more members -> both sends unchanged",
+          "clearInviteLinksForGroup(groupId) on inviteLinkStorage.ts \u2014 entries() -> filter groupId -> Promise.all(del(nonce)), mirroring clearPendingJoinRequestsForGroup's existing shape",
+          "Purge sequence gains both clearPendingJoinRequestsForGroup and clearInviteLinksForGroup calls, appended after the existing unconditional purge steps",
+          "MarmotContext.leaveGroup becomes a thin wrapper: await import('@/src/lib/marmot/leaveGroupImpl') + object-literal deps, mirroring the grantAdmin/renameGroup wiring already in the file"
+        ],
+        "excludes": [
+          "Making the purge sequence fault-tolerant / atomic \u2014 named residual in architecture.md, explicitly out of scope",
+          "Removing the departing member's ghost leaf (epic-out-of-band-leave territory, not this epic)",
+          "Any modal or component rendering change (S2)"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "leaveGroupImpl",
+      "creates_seam": true,
+      "consumes_seams": [
+        "IsLastMember"
+      ],
+      "notes": "Sizing: leaveGroupImpl's Deps will be considerably larger than either precedent impl \u2014 the whole purge sequence (removeGroupFromStorage, clearMemberProfiles, clearMessages, clearPollData, clearGroupMedia, clearProfileRequestMemos, clearUnreadGroup, reloadGroups, markBackupDirty) are plain top-level imports in MarmotContext today and all become Deps fields here. Fail-closed direction is deliberately OPPOSITE from S2's: here, an unreadable mlsGroup defaults lastMember to false and sends anyway (worst case a redundant send into an empty group) rather than silently skipping a real departure \u2014 do not 'harmonize' this with the modal's opposite-direction default. AC-STRUCT-3 is what makes the peer-leaves-while-confirm-modal-is-open race fail safe; it depends on this story never accepting the S2 modal-open read as a parameter."
+    },
+    {
+      "id": "S4",
+      "name": "e2e-abandon-flow",
+      "title": "E2E: assembled abandon-last-member flow",
+      "description": "New groups-abandon-last-member.spec.ts in the groups/relay bucket (name must match groups-*.spec.ts so playwright.config.ts routes it correctly). Single-user (no second browser.newContext() \u2014 group creation alone publishes a KeyPackage, which is why this still needs the relay bucket): create a group, invite nobody, open the leave modal, assert the abandon notice and confirm button render, activate abandon, and assert arrival at the group list (anchored to /^\\/groups\\/?$/, gated on a readiness testid, never a fixed wait) with the group absent. A second assertion after reload confirms the purge, not just a render-state removal.",
+      "acceptance_criteria": [
+        "AC-FLOW-1",
+        "AC-FLOW-2",
+        "AC-FLOW-3"
+      ],
+      "scope": {
+        "includes": [
+          "New spec file app/tests/e2e/groups-abandon-last-member.spec.ts",
+          "Create-group-invite-nobody flow (no existing helper covers this \u2014 every current helper pairs creation with an invite; lift the create-only block from groups-lifecycle.spec.ts:47-59 or groups-leave-intent.spec.ts:99-109)",
+          "Abandon activation + anchored URL assertion + readiness-testid gating (groups-empty-state or groups-list)",
+          "Post-reload assertion that the group stays gone (discriminates purge from render-state removal, AC-FLOW-2)"
+        ],
+        "excludes": [
+          "Any change to non-relay bucket specs",
+          "Asserting kind-13/kind-9 non-send at the e2e layer \u2014 that negative is unit-only (AC-SEND-1, owned by S3)"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "is_integration_story": true,
+      "consumes_seams": [
+        "SelectLeaveModalState",
+        "GetLiveMemberPubkeys",
+        "LeaveGroupImpl",
+        "ClearInviteLinksForGroup",
+        "IsLastMember"
+      ],
+      "notes": "This is the enforcement referenced by AC-STRUCT-2 (cross-cutting): AC-ELIG-* and AC-SELECT-* are satisfiable by pure functions nothing calls, so AC-FLOW-1 is what proves the live-state read, the decision function, and the modal are actually wired together end to end. No existing groups spec reaches memberPubkeys.length===1 (all current leave specs are two-member), so this spec has no collision surface with pre-existing tests. Judge this story by whether its own isolated re-run passes, per this project's chronic full-gate flakiness (rotating ~30s latency timeouts unrelated to leave/abandon logic)."
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4"
+  ],
+  "dependency_notes": "Strict linear order S1 -> S2 -> S3 -> S4, driven by two real seams plus one integration dependency. S2 cannot render the third modal state without S1's selectLeaveModalState export (SelectLeaveModalState seam). S3 has no runtime dependency on S2's component code and none on S1's selectLeaveModalState, but it shares S1's isLastMember predicate \u2014 leaveGroupImpl re-derives last-member at execution time by calling the SAME isLastMember export S1 produces (IsLastMember seam), not a re-implementation; this is what keeps the modal-open read and the execution-time read as two independent re-derivations of one predicate rather than two divergent implementations (architecture.md 'Order-Sensitive Composition' guarantee 1). S4 is a pure integration/e2e story: it exercises the assembled flow end to end and therefore depends on all four seams (SelectLeaveModalState, GetLiveMemberPubkeys, LeaveGroupImpl, ClearInviteLinksForGroup, IsLastMember) and has no owning_module of its own. The GetLiveMemberPubkeys seam (MarmotContext -> LeaveGroupButton) is scoped entirely inside S2 rather than split into its own story: both its source and destination are S2, since the method has no independent product value apart from the button that calls it (documented per-story in S2's notes).",
+  "seams": [
+    {
+      "data": "Leave modal state decision",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/marmot/leaveEligibility.ts#selectLeaveModalState"
+      },
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/components/groups/LeaveGroupButton.tsx"
+      },
+      "contract": {
+        "type_name": "SelectLeaveModalState",
+        "fields": [
+          {
+            "name": "memberPubkeys",
+            "type": "string[] | undefined"
+          },
+          {
+            "name": "adminPubkeys",
+            "type": "string[] | undefined"
+          },
+          {
+            "name": "ownPubkeyHex",
+            "type": "string | null | undefined"
+          },
+          {
+            "name": "returns",
+            "type": "'abandon' | 'blocked' | 'confirm'"
+          }
+        ],
+        "invariants": [
+          "isLastMember is evaluated before isSoleAdmin; an input satisfying both MUST return 'abandon', never 'blocked' (AC-SELECT-1) \u2014 this is the epic's load-bearing ordering rule",
+          "memberPubkeys undefined MUST NOT produce 'abandon' for any adminPubkeys/ownPubkeyHex (AC-SELECT-4) \u2014 fail-closed on unreadable live state"
+        ]
+      }
+    },
+    {
+      "data": "Live MLS member list for a group, re-derived on modal open",
+      "source": {
+        "story": "S2",
+        "artifact": "app/src/context/MarmotContext.tsx#getLiveMemberPubkeys"
+      },
+      "destination": {
+        "story": "S2",
+        "artifact": "app/src/components/groups/LeaveGroupButton.tsx (handleOpen)"
+      },
+      "contract": {
+        "type_name": "GetLiveMemberPubkeys",
+        "fields": [
+          {
+            "name": "groupId",
+            "type": "string"
+          },
+          {
+            "name": "returns",
+            "type": "Promise<string[] | undefined>"
+          }
+        ],
+        "invariants": [
+          "Resolves undefined, never [], when the group cannot be read \u2014 [] asserts 'no members', undefined asserts 'no answer' (AC-UX-4)",
+          "Wraps the existing getGroup (already null-safe) and the same dynamic getGroupMembers import used elsewhere in MarmotContext; introduces no new marmot-ts import site in any component (AC-STRUCT-4)"
+        ]
+      }
+    },
+    {
+      "data": "Extracted leaveGroup execution: send-skip decision, sends, purge",
+      "source": {
+        "story": "S3",
+        "artifact": "app/src/lib/marmot/leaveGroupImpl.ts#leaveGroupImpl"
+      },
+      "destination": {
+        "story": "S3",
+        "artifact": "app/src/context/MarmotContext.tsx#leaveGroup"
+      },
+      "contract": {
+        "type_name": "LeaveGroupImpl",
+        "fields": [
+          {
+            "name": "deps",
+            "type": "Deps"
+          },
+          {
+            "name": "groupId",
+            "type": "string"
+          },
+          {
+            "name": "returns",
+            "type": "Promise<boolean>"
+          }
+        ],
+        "invariants": [
+          "Last-member is re-derived from live MLS state fetched inside the impl (getGroupMembers(mlsGroup.state)), never from React state or a value passed in by the caller (AC-STRUCT-3)",
+          "Zero imports from app/src/context/; sendRumorSafe and buildRumor arrive as injected Deps fields, never exported from the context and imported back (AC-BOUND-1)",
+          "On a failed live read (no mlsGroup), lastMember defaults to false and sends proceed anyway \u2014 the opposite fail-closed direction from the modal-open read, and deliberately so (worst case: one redundant send into an empty group, vs. silently dropping a real departure)"
+        ]
+      }
+    },
+    {
+      "data": "Per-group invite link cleanup",
+      "source": {
+        "story": "S3",
+        "artifact": "app/src/lib/marmot/inviteLinkStorage.ts#clearInviteLinksForGroup"
+      },
+      "destination": {
+        "story": "S3",
+        "artifact": "app/src/lib/marmot/leaveGroupImpl.ts (purge sequence)"
+      },
+      "contract": {
+        "type_name": "ClearInviteLinksForGroup",
+        "fields": [
+          {
+            "name": "groupId",
+            "type": "string"
+          },
+          {
+            "name": "returns",
+            "type": "Promise<void>"
+          }
+        ],
+        "invariants": [
+          "Deletes exactly the links whose groupId matches; other groups' invite links are left intact (AC-PURGE-2)",
+          "Mirrors clearPendingJoinRequestsForGroup's entries() -> filter -> Promise.all(del(nonce)) shape"
+        ]
+      }
+    },
+    {
+      "data": "Last-member predicate, shared verbatim across the modal-open read and the execution-time re-read",
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/marmot/leaveEligibility.ts#isLastMember"
+      },
+      "destination": {
+        "story": "S3",
+        "artifact": "app/src/lib/marmot/leaveGroupImpl.ts"
+      },
+      "contract": {
+        "type_name": "IsLastMember",
+        "fields": [
+          {
+            "name": "memberPubkeys",
+            "type": "string[] | undefined"
+          },
+          {
+            "name": "ownPubkeyHex",
+            "type": "string | null | undefined"
+          },
+          {
+            "name": "returns",
+            "type": "boolean"
+          }
+        ],
+        "invariants": [
+          "Case-insensitive match in both directions (AC-ELIG-4)",
+          "Returns false for every absent-input case: memberPubkeys undefined, memberPubkeys [], ownPubkeyHex null, ownPubkeyHex undefined (AC-ELIG-5)",
+          "S1 (via selectLeaveModalState) and S3 (via leaveGroupImpl) call this SAME export at two different times \u2014 never a forked or re-implemented copy; this is what keeps the two live reads independent re-derivations rather than one stale snapshot threaded through (architecture.md guarantee 1)"
+        ]
+      }
+    }
+  ],
+  "cross_cutting_acs": [
+    {
+      "ac_id": "AC-STRUCT-2",
+      "spanned_by": [
+        "S1",
+        "S2",
+        "S3",
+        "S4"
+      ]
+    }
+  ]
+}

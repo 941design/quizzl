@@ -20,6 +20,7 @@ const {
   updateInviteLinkMuted,
   deleteInviteLink,
   loadAllInviteLinks,
+  clearInviteLinksForGroup,
 } = await import('@/src/lib/marmot/inviteLinkStorage');
 
 function makeLink(overrides: Partial<InviteLink> = {}): InviteLink {
@@ -138,6 +139,34 @@ describe('inviteLinkStorage', () => {
     it('is a no-op for non-existent nonce', async () => {
       await deleteInviteLink('nonexistent');
       // No error thrown
+    });
+  });
+
+  // AC-PURGE-2
+  describe('clearInviteLinksForGroup', () => {
+    it('removes all links for the specified group, leaving other groups intact', async () => {
+      await saveInviteLink(makeLink({ nonce: 'n1', groupId: 'group-1' }));
+      await saveInviteLink(makeLink({ nonce: 'n2', groupId: 'group-2' }));
+      await saveInviteLink(makeLink({ nonce: 'n3', groupId: 'group-1' }));
+
+      await clearInviteLinksForGroup('group-1');
+
+      expect(store.has('n1')).toBe(false);
+      expect(store.has('n3')).toBe(false);
+      expect(store.has('n2')).toBe(true); // group-2 untouched
+    });
+
+    it('is a no-op for a group with no links', async () => {
+      await saveInviteLink(makeLink({ nonce: 'n1', groupId: 'group-1' }));
+      await clearInviteLinksForGroup('nonexistent');
+      expect(store.has('n1')).toBe(true);
+    });
+
+    it('is a safe no-op when called again on an already-cleared group', async () => {
+      await saveInviteLink(makeLink({ nonce: 'n1', groupId: 'group-1' }));
+      await clearInviteLinksForGroup('group-1');
+      await clearInviteLinksForGroup('group-1');
+      expect(store.has('n1')).toBe(false);
     });
   });
 });

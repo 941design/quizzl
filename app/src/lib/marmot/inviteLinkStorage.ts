@@ -63,6 +63,14 @@ export async function deleteInviteLink(nonce: string): Promise<void> {
   await del(nonce, inviteLinkStore);
 }
 
+/** Delete every invite link belonging to `groupId`. Mirrors clearPendingJoinRequestsForGroup. */
+export async function clearInviteLinksForGroup(groupId: string): Promise<void> {
+  const all = await entries<string, InviteLink>(inviteLinkStore);
+  await Promise.all(
+    all.filter(([, link]) => link.groupId === groupId).map(([nonce]) => del(nonce, inviteLinkStore))
+  );
+}
+
 export async function clearAllInviteLinks(): Promise<void> {
   await clear(inviteLinkStore);
 }

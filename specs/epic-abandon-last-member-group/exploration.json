@@ -1,0 +1,119 @@
+{
+  "epic": "abandon-last-member-group",
+  "explored_at": "2026-07-17",
+  "focuses": ["similar-features", "architecture", "testing-and-conventions"],
+
+  "prior_learnings": [
+    {
+      "id": "invitebynpub-commits-memberpubkeys-immediately",
+      "relevance": "load-bearing — independently confirms the spec's structural claim that memberPubkeys.length===1 implies zero pending invitees. inviteByNpub commits memberPubkeys at invite time, not accept time. Learning notes this was discovered when a design decision assuming the opposite failed against the real app, caught only by live e2e."
+    },
+    {
+      "id": "chakra-ui-modal-does-not-forward",
+      "relevance": "landmine — Chakra <Modal> renders no DOM node; data-testid on it is silently dropped. LeaveGroupButton.tsx:102 has this bug today (leave-group-modal, queried by nothing). Drove AC-STRUCT-5."
+    },
+    {
+      "id": "vitest-env-has-no-jsdom-testing",
+      "relevance": "load-bearing — the no-jsdom constraint is why selectLeaveModalState/leaveGroupImpl are extracted. Supplies the sanctioned source-scan idiom (fs.readFileSync + regex) that makes AC-STRUCT-4/5 machine-checkable."
+    },
+    {
+      "id": "next-js-static-export-trailing-slash",
+      "relevance": "AC-FLOW-1 — trailingSlash:true means router.push('/groups') resolves to /groups/; toHaveURL must be anchored."
+    },
+    {
+      "id": "extract-pure-helpers-ts-when-vitest",
+      "relevance": "leaveEligibility.ts must be .ts (not .tsx) — vitest node env cannot parse JSX."
+    },
+    {
+      "id": "marmot-ts-commit-does-not-throw",
+      "relevance": "background — same-epoch concurrent commits both return ok; underpins ADR-003 and the admins-by-discipline framing."
+    }
+  ],
+
+  "module_map": [
+    {"name": "leaveEligibility", "new": true, "location": "app/src/lib/marmot/leaveEligibility.ts", "purpose": "Pure predicates (isLastMember, isSoleAdmin) + selectLeaveModalState decision fn", "owned_data": "none — pure"},
+    {"name": "leaveGroupImpl", "new": true, "location": "app/src/lib/marmot/leaveGroupImpl.ts", "purpose": "Extracted leaveGroup body: send-skip decision, sends, purge sequence", "owned_data": "none — Deps-injected"},
+    {"name": "MarmotContext", "new": false, "location": "app/src/context/MarmotContext.tsx", "purpose": "React context; owns clientRef + groups overlay; wraps impls with live deps; adds getLiveMemberPubkeys", "owned_data": "groups: Group[] React state, mirrored to groupStorage.ts"},
+    {"name": "LeaveGroupButton", "new": false, "location": "app/src/components/groups/LeaveGroupButton.tsx", "purpose": "Renders whichever of 3 modal states selectLeaveModalState returns", "owned_data": "local isOpen/isLoading/liveMembers only"},
+    {"name": "inviteLinkStorage", "new": false, "location": "app/src/lib/marmot/inviteLinkStorage.ts", "purpose": "idb-keyval CRUD, store few-invite-links; gains clearInviteLinksForGroup", "owned_data": "InviteLink[] keyed by nonce"},
+    {"name": "joinRequestStorage", "new": false, "location": "app/src/lib/marmot/joinRequestStorage.ts", "purpose": "idb-keyval CRUD, store few-join-requests", "owned_data": "PendingJoinRequest[] keyed by eventId; clearPendingJoinRequestsForGroup at :72 has ZERO production callers"},
+    {"name": "i18n", "new": false, "location": "app/src/lib/i18n.ts", "purpose": "Copy['groups'] type + en/de objects", "owned_data": "3 new keys at type ~125-128/204, en ~748-751/827, de ~1282-1285/1361"}
+  ],
+
+  "boundary_rules": {
+    "verified": "Components go through MarmotContext for MLS reads, never lib/marmot directly. groups.tsx:422 already passes only groupId/adminPubkeys/ownPubkeyHex — no live-state prop, consistent with the no-memberPubkeys-prop decision.",
+    "marmot_ts_import_discipline": {
+      "correction": "An earlier spec draft claimed marmot-ts is imported in exactly one module and never statically. FALSE — corrected in spec.",
+      "lib_layer": "imports freely, statically for types/pure values: applicationRumorDispatcher.ts:40, groupStorage.ts:12, NdkNetworkAdapter.ts:16, epochResolver.ts:16, welcomeSubscription.ts:23; also hooks/useImageSend.ts:1, lib/media/imageMessage.ts:1, lib/media/imetaTag.ts:1",
+      "context_layer": "MarmotContext.tsx imports ONLY dynamically — all ten sites are await import(): 644, 702, 926, 1238, 1536, 1716, 1741, 1795, 1825, 1871",
+      "component_layer": "should not import marmot-ts; IncomingCallWatcher.tsx:104 already does (dynamic getGroupMembers for call routing) — a pre-existing violation, NOT sanctioned precedent",
+      "impact": "AC-STRUCT-4 is narrow (greps LeaveGroupButton.tsx only, currently 0 refs) and holds regardless"
+    }
+  },
+
+  "impl_extraction_pattern": {
+    "precedents": ["app/src/lib/marmot/cancelInvitationImpl.ts", "app/src/lib/marmot/grantAdminImpl.ts"],
+    "prefer": "grantAdminImpl — zero top-level marmot-ts imports (everything Deps-injected), which is why grantAdminImpl.test.ts needs no vi.mock('@internet-privacy/marmot-ts') at all. cancelInvitationImpl.test.ts:4-10 does need one.",
+    "conventions": [
+      "Header comment states 'Pure implementation... extracted from MarmotContext to enable unit testing without rendering React'; grantAdminImpl.ts:1-8 adds 'zero imports from app/src/context/ (AC-BOUND-1); never imports marmot-ts directly'",
+      "Deps type (not interface) listing every side-effecting dependency as a field",
+      "marmot-ts opaque shapes typed `any` not `unknown` — deliberate, to avoid contravariance fights at the boundary (cancelInvitationImpl.ts:8-10, grantAdminImpl.ts:10-12)",
+      "MarmotGroupLike type duplicated verbatim per impl, not shared (cancelInvitationImpl.ts:11-15, grantAdminImpl.ts:13-17)",
+      "Signature: export async function xImpl(deps, groupId, ...args): Promise<{ok: boolean; error?: string; ...}> — never throws to caller; named string-literal error codes",
+      "Non-error signal states get extra boolean flags (raceDetected) rather than error codes; a secondary side-effect failure does not downgrade primary success (announcementError)",
+      "Live re-read on EVERY attempt, never a stale snapshot across retries (grantAdminImpl.ts:50-53, 74-76 — 'AC-GRANT-7'). Same discipline AC-STRUCT-3 requires here.",
+      "On success: deps.reloadGroups() then deps.markBackupDirty(true), in that order (cancelInvitationImpl.ts:113-114, grantAdminImpl.ts:114-115)",
+      "Context wraps via await import('@/src/lib/marmot/xImpl') + object-literal deps at the call site. Closest wiring analogues: MarmotContext.tsx:1789-1812 (grantAdmin), :1819-1837 (renameGroup)"
+    ],
+    "wrinkle_no_precedent": "sendRumorSafe (MarmotContext.tsx:93-117) and buildRumor (:120-130) are module-PRIVATE unexported functions in MarmotContext.tsx — not marmot-ts exports. Both precedent impls only inject marmot-ts-shaped things. These must become Deps fields; do NOT export them from the context and import them back (violates the zero-context-imports boundary). serialiseLeaveIntent is already a pure import from leaveSync.ts:34 and is safe to call directly.",
+    "sizing": "leaveGroupImpl's Deps object will be considerably larger than either precedent: the whole purge sequence (removeGroupFromStorage, clearMemberProfiles, clearMessages, clearPollData, clearGroupMedia, clearProfileRequestMemos, clearUnreadGroup, reloadGroups, markBackupDirty) are plain top-level imports in MarmotContext today and all become Deps."
+  },
+
+  "modal_precedent": {
+    "source": "app/src/components/contacts/BlockContactButton.tsx:36-41 states it mirrors LeaveGroupButton's destructive-confirm pattern",
+    "testid_placement": "BlockContactButton puts data-testid on <ModalContent> (line 110), NOT <Modal> — corroborates AC-STRUCT-5's fix for LeaveGroupButton.tsx:102's dead leave-group-modal testid",
+    "cancel_btn": "variant=ghost, mr={3}, onClick=onClose, isDisabled={isLoading} (BlockContactButton.tsx:117-124); LeaveGroupButton.tsx:111-118 matches minus a testid",
+    "confirm_btn": "colorScheme=danger, onClick={() => void handler()}, isLoading={isLoading} (BlockContactButton.tsx:126-133); matches leave-group-confirm-btn at LeaveGroupButton.tsx:119-126",
+    "isLoading": "local useState(false), set true at handler start, false in finally — LeaveGroupButton's handleLeave already does this (lines 58-69) and isLoading is shared component state, not per-modal-state, so AC-UX-3 is trivial",
+    "decided_default": "abandon modal's ModalCloseButton does NOT get isDisabled={isLoading} — matches LeaveGroupButton's two existing modals (neither has it) rather than BlockContactButton's (which does). Spec anchors the abandon modal to 'the same destructive-confirm shape as the normal leave modal'."
+  },
+
+  "existing_leave_e2e": {
+    "must_not_regress": [
+      {"spec": "groups-admin.spec.ts", "ac": "AC-LAST-1 (lines 294-313)", "detail": "A sole admin + 2 members total -> leave-group-btn -> asserts last-admin-blocked-notice visible AND leave-group-confirm-btn NOT visible. length===2 so isLastMember false, selectLeaveModalState still returns 'blocked'. Pinned at unit level by AC-SELECT-2."},
+      {"spec": "groups-admin.spec.ts", "ac": "AC-LAST-2 (lines 320-338)", "detail": "after granting B admin, A leaves normally via leave-group-confirm-btn"},
+      {"spec": "groups-leave-intent.spec.ts", "detail": "the ONE spec asserting kind-13/kind-9 sends DID happen (LeaveChatAnnouncement ~line 200+, auto-remove-commit poll 183-196). The two-member positive case AC-SEND-2 must keep passing. No existing spec asserts sends did NOT happen — that negative is unit-only (AC-SEND-1)."},
+      {"spec": "groups-lifecycle.spec.ts:120-121 / groups-contacts.spec.ts:108-109 / groups-ever-known-survives-leave.spec.ts:178-179 / groups-poll-after-leave.spec.ts:127-128", "detail": "identical two-member normal-leave pattern; none reach length===1, so none collide with the abandon path by construction"}
+    ],
+    "readiness_race_note": "groups-admin.spec.ts:297-301 carries a comment: if A clicks Leave before group state loads, adminPubkeys is [] and isSoleAdmin is false — the spec awaits A's own Admin badge before clicking. This is a REAL pre-existing race in the sole-admin guard (unloaded adminPubkeys -> 'confirm' -> sole admin can strand members). It is why the epic's MIXED freshness is correct: members must be live (fail-closed to not-abandon), admins must stay prop-derived (a failed live read would collapse to 'confirm' and strand). Out of scope; candidate backlog finding.",
+    "no_collision": "each existing spec uses a distinct GROUP_NAME constant; abandon-group-notice/abandon-group-confirm-btn are queried by nothing today",
+    "dead_testid_confirmed": "grep for leave-group-modal across app/tests/ returns empty — the testid is dead, corroborating AC-STRUCT-5"
+  },
+
+  "testing_conventions": {
+    "unit_bucket": "app/vitest.config.ts: include tests/unit/**/*.test.ts, alias @ -> app root, default node env (no jsdom configured — the rule is structural, not just convention). 51 files under app/tests/unit/**.",
+    "source_scan_idiom": "app/tests/unit/themes-validation.test.ts:304-368 — fs.readFileSync + line-based comment strip (l.trim().startsWith('//')) + expect(codeOnly).not.toMatch(...). Pinned by self-test fixtures (326-350) proving a comment-only mention does not trip the gate and a real occurrence does. app/tests/unit/blockContactAction.test.ts:36,139-152 is the simpler import-absence template.",
+    "ac_struct_4_decision": "plain not.toMatch(/@internet-privacy\\/marmot-ts/) on raw source, no comment-stripping — literal package-specifier string, low false-positive surface",
+    "ac_struct_5_decision": "comment-stripped, line-anchored <Modal\\b regex excluding <ModalContent/<ModalOverlay, with self-test fixtures per themes-validation idiom. Self-match hazard is low (scan target is LeaveGroupButton.tsx, not the test file) but build any prose mention of the pattern via concatenation so the test's own text never contains a raw matchable substring.",
+    "idb_keyval_mocking": "app/tests/unit/marmot/joinRequestStorage.test.ts:1-21 — mock idb-keyval itself (NOT the storage module) with an in-memory Map; beforeEach clears. Its clearPendingJoinRequestsForGroup block (113-130) is the literal 1:1 template for clearInviteLinksForGroup (AC-PURGE-2): seed 2+ groups, clear one, assert its keys gone and the other's intact, plus no-op-on-nonexistent.",
+    "negative_send_idiom": "expect(deps.mockX).not.toHaveBeenCalled() — cancelInvitationImpl.test.ts:122,134,145,157. This is the established shape for AC-SEND-1 (solo: .not.toHaveBeenCalled()) vs AC-SEND-2 (multi: .toHaveBeenCalledTimes(1)).",
+    "makeDeps_factory": "each impl test reimplements its own makeDeps(overrides) with vi.fn().mockResolvedValue(...) per field, stashing underlying mock fns as extra keys for assertion. Not shared between test files."
+  },
+
+  "e2e_infrastructure": {
+    "doc_drift": "CLAUDE.md states 12 non-relay / 48 relay / 60 total. STALE. Actual: 69 spec files — 14 non-relay, 55 relay. Per-test counts far higher (recent run: non-relay 68/68 green; relay 233 passed / 4 failed / 19 skipped / 11 did-not-run of 267).",
+    "bucket_split": "app/playwright.config.ts:36-41 — isGroups (env E2E_GROUPS) picks testMatch ['groups-*.spec.ts','dm-*.spec.ts'] vs testIgnore of the same. S4's spec MUST be named groups-abandon-*.spec.ts to land in the relay bucket.",
+    "run_one_spec": "make e2e-up && cd app && E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-abandon-last-member.spec.ts && make e2e-down (mirrors Makefile:153-157 test-e2e-image-sharing)",
+    "helpers": "app/tests/e2e/helpers/ — auth-helpers.ts (identities), clear-state.ts, dismiss-error-overlay.ts, group-setup.ts (inviteContactViaPicker, createGroupAndInvite, seedContact), relay-query.ts (queryRelayForEvents)",
+    "solo_group_gap": "NO helper exists for 'create a group, invite nobody' — every helper pairs creation with an invite. Lift the create-only block from groups-lifecycle.spec.ts:47-59 or groups-leave-intent.spec.ts:99-109: create-group-btn -> fill create-group-name-input -> create-group-submit-btn -> wait for group text + modal close + dismissErrorOverlay + ~3s settle for MLS init/KeyPackage publish.",
+    "single_user": "S4 needs NO second browser.newContext() — rare single-user groups spec. Still relay-bucket: group creation publishes a KeyPackage.",
+    "trailing_slash": "next.config.mjs:22 sets trailingSlash:true; LeaveGroupButton.tsx:63 router.push('/groups') resolves to /groups/. AC-FLOW-1 must assert /^\\/groups\\/?$/ — NOT the looser /\\/groups/ form used at story-01-scaffold.spec.ts:44. Confirmed-gotcha comments at dm-feedback-channel.spec.ts:162-164, groups-invite-guidance-state.spec.ts:73-75.",
+    "readiness_gating": "gate arrival on getByTestId('groups-empty-state').or(getByTestId('groups-list')) per groups-lifecycle.spec.ts bootUser (9-29). Fixed waitForTimeout is tolerated for infra settle (3s post-create for MLS init) but never for asserting the outcome under test."
+  },
+
+  "flaky_baseline": {
+    "correction": "The project memory's picture is OUT OF DATE in shape. The ~7-spec shared-keypair CONTAMINATION was FIXED by commit 3ea90a9 (per-spec identity salting via SHA-256 of spec filename — live at app/tests/e2e/helpers/auth-helpers.ts:8-30; dm-feedback-channel.spec.ts stays on base identities because its npub is baked into the dev server's maintainer config). A kind-445 resubscribe-storm bug was fixed by 15aa639.",
+    "residual_today": "~30s latency timeouts ROTATING among a small set: dm-self-heal (:181 AC-29), groups-poll-after-leave (:152), groups-polls (:174), groups-profile-reactive (:201). Confirmed rotating — re-running the failing 4 in isolation reproduces a different subset.",
+    "judging_s4": "None of the rotating flakes touch group-leave/abandon logic (groups-poll-after-leave does perform a leave, but its flake is a latency timeout at :152, not leave logic). S4's new spec is judged by whether it passes on its own isolated re-run."
+  }
+}

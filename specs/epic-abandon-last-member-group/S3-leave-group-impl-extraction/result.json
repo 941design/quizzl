@@ -1,0 +1,88 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "implemented_by": "dev",
+  "implemented_at": "2026-07-17",
+  "base_commit": "df241c0cd26f93ba9ee4ea7148865d4798a47d68",
+  "summary": "Extracted MarmotContext.leaveGroup's inline body into a Deps-injected leaveGroupImpl.ts (mirroring grantAdminImpl.ts, AC-BOUND-1). The extracted impl re-derives last-member from a fresh getGroupMembers(mlsGroup.state) read on every invocation and gates both the kind-13 sendRumorSafe call and the kind-9 mlsGroup.sendApplicationRumor call on that check, fixing the pre-existing bug where a solo-group leave sent both rumors unconditionally. Added clearInviteLinksForGroup to inviteLinkStorage.ts (mirroring clearPendingJoinRequestsForGroup) and wired both leak-fixing clears into the purge sequence, unconditionally, on both the abandon and normal-leave paths.",
+  "modules_touched": [
+    "leaveGroupImpl",
+    "MarmotContext",
+    "inviteLinkStorage"
+  ],
+  "files_modified": [
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/marmot/inviteLinkStorage.ts",
+    "app/src/lib/marmot/leaveGroupImpl.ts",
+    "app/tests/unit/marmot/inviteLinkStorage.test.ts",
+    "app/tests/unit/marmot/leaveGroupImpl.test.ts"
+  ],
+  "design_decisions": [
+    "leaveGroupImpl's signature is (deps: Deps, groupId: string, selfPubkeyHex: string): Promise<boolean> \u2014 selfPubkeyHex stays a positional argument rather than a Deps field, mirroring grantAdminImpl's (deps, groupId, targetPubkey) shape; the per-call subject is not conflated with the impl's side-effecting dependencies.",
+    "MarmotGroupLike in leaveGroupImpl.ts carries only { state: any; sendApplicationRumor: (rumor: any) => Promise<unknown> } \u2014 the minimal shape the impl actually calls methods on (state for getGroupMembers, sendApplicationRumor for the kind-9 send). sendRumorSafe's own group-shaped argument is typed via the same MarmotGroupLike, not marmot-ts's real MarmotGroup type, to keep the impl's only coupling to the real type at the MarmotContext wiring boundary.",
+    "The send-gate condition is `mlsGroup && selfPubkeyHex && !lastMember`, computed after an unconditional `const members = mlsGroup ? deps.getGroupMembers(mlsGroup.state) : undefined` and `const lastMember = isLastMember(members, selfPubkeyHex)` \u2014 exactly the shape specified in the story brief, so isLastMember's fail-closed-to-false behavior (undefined members) resolves to 'not last member' regardless of whether mlsGroup itself is present. When mlsGroup is absent, no send is attempted anyway (nothing to call methods on) \u2014 R2's 'send anyway' framing describes the logical resolution of the last-member question, not a literal send with no group reference.",
+    "isLastMember is imported directly from leaveEligibility.ts (R1) \u2014 not reimplemented inline, preserving the own-pubkey verification and fail-closed contract that a bare `members.length === 1` check would drop.",
+    "sendRumorSafe and buildRumor are injected as Deps fields, passed as closures at the MarmotContext.leaveGroup call site (`sendRumorSafe: (group, rumor) => sendRumorSafe(group as any, rumor as any)`, `buildRumor` passed directly since its signature already matches). Neither function was exported from MarmotContext.tsx.",
+    "The two new purge clears (clearPendingJoinRequestsForGroup, clearInviteLinksForGroup) are appended after clearUnreadGroup and before reloadGroups/markBackupDirty, inside the same unconditional (post-send-block) sequence as the pre-existing purge steps \u2014 not conditioned on which send branch fired.",
+    "clearInviteLinksForGroup mirrors clearPendingJoinRequestsForGroup's exact shape (entries() -> filter groupId -> Promise.all(del(nonce))) rather than reusing loadInviteLinks + a loop, keeping the two per-group clears structurally identical for future maintainers."
+  ],
+  "verification_answers": [
+    {
+      "question_id": "VQ-S3-001",
+      "answer": "git diff --stat -- app/src/lib/marmot/inviteLinkStorage.ts app/src/context/MarmotContext.tsx app/tests/unit/marmot/inviteLinkStorage.test.ts shows exactly those three tracked files changed, plus two new untracked files (app/src/lib/marmot/leaveGroupImpl.ts, app/tests/unit/marmot/leaveGroupImpl.test.ts) confirmed via git status --short. No file outside this list was touched by this story. Reading the MarmotContext.tsx diff directly: the leaveGroup useCallback body is fully replaced by a thin wrapper (four dynamic imports + one leaveGroupImpl(deps, groupId, selfPubkeyHex) call) \u2014 no send or purge logic remains inline. The diff's only other hunk is the getLiveMemberPubkeys interface/implementation, which was S2's addition and predates this story (confirmed against S2's result.json, which lists it as S2's change); this story's diff does not touch it."
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "answer": "leaveGroupImpl.ts has zero top-level @internet-privacy/marmot-ts imports (getGroupMembers arrives as a Deps field), so leaveGroupImpl.test.ts needs no vi.mock('@internet-privacy/marmot-ts') \u2014 confirmed by inspecting both files directly. Deps is declared as a `type` (not `interface`). MarmotGroupLike's `state` field is typed `any` (not `unknown`), matching cancelInvitationImpl.ts/grantAdminImpl.ts's stated contravariance-avoidance rationale. MarmotGroupLike is declared fresh in leaveGroupImpl.ts, not imported from grantAdminImpl.ts or cancelInvitationImpl.ts \u2014 duplicated verbatim per the established convention."
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "answer": "grep -n 'sendRumorSafe\\|buildRumor' app/src/context/MarmotContext.tsx confirms both remain module-private (declared as bare `function`/`async function`, never `export`ed) \u2014 unchanged from before this story. leaveGroupImpl.ts declares both as Deps fields (sendRumorSafe: (group: MarmotGroupLike, rumor: any) => Promise<void>; buildRumor: (kind, content, pubkey, tags?) => any) with zero import of either name. MarmotContext.leaveGroup's call site passes `sendRumorSafe: (group, rumor) => sendRumorSafe(group as any, rumor as any)` and `buildRumor` (passed directly, signature-compatible) as object-literal Deps fields at the await-import call site \u2014 the same pattern grantAdmin/renameGroup use for Proposals."
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "answer": "leaveGroupImpl.ts's Deps type lists all 15 fields: getGroup, getGroupMembers, sendRumorSafe, buildRumor, removeGroupFromStorage, clearMemberProfiles, clearMessages, clearPollData, clearGroupMedia, clearProfileRequestMemos, clearUnreadGroup, clearPendingJoinRequestsForGroup, clearInviteLinksForGroup, reloadGroups, markBackupDirty. All nine sizing-note names (removeGroupFromStorage, clearMemberProfiles, clearMessages, clearPollData, clearGroupMedia, clearProfileRequestMemos, clearUnreadGroup, reloadGroups, markBackupDirty) are present as Deps fields; grep -n 'import' app/src/lib/marmot/leaveGroupImpl.ts shows only two imports (isLastMember, LEAVE_INTENT_KIND+serialiseLeaveIntent, both pure lib/marmot/ modules) \u2014 none of the nine names is a direct top-level import."
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "answer": "leaveGroupImpl computes `const members = mlsGroup ? deps.getGroupMembers(mlsGroup.state) : undefined;` unconditionally at the top of every call, from the mlsGroup just fetched via `await deps.getGroup(groupId)` in that same invocation \u2014 never a parameter, never cached across calls (leaveGroupImpl has no retry loop, unlike grantAdminImpl, so there is no cross-attempt caching concern within a single call; each MarmotContext.leaveGroup invocation calls leaveGroupImpl exactly once, and each call performs its own getGroup + getGroupMembers pair). Confirmed by the AC-STRUCT-3 unit test asserting getGroupMembers was called exactly once, with the exact mlsGroup.state object."
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "answer": "leaveGroupImpl.test.ts's 'AC-SEND-1: solo group (last member) \u2014 neither kind-13 nor kind-9 is sent' test configures makeDeps({ members: [SELF] }) (a solo-group live read) and asserts both deps.sendRumorSafe and the mlsGroup mock's sendApplicationRumor are .not.toHaveBeenCalled(). This fails on pre-story code (no leaveGroupImpl module exists) and would also have failed against the pre-extraction inline body, which sent unconditionally whenever mlsGroup && selfPubkeyHex with no last-member check at all."
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "answer": "leaveGroupImpl.test.ts's 'AC-SEND-2: two-member group \u2014 both kind-13 and kind-9 are sent exactly once' test uses a genuinely distinct fixture (makeDeps({ members: [SELF, OTHER] })) from AC-SEND-1's, asserting deps.sendRumorSafe and the sendApplicationRumor mock are each .toHaveBeenCalledTimes(1), and additionally checks the sent rumors' kind fields (13 and 9 respectively) to confirm the right rumor reached each mechanism. The two tests are independent \u2014 deleting either leaves the other's branch unverified."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "answer": "Two separate tests \u2014 'AC-PURGE-1: solo/abandon path clears pending join requests and invite links' (makeDeps({ members: [SELF] })) and 'AC-PURGE-1: multi-member/normal path clears pending join requests and invite links' (makeDeps({ members: [SELF, OTHER] })) \u2014 each assert deps.clearPendingJoinRequestsForGroup and deps.clearInviteLinksForGroup were called with the correct groupId. Both pass, confirming the purge calls are unconditional on the send branch: the implementation places them after the send-gate block, in the same flat sequence as the pre-existing purge steps."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "answer": "inviteLinkStorage.test.ts's new 'clearInviteLinksForGroup' describe block, following the joinRequestStorage.test.ts:113-130 template literally: (a) 'removes all links for the specified group, leaving other groups intact' seeds group-1 (n1, n3) and group-2 (n2), clears group-1, asserts n1/n3 gone and n2 intact; (b) 'is a no-op for a group with no links' seeds group-1 (n1), clears a nonexistent group, asserts n1 untouched; (c) 'is a safe no-op when called again on an already-cleared group' clears group-1 twice in a row, asserting no throw and n1 stays gone. All three pass."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "answer": "leaveGroupImpl's signature is (deps: Deps, groupId: string, selfPubkeyHex: string) \u2014 no memberPubkeys, isLastMember, or similar precomputed-boolean parameter exists. Every last-member check traces to the single `getGroupMembers(mlsGroup.state)` call made at the top of the function body, using the mlsGroup fetched by that same call's `await deps.getGroup(groupId)` (cross-checked against VQ-S3-005 \u2014 same call, same invocation, no caching). MarmotContext.leaveGroup's wrapper does not read S2's getLiveMemberPubkeys or thread anything from LeaveGroupButton's modal-open read into leaveGroupImpl's Deps or arguments \u2014 the two live reads (S2's context method, S3's impl-internal read) remain structurally independent, sharing no call path or cached value."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "answer": "grep -nE \"from ['\\\"](@/src/context|\\.\\./\\.\\./context|\\.\\./context)\" app/src/lib/marmot/leaveGroupImpl.ts returns zero matches (empty output, exit code 1). sendRumorSafe and buildRumor remain unexported in MarmotContext.tsx (grep -n 'export.*sendRumorSafe\\|export.*buildRumor' MarmotContext.tsx returns zero matches) and arrive in leaveGroupImpl.ts exclusively as Deps fields, per VQ-S3-003 \u2014 no import-back occurred."
+    }
+  ],
+  "testing": {
+    "unit": "make test-unit: 173 test files, 3350 passed, 1 skipped (pre-existing, unrelated) \u2014 no regressions. New: leaveGroupImpl.test.ts (9 tests, all passing). Extended: inviteLinkStorage.test.ts (14 -> 17 tests, +3 for clearInviteLinksForGroup, all passing).",
+    "typecheck": "npx tsc --noEmit (from app/): zero errors.",
+    "e2e": "Not run \u2014 out of scope for S3 per the story brief (S4 owns AC-FLOW-1/2/3)."
+  },
+  "escalations": [],
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-17T16:18:33Z",
+  "remediation_rounds": 0,
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean run, no friction worth recording \u2014 grantAdminImpl.ts and its test file provided a complete, unambiguous template for the Deps-injection pattern, the wiring, and the makeDeps test factory shape."
+  }
+}

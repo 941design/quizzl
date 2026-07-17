@@ -1,0 +1,33 @@
+{
+  "module_name": "leaveEligibility",
+  "purpose": "Pure leave-eligibility predicates and the modal-state decision for group leave: isLastMember (new), isSoleAdmin (moved verbatim from LeaveGroupButton.tsx), and selectLeaveModalState, which tests last-member before sole-admin (DD-2). Zero React, context, or marmot-ts dependencies.",
+  "public_api": [
+    {
+      "name": "isLastMember",
+      "signature": "isLastMember(memberPubkeys: string[] | undefined, ownPubkeyHex: string | null | undefined): boolean",
+      "description": "True when ownPubkeyHex is the group's only member. Case-insensitive both directions. False on any absent/malformed input (undefined memberPubkeys, empty memberPubkeys, null/undefined ownPubkeyHex) — never throws."
+    },
+    {
+      "name": "isSoleAdmin",
+      "signature": "isSoleAdmin(adminPubkeys: string[] | undefined, ownPubkeyHex: string | null | undefined): boolean",
+      "description": "True when ownPubkeyHex is the group's only admin. Case-insensitive both directions. Moved verbatim from LeaveGroupButton.tsx:22-28 — behavior unchanged, location only."
+    },
+    {
+      "name": "selectLeaveModalState",
+      "signature": "selectLeaveModalState(memberPubkeys: string[] | undefined, adminPubkeys: string[] | undefined, ownPubkeyHex: string | null | undefined): 'abandon' | 'blocked' | 'confirm'",
+      "description": "Decision function for LeaveGroupButton's modal. Tests isLastMember FIRST — a last member is also a sole admin, so admin-first ordering would swallow the abandon case. Returns 'abandon' | 'blocked' | 'confirm'. Fail-closed: undefined memberPubkeys can never yield 'abandon'."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": ["react", "@internet-privacy/marmot-ts", "@/src/context/", "@/src/components/"],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": ["app/tests/unit/leaveEligibility.test.ts"],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S2", "S3"]
+  }
+}

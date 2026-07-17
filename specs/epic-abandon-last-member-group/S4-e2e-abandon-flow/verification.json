@@ -1,0 +1,65 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-17T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Scope-boundary check: this story's diff must touch only the new `app/tests/e2e/groups-abandon-last-member.spec.ts` file, plus any e2e helper it must extend (per stories.json's scope note, no existing helper covers 'create a group, invite nobody' — every current helper pairs creation with an invite). Confirm no non-relay-bucket spec is touched, and if a helper file (e.g. `app/tests/e2e/helpers/group-setup.ts`) is extended, confirm the addition is a new exported helper function (additive) rather than a modification to any existing helper's behavior that other specs already depend on."
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Per exploration.json's `single_user` note, this spec needs NO second `browser.newContext()` — a rare single-user groups spec — yet still requires the relay/Docker bucket because group creation alone publishes a KeyPackage. Confirm the spec uses exactly one browser context/identity, and confirm it is registered in (not accidentally excluded from) the relay bucket's `testMatch` and NOT duplicated into the non-relay bucket."
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Per exploration.json's `readiness_gating` note, arrival at the group list after abandon MUST be gated on a rendered readiness marker (`groups-empty-state` or `groups-list`, mirroring `groups-lifecycle.spec.ts`'s `bootUser` pattern at lines 9-29), NEVER a fixed `waitForTimeout` used to assert the outcome under test. Confirm the spec's post-abandon assertion polls/waits on `getByTestId('groups-empty-state').or(getByTestId('groups-list'))` (or an equivalent readiness-gated wait) rather than a bare timeout — though a fixed settle-wait remains acceptable for pre-abandon infra steps (e.g. the ~3s post-create MLS-init/KeyPackage-publish settle) that are not themselves the assertion under test."
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Per exploration.json's `solo_group_gap` note, no existing e2e helper covers 'create a group, invite nobody.' Confirm the create-only flow is lifted from (or closely mirrors) `groups-lifecycle.spec.ts:47-59` or `groups-leave-intent.spec.ts:99-109`: `create-group-btn` → fill `create-group-name-input` → `create-group-submit-btn` → wait for group text + modal close + `dismissErrorOverlay` + settle for MLS init/KeyPackage publish — and confirm it stops short of any invite step (no `inviteContactViaPicker` or `createGroupAndInvite` call), since inviting even one contact would make `memberPubkeys.length` ≥ 2 and defeat the entire point of the scenario."
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Per exploration.json's `no_collision` and `existing_leave_e2e` notes, confirm this new spec uses a `GROUP_NAME` constant distinct from every existing groups spec's constant (per the established one-constant-per-spec convention), and that `abandon-group-notice`/`abandon-group-confirm-btn` are queried by no other spec today (net-new testids with zero pre-existing references). A collision on either axis risks cross-spec state bleed on the shared relay, which is the project's chronic source of flaky, hard-to-diagnose failures."
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-2",
+      "question": "AC-STRUCT-2 is the cross-cutting guarantee spanning S1-S4: AC-ELIG-* and AC-SELECT-* (S1) are satisfiable by pure functions nothing calls; the enforcement that the feature is actually REACHABLE end-to-end is THIS story's AC-FLOW-1, which must drive a real solo group through the real `LeaveGroupButton` component and the real `MarmotContext.getLiveMemberPubkeys` / `leaveGroupImpl` wiring — not a mocked or stubbed path. Confirm the spec exercises the actual production component tree (no test-only bypass of the modal, no direct call into `leaveGroupImpl` from the test process): the test clicks the real leave button, the real modal, the real confirm button, and observes the real navigation outcome, proving the live-state read, the decision function, and the modal render are all wired together — not merely each independently correct in isolation."
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-FLOW-1",
+      "question": "A user who creates a group and invites nobody MUST be able to open the leave modal, activate `abandon-group-confirm-btn`, and arrive at the group list with the abandoned group absent from it. The URL assertion MUST be anchored to `/^\\/groups\\/?$/` — NOT a bare `/\\/groups/` substring match (the project has a documented gotcha for this exact mistake at `dm-feedback-channel.spec.ts:162-164` / `groups-invite-guidance-state.spec.ts:73-75`, and `story-01-scaffold.spec.ts:44` uses the looser, wrong form). Since `next.config.mjs:22` sets `trailingSlash: true`, `router.push('/groups')` (`LeaveGroupButton.tsx:63`) resolves to `/groups/`, and an unanchored match would ALSO accept `/groups?id=…` — i.e. a test that never actually navigated away could still pass. Provide the exact `toHaveURL` assertion used and confirm it is the anchored regex form; confirm arrival is gated on a rendered readiness marker per VQ-S4-003; and confirm the abandoned group's name is asserted absent from the rendered list (not merely that some navigation occurred)."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-FLOW-2",
+      "question": "After an abandon completes, RELOADING the group list MUST NOT show the abandoned group — this discriminates a true purge from a mere render-state removal (e.g. a component that filters the group out of its in-memory list without actually deleting the underlying storage record). Confirm the spec performs an explicit page reload (or equivalent full remount) AFTER the initial post-abandon assertion, re-waits for the readiness marker, and asserts the group is STILL absent. A spec that only checks the pre-reload state would pass on a broken implementation that merely hides the group without purging it — so this assertion is only meaningful if it is a genuinely separate step from AC-FLOW-1's, not folded into the same un-reloaded check."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-FLOW-3",
+      "question": "The spec file MUST be named `groups-abandon-*.spec.ts` so `playwright.config.ts:36-41`'s `testMatch: ['groups-*.spec.ts', 'dm-*.spec.ts']` (gated by `E2E_GROUPS`) routes it into the relay bucket — a name outside that glob would land it in the non-relay bucket, where it would fail for want of Docker/strfry infrastructure. Confirm the actual filename is exactly `app/tests/e2e/groups-abandon-last-member.spec.ts` (or another name matching `groups-abandon-*.spec.ts`), and run `E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-abandon-last-member.spec.ts --list` (mirroring the `run_one_spec` recipe in exploration.json) to confirm the runner picks it up under the relay bucket's test-match glob, not the non-relay bucket's test-ignore."
+    }
+  ]
+}

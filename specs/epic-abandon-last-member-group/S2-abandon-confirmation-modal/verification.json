@@ -1,0 +1,86 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-17T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Scope-boundary check: this story's diff must touch only `app/src/components/groups/LeaveGroupButton.tsx`, `app/src/context/MarmotContext.tsx` (limited strictly to the new `getLiveMemberPubkeys` method — no other context method changed), and `app/src/lib/i18n.ts` (the three new `Copy['groups']` keys). Run `git diff --stat` and confirm no other file appears. Separately, run a scoped diff of `MarmotContext.tsx` and confirm the only added lines are the new `getLiveMemberPubkeys` function — no change to `leaveGroup`, `grantAdmin`, or any other existing context method (that extraction is S3's job, not this story's)."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Per architecture.md Boundary Rule 4 (the component-layer marmot-ts import ban — `IncomingCallWatcher.tsx:104` is cited as a pre-existing violation, explicitly NOT sanctioned precedent), `getLiveMemberPubkeys` must live entirely inside `MarmotContext.tsx`, wrapping the existing null-safe `getGroup` (`:1655`) plus the same dynamic `getGroupMembers` import pattern already used at the context's other nine `await import(...)` sites. Confirm `LeaveGroupButton.tsx` calls only `context.getLiveMemberPubkeys(groupId)` and contains no `import` (static or dynamic) referencing `@internet-privacy/marmot-ts` anywhere in its own body — this is groundwork for AC-STRUCT-4's machine check, not a substitute for it."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "AC-UX-2 requires the component MUST NOT accept a `memberPubkeys` prop. Inspect `LeaveGroupButton`'s prop type/interface both before and after this story's diff and confirm no `memberPubkeys` (or equivalently-named) prop is added; the member list must arrive exclusively via the `getLiveMemberPubkeys(groupId)` call made on modal open (`handleOpen`), stored in local `liveMembers` state, never passed down from a parent component like `groups.tsx`."
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Architecture Boundary Rule 5 states Chakra's `<Modal>` is a portal wrapper rendering no DOM node, so any `data-testid` placed on it is silently dropped and unqueryable (confirmed dead today: `data-testid=\"leave-group-modal\"` at `LeaveGroupButton.tsx:102`, matched by zero specs per exploration.json's `dead_testid_confirmed`). Confirm every new testid this story introduces (`abandon-group-notice`, `abandon-group-confirm-btn`) is placed on a real rendered DOM-producing element (`Text`, `Button`, or similar) — never on `<Modal>` — and that the pre-existing dead testid is moved to `<ModalContent>` (mirroring `BlockContactButton.tsx:110`), not left in place unmoved or silently deleted without replacement."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "The `isLoading` treatment on `abandon-group-confirm-btn` (AC-UX-3) is meant to reuse the SAME shared component state `handleLeave` already sets/clears (`LeaveGroupButton.tsx:58-69`) — not a new per-modal-state `isLoading` variable. Confirm no second loading-state variable is introduced, and that activating the abandon path routes through the same `isLoading` set-at-start/clear-in-finally lifecycle as the existing normal-leave confirm button."
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-1",
+      "question": "`LeaveGroupButton` MUST render the `'abandon'` state as an element carrying testid `abandon-group-notice` showing `copy.groups.abandonGroupBody`, with an enabled confirm control carrying testid `abandon-group-confirm-btn`; it MUST still render `'blocked'` and `'confirm'` exactly as today (`last-admin-blocked-notice` / `leave-group-confirm-btn`). Per the AC's own text this has no unit-test vehicle (the unit bucket bans jsdom) — verification is deferred to AC-FLOW-1's e2e assertion in S4. Confirm here only that the render logic's branch over `selectLeaveModalState`'s three return values is exhaustive, with no default/fallthrough case that could silently render nothing for an unrecognized state value."
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-2",
+      "question": "Confirm `LeaveGroupButton` derives the member list passed to `selectLeaveModalState` from a live `getLiveMemberPubkeys(groupId)` call made on modal open (not a prop, not a value captured at an earlier render), and that when that read cannot resolve a member list, `undefined` — not `[]` and not a stale cached array — is what gets passed into `selectLeaveModalState`. Confirm no `memberPubkeys` prop exists anywhere on the component's prop type (cross-check with VQ-S2-003). Note the fail-closed consequence is unit-asserted by AC-SELECT-4 in S1 — this record verifies only the wiring, a review-checklist item per AC-STRUCT-2."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-3",
+      "question": "While the `leaveGroup` call triggered by `abandon-group-confirm-btn` is in flight, that control MUST carry the same `isLoading` treatment the existing normal-leave confirm uses (`LeaveGroupButton.tsx:119-126`). Per the AC's own text this is explicitly a review-checklist item, not machine-checked (neither bucket can observe it in flight — unit cannot mount, and e2e asserting a disabled/loading state would race against the purge completing in milliseconds and the button unmounting on navigation). Confirm by code inspection that the abandon confirm button's `isLoading` prop is bound to the SAME state variable as the normal-leave confirm button (cross-check VQ-S2-005), and that no new double-activation hazard is introduced beyond what the existing normal-leave confirm already tolerates."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UX-4",
+      "question": "`getLiveMemberPubkeys(groupId)` MUST resolve to `undefined` — never `[]` — when the group cannot be read. Since `MarmotContext.tsx` has no direct unit-test vehicle per architecture, verify by tracing every return path through the function's source: confirm the 'group not found' path (`getGroup` returns falsy) and the 'getGroupMembers read failure' path both explicitly return/resolve `undefined`, with no code path capable of returning `[]` to signal 'unreadable.' State whether a legitimate 'group exists but genuinely has zero members' case is even reachable in this codebase, and if so, confirm it is distinguishable from the unreadable case (i.e. still returns a real, if empty, array rather than `undefined`)."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-COPY-1",
+      "question": "`abandonGroupTitle`, `abandonGroupBody`, and `abandonGroupConfirm` MUST each be declared on the `Copy` type and defined with a non-empty string in both the `en` and `de` language objects in `app/src/lib/i18n.ts`. Run `grep -n \"abandonGroupTitle\\|abandonGroupBody\\|abandonGroupConfirm\" app/src/lib/i18n.ts` and confirm exactly one match in the `Copy` type declaration plus one match in each of the `en` and `de` objects (3 keys × 3 locations = 9 total matches), with every string value non-empty (not `\"\"`, not a placeholder like `\"TODO\"`). Provide the grep output."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-4",
+      "question": "`app/src/components/groups/LeaveGroupButton.tsx` MUST NOT reference `@internet-privacy/marmot-ts`, statically or dynamically: `grep -c \"@internet-privacy/marmot-ts\" app/src/components/groups/LeaveGroupButton.tsx` MUST return `0`. State-discriminating note: this check ALREADY returns `0` on today's pre-fix tree (the component has no marmot-ts import today), so a bare post-implementation re-run proves nothing by itself. The actual discriminator is confirming the check stays `0` ACROSS this story's own diff — i.e. verify the diff adding `getLiveMemberPubkeys`-consuming code to `LeaveGroupButton.tsx` does NOT introduce any new `import`/`await import` line referencing `@internet-privacy/marmot-ts`. The most likely wrong implementation is a static `import { getGroupMembers } from '@internet-privacy/marmot-ts'` added directly to the component instead of going through `MarmotContext`; confirm that specific mistake was not made."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-5",
+      "question": "No `data-testid` in `LeaveGroupButton.tsx` may sit on a `<Modal>` element (comment-stripped source, line-anchored `<Modal\\b` regex excluding `<ModalContent`/`<ModalOverlay`). State-discriminating note: this check currently FAILS on today's pre-fix tree — the dead `data-testid=\"leave-group-modal\"` sits directly on `<Modal>` at line 102 today — and MUST flip to PASS after this story moves or removes it. Run the source-scan (mirroring `app/tests/unit/themes-validation.test.ts:304-368`'s comment-strip + line-anchored regex idiom) against the file BEFORE this story's diff (expect a match — i.e. the check currently fails) and AFTER (expect zero matches — i.e. the check now passes), and provide both outputs. A report showing only the post-story pass, without also demonstrating the pre-story fail, is not sufficient evidence that this AC actually discriminates the fix from doing nothing."
+    }
+  ]
+}

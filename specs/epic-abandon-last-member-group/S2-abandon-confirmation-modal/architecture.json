@@ -1,0 +1,42 @@
+{
+  "story_id": "S2",
+  "conforms_to": "specs/epic-abandon-last-member-group/architecture.md",
+  "deviations": [],
+
+  "boundary_rule_compliance": [
+    {
+      "rule": "Boundary Rule 2 — Components never read MLS state directly",
+      "compliance": "LeaveGroupButton reads live members only through context.getLiveMemberPubkeys(groupId). No marmot-ts reference anywhere in the component (verified: grep -c returns 0)."
+    },
+    {
+      "rule": "Boundary Rule 4 — marmot-ts import discipline (context imports dynamically, components not at all)",
+      "compliance": "getLiveMemberPubkeys uses await import('@internet-privacy/marmot-ts') inside MarmotContext.tsx, matching the context's existing ten dynamic-import sites. Zero static or dynamic marmot-ts import added to the component."
+    },
+    {
+      "rule": "Boundary Rule 5 — testids never on <Modal>",
+      "compliance": "The pre-existing dead data-testid=\"leave-group-modal\" on <Modal> was moved to <ModalContent>. The two new testids (abandon-group-notice, abandon-group-confirm-btn) sit on <Text>/<Button>. No <Modal> element in the file carries a data-testid after this diff."
+    }
+  ],
+
+  "seam_conformance": {
+    "getLiveMemberPubkeys": {
+      "contract": "getLiveMemberPubkeys(groupId) -> Promise<string[] | undefined>. Context method. Wraps getGroup-equivalent (client.groups.get, already null-safe via .catch(() => null)) + dynamic getGroupMembers. Resolves undefined — not [] — when unreadable.",
+      "implemented_as_specified": true,
+      "notes": "Matches the seams table in architecture.md verbatim: three fail paths (no client, no mlsGroup, thrown during dynamic import/getGroupMembers) all resolve undefined; no path returns []."
+    },
+    "selectLeaveModalState": {
+      "contract": "Pure, imported unchanged from S1's leaveEligibility.ts. LeaveGroupButton is now a pure consumer: selectLeaveModalState(liveMembers, adminPubkeys, ownPubkeyHex).",
+      "implemented_as_specified": true,
+      "notes": "No changes made to leaveEligibility.ts in this story — S1's module is consumed as-is."
+    }
+  },
+
+  "order_sensitive_composition_notes": {
+    "relevant_guarantee": "Guarantee 2 (mixed freshness is deliberate): members are read live via getLiveMemberPubkeys on every modal open; adminPubkeys remains prop-derived, unchanged from before this story. This story does not touch how adminPubkeys reaches the component (still passed down from groups.tsx), preserving the deliberate staleness asymmetry architecture.md names.",
+    "readiness_race": "handleOpen() awaits getLiveMemberPubkeys(groupId) and calls setLiveMembers(members) BEFORE calling onOpen(). Because React 18 batches both state updates from the same async continuation, the modal never mounts with an earlier liveMembers value — the live read is guaranteed resolved before selectLeaveModalState is evaluated for the render that shows the modal.",
+    "fail_closed_direction": "Confirmed opposite-direction fail-closed default preserved: this story's read defaults to undefined -> isLastMember false -> never 'abandon'. S3's leaveGroupImpl (not yet implemented) will independently default the opposite way (no mlsGroup -> send anyway) per architecture.md's table — no shared resolver was built, consistent with critical guard R2 from the story brief."
+  },
+
+  "no_new_dependencies": true,
+  "no_new_modules": true
+}

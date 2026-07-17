@@ -270,6 +270,8 @@ type MarmotContextValue = {
   clearAll: () => Promise<void>;
   /** Get a MarmotGroup by ID (for chat, etc.) */
   getGroup: (groupId: string) => Promise<MarmotGroupType | null>;
+  /** Live MLS member pubkeys for a group, read fresh on every call. undefined when unreadable (fail-closed). */
+  getLiveMemberPubkeys: (groupId: string) => Promise<string[] | undefined>;
   /** Access to the underlying MarmotClient (for advanced use) */
   getClient: () => MarmotClientType | null;
   /** Monotonically increasing counter bumped on each received profile message */
@@ -1571,52 +1573,43 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   // member never emits an MLS Remove proposal. The remaining admin observes the
   // kind-13 rumor and issues the Remove commit on behalf of the group.
   // See specs/epic-out-of-band-leave/spec.md.
+  //
+  // Thin wrapper: send-skip decision, sends, and purge live in leaveGroupImpl
+  // (AC-BOUND-1). Mirrors the grantAdmin/renameGroup wiring — dynamic import +
+  // object-literal deps, with sendRumorSafe/buildRumor (module-private here,
+  // not marmot-ts exports) injected as Deps fields.
   const leaveGroup = useCallback(async (groupId: string): Promise<boolean> => {
     const selfPubkeyHex = pubkeyHex ?? '';
-
-    // Fetch live mlsGroup reference via clientRef so we don't rely on a stale
-    // closure (the subscription for this group may have torn down already).
-    const mlsGroup = await clientRef.current?.groups.get(groupId).catch(() => null);
-
-    if (mlsGroup && selfPubkeyHex) {
-      // AC-SEND-1 / AC-SEND-3: kind-13 leave-intent via sendRumorSafe (handles
-      // unapplied-proposals retry loop internally). If it still throws after
-      // MAX_RETRIES, log and continue — the purge must not be blocked.
-      const kind13Rumor = buildRumor(
-        LEAVE_INTENT_KIND,
-        serialiseLeaveIntent({ pubkey: selfPubkeyHex }),
-        selfPubkeyHex,
-      );
-      try {
-        await sendRumorSafe(mlsGroup, kind13Rumor as any);
-      } catch (err) {
-        console.warn('[Marmot] leaveGroup: kind-13 send failed, proceeding with purge:', err);
-      }
-
-      // AC-SEND-2 / AC-EDGE-5: kind-9 chat announcement — fire-and-forget.
-      // Failure must not block the purge or navigation.
-      const kind9Rumor = buildRumor(
-        9,
-        JSON.stringify({ type: 'leave_intent', pubkey: selfPubkeyHex }),
-        selfPubkeyHex,
-      );
-      mlsGroup.sendApplicationRumor(kind9Rumor as any).catch(() => {});
-    }
-
-    // AC-SEND-4: existing purge sequence — runs unconditionally.
-    await removeGroupFromStorage(groupId);
-    await clearMemberProfiles(groupId);
-    // Clear chat messages
+    const { leaveGroupImpl } = await import('@/src/lib/marmot/leaveGroupImpl');
+    const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
     const { clearMessages } = await import('@/src/lib/marmot/chatPersistence');
-    await clearMessages(groupId);
-    // Clear poll data
-    await clearPollData(groupId);
-    await clearGroupMedia(groupId);
-    await clearProfileRequestMemos(groupId);
-    clearUnreadGroup(groupId);
-    await reloadGroups();
-    markBackupDirty(true);
-    return true;
+    const { clearPendingJoinRequestsForGroup } = await import('@/src/lib/marmot/joinRequestStorage');
+    const { clearInviteLinksForGroup } = await import('@/src/lib/marmot/inviteLinkStorage');
+
+    return leaveGroupImpl(
+      {
+        // Fetch live mlsGroup reference via clientRef so we don't rely on a
+        // stale closure (the subscription for this group may have torn down
+        // already).
+        getGroup: (id) => clientRef.current?.groups.get(id).catch(() => null) ?? Promise.resolve(null),
+        getGroupMembers,
+        sendRumorSafe: (group, rumor) => sendRumorSafe(group as any, rumor as any),
+        buildRumor,
+        removeGroupFromStorage,
+        clearMemberProfiles,
+        clearMessages,
+        clearPollData,
+        clearGroupMedia,
+        clearProfileRequestMemos,
+        clearUnreadGroup,
+        clearPendingJoinRequestsForGroup,
+        clearInviteLinksForGroup,
+        reloadGroups,
+        markBackupDirty,
+      },
+      groupId,
+      selfPubkeyHex,
+    );
   }, [reloadGroups, markBackupDirty, pubkeyHex]);
 
   const getMemberProfiles = useCallback(async (groupId: string): Promise<MemberProfile[]> => {
@@ -1659,6 +1652,19 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       return await client.groups.get(groupId) ?? null;
     } catch {
       return null;
+    }
+  }, []);
+
+  const getLiveMemberPubkeys = useCallback(async (groupId: string): Promise<string[] | undefined> => {
+    const client = clientRef.current;
+    if (!client) return undefined;
+    try {
+      const mlsGroup = await client.groups.get(groupId).catch(() => null);
+      if (!mlsGroup) return undefined;
+      const { getGroupMembers } = await import('@internet-privacy/marmot-ts');
+      return getGroupMembers(mlsGroup.state);
+    } catch {
+      return undefined;
     }
   }, []);
 
@@ -1970,6 +1976,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       reloadGroups,
       clearAll,
       getGroup,
+      getLiveMemberPubkeys,
       getClient,
       profileVersion,
       chatVersion,
@@ -2007,6 +2014,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       reloadGroups,
       clearAll,
       getGroup,
+      getLiveMemberPubkeys,
       getClient,
       profileVersion,
       chatVersion,
@@ -2055,6 +2063,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   reloadGroups: NOOP_ASYNC,
   clearAll: NOOP_ASYNC,
   getGroup: NOOP_NULL as () => Promise<null>,
+  getLiveMemberPubkeys: async () => undefined,
   getClient: () => null,
   profileVersion: 0,
   chatVersion: 0,

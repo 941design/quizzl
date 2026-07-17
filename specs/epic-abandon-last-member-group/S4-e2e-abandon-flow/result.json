@@ -1,0 +1,82 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "implemented_by": "dev",
+  "implemented_at": "2026-07-17",
+  "base_commit": "df241c0cd26f93ba9ee4ea7148865d4798a47d68",
+  "is_integration_story": true,
+  "summary": "Added app/tests/e2e/groups-abandon-last-member.spec.ts, a single-user (one browser.newContext()) Playwright spec that drives the assembled abandon-last-member flow through the real app: create a group and invite nobody, open the leave modal on the resulting solo group and assert it renders the abandon state (not the sole-admin block, not the normal confirm), activate abandon-group-confirm-btn, assert arrival at the group list with the group absent, then reload and assert it stays absent. This is the epic's AC-STRUCT-2 enforcement \u2014 the first thing to drive S1's pure functions and S2/S3's wiring together through the real component tree.",
+  "modules_touched": [
+    "LeaveGroupButton",
+    "MarmotContext",
+    "leaveGroupImpl",
+    "leaveEligibility"
+  ],
+  "files_modified": [
+    "app/tests/e2e/groups-abandon-last-member.spec.ts"
+  ],
+  "design_decisions": [
+    "No new shared e2e helper was added for 'create a group, invite nobody' \u2014 the create-only block (lifted from groups-lifecycle.spec.ts:47-59 / groups-leave-intent.spec.ts:99-109) is inlined directly in the spec since this is currently the only caller; extracting a helper for a single use site would be premature.",
+    "AC-FLOW-1's stated assertion form (/^\\/groups\\/?$/) cannot be passed directly to Playwright's expect(page).toHaveURL(regex) \u2014 that assertion matches the regex against the full absolute URL (e.g. 'http://127.0.0.1:PORT/groups/'), which can never satisfy a literal ^/ anchor. Implemented instead as expect.poll(() => { const u = new URL(page.url()); return u.pathname + u.search; }).toMatch(/^\\/groups\\/?$/), mirroring the pathname+search extraction convention already used in groups-invite-link.spec.ts and groups-dispatch-isolation.spec.ts. This preserves the AC's anchoring intent (rejecting '/groups/?id=...' as a false positive for 'arrived at the list') while working correctly against Playwright's actual matching semantics. See baseline.json#discriminating_evidence.AC-FLOW-1_url_anchor_gotcha.",
+    "GROUP_NAME = 'Abandon Last Member E2E' \u2014 verified unique against every existing spec's GROUP_NAME constant before use, per the project's one-constant-per-spec convention (no shared-relay collision).",
+    "USER_A is the only identity booted; no second browser.newContext(). computeTestKeypairs() still called in beforeAll for the per-spec-file identity salting convention (auth-helpers.ts), even though only USER_A's derived identity is used."
+  ],
+  "verification_answers": [
+    {
+      "question_id": "VQ-S4-001",
+      "answer": "git status --short after this story's change shows exactly one new file, app/tests/e2e/groups-abandon-last-member.spec.ts. No existing e2e helper file was touched \u2014 the create-only flow is inlined in the spec itself, not added to app/tests/e2e/helpers/group-setup.ts or any other helper. No non-relay-bucket spec was touched."
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "answer": "The spec's test.describe.serial block calls browser.newContext() exactly once (in beforeAll, for USER_A) and closes exactly one context in afterAll. `E2E_GROUPS=1 npx playwright test --list tests/e2e/groups-abandon-last-member.spec.ts` (from app/) lists all 3 tests under the chromium project when E2E_GROUPS is set, and the file is not referenced by, or excluded from, any other testMatch/testIgnore config \u2014 it is picked up solely by playwright.config.ts:36-41's groups-*.spec.ts glob."
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "answer": "Post-abandon arrival is gated by two readiness-gated waits, never a fixed waitForTimeout for the assertion under test: (1) expect.poll on the URL's pathname+search matching /^\\/groups\\/?$/ (timeout 30_000, Playwright's built-in polling), and (2) expect(page.getByTestId('groups-empty-state').or(page.getByTestId('groups-list'))).toBeVisible({ timeout: 30_000 }). The only waitForTimeout in the file (3_000ms) is the pre-existing, project-convention MLS-init/KeyPackage-publish settle after group creation \u2014 infra setup, not the assertion under test \u2014 matching the exact pattern in groups-lifecycle.spec.ts and groups-leave-intent.spec.ts."
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "answer": "The create-only block is lifted near-verbatim from groups-leave-intent.spec.ts:99-109: create-group-btn click -> create-group-modal-content visible -> fill create-group-name-input -> create-group-submit-btn click -> group text visible (timeout 30_000) -> modal not visible (timeout 10_000) -> dismissErrorOverlay(page) -> 3_000ms settle. It stops there \u2014 no inviteContactViaPicker or createGroupAndInvite call anywhere in the file, keeping memberPubkeys at exactly [self]."
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "answer": "GROUP_NAME = 'Abandon Last Member E2E' was checked via grep against every existing spec's GROUP_NAME constant and 'Abandon' string before writing the spec \u2014 no collision found. abandon-group-notice and abandon-group-confirm-btn are net-new testids (added in S2's LeaveGroupButton.tsx changes) queried by no other spec in the repo \u2014 confirmed by grep across app/tests/e2e/."
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "answer": "The spec interacts exclusively through testid-driven UI actions on the real component tree: create-group-btn, create-group-name-input, create-group-submit-btn, leave-group-btn, abandon-group-confirm-btn. No test-process import of leaveGroupImpl, leaveEligibility, selectLeaveModalState, or MarmotContext internals; no mocked network/relay layer; no direct call into any implementation function. All 3 tests pass against the real dev server and a real strfry relay, proving getLiveMemberPubkeys, selectLeaveModalState, the abandon-modal render branch, and leaveGroupImpl's send/purge gating are wired together end to end."
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "answer": "Exact assertion used: `await expect.poll(() => { const url = new URL(pgA.url()); return url.pathname + url.search; }, { timeout: 30_000 }).toMatch(/^\\/groups\\/?$/);` \u2014 the anchored regex is applied to pathname+search (via expect.poll), not to expect(page).toHaveURL(regex) directly, because the latter tests the regex against the full absolute URL and a leading ^/ anchor can never match there (verified by a first, failing run against the real app \u2014 see baseline.json). Arrival is additionally gated on groups-empty-state/groups-list visibility per VQ-S4-003, and GROUP_NAME is asserted not-visible via page.getByText(GROUP_NAME) immediately after, not merely that some navigation occurred."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "answer": "The spec calls pgA.reload() after the initial post-abandon absence assertion, re-waits for the groups-empty-state/groups-list readiness marker (timeout 60_000), and re-asserts GROUP_NAME is not visible \u2014 a genuinely separate check from the pre-reload one, in the same test function but as distinct sequential steps (not folded into one un-reloaded assertion)."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "answer": "File is app/tests/e2e/groups-abandon-last-member.spec.ts, matching groups-abandon-*.spec.ts. `E2E_GROUPS=1 npx playwright test --config=playwright.config.ts --list tests/e2e/groups-abandon-last-member.spec.ts` (run from app/) lists all 3 tests under the chromium project, confirming the relay-bucket testMatch glob picks it up."
+    }
+  ],
+  "testing": {
+    "e2e_isolated": "make e2e-up; E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-abandon-last-member.spec.ts (with PLAYWRIGHT_BROWSERS_PATH pinned to the project-isolated cache per Makefile:6-19, via `make ensure-playwright`). Run twice in a row to rule out flakiness: 3 passed (9.1s), then 3 passed (9.6s). make e2e-down after.",
+    "full_gate": "Not run for this story \u2014 per CLAUDE.md's documented chronic full-gate flakiness from ~30s rotating-latency contamination unrelated to leave/abandon logic, and per the lead's instruction to judge this story by its own isolated pass, not the full gate's color."
+  },
+  "escalations": [
+    {
+      "topic": "Environment: Playwright browser binary revision mismatch under the sandbox's ambient PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers",
+      "resolution": "Not a code issue. The project's own Makefile (Makefile:6-19) already documents and handles this exact class of failure (shared-cache contention across projects/sessions) by pinning PLAYWRIGHT_BROWSERS_PATH to a project-isolated $(HOME)/.cache/playwright-few cache. Ran `make ensure-playwright` to populate it, then re-ran the spec with that path exported. No project file was changed to work around this."
+    }
+  ],
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-17T16:35:30Z",
+  "remediation_rounds": 0,
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "AC-FLOW-1's spec text prescribed the anchored regex /^\\/groups\\/?$/ used with expect(page).toHaveURL(...), which is literally unimplementable: Playwright's toHaveURL matches the regex against the full absolute URL (http://host/groups/), so a leading ^/ can never anchor. The first e2e run failed exactly this way. Had to reverse-engineer the intent and switch to matching new URL(page.url()).pathname + search \u2014 the convention two existing specs already use. Also hit sandbox infra friction: PLAYWRIGHT_BROWSERS_PATH pointed at a wrong/unwritable chromium revision; resolved by using the project's own make ensure-playwright rather than raw npx playwright install.",
+    "surprised_by": "No existing repo spec uses an ANCHORED toHaveURL(regex) form \u2014 every one is unanchored \u2014 precisely because the anchored form can't work against a full URL. There was no in-repo precedent for the correct anchored check, only the pathname+search idiom. An AC that prescribes a URL regex needs to name its match target.",
+    "scope": "meta",
+    "outcome": "merged"
+  }
+}

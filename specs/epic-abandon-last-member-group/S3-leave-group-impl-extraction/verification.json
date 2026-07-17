@@ -1,0 +1,79 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-17T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Scope-boundary check: this story's diff must touch only `app/src/lib/marmot/leaveGroupImpl.ts` (new), `app/src/context/MarmotContext.tsx` (limited to the `leaveGroup` wrapper becoming a thin `await import(...)` + object-literal-deps call, mirroring `:1789-1812` (grantAdmin) / `:1819-1837` (renameGroup)), `app/src/lib/marmot/inviteLinkStorage.ts` (adds `clearInviteLinksForGroup` only), plus this story's test files. Run `git diff --stat` and confirm no file outside this list appears, and that `MarmotContext.tsx`'s diff for `leaveGroup` is a thin-wrapper replacement — not an inline reimplementation of send/purge logic left sitting in the context."
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Per architecture.md's 'follow `grantAdminImpl`, not `cancelInvitationImpl`' precedent, confirm `leaveGroupImpl.ts` has ZERO top-level `@internet-privacy/marmot-ts` imports (everything Deps-injected, the same reason `grantAdminImpl.test.ts` needs no `vi.mock('@internet-privacy/marmot-ts')`), uses a `Deps` **type** (not `interface`), types marmot-ts opaque shapes `any` (not `unknown`, deliberately — matching `cancelInvitationImpl.ts:8-10` / `grantAdminImpl.ts:10-12`'s stated rationale of avoiding contravariance fights), and duplicates a `MarmotGroupLike` type verbatim rather than importing a shared one from either sibling impl."
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "The two dependencies with no precedent in either sibling impl — `sendRumorSafe` (`MarmotContext.tsx:93-117`) and `buildRumor` (`:120-130`), currently module-private unexported functions — must become `Deps` fields. Confirm neither function is exported from `MarmotContext.tsx` and re-imported into `leaveGroupImpl.ts` (that would violate the zero-context-imports boundary that AC-BOUND-1 checks); instead confirm the context passes references to these functions as object-literal `Deps` fields at the `await import(...)` call site, the same pattern `grantAdmin`/`renameGroup` already use for their own injected dependencies."
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Per architecture.md's 'Sizing' note, `leaveGroupImpl`'s `Deps` will be considerably larger than either precedent — the whole purge sequence (`removeGroupFromStorage`, `clearMemberProfiles`, `clearMessages`, `clearPollData`, `clearGroupMedia`, `clearProfileRequestMemos`, `clearUnreadGroup`, `reloadGroups`, `markBackupDirty`) are today plain top-level imports in `MarmotContext.tsx` and must ALL become `Deps` fields here. List the `Deps` type's full field set and cross-check that each of these nine names appears as a field, with none remaining a direct top-level import inside `leaveGroupImpl.ts`."
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Per architecture.md's 'live re-read on every attempt, never a stale snapshot across retries' convention (`grantAdminImpl.ts:50-53, 74-76`) and the epic's Order-Sensitive-Composition guarantee 1 (the modal-open read in S2 and the execution-time read here must be independent re-derivations, never one snapshot threaded through), confirm `leaveGroupImpl` calls `getGroupMembers(mlsGroup.state)` fresh on every invocation rather than accepting a precomputed member list or last-member boolean as a parameter, or caching either across retries within the same call."
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEND-1",
+      "question": "When `leaveGroup(groupId)` is called on a solo group (live-read member list of length 1, matching self), NO kind-13 leave-intent rumor and NO kind-9 announcement rumor MUST be sent. Using the negative-send idiom already established at `cancelInvitationImpl.test.ts:122,134,145,157` (`expect(deps.mockX).not.toHaveBeenCalled()`), provide a test asserting BOTH the leave-intent-send mock AND the kind-9 announcement-send mock are `.not.toHaveBeenCalled()` when `makeDeps` is configured with a solo-group live read. This fails on today's tree because no `leaveGroupImpl` module exists yet."
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SEND-2",
+      "question": "When `leaveGroup(groupId)` is called on a group with two or more members, the kind-13 leave-intent and kind-9 announcement sends MUST still occur, unchanged from current behavior. Provide a test asserting both relevant mocks are called `.toHaveBeenCalledTimes(1)` for a multi-member `makeDeps` configuration — this must be a genuinely distinct test fixture from AC-SEND-1's (not the same fixture with an inverted assertion), so the send-skip branch and the send-proceed branch are each independently exercised rather than one implicitly covering the other."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-1",
+      "question": "`leaveGroup(groupId)` MUST clear the group's pending join requests and its invite links, on BOTH the abandon path (solo group) and the normal leave path (multi-member). Both leak today per exploration.json (`clearPendingJoinRequestsForGroup` at `joinRequestStorage.ts:72` has zero production callers; no per-group invite-link clear exists at all). Provide two tests — one for the solo/abandon path, one for the multi-member/normal path — each asserting both `deps.clearPendingJoinRequestsForGroup` and `deps.clearInviteLinksForGroup` (or their mock equivalents) are called with the correct `groupId`, confirming neither purge call is conditioned on which send-branch (AC-SEND-1 vs AC-SEND-2) was taken."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-2",
+      "question": "`clearInviteLinksForGroup(groupId)` MUST be exported from `inviteLinkStorage.ts` and MUST delete exactly the links whose `groupId` matches, leaving other groups' links intact. Using the idb-keyval-mocked-as-in-memory-Map template at `joinRequestStorage.test.ts:1-21` and its `clearPendingJoinRequestsForGroup` block (`:113-130`) as the literal 1:1 pattern (`entries()` → filter `groupId` → `Promise.all(del(nonce))`), provide a test that seeds invite links for two or more distinct `groupId` values, clears one, and asserts (a) that group's keys are gone, (b) the other group's keys are fully intact, and (c) calling it again on an already-cleared or nonexistent `groupId` is a safe no-op."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-3",
+      "question": "`leaveGroupImpl`'s last-member determination MUST be derived from the live MLS group state it fetches itself (`getGroupMembers(mlsGroup.state)`), NOT from React state or a value passed in by the caller. Confirm the function signature accepts no `memberPubkeys`/`isLastMember`/similar precomputed boolean parameter from its caller (`MarmotContext.leaveGroup`), and that every last-member check inside the impl traces back to a fresh `getGroupMembers` call made within that same invocation — cross-check against VQ-S3-005. This is what makes the peer-leaves-while-confirm-modal-is-open race fail safe per architecture.md's Order-Sensitive Composition section; confirm this story's diff never threads the S2 modal-open read through as a parameter."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BOUND-1",
+      "question": "`app/src/lib/marmot/leaveGroupImpl.ts` MUST have zero imports from `app/src/context/`. Run `grep -nE \"from ['\\\"](@/src/context|\\.\\./\\.\\./context|\\.\\./context)\" app/src/lib/marmot/leaveGroupImpl.ts` — it MUST return zero matches. State-discriminating note: this exact check currently passes on the sibling epic's `grantAdminImpl.ts` today (proving the pattern is achievable), and fails specifically on the most likely wrong implementation of the `sendRumorSafe`/`buildRumor` dependency — exporting them from `MarmotContext.tsx` and importing them back into `leaveGroupImpl.ts` (architecture.md Boundary Rule 3 violated in practice). Provide the grep output AND confirm `sendRumorSafe`/`buildRumor` arrive as `Deps` fields per VQ-S3-003, not an import-back."
+    }
+  ]
+}

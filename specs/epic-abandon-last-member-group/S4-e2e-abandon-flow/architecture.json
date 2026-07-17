@@ -1,0 +1,45 @@
+{
+  "story_id": "S4",
+  "conforms_to": "specs/epic-abandon-last-member-group/architecture.md",
+  "deviations": [],
+
+  "boundary_rule_compliance": [
+    {
+      "rule": "e2e specs publish through the app, never via raw WebSocket to strfry (CLAUDE.md E2E tests section)",
+      "compliance": "groups-abandon-last-member.spec.ts contains no WebSocket usage anywhere. The single KeyPackage publish the scenario needs happens as a side effect of the real create-group flow (create-group-btn -> create-group-name-input -> create-group-submit-btn), driven entirely through page interactions on the real app UI. No event is hand-signed or sent by the test process."
+    },
+    {
+      "rule": "AC-FLOW-3 — spec file naming routes the test into the relay bucket",
+      "compliance": "File is app/tests/e2e/groups-abandon-last-member.spec.ts, matching playwright.config.ts:36-41's testMatch: ['groups-*.spec.ts', 'dm-*.spec.ts'] glob (gated by E2E_GROUPS). Confirmed via `E2E_GROUPS=1 npx playwright test --list tests/e2e/groups-abandon-last-member.spec.ts`, which lists all 3 tests under the chromium/relay project."
+    },
+    {
+      "rule": "AC-STRUCT-2 — no test-only bypass of the real component tree",
+      "compliance": "The spec drives the actual LeaveGroupButton component via testid clicks only (create-group-btn, leave-group-btn, abandon-group-confirm-btn) — no direct import of leaveGroupImpl, leaveEligibility, or MarmotContext internals from the test process, and no mocked network/relay layer. The abandon path is reached exclusively through real user-visible interactions."
+    }
+  ],
+
+  "seam_conformance": {
+    "solo_group_creation": {
+      "contract": "Lift the create-only block (no invite step) from groups-lifecycle.spec.ts:47-59 / groups-leave-intent.spec.ts:99-109, per exploration.json's solo_group_gap note — no existing helper covers 'create a group, invite nobody.'",
+      "implemented_as_specified": true,
+      "notes": "Inlined directly in the spec (create-group-btn -> create-group-modal-content visible -> fill create-group-name-input -> create-group-submit-btn -> group text visible -> modal not visible -> dismissErrorOverlay -> 3s settle). Not extracted to a shared helper — this is the only spec that needs it, and the story brief's scope note treats a new shared helper as optional, not required. No existing helper's behavior was modified."
+    },
+    "abandon_modal_assertion": {
+      "contract": "Assert abandon-group-notice and abandon-group-confirm-btn visible on a solo group's leave modal; assert last-admin-blocked-notice is NOT visible (pins AC-SELECT-1's admin-first-would-fail ordering at the e2e layer).",
+      "implemented_as_specified": true
+    },
+    "url_arrival_assertion": {
+      "contract": "AC-FLOW-1's anchored /^\\/groups\\/?$/ check.",
+      "implemented_as_specified": true,
+      "notes": "See baseline.json#discriminating_evidence.AC-FLOW-1_url_anchor_gotcha — implemented via expect.poll on pathname+search rather than toHaveURL(regex), since the latter matches against the full absolute URL and can never satisfy a literal ^/ anchor. The anchoring intent (reject '/groups/?id=...' as a false positive) is preserved exactly."
+    },
+    "reload_purge_check": {
+      "contract": "AC-FLOW-2 — reload after abandon must still show the group absent.",
+      "implemented_as_specified": true,
+      "notes": "page.reload() followed by the same readiness-gated wait and a fresh getByText(GROUP_NAME) absence assertion, structurally separate from the pre-reload check in the same test."
+    }
+  },
+
+  "no_new_dependencies": true,
+  "no_new_modules": ["app/tests/e2e/groups-abandon-last-member.spec.ts"]
+}

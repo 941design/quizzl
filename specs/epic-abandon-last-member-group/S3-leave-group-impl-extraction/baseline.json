@@ -1,0 +1,47 @@
+{
+  "story_id": "S3",
+  "base_commit": "df241c0cd26f93ba9ee4ea7148865d4798a47d68",
+
+  "pre_story_state": {
+    "leaveGroupImpl.ts": "did not exist",
+    "MarmotContext.tsx": {
+      "leaveGroup": "inline useCallback body (MarmotContext.tsx:1576-1622 pre-story): fetches mlsGroup via clientRef, sends kind-13 via sendRumorSafe and kind-9 via mlsGroup.sendApplicationRumor UNCONDITIONALLY whenever mlsGroup && selfPubkeyHex (no last-member gating at all — every leave sends, including a solo group's), then runs the purge sequence (removeGroupFromStorage, clearMemberProfiles, clearMessages, clearPollData, clearGroupMedia, clearProfileRequestMemos, clearUnreadGroup, reloadGroups, markBackupDirty) with no calls to clearPendingJoinRequestsForGroup or any invite-link clear."
+    },
+    "inviteLinkStorage.ts": {
+      "clearInviteLinksForGroup": "did not exist — no per-group invite-link clear of any kind",
+      "exports": ["saveInviteLink", "getInviteLink", "loadInviteLinks", "loadAllInviteLinks", "updateInviteLinkMuted", "deleteInviteLink", "clearAllInviteLinks", "createInviteLinkStore"]
+    },
+    "joinRequestStorage.ts": {
+      "clearPendingJoinRequestsForGroup": "already exported (joinRequestStorage.ts:72-76) but zero production callers anywhere in the codebase — a leak, not a missing function"
+    },
+    "unit_tests": "make test-unit green prior to this story's changes: 173 files (leaveEligibility.test.ts from S1 and the S2 diff already landed), no leaveGroupImpl.test.ts, inviteLinkStorage.test.ts had 14 tests (no clearInviteLinksForGroup coverage)."
+  },
+
+  "post_story_state": {
+    "leaveGroupImpl.ts": "new file, app/src/lib/marmot/leaveGroupImpl.ts — Deps-injected pure impl. Re-derives last-member from a fresh getGroupMembers(mlsGroup.state) read on every invocation; gates both the kind-13 sendRumorSafe call and the kind-9 mlsGroup.sendApplicationRumor call on !lastMember; appends clearPendingJoinRequestsForGroup + clearInviteLinksForGroup to the purge sequence, unconditionally, after the send block.",
+    "MarmotContext.tsx": {
+      "leaveGroup": "thin wrapper: 4 dynamic imports (leaveGroupImpl, marmot-ts getGroupMembers, chatPersistence clearMessages, joinRequestStorage clearPendingJoinRequestsForGroup, inviteLinkStorage clearInviteLinksForGroup) + one leaveGroupImpl(deps, groupId, selfPubkeyHex) call. sendRumorSafe/buildRumor (module-private, pre-existing) passed as Deps fields. No send/purge logic remains inline in the context."
+    },
+    "inviteLinkStorage.ts": {
+      "clearInviteLinksForGroup": "added — entries() -> filter groupId -> Promise.all(del(nonce)), mirrors clearPendingJoinRequestsForGroup verbatim",
+      "exports": ["saveInviteLink", "getInviteLink", "loadInviteLinks", "loadAllInviteLinks", "updateInviteLinkMuted", "deleteInviteLink", "clearInviteLinksForGroup", "clearAllInviteLinks", "createInviteLinkStore"]
+    },
+    "unit_tests": "make test-unit: 173 files, 3350 passed, 1 skipped (pre-existing, unrelated) — zero new failures. New: leaveGroupImpl.test.ts (9 tests). Extended: inviteLinkStorage.test.ts (14 -> 17 tests, +3 for clearInviteLinksForGroup).",
+    "typecheck": "npx tsc --noEmit (from app/): zero errors."
+  },
+
+  "discriminating_evidence": {
+    "AC-BOUND-1_grep": {
+      "check": "grep -nE \"from ['\\\"](@/src/context|\\.\\./\\.\\./context|\\.\\./context)\" app/src/lib/marmot/leaveGroupImpl.ts",
+      "result": "zero matches — leaveGroupImpl.ts has no imports from app/src/context/"
+    },
+    "R1_isLastMember_import": {
+      "check": "grep -n 'import.*isLastMember' app/src/lib/marmot/leaveGroupImpl.ts",
+      "result": "1:14 — import { isLastMember } from '@/src/lib/marmot/leaveEligibility'; (not reimplemented inline)"
+    },
+    "AC-SEND-1_before": "pre-story: leaveGroup sends kind-13 and kind-9 for EVERY leave, solo or not — a solo-group leave produces a redundant send with no recipient. This is the bug the story fixes, not a hypothetical.",
+    "AC-SEND-1_after": "post-story: solo group (members length 1, self) -> lastMember true -> neither send fires (leaveGroupImpl.test.ts 'AC-SEND-1' case)",
+    "AC-PURGE-1_before": "pre-story: clearPendingJoinRequestsForGroup has zero call sites in the codebase; no invite-link clear of any kind exists.",
+    "AC-PURGE-1_after": "post-story: both clears run unconditionally at the end of leaveGroupImpl's purge sequence, on both the solo and multi-member fixtures (leaveGroupImpl.test.ts 'AC-PURGE-1' cases x2)."
+  }
+}

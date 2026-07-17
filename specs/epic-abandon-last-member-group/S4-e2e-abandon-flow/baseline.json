@@ -1,0 +1,28 @@
+{
+  "story_id": "S4",
+  "base_commit": "df241c0cd26f93ba9ee4ea7148865d4798a47d68",
+
+  "pre_story_state": {
+    "app/tests/e2e/groups-abandon-last-member.spec.ts": "did not exist",
+    "abandon_flow_reachability": "S1 (leaveEligibility.ts), S2 (LeaveGroupButton abandon modal), and S3 (leaveGroupImpl send/purge gating) all landed prior to this story and are unit-tested in isolation, but nothing had driven them together through the real component tree — the pure functions and the modal wiring were each independently correct without proof the feature is reachable end to end (AC-STRUCT-2's stated risk).",
+    "e2e_bucket": "playwright.config.ts:36-41 testMatch/testIgnore split by 'groups-*.spec.ts'/'dm-*.spec.ts' glob was already in place from prior epics; no config change needed for this story."
+  },
+
+  "post_story_state": {
+    "app/tests/e2e/groups-abandon-last-member.spec.ts": "new file — single-user (one browser.newContext()) test.describe.serial with 3 tests: (1) create a group and invite nobody, (2) open the leave modal on the resulting solo group and assert it renders the abandon state (abandon-group-notice + abandon-group-confirm-btn visible, last-admin-blocked-notice not visible), (3) activate abandon-group-confirm-btn, assert arrival at the group list via an anchored pathname+search match, assert the group name is gone, reload, and assert it is still gone.",
+    "abandon_flow_reachability": "AC-FLOW-1 now drives the real LeaveGroupButton component, the real MarmotContext.getLiveMemberPubkeys / leaveGroupImpl wiring, and the real router navigation — proving S1/S2/S3 are wired together, not merely each correct in isolation."
+  },
+
+  "discriminating_evidence": {
+    "AC-FLOW-1_url_anchor_gotcha": {
+      "issue": "Playwright's expect(page).toHaveURL(regex) tests the regex against the FULL absolute URL (e.g. 'http://127.0.0.1:PORT/groups/'), not the pathname. An anchored regex of the literal form /^\\/groups\\/?$/ (as exploration.json's trailing_slash note specifies) can therefore never match via toHaveURL — it requires the string to START with '/', but page.url() always starts with 'http://'. First run of the spec against the real dev server failed exactly this way: 'Expected pattern: /^\\/groups\\/?$/, Received string: \"http://127.0.0.1:PORT/groups/\"'.",
+      "fix": "Replaced expect(page).toHaveURL(regex) with expect.poll(() => { const u = new URL(page.url()); return u.pathname + u.search; }).toMatch(/^\\/groups\\/?$/) — mirrors the pathname+search extraction convention already used in groups-invite-link.spec.ts and groups-dispatch-isolation.spec.ts (getCurrentGroupId's url.match). This preserves the AC's anchoring intent (rules out '/groups/?id=...' as a false positive for 'arrived at the list') while working correctly against Playwright's actual toHaveURL/page.url() semantics.",
+      "verified": "Re-run after the fix: all 3 tests pass, twice in a row, isolated run."
+    },
+    "playwright_browser_binary_mismatch": {
+      "issue": "The sandbox's ambient PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers only had chromium revision 1228 installed, but app/node_modules/playwright-core (1.58.2) pins revision 1208 — browserType.launch failed with 'Executable doesn't exist at .../chromium_headless_shell-1208/...'. Also /opt/playwright-browsers was not writable by this user (EACCES on npx playwright install).",
+      "fix": "Not a code change — Makefile:6-19 already documents and handles exactly this shared-cache-contention class of failure by pinning PLAYWRIGHT_BROWSERS_PATH := $(HOME)/.cache/playwright-few and provides make ensure-playwright / make playwright. Ran `make ensure-playwright` (installed revision 1208 into the project-isolated cache) then re-ran the spec with PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/playwright-few exported, mirroring how make test-e2e-image-sharing invokes run-e2e.mjs.",
+      "note": "Environment/infra friction, not a defect in this story's code or in the Makefile."
+    }
+  }
+}

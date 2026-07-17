@@ -1,0 +1,41 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-17T15:29:23Z",
+  "architect_skipped": false,
+  "files_created": [
+    "app/src/lib/marmot/leaveEligibility.ts",
+    "specs/epic-abandon-last-member-group/S1-leave-eligibility-module/architecture.json",
+    "specs/epic-abandon-last-member-group/S1-leave-eligibility-module/baseline.json",
+    "specs/epic-abandon-last-member-group/S1-leave-eligibility-module/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/groups/LeaveGroupButton.tsx",
+    "app/src/lib/marmot/leaveEligibility.ts",
+    "app/tests/unit/leaveEligibility.test.ts",
+    "specs/epic-abandon-last-member-group/S1-leave-eligibility-module/verification.json"
+  ],
+  "files_renamed": [
+    {
+      "from": "app/tests/unit/leaveGroupLastAdmin.test.ts",
+      "to": "app/tests/unit/leaveEligibility.test.ts"
+    }
+  ],
+  "tests_added": {
+    "unit": 13
+  },
+  "test_counts": {
+    "baseline": 3326,
+    "final": 3339
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "leaveEligibility"
+  ],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run \u2014 pure-function extraction with a pre-existing precedent (grantAdminImpl's zero-marmot-ts-import pattern) and no jsdom-related surprises. The rename mechanics and the AC-SELECT-1 ordering requirement were both spelled out precisely enough in the story brief that no design ambiguity arose."
+  }
+}

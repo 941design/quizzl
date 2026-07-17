@@ -1,0 +1,87 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "implemented_by": "dev",
+  "implemented_at": "2026-07-17",
+  "base_commit": "df241c0cd26f93ba9ee4ea7148865d4798a47d68",
+  "summary": "Wired LeaveGroupButton to a three-way modal (abandon/blocked/confirm) driven by selectLeaveModalState, reading live MLS members on modal open via a new MarmotContext.getLiveMemberPubkeys method. Added en/de abandon copy and moved the dead leave-group-modal testid off <Modal> onto <ModalContent>.",
+  "modules_touched": [
+    "LeaveGroupButton",
+    "MarmotContext",
+    "i18n"
+  ],
+  "files_modified": [
+    "app/src/components/groups/LeaveGroupButton.tsx",
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/i18n.ts"
+  ],
+  "design_decisions": [
+    "handleOpen() awaits getLiveMemberPubkeys before calling onOpen() (not in parallel / not fire-and-forget), and both setLiveMembers + onOpen happen synchronously after the await resolves \u2014 React 18 automatic batching means the modal never renders with a stale liveMembers value from a prior open.",
+    "modalState is derived in render (const modalState = selectLeaveModalState(...)) rather than stored in state, so it always reflects the latest liveMembers/adminPubkeys/ownPubkeyHex without a separate effect.",
+    "The 'abandon' modal's cancel button carries isDisabled={isLoading} matching the existing normal-leave modal's cancel button (not BlockContactButton's ModalCloseButton-disables pattern) \u2014 per exploration.json's modal_precedent.decided_default, the ModalCloseButton itself is NOT disabled in either modal.",
+    "isLoading is the single pre-existing component-level state variable, shared across the abandon and normal-leave confirm buttons \u2014 no new loading-state variable was introduced (AC-UX-3)."
+  ],
+  "verification_answers": [
+    {
+      "question_id": "VQ-S2-001",
+      "answer": "git diff --stat confirms exactly 3 files touched: app/src/components/groups/LeaveGroupButton.tsx, app/src/context/MarmotContext.tsx, app/src/lib/i18n.ts. The scoped MarmotContext.tsx diff shows only getLiveMemberPubkeys added (interface line, implementation block, two occurrences in the value/useMemo-deps list, one DEFAULT_MARMOT no-op) \u2014 leaveGroup, grantAdmin, and every other existing method are byte-for-byte unchanged in the diff."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "answer": "getLiveMemberPubkeys lives entirely inside MarmotContext.tsx: it wraps clientRef.current.groups.get(groupId) (mirroring the null-safe getGroup pattern at :1655) plus a dynamic await import('@internet-privacy/marmot-ts') for getGroupMembers, matching the context's other dynamic-import sites. grep -c \"@internet-privacy/marmot-ts\" app/src/components/groups/LeaveGroupButton.tsx returns 0 \u2014 the component contains no import, static or dynamic, referencing the package, and calls only useMarmot().getLiveMemberPubkeys(groupId)."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "answer": "LeaveGroupButtonProps is unchanged except in spirit: groupId, adminPubkeys?, ownPubkeyHex? \u2014 no memberPubkeys prop was added before or after this diff. The member list arrives exclusively via getLiveMemberPubkeys(groupId) called in handleOpen(), stored in local liveMembers state; groups.tsx's call site (which already passes only groupId/adminPubkeys/ownPubkeyHex per exploration.json) was not touched and needs no change."
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "answer": "abandon-group-notice sits on a <Text> element inside <ModalBody>; abandon-group-confirm-btn sits on a <Button> inside <ModalFooter> \u2014 both real DOM-producing elements. The pre-existing dead data-testid=\"leave-group-modal\" was moved from <Modal> (line 91 pre-diff) onto <ModalContent> (line 139 post-diff) in the 'confirm' branch, mirroring BlockContactButton.tsx:110. It was not left in place and not silently deleted."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "answer": "No second loading-state variable was introduced. The single pre-existing const [isLoading, setIsLoading] = useState(false) is used by handleLeave() (set true at start, false in finally) and is bound identically to both the abandon-group-confirm-btn and the pre-existing leave-group-confirm-btn's isLoading prop."
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "answer": "The render is an if/else-if/else chain over modalState === 'abandon' | 'blocked' | (else, i.e. 'confirm'). Since selectLeaveModalState's return type is the literal union 'abandon' | 'blocked' | 'confirm', the else branch is exhaustively 'confirm' \u2014 there is no default/fallthrough case and no state value renders nothing."
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "answer": "liveMembers is local useState<string[] | undefined>(undefined), set only inside handleOpen() from the resolved (or fail-closed undefined) result of getLiveMemberPubkeys(groupId) \u2014 read fresh on every modal open, never a prop, never a value captured at an earlier render and reused. When the read throws, the catch sets members = undefined before setLiveMembers(members), so undefined (never [] or a stale array) is what selectLeaveModalState receives. No memberPubkeys prop exists on the component (cross-checked with VQ-S2-003)."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "answer": "abandon-group-confirm-btn's isLoading prop is bound to the exact same isLoading variable as leave-group-confirm-btn (cross-check VQ-S2-005) \u2014 both buttons call the same handleLeave(), which sets/clears isLoading identically regardless of which modal state triggered it. No new double-activation hazard beyond what the existing normal-leave confirm already tolerates: Chakra's isLoading disables pointer interaction on the button while true, same as today."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "answer": "getLiveMemberPubkeys has three return points: (1) !client -> return undefined; (2) mlsGroup falsy after client.groups.get(groupId).catch(() => null) -> return undefined; (3) the catch block wrapping the dynamic import + getGroupMembers call -> return undefined. There is no code path that returns []. A legitimate 'group exists but has zero members' case is not reachable in this codebase \u2014 every MLS group has at least the caller as a member by construction (creation adds the creator; solo-abandon is the minimum-membership state at exactly 1, never 0) \u2014 so the only way to get an empty-looking result is the unreadable path, which correctly returns undefined, not []."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "answer": "grep -n \"abandonGroupTitle\\|abandonGroupBody\\|abandonGroupConfirm\" app/src/lib/i18n.ts returns exactly 9 matches: 3 in the Copy type (lines 129-131) + 3 in en (lines 755-757) + 3 in de (lines 1292-1294). All six string values are non-empty, non-placeholder prose (verified by direct read, not grep alone)."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "answer": "grep -c \"@internet-privacy/marmot-ts\" app/src/components/groups/LeaveGroupButton.tsx returns 0, both before and after this story's diff (the component never imported marmot-ts). The diff adding getLiveMemberPubkeys-consuming code (handleOpen, the useMarmot() destructure) introduces zero import/await-import lines referencing @internet-privacy/marmot-ts. The likely-wrong static-import mistake was not made \u2014 the read is entirely delegated to context.getLiveMemberPubkeys(groupId)."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "answer": "BEFORE (git show HEAD, i.e. pre-story tree): grep -nE '<Modal\\b' | grep -vE '<ModalContent|<ModalOverlay' matches two lines, line 102 of which is `<Modal isOpen={isOpen} onClose={onClose} isCentered data-testid=\"leave-group-modal\">` \u2014 the check FAILS (a <Modal> element does carry a data-testid). AFTER (working tree): the same scan matches three <Modal\\b> lines (one per branch, now 3 branches instead of 2), and grep -c \"data-testid\" over those lines returns 0 \u2014 the check now PASSES. The dead testid now lives on <ModalContent> in the 'confirm' branch instead."
+    }
+  ],
+  "testing": {
+    "unit": "make test-unit: 172 test files, 3338 passed, 1 skipped (pre-existing, unrelated) \u2014 no regressions.",
+    "typecheck": "npx tsc --noEmit (from app/): zero errors.",
+    "e2e": "Not run \u2014 out of scope for S2 per the story brief (S4 owns AC-FLOW-1/2/3)."
+  },
+  "escalations": [],
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-17T15:46:07Z",
+  "remediation_rounds": 0,
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean run, no friction worth recording"
+  }
+}

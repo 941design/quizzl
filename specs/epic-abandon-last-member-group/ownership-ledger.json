@@ -1,0 +1,133 @@
+{
+  "epic": "abandon-last-member-group",
+  "ledger_version": 4,
+  "seeded_by": "S1 review",
+  "reviewer_state": {
+    "last_story_reviewed": "S4"
+  },
+  "modules": {
+    "leaveEligibility": {
+      "path": "app/src/lib/marmot/leaveEligibility.ts",
+      "owner_story": "S1",
+      "kind": "pure-module",
+      "exports": {
+        "LeaveModalState": {
+          "kind": "type",
+          "consumed_by": [
+            "S2 (LeaveGroupButton render)"
+          ]
+        },
+        "isLastMember": {
+          "kind": "predicate",
+          "signature": "(memberPubkeys: string[] | undefined, ownPubkeyHex: string | null | undefined) => boolean",
+          "consumed_by": [
+            "S1 (selectLeaveModalState, internal)",
+            "S3 (leaveGroupImpl send-skip decision)"
+          ],
+          "invariant": "Single source of truth for 'am I the last member'. Verifies own pubkey (DD-1) and fails closed on absent input (AC-ELIG-5). S3 MUST import this, not reimplement `length === 1` inline \u2014 inline drops own-pubkey verification and the fail-closed contract. DUPLICATION RISK: HIGH."
+        },
+        "isSoleAdmin": {
+          "kind": "predicate",
+          "signature": "(adminPubkeys: string[] | undefined, ownPubkeyHex: string | null | undefined) => boolean",
+          "provenance": "moved byte-identical from LeaveGroupButton.tsx",
+          "consumed_by": [
+            "S1 (selectLeaveModalState, internal)",
+            "S2 (LeaveGroupButton, indirectly via selectLeaveModalState)"
+          ],
+          "invariant": "Behavior frozen \u2014 return value MUST NOT change for any input (AC-ELIG-6)."
+        },
+        "selectLeaveModalState": {
+          "kind": "decision",
+          "signature": "(memberPubkeys, adminPubkeys, ownPubkeyHex) => 'abandon' | 'blocked' | 'confirm'",
+          "consumed_by": [
+            "S2 (LeaveGroupButton render)"
+          ],
+          "invariant": "Load-bearing ordering (DD-2 / AC-SELECT-1): isLastMember tested BEFORE isSoleAdmin. Fails closed: undefined members => never 'abandon' (AC-SELECT-4). Do NOT thread this call's result into leaveGroupImpl \u2014 the two live reads are independent re-derivations (DD-7 / AC-STRUCT-3).",
+          "consumed_by_confirmed": [
+            "S2 (LeaveGroupButton.tsx:59)"
+          ]
+        }
+      }
+    },
+    "MarmotContext": {
+      "path": "app/src/context/MarmotContext.tsx",
+      "owner_story": "S2",
+      "kind": "context",
+      "exports_added_this_epic": {
+        "getLiveMemberPubkeys": {
+          "owner_story": "S2",
+          "kind": "context-method",
+          "signature": "(groupId: string) => Promise<string[] | undefined>",
+          "consumed_by": [
+            "S2 (LeaveGroupButton.handleOpen modal-open read)"
+          ],
+          "NOT_consumed_by": [
+            "S3 (leaveGroupImpl does its OWN execution-time live read \u2014 R2; do not route S3 through this method)"
+          ],
+          "invariant": "Resolves undefined \u2014 never [] \u2014 on no-client/no-group/throw (AC-UX-4). Reads live MLS state fresh on every call. The marmot-ts import lives HERE not in the component (boundary rule 4 / AC-STRUCT-4)."
+        }
+      }
+    }
+  },
+  "cross_story_risks": [
+    {
+      "id": "R1-isLastMember-reimpl",
+      "severity": "medium",
+      "surfaces_in": "S3",
+      "risk": "leaveGroupImpl reimplements `members.length === 1` inline instead of importing isLastMember, dropping own-pubkey verification and fail-closed semantics.",
+      "guard": "Review S3 for `import { isLastMember }` from leaveEligibility; reject an inline length check."
+    },
+    {
+      "id": "R2-fail-closed-unification",
+      "severity": "medium",
+      "surfaces_in": "S2 + S3",
+      "risk": "The two live-read fail-closed defaults point in OPPOSITE directions (modal -> false => blocked/confirm; impl -> false => send anyway). A future 'harmonization' into a shared helper silently breaks one.",
+      "guard": "Keep the two reads as independent re-derivations; do not extract a shared 'lastMember' resolver across S2/S3.",
+      "status": "S2 side HELD \u2014 component read independent, fail-closed toward blocked/confirm. Re-check when S3 impl read lands (opposite direction: default to SEND)."
+    }
+  ],
+  "observations": [
+    {
+      "id": "O1-getLiveMemberPubkeys-not-composed",
+      "severity": "low",
+      "file": "app/src/context/MarmotContext.tsx:1667",
+      "note": "Inlines client.groups.get instead of composing getGroup as the Seam table states. Behaviorally equivalent; DRY/drift only. NOT acted on \u2014 S3 does not touch this method (does its own execution-time read). Recorded as review note.",
+      "disposition": "unactioned-review-note"
+    },
+    {
+      "id": "O2-codex-solo-still-sends",
+      "severity": "expected",
+      "surfaces_in": "S2 tree (Codex Stage-2)",
+      "file": "app/src/components/groups/LeaveGroupButton.tsx:109",
+      "note": "Codex flagged the abandon button still routes through leaveGroup() which sends kind-13/kind-9 before purge. CORRECT about the partial tree, but this is exactly S3's charter (AC-SEND-1): the send-skip is not in S2's scope. NOT an S2 defect \u2014 it is the not-yet-implemented next story. Do not remediate against S2. AC-SEND-1's examiner check + the final pre-commit Codex re-run on the assembled tree will confirm closure.",
+      "disposition": "deferred-to-S3",
+      "closes_under": "AC-SEND-1"
+    },
+    {
+      "id": "N2-s4-fixed-wait",
+      "severity": "low",
+      "file": "app/tests/e2e/groups-abandon-last-member.spec.ts:84",
+      "note": "One 3s fixed wait gating KeyPackage/MLS init \u2014 non-load-bearing (no rendered marker to poll; assertions gate on toBeVisible). Reviewer judged defensible. Not acted on.",
+      "disposition": "unactioned-review-note"
+    },
+    {
+      "id": "N3-codex-enfile-s4",
+      "severity": "infra",
+      "note": "Per-story Codex Stage-2 for S4 could not run: node crashed with ENFILE (system-wide file-table overflow, errno -23) on two attempts \u2014 shared-host fd exhaustion, not a review result. S4 is test-only (one e2e spec, zero production-code delta since the last CLEAN Codex pass on the assembled S1+S2+S3 tree). Deferred to the mandatory pre-commit review gate, which re-runs Codex on the whole assembled tree before commit; if still ENFILE-blocked there, escalate to the user per the gate's unavailable-backend contract.",
+      "disposition": "deferred-to-precommit-gate"
+    }
+  ],
+  "cross_story_risks_status": {
+    "R1-isLastMember-reimpl": "CLOSED \u2014 S3 imports isLastMember, no inline length check.",
+    "R2-fail-closed-unification": "CLOSED \u2014 independent live read; no-mlsGroup AND getGroupMembers-throw both default to send-anyway + purge (F1 fix completes this)."
+  },
+  "codex_findings_status": {
+    "O2-solo-still-sends": "CLOSED by S3 \u2014 the && !lastMember gate suppresses both sends for a solo group (AC-SEND-1)."
+  },
+  "story_status": {
+    "S1": "CLEAN",
+    "S2": "CLEAN (1 low nit O1)",
+    "S3": "CLEAN (F1 resolved)",
+    "S4": "CLEAN"
+  }
+}

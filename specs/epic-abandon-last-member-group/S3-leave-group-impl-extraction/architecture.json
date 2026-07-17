@@ -1,0 +1,53 @@
+{
+  "story_id": "S3",
+  "conforms_to": "specs/epic-abandon-last-member-group/architecture.md",
+  "deviations": [],
+
+  "boundary_rule_compliance": [
+    {
+      "rule": "Boundary Rule 3 — lib/marmot/ impls must not import from app/src/context/",
+      "compliance": "leaveGroupImpl.ts has zero imports from app/src/context/, verified by grep (see baseline.json#discriminating_evidence.AC-BOUND-1_grep). sendRumorSafe and buildRumor — module-private, unexported functions in MarmotContext.tsx, not marmot-ts exports — are injected as Deps fields at the MarmotContext.leaveGroup call site rather than exported and imported back."
+    },
+    {
+      "rule": "Boundary Rule 4 — marmot-ts import discipline (lib/marmot/ imports freely, MarmotContext only dynamically, components never)",
+      "compliance": "leaveGroupImpl.ts imports zero marmot-ts symbols at all — getGroupMembers arrives as a Deps field, not a direct import, matching the grantAdminImpl precedent (which also takes zero top-level marmot-ts imports). MarmotContext.leaveGroup fetches getGroupMembers via a new await import('@internet-privacy/marmot-ts') site, its eleventh dynamic-import call, alongside the pre-existing ten."
+    }
+  ],
+
+  "seam_conformance": {
+    "leaveGroupImpl": {
+      "contract": "leaveGroupImpl(deps, groupId) -> Promise<boolean>. Injected-deps impl. Re-derives last-member from live MLS state itself (AC-STRUCT-3).",
+      "implemented_as_specified": true,
+      "notes": "Signature is leaveGroupImpl(deps: Deps, groupId: string, selfPubkeyHex: string): Promise<boolean> — selfPubkeyHex is passed explicitly rather than folded into Deps, mirroring grantAdminImpl's (deps, groupId, targetPubkey) shape (the per-call subject argument stays a positional parameter, not a Deps field). The context computes selfPubkeyHex = pubkeyHex ?? '' at the call site, exactly as the pre-extraction inline body did."
+    },
+    "clearInviteLinksForGroup": {
+      "contract": "clearInviteLinksForGroup(groupId) -> Promise<void>. entries() -> filter groupId -> Promise.all(del(nonce)). Mirrors clearPendingJoinRequestsForGroup (joinRequestStorage.ts:72-76).",
+      "implemented_as_specified": true,
+      "notes": "Implemented verbatim to the mirrored shape; both new inviteLinkStorage.test.ts cases (group-scoped delete, no-op on nonexistent/already-cleared group) pass."
+    }
+  },
+
+  "deps_field_inventory": {
+    "note": "Per architecture.md's Sizing note, all nine pre-existing purge-sequence dependencies plus the two new leak-fixing clears plus the four boundary-crossing primitives (getGroup, getGroupMembers, sendRumorSafe, buildRumor) are Deps fields — nothing in leaveGroupImpl.ts is a top-level side-effecting import.",
+    "fields": [
+      "getGroup", "getGroupMembers", "sendRumorSafe", "buildRumor",
+      "removeGroupFromStorage", "clearMemberProfiles", "clearMessages", "clearPollData",
+      "clearGroupMedia", "clearProfileRequestMemos", "clearUnreadGroup",
+      "clearPendingJoinRequestsForGroup", "clearInviteLinksForGroup",
+      "reloadGroups", "markBackupDirty"
+    ],
+    "count": 15
+  },
+
+  "order_sensitive_composition_notes": {
+    "relevant_guarantees": [
+      "Guarantee 1 (independent re-derivations): leaveGroupImpl performs its own getGroup + getGroupMembers(mlsGroup.state) read at execution time. It receives no memberPubkeys/isLastMember parameter from MarmotContext.leaveGroup, and MarmotContext.leaveGroup does not thread through anything from S2's modal-open read (the two call sites — LeaveGroupButton's getLiveMemberPubkeys and MarmotContext.leaveGroup's internal read — share no state).",
+      "Guarantee 2 (opposite-direction fail-closed): when getGroup resolves null, members is set to undefined (not computed via getGroupMembers, since there is no state to read), isLastMember(undefined, self) is false, and the send-gate condition `mlsGroup && selfPubkeyHex && !lastMember` is false anyway — because mlsGroup itself is falsy, no send is attempted (sending requires an mlsGroup object to call methods on). The 'send anyway' framing in the story brief describes the LOGICAL resolution of the last-member question (not last-member => the code's default posture is to send, not skip), not a claim that a send fires with no group reference. This is consistent with critical guard R2 from the story brief.",
+      "Guarantee 5 (abandon path issues zero MLS commits/sends): the send-skip branch's condition is checked before either send is attempted — a solo group's leaveGroupImpl call reaches the purge with zero calls to sendRumorSafe or mlsGroup.sendApplicationRumor, confirmed by the AC-SEND-1 test.",
+      "Guarantee 6 (purge-sequence atomicity — known residual): unchanged. The two new clears (clearPendingJoinRequestsForGroup, clearInviteLinksForGroup) are appended to the same flat, unguarded await sequence as the pre-existing purge steps; no atomicity fix was attempted, per architecture.md's explicit out-of-scope note."
+    ]
+  },
+
+  "no_new_dependencies": true,
+  "no_new_modules": ["app/src/lib/marmot/leaveGroupImpl.ts"]
+}

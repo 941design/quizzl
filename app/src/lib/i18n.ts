@@ -126,6 +126,9 @@ type Copy = {
     leaveGroupTitle: string;
     leaveGroupBody: string;
     leaveGroupConfirm: string;
+    abandonGroupTitle: string;
+    abandonGroupBody: string;
+    abandonGroupConfirm: string;
     loading: string;
     offlineBanner: string;
     offlineLastSync: (time: string) => string;
@@ -749,6 +752,9 @@ const copy: Record<LanguageCode, Copy> = {
       leaveGroupTitle: 'Leave Group?',
       leaveGroupBody: 'You will lose access to this group and its messages.',
       leaveGroupConfirm: 'Leave Group',
+      abandonGroupTitle: 'Abandon Group?',
+      abandonGroupBody: 'You are the last member. Leaving deletes this group permanently. It cannot be recovered.',
+      abandonGroupConfirm: 'Abandon Group',
       loading: 'Loading...',
       offlineBanner: 'Offline — group sync unavailable',
       offlineLastSync: (time) => `Last synced: ${time}`,
@@ -1283,6 +1289,9 @@ const copy: Record<LanguageCode, Copy> = {
       leaveGroupTitle: 'Gruppe verlassen?',
       leaveGroupBody: 'Du verlierst den Zugriff auf diese Gruppe und ihre Nachrichten.',
       leaveGroupConfirm: 'Gruppe verlassen',
+      abandonGroupTitle: 'Gruppe auflösen?',
+      abandonGroupBody: 'Du bist das letzte Mitglied. Wenn du die Gruppe verlässt, wird sie endgültig gelöscht und kann nicht wiederhergestellt werden.',
+      abandonGroupConfirm: 'Gruppe auflösen',
       loading: 'Wird geladen...',
       offlineBanner: 'Offline — Gruppensynchronisation nicht verfügbar',
       offlineLastSync: (time) => `Zuletzt synchronisiert: ${time}`,

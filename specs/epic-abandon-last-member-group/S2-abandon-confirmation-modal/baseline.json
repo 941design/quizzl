@@ -1,0 +1,56 @@
+{
+  "story_id": "S2",
+  "base_commit": "df241c0cd26f93ba9ee4ea7148865d4798a47d68",
+
+  "pre_story_state": {
+    "LeaveGroupButton.tsx": {
+      "branches": 2,
+      "branch_source": "isSoleAdmin(adminPubkeys, ownPubkeyHex) ? blocked-modal : normal-leave-modal",
+      "member_source": "none — only adminPubkeys/ownPubkeyHex props consumed, no live-member read",
+      "dead_testid": "data-testid=\"leave-group-modal\" on <Modal> at line 91, matched by zero specs (dead)",
+      "marmot_ts_refs": 0
+    },
+    "MarmotContext.tsx": {
+      "getLiveMemberPubkeys": "did not exist"
+    },
+    "i18n.ts": {
+      "abandon_keys_present": false,
+      "grep_matches_for_abandon_keys": 0
+    },
+    "unit_tests": "make test-unit green prior to this story's changes (leaveEligibility.test.ts from S1 already passing, 22 tests)"
+  },
+
+  "post_story_state": {
+    "LeaveGroupButton.tsx": {
+      "branches": 3,
+      "branch_source": "selectLeaveModalState(liveMembers, adminPubkeys, ownPubkeyHex) -> 'abandon' | 'blocked' | 'confirm'",
+      "member_source": "getLiveMemberPubkeys(groupId) awaited in handleOpen(), stored in liveMembers state, read fresh on every modal open",
+      "dead_testid_fix": "data-testid=\"leave-group-modal\" moved to <ModalContent> in the 'confirm' branch",
+      "marmot_ts_refs": 0
+    },
+    "MarmotContext.tsx": {
+      "getLiveMemberPubkeys": "added: type interface entry, useCallback implementation (client null -> undefined; mlsGroup null -> undefined; catch -> undefined), value object entry, useMemo deps entry (x2 — value memo + a second effect deps array), DEFAULT_MARMOT no-op (async () => undefined)"
+    },
+    "i18n.ts": {
+      "abandon_keys_present": true,
+      "grep_matches_for_abandon_keys": 9
+    },
+    "unit_tests": "make test-unit: 172 files, 3338 passed, 1 skipped — same skip count as baseline, zero new failures",
+    "typecheck": "npx tsc --noEmit: zero errors"
+  },
+
+  "discriminating_evidence": {
+    "AC-STRUCT-5_source_scan": {
+      "before": "grep -nE '<Modal\\\\b' LeaveGroupButton.tsx (git show HEAD) minus ModalContent/ModalOverlay -> 2 matches, one of which (line 102) carries data-testid=\"leave-group-modal\" -> CHECK FAILS pre-story",
+      "after": "same scan on working tree -> 3 matches (one per branch), zero of which carry data-testid -> CHECK PASSES post-story"
+    },
+    "AC-STRUCT-4_source_scan": {
+      "before": "grep -c '@internet-privacy/marmot-ts' LeaveGroupButton.tsx -> 0 (already passing, not discriminating alone)",
+      "after": "same grep -> 0 (still passing; diff introduces zero new marmot-ts references, confirmed by inspecting the diff itself, not just the post-state grep)"
+    },
+    "AC-COPY-1_grep": {
+      "before": "grep -n 'abandonGroupTitle|abandonGroupBody|abandonGroupConfirm' i18n.ts -> 0 matches",
+      "after": "same grep -> 9 matches (3 keys x type+en+de)"
+    }
+  }
+}

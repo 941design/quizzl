@@ -14,18 +14,7 @@ import {
 import { useRouter } from 'next/router';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
-
-/**
- * Pure predicate: returns true when ownPubkeyHex is the only member in adminPubkeys.
- * Comparison is case-insensitive. Exported for unit testing.
- */
-export function isSoleAdmin(
-  adminPubkeys: string[] | undefined,
-  ownPubkeyHex: string | null | undefined,
-): boolean {
-  if (!ownPubkeyHex || !adminPubkeys || adminPubkeys.length !== 1) return false;
-  return adminPubkeys[0].toLowerCase() === ownPubkeyHex.toLowerCase();
-}
+import { selectLeaveModalState } from '@/src/lib/marmot/leaveEligibility';
 
 type LeaveGroupButtonProps = {
   groupId: string;
@@ -48,12 +37,26 @@ type LeaveGroupButtonProps = {
  */
 export default function LeaveGroupButton({ groupId, adminPubkeys, ownPubkeyHex }: LeaveGroupButtonProps) {
   const copy = useCopy();
-  const { leaveGroup } = useMarmot();
+  const { leaveGroup, getLiveMemberPubkeys } = useMarmot();
   const router = useRouter();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [isLoading, setIsLoading] = useState(false);
+  const [liveMembers, setLiveMembers] = useState<string[] | undefined>(undefined);
 
-  const blocked = isSoleAdmin(adminPubkeys, ownPubkeyHex);
+  async function handleOpen() {
+    // Fail-closed: a null/throwing read leaves liveMembers undefined, so
+    // selectLeaveModalState can never resolve 'abandon' on unknown state.
+    let members: string[] | undefined;
+    try {
+      members = await getLiveMemberPubkeys(groupId);
+    } catch {
+      members = undefined;
+    }
+    setLiveMembers(members);
+    onOpen();
+  }
+
+  const modalState = selectLeaveModalState(liveMembers, adminPubkeys, ownPubkeyHex);
 
   async function handleLeave() {
     setIsLoading(true);
@@ -74,13 +77,45 @@ export default function LeaveGroupButton({ groupId, adminPubkeys, ownPubkeyHex }
         colorScheme="danger"
         variant="outline"
         size="sm"
-        onClick={onOpen}
+        onClick={() => void handleOpen()}
         data-testid="leave-group-btn"
       >
         {copy.groups.leaveGroup}
       </Button>
 
-      {blocked ? (
+      {modalState === 'abandon' ? (
+        /* Last-member state: leaving deletes the group permanently, no MLS send */
+        <Modal isOpen={isOpen} onClose={onClose} isCentered>
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>{copy.groups.abandonGroupTitle}</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <Text data-testid="abandon-group-notice">
+                {copy.groups.abandonGroupBody}
+              </Text>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                variant="ghost"
+                mr={3}
+                onClick={onClose}
+                isDisabled={isLoading}
+              >
+                {copy.groups.cancel}
+              </Button>
+              <Button
+                colorScheme="danger"
+                onClick={() => void handleLeave()}
+                isLoading={isLoading}
+                data-testid="abandon-group-confirm-btn"
+              >
+                {copy.groups.abandonGroupConfirm}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      ) : modalState === 'blocked' ? (
         /* Sole-admin blocked state: explain the constraint; no confirm-leave path */
         <Modal isOpen={isOpen} onClose={onClose} isCentered>
           <ModalOverlay />
@@ -99,9 +134,9 @@ export default function LeaveGroupButton({ groupId, adminPubkeys, ownPubkeyHex }
         </Modal>
       ) : (
         /* Normal leave confirmation flow */
-        <Modal isOpen={isOpen} onClose={onClose} isCentered data-testid="leave-group-modal">
+        <Modal isOpen={isOpen} onClose={onClose} isCentered>
           <ModalOverlay />
-          <ModalContent>
+          <ModalContent data-testid="leave-group-modal">
             <ModalHeader>{copy.groups.leaveGroupTitle}</ModalHeader>
             <ModalCloseButton />
             <ModalBody>

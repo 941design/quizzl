@@ -1,0 +1,126 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-17T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Scope-boundary check: this story's diff must touch only `app/src/lib/marmot/leaveEligibility.ts` (new), `app/src/components/groups/LeaveGroupButton.tsx` (export removal only — no rendering/JSX change), and the renamed `app/tests/unit/leaveEligibility.test.ts` (git-mv'd from `leaveGroupLastAdmin.test.ts` with only the import path repointed). Run `git diff --stat` for this story's commit(s) and confirm no other file appears. In particular confirm `LeaveGroupButton.tsx`'s diff contains ONLY the removal of `isSoleAdmin`'s local definition/export (replaced by an import from the new module), with zero change to any `<Modal>` or render logic — that belongs to S2, not S1."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "`leaveEligibility.ts` must be `.ts`, not `.tsx` — the vitest unit bucket runs in the default node env with no jsdom/JSX support (`app/vitest.config.ts`), a structural constraint, not merely a convention. Confirm the file extension is `.ts` and that its body contains no JSX syntax anywhere, including in comments that might mislead a future editor into thinking JSX is safe there."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Confirm the rename mechanics for AC-ELIG-6: `app/tests/unit/leaveGroupLastAdmin.test.ts` becomes `app/tests/unit/leaveEligibility.test.ts` via a rename (not a fresh file with copy-pasted content, which would obscure the diff), with only the import path repointed to `leaveEligibility.ts`. Provide `git diff` output for the rename showing the import-line change as the only hunk — any additional hunk (added/removed/modified test cases) is a violation of AC-ELIG-6's 'unmodified except import path' requirement and must be justified or reverted."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Per DD-3 (architecture.md), the ENTIRE modal decision — not just the two predicates — must live in `leaveEligibility.ts` as `selectLeaveModalState`, specifically because an inline boolean/ternary inside `LeaveGroupButton.tsx` would be unassertable under the no-jsdom unit-test convention and would hide the last-member-before-sole-admin ordering rule (DD-2) from any test vehicle. Confirm `selectLeaveModalState` is a standalone exported pure function taking exactly `(memberPubkeys, adminPubkeys, ownPubkeyHex)` and returning one of `'abandon' | 'blocked' | 'confirm'` — not a helper returning a partial result (e.g. two booleans) that the component would still have to branch on itself."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "`isLastMember` is the seam S3's `leaveGroupImpl` will independently import and call at execution time (the `IsLastMember` seam in stories.json — same export, two call sites, never forked into two implementations). Confirm `isLastMember` has no dependency on React, context, or component-scoped state — it must be callable with plain `(memberPubkeys, ownPubkeyHex)` arguments from a Deps-injected `lib/marmot/` module with zero adaptation, so S3 can import it directly from `leaveEligibility.ts` without introducing a second, divergent implementation."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ELIG-1",
+      "question": "`isLastMember(['alice'], 'alice')` MUST return `true`. Provide the function body and a passing unit-test assertion for this exact input."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ELIG-2",
+      "question": "`isLastMember` MUST return `false` when `memberPubkeys` contains more than one entry, including when the own pubkey is among them: `isLastMember(['alice', 'bob'], 'alice')` MUST return `false`. Provide a unit-test assertion for this exact input, distinct from AC-ELIG-1's single-member case — a naive `memberPubkeys.includes(ownPubkeyHex)` implementation (ignoring length) would wrongly return `true` here and must be caught."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ELIG-3",
+      "question": "`isLastMember` MUST return `false` when the single member is not the own pubkey: `isLastMember(['bob'], 'alice')` MUST return `false`. Provide a unit-test assertion for this exact input — a naive `memberPubkeys.length === 1` implementation (ignoring identity) would wrongly return `true` here and must be caught."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ELIG-4",
+      "question": "`isLastMember` MUST match case-insensitively in both directions: `isLastMember(['ALICE'], 'alice')` and `isLastMember(['alice'], 'ALICE')` MUST both return `true`. Provide both assertions as two separate test cases, not one composite — a comparison that lowercases only one side (e.g. `memberPubkeys[0] === ownPubkeyHex.toLowerCase()` without also lowercasing `memberPubkeys[0]`) can pass one direction and silently fail the other."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ELIG-5",
+      "question": "`isLastMember` MUST return `false` for each of the four absent-input cases independently: `memberPubkeys` `undefined`, `memberPubkeys` `[]`, `ownPubkeyHex` `null`, and `ownPubkeyHex` `undefined`. Provide four separate test-case assertions (not a single parametrized loop collapsed into one `expect`), and confirm none of the four throws an exception instead of returning `false` — a function that assumes `memberPubkeys` is always an array would throw on `undefined`, which is a fail-OPEN bug (an uncaught exception could bypass the fail-closed intent) distinct from returning the wrong boolean."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ELIG-6",
+      "question": "Every pre-existing `isSoleAdmin` assertion from `app/tests/unit/leaveGroupLastAdmin.test.ts` MUST still pass unmodified (except the import path) in the renamed `leaveEligibility.test.ts`, and `isSoleAdmin`'s return value MUST NOT change for any input across the move. Run the renamed test file and confirm every pre-existing `isSoleAdmin` case passes with its original expected value untouched — list each test-case name and confirm none was deleted, weakened, or had its expected value edited to make the rename 'pass'."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SELECT-1",
+      "question": "THE load-bearing check for this epic. `selectLeaveModalState(['alice'], ['alice'], 'alice')` MUST return `'abandon'`, not `'blocked'`. This input satisfies BOTH `isLastMember` (single member, is self) AND `isSoleAdmin` (single admin, is self) simultaneously — an admin-first-ordering implementation (evaluating `isSoleAdmin` before `isLastMember`) returns `'blocked'` and fails this exact assertion. This test fails on today's tree because `selectLeaveModalState` does not exist at all; post-implementation it must return exactly `'abandon'`. Provide the unit-test assertion for this precise triple, AND separately inspect the function's source to confirm `isLastMember`'s result is what gates the `'abandon'` branch BEFORE `isSoleAdmin` is consulted (an explicit early-return or short-circuit on last-member) — a passing return value alone is not sufficient evidence if the branch order could still be wrong by coincidence on this one input; describe the specific ordering you observed in the source."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SELECT-2",
+      "question": "`selectLeaveModalState(['alice', 'bob'], ['alice'], 'alice')` MUST return `'blocked'` — two members present (so `isLastMember` is false), alice is sole admin (so `isSoleAdmin` is true), so the pre-existing sole-admin block applies. Provide the unit-test assertion for this exact input and confirm it pins the same scenario `groups-admin.spec.ts`'s AC-LAST-1 exercises at the e2e layer (per exploration.json), so a regression here would be caught at the unit level before it ever reaches e2e."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SELECT-3",
+      "question": "`selectLeaveModalState(['alice', 'bob'], ['bob'], 'alice')` MUST return `'confirm'` — two members present, alice is NOT the (sole) admin, so the ordinary leave-confirm modal applies. Provide the unit-test assertion for this exact input, and confirm it is a genuinely distinct fixture from AC-SELECT-2's (different `adminPubkeys`), not a copy-pasted variant that happens to also pass."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SELECT-4",
+      "question": "`selectLeaveModalState` MUST NOT return `'abandon'` when `memberPubkeys` is `undefined`, for ANY `adminPubkeys` and `ownPubkeyHex` combination — this pins the fail-closed contract of DD-6 (an unreadable live member list must never open the destructive path). Provide a test sweeping at least three distinct `adminPubkeys`/`ownPubkeyHex` combinations with `memberPubkeys` `undefined` — including one where `adminPubkeys` also contains `ownPubkeyHex` (the case most likely to tempt a wrong `'abandon'` fallback via a sloppy 'admin implies last member' shortcut) — and confirm none of the three returns `'abandon'`."
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "`isLastMember`, `isSoleAdmin`, and `selectLeaveModalState` MUST all be exported from `app/src/lib/marmot/leaveEligibility.ts`, and `app/src/components/groups/LeaveGroupButton.tsx` MUST NOT export any of them. Run `grep -n \"export\" app/src/lib/marmot/leaveEligibility.ts` and confirm all three names appear, and run `grep -n \"export.*\\(isLastMember\\|isSoleAdmin\\|selectLeaveModalState\\)\" app/src/components/groups/LeaveGroupButton.tsx` and confirm zero matches. Provide both grep outputs as evidence."
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Removing `isSoleAdmin`'s local definition/export from `LeaveGroupButton.tsx` changes the import path any other consumer would need. Run `grep -rn \"isSoleAdmin\" app/src app/tests --include=\"*.ts\" --include=\"*.tsx\"` (excluding the new module, the renamed test, and `LeaveGroupButton.tsx` itself) and confirm there is no production or test module — besides comment-only mentions in e2e specs — that still imports `isSoleAdmin` from `@/src/components/groups/LeaveGroupButton`. If such an import exists, the move is a breaking change this story did not account for."
+    },
+    {
+      "question_id": "VQ-S1-018",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "`isLastMember` and `isSoleAdmin` share identical shape (single-item-array-equals-self, case-insensitive, fail-closed on absent input) but are implemented as two separate functions rather than one shared helper parameterized over the array. Confirm this duplication is intentional per the module's pure-predicate-per-seam design (each is independently consumed at a different call site — `isLastMember` by both the component's modal-open read and `leaveGroupImpl`'s execution-time read in S3; `isSoleAdmin` only by the component) rather than an oversight, and that a future edit to one's case-insensitivity or fail-closed behavior would not need to remember to mirror the change into the other without a test catching the drift — each has its own independent AC-pinned test coverage (AC-ELIG-1..5 vs the pre-existing isSoleAdmin suite)."
+    }
+  ]
+}
