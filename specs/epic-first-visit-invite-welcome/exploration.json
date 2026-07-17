@@ -1,0 +1,53 @@
+{
+  "created_at": "2026-07-17T19:40:59Z",
+  "language": "typescript",
+  "framework": "next.js pages router, static export (output: export, trailingSlash: true)",
+  "focuses": {
+    "hero_landing": {
+      "hero_page": "app/pages/index.tsx (HomePage, route /) — unconditional hero; identity not consulted",
+      "hero_accents": "app/src/components/HeroAccents.tsx — decorative themed watercolor blobs (DYNAMIC_GENERATORS.watercolor)",
+      "copy_keys": {
+        "lead": "home.subheadingLead = 'Just chat.' / de 'Einfach nur chatten.'",
+        "points": "home.subheadingPoints (string[]) = no email / no login-or-password / no phone / no messages from strangers / completely free",
+        "title": "home.title = 'Welcome to few.chat'"
+      },
+      "note": "No create-identity CTA; four nav tiles (contacts/groups/profile/info) are the CTAs. Reuse home.subheadingLead + home.subheadingPoints for the welcome pitch."
+    },
+    "identity": {
+      "context": "app/src/context/NostrIdentityContext.tsx:174-187 — init() calls loadStoredIdentity(); if null, auto-generates keypair from 128-bit seed and saves. This null-at-init result is the 'first-time visitor' signal to surface as isFreshIdentity.",
+      "storage_key": "lp_nostrIdentity_v1 (STORAGE_KEYS.nostrIdentity)",
+      "hydrated_flag": "context exposes hydrated; useNostrIdentity() gives { hydrated, pubkeyHex, privateKeyHex, ... }",
+      "provider_order": "AppTheme > Chakra > Language > Profile > NostrIdentity > Marmot > Layout (NostrIdentity + Marmot are dynamic ssr:false)"
+    },
+    "profile": {
+      "context": "app/src/context/ProfileContext.tsx — saveProfile({...profile, nickname}) persists locally (lp_userProfile_v1); heals default avatar. NEVER broadcast (kind-0) per privacy invariant.",
+      "name_predicate": "app/src/lib/shareCard.ts:125 hasShareableName(nickname) = nickname.trim().length > 0; isNameGateActive(nickname) = !hasShareableName(nickname)"
+    },
+    "contact_card": {
+      "route": "app/pages/add.tsx — handles /add#c=<base64url> (card in URL fragment, never query, static-export privacy)",
+      "url_prefix": "CARD_LINK_URL_PREFIX = 'https://few.chat/add#c=' (app/src/lib/contactCard.ts)",
+      "pure_core": "app/src/lib/addDeepLink.ts (readLocationHash -> resolveAddDeepLink -> processContactInput). Currently returns { state: 'awaiting_identity' } while not hydrated and shows spinner copy.add.settingUp (testid add-page-setting-up).",
+      "decode": "app/src/lib/contactCard.ts parseContactCard(payload) -> profile.nickname; PURE, verifies signature, no local identity needed. v1 (version 00) + v2 pairing (version 01, signed, has expiry+16B nonce). HAS_AVATAR bit reserved 0 (no avatar).",
+      "no_name_cases": "v1 without name / bare npub / nostr: URI carry no name -> unknown-inviter fallback (omit invite line).",
+      "success_redirect": "router.replace('/contacts?id=<pubkeyHex>&added=1')",
+      "pairing_echo": "v2 nameless scanner: attemptOrQueuePairingEcho (app/src/lib/pendingIntent.ts) defers echo, currently redirects to /profile?pairing=1&issuer=<pubkey> for name setup. Welcome-screen name capture can satisfy this inline; echo mechanism unchanged."
+    },
+    "group_invite": {
+      "route": "app/pages/groups.tsx:541-560 — GroupsPage reads ?join=<nonce>&admin=<npub>&name=<groupName>; if all present renders <JoinRequestCard> (short-circuits before ?id detail and list/hero).",
+      "url_builder": "app/src/lib/marmot/inviteLinkGeneration.ts buildInviteUrl -> https://<origin>/groups/?join=&admin=&name=",
+      "join_card": "app/src/components/groups/JoinRequestCard.tsx — name gate: gateActive = isNameGateActive(profile.nickname); shows name Input (testid join-request-name-input) required; requestDisabled = gateActive && !hasShareableName(draftName); handleSendRequest saves name via saveProfile then sendJoinRequest(requesterName). Success -> testid join-request-sent.",
+      "group_name_source": "from URL name param (cleartext), rendered as copy.groups.joinRequestHeading with <strong>{groupName}</strong>. No relay/crypto read pre-request.",
+      "send_path": "app/src/lib/marmot/joinRequestSender.ts sendJoinRequest — name travels in NIP-59 gift-wrapped request, never kind-0."
+    }
+  },
+  "i18n": {
+    "file": "app/src/lib/i18n.ts — type Copy (nested) + const copy: Record<LanguageCode, Copy> with en + de; any new key must be in Copy type AND both dictionaries.",
+    "usage": "components: const copy = useCopy() from @/src/context/LanguageContext; dynamic strings use function copy e.g. (name) => string.",
+    "long_form_exception": "info/imprint pages use markdown, not i18n — not relevant here (welcome screen is short UI strings)."
+  },
+  "testing": {
+    "unit": "vitest, tests/unit/**/*.test.ts only; no jsdom/@testing-library; hooks tested via exported pure-function extraction; reuse app/src/themes/contrast.ts for contrast; decorative components carry no i18n by precedent.",
+    "e2e": "playwright app/tests/e2e/. Non-relay bucket (12 tests) on next dev; groups/relay bucket (48) needs docker. Full gate: make test-e2e-all. e2e must publish through the app, never raw WebSocket. Relevant existing specs: dm-pairing-*, groups-* , add/contacts flows.",
+    "make": "always go through make (platform stamp). make test = unit + e2e-all."
+  }
+}

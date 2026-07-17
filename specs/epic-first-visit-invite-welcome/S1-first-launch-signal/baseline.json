@@ -1,0 +1,21 @@
+{
+  "story_id": "S1",
+  "captured_at": "2026-07-17T21:53:46Z",
+  "command": "make test-unit",
+  "test_files": 173,
+  "tests_passed": 3351,
+  "tests_skipped": 1,
+  "tests_total": 3352,
+  "tests_failed": 0,
+  "status": "PASS",
+  "lint": {
+    "command": "npx next lint (app/)",
+    "status": "NO_LINT",
+    "note": "No ESLint config present (.eslintrc*/eslint.config*); `next lint` prompts interactively to scaffold one. Nothing to compare against — not this story's responsibility to introduce."
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit -p tsconfig.json (app/)",
+    "status": "clean",
+    "note": "Zero errors at baseline."
+  }
+}

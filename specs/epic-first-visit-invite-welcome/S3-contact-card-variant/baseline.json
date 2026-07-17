@@ -1,0 +1,21 @@
+{
+  "story_id": "S3",
+  "captured_at": "2026-07-17T22:25:00Z",
+  "unit_tests": {
+    "command": "make test-unit",
+    "test_files": 174,
+    "tests_passed": 3355,
+    "tests_skipped": 1,
+    "tests_total": 3356,
+    "status": "PASS"
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit (from app/)",
+    "status": "clean"
+  },
+  "lint": {
+    "command": "npx next lint (from app/)",
+    "status": "NO_LINT",
+    "note": "No ESLint config present (.eslintrc*); `next lint` prompts an interactive first-time-setup wizard rather than running a check. Recorded as NO_LINT per Step 0's tolerance -- not introduced or fixed by this story."
+  }
+}

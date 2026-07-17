@@ -1,0 +1,26 @@
+{
+  "story_id": "S4",
+  "captured_at": "2026-07-17T22:50:00Z",
+  "unit_tests": {
+    "command": "make test-unit",
+    "status": "PASS",
+    "test_files": 175,
+    "tests_total": 3365,
+    "tests_passed": 3364,
+    "tests_skipped": 1,
+    "tests_failed": 0
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit (run from app/)",
+    "status": "clean",
+    "errors": 0
+  },
+  "lint": {
+    "command": "npm run lint (next lint, run from app/)",
+    "status": "NO_LINT",
+    "note": "No ESLint config exists in the repo (no .eslintrc*/eslint.config*); `next lint` prompts interactively to scaffold one. Pre-existing state, not introduced by this story."
+  },
+  "relevant_pre_existing_tests": [
+    "app/tests/unit/components/JoinRequestCard.test.ts (16 tests) — pure predicates isNameGateActive/isJoinRequestDisabled, i18n coverage, source-boundary assertions"
+  ]
+}

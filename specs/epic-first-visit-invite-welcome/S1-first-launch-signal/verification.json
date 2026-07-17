@@ -1,0 +1,136 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-17T20:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does isFreshIdentity read a live value derived from the actual loadStoredIdentity() === null check at NostrIdentityContext.tsx:174-187 at every render, rather than a hard-coded true/false, a value frozen at module load, or a prop threaded through only for tests? Show the exported freshIdentity.ts derivation function's signature and its single call site inside the context, and confirm no test double replaces the real loadStoredIdentity() return value when isFreshIdentity is asserted true in freshIdentity.test.ts."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the isFreshIdentity signal live entirely inside NostrIdentityContext.tsx and the new app/src/lib/freshIdentity.ts pure function, with no new imports introduced into app/pages/add.tsx or app/pages/groups.tsx by this story (per scope.excludes: 'No page wiring... consumed by S3/S4')? Confirm via diff that only NostrIdentityContext.tsx, freshIdentity.ts, and freshIdentity.test.ts changed."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the Identity context module (app/src/context/NostrIdentityContext.tsx) be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does tests/unit/lib/freshIdentity.test.ts exercise both branches of the exported pure function -- null-at-init to true, and a non-null stored identity at init to false -- as real vitest assertions (not jsdom, per repo convention), and does a case exist covering 'identity created this session then page reloaded' resolving to false, matching AC-DETECT-2's second sentence?"
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the isFreshIdentity implementation align with the spec's 'First-time detection = identity-null-at-init' design decision (spec.md Design Decisions) with no new persisted marker introduced (no new localStorage/idb key), confirmed by grep against STORAGE_KEYS in the identity context?"
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Is isFreshIdentity computed once at context init and treated as session-scoped (not re-derived or flipped mid-session by React state updates unrelated to a fresh page load), per the seam contract invariant 'does not flip from true to false mid-session without a reload' in stories.json's IsFreshIdentitySignal contract?"
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DETECT-1",
+      "question": "Where in NostrIdentityContext.tsx does isFreshIdentity get set to true, and does a unit test in freshIdentity.test.ts prove that when loadStoredIdentity() returns null before auto-generation, the exported derivation function returns true -- with production code (not a stub) computing that value?"
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DETECT-2",
+      "question": "Does a unit test prove isFreshIdentity is false both (a) when a stored identity already exists at init, and (b) on a simulated reload after a first-timer's identity was just auto-generated and saved -- and is the production code path for both cases the same function (not two divergent code paths that could drift)?"
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "post-impl",
+      "category": "IMPLEMENTATION",
+      "answer": "YES",
+      "evidence": "app/src/context/NostrIdentityContext.tsx:186-193: `let stored = loadStoredIdentity(); const freshAtInit = deriveIsFreshIdentity(stored);` runs BEFORE the `if (!stored) { ...auto-generate...saveStoredIdentity(stored) }` block at lines 195-201. `setIsFreshIdentity(freshAtInit)` is called at line 206, alongside `setIdentity(stored)` and `setHydrated(true)`, once per init() run. deriveIsFreshIdentity (app/src/lib/freshIdentity.ts) is the single call site in production code. No test double replaces loadStoredIdentity in freshIdentity.test.ts \u2014 the test calls deriveIsFreshIdentity directly with StoredNostrIdentity | null fixture values, never touching localStorage or mocking the identity module."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "post-impl",
+      "category": "IMPLEMENTATION",
+      "answer": "YES",
+      "evidence": "git status --short app/ shows exactly three changed/added paths: M app/src/context/NostrIdentityContext.tsx, ?? app/src/lib/freshIdentity.ts, ?? app/tests/unit/lib/ (containing freshIdentity.test.ts). Neither app/pages/add.tsx nor app/pages/groups.tsx was touched \u2014 confirmed by the same git status output having no entries for pages/."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "post-impl",
+      "category": "TEST",
+      "answer": "YES",
+      "evidence": "app/tests/unit/lib/freshIdentity.test.ts has 4 cases: (1) null -> true (AC-DETECT-1), (2) a stored identity present -> false (AC-DETECT-2 first sentence), (3) the reload-after-generation scenario explicitly simulated as two sequential deriveIsFreshIdentity calls (first with null -> true, then with the generated identity as the next init's snapshot -> false), matching AC-DETECT-2's second sentence, (4) a legacy identity without seedHex -> false (boundary case for the optional field). `npx vitest run tests/unit/lib/freshIdentity.test.ts` = 4 passed, no jsdom import in the file or vitest.config.ts environment (default node env)."
+    },
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "answer": "YES",
+      "evidence": "app/src/lib/freshIdentity.ts:25-27 exports deriveIsFreshIdentity as a pure function: `return storedIdentityAtInit === null;` — derives true iff the identity was null at init. NostrIdentityContext.tsx:187 calls `loadStoredIdentity()` (the real function), passes it to deriveIsFreshIdentity at line 193, and sets state at line 205. The test (freshIdentity.test.ts) directly calls deriveIsFreshIdentity with fixture values (null, non-null identity, legacy); no mock or localStorage access in the test. Single production call site confirmed at NostrIdentityContext.tsx:193."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "answer": "YES",
+      "evidence": "Scope verification: git diff --name-only HEAD shows M app/src/context/NostrIdentityContext.tsx only; git ls-files --others shows ?? app/src/lib/freshIdentity.ts and ?? app/tests/unit/lib/freshIdentity.test.ts. Scope.includes matches exactly these three files. Pre-existing dirty files (baseline) include .serena/project.yml, CLAUDE.md, etc., but not the app/ changes. Neither app/pages/add.tsx nor app/pages/groups.tsx was modified. The isFreshIdentity signal and its pure derivation live entirely in the specified modules per scope.excludes."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "answer": "YES",
+      "evidence": "NostrIdentityContext.tsx imports from @/src/types (STORAGE_KEYS, NostrIdentity), @/src/lib/nostrKeys (identity helpers), @/src/lib/freshIdentity (new pure function), @nostr-dev-kit/ndk (third-party), @/src/lib/ndkClient (cross-cutting), @/src/lib/marmot/signerAdapter (cross-cutting seam). No circular dependencies; all imports are to public utilities or declared seams. The context could be rewritten independently with these dependencies supplied. Cross-module dependencies (ndkClient, marmot/signerAdapter) flow through established integration points (async imports, function calls), not hidden side effects."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "post-impl",
+      "category": "TEST",
+      "answer": "YES",
+      "evidence": "app/tests/unit/lib/freshIdentity.test.ts: (1) lines 19-21 test null → true (AC-DETECT-1 first branch); (2) lines 24-26 test non-null identity → false (AC-DETECT-2 first case, second branch); (3) lines 32-46 explicitly simulate reload-after-generation (AC-DETECT-2 second case): first call with null → true, second call with generated identity → false, demonstrating both branches use same deriveIsFreshIdentity function; (4) bonus edge case (lines 48-51) legacy identity without seedHex → false. Test environment: vitest (node, no jsdom), confirmed by app/vitest.config.ts line 10 `test: {}` (no environment override = default node). All 4 tests pass: make test-unit output shows '✓ tests/unit/lib/freshIdentity.test.ts (4 tests)'."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "answer": "YES",
+      "evidence": "Spec Design Decision (spec.md lines 92-98) states: 'First-time detection = identity-null-at-init. Capture that null result as a session-scoped isFreshIdentity signal on the context. No new persisted marker is required.' Implementation: (1) deriveIsFreshIdentity (freshIdentity.ts:26) returns storedIdentityAtInit === null — pure derivation from the null check, no new logic; (2) NostrIdentityContext.tsx uses React state (line 152), session-scoped only; (3) STORAGE_KEYS (app/src/types/index.ts:38-52) has no new entry for isFreshIdentity (exhaustive grep confirms). The signal is computed once at init, stored in React state, never persisted to localStorage."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "answer": "YES",
+      "evidence": "NostrIdentityContext.tsx useEffect (lines 164-286) has empty dependency array [] — runs once on mount. Line 193 derives freshAtInit from loadStoredIdentity() result before any auto-generation. Line 205 sets isFreshIdentity(freshAtInit) exactly once during that effect. After init(), setIsFreshIdentity is never called again in the production code. seam contract invariant (stories.json) states 'session-scoped: does not flip from true to false mid-session without a reload' — verified: the value is computed at init and immutable until unmount/reload. Tests confirm: the reload scenario (freshIdentity.test.ts:32-46) requires a new init() call (component remount), proving mid-session stability."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DETECT-1",
+      "answer": "YES",
+      "evidence": "AC-DETECT-1: 'When the app initializes a page load and no stored identity exists (loadStoredIdentity() returns null before auto-generation), the identity context reports isFreshIdentity = true for that session.' Implementation: NostrIdentityContext.tsx:187 calls loadStoredIdentity(); line 193 derives freshAtInit = deriveIsFreshIdentity(stored); when stored is null, line 26 of freshIdentity.ts returns true; line 205 sets isFreshIdentity(true). Test proof: freshIdentity.test.ts:19-21 calls deriveIsFreshIdentity(null) and asserts expect(result).toBe(true). Production code path: real loadStoredIdentity() call → real derivation function → real state update. No stub, no mock."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DETECT-2",
+      "answer": "YES",
+      "evidence": "AC-DETECT-2: (a) 'When a stored identity already exists at init, the context reports isFreshIdentity = false.' (b) 'After a first-time visitor's identity is auto-generated and the app is reloaded, isFreshIdentity is false on the reload.' Implementation: Both cases converge to same production path — NostrIdentityContext.tsx:187-205 calls loadStoredIdentity() (returns either existing identity or generated one), derives freshAtInit (line 193), sets state (line 205). The derivation function (freshIdentity.ts:26) is identical: `storedIdentityAtInit === null` — false when identity is non-null (whether pre-existing or post-generation). Test proof: (a) freshIdentity.test.ts:24-26 calls deriveIsFreshIdentity(SOME_IDENTITY) → false; (b) lines 32-46 simulate reload: first init null → true (generate), reload init with saved identity → false. No divergent branches; both use same deriveIsFreshIdentity function."
+    }
+  ]
+}

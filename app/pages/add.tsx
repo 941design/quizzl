@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Head from 'next/head';
 import NextLink from 'next/link';
 import { useRouter } from 'next/router';
@@ -17,8 +17,16 @@ import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useProfile } from '@/src/context/ProfileContext';
-import { readLocationHash, resolveAddDeepLink, type AddDeepLinkOutcome } from '@/src/lib/addDeepLink';
+import {
+  readLocationHash,
+  extractCardPayloadFromHash,
+  resolveAddDeepLink,
+  type AddDeepLinkOutcome,
+} from '@/src/lib/addDeepLink';
 import { attemptOrQueuePairingEcho, type PendingIntentSendContext } from '@/src/lib/pairing/pendingIntent';
+import { deriveInviterName } from '@/src/lib/contactInviteLine';
+import { hasShareableName } from '@/src/lib/shareCard';
+import WelcomeInvite from '@/src/components/WelcomeInvite';
 
 /**
  * Builds the lazy NDK/signer-resolving send context `attemptOrQueuePairingEcho`
@@ -87,18 +95,88 @@ function buildPendingIntentSendContext(
  * instead (AC-SCAN-5) — the pending intent is durably persisted first
  * (`pendingIntent.ts#attemptOrQueuePairingEcho`), so the redirect never risks
  * losing the echo.
+ *
+ * Epic: first-visit-invite-welcome, story S3 (AC-CONTACT-1..5, AC-NAME-2,
+ * AC-RETURN-1). A GENUINE first-time visitor (`useNostrIdentity().
+ * isFreshIdentity`, S1's seam — true only when no identity existed in
+ * storage at this page load's init) who opens a contact-card link is shown
+ * the blended `WelcomeInvite` (contact variant) INSTEAD of the "setting
+ * up…"/redirecting flow above: the effect below holds off calling
+ * `resolveAddDeepLink` (so `processContactInput`/the add itself does not run
+ * yet) until the newcomer submits a non-blank name. The inviter's name is
+ * decoded read-only for display via `deriveInviterName`
+ * (contactInviteLine.ts), which composes the same `parseContactCard` seam
+ * `processContactInput` uses internally — no duplicated decode/signature
+ * logic, and (being a pure fragment decode) no relay read and no broadcast
+ * of the newcomer's own data (AC-PRIV-2). Submitting the welcome screen (a)
+ * saves the entered name locally via the existing `saveProfile` (never a
+ * broadcast — AC-PRIV-1), then (b) unblocks the SAME add-effect below,
+ * which runs completely unchanged — including the pending-pairing-echo
+ * check, which now reads the just-saved name inline instead of deferring to
+ * `/profile?pairing=1` (AC-NAME-2; only the ordering changed, never the echo
+ * mechanism itself). A returning user (`isFreshIdentity === false`) never
+ * sees this branch — the effect below runs exactly as it did before this
+ * story (AC-RETURN-1).
  */
 export default function AddPage(): JSX.Element {
   const copy = useCopy();
   const router = useRouter();
-  const { hydrated, pubkeyHex, privateKeyHex } = useNostrIdentity();
-  const { profile } = useProfile();
+  const { hydrated, isFreshIdentity, pubkeyHex, privateKeyHex } = useNostrIdentity();
+  const { profile, saveProfile } = useProfile();
   const { notifyKnownPeersChanged } = useMarmot();
   const [outcome, setOutcome] = useState<AddDeepLinkOutcome | null>(null);
   // Guards processContactInput (and therefore parseContactCard, VQ-S7-002)
   // from ever running more than once per page load, even across React
   // StrictMode's double-invoke or repeated hydration-state re-renders.
   const settledRef = useRef(false);
+
+  // Epic: first-visit-invite-welcome, story S3. The raw `#c=` fragment
+  // payload, read once on mount — independent of identity hydration, so the
+  // welcome-vs-spinner decision below doesn't have to wait on it. This is
+  // ONLY the pure marker-extraction addDeepLink.ts already does (never a
+  // second `parseContactCard`/decode call) — `deriveInviterName` below is
+  // what actually decodes, for display only.
+  const [cardPayload, setCardPayload] = useState<string | null>(null);
+  useEffect(() => {
+    const hash = readLocationHash(typeof window === 'undefined' ? undefined : window);
+    setCardPayload(extractCardPayloadFromHash(hash));
+  }, []);
+
+  const inviterName = useMemo(
+    () => (cardPayload !== null ? deriveInviterName(cardPayload) : null),
+    [cardPayload],
+  );
+  const [welcomeConfirmed, setWelcomeConfirmed] = useState(false);
+  const [welcomeNameValue, setWelcomeNameValue] = useState('');
+  // True only for a genuine first-time visitor who opened a contact-card
+  // link and hasn't yet submitted the welcome screen (AC-CONTACT-1). A
+  // returning user (isFreshIdentity === false) is never true here, so their
+  // flow below is byte-identical to pre-S3 behavior (AC-RETURN-1).
+  //
+  // Implicit ordering dependency (gate-remediation, Finding C): this reads
+  // `cardPayload`, which the effect above commits asynchronously (one tick
+  // after mount) — `hydrated`/`isFreshIdentity` from useNostrIdentity() also
+  // flip true asynchronously, on a separate effect in a separate provider.
+  // `showContactWelcome` is only correct because `cardPayload` is already
+  // committed (non-null-or-confirmed-null) by the time `hydrated &&
+  // isFreshIdentity` becomes true in practice. A future refactor of either
+  // effect's timing (e.g. deferring the hash read, or resolving identity
+  // synchronously) could silently flip this comparison's assumptions —
+  // re-verify AC-CONTACT-1 if either effect's scheduling changes.
+  const showContactWelcome = hydrated && isFreshIdentity && cardPayload !== null && !welcomeConfirmed;
+
+  function handleContactWelcomeSubmit(): void {
+    if (!hasShareableName(welcomeNameValue)) return; // defense-in-depth; the button is already disabled (AC-CONTACT-5).
+    // Persist the name locally BEFORE unblocking the add-effect below
+    // (AC-CONTACT-4a). `profile.nickname` is a dependency of that effect, so
+    // once it re-runs it reads the just-saved name — this is what lets the
+    // pending-pairing-echo check (pendingIntent.ts, unchanged) satisfy its
+    // existing name requirement inline instead of deferring to
+    // `/profile?pairing=1` (AC-NAME-2). saveProfile only ever writes locally
+    // — no broadcast, no new publish path (AC-PRIV-1).
+    saveProfile({ ...profile, nickname: welcomeNameValue });
+    setWelcomeConfirmed(true);
+  }
 
   useEffect(() => {
     // `window` is always defined here in practice — React never runs effects
@@ -108,6 +186,12 @@ export default function AddPage(): JSX.Element {
     // makes `readLocationHash`'s `undefined` branch a real, tested case
     // rather than a check that never differs (VQ-S7-001).
     if (settledRef.current) return;
+    // Epic: first-visit-invite-welcome, story S3 (AC-CONTACT-1). Hold off:
+    // the newcomer is looking at the welcome screen and hasn't submitted a
+    // name yet. `processContactInput` (via resolveAddDeepLink) must not run
+    // until they do — this is what keeps the add from completing silently
+    // ahead of the welcome screen's own action.
+    if (showContactWelcome) return;
     const hash = readLocationHash(typeof window === 'undefined' ? undefined : window);
     const result = resolveAddDeepLink(hash, hydrated, pubkeyHex);
     setOutcome(result);
@@ -198,7 +282,7 @@ export default function AddPage(): JSX.Element {
           // is left completely untouched.
         });
     }
-  }, [hydrated, pubkeyHex, privateKeyHex, profile.nickname, notifyKnownPeersChanged, router]);
+  }, [hydrated, pubkeyHex, privateKeyHex, profile.nickname, notifyKnownPeersChanged, router, showContactWelcome]);
 
   function getErrorMessage(errorCode: string | undefined): string {
     switch (errorCode) {
@@ -213,6 +297,31 @@ export default function AddPage(): JSX.Element {
       default:
         return copy.contacts.addContactErrorGeneric;
     }
+  }
+
+  // Epic: first-visit-invite-welcome, story S3. A first-time visitor with a
+  // contact card in the URL sees the blended welcome screen INSTEAD of the
+  // page's normal chrome below (no "setting up…" spinner, no "Add contact"
+  // heading/"Go to Contacts" link — there's no contact yet to navigate to).
+  // AC-CONTACT-2/3: `inviterName === null` renders no invite line at all
+  // (WelcomeInviteProps' documented contract) while the pitch, name input,
+  // and action still render.
+  if (showContactWelcome) {
+    return (
+      <>
+        <Head>
+          <title>{`${copy.add.pageTitle} - ${copy.appName}`}</title>
+        </Head>
+        <WelcomeInvite
+          inviteLine={inviterName !== null ? copy.welcome.contactInviteLine(inviterName) : null}
+          nameValue={welcomeNameValue}
+          onNameChange={setWelcomeNameValue}
+          primaryActionLabel={copy.welcome.contactPrimaryAction}
+          primaryActionDisabled={!hasShareableName(welcomeNameValue)}
+          onPrimaryAction={handleContactWelcomeSubmit}
+        />
+      </>
+    );
   }
 
   let body: JSX.Element;

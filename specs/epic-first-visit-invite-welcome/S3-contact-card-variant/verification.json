@@ -1,0 +1,138 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-17T20:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the first-timer contact-welcome branch in add.tsx require BOTH isFreshIdentity === true AND a decodable contact card in the URL fragment before rendering WelcomeInvite -- not just one of the two conditions -- and does pressing the primary action call the REAL saveProfile plus the real add-contact flow (processContactInput / addContactByNpub) rather than a stub that just navigates to /contacts?...&added=1 without persisting anything?"
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does add.tsx compose the new contactInviteLine.ts pure function and the reused parseContactCard (app/src/lib/contactCard.ts, unchanged) without importing WelcomeInvite's internals or duplicating any of contactCard.ts's decode/signature-verification logic locally in add.tsx, per architecture.md's 'No direct imports across feature boundaries except through existing public helpers' and this story's scope.excludes ('No change to parseContactCard's decode/signature-verification logic ... reused as-is')?"
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the Contact-card entry module (app/pages/add.tsx, app/src/lib/addDeepLink.ts, app/src/lib/contactInviteLine.ts) be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does tests/unit/lib/contactInviteLine.test.ts cover all three no-name fallback cases named in architecture.md's testing guidance (v1 card without name, bare npub, nostr: URI) each producing null, plus at least one case with a readable nickname producing the invite-line text -- and does app/tests/e2e/add-welcome.spec.ts drive the actual /add#c=... URL through the app's own contact-card generation (not a hand-built base64 fragment bypassing parseContactCard) per this repo's e2e rule to publish/generate through the app?"
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the implementation match spec.md's 'Welcome screen hosts the action' and 'Reuse existing completion logic, don't fork it' design decisions -- i.e., does add.tsx call the SAME add-contact code path (processContactInput / addContactByNpub) that a returning user's non-welcome add flow calls, with only the name-capture step moved earlier, rather than a parallel/forked add-contact implementation?"
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does add.tsx still run parseContactCard's existing signature verification before treating any decoded nickname as trustworthy for display (i.e., an invite line is only shown for a card that verifies), and does the new contactInviteLine.ts function never fall back to displaying unverified/untrusted payload data when verification fails?"
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CONTACT-1",
+      "question": "When isFreshIdentity is true and /add#c=... carries a decodable contact card, does add.tsx render WelcomeInvite instead of the existing 'setting up...' spinner (copy.add.settingUp, testid add-page-setting-up), and does app/tests/e2e/add-welcome.spec.ts assert the spinner/testid is ABSENT while the welcome screen's own testids are present, not merely that the page eventually redirects?"
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CONTACT-2",
+      "question": "When the contact card carries a readable, signature-verified inviter nickname, does the welcome screen show '{name} invited you to few.chat' with that exact decoded name -- with evidence from both contactInviteLine.test.ts (unit, pure function) and add-welcome.spec.ts (e2e, rendered text) that the SAME decoded value flows end-to-end, not a hardcoded placeholder name in either test?"
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CONTACT-3",
+      "question": "For a v1 card without a name, a bare npub, or a nostr: URI, does contactInviteLine.ts return null and does add.tsx then render WelcomeInvite with inviteLine=null so no invite line appears, while the pitch, name input, and action button still render -- confirmed by an e2e assertion that the invite-line element is absent AND the name input / primary button ARE present (a test that only checks the invite line is missing, without also confirming the rest of the screen renders, does not fully cover this AC)?"
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CONTACT-4",
+      "question": "Does pressing the primary action on the contact welcome screen (a) call saveProfile with the entered name, (b) run the existing add-contact flow, and (c) land on /contacts?...&added=1 -- with add-welcome.spec.ts asserting all three via observable state (profile nickname persisted, contact appears in the contacts list, URL/testid confirms the added=1 landing) rather than asserting only the final redirect?"
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CONTACT-5",
+      "question": "Is the primary action's disabled state on the contact welcome screen driven by the same non-blank-name predicate used elsewhere in the app (hasShareableName / isNameGateActive from app/src/lib/shareCard.ts), and does an e2e test confirm the button is disabled with an empty name field and becomes enabled after typing a non-blank name?"
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NAME-2",
+      "question": "For a v2 pairing contact card requiring the pending-pairing-echo name, does a name captured on the welcome screen satisfy attemptOrQueuePairingEcho's (app/src/lib/pendingIntent.ts) existing name requirement inline -- with an e2e test proving the newcomer is NOT redirected to /profile?pairing=1 and the echo still fires, using the app's real pairing-echo mechanism (not a mocked echo call)?"
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-RETURN-1",
+      "question": "For a returning user (isFreshIdentity=false) opening a contact card link, does add.tsx render today's existing pre-epic behavior (spinner then redirect, no WelcomeInvite) unchanged -- confirmed by an e2e test that sets up a returning-user identity state and asserts WelcomeInvite's testids are absent?"
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PRIV-1",
+      "question": "Does completing the contact welcome screen publish the entered name ONLY via the existing pairing-echo gift-wrap (NIP-59, recipient-addressed) or leave it purely local (non-pairing add), with NO kind-0 event published anywhere in the add-contact code path this story touches -- confirmed by an e2e or integration check that inspects actual relay traffic/publish calls during the flow and asserts no kind-0 publish occurs, not merely a code-review claim?"
+    },
+    {
+      "question_id": "VQ-S3-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PRIV-2",
+      "question": "Does displaying the inviter's name on the contact welcome screen require zero relay reads (parseContactCard decodes purely from the URL fragment) and trigger no publish of the newcomer's own data as a side effect of merely rendering the screen -- confirmed by network/publish assertions in add-welcome.spec.ts covering the render-only path (before the primary action is pressed)?"
+    },
+    {
+      "question_id": "VQ-S3-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NAME-1",
+      "question": "Is the name entered on the contact welcome screen persisted via saveProfile to the local profile before or as part of completing the add flow, such that a subsequent name-gated action within the same session (e.g. a group invite name gate) is no longer blocked -- confirmed by a test that captures the name via the welcome screen then checks profile.nickname / isNameGateActive reflects the newly entered name?"
+    },
+    {
+      "question_id": "VQ-S3-017",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "add.tsx now gates the existing add-processing useEffect on a new `showContactWelcome` derived value (hydrated && isFreshIdentity && cardPayload !== null && !welcomeConfirmed), added as a new dependency to that effect's array alongside the pre-existing settledRef.current guard. Does this gating leave the effect's StrictMode double-invoke safety (settledRef never being set to true while showContactWelcome is true) intact, and does resolveAddDeepLink/processContactInput genuinely never run while the welcome screen is showing (verified by more than code inspection -- e.g. a test asserting no premature contact-add side effect before the primary action is pressed)?"
+    },
+    {
+      "question_id": "VQ-S3-018",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Implementing S3's welcome-screen gate for isFreshIdentity+card changed the observable behavior of the identical precondition two PRE-EXISTING e2e tests exercised (contact-card-deeplink.spec.ts's AC-UX-7 'no local identity' case, and the relay-bucket dm-pairing-onboarding-scanner.spec.ts's fresh-visitor case) -- both previously asserted the pre-S3 auto-redirect-to-/profile?pairing=1 behavior. Were both updated to drive the new welcome-screen step rather than silently left red or deleted, and were both re-run for real (non-relay bucket via next dev; the relay-bucket one against a live strfry relay) to confirm the update is correct rather than merely asserted by inspection?"
+    },
+    {
+      "question_id": "VQ-S3-019",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "add.tsx imports hasShareableName from app/src/lib/shareCard.ts -- a module belonging to the contact-pairing-code epic, not first-visit-invite-welcome, and not named in architecture.md's boundary-rule allow-list of existing public helpers (useNostrIdentity, useProfile/saveProfile, useCopy, parseContactCard, sendJoinRequest, the add-flow entry). Is this reuse (rather than re-deriving an equivalent `!welcomeNameValue.trim()` check locally) consistent with the repo's established convention of treating hasShareableName as the single cross-epic source of truth for the name-gate predicate (as JoinRequestCard.tsx and profile.tsx already do), or does it require a seam amendment to architecture.md's allow-list?"
+    },
+    {
+      "question_id": "VQ-S3-020",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PRIV-1",
+      "question": "add-welcome.spec.ts's kind0EventPublished tracker inspects outgoing WebSocket frames across the whole flow for a `[\"EVENT\", {kind: 0, ...}]` publish and asserts it is never sent. Does this genuinely cover the completed-add path (including the pairing-echo attempt, which sends a real gift-wrap over the same WebSocket in the non-relay bucket's default relay connection) rather than only the pre-submit render phase, and would this tracker actually catch a regression that introduced a kind-0 publish (i.e. was it validated to fire correctly on a deliberately-introduced kind-0 send, or does its correctness rest solely on inspection of the frame-matching logic)?"
+    }
+  ]
+}

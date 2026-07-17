@@ -1,0 +1,46 @@
+{
+  "module_name": "Group-invite entry",
+  "purpose": "Render the blended WelcomeInvite (group variant) for a genuine first-time visitor opening a /groups/?join=&admin=&name= invite link, hosting the existing name gate and join action inline with no separate join card shown afterward; a returning user keeps today's JoinRequestCard behavior unchanged.",
+  "public_api": [
+    {
+      "name": "JoinRequestCard",
+      "signature": "export default function JoinRequestCard({ nonce, adminNpub, groupName }: JoinRequestCardProps): JSX.Element",
+      "description": "Unchanged public props/signature. Internally now branches its pre-send, not-yet-sent render on isFreshIdentity (from useNostrIdentity): true renders WelcomeInvite (group variant) hosting the same nameDraft/requestDisabled/handleSendRequest state; false renders the pre-existing inline card unchanged. All guard branches (loading, identity-not-ready, invalid admin npub, already-a-member) and the sent-confirmation render are untouched and fire identically for both variants."
+    },
+    {
+      "name": "isNameGateActive",
+      "signature": "export function isNameGateActive(savedNickname: string): boolean",
+      "description": "Unchanged pure predicate, reused by both variants."
+    },
+    {
+      "name": "isJoinRequestDisabled",
+      "signature": "export function isJoinRequestDisabled(gateActive: boolean, draftName: string): boolean",
+      "description": "Unchanged pure predicate, reused by both variants."
+    }
+  ],
+  "private_files": [
+    "app/src/components/groups/JoinRequestCard.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/components/WelcomeInvite.tsx (WelcomeInviteProps seam, S2)",
+    "app/src/context/NostrIdentityContext.tsx (isFreshIdentity seam, S1)",
+    "app/src/context/ProfileContext.tsx (saveProfile, existing)",
+    "app/src/lib/marmot/joinRequestSender.ts (sendJoinRequest, existing, unchanged)",
+    "app/src/lib/shareCard.ts (hasShareableName, existing)",
+    "app/src/context/LanguageContext.tsx (useCopy, existing)"
+  ],
+  "dependencies_forbidden": [
+    "No new relay/network read to resolve the group name (URL param only, AC-GROUP-2/AC-PRIV-2)",
+    "No modification to app/src/lib/marmot/joinRequestSender.ts transport logic",
+    "No new i18n keys — welcome.* (S2) and groups.joinRequestButton (existing) cover all copy needed"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/e2e/groups-welcome.spec.ts (new, relay/groups Docker bucket)",
+    "app/tests/unit/components/JoinRequestCard.test.ts (existing, must still pass unmodified — pure predicates unaffected)"
+  ],
+  "notes": "groups.tsx is unchanged: it already renders JoinRequestCard unconditionally for the join-param branch, and JoinRequestCard now internally decides which presentation to use based on isFreshIdentity. This keeps AC-GROUP-1's 'no separate join card shown afterward' true by construction (a single component instance, a single render branch) rather than requiring two sibling components in groups.tsx. This is a deliberate deviation from the story prompt's groups.tsx-branch suggestion (option b); option (a) from the composition guidance was chosen as the cleaner structure."
+}

@@ -20,6 +20,20 @@
  *
  * Requires the strfry relay harness: make e2e-up (or make test-e2e-groups).
  * Run: E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/dm-pairing-onboarding-scanner.spec.ts
+ *
+ * UPDATED (epic: first-visit-invite-welcome, story S3) — B's scenario below
+ * (a completely fresh visitor, no identity/profile seeded) is EXACTLY the
+ * precondition S3's welcome screen now intercepts. Pre-S3, opening the live
+ * code auto-completed the one-directional add and (being nameless)
+ * redirected to `/profile?pairing=1` name setup, where the deferred echo
+ * fired once a name was entered there. Since S3, B instead sees the blended
+ * welcome screen first; entering a name there satisfies the
+ * pending-pairing-echo requirement INLINE (AC-NAME-2) — the add and the
+ * echo attempt both happen as part of completing the welcome screen, with
+ * no separate `/profile?pairing=1` detour and no `profile-nickname-input`
+ * step. The updated test below drives that new path; the end state it
+ * verifies (A eventually admits B with no further scan on either side) is
+ * unchanged.
  */
 import { test, expect } from '@playwright/test';
 import { USER_A, computeTestKeypairs } from './helpers/auth-helpers';
@@ -36,7 +50,7 @@ test.describe('Pairing: nameless onboarding scanner completes a deferred echo (A
   });
 
   test(
-    'a scanner with no prior identity is routed to name setup, and the deferred echo fires once a name is set',
+    'a scanner with no prior identity sees the first-visit welcome screen, and the name captured there satisfies the pairing echo inline (epic: first-visit-invite-welcome, story S3)',
     async ({ browser }) => {
       // ── 1. A (issuer) shares a real v2 pairing code. ────────────────────
       const a = await bootIdentity(browser, USER_A, 'Alice-Pairing');
@@ -45,38 +59,37 @@ test.describe('Pairing: nameless onboarding scanner completes a deferred echo (A
 
       // ── 2. B is a completely fresh visitor — no identity, no profile
       // seeded at all. Opening the code makes the app auto-generate an
-      // identity on mount (NostrIdentityContext), then — because that fresh
-      // identity has no name yet — redirect to name setup (AC-SCAN-5). ────
+      // identity on mount (NostrIdentityContext), then — since story S3 —
+      // shows the blended welcome screen instead of auto-completing and
+      // redirecting to name setup (see file header). ─────────────────────
       const b = await newAnonymousContext(browser);
       await b.page.goto(`/add#c=${payload}`);
-      // Next.js's static-export trailing-slash convention renders this as
-      // `/profile/?pairing=1…` — match on the query string, not a literal
-      // `/profile?` (no slash) prefix (see contact-card-deeplink.spec.ts's
-      // identical fix for the same underlying URL shape).
-      await expect(b.page).toHaveURL(new RegExp('pairing=1&issuer='), { timeout: 20_000 });
-      await expect(b.page.getByTestId('profile-pairing-name-setup-prompt')).toBeVisible({ timeout: 15_000 });
+      await expect(b.page.getByTestId('welcome-invite')).toBeVisible({ timeout: 20_000 });
 
       // ── 3. Read B's freshly auto-generated pubkey — it wasn't seeded, the
-      // app generated it, so the test doesn't know it ahead of time. ──────
+      // app generated it, so the test doesn't know it ahead of time. The
+      // identity is already hydrated by the time the welcome screen renders
+      // (that's a precondition of showing it at all). ─────────────────────
       const bPubkeyHex: string = await b.page.evaluate(() => {
         const raw = localStorage.getItem('lp_nostrIdentity_v1');
         return raw ? (JSON.parse(raw) as { pubkeyHex: string }).pubkeyHex : '';
       });
       expect(bPubkeyHex).toMatch(/^[0-9a-f]{64}$/);
 
-      // ── 4. B's one-directional add of A already completed under the hood
-      // before the redirect decision (add.tsx's existing behavior). ───────
-      const bContacts = await readContactPubkeys(b.page);
-      expect(bContacts).toContain(USER_A.pubkeyHex);
+      // ── 4. Complete the welcome screen — capturing the name up front
+      // satisfies the pending-pairing-echo requirement inline (AC-NAME-2):
+      // no `/profile?pairing=1` detour, no separate `profile-nickname-input`
+      // step. ───────────────────────────────────────────────────────────
+      await b.page.getByTestId('welcome-name-input').fill('Onboarded-Bob');
+      await b.page.getByTestId('welcome-primary-action').click();
+      await expect(b.page).not.toHaveURL(/pairing=1/);
 
-      // ── 5. Complete onboarding: filling the nickname input alone already
-      // flips hasShareableName true, which edge-triggers the profile page's
-      // own effect that drains the held pending intent automatically. ─────
-      await b.page.getByTestId('profile-nickname-input').fill('Onboarded-Bob');
-      await b.page.getByTestId('profile-nickname-input').blur();
+      // B's one-directional add of A completes as part of the same flow.
+      await expect.poll(() => readContactPubkeys(b.page), { timeout: 20_000 }).toContain(USER_A.pubkeyHex);
 
-      // ── 6. A must auto-admit the onboarded scanner once it sets a name,
-      // with no further scan on either side. ──────────────────────────────
+      // ── 5. A must admit the onboarded scanner — the echo fired inline as
+      // part of completing the welcome screen, with no further scan on
+      // either side. ──────────────────────────────────────────────────────
       const admitted = await waitForAdmission(a.page, bPubkeyHex, 60_000);
       expect(admitted, 'A must admit the onboarded scanner once they set a name, with no further scan').toBe(true);
     },

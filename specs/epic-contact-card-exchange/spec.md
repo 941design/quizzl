@@ -329,3 +329,15 @@ surface (`settings.tsx:567`) rather than introducing a separate screen.
   since no acceptance criterion names the `onScan` payload shape and re-plumbing a
   typed struct through both call sites would be a pure refactor with no observable
   behavior change.
+
+- **2026-07-17 — AC-UX-7 superseded in part by `epic-first-visit-invite-welcome`
+  (story S3).** The no-local-identity `/add#c=…` visitor this AC describes is
+  exactly the precondition `epic-first-visit-invite-welcome` intercepts: that
+  visitor now sees the blended first-visit welcome screen (AC-CONTACT-1) and
+  enters a name before the add runs, rather than completing the add silently and
+  (if nameless) being redirected to `/profile?pairing=1`. The name captured on the
+  welcome screen satisfies the pending-pairing-echo requirement inline
+  (AC-NAME-2), so that redirect path no longer occurs for this precondition. See
+  `AC-UX-7`'s superseded-in-part note in `acceptance-criteria.md` and the "UPDATED
+  (epic: first-visit-invite-welcome, story S3)" comment in
+  `app/tests/e2e/contact-card-deeplink.spec.ts`.

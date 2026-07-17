@@ -18,6 +18,7 @@ import { useProfile } from '@/src/context/ProfileContext';
 import { npubToPubkeyHex } from '@/src/lib/nostrKeys';
 import { sendJoinRequest } from '@/src/lib/marmot/joinRequestSender';
 import { hasShareableName } from '@/src/lib/shareCard';
+import WelcomeInvite from '@/src/components/WelcomeInvite';
 
 type JoinRequestCardProps = {
   nonce: string;
@@ -37,9 +38,23 @@ export function isJoinRequestDisabled(gateActive: boolean, draftName: string): b
   return gateActive && !hasShareableName(draftName);
 }
 
+// Pre-commit review gate remediation (Finding A, epic first-visit-invite-
+// welcome): the isFreshIdentity welcome branch ALWAYS renders an editable
+// name field (unlike the returning-user inline card, which only renders one
+// when `gateActive`). Gating the welcome action on `gateActive && ...` was
+// wrong whenever a first-timer already had a saved, shareable nickname —
+// e.g. from completing the /add contact welcome earlier in the same
+// session: `gateActive` is false, so the old predicate ignored the visible
+// field entirely and stayed enabled even after the field was cleared. The
+// welcome variant's VISIBLE field is the sole source of truth, independent
+// of whether a name was already saved.
+export function isWelcomeJoinRequestDisabled(draftName: string): boolean {
+  return !hasShareableName(draftName);
+}
+
 export default function JoinRequestCard({ nonce, adminNpub, groupName }: JoinRequestCardProps) {
   const copy = useCopy();
-  const { pubkeyHex, privateKeyHex, hydrated } = useNostrIdentity();
+  const { pubkeyHex, privateKeyHex, hydrated, isFreshIdentity } = useNostrIdentity();
   const { groups } = useMarmot();
   const { profile, saveProfile } = useProfile();
   const [sending, setSending] = useState(false);
@@ -53,6 +68,9 @@ export default function JoinRequestCard({ nonce, adminNpub, groupName }: JoinReq
 
   const gateActive = isNameGateActive(profile.nickname);
   const requestDisabled = isJoinRequestDisabled(gateActive, nameDraft);
+  // Welcome branch (isFreshIdentity) uses this instead of `requestDisabled`
+  // — see isWelcomeJoinRequestDisabled's comment (Finding A fix).
+  const welcomeRequestDisabled = isWelcomeJoinRequestDisabled(nameDraft);
 
   const adminPubkeyHex = npubToPubkeyHex(adminNpub);
 
@@ -112,10 +130,21 @@ export default function JoinRequestCard({ nonce, adminNpub, groupName }: JoinReq
 
   async function handleSendRequest() {
     if (!pubkeyHex || !privateKeyHex || !adminPubkeyHex) return;
-    if (requestDisabled) return;
 
-    if (gateActive) {
-      saveProfile({ ...profile, nickname: nameDraft });
+    if (isFreshIdentity) {
+      // Welcome branch (Finding A fix): the visible name field is the sole
+      // source of truth for both the disable check and the save — never
+      // `gateActive`, which can be false (name already saved earlier this
+      // session) while the visible field was subsequently cleared.
+      if (welcomeRequestDisabled) return;
+      if (nameDraft.trim() !== profile.nickname.trim()) {
+        saveProfile({ ...profile, nickname: nameDraft });
+      }
+    } else {
+      if (requestDisabled) return;
+      if (gateActive) {
+        saveProfile({ ...profile, nickname: nameDraft });
+      }
     }
 
     setSending(true);
@@ -146,6 +175,47 @@ export default function JoinRequestCard({ nonce, adminNpub, groupName }: JoinReq
           <AlertIcon />
           <AlertDescription>{copy.groups.joinRequestSent}</AlertDescription>
         </Alert>
+      </Box>
+    );
+  }
+
+  // Epic: first-visit-invite-welcome, story S4 (AC-GROUP-1..4). A GENUINE
+  // first-time visitor (`isFreshIdentity`, S1's seam) who opens a group
+  // invite link is shown the blended `WelcomeInvite` (group variant)
+  // INSTEAD of the inline card below — hosting the SAME nameDraft /
+  // handleSendRequest state this component already computes. This is the
+  // only render branch that differs between a first-timer and a returning
+  // user: every guard above (loading, identity-not-ready, invalid admin
+  // npub, already-a-member) and the `sent` confirmation above both fire
+  // identically for both variants, and a returning user
+  // (`isFreshIdentity === false`) renders the pre-existing card below,
+  // byte-identical to pre-S4 behavior (AC-RETURN-2). There is exactly one
+  // rendered tree at a time — never both — so "no separate join card shown
+  // afterward" (AC-GROUP-1) holds by construction.
+  //
+  // Gate-remediation (Finding A): the disable predicate for THIS branch is
+  // `welcomeRequestDisabled` (visible-field-only), not the shared
+  // `requestDisabled` (which folds in `gateActive` and is used by the
+  // returning-user inline card below, unchanged). See
+  // isWelcomeJoinRequestDisabled's comment above for why.
+  if (isFreshIdentity) {
+    return (
+      <Box py={8} data-testid="join-request-welcome-wrapper">
+        {error && (
+          <Alert status="error" borderRadius="md" maxW="md" mx="auto" mb={4}>
+            <AlertIcon />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        <WelcomeInvite
+          inviteLine={copy.welcome.groupInviteLine(groupName)}
+          nameValue={nameDraft}
+          onNameChange={setNameDraft}
+          primaryActionLabel={copy.groups.joinRequestButton}
+          primaryActionDisabled={welcomeRequestDisabled}
+          onPrimaryAction={() => void handleSendRequest()}
+          primaryActionLoading={sending}
+        />
       </Box>
     );
   }

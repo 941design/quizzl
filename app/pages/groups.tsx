@@ -549,7 +549,12 @@ export default function GroupsPage() {
   const { backedUp } = useNostrIdentity();
   const createDisclosure = useDisclosure();
 
-  // When ?join=xxx is present, show the join request card
+  // When ?join=xxx is present, show the join request card. Epic:
+  // first-visit-invite-welcome, story S4 — the isFreshIdentity branch that
+  // swaps in the blended WelcomeInvite (group variant) for a genuine
+  // first-time visitor lives INSIDE JoinRequestCard itself (it already owns
+  // the name-draft/send-guard state that variant reuses), not here; this
+  // call site is unchanged from pre-S4.
   if (joinNonce && joinAdmin && joinName) {
     return <JoinRequestCard nonce={joinNonce} adminNpub={joinAdmin} groupName={joinName} />;
   }

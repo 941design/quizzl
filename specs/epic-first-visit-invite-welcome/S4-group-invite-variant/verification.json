@@ -1,0 +1,129 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-17T20:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Does the first-timer group-welcome branch in groups.tsx require isFreshIdentity === true AND the ?join=&admin=&name= params all present before rendering WelcomeInvite in place of JoinRequestCard's standalone render -- not a branch that fires on isFreshIdentity alone or that still mounts a separate JoinRequestCard beneath/after the welcome screen? Does the actual sendJoinRequest call fire with the real entered name, not a stubbed constant?"
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does groups.tsx/JoinRequestCard.tsx reuse the existing name-gate predicates (isNameGateActive/hasShareableName) and sendJoinRequest (app/src/lib/marmot/joinRequestSender.ts) unchanged, with no new parallel join-request implementation introduced, per this story's scope.excludes ('No change to sendJoinRequest / joinRequestSender.ts transport logic -- reused as-is')?"
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could the Group-invite entry module (app/pages/groups.tsx, app/src/components/groups/JoinRequestCard.tsx) be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does app/tests/e2e/groups-welcome.spec.ts run in the groups/relay Docker bucket (not the non-relay bucket) and drive a real invite-link join through a real second browser-context peer generating the invite (per this repo's e2e rule against hand-built URLs bypassing the app), asserting both that WelcomeInvite renders for the first-timer and that no separate JoinRequestCard remains visible afterward?"
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does groups.tsx read the group name for the invite line directly from the URL's name param (as today, cleartext, no relay read) per spec.md's 'Inviter name is read from the link, not the network' design decision, with no new relay query introduced to fetch the group name?"
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the group-invite branch still validate/parse the join/admin/name URL params the same way the pre-existing JoinRequestCard render path did (no relaxed validation introduced by routing through WelcomeInvite), and does sendJoinRequest continue to gift-wrap the request (NIP-59) rather than any new unencrypted/public send path?"
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GROUP-1",
+      "question": "When isFreshIdentity is true and /groups/?join=&admin=&name=Y is opened, does groups.tsx render WelcomeInvite hosting the name field and join action, with NO separate JoinRequestCard rendered afterward -- confirmed by an e2e assertion that only one join-related testid tree exists on the page at a time?"
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GROUP-2",
+      "question": "Does the group welcome screen's invite line read 'You're invited to join {group}' using the exact group name Y taken from the URL's name param, confirmed by an e2e test that seeds a specific group name and asserts that exact string appears (not a generic placeholder)?"
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GROUP-3",
+      "question": "Is the join action disabled until a non-blank name is entered, reusing the existing name-gate predicate (isNameGateActive/hasShareableName), with an e2e test confirming disabled-then-enabled transition on typing a name -- the same test pattern used for AC-CONTACT-5, proving both entry points share one predicate rather than two divergent ones?"
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-GROUP-4",
+      "question": "Does pressing the join action call saveProfile with the entered name and then sendJoinRequest via the existing send path, followed by the existing 'request sent' confirmation (testid join-request-sent) -- confirmed by an e2e test asserting the confirmation appears AND that a real join-request gift-wrap was observed by the admin peer (not just a UI-only assertion)?"
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-RETURN-2",
+      "question": "For a returning user (isFreshIdentity=false) opening a group invite link, does groups.tsx render today's existing JoinRequestCard behavior unchanged (no WelcomeInvite) -- confirmed by an e2e test that sets up a returning-user identity state and asserts WelcomeInvite's testids are absent while JoinRequestCard's are present?"
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PRIV-1",
+      "question": "Does completing the group welcome screen publish the entered name ONLY inside the NIP-59 gift-wrapped join request (never as a public/kind-0 event), confirmed by an e2e or integration check that inspects actual relay publish traffic during the flow and asserts no kind-0 event is published, not merely a code-review claim?"
+    },
+    {
+      "question_id": "VQ-S4-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PRIV-2",
+      "question": "Does displaying the group name on the welcome screen require zero relay reads (read directly from the URL's name param) and trigger no publish of the newcomer's own data merely by rendering the screen -- confirmed by network/publish assertions in groups-welcome.spec.ts covering the render-only path before the join action is pressed?"
+    },
+    {
+      "question_id": "VQ-S4-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NAME-1",
+      "question": "Is the name entered on the group welcome screen persisted via saveProfile to the local profile before or at the point of sending the join request, such that a subsequent name-gated action within the same session is no longer blocked -- confirmed by a test capturing the name via the group welcome screen then checking profile.nickname / isNameGateActive reflects it?"
+    },
+    {
+      "question_id": "VQ-S4-015",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The pre-impl questions (VQ-S4-001, VQ-S4-007) were phrased assuming the isFreshIdentity branch lives in groups.tsx (composition option b from the story prompt). The actual implementation chose option (a): groups.tsx's join-param branch is byte-identical to pre-S4 (it still unconditionally renders <JoinRequestCard nonce adminNpub groupName />, with a comment noting the change lives elsewhere), and the isFreshIdentity branch was added INSIDE JoinRequestCard.tsx itself (app/src/components/groups/JoinRequestCard.tsx lines ~154-188), reusing the SAME nameDraft/requestDisabled/handleSendRequest state the component already computed rather than introducing a sibling component or lifting that state up to groups.tsx. Does this alternate composition still satisfy the SUBSTANCE of VQ-S4-001/VQ-S4-007 (single render tree, no separate join card ever mounted alongside/after the welcome screen, isFreshIdentity && join-params gating, real sendJoinRequest with the real entered name)? Is there any behavioral difference between the two compositions that would matter for AC-GROUP-1 or AC-RETURN-2 (e.g. re-render timing, guard-branch ordering, error-state handling)?"
+    },
+    {
+      "question_id": "VQ-S4-016",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "WelcomeInviteProps has no error-display slot (by design -- S2's pure-presentation contract, not touched by this story). JoinRequestCard's welcome-variant branch renders a standalone Chakra Alert ABOVE the WelcomeInvite component (not inside it) when handleSendRequest's existing `error` state is set, reusing the same copy.groups.joinRequestError string the pre-existing card path already used. Is this an acceptable way to surface a failed send (e.g. a relay/gift-wrap failure) on the first-timer welcome screen without modifying WelcomeInvite.tsx, or does it need its own e2e/unit coverage of the failure path (none was added -- the pre-existing card's error path likewise has no dedicated e2e/unit coverage found in the repo)?"
+    },
+    {
+      "question_id": "VQ-S4-017",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "groups-welcome.spec.ts's AC-RETURN-2 test boots the 'returning user' (USER_B) WITH a seeded nickname ('Returning Bob'), so JoinRequestCard's OWN internal name gate (gateActive) is false for that user and the join-request-name-gate testid never renders in that test either way. Does this test still faithfully prove AC-RETURN-2 (WelcomeInvite absent, join-request-card present, i.e. the isFreshIdentity branch is what's being tested), or should a variant also cover a returning-but-nameless user (isFreshIdentity=false, no nickname) to confirm the OLD inline name gate (not WelcomeInvite) still renders in that combination -- distinct from groups-invite-link.spec.ts's existing nameless-invitee coverage, which already exercises exactly that combination with USER_C?"
+    },
+    {
+      "question_id": "VQ-S4-018",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Remediation for VQ-S4-017: groups-welcome.spec.ts's 'returning user (AC-RETURN-2)' describe block now has a second test that boots the returning invitee via bootUser(browser, USER_C) with NO nickname option (identity seeded pre-mount -- isFreshIdentity false -- but hasShareableName('') false), asserts join-request-card renders (not welcome-invite), asserts join-request-name-gate/join-request-name-input are visible and join-request-send-btn is disabled until a name is typed, then completes the send to join-request-sent. Together with the original nickname-seeded AC-RETURN-2 test, does the describe block now cover BOTH states JoinRequestCard's gateActive branch can take for a returning user (named and nameless), closing the gap the examiner flagged -- and does reusing USER_C (already used for the SAME nameless-gate combination but WITHOUT isFreshIdentity=false pre-seeded identity in groups-invite-link.spec.ts) introduce any identity-salting collision risk across the two spec files, given auth-helpers.ts salts USER_C's derived key per spec FILE?"
+    },
+    {
+      "question_id": "VQ-S4-019",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Remediation for VQ-S4-016: groups-welcome.spec.ts now has a 'send failure surfaces the error Alert' test that boots a fresh anonymous first-timer, fills the welcome-invite name field, calls context.setOffline(true) immediately before clicking welcome-primary-action (forcing joinRequestSender.ts's rawPublish to fail its NEW per-relay WebSocket connections via ws.onerror, or its own internal 10s timeout as a fallback -- either path deterministic, no reliance on real relay availability or timing), then asserts JoinRequestCard's welcome-branch Alert (data-testid join-request-welcome-wrapper > role=alert) becomes visible containing copy.groups.joinRequestError, and that the welcome screen remains visible with the action re-enabled and no false join-request-sent afterward. Verified passing (6/6, this test in ~9.5s) against a live strfry relay via `E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-welcome.spec.ts`. Is context.setOffline(true)-before-click an acceptable, non-flaky failure-injection technique for this send path (precedent: groups-error-cases.spec.ts uses the same API for the offline-banner test, though for a different assertion), and does asserting on the Alert's role=alert + exact copy text (rather than only a testid) risk brittleness if the Alert markup or copy is refactored later?"
+    }
+  ]
+}

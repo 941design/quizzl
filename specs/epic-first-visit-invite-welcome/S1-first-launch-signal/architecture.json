@@ -1,0 +1,34 @@
+{
+  "module_name": "Identity context",
+  "purpose": "Surface a session-scoped isFreshIdentity boolean on NostrIdentityContext, derived from whether loadStoredIdentity() returned null at this page load's init, before the existing auto-generation step. No new persistence; no page wiring (consumed by S3/S4).",
+  "public_api": [
+    {
+      "name": "deriveIsFreshIdentity",
+      "signature": "(storedIdentityAtInit: StoredNostrIdentity | null) => boolean",
+      "description": "Pure function. Returns true iff storedIdentityAtInit is null, i.e. no identity existed in storage at this init. Exported from app/src/lib/freshIdentity.ts so it is unit-testable without jsdom. Consumed by NostrIdentityContext.tsx's init() effect, called on the pre-auto-generation loadStoredIdentity() result."
+    },
+    {
+      "name": "useNostrIdentity().isFreshIdentity",
+      "signature": "boolean",
+      "description": "New field added to NostrIdentityContextValue (and its type). true only when deriveIsFreshIdentity(loadStoredIdentity()) was true at this session's init; false whenever a stored identity already existed at init, including immediately after a first-timer's auto-generated identity was saved and the page is reloaded. Session-scoped: set once during the init effect, not re-derived on later state changes. Defaults to false in DEFAULT_CONTEXT (used outside the provider) and before hydration completes."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "session-scoped isFreshIdentity boolean (in-memory React state only; no new storage key)"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/nostrKeys.ts (loadStoredIdentity, StoredNostrIdentity type — already an existing dependency of NostrIdentityContext.tsx)"
+  ],
+  "dependencies_forbidden": [
+    "app/pages/add.tsx",
+    "app/pages/groups.tsx",
+    "any new persisted storage key (localStorage/idb) for the fresh-identity signal itself"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "tests/unit/lib/freshIdentity.test.ts — deriveIsFreshIdentity: null-at-init -> true (AC-DETECT-1); non-null stored identity at init -> false, incl. the 'created this session then reloaded' case (AC-DETECT-2)"
+  ]
+}

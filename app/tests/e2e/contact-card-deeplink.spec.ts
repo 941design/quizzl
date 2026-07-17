@@ -40,6 +40,24 @@
  * entirely out-of-band (a nameless scanner's `attemptOrQueuePairingEcho`
  * short-circuits on `hasShareableName` BEFORE any NDK connect/publish), so
  * this spec stays in the non-relay bucket (`make test-e2e-fast`).
+ *
+ * UPDATED (epic: first-visit-invite-welcome, story S3) — the AC-UX-7
+ * "no local identity" scenario below is EXACTLY the precondition S3's
+ * welcome screen now intercepts: a genuine first-time visitor
+ * (`isFreshIdentity`) opening a contact-card link. Pre-S3, that visitor's
+ * add completed silently and (being nameless) redirected to
+ * `/profile?pairing=1` (RD-7). Since S3, they instead see the blended
+ * welcome screen first and must enter a name before anything runs — the
+ * name captured there satisfies the pending-pairing-echo requirement
+ * inline (AC-NAME-2), so the nameless `/profile?pairing=1` detour this test
+ * originally asserted can no longer occur for this exact scenario. The test
+ * below was updated to drive the new welcome-screen step rather than
+ * asserting pre-S3 behavior; full welcome-screen coverage (invite line,
+ * name gate, privacy) lives in `add-welcome.spec.ts`, so this test's
+ * remaining job is only confirming the one-directional add itself still
+ * completes end-to-end through the new entry point. AC-UX-3 above
+ * (existing identity) is untouched by S3 — a returning user's flow is
+ * byte-identical to before (AC-RETURN-1).
  */
 import { test, expect } from '@playwright/test';
 import { USER_A, USER_B, computeTestKeypairs } from './helpers/auth-helpers';
@@ -93,29 +111,30 @@ test.describe('/add deep link (AC-UX-3 / AC-UX-7)', () => {
     await visitor.context.close();
   });
 
-  test('AC-UX-7: no local identity — /add#c=<card> auto-onboards, completes the one-directional add, and (nameless) redirects to pairing name setup (RD-7)', async ({ browser }) => {
+  test('AC-UX-7 (superseded by epic: first-visit-invite-welcome, story S3): no local identity — /add#c=<card> shows the first-visit welcome screen and completes the one-directional add once a name is entered', async ({ browser }) => {
     const sharer = await bootIdentity(browser, USER_B, 'OnboardBob');
     const cardLink = await getShareCardLink(sharer.page);
     const payload = extractCardPayload(cardLink);
 
     const { context, page } = await newAnonymousContext(browser);
     // No identity seeded at all — NostrIdentityContext generates one on
-    // first mount. The page shows a brief "setting up" state
-    // (add-page-setting-up) until hydration flips true, then completes the
-    // one-directional add using the just-generated (nameless) identity.
+    // first mount (isFreshIdentity = true for this load). Since story S3, a
+    // genuine first-time visitor with a contact card in the URL sees the
+    // blended welcome screen instead of auto-completing silently (see file
+    // header for the full rationale — this supersedes the old nameless
+    // `/profile?pairing=1` redirect assertion for this exact scenario).
     await page.goto(`/add#c=${payload}`);
 
-    await expect.poll(() => readContactPubkeysLocal(page), { timeout: 20_000 }).toContain(USER_B.pubkeyHex);
+    await expect(page.getByTestId('welcome-invite')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('welcome-name-input').fill('OnboardedVisitor');
+    await page.getByTestId('welcome-primary-action').click();
 
-    // The freshly auto-generated identity has no nickname yet, so the SAME
-    // live-v2-code detour as AC-UX-3 applies: redirect to name setup rather
-    // than landing on the contact (see file header for why this superseded
-    // the original direct-landing assertion).
-    // Next.js's static-export trailing-slash convention renders this as
-    // `/profile/?pairing=1…` — match on the query string, not a literal
-    // `/profile?` (no slash) prefix.
-    await expect(page).toHaveURL(new RegExp(`pairing=1&issuer=${USER_B.pubkeyHex}`));
-    await expect(page.getByTestId('profile-pairing-name-setup-prompt')).toBeVisible({ timeout: 15_000 });
+    // The one-directional add still completes end-to-end through the new
+    // welcome-screen entry point, and — since a name was captured up front —
+    // never detours through the nameless `/profile?pairing=1` name-setup
+    // redirect (AC-NAME-2).
+    await expect.poll(() => readContactPubkeysLocal(page), { timeout: 20_000 }).toContain(USER_B.pubkeyHex);
+    await expect(page).not.toHaveURL(/pairing=1/);
 
     await sharer.context.close();
     await context.close();

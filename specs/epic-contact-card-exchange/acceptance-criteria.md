@@ -164,6 +164,18 @@ identity exists MUST complete the add of the card's contact. The card MUST survi
 the onboarding step (the profile is not lost across identity creation) and MUST never
 be transmitted to the server (fragment-only; AC-SEC-1 holds throughout).
 
+**Superseded in part by `epic-first-visit-invite-welcome`** (AC-CONTACT-1,
+AC-NAME-2): for a genuine first-time visitor (`isFreshIdentity`), "onboarding" now
+means the blended first-visit welcome screen, not silent identity auto-generation —
+the newcomer enters a name on that screen and completes the add from there. The
+pre-existing behavior this AC originally exercised (auto-add completing silently,
+then redirecting a nameless newcomer to `/profile?pairing=1`) no longer occurs for
+this exact precondition; the name captured on the welcome screen satisfies the
+pending-pairing-echo requirement inline instead. Full welcome-screen coverage lives
+in `add-welcome.spec.ts`; `contact-card-deeplink.spec.ts`'s AC-UX-7 case was updated
+in story S3 of that epic to drive the new entry point and now asserts only that the
+one-directional add itself still completes.
+
 **AC-UX-5** — Adding a contact via a bare npub (no card) MUST still succeed with no
 nickname (the no-profile fallback is preserved).
 

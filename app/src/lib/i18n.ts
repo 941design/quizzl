@@ -354,6 +354,23 @@ type Copy = {
     noCard: string;
     goToContacts: string;
   };
+  /**
+   * Epic: first-visit-invite-welcome, story S2 — the shared WelcomeInvite
+   * presentation component (contact-card and group-invite variants, wired by
+   * S3/S4). The pitch itself is NOT duplicated here — it reuses
+   * home.subheadingLead / home.subheadingPoints. contactInviteLine /
+   * groupInviteLine are the two dynamic invite-line variants; the group
+   * primary action reuses groups.joinRequestButton ("Request to Join")
+   * rather than a new welcome.* key, since that copy already says the right
+   * thing for both call sites.
+   */
+  welcome: {
+    contactInviteLine: (name: string) => string;
+    groupInviteLine: (group: string) => string;
+    nameLabel: string;
+    namePlaceholder: string;
+    contactPrimaryAction: string;
+  };
   profile: {
     pageTitle: string;
     backLabel: string;
@@ -918,6 +935,13 @@ const copy: Record<LanguageCode, Copy> = {
       noCard: "This link doesn't include a contact card.",
       goToContacts: 'Go to Contacts',
     },
+    welcome: {
+      contactInviteLine: (name: string) => `${name} invited you to few.chat`,
+      groupInviteLine: (group: string) => `You're invited to join ${group}`,
+      nameLabel: 'Your name',
+      namePlaceholder: 'e.g. Alex',
+      contactPrimaryAction: 'Get started',
+    },
     profile: {
       pageTitle: 'Profile',
       backLabel: 'Back',
@@ -1453,6 +1477,13 @@ const copy: Record<LanguageCode, Copy> = {
       redirecting: 'Dein neuer Kontakt wird geöffnet …',
       noCard: 'Dieser Link enthält keine Kontaktkarte.',
       goToContacts: 'Zu den Kontakten',
+    },
+    welcome: {
+      contactInviteLine: (name: string) => `${name} hat dich zu few.chat eingeladen`,
+      groupInviteLine: (group: string) => `Du bist eingeladen, der Gruppe ${group} beizutreten`,
+      nameLabel: 'Dein Name',
+      namePlaceholder: 'z. B. Alex',
+      contactPrimaryAction: "Los geht's",
     },
     profile: {
       pageTitle: 'Profil',

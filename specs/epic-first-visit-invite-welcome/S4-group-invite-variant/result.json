@@ -1,0 +1,39 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-17T23:45:00Z",
+  "files_created": [
+    "app/tests/e2e/groups-welcome.spec.ts",
+    "specs/epic-first-visit-invite-welcome/S4-group-invite-variant/baseline.json",
+    "specs/epic-first-visit-invite-welcome/S4-group-invite-variant/architecture.json",
+    "specs/epic-first-visit-invite-welcome/S4-group-invite-variant/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/groups/JoinRequestCard.tsx",
+    "app/pages/groups.tsx",
+    "specs/epic-first-visit-invite-welcome/S4-group-invite-variant/verification.json",
+    "app/tests/e2e/groups-welcome.spec.ts"
+  ],
+  "tests_added": {
+    "e2e": 6
+  },
+  "test_counts": {
+    "baseline": 3365,
+    "final": 3365
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "modules_touched": ["Group-invite entry"],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The two examiner-flagged gaps (VQ-S4-016, VQ-S4-017) were both coverage gaps in a test file rather than product bugs, but closing VQ-S4-016 required tracing joinRequestSender.ts's rawPublish() to confirm a reliable, non-flaky in-app failure trigger existed (context.setOffline(true) racing a fresh per-relay WebSocket, which fails via ws.onerror or the function's own 10s per-relay timeout either way) before committing to the test rather than guessing at one.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

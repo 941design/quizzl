@@ -1,0 +1,43 @@
+{
+  "epic_name": "first-visit-invite-welcome",
+  "created_at": "2026-07-17T19:40:59Z",
+  "reviewer_state": {
+    "last_story_reviewed": "pre-commit gate (S1-S4, cold RESUME)",
+    "updated_at": "2026-07-17T21:50:52Z"
+  },
+  "concepts": [
+    {
+      "name": "isFreshIdentity",
+      "owner": "app/src/context/NostrIdentityContext.tsx",
+      "note": "single derivation via deriveIsFreshIdentity; consumed by add.tsx + JoinRequestCard.tsx"
+    },
+    {
+      "name": "hasShareableName",
+      "owner": "app/src/lib/shareCard.ts",
+      "note": "name-gate single source of truth; reused by both entry points"
+    },
+    {
+      "name": "name-capture-local-only",
+      "owner": "app/src/context/ProfileContext.saveProfile",
+      "note": "privacy chokepoint: name saved locally, never kind-0"
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "surfaces_touched": "identity context signal"
+    },
+    {
+      "id": "S2",
+      "surfaces_touched": "shared presentation + i18n"
+    },
+    {
+      "id": "S3",
+      "surfaces_touched": "/add contact wiring + pure deriveInviterName"
+    },
+    {
+      "id": "S4",
+      "surfaces_touched": "group wiring inside JoinRequestCard"
+    }
+  ]
+}

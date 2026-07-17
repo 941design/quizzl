@@ -1,0 +1,41 @@
+{
+  "module_name": "Contact-card entry",
+  "purpose": "Wire /add to render the blended first-visit welcome screen (contact variant) for a genuine first-time visitor who opens a contact-card link, instead of today's silent 'setting up...' spinner. Decodes the inviter's name read-only for display, gates the primary action on a non-blank name, and on submit saves the name locally then runs the existing add-contact flow (including the existing pending-pairing-echo mechanism) unchanged except for name-capture ordering.",
+  "public_api": [
+    {
+      "name": "deriveInviterName",
+      "signature": "(cardPayload: string) => string | null",
+      "description": "Pure. Composes the existing parseContactCard seam (app/src/lib/contactCard.ts) -- introduces no decode/signature-verification logic of its own. Returns the verified, readable inviter nickname, or null for any of: a v1 card with no name, a bare npub, a nostr: URI, or a decode/verification error. Exported from app/src/lib/contactInviteLine.ts for unit coverage (AC-CONTACT-2/3)."
+    }
+  ],
+  "private_files": [
+    "app/pages/add.tsx (default-exported page component; no other module imports it)"
+  ],
+  "owned_data": [
+    "None persisted by this story. add.tsx's own transient React state (cardPayload, welcomeConfirmed, welcomeNameValue) is render-local, not storage."
+  ],
+  "dependencies_allowed": [
+    "app/src/context/NostrIdentityContext.tsx (useNostrIdentity -- hydrated, isFreshIdentity [S1 seam], pubkeyHex, privateKeyHex)",
+    "app/src/context/ProfileContext.tsx (useProfile -- profile, saveProfile)",
+    "app/src/context/MarmotContext.tsx (useMarmot -- notifyKnownPeersChanged, unchanged)",
+    "app/src/context/LanguageContext.tsx (useCopy)",
+    "app/src/components/WelcomeInvite.tsx (WelcomeInviteProps seam [S2], pure presentation)",
+    "app/src/lib/addDeepLink.ts (readLocationHash, extractCardPayloadFromHash, resolveAddDeepLink -- all pre-existing, addDeepLink.ts is in-module)",
+    "app/src/lib/contactCard.ts (parseContactCard, consumed only via the new contactInviteLine.ts wrapper -- reused as-is per scope.excludes)",
+    "app/src/lib/contactInviteLine.ts (new, in-module: deriveInviterName)",
+    "app/src/lib/pairing/pendingIntent.ts (attemptOrQueuePairingEcho, PendingIntentSendContext -- pre-existing, unchanged; only call-site ordering changes)",
+    "app/src/lib/shareCard.ts (hasShareableName -- pre-existing cross-epic single-source-of-truth predicate for 'has a shareable name', already the convention used by JoinRequestCard.tsx and profile.tsx for the identical name-gate concern; reused, not duplicated, per VQ-S3-011)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/processContactInput.ts -- never imported directly; add.tsx reaches it only through resolveAddDeepLink's existing single-parse discipline (VQ-S3-002)",
+    "Any relay/NDK/broadcast call for the read-only invite-line decode path (AC-PRIV-2)",
+    "app/src/lib/profile broadcast helpers (publishProfileUpdate / fanOutProfileAnnounceOnChange) -- out of scope; only saveProfile (local) is called, never a fan-out to existing contacts/groups (AC-PRIV-1, no new publish path)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/lib/contactInviteLine.test.ts (vitest, no jsdom -- pure function coverage of deriveInviterName)",
+    "app/tests/e2e/add-welcome.spec.ts (Playwright, non-relay bucket -- filename carries neither a `groups-` nor `dm-` prefix, so playwright.config.ts's testMatch/testIgnore split routes it into the fast/non-relay run; the add flow itself needs no relay)"
+  ]
+}

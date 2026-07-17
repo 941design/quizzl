@@ -1,0 +1,21 @@
+{
+  "story_id": "S2",
+  "captured_at": "2026-07-17T22:05:00Z",
+  "command": "make test-unit",
+  "test_files": 174,
+  "tests_passed": 3355,
+  "tests_skipped": 1,
+  "tests_total": 3356,
+  "tests_failed": 0,
+  "status": "PASS",
+  "lint": {
+    "command": "npx next lint (app/)",
+    "status": "NO_LINT",
+    "note": "No ESLint config present (.eslintrc*/eslint.config*); `next lint` prompts interactively to scaffold one. Nothing to compare against — matches S1's baseline finding; not this story's responsibility to introduce."
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit -p tsconfig.json (app/)",
+    "status": "clean",
+    "note": "Zero errors at baseline (includes S1's already-landed, uncommitted freshIdentity.ts / NostrIdentityContext.tsx changes)."
+  }
+}

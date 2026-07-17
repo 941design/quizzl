@@ -29,6 +29,7 @@ import {
   pubkeyToNpub,
   type StoredNostrIdentity,
 } from '@/src/lib/nostrKeys';
+import { deriveIsFreshIdentity } from '@/src/lib/freshIdentity';
 
 export type SignerMode = 'local' | 'nip46' | 'nip07';
 
@@ -59,6 +60,16 @@ const REQUIRED_PERMS = [
 type NostrIdentityContextValue = {
   /** Whether the identity has been loaded from storage (may be null on SSR) */
   hydrated: boolean;
+  /**
+   * True only when loadStoredIdentity() returned null at this page load's
+   * init, before the auto-generation step — i.e. this is a genuine
+   * first-time visitor for this session. False whenever a stored identity
+   * already existed at init, including immediately after a first-timer's
+   * identity was auto-generated and the page is reloaded. Session-scoped:
+   * set once during init, not re-derived mid-session. No new persistence
+   * backs this signal (see app/src/lib/freshIdentity.ts).
+   */
+  isFreshIdentity: boolean;
   /** Hex-encoded public key */
   pubkeyHex: string | null;
   /** Npub (NIP-19 bech32 encoded public key) */
@@ -138,6 +149,7 @@ function raceWithTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 export function NostrIdentityProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [identity, setIdentity] = useState<StoredNostrIdentity | null>(null);
+  const [isFreshIdentity, setIsFreshIdentity] = useState(false);
   const [backedUp, setBackedUp] = useState(false);
   const [signerMode, setSignerModeState] = useState<SignerMode>('local');
   const [signerAvailable, setSignerAvailable] = useState(true);
@@ -174,6 +186,12 @@ export function NostrIdentityProvider({ children }: { children: React.ReactNode 
       // Load or generate identity
       let stored = loadStoredIdentity();
 
+      // AC-DETECT-1/2: capture the pre-auto-generation snapshot. This is the
+      // sole call site of deriveIsFreshIdentity — the auto-generation branch
+      // below never runs before this line, so both branches (fresh vs.
+      // returning) go through the same derivation, not divergent code paths.
+      const freshAtInit = deriveIsFreshIdentity(stored);
+
       if (!stored) {
         // First launch: generate keypair from 128-bit seed
         const { seedHex, privateKeyHex } = await generateIdentityFromSeed();
@@ -184,6 +202,7 @@ export function NostrIdentityProvider({ children }: { children: React.ReactNode 
 
       if (cancelled) return;
       setIdentity(stored);
+      setIsFreshIdentity(freshAtInit);
       setHydrated(true);
 
       // AC-NIP07: If previously in nip07 mode, re-connect the extension silently on mount.
@@ -617,6 +636,7 @@ export function NostrIdentityProvider({ children }: { children: React.ReactNode 
   const value = useMemo<NostrIdentityContextValue>(
     () => ({
       hydrated,
+      isFreshIdentity,
       pubkeyHex: identity?.pubkeyHex ?? null,
       npub: identity ? pubkeyToNpub(identity.pubkeyHex) : null,
       privateKeyHex: identity?.privateKeyHex ?? null,
@@ -638,6 +658,7 @@ export function NostrIdentityProvider({ children }: { children: React.ReactNode 
     }),
     [
       hydrated,
+      isFreshIdentity,
       identity,
       backedUp,
       replaceIdentity,
@@ -673,6 +694,7 @@ const NOOP_DISCONNECT_NIP07: NostrIdentityContextValue['disconnectNip07'] = () =
 
 const DEFAULT_CONTEXT: NostrIdentityContextValue = {
   hydrated: false,
+  isFreshIdentity: false,
   pubkeyHex: null,
   npub: null,
   privateKeyHex: null,

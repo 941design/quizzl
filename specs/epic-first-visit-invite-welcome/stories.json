@@ -1,0 +1,312 @@
+{
+  "epic_name": "first-visit-invite-welcome",
+  "created_at": "2026-07-17T00:00:00Z",
+  "total_stories": 4,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "first-launch-signal",
+      "title": "Surface isFreshIdentity from NostrIdentityContext",
+      "description": "Expose a session-scoped isFreshIdentity boolean on NostrIdentityContext, true only when loadStoredIdentity() returned null at this page load's init (before auto-generation), false once a stored identity exists (including after a first-timer's identity has been generated and the page reloaded). No new persistence is introduced. Extract the null-at-init -> boolean derivation as a small exported pure function so it is unit-testable without jsdom.",
+      "acceptance_criteria": [
+        "AC-DETECT-1",
+        "AC-DETECT-2"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/context/NostrIdentityContext.tsx",
+          "app/src/lib/freshIdentity.ts",
+          "tests/unit/lib/freshIdentity.test.ts"
+        ],
+        "excludes": [
+          "No page wiring (add.tsx, groups.tsx) — consumed by S3/S4",
+          "No new persisted storage key",
+          "No change to the auto-generation behavior itself, only observation of its trigger condition"
+        ]
+      },
+      "complexity": "low",
+      "status": "done",
+      "owning_module": "Identity context",
+      "creates_seam": true,
+      "notes": "Derive isFreshIdentity from the existing loadStoredIdentity() === null check already present at NostrIdentityContext.tsx:174-187. Session-scoped only; a reload after identity creation must report false. See architecture.md Design Decisions: 'First-time detection = identity-null-at-init.'",
+      "lighter_path": false
+    },
+    {
+      "id": "S2",
+      "name": "welcome-invite-component",
+      "title": "Shared WelcomeInvite presentation component and welcome.* copy",
+      "description": "Build the WelcomeInvite presentation component (HeroAccents background, optional invite line, reused 'Just chat.' lead + value bullets, own-name input, single primary action slot) as pure presentation driven entirely by props — no transport, no decoding, no persistence inside the component. Add the welcome.* copy block to the Copy type and both en/de dictionaries in i18n.ts, reusing home.subheadingLead / home.subheadingPoints rather than duplicating strings.",
+      "acceptance_criteria": [
+        "AC-SCREEN-1",
+        "AC-SCREEN-2",
+        "AC-SCREEN-3",
+        "AC-I18N-1",
+        "AC-I18N-2",
+        "AC-RETURN-3"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/components/WelcomeInvite.tsx",
+          "app/src/lib/i18n.ts"
+        ],
+        "excludes": [
+          "No wiring into app/pages/add.tsx or app/pages/groups.tsx — this story only produces the reusable component and copy",
+          "No wiring into app/pages/index.tsx — AC-RETURN-3 is satisfied by this story never touching the home page or the non-invite render path",
+          "No decode logic for contact cards or group invite URLs (owned by S3/S4)",
+          "No name-persistence or completion-action logic (component only exposes callback props)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "Welcome UI (new)",
+      "creates_seam": true,
+      "notes": "Component renders HeroAccents (existing, reused unchanged) plus the invite line only when the inviteLine prop is non-null (AC-CONTACT-3 fallback is enforced by the caller passing null, not by logic inside this component). No jsdom in this repo's unit setup, so the component itself is not directly unit-tested; AC-SCREEN-1..3 get their executable verification once wired into the two entry-point e2e specs in S3/S4 — this story's own verification is code review + the i18n completeness check (both Copy type and en/de present, function-copy pattern for dynamic lines).",
+      "lighter_path": false
+    },
+    {
+      "id": "S3",
+      "name": "contact-card-variant",
+      "title": "Wire /add to render the welcome screen for first-time visitors",
+      "description": "When isFreshIdentity is true and a contact card is present in the /add#c= fragment, render WelcomeInvite (contact variant) instead of the 'setting up...' spinner. Decode the card read-only via the existing pure parseContactCard for display (inviter name, or omit the invite line when no readable name exists). The primary action is disabled until a non-blank name is entered; pressing it saves the name via saveProfile, then runs the existing add-contact flow, ending on /contacts?...&added=1. A name captured here satisfies the existing pending-pairing-echo name requirement inline for v2 pairing cards, without the /profile?pairing=1 detour.",
+      "acceptance_criteria": [
+        "AC-CONTACT-1",
+        "AC-CONTACT-2",
+        "AC-CONTACT-3",
+        "AC-CONTACT-4",
+        "AC-CONTACT-5",
+        "AC-NAME-2",
+        "AC-RETURN-1"
+      ],
+      "scope": {
+        "includes": [
+          "app/pages/add.tsx",
+          "app/src/lib/addDeepLink.ts",
+          "app/src/lib/contactInviteLine.ts",
+          "tests/unit/lib/contactInviteLine.test.ts",
+          "app/tests/e2e/add-welcome.spec.ts"
+        ],
+        "excludes": [
+          "No change to parseContactCard's decode/signature-verification logic (app/src/lib/contactCard.ts) — reused as-is",
+          "No change to the pairing-echo mechanism itself (app/src/lib/pendingIntent.ts) — only the ordering (name saved before the echo check runs) changes, per architecture.md's 'echo mechanism itself is unchanged'",
+          "No i18n additions — all welcome.* copy comes from S2"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "owning_module": "Contact-card entry",
+      "consumes_seams": [
+        "IsFreshIdentitySignal",
+        "WelcomeInviteProps"
+      ],
+      "notes": "contactInviteLine.ts is a new pure function (decoded profile.nickname -> invite-line text | null) extracted for unit coverage of the no-name fallback (v1 without name, bare npub, nostr: URI) per architecture.md's testing guidance. Depends on S1 (isFreshIdentity) and S2 (WelcomeInvite) already being implemented; per project convention stories are implemented in story_order, not in parallel, so no mock of either is introduced.",
+      "lighter_path": false
+    },
+    {
+      "id": "S4",
+      "name": "group-invite-variant",
+      "title": "Wire /groups?join to render the welcome screen for first-time visitors",
+      "description": "When isFreshIdentity is true and the ?join=&admin=&name= params are present, render WelcomeInvite (group variant) hosting the existing name gate and 'Request to join' action in place of today's bare JoinRequestCard, with no separate join card shown afterward. The invite line reads the group name directly from the URL's name param (no relay read). The action is disabled until a non-blank name is entered; pressing it saves the name via saveProfile and sends the existing join request via sendJoinRequest, then shows the existing 'request sent' confirmation.",
+      "acceptance_criteria": [
+        "AC-GROUP-1",
+        "AC-GROUP-2",
+        "AC-GROUP-3",
+        "AC-GROUP-4",
+        "AC-RETURN-2"
+      ],
+      "scope": {
+        "includes": [
+          "app/pages/groups.tsx",
+          "app/src/components/groups/JoinRequestCard.tsx",
+          "app/tests/e2e/groups-welcome.spec.ts"
+        ],
+        "excludes": [
+          "No change to sendJoinRequest / joinRequestSender.ts transport logic — reused as-is",
+          "No change to admin-side approval or auto-accept behavior",
+          "No i18n additions — all welcome.* copy comes from S2; joinRequestHeading reuse decision stays with this story only if the existing group-heading copy already says the right thing"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "Group-invite entry",
+      "consumes_seams": [
+        "IsFreshIdentitySignal",
+        "WelcomeInviteProps"
+      ],
+      "notes": "Depends on S1 (isFreshIdentity) and S2 (WelcomeInvite) already being implemented; per project convention stories are implemented in story_order, not in parallel, so no mock of either is introduced. JoinRequestCard's existing name-gate predicate (isNameGateActive / hasShareableName) and send path are reused unchanged; this story is primarily a rendering/composition change.",
+      "lighter_path": false
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4"
+  ],
+  "dependency_notes": "Strictly linear: S1 (context signal) -> S2 (presentation component + copy) -> {S3, S4} (page wiring, each consuming S1 and S2). S3 and S4 are mutually independent (different pages, different modules) but both consume the same two seams from S1/S2. Because /base:feature implements stories sequentially in story_order rather than in parallel, S3 and S4 build against the real S1/S2 artifacts once those land — no temporary mocks are introduced anywhere in this epic.",
+  "mock_resolution_plan": "Not applicable — no temporary mocks are introduced (see dependency_notes).",
+  "seams": [
+    {
+      "data": "isFreshIdentity boolean signal",
+      "source": {
+        "story": "S1",
+        "artifact": "NostrIdentityContext.isFreshIdentity"
+      },
+      "destination": {
+        "story": "S3",
+        "artifact": "add.tsx first-timer branch condition"
+      },
+      "contract": {
+        "type_name": "IsFreshIdentitySignal",
+        "fields": [
+          {
+            "name": "isFreshIdentity",
+            "type": "boolean"
+          }
+        ],
+        "invariants": [
+          "true only when loadStoredIdentity() returned null at this session's init, before auto-generation",
+          "false whenever a stored identity already existed at init, including immediately after a first-timer's auto-generated identity is saved and the page is reloaded",
+          "session-scoped: does not flip from true to false mid-session without a reload"
+        ]
+      }
+    },
+    {
+      "data": "isFreshIdentity boolean signal",
+      "source": {
+        "story": "S1",
+        "artifact": "NostrIdentityContext.isFreshIdentity"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "groups.tsx first-timer branch condition"
+      },
+      "contract": {
+        "type_name": "IsFreshIdentitySignal",
+        "fields": [
+          {
+            "name": "isFreshIdentity",
+            "type": "boolean"
+          }
+        ],
+        "invariants": [
+          "true only when loadStoredIdentity() returned null at this session's init, before auto-generation",
+          "false whenever a stored identity already existed at init, including immediately after a first-timer's auto-generated identity is saved and the page is reloaded",
+          "session-scoped: does not flip from true to false mid-session without a reload"
+        ]
+      }
+    },
+    {
+      "data": "WelcomeInvite component props contract",
+      "source": {
+        "story": "S2",
+        "artifact": "WelcomeInvite.tsx props"
+      },
+      "destination": {
+        "story": "S3",
+        "artifact": "add.tsx contact-variant usage"
+      },
+      "contract": {
+        "type_name": "WelcomeInviteProps",
+        "fields": [
+          {
+            "name": "inviteLine",
+            "type": "string | null"
+          },
+          {
+            "name": "nameValue",
+            "type": "string"
+          },
+          {
+            "name": "onNameChange",
+            "type": "(value: string) => void"
+          },
+          {
+            "name": "primaryActionLabel",
+            "type": "string"
+          },
+          {
+            "name": "primaryActionDisabled",
+            "type": "boolean"
+          },
+          {
+            "name": "onPrimaryAction",
+            "type": "() => void"
+          }
+        ],
+        "invariants": [
+          "renders nothing for the invite line when inviteLine is null (AC-CONTACT-3 fallback); the pitch, name input, and action still render",
+          "renders exactly one primary action button, bound to onPrimaryAction and reflecting primaryActionDisabled",
+          "the component itself performs no transport calls, no card/URL decoding, and no persistence — those are caller responsibilities"
+        ]
+      }
+    },
+    {
+      "data": "WelcomeInvite component props contract",
+      "source": {
+        "story": "S2",
+        "artifact": "WelcomeInvite.tsx props"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "groups.tsx / JoinRequestCard group-variant usage"
+      },
+      "contract": {
+        "type_name": "WelcomeInviteProps",
+        "fields": [
+          {
+            "name": "inviteLine",
+            "type": "string | null"
+          },
+          {
+            "name": "nameValue",
+            "type": "string"
+          },
+          {
+            "name": "onNameChange",
+            "type": "(value: string) => void"
+          },
+          {
+            "name": "primaryActionLabel",
+            "type": "string"
+          },
+          {
+            "name": "primaryActionDisabled",
+            "type": "boolean"
+          },
+          {
+            "name": "onPrimaryAction",
+            "type": "() => void"
+          }
+        ],
+        "invariants": [
+          "renders nothing for the invite line when inviteLine is null; the pitch, name input, and action still render",
+          "renders exactly one primary action button, bound to onPrimaryAction and reflecting primaryActionDisabled",
+          "the component itself performs no transport calls, no card/URL decoding, and no persistence — those are caller responsibilities"
+        ]
+      }
+    }
+  ],
+  "cross_cutting_acs": [
+    {
+      "ac_id": "AC-PRIV-1",
+      "spanned_by": [
+        "S3",
+        "S4"
+      ]
+    },
+    {
+      "ac_id": "AC-PRIV-2",
+      "spanned_by": [
+        "S3",
+        "S4"
+      ]
+    },
+    {
+      "ac_id": "AC-NAME-1",
+      "spanned_by": [
+        "S3",
+        "S4"
+      ]
+    }
+  ]
+}

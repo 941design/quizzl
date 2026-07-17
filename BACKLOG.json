@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-17T17:26:44Z",
+  "updated_at": "2026-07-17T21:50:58Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -194,6 +194,11 @@
     },
     {
       "path": "specs/epic-abandon-last-member-group/",
+      "status": "DONE",
+      "next_action": "completed 2026-07-17"
+    },
+    {
+      "path": "specs/epic-first-visit-invite-welcome/",
       "status": "DONE",
       "next_action": "completed 2026-07-17"
     }
