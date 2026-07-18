@@ -120,30 +120,32 @@ export default function PendingConfirmationPrompt({
             {copy.contacts.pendingConfirmButton}
           </Button>
           {/*
-           * Gate-remediation (2026-07-15, finding E — user-approved). The
-           * prompt above asks a yes/no question ("Confirm this contact?")
-           * but previously offered only "yes". Per spec.md Non-Goals,
-           * declining a pending contact reuses the existing block/archive
-           * flow (there is no separate "reject" action) — so this is that
-           * flow's real entry point for this prompt, not a bolted-on extra.
-           * Reuses `BlockContactButton` exactly as the isArchived branch in
-           * `contacts.tsx#ContactDetailView` already does, with
-           * `isArchived={false}` (this contact is only pending, never yet
-           * archived, on this branch — the isArchived branch there is
-           * checked FIRST and would already have taken over otherwise, per
-           * DD-9). No local `onChanged` bump is needed: blocking calls
+           * The prompt asks a yes/no question ("Confirm this contact?"), so it
+           * offers a first-class "Reject" button next to Confirm — mirroring
+           * the group join-request `[Approve] [Deny]` layout, which is the
+           * symmetry this affordance was promoted to provide. Reject is NOT a
+           * new mechanism: per spec.md Non-Goals, declining a pending contact
+           * reuses the existing block/archive flow (there is no separate
+           * "reject" action). So this renders the existing `BlockContactButton`
+           * — relabelled to "Reject" via its `label` prop — exactly as the
+           * isArchived branch in `contacts.tsx#ContactDetailView` already does,
+           * with `isArchived={false}` (this contact is only pending, never yet
+           * archived, on this branch — the isArchived branch there is checked
+           * FIRST and would already have taken over otherwise, per DD-9).
+           * Clicking Reject opens the same block confirm modal, which still
+           * spells out the real consequences (history wipe, permanent
+           * exclusion) before anything is actioned — the heavy semantics stay
+           * honest. No local `onChanged` bump is needed: blocking calls
            * `notifyBlockedPeersChanged`, which bumps `blockedPeersRevision`
            * (`useMarmot`) that `ContactDetailView`'s own `contact` derivation
            * already depends on — the very next render swaps this whole
            * component out for the Blocked banner (DD-9's "blocked wins over
            * pending"), with no action needed here.
            */}
-          <Text fontSize="sm" color="textMuted">
-            {copy.contacts.pendingConfirmDeclineHint}
-          </Text>
           <BlockContactButton
             peerPubkeyHex={contact.pubkeyHex}
             isArchived={false}
+            label={copy.contacts.pendingRejectButton}
             onChanged={() => { /* blockedPeersRevision bump already drives ContactDetailView's re-derive */ }}
             testId="pending-confirmation-block-btn"
             isDisabled={isConfirming}

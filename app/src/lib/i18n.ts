@@ -339,16 +339,16 @@ export type Copy = {
     /** Confirm action label, reused by both the contacts-list row and the detail-view prompt. */
     pendingConfirmButton: string;
     /**
-     * Gate-remediation (2026-07-15, finding E — user-approved). The detail-
-     * view pending-confirmation prompt asks a yes/no question ("Confirm this
-     * contact?") but previously offered only the "yes" affordance; declining
-     * reuses the existing block/archive flow (spec.md Non-Goals — there is
-     * no separate "reject" action), so `PendingConfirmationPrompt` now also
-     * renders the existing `BlockContactButton` alongside Confirm. This hint
-     * line frames the block button as the prompt's genuine second choice
-     * rather than an unrelated stray control.
+     * Reject action label on the detail-view pending-confirmation prompt — the
+     * first-class negative counterpart to Confirm, mirroring the group join-
+     * request `[Approve] [Deny]` layout. Backed by the existing block/archive
+     * flow (spec.md Non-Goals — reject IS block, there is no separate
+     * mechanism), so clicking it opens the standard block confirm modal, which
+     * still explains the real consequences before anything is actioned. Passed
+     * to `BlockContactButton`'s `label` prop; the button's other call sites
+     * (profile page, Blocked banner) keep their own "Block contact" label.
      */
-    pendingConfirmDeclineHint: string;
+    pendingRejectButton: string;
   };
   /**
    * `/add#c=…` static deep-link/onboarding page (epic: contact-card-exchange,
@@ -949,7 +949,7 @@ const copy: Record<LanguageCode, Copy> = {
       pendingConfirmHeading: 'Confirm this contact?',
       pendingConfirmBody: (name: string) => `${name} scanned your contact card. Their messages are held until you confirm you recognize them.`,
       pendingConfirmButton: 'Confirm contact',
-      pendingConfirmDeclineHint: "Don't recognize them? You can block them instead.",
+      pendingRejectButton: 'Reject',
     },
     add: {
       pageTitle: 'Add Contact',
@@ -1504,7 +1504,7 @@ const copy: Record<LanguageCode, Copy> = {
       pendingConfirmHeading: 'Diesen Kontakt bestätigen?',
       pendingConfirmBody: (name: string) => `${name} hat deine Kontaktkarte gescannt. Ihre Nachrichten werden zurückgehalten, bis du bestätigst, dass du sie kennst.`,
       pendingConfirmButton: 'Kontakt bestätigen',
-      pendingConfirmDeclineHint: 'Kennst du die Person nicht? Du kannst sie stattdessen blockieren.',
+      pendingRejectButton: 'Ablehnen',
     },
     add: {
       pageTitle: 'Kontakt hinzufügen',

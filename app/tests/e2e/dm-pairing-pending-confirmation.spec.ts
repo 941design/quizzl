@@ -215,6 +215,45 @@ test.describe('Pending contact confirmation — message hold, bell delay, confir
   );
 
   test(
+    'the detail-view pending prompt offers a first-class Reject button; rejecting opens the block confirm modal and, on confirm, swaps the view to the Blocked banner (reject-is-block, mirrors group Approve/Deny)',
+    async ({ browser }) => {
+      const a = await bootIdentity(browser, USER_A, 'Alice-Pending-Reject');
+      const cardLink = await getShareCardLink(a.page);
+      const payload = extractCardPayload(cardLink);
+
+      const b = await bootIdentity(browser, USER_B, 'Bob-Pending-Reject');
+      await b.page.goto(`/add#c=${payload}`);
+      await expect(b.page.getByTestId('contact-added-success')).toBeVisible({ timeout: 20_000 });
+
+      await a.page.goto('/contacts');
+      const admitted = await waitForAdmission(a.page, USER_B.pubkeyHex, 90_000);
+      expect(admitted).toBe(true);
+
+      // A opens B's detail view: the pending-confirmation prompt is shown, and
+      // it now carries a first-class "Reject" button next to Confirm.
+      await a.page.goto(`/contacts?id=${USER_B.pubkeyHex}`);
+      await expect(a.page.getByTestId('pending-confirmation-prompt')).toBeVisible({ timeout: 20_000 });
+      const rejectBtn = a.page.getByTestId('pending-confirmation-block-btn');
+      await expect(rejectBtn).toBeVisible();
+      await expect(rejectBtn).toHaveText('Reject');
+
+      // Rejecting routes through the existing block flow: it opens the block
+      // confirm modal (which still spells out the real consequences) rather
+      // than acting immediately.
+      await rejectBtn.click();
+      await expect(a.page.getByTestId('block-confirm-modal')).toBeVisible();
+      await a.page.getByTestId('block-confirm-btn').click();
+      await expect(a.page.getByTestId('block-confirm-modal')).not.toBeVisible();
+
+      // On confirm, "blocked wins over pending" (Design Decision 9): the same
+      // mounted view swaps to the Blocked banner, and the pending prompt is
+      // gone — no navigation away and back.
+      await expect(a.page.getByTestId('contact-archived-alert')).toBeVisible({ timeout: 15_000 });
+      await expect(a.page.getByTestId('pending-confirmation-prompt')).not.toBeVisible();
+    },
+  );
+
+  test(
     'a contact that is both blocked and pending shows the Blocked banner, never the confirmation prompt (spec.md Design Decision 9)',
     async ({ browser }) => {
       const a = await bootIdentity(browser, USER_A, 'Alice-BlockedPending');

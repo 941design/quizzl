@@ -509,30 +509,30 @@ describe('list-confirm path never triggers loadMessages/self-heal (gate-remediat
   });
 });
 
-// ── Gate-remediation (2026-07-15, finding E — user-approved): the pending-
-// confirmation prompt must offer a genuine decline affordance ─────────────
-// The prompt asks a yes/no question ("Confirm this contact?") but previously
-// offered only "yes"; per spec.md Non-Goals, declining reuses the existing
-// block/archive flow (BlockContactButton), so the prompt now renders it
-// alongside Confirm. Verified via source assertion — no jsdom/renderHook
-// per project convention.
-describe('PendingConfirmationPrompt.tsx renders a Block affordance alongside Confirm (finding E)', () => {
+// ── The pending-confirmation prompt offers a first-class "Reject" button ──
+// The prompt asks a yes/no question ("Confirm this contact?"), so it renders
+// a first-class Reject button next to Confirm — mirroring the group join-
+// request `[Approve] [Deny]` layout. Reject is not a new mechanism: per
+// spec.md Non-Goals, declining reuses the existing block/archive flow
+// (BlockContactButton), relabelled to "Reject" via its `label` prop. Verified
+// via source assertion — no jsdom/renderHook per project convention.
+describe('PendingConfirmationPrompt.tsx renders a Reject button alongside Confirm', () => {
   it('imports and renders BlockContactButton with isArchived={false}, reusing the existing component', () => {
     const source = readSource('src/components/contacts/PendingConfirmationPrompt.tsx');
     expect(source).toMatch(/import BlockContactButton from ['"]@\/src\/components\/contacts\/BlockContactButton['"]/);
     expect(source).toMatch(/<BlockContactButton[\s\S]*?isArchived=\{false\}/);
   });
 
-  it('the Confirm button remains the primary (brand-colored) action; BlockContactButton is the secondary control', () => {
+  it('the Confirm button remains the primary (brand-colored) action; the Reject (BlockContactButton) is the secondary control', () => {
     const source = readSource('src/components/contacts/PendingConfirmationPrompt.tsx');
     const confirmBtnMatch = source.match(/<Button[\s\S]*?data-testid="pending-confirmation-confirm-btn"/);
     expect(confirmBtnMatch).not.toBeNull();
     expect(confirmBtnMatch![0]).toContain('colorScheme="brand"');
   });
 
-  it('new decline-framing copy is read via useCopy(), never hardcoded', () => {
+  it('the Reject label is passed via BlockContactButton\'s label prop from useCopy(), never hardcoded', () => {
     const source = readSource('src/components/contacts/PendingConfirmationPrompt.tsx');
-    expect(source).toContain('copy.contacts.pendingConfirmDeclineHint');
+    expect(source).toMatch(/label=\{copy\.contacts\.pendingRejectButton\}/);
   });
 });
 

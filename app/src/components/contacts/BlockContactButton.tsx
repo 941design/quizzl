@@ -28,6 +28,15 @@ type BlockContactButtonProps = {
   testId?: string;
   /** Disables the trigger. Used where a sibling mutually-exclusive action is already in flight (e.g. PendingConfirmationPrompt's Confirm), so both decisions cannot be actioned at once. */
   isDisabled?: boolean;
+  /**
+   * Overrides the block (isArchived=false) trigger's label. Defaults to the
+   * generic `copy.profile.archiveAction` ("Block contact"). The pending-
+   * confirmation prompt passes `copy.contacts.pendingRejectButton` ("Reject")
+   * so the same block-backed action reads as a first-class Reject there,
+   * while the mechanics (confirm modal, history wipe, exclusion) are unchanged.
+   * Does not affect the unblock label.
+   */
+  label?: string;
 };
 
 /**
@@ -55,6 +64,7 @@ export default function BlockContactButton({
   onChanged,
   testId = 'profile-archive',
   isDisabled = false,
+  label,
 }: BlockContactButtonProps) {
   const copy = useCopy();
   const { notifyBlockedPeersChanged } = useMarmot();
@@ -102,7 +112,7 @@ export default function BlockContactButton({
         isDisabled={isDisabled}
         data-testid={testId}
       >
-        {copy.profile.archiveAction}
+        {label ?? copy.profile.archiveAction}
       </Button>
 
       <Modal isOpen={isOpen} onClose={onClose} isCentered>
