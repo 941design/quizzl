@@ -22,7 +22,7 @@ PLAYWRIGHT_STAMP := $(PLAYWRIGHT_BROWSERS_PATH)/.installed_$(shell uname -s)-$(s
 -include .cloudflare
 export
 
-.PHONY: help test build test-unit test-coverage test-e2e test-e2e-all test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deps deploy deploy-check ensure-deps ensure-playwright
+.PHONY: help test build test-unit test-coverage test-e2e test-e2e-all test-e2e-fast test-e2e-groups e2e-up e2e-down test-e2e-image-sharing playwright run-dev clean install deps deploy deploy-check ensure-deps ensure-playwright screenshots screenshots-serve
 
 # Default target
 .DEFAULT_GOAL := help
@@ -155,6 +155,25 @@ test-e2e-image-sharing: ensure-playwright e2e-up ## Run image-sharing E2E tests
 	status=$$?; \
 	cd .. && $(MAKE) e2e-down; \
 	exit $$status
+
+## Capture a browsable UI documentation gallery (screenshots + flows + invariants)
+# Boots the relay + blossom mock (populated group/DM/contact states are driven
+# through the app), runs the Playwright capture, and renders a self-contained
+# app/screenshots-out/index.html you can open straight off disk. NOT part of the
+# e2e gate — separate config, separate target. Capture is best-effort per screen
+# so a flaky relay state never blanks the whole gallery.
+screenshots: ensure-playwright e2e-up ## Capture browsable UI docs (app/screenshots-out/index.html)
+	cd $(APP_DIR) && node scripts/run-screenshots.mjs; \
+	status=$$?; \
+	cd .. && $(MAKE) e2e-down; \
+	echo "Gallery: $(APP_DIR)/screenshots-out/index.html"; \
+	exit $$status
+
+## Browse the last captured gallery over local HTTP (does not regenerate)
+# Serves app/screenshots-out/ on http://127.0.0.1:8080 and opens a browser.
+# Run `make screenshots` first if the gallery doesn't exist yet.
+screenshots-serve: ## Serve the captured UI docs gallery in a browser
+	cd $(APP_DIR) && node scripts/serve-screenshots.mjs
 
 ## Start the dev server
 run-dev: ensure-deps ## Start development server
