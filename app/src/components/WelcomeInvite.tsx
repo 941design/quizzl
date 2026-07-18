@@ -47,6 +47,10 @@ export default function WelcomeInvite({
     >
       <HeroAccents />
       <VStack spacing={8} py={16} position="relative" zIndex={1}>
+        <Heading as="h1" size="2xl" textAlign="center">
+          {copy.home.title}
+        </Heading>
+
         {inviteLine !== null && (
           <Text textAlign="center" fontSize="lg" fontWeight="semibold" data-testid="welcome-invite-line">
             {inviteLine}
