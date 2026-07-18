@@ -2,6 +2,14 @@
  * E2E: pending contact confirmation (epic: pending-contact-confirmation, S2)
  * — AC-MSG-1, AC-MSG-2, AC-OBS-1, AC-OBS-2, AC-UX-1, AC-UX-2.
  *
+ * Behavior update (detail-page disabled for restricted contacts): a blocked or
+ * pending contact no longer has an openable /contacts?id=<hex> detail page.
+ * The list row is not a link, and a direct URL redirects back to the list.
+ * Every action for those states is inline on the row: Confirm + Reject for a
+ * pending contact, Unblock for a blocked one. The tests below therefore drive
+ * confirm/reject inline and assert the redirect, rather than exercising a
+ * detail-view prompt (which was removed).
+ *
  * AC-OBS-2 was amended 2026-07-15 (spec.md `## Amendments`,
  * acceptance-criteria.md AC-OBS-2), after a Stage-1 review found the
  * original wording unsatisfiable: this app only persists a contact's
@@ -166,7 +174,7 @@ test.describe('Pending contact confirmation — message hold, bell delay, confir
   );
 
   test(
-    'detail view shows the confirmation prompt while pending; confirming swaps to the chat thread in place with held messages, and the bell clears once the thread is viewed (AC-UX-2, AC-MSG-2, AC-OBS-2)',
+    'a pending contact has no openable detail page — a direct URL redirects to the list; confirming inline then opening the now-confirmed contact shows held messages and clears the bell (AC-MSG-2, AC-OBS-2)',
     async ({ browser }) => {
       const a = await bootIdentity(browser, USER_A, 'Alice-Pending-Detail');
       const cardLink = await getShareCardLink(a.page);
@@ -188,25 +196,31 @@ test.describe('Pending contact confirmation — message hold, bell delay, confir
       await b.page.getByTestId('chat-send-btn').click();
       await expect(b.page.locator('[data-testid^="msg-"]').filter({ hasText: heldMsg })).toBeVisible({ timeout: 15_000 });
 
-      // AC-UX-2 (pre-confirm): A's detail view for B shows the confirmation
-      // prompt IN PLACE OF ContactChat — no composer/chat-input reaches the
-      // DOM while pending (mirrors the existing Blocked-banner precedent).
+      // A direct /contacts?id=<pending> URL does NOT open the detail page — it
+      // redirects back to the contacts list. No prompt, no composer ever
+      // mounts (the redirect returns before ContactChat renders).
       await a.page.goto(`/contacts?id=${USER_B.pubkeyHex}`);
-      await expect(a.page.getByTestId('pending-confirmation-prompt')).toBeVisible({ timeout: 20_000 });
-      await expect(a.page.getByTestId('chat-input')).not.toBeVisible();
+      await a.page.waitForURL((url) => !url.searchParams.has('id'), { timeout: 20_000 });
+      await expect(a.page.getByTestId('contacts-page')).toBeVisible({ timeout: 20_000 });
+      await expect(a.page.getByTestId('contact-detail-page')).toHaveCount(0);
+      await expect(a.page.getByTestId('pending-confirmation-prompt')).toHaveCount(0);
+      await expect(a.page.getByTestId('chat-input')).toHaveCount(0);
 
-      // AC-UX-2 (post-confirm): confirming swaps the SAME mounted view to
-      // the chat thread — no navigation away and back — and AC-MSG-2's held
-      // message (received while pending) renders immediately.
-      await a.page.getByTestId('pending-confirmation-confirm-btn').click();
+      // The pending row is present with an inline Confirm, and the card itself
+      // is NOT a link (a non-linked UserCard renders no anchor).
+      await expect(a.page.getByTestId(`contact-pending-badge-${USER_B.pubkeyHex}`)).toBeVisible({ timeout: 15_000 });
+      await expect(a.page.getByTestId(`contact-card-${USER_B.pubkeyHex}`).locator('a')).toHaveCount(0);
+
+      // Confirm inline from the list row — the pending badge clears.
+      await a.page.getByTestId(`contact-pending-confirm-${USER_B.pubkeyHex}`).click();
+      await expect(a.page.getByTestId(`contact-pending-badge-${USER_B.pubkeyHex}`)).not.toBeVisible({ timeout: 15_000 });
+
+      // Now B is a normal contact: the detail page opens, AC-MSG-2's held
+      // message renders, and opening the thread clears the bell (AC-OBS-2, via
+      // ContactChat's open-marks-read mount effect).
+      await a.page.goto(`/contacts?id=${USER_B.pubkeyHex}`);
       await expect(a.page.getByTestId('chat-input')).toBeVisible({ timeout: 20_000 });
       await expect(a.page.locator('[data-testid^="msg-"]').filter({ hasText: heldMsg })).toBeVisible({ timeout: 15_000 });
-
-      // AC-OBS-2 (amended 2026-07-15): confirming swapped straight into the
-      // now-viewed chat thread (no separate navigation), so the held
-      // message being visible above already means A has "opened" the
-      // conversation — the bell must correctly reflect that by clearing,
-      // via the same open-marks-read mount effect as the list-confirm path.
       await expect.poll(
         async () => readBadgeCount(a.page),
         { timeout: 15_000 },
@@ -215,7 +229,7 @@ test.describe('Pending contact confirmation — message hold, bell delay, confir
   );
 
   test(
-    'the detail-view pending prompt offers a first-class Reject button; rejecting opens the block confirm modal and, on confirm, swaps the view to the Blocked banner (reject-is-block, mirrors group Approve/Deny)',
+    'the pending list row offers a first-class inline Reject button; rejecting opens the block confirm modal and, on confirm, blocks the contact (reject-is-block, mirrors group Approve/Deny)',
     async ({ browser }) => {
       const a = await bootIdentity(browser, USER_A, 'Alice-Pending-Reject');
       const cardLink = await getShareCardLink(a.page);
@@ -228,33 +242,39 @@ test.describe('Pending contact confirmation — message hold, bell delay, confir
       await a.page.goto('/contacts');
       const admitted = await waitForAdmission(a.page, USER_B.pubkeyHex, 90_000);
       expect(admitted).toBe(true);
+      await a.page.reload();
 
-      // A opens B's detail view: the pending-confirmation prompt is shown, and
-      // it now carries a first-class "Reject" button next to Confirm.
-      await a.page.goto(`/contacts?id=${USER_B.pubkeyHex}`);
-      await expect(a.page.getByTestId('pending-confirmation-prompt')).toBeVisible({ timeout: 20_000 });
-      const rejectBtn = a.page.getByTestId('pending-confirmation-block-btn');
+      // The pending row carries an inline Reject button next to Confirm.
+      await expect(a.page.getByTestId(`contact-pending-badge-${USER_B.pubkeyHex}`)).toBeVisible({ timeout: 15_000 });
+      const rejectBtn = a.page.getByTestId(`contact-pending-reject-${USER_B.pubkeyHex}`);
       await expect(rejectBtn).toBeVisible();
       await expect(rejectBtn).toHaveText('Reject');
 
       // Rejecting routes through the existing block flow: it opens the block
       // confirm modal (which still spells out the real consequences) rather
-      // than acting immediately.
+      // than acting immediately. Confirming blocks the contact.
       await rejectBtn.click();
       await expect(a.page.getByTestId('block-confirm-modal')).toBeVisible();
       await a.page.getByTestId('block-confirm-btn').click();
       await expect(a.page.getByTestId('block-confirm-modal')).not.toBeVisible();
 
-      // On confirm, "blocked wins over pending" (Design Decision 9): the same
-      // mounted view swaps to the Blocked banner, and the pending prompt is
-      // gone — no navigation away and back.
-      await expect(a.page.getByTestId('contact-archived-alert')).toBeVisible({ timeout: 15_000 });
-      await expect(a.page.getByTestId('pending-confirmation-prompt')).not.toBeVisible();
+      // Blocked: the pending row leaves the default list (blocked contacts are
+      // hidden unless "show hidden" is toggled), and the contact is durably
+      // archived in storage.
+      await expect(a.page.getByTestId(`contact-pending-badge-${USER_B.pubkeyHex}`)).not.toBeVisible({ timeout: 15_000 });
+      const archived = await a.page.evaluate((hex) => {
+        const raw = localStorage.getItem('lp_contacts_v1');
+        const parsed = raw ? JSON.parse(raw) : {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const entry = Object.values(parsed).find((c: any) => (c.pubkeyHex || '').toLowerCase() === hex.toLowerCase()) as any;
+        return entry ? entry.archivedAt : null;
+      }, USER_B.pubkeyHex);
+      expect(archived).toBeTruthy();
     },
   );
 
   test(
-    'a contact that is both blocked and pending shows the Blocked banner, never the confirmation prompt (spec.md Design Decision 9)',
+    'a blocked contact has no openable detail page — a direct URL redirects to the list; the blocked row (under "show hidden") is not clickable and offers an inline Unblock (spec.md Design Decision 9)',
     async ({ browser }) => {
       const a = await bootIdentity(browser, USER_A, 'Alice-BlockedPending');
       const cardLink = await getShareCardLink(a.page);
@@ -276,12 +296,30 @@ test.describe('Pending contact confirmation — message hold, bell delay, confir
       await a.page.getByTestId('block-confirm-btn').click();
       await expect(a.page.getByTestId('block-confirm-modal')).not.toBeVisible();
 
-      // Design Decision 9: blocked always wins over pending — the detail
-      // view shows the existing Blocked banner, never the confirmation
-      // prompt, for a contact that is both.
+      // A direct /contacts?id=<blocked> URL does NOT open the detail page — it
+      // redirects back to the list. No Blocked banner, no composer, ever
+      // (superseding the block-contact epic's Blocked-banner detail UX; the
+      // security property that no send affordance mounts is preserved).
       await a.page.goto(`/contacts?id=${USER_B.pubkeyHex}`);
-      await expect(a.page.getByTestId('contact-archived-alert')).toBeVisible({ timeout: 15_000 });
-      await expect(a.page.getByTestId('pending-confirmation-prompt')).not.toBeVisible();
+      await a.page.waitForURL((url) => !url.searchParams.has('id'), { timeout: 20_000 });
+      await expect(a.page.getByTestId('contacts-page')).toBeVisible({ timeout: 20_000 });
+      await expect(a.page.getByTestId('contact-detail-page')).toHaveCount(0);
+      await expect(a.page.getByTestId('contact-archived-alert')).toHaveCount(0);
+      await expect(a.page.getByTestId('chat-input')).toHaveCount(0);
+
+      // Reveal hidden contacts: the blocked row is present, NOT a link, and
+      // offers an inline Unblock button — the sole unblock affordance now.
+      await a.page.getByTestId('contacts-filter-show-hidden').click();
+      const card = a.page.getByTestId(`contact-card-${USER_B.pubkeyHex}`);
+      await expect(card).toBeVisible({ timeout: 15_000 });
+      await expect(card.locator('a')).toHaveCount(0);
+      const unblockBtn = a.page.getByTestId(`contact-unblock-${USER_B.pubkeyHex}`);
+      await expect(unblockBtn).toBeVisible();
+
+      // Unblocking inline (no modal) clears the blocked state in place.
+      await unblockBtn.click();
+      await expect(a.page.getByTestId('block-confirm-modal')).toHaveCount(0);
+      await expect(unblockBtn).not.toBeVisible({ timeout: 15_000 });
     },
   );
 });

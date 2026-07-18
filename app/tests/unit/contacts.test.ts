@@ -550,11 +550,12 @@ describe('PendingConfirmationPrompt.tsx renders a Reject button alongside Confir
 // so this is verified via source assertion, mirroring the existing
 // `readSource()` pattern used throughout this file.
 describe('contacts.tsx list row — pending badge/confirm button gated on !isArchived (AC-UX-1, spec.md Design Decision 9)', () => {
-  it('the pending-badge/confirm-button block is gated on `contact.isPendingConfirmation && !contact.isArchived`', () => {
+  it('the pending row is gated so blocked wins over pending — isPending is defined as `!isBlocked && contact.isPendingConfirmation`, with the blocked branch checked first', () => {
     const source = readSource('pages/contacts.tsx');
-    expect(source).toContain('{contact.isPendingConfirmation && !contact.isArchived ? (');
-    // The bare (ungated) condition must not appear anywhere in the file —
-    // this is the exact regression finding B fixed.
+    expect(source).toContain('const isPending = !isBlocked && contact.isPendingConfirmation;');
+    // Blocked is evaluated before pending in the actions ternary.
+    expect(source).toMatch(/isBlocked \? \([\s\S]*?\) : isPending \? \(/);
+    // The bare (ungated) pending condition must not appear.
     expect(source).not.toMatch(/\{contact\.isPendingConfirmation \? \(/);
   });
 
@@ -563,6 +564,44 @@ describe('contacts.tsx list row — pending badge/confirm button gated on !isArc
     expect(source).not.toMatch(/only ever happens if the user's own\s*contact was blocked before this epic's admission gate\s*existed/);
     expect(source).toMatch(/Design Decision 9/);
     expect(source).toMatch(/decline/i);
+  });
+});
+
+// ── Blocked/pending contacts have no openable detail page ─────────────────
+// The list row for a blocked or pending contact must NOT be a link, and a
+// direct /contacts?id=<hex> URL for such a contact must redirect back to the
+// list. Every action for those states is inline on the row: unblock for a
+// blocked contact; confirm + reject for a pending one. Verified via source
+// assertion (no jsdom/renderHook per project convention).
+describe('contacts.tsx — blocked/pending rows are non-clickable and their detail page is disabled', () => {
+  it('the row href is dropped for a restricted (blocked or pending) contact, so the card is not a link', () => {
+    const source = readSource('pages/contacts.tsx');
+    expect(source).toContain('const restricted = isBlocked || isPending;');
+    expect(source).toContain('href={restricted ? undefined : `/contacts?id=${contact.pubkeyHex}`}');
+  });
+
+  it('a blocked row renders an inline Unblock button (BlockContactButton isArchived)', () => {
+    const source = readSource('pages/contacts.tsx');
+    // Inside the isBlocked branch: an isArchived BlockContactButton with a
+    // per-contact unblock testid.
+    expect(source).toMatch(/isBlocked \? \([\s\S]*?<BlockContactButton[\s\S]*?isArchived[\s\S]*?testId=\{`contact-unblock-\$\{contact\.pubkeyHex\}`\}/);
+  });
+
+  it('a pending row renders an inline Reject button (BlockContactButton with the pendingRejectButton label)', () => {
+    const source = readSource('pages/contacts.tsx');
+    expect(source).toMatch(/isPending \? \([\s\S]*?<BlockContactButton[\s\S]*?label=\{copy\.contacts\.pendingRejectButton\}[\s\S]*?testId=\{`contact-pending-reject-\$\{contact\.pubkeyHex\}`\}/);
+  });
+
+  it('the contact detail view redirects blocked/pending contacts back to the list instead of opening', () => {
+    const source = readSource('pages/contacts.tsx');
+    expect(source).toContain('const restricted = !!contact && (contact.isArchived || contact.isPendingConfirmation);');
+    expect(source).toMatch(/if \(restricted\) \{\s*router\.replace\('\/contacts'\);/);
+    // The detail view no longer imports or mounts the pending prompt, nor
+    // renders a Blocked banner (a historical comment may still name the
+    // component, so assert on the import + JSX usage, not any mention).
+    expect(source).not.toMatch(/import PendingConfirmationPrompt/);
+    expect(source).not.toMatch(/<PendingConfirmationPrompt/);
+    expect(source).not.toContain("data-testid=\"contact-archived-alert\"");
   });
 });
 

@@ -26,12 +26,11 @@
  * silently and permanently, so a leak was undetectable. Requiring the card
  * ISSUER (A, here) to explicitly confirm an incoming pairing converts an
  * invisible, irreversible admission into a visible, declinable prompt. So A
- * now holds B as a PENDING contact after the pairing-ack, and A's own
- * detail-view for B shows `PendingConfirmationPrompt` instead of the chat
- * thread until A taps confirm — step 4 below now drives that real confirm
- * tap (reusing `dm-pairing-pending-confirmation.spec.ts`'s own
- * `pending-confirmation-prompt` / `pending-confirmation-confirm-btn`
- * testids) before A can send. The "no second scan" guarantee AC-ADMIT-6
+ * now holds B as a PENDING contact after the pairing-ack, and must confirm B
+ * before the chat opens. A pending contact has no openable detail page, so
+ * step 4 below drives that confirm as an INLINE action on the contacts-list
+ * row (`contact-pending-confirm-<hex>`) before A can send. The "no second
+ * scan" guarantee AC-ADMIT-6
  * anchors on is UNCHANGED and still fully proven here — a confirm tap is not
  * a scan, B is never re-scanned, and B (the scanner) is still admitted
  * immediately, unaffected, since scanning is itself an intentional act.
@@ -86,16 +85,20 @@ test.describe('Pairing: single-scan mutual admission (AC-ADMIT-6)', () => {
       // A -> B. B added A in step 2, so this direction already worked before
       // this epic; confirming it here rules out a broken relay/pipe before
       // trusting the NEW direction's absence-of-message would be meaningful. ──
+      // Epic: pending-contact-confirmation (2026-07-15 supersession) +
+      // detail-page-disabled update. A is the card ISSUER — B's pairing-ack
+      // admitted B as a PENDING contact on A's side, so A must CONFIRM B before
+      // the chat opens. A pending contact has no openable detail page, so the
+      // confirm is an inline action on the contacts-list row. This is the new
+      // required step; it is not a second scan.
+      await a.page.goto('/contacts');
+      await expect(a.page.getByTestId(`contact-pending-confirm-${USER_B.pubkeyHex}`)).toBeVisible({ timeout: 20_000 });
+      await a.page.getByTestId(`contact-pending-confirm-${USER_B.pubkeyHex}`).click();
+      await expect(a.page.getByTestId(`contact-pending-badge-${USER_B.pubkeyHex}`)).not.toBeVisible({ timeout: 15_000 });
+
+      // Now B is a confirmed contact — the detail page opens with the chat.
       await a.page.goto(`/contacts?id=${USER_B.pubkeyHex}`);
       await expect(a.page.getByTestId('contact-detail-page')).toBeVisible({ timeout: 15_000 });
-
-      // Epic: pending-contact-confirmation (2026-07-15 supersession, see
-      // header comment). A is the card ISSUER — B's pairing-ack admitted B
-      // as a PENDING contact on A's side, so A's detail view for B shows the
-      // confirmation prompt in place of the chat thread until A explicitly
-      // confirms. This is the new required step; it is not a second scan.
-      await expect(a.page.getByTestId('pending-confirmation-prompt')).toBeVisible({ timeout: 20_000 });
-      await a.page.getByTestId('pending-confirmation-confirm-btn').click();
       await expect(a.page.getByTestId('chat-input')).toBeVisible({ timeout: 20_000 });
 
       const fromA = `hello-from-A-${Date.now()}`;

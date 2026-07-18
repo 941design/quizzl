@@ -22,7 +22,6 @@ import UserCard, { ConfirmButton } from '@/src/components/UserCard';
 import ContactChat from '@/src/components/contacts/ContactChat';
 import ShareContactCard from '@/src/components/contacts/ShareContactCard';
 import BlockContactButton from '@/src/components/contacts/BlockContactButton';
-import PendingConfirmationPrompt from '@/src/components/contacts/PendingConfirmationPrompt';
 // Voice/video calls are gated behind the CALLS_ENABLED feature toggle.
 import { ContactCallToolbar } from '@/src/components/calls/CallToolbar';
 import { CALLS_ENABLED } from '@/src/config/features';
@@ -166,12 +165,21 @@ function ContactListView() {
                 avatar: contact.avatar,
               };
               const sharedGroupNames = commonGroups(groups, contact.pubkeyHex).map((group) => group.name);
+              // A blocked or pending contact has no openable detail page: the
+              // row is NOT a link, and every action for that state is inline
+              // below (unblock; confirm + reject). Blocked wins over pending
+              // (spec.md Design Decision 9), so it is checked first. A direct
+              // /contacts?id=<hex> URL for such a contact is separately guarded
+              // by ContactDetailView's redirect, so the two entry points agree.
+              const isBlocked = contact.isArchived;
+              const isPending = !isBlocked && contact.isPendingConfirmation;
+              const restricted = isBlocked || isPending;
               return (
                 <UserCard
                   key={contact.pubkeyHex}
                   profile={profile}
                   fallbackName={fallbackName}
-                  href={`/contacts?id=${contact.pubkeyHex}`}
+                  href={restricted ? undefined : `/contacts?id=${contact.pubkeyHex}`}
                   cardTestId={`contact-card-${contact.pubkeyHex}`}
                   subline={sharedGroupNames.length > 0 ? (
                     <Text
@@ -186,26 +194,26 @@ function ContactListView() {
                   ) : null}
                   actions={
                     <>
-                      {contact.isArchived ? (
-                        <Badge colorScheme="gray">{copy.contacts.hiddenBadge}</Badge>
-                      ) : null}
-                      {/* Epic: pending-contact-confirmation, S2 (AC-UX-1).
-                          Gate-remediation (2026-07-15, finding B): gated on
-                          `!contact.isArchived` per spec.md Design Decision 9
-                          ("blocked always wins over pending") — a contact CAN
-                          be both pending and blocked at once, and DD-9 names
-                          that combination as the EXPECTED post-decline state:
-                          blocking is this epic's only decline mechanism (there
-                          is no separate "reject" action, spec.md Non-Goals),
-                          so a user who just blocked a pending contact to
-                          decline them would otherwise be shown a live
-                          "Confirm contact" button — an un-decline affordance
-                          DD-9's precedence forbids. The detail view below and
-                          the group-invite picker
-                          (`contacts.ts#selectableContactsForGroup`) already
-                          resolve blocked+pending to the blocked outcome; this
-                          list row must match both. */}
-                      {contact.isPendingConfirmation && !contact.isArchived ? (
+                      {/* Blocked wins over pending (spec.md Design Decision 9):
+                          the blocked row shows the Hidden badge + an inline
+                          Unblock button — the sole unblock affordance now that
+                          the detail-page Blocked banner is gone. A contact can
+                          be both pending and blocked at once (blocking IS this
+                          epic's decline mechanism), and DD-9 names that as the
+                          expected post-decline state, so the blocked branch is
+                          checked first and the pending branch never shows a
+                          live Confirm for an already-blocked contact. */}
+                      {isBlocked ? (
+                        <>
+                          <Badge colorScheme="gray">{copy.contacts.hiddenBadge}</Badge>
+                          <BlockContactButton
+                            peerPubkeyHex={contact.pubkeyHex}
+                            isArchived
+                            onChanged={() => setContactsRevision((r) => r + 1)}
+                            testId={`contact-unblock-${contact.pubkeyHex}`}
+                          />
+                        </>
+                      ) : isPending ? (
                         <>
                           <Badge colorScheme="purple" data-testid={`contact-pending-badge-${contact.pubkeyHex}`}>
                             {copy.contacts.pendingBadge}
@@ -220,6 +228,17 @@ function ContactListView() {
                           >
                             {copy.contacts.pendingConfirmButton}
                           </ConfirmButton>
+                          {/* Reject IS block (reject-is-block; spec.md
+                              Non-Goals — no separate mechanism): clicking opens
+                              the block confirm modal that spells out the
+                              consequences before anything is actioned. */}
+                          <BlockContactButton
+                            peerPubkeyHex={contact.pubkeyHex}
+                            isArchived={false}
+                            label={copy.contacts.pendingRejectButton}
+                            onChanged={() => setContactsRevision((r) => r + 1)}
+                            testId={`contact-pending-reject-${contact.pubkeyHex}`}
+                          />
                         </>
                       ) : null}
                       <IconButton
@@ -301,24 +320,31 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
   // from the Blocked banner's own button (below) re-derives `contact` the
   // same way, swapping back to ContactChat without a page navigation.
   const { blockedPeersRevision } = useMarmot();
-  // Epic: pending-contact-confirmation, S2 (AC-UX-2). Mirrors
-  // `blockedPeersRevision` above, but local rather than MarmotContext-hosted
-  // — this epic's only reactive consumer of pending-confirmation state is
-  // this component (the bell gate in directMessageNotifications.ts reads the
-  // predicate live at message-arrival time, not via React state), and
-  // MarmotContext.tsx is outside this story's scope. Bumped by
-  // `PendingConfirmationPrompt`'s `onConfirmed` callback after
-  // `confirmContact` + the bell reconciliation resolve, so `contact` below
-  // re-derives within the same mounted session — no navigation away and back.
-  const [pendingConfirmationRevision, setPendingConfirmationRevision] = useState(0);
   const contact = useMemo(
     () => getContact(contactPubkeyHex, pubkeyHex, { includeArchived: true }),
-    [contactPubkeyHex, pubkeyHex, blockedPeersRevision, pendingConfirmationRevision],
+    [contactPubkeyHex, pubkeyHex, blockedPeersRevision],
   );
   const signer = useMemo(
     () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
     [privateKeyHex],
   );
+  // Blocked or pending contacts have no openable detail page — redirect back
+  // to the contacts list, where the inline actions for those states live
+  // (unblock for blocked; confirm + reject for pending). Derived from
+  // `contact` (which includes archived + pending state) and re-derived
+  // reactively via `blockedPeersRevision`, so a contact that becomes blocked
+  // while this view is open is redirected too. Because `restricted` short-
+  // circuits to `return null` BEFORE ContactChat is ever rendered, this also
+  // upholds the block-contact epic's invariant that no composer/send
+  // affordance mounts for a blocked peer — that epic's Blocked-banner detail
+  // UX (AC-VIEW-7) is superseded by this redirect, but the security property
+  // is unchanged: there is never anything to send from on screen.
+  const restricted = !!contact && (contact.isArchived || contact.isPendingConfirmation);
+  useEffect(() => {
+    if (restricted) {
+      router.replace('/contacts');
+    }
+  }, [restricted, router]);
 
   if (!contact) {
     return (
@@ -336,6 +362,13 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
         </Alert>
       </Box>
     );
+  }
+
+  // Redirecting (see the `restricted` effect above) — render nothing rather
+  // than flash a blocked/pending contact's detail chrome. Because this returns
+  // before ContactChat below, the composer never mounts for such a contact.
+  if (restricted) {
+    return null;
   }
 
   if (!pubkeyHex || !privateKeyHex || !signer) {
@@ -401,62 +434,20 @@ function ContactDetailView({ contactPubkeyHex }: { contactPubkeyHex: string }) {
             </AlertDescription>
           </Alert>
         ) : null}
-        {contact.isArchived ? (
-          // AC-VIEW-1/7 (epic: block-contact, S4): the Blocked banner + Unblock
-          // affordance renders INSTEAD OF ContactChat's composer — ContactChat
-          // is not mounted at all in this branch, so none of the five send
-          // affordances (text, image, paste, drag-drop, reactions) can ever
-          // reach the DOM while blocked. This is decided synchronously on
-          // first render (no async fetch gates it), so a direct navigation to
-          // /contacts?id=<blockedPeerHex> renders this branch immediately,
-          // with no intermediate composer frame (AC-VIEW-7).
-          //
-          // Epic: pending-contact-confirmation, S2 (AC-UX-2, spec.md Design
-          // Decision 9): this branch is checked FIRST, ahead of
-          // `isPendingConfirmation` below — blocked always wins over pending,
-          // so a contact that is both archived and pending still renders the
-          // existing Blocked banner, never the confirmation prompt.
-          <>
-            <Alert status="info" borderRadius="md" mt={4} data-testid="contact-archived-alert">
-              <AlertIcon />
-              <AlertDescription>{copy.contacts.archivedDetailNotice}</AlertDescription>
-            </Alert>
-            <Box mt={4}>
-              <BlockContactButton
-                peerPubkeyHex={contact.pubkeyHex}
-                isArchived
-                onChanged={() => { /* blockedPeersRevision bump already drives the re-derive above */ }}
-                testId="contact-detail-unblock"
-              />
-            </Box>
-          </>
-        ) : contact.isPendingConfirmation ? (
-          // AC-UX-2: a pending, non-blocked contact shows the confirmation
-          // prompt IN PLACE OF ContactChat — ContactChat is not mounted at
-          // all in this branch either (matching the archived-branch
-          // precedent above), which is also why `markDirectMessagesRead`
-          // (fired from inside ContactChat on mount) correctly does not fire
-          // for a still-pending contact.
-          <PendingConfirmationPrompt
-            contact={contact}
-            ownPubkeyHex={pubkeyHex}
-            displayName={displayName}
-            onConfirmed={() => setPendingConfirmationRevision((r) => r + 1)}
+        {/* Only a normal (non-blocked, non-pending) contact ever reaches here:
+            the `restricted` guard above redirects blocked/pending contacts to
+            the list, where their inline actions live. So this view renders the
+            chat thread unconditionally. */}
+        <Divider my={6} />
+        <Box>
+          <ContactChat
+            peerPubkeyHex={contact.pubkeyHex}
+            pubkeyHex={pubkeyHex}
+            privateKeyHex={privateKeyHex}
+            signer={signer}
+            profileMap={profileMap}
           />
-        ) : (
-          <>
-            <Divider my={6} />
-            <Box>
-              <ContactChat
-                peerPubkeyHex={contact.pubkeyHex}
-                pubkeyHex={pubkeyHex}
-                privateKeyHex={privateKeyHex}
-                signer={signer}
-                profileMap={profileMap}
-              />
-            </Box>
-          </>
-        )}
+        </Box>
       </Box>
     </>
   );

@@ -215,13 +215,22 @@ test.describe.serial('Block contact: blocked view, confirm dialog, block action,
     expect(publishSpy.publishedKinds).toEqual([]);
   });
 
-  test('AC-VIEW-1/2/3/6/7: a direct-URL navigation to the blocked contact renders the Blocked banner instead of the composer, with every send affordance absent', async () => {
-    // Direct-URL (page.goto, not client-side nav) first render — AC-VIEW-7.
+  test('AC-VIEW-2/3/6/7 (banner UX superseded): a direct-URL navigation to the blocked contact redirects to the list — no detail page, every send affordance absent, inline Unblock on the hidden row', async () => {
+    // Behavior update: the block-contact epic originally rendered a Blocked
+    // banner on the detail page (AC-VIEW-1/7). The contact detail page is now
+    // disabled for blocked (and pending) contacts — a direct URL redirects back
+    // to the contacts list instead of opening a banner. The load-bearing
+    // SECURITY property of AC-VIEW-2/3/6/7 is unchanged (and strengthened): no
+    // composer or send affordance ever mounts for a blocked peer, because
+    // ContactChat is never rendered — the redirect returns before it.
     await alicePage.goto(`/contacts?id=${USER_B.pubkeyHex}`);
-    await alicePage.waitForLoadState('networkidle');
+    await alicePage.waitForURL((url) => !url.searchParams.has('id'), { timeout: 30_000 });
 
-    await expect(alicePage.getByTestId('contact-archived-alert')).toBeVisible({ timeout: 30_000 });
-    await expect(alicePage.getByTestId('contact-detail-unblock')).toBeVisible();
+    // Redirected to the list — the detail page and the old Blocked banner are
+    // both absent.
+    await expect(alicePage.getByTestId('contacts-page')).toBeVisible({ timeout: 30_000 });
+    await expect(alicePage.getByTestId('contact-detail-page')).toHaveCount(0);
+    await expect(alicePage.getByTestId('contact-archived-alert')).toHaveCount(0);
 
     // AC-VIEW-2/3: text composer + image button entirely absent from the DOM.
     await expect(alicePage.getByTestId('chat-input')).toHaveCount(0);
@@ -231,6 +240,12 @@ test.describe.serial('Block contact: blocked view, confirm dialog, block action,
     // never mounts for a blocked peer, so neither can exist.
     await expect(alicePage.locator('[data-testid^="reaction-trigger-"]')).toHaveCount(0);
     await expect(alicePage.locator('[data-testid^="msg-"]')).toHaveCount(0);
+
+    // The Unblock affordance now lives inline on the blocked list row (revealed
+    // under "show hidden"), replacing the detail-page Unblock button. Assert it
+    // is present but do NOT click it — the serial unblock test below owns that.
+    await alicePage.getByTestId('contacts-filter-show-hidden').click();
+    await expect(alicePage.getByTestId(`contact-unblock-${USER_B.pubkeyHex}`)).toBeVisible({ timeout: 15_000 });
   });
 
   test('AC-UNBLOCK-2/4 / AC-PRIV-1/2/3: unblocking has no confirmation, does not resurrect the wiped thread, and produces zero Nostr publishes', async () => {
