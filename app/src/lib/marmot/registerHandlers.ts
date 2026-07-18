@@ -19,6 +19,9 @@ export interface HandlerDeps {
   // Chat handler deps
   appendMessage: (groupId: string, message: ChatMessage) => Promise<void>;
   incrementUnread: (groupId: string) => void;
+  // notification-domain-invariants (INV-2): mark-read the active group instead
+  // of ringing the bell for its own messages.
+  markAsRead: (groupId: string) => void;
   setChatVersion: (updater: (v: number) => number) => void;
   // Reaction handler deps (loadMessages shared with reaction gate)
   loadMessages: (groupId: string) => Promise<{ messages: ChatMessage[]; refetchIds: string[] }>;
@@ -73,6 +76,7 @@ export function buildDispatcher(deps: HandlerDeps): Dispatcher {
     createChatHandler({
       appendMessage: deps.appendMessage,
       incrementUnread: deps.incrementUnread,
+      markAsRead: deps.markAsRead,
       setChatVersion: deps.setChatVersion,
       applyDeleteEditSignal: deps.applyDeleteEditSignal,
       resolvePendingSignalsForSlot: deps.resolvePendingSignalsForSlot,

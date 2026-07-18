@@ -1,0 +1,173 @@
+/**
+ * E2E: notification bell domain invariants (epic: notification-domain-invariants).
+ *
+ *   INV-1 (off-domain rings): a change event whose target entity is NOT the one
+ *     currently open in a detail view MUST ring the bell.
+ *   INV-2 (on-domain updates): a change event whose target entity IS the one
+ *     currently open MUST NOT ring the bell; the open view updates instead.
+ *
+ * Granularity is per-entity: viewing group X suppresses only X's events; viewing
+ * the DM thread with a peer suppresses only that peer's DMs. This spec drives the
+ * REAL publish paths through the app (group chat via the group detail composer,
+ * DMs via the __fewPublishDm bridge) — never raw relay writes.
+ *
+ * Requires the strfry relay harness (make e2e-up). Run:
+ *   node scripts/run-e2e.mjs tests/e2e/notification-domain-invariants.spec.ts
+ */
+
+import { test, expect, BrowserContext, Page } from '@playwright/test';
+import { USER_A, USER_C, computeTestKeypairs } from './helpers/auth-helpers';
+import { clearAppState } from './helpers/clear-state';
+import { suppressErrorOverlay, dismissErrorOverlay } from './helpers/dismiss-error-overlay';
+import { createGroupAndInvite } from './helpers/group-setup';
+
+// USER_B is the maintainer in the e2e env (navigating to its DM redirects to
+// /feedback), so use USER_C as the peer — mirrors the other DM specs.
+const USER_B = USER_C;
+
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3100';
+const GROUP_NAME = 'Domain Invariants Group';
+
+async function waitForBridge(page: Page) {
+  await page.waitForFunction(() => !!(window as any).__fewUnread, null, { timeout: 10_000 });
+}
+
+/** Current numeric value of the notification badge (0 when absent). */
+async function badgeCount(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const badge = document.querySelector('[data-testid="notification-badge"]');
+    if (!badge) return 0;
+    return parseInt((badge.textContent ?? '0').trim(), 10) || 0;
+  });
+}
+
+async function bootUserOnGroups(
+  browser: { newContext: (opts: object) => Promise<BrowserContext> },
+  user: typeof USER_A,
+  nickname: string,
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext({ baseURL: BASE_URL });
+  await suppressErrorOverlay(context);
+  const seed = { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname };
+  await context.addInitScript((s) => {
+    localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex: s.privateKeyHex, pubkeyHex: s.pubkeyHex, seedHex: s.seedHex }));
+    localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: s.nickname, avatar: null }));
+  }, seed);
+  const page = await context.newPage();
+  await page.goto('/');
+  await clearAppState(page);
+  await page.evaluate((s) => {
+    localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex: s.privateKeyHex, pubkeyHex: s.pubkeyHex, seedHex: s.seedHex }));
+    localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname: s.nickname, avatar: null }));
+  }, seed);
+  await page.reload();
+  await page.goto('/groups/');
+  await expect(
+    page.getByTestId('groups-empty-state').or(page.getByTestId('groups-list')),
+  ).toBeVisible({ timeout: 60_000 });
+  return { context, page };
+}
+
+async function openGroupDetail(page: Page): Promise<void> {
+  await dismissErrorOverlay(page);
+  await page.locator('[data-testid^="group-card-"]', { hasText: GROUP_NAME }).click();
+  await expect(page.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
+}
+
+test.describe.serial('Notification bell — domain invariants', () => {
+  let aliceCtx: BrowserContext;
+  let bobCtx: BrowserContext;
+  let alicePage: Page;
+  let bobPage: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    await computeTestKeypairs();
+    ({ context: aliceCtx, page: alicePage } = await bootUserOnGroups(browser, USER_A, 'Alice'));
+    ({ context: bobCtx, page: bobPage } = await bootUserOnGroups(browser, USER_B, 'Bob'));
+  });
+
+  test.afterAll(async () => {
+    await aliceCtx?.close();
+    await bobCtx?.close();
+  });
+
+  test('Alice and Bob establish a shared MLS group', async () => {
+    await createGroupAndInvite(alicePage, USER_B.npub, bobPage, GROUP_NAME);
+  });
+
+  test('INV-2: a group message while that group is OPEN renders in the chat but does NOT ring the bell', async () => {
+    // Both view the group detail. Alice's entry marks the group read, so its
+    // contribution to the badge is 0; capture whatever baseline remains.
+    await openGroupDetail(alicePage);
+    await openGroupDetail(bobPage);
+    await waitForBridge(alicePage);
+    // Let ContactStore/live subscriptions settle before measuring baseline.
+    await expect(alicePage.getByTestId('chat-input')).toBeVisible({ timeout: 30_000 });
+    const baseline = await badgeCount(alicePage);
+
+    const content = `group-inv2-${Date.now()}`;
+    await bobPage.getByTestId('chat-input').fill(content);
+    await bobPage.getByTestId('chat-input').press('Enter');
+
+    // Arrival proof: Bob's message renders live in Alice's OPEN group chat.
+    await expect(
+      alicePage.locator('[data-testid^="msg-"]').filter({ hasText: content }).first(),
+    ).toBeVisible({ timeout: 30_000 });
+
+    // INV-2: the group is on screen, so the bell must not have moved.
+    await dismissErrorOverlay(alicePage);
+    expect(await badgeCount(alicePage)).toBe(baseline);
+  });
+
+  test('INV-1: a group message while Alice is on the LIST rings the bell', async () => {
+    // Alice leaves the detail for the list — no group is the active view now.
+    await alicePage.goto('/groups/');
+    await expect(alicePage.getByTestId('groups-list')).toBeVisible({ timeout: 60_000 });
+    await waitForBridge(alicePage);
+    const baseline = await badgeCount(alicePage);
+
+    const content = `group-inv1-${Date.now()}`;
+    await bobPage.getByTestId('chat-input').fill(content);
+    await bobPage.getByTestId('chat-input').press('Enter');
+
+    // INV-1: the bell must climb above the baseline.
+    await alicePage.waitForFunction(
+      (base) => {
+        const badge = document.querySelector('[data-testid="notification-badge"]');
+        const n = badge ? parseInt((badge.textContent ?? '0').trim(), 10) || 0 : 0;
+        return n > base;
+      },
+      baseline,
+      { timeout: 30_000 },
+    );
+  });
+
+  test('INV-2: a DM while that thread is OPEN renders in the thread but does NOT ring the bell', async () => {
+    // Alice opens the DM thread with Bob — this peer is now the active view.
+    await alicePage.goto(`/contacts?id=${USER_B.pubkeyHex}`);
+    await expect(alicePage.getByTestId('contact-detail-page')).toBeVisible({ timeout: 30_000 });
+    await waitForBridge(alicePage);
+    // Give ContactChat's init() time to register its live subscriptions.
+    await expect(alicePage.getByTestId('chat-input')).toBeVisible({ timeout: 30_000 });
+    const baseline = await badgeCount(alicePage);
+
+    const content = `dm-inv2-${Date.now()}`;
+    await bobPage.waitForFunction(() => typeof (window as any).__fewPublishDm === 'function', null, { timeout: 10_000 });
+    await bobPage.evaluate(
+      async ({ peer, c }) => { await (window as any).__fewPublishDm(peer, c); },
+      { peer: USER_A.pubkeyHex, c: content },
+    );
+
+    // Arrival proof: the DM renders live in Alice's OPEN thread.
+    await expect(
+      alicePage.locator('[data-testid^="msg-"]').filter({ hasText: content }).first(),
+    ).toBeVisible({ timeout: 30_000 });
+
+    // INV-2: the thread is on screen, so the bell must not have moved. The DM
+    // watcher runs on its own subscription, so give it a bounded window to
+    // (wrongly) fire — the count must stay at baseline throughout.
+    await expect
+      .poll(async () => badgeCount(alicePage), { timeout: 6_000, intervals: [1_000, 1_000, 1_000, 1_000, 1_000] })
+      .toBe(baseline);
+  });
+});

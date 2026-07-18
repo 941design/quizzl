@@ -125,30 +125,25 @@ test.describe.serial('Join request live-refreshes an already-open group detail v
     await expect(pageB.getByTestId('join-request-sent')).toBeVisible({ timeout: 30_000 });
   });
 
-  test('User A sees both the live bell update AND the live pending-requests section, without navigating away', async () => {
-    // Contrast assertion #1: the bell updates live. This proves the join-request
-    // rumor was received and processed at all — if this failed too, the bug
-    // would be "event never arrived", not the live-refresh bug under test.
-    await expect
-      .poll(
-        async () => {
-          await dismissErrorOverlay(pageA);
-          const badge = pageA.getByTestId('notification-badge').first();
-          return badge.isVisible();
-        },
-        { timeout: 60_000, intervals: [3_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000] },
-      )
-      .toBe(true);
+  test('User A sees the live pending-requests section, and the bell stays dark for the group on screen (INV-2)', async () => {
+    // Arrival proof: the pending-requests section on the ALREADY-OPEN group
+    // detail page must update live — no goto/reload of pageA above or below
+    // this line. Pre-fix, this timed out because the join-request callback only
+    // updated the bell store, never the `pendingRequests` React state that
+    // PendingRequestsSection renders from. This positive assertion also proves
+    // the rumor was received and processed, so the negative bell assertion
+    // below is not racing an unarrived event.
+    await expect(pageA.getByTestId('pending-requests-section')).toBeVisible({ timeout: 60_000 });
 
-    // Contrast assertion #2: the pending-requests section on the ALREADY-OPEN
-    // group detail page must also update live — no goto/reload of pageA above
-    // or below this line. Pre-fix, this times out because the join-request
-    // callback only updates the bell store, never the `pendingRequests` React
-    // state that PendingRequestsSection renders from.
-    await expect(pageA.getByTestId('pending-requests-section')).toBeVisible({ timeout: 30_000 });
-
-    // Also verify a concrete pending-request row rendered (not just the
-    // section shell).
+    // Concrete pending-request row rendered (not just the section shell).
     await expect(pageA.locator('[data-testid^="pending-request-row-"]').first()).toBeVisible({ timeout: 5_000 });
+
+    // notification-domain-invariants (INV-2): the join request is for the group
+    // whose detail is currently OPEN, so the bell must NOT ring — the request
+    // surfaces in the section above instead. The event has already been
+    // processed (the section rendered), so a badge would be visible by now if
+    // the bell were (wrongly) ringing. Pre-invariant, this badge appeared.
+    await dismissErrorOverlay(pageA);
+    await expect(pageA.getByTestId('notification-badge')).toHaveCount(0);
   });
 });

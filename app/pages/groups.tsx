@@ -46,6 +46,7 @@ import { PollStoreProvider } from '@/src/context/PollStoreContext';
 import PollPanel from '@/src/components/groups/PollPanel';
 import CreatePollModal from '@/src/components/groups/CreatePollModal';
 import { markAsRead, markInviteExpiriesRead } from '@/src/lib/unreadStore';
+import { setActiveView, clearActiveView } from '@/src/lib/activeViewStore';
 import type { Group, MemberProfile } from '@/src/types';
 
 /* ---------- Detail view (shown when ?id=xxx is present) ---------- */
@@ -340,6 +341,20 @@ function GroupDetailView({ id }: { id: string }) {
       setNotFound(true);
     }
   }, [ready, groups, id, getMemberProfiles, pubkeyHex, ownProfile, profileVersion, groupDataVersion, requestProfilesIfStale]);
+
+  // Register this group as the active view (epic: notification-domain-
+  // invariants, INV-2): while its detail is open, a chat message, join request
+  // or invite-link expiry for THIS group must not ring the bell — the increment
+  // sites consult the registry (via getActiveGroupId / isActiveView('group',id))
+  // and update the open view instead. Gated on the resolved group matching the
+  // route id so we never register a stale previous-route group during client
+  // nav. Cleared on unmount / navigation to the list so events for this group
+  // ring the bell again once it is no longer on screen (INV-1).
+  useEffect(() => {
+    if (group?.id !== id) return;
+    setActiveView({ domain: 'group', id });
+    return () => clearActiveView();
+  }, [group, id]);
 
   // Deep-link: `?manageLinks=1` opens the manage-invite-links overlay once
   // this detail view has actually rendered (AC-DEEPLINK-1) — `group?.id === id`

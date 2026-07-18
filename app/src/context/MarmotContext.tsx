@@ -35,7 +35,8 @@ import { LEAVE_INTENT_KIND, serialiseLeaveIntent } from '@/src/lib/marmot/leaveS
 import { PROFILE_REQUEST_KIND } from '@/src/lib/marmot/profileRequestSync';
 import { recordRequestEmitted, recordRequestAnswered, loadProfileRequestMemo, clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage';
 import { handleIncomingProfileRequest, notifyProfileObserved, sweepStaleProfiles } from '@/src/lib/marmot/profileRequestRunner';
-import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, decrementJoinRequest, purgeStrangerDmCounters, clearInviteExpiries } from '@/src/lib/unreadStore';
+import { incrementUnread, markAsRead, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, decrementJoinRequest, purgeStrangerDmCounters, clearInviteExpiries } from '@/src/lib/unreadStore';
+import { isActiveView, getActiveGroupId } from '@/src/lib/activeViewStore';
 import { appendMessage, loadMessages, purgeStrangerDmThreads } from '@/src/lib/marmot/chatPersistence';
 import { purgeStrangerContacts } from '@/src/lib/contacts';
 import { purgeStrangerDmReactions } from '@/src/lib/reactions/api';
@@ -1094,7 +1095,14 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             // persisted request — no loss); if this runs after mount, the
             // append below shows it live. Dedup by eventId keeps either
             // ordering idempotent.
-            incrementJoinRequest(request.groupId);
+            // notification-domain-invariants (INV-2): if the admin has THIS
+            // group's detail open, the join request appears live in the
+            // pending-requests section below — so it must NOT also ring the
+            // bell. Any other view rings it (INV-1). The live setPendingRequests
+            // append runs unconditionally either way.
+            if (!isActiveView('group', request.groupId)) {
+              incrementJoinRequest(request.groupId);
+            }
             setPendingRequests((prev) => {
               const current = prev[request.groupId] ?? [];
               if (current.some((r) => r.eventId === request.eventId)) return prev;
@@ -1413,12 +1421,15 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           const dispatcherCtx = {
             groupId: group.id,
             selfPubkeyHex: pubkeyHex ?? '',
-            getActiveGroupId: () => null as string | null,
+            // notification-domain-invariants: wired to the active-view registry
+            // so chatHandler can suppress the bell for the group on screen.
+            getActiveGroupId,
           };
           const unsubDispatcher = buildDispatcher({
             // Chat
             appendMessage,
             incrementUnread,
+            markAsRead,
             setChatVersion,
             // Reactions
             loadMessages,

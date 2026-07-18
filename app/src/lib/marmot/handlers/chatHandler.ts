@@ -20,6 +20,13 @@ import { hasEditMarkerTag } from '@/src/lib/messageEdits/rumor';
 export interface ChatHandlerDeps {
   appendMessage: (groupId: string, message: ChatMessage) => Promise<void>;
   incrementUnread: (groupId: string) => void;
+  /**
+   * Epic: notification-domain-invariants (INV-2). Called instead of
+   * incrementUnread when the message's group IS the active view (the user has
+   * that group's detail open): advances the persisted last-read so the badge
+   * stays clear across a reload while the open chat renders the message live.
+   */
+  markAsRead: (groupId: string) => void;
   setChatVersion: (updater: (v: number) => number) => void;
   /**
    * S5 (epic-feature-request-message-edit-and-delete): a kind-9 rumor carrying
@@ -99,7 +106,17 @@ async function handle(rumor: ApplicationRumor, ctx: DispatcherContext, deps: Cha
   // marmot-ts #sentEventIds prevents own-send from reaching the bus at all,
   // but this guard provides defense-in-depth.
   if (rumor.pubkey !== ctx.selfPubkeyHex) {
-    deps.incrementUnread(ctx.groupId);
+    // Epic: notification-domain-invariants. If THIS group is the one currently
+    // open in the detail view (getActiveGroupId — the DispatcherContext seam
+    // wired to activeViewStore), the open chat already renders the message via
+    // the setChatVersion bump above, so the bell must NOT ring (INV-2); instead
+    // advance last-read so the badge stays clear on reload. Any other group
+    // rings the bell (INV-1).
+    if (ctx.getActiveGroupId() === ctx.groupId) {
+      deps.markAsRead(ctx.groupId);
+    } else {
+      deps.incrementUnread(ctx.groupId);
+    }
   }
 }
 

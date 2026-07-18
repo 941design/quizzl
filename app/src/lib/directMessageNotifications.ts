@@ -30,6 +30,7 @@ import {
   incrementDirectMessage,
 } from '@/src/lib/unreadStore';
 import { isPendingConfirmation, rememberContact } from '@/src/lib/contacts';
+import { isActiveView } from '@/src/lib/activeViewStore';
 
 const logger = createLogger('dm');
 
@@ -95,7 +96,10 @@ export function subscribeDirectMessageNotifications(params: {
     // fires unconditionally above — only the bell bump is held back while
     // the sender is a still-pending contact. Imports the single exported
     // predicate (AC-STRUCT-3) rather than re-deriving pendingConfirmationSince.
-    if (!isPendingConfirmation(peer)) {
+    // notification-domain-invariants (INV-2): if this peer's DM thread is the
+    // active view, ContactChat renders + marks it read live, so the bell must
+    // not also ring. Any other view rings it (INV-1).
+    if (!isPendingConfirmation(peer) && !isActiveView('dm', peer)) {
       incrementDirectMessage(peer);
     }
   };
@@ -143,7 +147,9 @@ export function subscribeDirectMessageNotifications(params: {
       rememberContact(peer);
       // Epic: pending-contact-confirmation (AC-OBS-1) — see kind4Handler's
       // matching comment above.
-      if (!isPendingConfirmation(peer)) {
+      // notification-domain-invariants (INV-2): suppress the bell when this
+      // peer's DM thread is the active view — see the kind-4 branch above.
+      if (!isPendingConfirmation(peer) && !isActiveView('dm', peer)) {
         incrementDirectMessage(peer);
       }
     } catch {

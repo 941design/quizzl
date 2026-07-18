@@ -41,8 +41,9 @@
  * this module's only obligation is to never clobber it.
  */
 
-import { loadAllInviteLinks, isExpired, markInviteLinkExpiryNotified, migrateInviteLinks } from './inviteLinkStorage';
+import { loadAllInviteLinks, isExpired, markInviteLinkExpiryNotified, markInviteLinkExpiryAcknowledged, migrateInviteLinks } from './inviteLinkStorage';
 import { incrementInviteExpiry, initInviteExpiries } from '@/src/lib/unreadStore';
+import { isActiveView } from '@/src/lib/activeViewStore';
 
 let sweepInFlight: Promise<void> | null = null;
 
@@ -64,7 +65,18 @@ async function runSweep(now: number): Promise<void> {
       // in which case markInviteLinkExpiryNotified no-ops and returns false —
       // bumping then would leave a phantom unread expiry for a link that is gone.
       const stamped = await markInviteLinkExpiryNotified(link.nonce);
-      if (stamped) incrementInviteExpiry(link.groupId);
+      if (stamped) {
+        // notification-domain-invariants (INV-2): if this link's group has its
+        // detail open, the expiry surfaces in that view (manage-links) — so it
+        // must not ring the bell. Acknowledge it (in addition to the notified
+        // stamp above) so initInviteExpiries' reload derivation stays clear.
+        // Any other view rings the bell as before (INV-1).
+        if (isActiveView('group', link.groupId)) {
+          await markInviteLinkExpiryAcknowledged(link.nonce);
+        } else {
+          incrementInviteExpiry(link.groupId);
+        }
+      }
     } catch (err) {
       // Non-fatal — one bad record must not abort the rest of the sweep pass.
       console.warn('[inviteExpirySweep] failed to notify link', link.nonce, err);

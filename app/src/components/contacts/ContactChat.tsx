@@ -30,6 +30,7 @@ import {
 } from '@/src/lib/directMessages';
 import type { ChatMediaAttachment } from '@/src/lib/media/imageMessage';
 import { markDirectMessagesRead } from '@/src/lib/unreadStore';
+import { setActiveView, clearActiveView } from '@/src/lib/activeViewStore';
 import { applyOptimistic, applyOptimisticRemoval, rollbackOptimistic, applyInboundRumor } from '@/src/lib/reactions/api';
 import type { Reaction } from '@/src/lib/reactions/types';
 import { useDirectReactions } from '@/src/hooks/useDirectReactions';
@@ -860,6 +861,17 @@ export default function ContactChat({
   useEffect(() => {
     markDirectMessagesRead(peerPubkeyHex);
   }, [peerPubkeyHex, messages.length]);
+
+  // Register this DM thread as the active view (epic: notification-domain-
+  // invariants, INV-2): while it is open, a DM from this peer must NOT ring the
+  // bell — directMessageNotifications consults isActiveView('dm', peer) and
+  // skips the increment; the effect above still advances last-read. Cleared on
+  // unmount / peer change so a DM from this peer rings the bell once the thread
+  // is closed (INV-1).
+  useEffect(() => {
+    setActiveView({ domain: 'dm', id: peerPubkeyHex });
+    return () => clearActiveView();
+  }, [peerPubkeyHex]);
 
   const sendMessage = useCallback(async (content: string) => {
     // Build the NIP-17 kind-14 rumor first so we know its id before any network

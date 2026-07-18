@@ -61,7 +61,9 @@ function makeCtx(overrides: Partial<{
   return {
     groupId: GROUP_ID,
     selfPubkeyHex: SELF_PUBKEY,
-    getActiveGroupId: () => GROUP_ID,
+    // Default: no group is the active view, so a peer message rings the bell
+    // (INV-1). Individual tests override this to exercise the on-domain path.
+    getActiveGroupId: () => null,
     ...overrides,
   };
 }
@@ -70,6 +72,9 @@ function makeDeps() {
   return {
     appendMessage: vi.fn(async () => {}),
     incrementUnread: vi.fn(),
+    // notification-domain-invariants (INV-2): called instead of incrementUnread
+    // when the message's group is the active view.
+    markAsRead: vi.fn(),
     setChatVersion: vi.fn(),
     // S5: resolve-after-append + edit-marked-kind-9 dispatch-routing deps.
     // Default resolvePendingSignalsForSlot to a 'noop' ChangeResult (nothing
@@ -198,6 +203,24 @@ describe('chatHandler', () => {
     expect(deps.incrementUnread).toHaveBeenCalledOnce();
     expect(deps.incrementUnread).toHaveBeenCalledWith('G1');
     expect(deps.incrementUnread).not.toHaveBeenCalledWith('G2');
+  });
+
+  it('INV-2 (notification-domain-invariants): peer message in the ACTIVE group does NOT ring the bell; markAsRead is called instead', async () => {
+    const deps = makeDeps();
+    const handler = createChatHandler(deps);
+    const rumor = makeRumor({ pubkey: PEER_PUBKEY });
+    // The rumor's group IS the active view.
+    const ctx = makeCtx({
+      groupId: 'G1',
+      selfPubkeyHex: SELF_PUBKEY,
+      getActiveGroupId: () => 'G1',
+    });
+
+    await handler.handle(rumor, ctx);
+
+    expect(deps.incrementUnread).not.toHaveBeenCalled();
+    expect(deps.markAsRead).toHaveBeenCalledOnce();
+    expect(deps.markAsRead).toHaveBeenCalledWith('G1');
   });
 
   it('setChatVersion called on every successful handle', async () => {
