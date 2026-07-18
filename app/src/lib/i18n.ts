@@ -1,6 +1,6 @@
 import type { LanguageCode } from '@/src/types';
 
-type Copy = {
+export type Copy = {
   appName: string;
   languageNames: Record<LanguageCode, string>;
   layout: {
@@ -18,6 +18,7 @@ type Copy = {
     unreadMessages: (count: number) => string;
     joinRequestNotification: (count: number) => string;
     directMessageNotification: (count: number) => string;
+    inviteExpiryNotification: (count: number) => string;
     backupNeededLabel: string;
     imprintLink: string;
   };
@@ -174,6 +175,17 @@ type Copy = {
     manageLinksTitle: string;
     manageLinksDeactivateLabel: string;
     manageLinksUntitled: string;
+    manageLinksCreatedAt: (dateTime: string) => string;
+    manageLinksExpiresInHours: (hours: number) => string;
+    manageLinksExpiresInMinutes: (minutes: number) => string;
+    manageLinksExpiredHoursAgo: (hours: number) => string;
+    manageLinksExpiredMinutesAgo: (minutes: number) => string;
+    manageLinksExpiredMarker: string;
+    manageLinksUsageCount: (count: number) => string;
+    manageLinksRemoveButtonLabel: string;
+    manageLinksRemoveConfirm: string;
+    manageLinksRemoveConfirmButton: string;
+    manageLinksEmpty: string;
     membersHeading: string;
     chatHeading: string;
     groupNotFound: string;
@@ -599,6 +611,7 @@ const copy: Record<LanguageCode, Copy> = {
       unreadMessages: (count: number) => count === 1 ? '1 new message' : `${count} new messages`,
       joinRequestNotification: (count: number) => count === 1 ? '1 join request' : `${count} join requests`,
       directMessageNotification: (count: number) => count === 1 ? '1 new direct message' : `${count} new direct messages`,
+      inviteExpiryNotification: (count: number) => count === 1 ? '1 invite link expired' : `${count} invite links expired`,
       backupNeededLabel: 'Backup needed',
       imprintLink: 'Imprint',
     },
@@ -817,6 +830,17 @@ const copy: Record<LanguageCode, Copy> = {
       manageLinksTitle: 'Manage Invite Links',
       manageLinksDeactivateLabel: 'Deactivated',
       manageLinksUntitled: 'Untitled',
+      manageLinksCreatedAt: (dateTime: string) => `Created ${dateTime}`,
+      manageLinksExpiresInHours: (hours: number) => hours === 1 ? 'Expires in 1 h' : `Expires in ${hours} h`,
+      manageLinksExpiresInMinutes: (minutes: number) => minutes === 1 ? 'Expires in 1 min' : `Expires in ${minutes} min`,
+      manageLinksExpiredHoursAgo: (hours: number) => hours === 1 ? 'Expired 1 h ago' : `Expired ${hours} h ago`,
+      manageLinksExpiredMinutesAgo: (minutes: number) => minutes === 1 ? 'Expired 1 min ago' : `Expired ${minutes} min ago`,
+      manageLinksExpiredMarker: 'Expired',
+      manageLinksUsageCount: (count: number) => count === 1 ? '1 joined via this link' : `${count} joined via this link`,
+      manageLinksRemoveButtonLabel: 'Remove link',
+      manageLinksRemoveConfirm: 'Remove this link?',
+      manageLinksRemoveConfirmButton: 'Remove',
+      manageLinksEmpty: 'No invite links yet.',
       membersHeading: 'Members',
       chatHeading: 'Chat',
       groupNotFound: 'Group not found.',
@@ -1143,6 +1167,7 @@ const copy: Record<LanguageCode, Copy> = {
       unreadMessages: (count: number) => count === 1 ? '1 neue Nachricht' : `${count} neue Nachrichten`,
       joinRequestNotification: (count: number) => count === 1 ? '1 Beitrittsanfrage' : `${count} Beitrittsanfragen`,
       directMessageNotification: (count: number) => count === 1 ? '1 neue Direktnachricht' : `${count} neue Direktnachrichten`,
+      inviteExpiryNotification: (count: number) => count === 1 ? '1 Einladungslink abgelaufen' : `${count} Einladungslinks abgelaufen`,
       backupNeededLabel: 'Sicherung erforderlich',
       imprintLink: 'Impressum',
     },
@@ -1361,6 +1386,17 @@ const copy: Record<LanguageCode, Copy> = {
       manageLinksTitle: 'Einladungslinks verwalten',
       manageLinksDeactivateLabel: 'Deaktiviert',
       manageLinksUntitled: 'Ohne Titel',
+      manageLinksCreatedAt: (dateTime: string) => `Erstellt am ${dateTime}`,
+      manageLinksExpiresInHours: (hours: number) => hours === 1 ? 'Läuft in 1 Std. ab' : `Läuft in ${hours} Std. ab`,
+      manageLinksExpiresInMinutes: (minutes: number) => minutes === 1 ? 'Läuft in 1 Min. ab' : `Läuft in ${minutes} Min. ab`,
+      manageLinksExpiredHoursAgo: (hours: number) => hours === 1 ? 'Vor 1 Std. abgelaufen' : `Vor ${hours} Std. abgelaufen`,
+      manageLinksExpiredMinutesAgo: (minutes: number) => minutes === 1 ? 'Vor 1 Min. abgelaufen' : `Vor ${minutes} Min. abgelaufen`,
+      manageLinksExpiredMarker: 'Abgelaufen',
+      manageLinksUsageCount: (count: number) => count === 1 ? '1 Person ist über diesen Link beigetreten' : `${count} Personen sind über diesen Link beigetreten`,
+      manageLinksRemoveButtonLabel: 'Link entfernen',
+      manageLinksRemoveConfirm: 'Diesen Link entfernen?',
+      manageLinksRemoveConfirmButton: 'Entfernen',
+      manageLinksEmpty: 'Noch keine Einladungslinks.',
       membersHeading: 'Mitglieder',
       chatHeading: 'Chat',
       groupNotFound: 'Gruppe nicht gefunden.',

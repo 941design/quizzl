@@ -21,9 +21,21 @@ type UnreadState = {
   joinRequests: Record<string, number>;
   /** Unread direct-message count per peer pubkey (lowercase hex) */
   directMessages: Record<string, number>;
+  /**
+   * Unread invite-link expiry-notification count per groupId (epic:
+   * invite-link-lifecycle, story S4). Unlike the other three slices, this
+   * one is never mutated directly by a live "increment" caller reacting to
+   * a real-time event alone — it is always re-derivable from persisted
+   * `InviteLink.expiryNotified`/`expiryAcknowledged` flags via
+   * `initInviteExpiries` (Design Decision 8, AC-NOTIFY-1/AC-INV-2). The
+   * sweep's `incrementInviteExpiry` bump is a live-count optimisation on
+   * top of that derivation, not a replacement for it — see
+   * `inviteExpirySweep.ts`.
+   */
+  inviteExpiries: Record<string, number>;
 };
 
-let state: UnreadState = { counts: {}, joinRequests: {}, directMessages: {} };
+let state: UnreadState = { counts: {}, joinRequests: {}, directMessages: {}, inviteExpiries: {} };
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -40,7 +52,7 @@ function getSnapshot(): UnreadState {
 }
 
 function getServerSnapshot(): UnreadState {
-  return { counts: {}, joinRequests: {}, directMessages: {} };
+  return { counts: {}, joinRequests: {}, directMessages: {}, inviteExpiries: {} };
 }
 
 // --- Init / live-increment reconciliation ---
@@ -360,6 +372,106 @@ export function clearJoinRequestGroup(groupId: string) {
   }
 }
 
+// --- Invite-link expiry counter API (epic: invite-link-lifecycle, S4) ---
+// Mirrors the joinRequests slice's init/increment/mark-read/clear/hook shape
+// (Design Decision 9), with one structural difference: `initInviteExpiries`
+// takes no `groupIds` argument. Per architecture.md's Implementation
+// Constraints, invite-link records carry no "created by this user" filter —
+// the sweep and this derivation process every locally-stored link
+// regardless of the admin's current group list — so the per-group buckets
+// are derived directly from each link's own `groupId` field rather than
+// from an externally-supplied group-id list.
+
+/**
+ * Derives, per groupId, the count of that group's stored invite links
+ * satisfying `isExpired(link, now) && link.expiryNotified && !link.expiryAcknowledged`
+ * (AC-NOTIFY-1). Fully recomputed from persisted flags on every call — never
+ * a cached in-memory value — so a reload reproduces the identical count
+ * (AC-INV-2, Design Decision 8): the badge is not an in-memory-only counter
+ * that a reload between "stamp notified" and "user opens bell" could lose.
+ */
+export async function initInviteExpiries(now: number = Date.now()): Promise<void> {
+  const { loadAllInviteLinks, isExpired } = await import('@/src/lib/marmot/inviteLinkStorage');
+  let links: Awaited<ReturnType<typeof loadAllInviteLinks>>;
+  try {
+    links = await loadAllInviteLinks();
+  } catch {
+    // Non-fatal — invite-link store may not exist yet (fresh install).
+    return;
+  }
+  const next: Record<string, number> = {};
+  for (const link of links) {
+    if (link.expiryNotified && !link.expiryAcknowledged && isExpired(link, now)) {
+      next[link.groupId] = (next[link.groupId] ?? 0) + 1;
+    }
+  }
+  state = { ...state, inviteExpiries: next };
+  emit();
+}
+
+/**
+ * Bumps the live invite-expiry counter for a group by 1. Called only by
+ * `inviteExpirySweep.ts`, AFTER it has already persisted
+ * `expiryNotified: true` for the link that triggered the bump (AC-INV-4) —
+ * this function itself does no persistence; it is a live-count optimisation
+ * layered on top of the persisted-flag derivation `initInviteExpiries`
+ * performs, not a replacement for it.
+ */
+export function incrementInviteExpiry(groupId: string) {
+  const next = { ...state.inviteExpiries };
+  next[groupId] = (next[groupId] ?? 0) + 1;
+  state = { ...state, inviteExpiries: next };
+  emit();
+}
+
+/**
+ * Marks a group's expired-and-notified invite links as acknowledged
+ * (persists `expiryAcknowledged: true` on each) and zeroes that group's
+ * live `inviteExpiries` count (AC-NOTIFY-4). The persistence step is
+ * required, not optional: since the count is re-derived from persisted
+ * flags on every `initInviteExpiries` call, acknowledging only in memory
+ * would be undone the next time the app reloads and recomputes the slice.
+ */
+export async function markInviteExpiriesRead(groupId: string): Promise<void> {
+  const { loadInviteLinks, isExpired, markInviteLinkExpiryAcknowledged } = await import(
+    '@/src/lib/marmot/inviteLinkStorage'
+  );
+  let links: Awaited<ReturnType<typeof loadInviteLinks>>;
+  try {
+    links = await loadInviteLinks(groupId);
+  } catch {
+    links = [];
+  }
+  const now = Date.now();
+  const toAck = links.filter(
+    (link) => link.expiryNotified && !link.expiryAcknowledged && isExpired(link, now),
+  );
+  await Promise.all(toAck.map((link) => markInviteLinkExpiryAcknowledged(link.nonce)));
+
+  if (state.inviteExpiries[groupId]) {
+    const next = { ...state.inviteExpiries };
+    delete next[groupId];
+    state = { ...state, inviteExpiries: next };
+    emit();
+  }
+}
+
+/**
+ * Remove invite-expiry tracking for a group (called on group leave/abandon,
+ * alongside `clearInviteLinksForGroup` — Design Decision 12, AC-DEEPLINK-4).
+ * In-memory only, mirroring `clearJoinRequestGroup`: the underlying link
+ * records are removed by `clearInviteLinksForGroup` itself, so there is
+ * nothing left to re-derive a stale count from on the next init.
+ */
+export function clearInviteExpiries(groupId: string) {
+  if (state.inviteExpiries[groupId]) {
+    const next = { ...state.inviteExpiries };
+    delete next[groupId];
+    state = { ...state, inviteExpiries: next };
+    emit();
+  }
+}
+
 // --- Direct message counter API ---
 
 /** Increment unread direct-message count for a peer (called when a DM arrives). */
@@ -600,6 +712,7 @@ if (typeof window !== 'undefined') {
     incrementUnread, markAsRead, clearUnreadGroup,
     incrementJoinRequest, markJoinRequestsRead, decrementJoinRequest, clearJoinRequestGroup,
     incrementDirectMessage, markDirectMessagesRead, clearDirectMessageContact,
+    incrementInviteExpiry, markInviteExpiriesRead, clearInviteExpiries,
   };
 }
 
@@ -633,12 +746,14 @@ export function useUnreadCounts() {
   const totalUnread =
     Object.values(snapshot.counts).reduce((sum, n) => sum + n, 0) +
     Object.values(snapshot.joinRequests).reduce((sum, n) => sum + n, 0) +
-    Object.values(snapshot.directMessages).reduce((sum, n) => sum + n, 0);
+    Object.values(snapshot.directMessages).reduce((sum, n) => sum + n, 0) +
+    Object.values(snapshot.inviteExpiries).reduce((sum, n) => sum + n, 0);
 
   return {
     counts: snapshot.counts,
     joinRequests: snapshot.joinRequests,
     directMessages: snapshot.directMessages,
+    inviteExpiries: snapshot.inviteExpiries,
     totalUnread,
   };
 }

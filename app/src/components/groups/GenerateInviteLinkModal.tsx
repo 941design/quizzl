@@ -24,7 +24,7 @@ import {
 import { useCopy } from '@/src/context/LanguageContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { generateNonce, buildInviteUrl } from '@/src/lib/marmot/inviteLinkGeneration';
-import { saveInviteLink } from '@/src/lib/marmot/inviteLinkStorage';
+import { saveInviteLink, buildNewInviteLink } from '@/src/lib/marmot/inviteLinkStorage';
 import { generateQrDataUrl } from '@/src/lib/qr';
 
 type GenerateInviteLinkModalProps = {
@@ -96,13 +96,14 @@ export default function GenerateInviteLinkModal({
   }, [isOpen, inviteUrl, copy.groups.qrGenerationError]);
 
   async function persistLink() {
-    await saveInviteLink({
-      nonce,
-      groupId,
-      createdAt: Date.now(),
-      label: label.trim() || undefined,
-      muted: false,
-    });
+    await saveInviteLink(
+      buildNewInviteLink({
+        nonce,
+        groupId,
+        createdAt: Date.now(),
+        label: label.trim() || undefined,
+      })
+    );
   }
 
   async function handleCopy() {

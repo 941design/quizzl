@@ -1,0 +1,60 @@
+{
+  "module_name": "manageOverlay",
+  "purpose": "Manage-links UI: per-row created/expiry legibility, usage-count copy, trashcan hard-delete with confirmation, expired-row styling that live-updates while the modal is open, and a translated empty state. Owns no data of its own — renders inviteLinkStorage state (architecture.md module map).",
+  "public_api": [
+    {
+      "name": "ManageInviteLinksModal",
+      "signature": "export default function ManageInviteLinksModal(props: { isOpen: boolean; onClose: () => void; groupId: string }): JSX.Element",
+      "description": "The modal component. Loads links via loadInviteLinks(groupId) on open, renders one row per link (created time, relative/expiry time, usage count, trashcan with inline confirm), an empty-state string when the list is empty, and live-updates expired styling on a local 60s tick."
+    },
+    {
+      "name": "describeExpiry",
+      "signature": "export function describeExpiry(now: number, effectiveExpiresAt: number): { expired: boolean; unit: 'minutes' | 'hours'; amount: number }",
+      "description": "Pure, DOM-free classification of an already-resolved effective expiry timestamp into a { unit, amount } descriptor for the relative-time copy (\"expires in N h/min\" / \"expired N h/min ago\"). Performs no expiry-gating decision itself — the boolean gating decision for a row's styling comes from the imported isExpired, never recomputed here."
+    },
+    {
+      "name": "expiryDescriptorToCopy",
+      "signature": "export function expiryDescriptorToCopy(copy: Copy['groups'], descriptor: ReturnType<typeof describeExpiry>): string",
+      "description": "Maps a descriptor to the matching Copy function call (manageLinksExpiresInHours/Minutes or manageLinksExpiredHoursAgo/MinutesAgo)."
+    },
+    {
+      "name": "resolveEffectiveExpiresAt",
+      "signature": "export function resolveEffectiveExpiresAt(link: Pick<InviteLink, 'expiresAt' | 'createdAt'>): number",
+      "description": "Display-only mirror of inviteLinkStorage's isExpired fallback (link.expiresAt ?? link.createdAt + DAY_MS), needed because isExpired returns only a boolean and the relative-time display needs the actual timestamp. Imports the shared DAY_MS constant from inviteLinkStorage so the interval length has one source of truth; does not reimplement the gating DECISION (that stays on the imported isExpired)."
+    },
+    {
+      "name": "formatCreatedAt",
+      "signature": "export function formatCreatedAt(createdAt: number): string",
+      "description": "Locale date-time string (toLocaleString) for a row's creation timestamp — satisfies AC-UI-1's time-of-day-precision requirement for the created side of the row."
+    },
+    {
+      "name": "rowStyleFor",
+      "signature": "export function rowStyleFor(expired: boolean): { opacity?: number; textDecoration?: string }",
+      "description": "Pure mapping from the expired boolean to the row's distinct visual-treatment style props (AC-UI-3)."
+    },
+    {
+      "name": "isEmptyLinksList",
+      "signature": "export function isEmptyLinksList(links: InviteLink[]): boolean",
+      "description": "Empty-state predicate (AC-UI-7)."
+    }
+  ],
+  "private_files": [
+    "app/src/components/groups/ManageInviteLinksModal.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "inviteLinkStorage (isExpired, deleteInviteLink, loadInviteLinks, DAY_MS, InviteLink type) — consumed only, never reimplemented",
+    "i18n (useCopy, Copy type)",
+    "@chakra-ui/react"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/marmot/inviteExpirySweep.ts (notifications module — AC-UI-8's tick is a local interval, not a shared sweep import)",
+    "app/src/lib/unreadStore.ts (notifications module)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/manageInviteLinksModal.redesign.test.ts"
+  ]
+}

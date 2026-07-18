@@ -1,0 +1,22 @@
+{
+  "story_id": "S4",
+  "captured_at": "2026-07-18T11:05:51Z",
+  "tests": {
+    "status": "PASS",
+    "command": "npx vitest run",
+    "test_files": 178,
+    "tests_passed": 3440,
+    "tests_skipped": 1,
+    "tests_total": 3441
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "command": "npx next lint",
+    "notes": "No ESLint config present under app/ (no .eslintrc*, no eslintConfig in package.json); `next lint` prompts an interactive first-run setup wizard rather than running against an existing config. Treated as NO_LINT per the architect Step 0 tolerance (matches S3's baseline)."
+  },
+  "typecheck": {
+    "status": "clean",
+    "command": "npx tsc --noEmit",
+    "notes": "Exit 0, no diagnostics."
+  }
+}

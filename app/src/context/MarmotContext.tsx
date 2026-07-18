@@ -35,7 +35,7 @@ import { LEAVE_INTENT_KIND, serialiseLeaveIntent } from '@/src/lib/marmot/leaveS
 import { PROFILE_REQUEST_KIND } from '@/src/lib/marmot/profileRequestSync';
 import { recordRequestEmitted, recordRequestAnswered, loadProfileRequestMemo, clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage';
 import { handleIncomingProfileRequest, notifyProfileObserved, sweepStaleProfiles } from '@/src/lib/marmot/profileRequestRunner';
-import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, decrementJoinRequest, purgeStrangerDmCounters } from '@/src/lib/unreadStore';
+import { incrementUnread, initUnreadCounts, initJoinRequestCounts, clearUnreadGroup, incrementJoinRequest, decrementJoinRequest, purgeStrangerDmCounters, clearInviteExpiries } from '@/src/lib/unreadStore';
 import { appendMessage, loadMessages, purgeStrangerDmThreads } from '@/src/lib/marmot/chatPersistence';
 import { purgeStrangerContacts } from '@/src/lib/contacts';
 import { purgeStrangerDmReactions } from '@/src/lib/reactions/api';
@@ -452,6 +452,87 @@ interface PendingRemoval {
   groupId: string;
   pubkey: string;
   receivedAt: number;
+}
+
+/**
+ * Epic invite-link-lifecycle, story S2 (AC-USAGE-1/2/3) — the full body of
+ * `approveJoinRequest`, extracted as a pure/dependency-injected function so
+ * it is unit-testable without rendering React: this repo has no jsdom/
+ * @testing-library/renderHook precedent (see pendingRequestsSection.test.ts's
+ * own comment that MarmotContext "is difficult to unit test" without an
+ * extraction seam), and a useCallback-wrapped closure cannot be invoked
+ * outside a live render. The `approveJoinRequest` callback below is now a
+ * thin wrapper that resolves its real dynamic-import dependencies and
+ * delegates here, so the unit tests exercise this exact production function,
+ * not a hand-rolled stand-in.
+ *
+ * Design Decision 7 / AC-USAGE-2: approval is never gated on invite-link
+ * liveness. `inviteByNpub` and the approval-completion steps (delete pending
+ * request, decrement the join-request badge, prune local state) run
+ * unconditionally except for the `inviteByNpub` result itself — no code path
+ * here reads `getInviteLink`/`isExpired` as a precondition. Design Decision 6
+ * / AC-USAGE-1: `incrementInviteLinkUsage(request.nonce)` is called strictly
+ * after `inviteByNpub` resolves `{ok: true}`, never on `{ok: false}`.
+ * `incrementInviteLinkUsage` is S1's silent no-op when the nonce no longer
+ * resolves (AC-USAGE-3) — it is passed the nonce and otherwise trusted, not
+ * re-guarded here.
+ *
+ * Gate-remediation fix (Finding 1, epic invite-link-lifecycle): Design
+ * Decision 6 also requires the usage-count write to "never throw or block
+ * the approval." A prior revision awaited `incrementInviteLinkUsage` BEFORE
+ * deleting the pending request; if the IndexedDB write threw (quota,
+ * transient failure), the request was never cleaned up despite the invitee
+ * already having been invited by `inviteByNpub` — a double-invite hazard on
+ * retry. Approval-completion cleanup now runs unconditionally once
+ * `inviteByNpub` succeeds, and the usage-count increment is best-effort
+ * (wrapped so a rejection is swallowed, never surfaced as an approval
+ * failure and never able to skip cleanup).
+ */
+export async function approveJoinRequestImpl(
+  deps: {
+    inviteByNpub: (groupId: string, npub: string) => Promise<{ ok: boolean; error?: string }>;
+    pubkeyToNpub: (pubkeyHex: string) => string;
+    deletePendingJoinRequest: (eventId: string) => Promise<void>;
+    incrementInviteLinkUsage: (nonce: string) => Promise<void>;
+    decrementJoinRequest: (groupId: string) => void;
+    filterPendingRequest: (groupId: string, eventId: string) => void;
+  },
+  request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest,
+): Promise<{ ok: boolean; error?: string }> {
+  const npub = deps.pubkeyToNpub(request.pubkeyHex);
+  const result = await deps.inviteByNpub(request.groupId, npub);
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+  // Approved — remove the request from IDB and update local state FIRST, so
+  // that cleanup always completes even if the best-effort usage-count write
+  // below fails. The invitee has already been invited at this point; leaving
+  // the pending request behind would make it re-approvable (double invite).
+  await deps.deletePendingJoinRequest(request.eventId);
+  deps.decrementJoinRequest(request.groupId);
+  deps.filterPendingRequest(request.groupId, request.eventId);
+  // Count this as a usage of the invite link that referenced this request
+  // (no-op if the link was since deleted/expired). Best-effort: a rejection
+  // here (IndexedDB write/quota/transient failure) must never surface as an
+  // approval failure — cleanup above has already run, so a failed increment
+  // only means an undercounted `usageCount`, never a stuck/duplicate request.
+  //
+  // Gate-remediation fix (Finding 2, epic invite-link-lifecycle): fire-and-
+  // forget instead of `await`ed. The increment is documented best-effort and
+  // must not block the approval return — a slow or hanging IndexedDB write
+  // must not delay the approval UI once the invite + cleanup have already
+  // completed. The call is still initiated synchronously (before this
+  // function returns), so a test asserting it was *called* is unaffected;
+  // a test that then synchronously asserts the persisted `usageCount` must
+  // flush the microtask queue first.
+  void (async () => {
+    try {
+      await deps.incrementInviteLinkUsage(request.nonce);
+    } catch (err) {
+      console.warn('[Marmot] incrementInviteLinkUsage failed after approval (non-blocking):', err);
+    }
+  })();
+  return { ok: true };
 }
 
 export function MarmotProvider({ children }: { children: React.ReactNode }) {
@@ -1604,6 +1685,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         clearUnreadGroup,
         clearPendingJoinRequestsForGroup,
         clearInviteLinksForGroup,
+        clearInviteExpiries,
         reloadGroups,
         markBackupDirty,
       },
@@ -1681,21 +1763,24 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const approveJoinRequest = useCallback(
     async (request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest): Promise<{ ok: boolean; error?: string }> => {
       const { pubkeyToNpub } = await import('@/src/lib/nostrKeys');
-      const npub = pubkeyToNpub(request.pubkeyHex);
-      const result = await inviteByNpub(request.groupId, npub);
-      if (!result.ok) {
-        return { ok: false, error: result.error };
-      }
-      // Remove the request from IDB and update local state
       const { deletePendingJoinRequest } = await import('@/src/lib/marmot/joinRequestStorage');
-      await deletePendingJoinRequest(request.eventId);
-      decrementJoinRequest(request.groupId);
-      // Update local pending requests state
-      setPendingRequests((prev) => {
-        const current = prev[request.groupId] ?? [];
-        return { ...prev, [request.groupId]: current.filter((r) => r.eventId !== request.eventId) };
-      });
-      return { ok: true };
+      const { incrementInviteLinkUsage } = await import('@/src/lib/marmot/inviteLinkStorage');
+      return approveJoinRequestImpl(
+        {
+          inviteByNpub,
+          pubkeyToNpub,
+          deletePendingJoinRequest,
+          incrementInviteLinkUsage,
+          decrementJoinRequest,
+          filterPendingRequest: (groupId, eventId) => {
+            setPendingRequests((prev) => {
+              const current = prev[groupId] ?? [];
+              return { ...prev, [groupId]: current.filter((r) => r.eventId !== eventId) };
+            });
+          },
+        },
+        request,
+      );
     },
     [inviteByNpub],
   );

@@ -6,7 +6,7 @@
  * and persists PendingJoinRequest to IDB.
  */
 
-import { getInviteLink } from './inviteLinkStorage';
+import { getInviteLink, isExpired } from './inviteLinkStorage';
 import { savePendingJoinRequest, loadPendingJoinRequests } from './joinRequestStorage';
 import type { PendingJoinRequest } from './joinRequestStorage';
 import { truncateUtf8, MAX_NAME_BYTES } from '@/src/lib/contactCard';
@@ -58,6 +58,7 @@ export function parseJoinRequestContent(content: string): JoinRequestPayload | n
  * - Content is not a valid join request
  * - Nonce not found in invite link storage
  * - Invite link is muted
+ * - Invite link is expired (isExpired(inviteLink, Date.now()))
  * - Requester is already a group member
  * - Duplicate request (same pubkey + groupId already pending)
  *
@@ -78,6 +79,12 @@ export async function handleJoinRequest(
 
   // Check mute status
   if (inviteLink.muted) return null;
+
+  // Check expiry status (AC-ENFORCE-1/2) — drops the request exactly as the
+  // muted check above does. isExpired covers legacy records with no
+  // expiresAt via its own createdAt + DAY_MS fallback (Design Decision 2),
+  // so this call is correct even before migrateInviteLinks has run.
+  if (isExpired(inviteLink, Date.now())) return null;
 
   const groupId = inviteLink.groupId;
 

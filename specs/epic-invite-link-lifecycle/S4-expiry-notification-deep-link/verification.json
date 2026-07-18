@@ -1,0 +1,124 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-18T12:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "architecture.md's Order-Sensitive Composition section requires the sweep's at-most-once guarantee to be 'enforced by a module-level in-flight latch, not just idempotent adjectives.' Confirm `inviteExpirySweep.ts` actually declares a module-level (not per-call-local) boolean/promise latch that a second, concurrent invocation checks and short-circuits on — not a comment claiming idempotence with no enforcing code, and not a latch that resets before the first invocation's IDB writes have actually completed (which would defeat its purpose under a StrictMode double-effect). Show the latch variable's declaration and the guard condition that reads it before starting a sweep pass."
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Scope-boundary check: this story's diff must touch only `app/src/lib/unreadStore.ts`, `app/src/components/NotificationBell.tsx`, `app/src/lib/marmot/inviteExpirySweep.ts` (new), `app/pages/groups.tsx`, `app/src/lib/marmot/leaveGroupImpl.ts`, `app/src/context/MarmotContext.tsx` (leaveGroup wiring, ~lines 1581-1613), and `app/src/lib/i18n.ts` (S4's bell-row copy keys only — not S3's row/empty-state/confirmation keys). Run `git diff --stat` and confirm `app/src/context/MarmotContext.tsx`'s diff does NOT touch `approveJoinRequest` (S2's territory) and `app/src/lib/marmot/inviteLinkStorage.ts` is untouched (S4 consumes its exported helpers, it does not reimplement them)."
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `notifications` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? Per architecture.md's Seams, the `inviteExpiries` slice must be derived from stored link flags at init and mutated only through `unreadStore.ts`'s own exported init/increment/mark-read/clear functions, mirroring the `joinRequests` slice's shape exactly. Confirm no other module (`manageOverlay`, `joinFlow`) reaches into `inviteExpiries`'s internal state directly rather than through those exported functions, and confirm the sweep is the ONLY call site that invokes `markInviteLinkExpiryNotified`."
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Confirm `initInviteExpiries`, the sweep's single-invocation notify-once behavior, and the deep-link query-param handling are each unit-tested under vitest's default node environment with an injectable `now` (no jsdom/`@testing-library`, no wall-clock dependency), consistent with the rest of this epic. For the `groups.tsx` deep-link logic specifically, confirm the router-effect ordering (detail view rendered before overlay opens, AC-DEEPLINK-1) is tested via an exported pure function extracted from the page component, not left as untestable inline `useEffect` logic."
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "spec.md's Technical Approach requires the `inviteExpiries` slice to be re-derivable from persisted flags on every init (never an in-memory-only counter that a reload would zero or desynchronize) and requires the sweep to be the sole writer of `expiryNotified` while mark-read is the sole writer of `expiryAcknowledged`. Confirm no code path anywhere in this story's diff increments/decrements `inviteExpiries` without a corresponding persisted-flag write it is derived from, and confirm `initInviteExpiries` recomputes entirely from `loadInviteLinks` output rather than reading any previously-cached in-memory value."
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "The `manageLinks=1&id=<groupId>` deep-link's `groupId` is untrusted, caller-supplied query-param data — it may reference a group the admin has left, been removed from, or that never belonged to them. Confirm the page defensively validates `groupId` against the admin's current group list BEFORE opening the detail view or the overlay (AC-DEEPLINK-3), and that a stale/foreign `groupId` cannot leave the `inviteExpiries` slice's count for that id stuck in a non-zero, unreachable state (the clear-on-absent path) — a query param an attacker or a stale bookmark could otherwise use to wedge a phantom notification badge."
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NOTIFY-1",
+      "question": "Does `initInviteExpiries` compute, per `groupId`, a count equal to the number of that group's stored links satisfying `isExpired(link, now) && link.expiryNotified === true && link.expiryAcknowledged === false` — all three conditions, not a subset? Provide a test fixture with four links per group covering each of the four boolean-combination pitfalls (expired-but-not-yet-notified; notified-but-not-expired [should not occur post-migration, but the predicate must still not count it]; notified-and-acknowledged; the true positive) and assert the count reflects only the true positive."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NOTIFY-2",
+      "question": "Does a SINGLE sweep invocation call `markInviteLinkExpiryNotified(nonce)` and increment the `inviteExpiries` slice for a link's `groupId` when that link is expired and `expiryNotified === false`, while NOT acting on a link whose `expiryNotified` is already `true`? Provide two tests: one asserting the mark-and-increment fires exactly once for a freshly-expired, not-yet-notified link, and a second, paired test asserting a second sweep call against the SAME now-notified link does not increment the count again or re-call `markInviteLinkExpiryNotified` — this is the single-invocation notify-once check; the StrictMode/overlapping-interval concurrent version (AC-INV-1) is owned by S5 against this story's real, already-landed implementation."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NOTIFY-3",
+      "question": "Does `NotificationBell` render exactly one row per `groupId` with a non-zero `inviteExpiries` count, each row linking to `/groups?id=<groupId>&manageLinks=1`? Provide a test fixture with three groups (one zero-count, two non-zero) and assert exactly two rows render, with each row's link `href`/navigation target containing the correct `groupId` — a test asserting only 'a row exists' would not catch a row rendered for the zero-count group or a link pointing at the wrong `groupId`."
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-NOTIFY-4",
+      "question": "Does activating an invite-expiry bell row call the `inviteExpiries` mark-read function for that `groupId`, after which that `groupId`'s `inviteExpiries` count reads `0`? Provide a test seeding a non-zero count, activating the row, and asserting the count reads exactly `0` afterward — AND that an unrelated `groupId`'s count is unaffected (a multi-group fixture), so a bug that clears the entire slice instead of just the activated group's entry is caught."
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEEPLINK-1",
+      "question": "On `/groups?id=<id>&manageLinks=1`, does the manage-links overlay's open call fire only AFTER the detail view for the group identified by `id` has rendered — not on initial page mount before the group resolves? Provide a test simulating the group-list-loading-then-resolving sequence (group not yet in the admin's list at mount, then arriving), asserting the overlay-open call is NOT made while the group is still unresolved, and IS made once the detail view renders — a test that only checks the eventual open call fires would not catch a premature open-before-render race."
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEEPLINK-2",
+      "question": "After the overlay opens via the `manageLinks=1` deep-link, is the `manageLinks` query parameter stripped from the URL via `router.replace` (not `router.push`, which would pollute browser history), so reloading the resulting URL does not re-open the overlay? Provide a test asserting `router.replace` was called with a URL lacking `manageLinks`, and a second assertion (fresh mount against the stripped URL) confirming the overlay does NOT auto-open on that reload — the reload-recheck is the discriminating half; a param merely absent from the displayed URL string without an actual state check would not catch a param that was stripped visually but still read from history state."
+    },
+    {
+      "question_id": "VQ-S4-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEEPLINK-3",
+      "question": "When `/groups?id=<id>&manageLinks=1` targets a `groupId` absent from the admin's current group list, does the page render the groups list (not the detail view) AND call the `inviteExpiries` clear function for that `groupId`? Provide a test with a `groupId` not present in the admin's group-list fixture, asserting (a) the rendered output matches the list view's marker, not the detail view's, and (b) the clear function was called with exactly that `groupId` — both conditions in the same test, since a fix that only redirects without clearing would leave a phantom badge behind."
+    },
+    {
+      "question_id": "VQ-S4-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DEEPLINK-4",
+      "question": "Wherever the code path that clears a group's invite links on leave/abandon runs, does it also clear that group's `inviteExpiries` slice, in the SAME call (not a separate, independently-triggerable step)? Provide a test driving `leaveGroupImpl`'s purge sequence for a group with a non-zero `inviteExpiries` count and asserting BOTH `clearInviteLinksForGroup` AND `clearInviteExpiries` were called for that `groupId` within the same purge invocation — confirm via source inspection that `clearInviteExpiries` is threaded into the same unconditional-purge Deps object as `clearInviteLinksForGroup`, not gated behind a separate, independently-skippable condition that could be reached without it (e.g. an early return in `leaveGroupImpl` that exits before reaching a trailing, separate `clearInviteExpiries` call)."
+    },
+    {
+      "question_id": "VQ-S4-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LOCALE-1",
+      "question": "Does every new `Copy` key introduced across this epic (S3's expiry/relative-time strings, usage-count copy, expired marker, empty-state string, trashcan confirmation, AND S4's bell row copy) have both a non-empty `en` value and a non-empty `de` value in `i18n.ts`? Since S3 lands before S4 in `story_order`, run a completeness sweep over the FULL new-key set introduced by both stories (not just S4's own keys) at this story's landing point: `grep` both the `en` and `de` Copy objects for each new key and confirm no key is present in one language object and absent/`undefined` in the other. State in your response, not in `verification.json`, which keys you enumerated as 'new this epic' and how you derived that set (e.g. diff against the epic's base commit)."
+    },
+    {
+      "question_id": "VQ-S4-016",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The scope list explicitly excludes editing `MarmotContext.tsx` beyond the `leaveGroup` Deps wiring, so the sweep/migration wiring required by spec.md's Technical Approach ('run on app load and on a 60s interval from wherever group state initializes') was implemented instead inside `NotificationBell.tsx`'s own `useEffect` (migrateInviteLinks → runInviteExpirySweep → initInviteExpiries on mount, runInviteExpirySweep + initInviteExpiries on a 60s interval), reasoning that `NotificationBell` is mounted unconditionally by `Layout.tsx` on every page (twice: once for the desktop header, once for the mobile menu — both present in the DOM simultaneously at typical breakpoints, not conditionally mounted). Confirm: (a) `Layout.tsx` does in fact mount `NotificationBell` unconditionally on every route (not gated behind an identity/group-readiness check that would leave the sweep silently un-wired on some app states), and (b) the two simultaneously-mounted bell instances each starting their own mount-effect and 60s interval do not produce any user-visible duplicate work beyond the sweep's own already-covered at-most-once guarantee (AC-INV-1) — e.g. confirm `initInviteExpiries` being called twice in quick succession from two mount effects is harmless (it is a pure re-derivation, not an accumulator)."
+    },
+    {
+      "question_id": "VQ-S4-017",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "No prior story (S1/S2/S3) wired `migrateInviteLinks()` into any production call site — grep confirms its only pre-S4 callers were test files. Since spec.md's Design Decision 2/3 and architecture.md's AC-INV-3 flood-suppression guarantee only hold in practice if migration actually runs before the sweep's first pass, this story added the only production call site (`NotificationBell.tsx`'s mount effect, awaited before the first `runInviteExpirySweep` call). Confirm this is the correct and complete wiring — i.e. that the epic genuinely never assigned this call site to a different story, and that awaiting migration before the FIRST sweep pass (but not before each subsequent interval tick) is sufficient for AC-INV-3 to hold in the running app, not just in `migrateInviteLinks`'s own unit tests."
+    },
+    {
+      "question_id": "VQ-S4-018",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "`app/pages/groups.tsx`'s two new pure functions (`shouldOpenManageLinksOverlay`, `shouldRedirectToGroupsList`) are unit-tested in isolation (`app/tests/unit/pages/groupsManageLinksDeepLink.test.ts`), but their actual WIRING into `GroupDetailView`'s and `GroupsPage`'s `useEffect`s (the `manageLinksDeepLinkHandledRef`/`redirectHandledForRef` guard refs, the `router.replace` calls, and the `if (id && !redirectToGroupsList)` render branch) is not covered by any test in this story (no jsdom/@testing-library precedent in this repo per architecture.md's Implementation Constraints). Confirm by source inspection that the wiring correctly threads the pure functions' outputs end-to-end: specifically that `redirectToGroupsList`'s value is computed BEFORE the `if (joinNonce...)`/`if (id...)` early returns (so the hooks that compute it — `useRef`/`useEffect` — are never skipped on some render paths, which would violate React's Rules of Hooks) — verify no conditional hook call was introduced."
+    }
+  ]
+}

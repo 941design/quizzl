@@ -1,0 +1,46 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-18T11:20:00Z",
+  "files_created": [
+    "app/src/lib/marmot/inviteExpirySweep.ts",
+    "app/tests/unit/inviteExpirySweep.test.ts",
+    "app/tests/unit/inviteExpiries.test.ts",
+    "app/tests/unit/pages/groupsManageLinksDeepLink.test.ts",
+    "specs/epic-invite-link-lifecycle/S4-expiry-notification-deep-link/architecture.json",
+    "specs/epic-invite-link-lifecycle/S4-expiry-notification-deep-link/baseline.json",
+    "specs/epic-invite-link-lifecycle/S4-expiry-notification-deep-link/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/unreadStore.ts",
+    "app/src/components/NotificationBell.tsx",
+    "app/pages/groups.tsx",
+    "app/src/lib/marmot/leaveGroupImpl.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/i18n.ts",
+    "app/tests/unit/marmot/leaveGroupImpl.test.ts",
+    "specs/epic-invite-link-lifecycle/S4-expiry-notification-deep-link/verification.json"
+  ],
+  "tests_added": {
+    "unit": 33
+  },
+  "test_counts": {
+    "baseline": 3441,
+    "final": 3474
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": ["notifications"],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Two scope-boundary judgment calls required real investigation rather than being handed by the spec. First: spec.md's Technical Approach says the sweep must run 'on app load and on a 60s interval from wherever group state initializes,' and the obvious wiring point (MarmotContext.tsx, near the existing initJoinRequestCounts call) is explicitly out of scope for this story (restricted to the leaveGroup Deps wiring only). Resolved by wiring the sweep/migration inside NotificationBell.tsx's own mount effect instead, after confirming via Layout.tsx that NotificationBell is mounted unconditionally (twice — desktop and mobile, both always in the DOM, not conditionally rendered) on every route, making it a legitimate 'app load' proxy within scope. Second: grepping the whole tree showed migrateInviteLinks (built by S1) had zero production call sites before this story — without it running before the sweep's first pass, the AC-INV-3 flood-suppression guarantee would never actually engage at runtime (every pre-existing legacy expired link would get freshly notified by the sweep, exactly the flood Design Decision 3 exists to prevent). No story in stories.json was assigned that wiring, so S4 (the only story left touching the sweep's mount point) added it, sequenced before the first sweep pass.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

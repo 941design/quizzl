@@ -1,0 +1,98 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-18T12:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Confirm the expiry drop in `handleJoinRequest` and the post-approval usage increment in `approveJoinRequest` are both real, load-bearing branches — not a condition that is always true/false given how the two functions are actually invoked today, and not a call to `incrementInviteLinkUsage` that is unreachable because an earlier return already fired for every real-world input. Show the exact `if` condition guarding each new behavior and confirm both the taken and not-taken branch are exercised by a distinct test."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Scope-boundary check: this story's diff must touch only `app/src/lib/marmot/joinRequestHandler.ts` and `app/src/context/MarmotContext.tsx`'s `approveJoinRequest` (around line 1681), per stories.json's `scope.includes`. Run `git diff --stat` and confirm `app/src/lib/marmot/inviteLinkStorage.ts` is untouched (S2 consumes `isExpired`/`incrementInviteLinkUsage`, it does not reimplement them) and that `MarmotContext.tsx`'s diff is confined to the `approveJoinRequest` call site — not the `leaveGroup` wiring around lines 1581-1613, which is S4's non-overlapping territory on the same file."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `joinFlow` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? Per architecture.md's Seams, `joinFlow`'s only allowed dependency on `inviteLinkStorage` is through `isExpired(link, now)` and `incrementInviteLinkUsage(nonce)` — it must not recompute expiry inline (e.g. re-deriving `expiresAt ?? createdAt + DAY_MS` itself) or reach into the `'few-invite-links'` idb-keyval store directly. If rewriting `joinRequestHandler.ts`/`approveJoinRequest` would force a change to `inviteLinkStorage.ts`'s internals, identify the dependency and whether it flows through the declared seam."
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Confirm `handleJoinRequest`'s expiry-drop path and `approveJoinRequest`'s conditional-increment path are both unit-tested with an injectable `now`/mocked `inviteByNpub` result (no wall-clock dependency, no real network call), under vitest's default node environment. Provide the test file paths and confirm the tests assert on `handleJoinRequest`'s return value / whether `incrementInviteLinkUsage` was called (spy/mock assertion) rather than only on some downstream side effect that could pass for an unrelated reason."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "spec.md's Technical Approach states approval must never be gated on link liveness — a deleted or expired link must not block an otherwise-valid approval, only the silent usage-increment no-op should be affected. Confirm `approveJoinRequest`'s control flow calls `inviteByNpub` and completes approval (delete pending request, decrement join-request badge) unconditionally on link state, with the `incrementInviteLinkUsage` call strictly downstream of and gated only by the `inviteByNpub` result — not upstream of or interleaved with the approval-completion steps in a way that could let a storage lookup failure abort approval."
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "`handleJoinRequest` processes an incoming join request whose `nonce` is attacker-influenced network input (arriving via a gift-wrapped event from an untrusted sender before any relationship is established). Confirm the expiry check resolves the link via `getInviteLink`/`isExpired` defensively — an unresolvable or malformed nonce must drop the request (same fail-closed behavior as today's `muted` check), not throw an unhandled exception that could crash the join-request processing loop for other, unrelated pending requests."
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ENFORCE-1",
+      "question": "Does `handleJoinRequest` return `null` (persist nothing) when the resolved link's `isExpired(inviteLink, now)` is `true`? Provide a test with a link fixture whose `isExpired` evaluates `true` for the test's `now`, and a link that is explicitly NOT `muted` (isolating the expiry check from the pre-existing mute check) — confirm the function returns `null` and no `PendingJoinRequest` is persisted, exactly mirroring the existing `muted === true` behavior it is modeled on."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ENFORCE-2",
+      "question": "Does `handleJoinRequest` persist a `PendingJoinRequest` when the resolved link's `isExpired(inviteLink, now)` is `false` and `muted` is `false`, with all other existing discard conditions unmet? Provide a test paired directly against AC-ENFORCE-1's fixture (same link shape, `now` on the non-expired side of the boundary) asserting the request IS persisted — a single reversed comparison in the implementation should be caught by running these two tests side by side."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-USAGE-1",
+      "question": "Does `approveJoinRequest` call `incrementInviteLinkUsage(request.nonce)` ONLY when `inviteByNpub(...)` resolves `{ok: true}`, and never when it resolves `{ok: false, error}`? Provide two tests using a spy/mock on `incrementInviteLinkUsage`: one where `inviteByNpub` resolves `ok: true` asserting the spy WAS called with `request.nonce`, and one where it resolves `ok: false` asserting the spy was NOT called at all — a test only covering the success path would not catch an implementation that calls the increment unconditionally before checking the result."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-USAGE-2",
+      "question": "Does `approveJoinRequest` resolve `{ok: true}` and complete approval (delete the pending request, decrement the join-request badge) even when the referenced `InviteLink` no longer resolves (deleted or expired)? Provide a test where the link lookup returns undefined/expired and `inviteByNpub` still resolves `{ok: true}`, asserting the function's return value is `{ok: true}` AND that the pending-request-deletion and badge-decrement side effects both fired — confirm via source inspection that no code path reads `getInviteLink`/`isExpired` as a precondition anywhere before the approval-completion steps."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-USAGE-3",
+      "question": "For a pending request whose referenced link has been deleted, does `approveJoinRequest` complete without throwing, with the eventual `incrementInviteLinkUsage` no-op (AC-MODEL-4) as the ONLY visible effect of the link's absence — no error surfaced to the caller, no partial/aborted approval state? Provide an end-to-end test (real `incrementInviteLinkUsage` from S1's inviteLinkStorage, not a mock, per the module-ownership 'do not reimplement' scope note) against a link deleted before approval runs, asserting the promise resolves successfully and the record set is otherwise unchanged."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "VQ-S2-002 required `MarmotContext.tsx`'s diff to be 'confined to the `approveJoinRequest` call site.' The implementation adds a new exported top-level function, `approveJoinRequestImpl` (app/src/context/MarmotContext.tsx, immediately before `export function MarmotProvider` at what was line 457), and reduces the `approveJoinRequest` useCallback (~line 1681) to a thin wrapper that resolves its dynamic-import deps and delegates to it. This was necessary because a `useCallback`-wrapped closure cannot be invoked from a test without rendering React, and this repo has no jsdom/@testing-library/renderHook precedent (`pendingRequestsSection.test.ts`'s own comment states MarmotContext 'is difficult to unit test' for exactly this reason) — the extraction mirrors an existing in-file pattern already used for `fireAutoCommit`/`countAdmissionsForActiveNonce`/`applyPairingAdmissionDigest`/`resolveAndApplyPairingAdmissionDigest` (all exported pure/injected-effects functions placed before `MarmotProvider`). `git diff --stat` confirms `leaveGroup` (~1581-1613, S4's territory) and every other MarmotContext.tsx export besides this pair are untouched — two hunks only (@@ -454,6 +454,56 @@ and @@ -1681,21 +1731,24 @@). Confirm this reading of 'confined to the call site' (the diff is confined to approveJoinRequest's own implementation, not merely to its useCallback body) is acceptable, and that the extraction does not create a seam any other story depends on (no other story's stories.json entry references `approveJoinRequestImpl`)."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-ENFORCE-1",
+      "question": "`app/tests/unit/marmot/joinRequestHandler.test.ts`'s new 'expiry enforcement' describe block mocks `@/src/lib/marmot/inviteLinkStorage` via `vi.importActual` + spread, keeping the real, unmocked `isExpired` (only `getInviteLink` is replaced by an in-memory-store stub). This means the expiry tests exercise S1's actual `expiresAt ?? createdAt + DAY_MS` fallback logic, not a hand-rolled re-implementation of the predicate (per the project's known 'shadow-init tests that re-implement SUT body' blind spot). Confirm `vi.importActual` on a module whose module-scope calls `createStore('few-invite-links', 'links')` from `idb-keyval` (an eagerly-evaluated call at import time) does not attempt any real IndexedDB I/O under vitest's default node environment with no `fake-indexeddb/auto` import in this test file — i.e. that `idb-keyval`'s `createStore` is lazy (does not open a connection until first `get`/`set`) and the mocked `getInviteLink` never actually calls the real `get`, so the 38-test file's 5ms-scale runtime (observed) reflects no accidental real-module IDB access slipping through the mock boundary."
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-USAGE-3",
+      "question": "`app/tests/unit/marmot/approveJoinRequestImpl.test.ts`'s AC-USAGE-3 test uses `vi.doMock('idb-keyval', ...)` with a `set` implementation that throws if ever called, then dynamically imports the REAL `incrementInviteLinkUsage` from `@/src/lib/marmot/inviteLinkStorage` (per the story's 'consume, don't reimplement' scope note) and passes it as the `incrementInviteLinkUsage` dependency. Confirm this genuinely proves AC-USAGE-3's 'no-op is the only visible effect' claim end-to-end — i.e. that if a future change to `inviteLinkStorage.ts` made `incrementInviteLinkUsage` attempt a write even when `get()` resolves `undefined` (a regression of AC-MODEL-4), this specific test would fail with the injected throwing `set` rather than silently passing, and that the `vi.resetModules()`/`vi.doUnmock()` cleanup at the end of the test does not leak the mocked `idb-keyval` into subsequent tests in the same file or into other test files run in the same worker."
+    }
+  ]
+}

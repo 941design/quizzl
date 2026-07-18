@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { InviteLink } from '@/src/lib/marmot/inviteLinkStorage';
 import type { PendingJoinRequest } from '@/src/lib/marmot/joinRequestStorage';
 
@@ -6,9 +6,19 @@ import type { PendingJoinRequest } from '@/src/lib/marmot/joinRequestStorage';
 const inviteLinkStore = new Map<string, InviteLink>();
 const joinRequestStore = new Map<string, PendingJoinRequest>();
 
-vi.mock('@/src/lib/marmot/inviteLinkStorage', () => ({
-  getInviteLink: vi.fn(async (nonce: string) => inviteLinkStore.get(nonce) ?? undefined),
-}));
+// isExpired is imported for real (not mocked) so these tests exercise the
+// production predicate (S1's fallback-covered `expiresAt ?? createdAt +
+// DAY_MS` logic) rather than a hand-rolled stand-in — see
+// feedback_test_mocking_blind_spots.md on shadow-init tests hiding real bugs.
+vi.mock('@/src/lib/marmot/inviteLinkStorage', async () => {
+  const actual = await vi.importActual<typeof import('@/src/lib/marmot/inviteLinkStorage')>(
+    '@/src/lib/marmot/inviteLinkStorage'
+  );
+  return {
+    ...actual,
+    getInviteLink: vi.fn(async (nonce: string) => inviteLinkStore.get(nonce) ?? undefined),
+  };
+});
 
 vi.mock('@/src/lib/marmot/joinRequestStorage', () => ({
   savePendingJoinRequest: vi.fn(async (req: PendingJoinRequest) => {
@@ -26,11 +36,21 @@ const { handleJoinRequest, parseJoinRequestContent, JOIN_REQUEST_KIND } = await 
   '@/src/lib/marmot/joinRequestHandler'
 );
 
+// `expiresAt` defaults to one day past whatever `now` is active at call time
+// (real wall-clock for every pre-existing, non-expiry-focused test in this
+// file; the fake-timer `NOW` for the "expiry enforcement" tests below, which
+// always override createdAt/expiresAt explicitly anyway) — so every test
+// that doesn't care about expiry keeps exercising a non-expired link exactly
+// as before, regardless of which clock is active.
 function makeInviteLink(overrides: Partial<InviteLink> = {}): InviteLink {
   return {
     nonce: 'valid-nonce',
     groupId: 'group-1',
     createdAt: 1000,
+    expiresAt: Date.now() + 86_400_000,
+    usageCount: 0,
+    expiryNotified: false,
+    expiryAcknowledged: false,
     label: undefined,
     muted: false,
     ...overrides,
@@ -202,6 +222,75 @@ describe('joinRequestHandler', () => {
 
       const result = await handleJoinRequest(makeRumor(), 'evt-1', noMembers);
       expect(result).toBeNull();
+    });
+
+    // ── S2: expiry enforcement at the gate (AC-ENFORCE-1, AC-ENFORCE-2) ─────
+    // Fake timers control Date.now() (the handler's gate calls
+    // isExpired(inviteLink, Date.now()) directly, per spec.md's Technical
+    // Approach — Date.now() is not an injectable parameter of
+    // handleJoinRequest itself), keeping these tests wall-clock-independent
+    // per architecture.md's "unit-testable without wall-clock" constraint.
+
+    describe('expiry enforcement', () => {
+      const NOW = 10_000_000; // arbitrary fixed instant
+
+      beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
+      });
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it('AC-ENFORCE-1: discards when the invite link is expired (isExpired true), even though muted is explicitly false', async () => {
+        inviteLinkStore.set(
+          'valid-nonce',
+          makeInviteLink({ muted: false, createdAt: NOW - 86_400_000 - 1, expiresAt: NOW - 1 }),
+        );
+
+        const result = await handleJoinRequest(makeRumor(), 'evt-1', noMembers);
+
+        expect(result).toBeNull();
+        expect(joinRequestStore.has('evt-1')).toBe(false);
+      });
+
+      it('AC-ENFORCE-2: persists when the invite link is NOT expired (isExpired false) and NOT muted, same fixture shape as the AC-ENFORCE-1 case with `now` moved to the other side of the boundary', async () => {
+        inviteLinkStore.set(
+          'valid-nonce',
+          makeInviteLink({ muted: false, createdAt: NOW - 1000, expiresAt: NOW + 1 }),
+        );
+
+        const result = await handleJoinRequest(makeRumor(), 'evt-1', noMembers);
+
+        expect(result).not.toBeNull();
+        expect(joinRequestStore.has('evt-1')).toBe(true);
+      });
+
+      it('AC-ENFORCE-1: discards a legacy link with no expiresAt whose createdAt + DAY_MS fallback has already passed', async () => {
+        // Legacy record: expiresAt omitted entirely, exercising isExpired's
+        // `expiresAt ?? createdAt + DAY_MS` fallback (Design Decision 2) —
+        // proves the gate's retroactive-expiry behavior, not just the
+        // explicit-expiresAt case above.
+        const legacyLink = makeInviteLink({ muted: false, createdAt: NOW - 86_400_000 - 1 });
+        delete (legacyLink as { expiresAt?: number }).expiresAt;
+        inviteLinkStore.set('valid-nonce', legacyLink);
+
+        const result = await handleJoinRequest(makeRumor(), 'evt-1', noMembers);
+
+        expect(result).toBeNull();
+      });
+
+      it('exactly at the expiry boundary (now === expiresAt) is treated as expired and discarded (isExpired is >=, not >)', async () => {
+        inviteLinkStore.set(
+          'valid-nonce',
+          makeInviteLink({ muted: false, createdAt: NOW - 1000, expiresAt: NOW }),
+        );
+
+        const result = await handleJoinRequest(makeRumor(), 'evt-1', noMembers);
+
+        expect(result).toBeNull();
+      });
     });
 
     it('discards when requester is already a group member', async () => {

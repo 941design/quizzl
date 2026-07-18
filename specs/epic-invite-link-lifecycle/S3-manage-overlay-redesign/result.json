@@ -1,0 +1,46 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-18T11:10:00Z",
+  "architect_skipped": false,
+  "files_created": [
+    "app/tests/unit/manageInviteLinksModal.redesign.test.ts",
+    "specs/epic-invite-link-lifecycle/S3-manage-overlay-redesign/architecture.json",
+    "specs/epic-invite-link-lifecycle/S3-manage-overlay-redesign/baseline.json",
+    "specs/epic-invite-link-lifecycle/S3-manage-overlay-redesign/result.json"
+  ],
+  "files_modified": [
+    "app/src/components/groups/ManageInviteLinksModal.tsx",
+    "app/src/lib/i18n.ts",
+    "specs/epic-invite-link-lifecycle/S3-manage-overlay-redesign/verification.json"
+  ],
+  "tests_added": {
+    "unit": 33
+  },
+  "test_counts": {
+    "baseline": 3408,
+    "final": 3441
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "manageOverlay"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Two of my own literal design artifacts collided with the very tests meant to verify them, both caught by the delegated dev rather than by me up front: (1) a doc comment I wrote for TICK_MS named the forbidden module filenames (inviteExpirySweep.ts/unreadStore.ts) verbatim, which the VQ-S3-003 structural test bans anywhere in the file including comments; (2) the VQ-S3-005 'no muted reference' check (case-insensitive substring match for \"muted\") didn't account for the pre-existing, codebase-wide `textMuted` Chakra color token that the component legitimately uses three times for secondary text — a real project-specific gotcha (a design token that substring-collides with an unrelated banned word) worth remembering: when writing a source-text regression test in a no-jsdom repo, grep the intended production content against the test's own regex before treating it as a fixed target, not after.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "spawn_index": 1,
+        "note": "Fixed two self-inflicted literal-collision bugs in the architect's own handoff: reworded the TICK_MS comment to avoid naming the forbidden module filenames the file's own VQ-S3-003 test bans, and scoped the VQ-S3-005 'no muted' structural test to strip the unrelated `textMuted` Chakra color token (used 3x in the component) before the substring check, so the assertion still fails on a real `muted`/`updateInviteLinkMuted` reintroduction without false-failing on the token."
+      }
+    ],
+    "lead_clarifications": []
+  }
+}

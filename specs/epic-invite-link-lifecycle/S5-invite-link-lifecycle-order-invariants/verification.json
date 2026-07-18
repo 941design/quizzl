@@ -1,0 +1,103 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-18T12:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S5-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Per the Mock Strategy integration-story exception, confirm `invite-link-lifecycle-integration.test.ts` calls the REAL `inviteLinkStorage`, `joinRequestHandler`/`approveJoinRequest`, and `inviteExpirySweep` implementations already landed by S1/S2/S4 — no `vi.mock`/spy substitution of any of those four producers, and no re-implementation of their logic inline in the test file (Module Ownership principle 5's exemption licenses reaching across modules to verify, not duplicating their logic). A test that mocks the sweep's latch or the storage layer's persistence would prove nothing about the real interleaving behavior these six ACs exist to catch."
+    },
+    {
+      "question_id": "VQ-S5-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Scope-boundary check: this story's diff must touch only `app/tests/unit/marmot/invite-link-lifecycle-integration.test.ts`, per stories.json's `scope.includes` and its explicit `scope.excludes` note that no production source file under `app/src/` is touched. Run `git diff --stat` and confirm zero files under `app/src/` appear — if any of the six invariants below fails against the real S1/S2/S4 implementations, that is a finding to escalate against the owning story, not a production fix to make from within S5."
+    },
+    {
+      "question_id": "VQ-S5-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could this integration story's verification surface be deleted and rewritten without modifying any file outside its `dependencies_allowed` list (the union of AC-INV-1..6's own `Spans modules:` sets: `notifications`, `inviteLinkStorage`, `joinFlow`)? If reproducing any of the six invariants required calling an unexported/internal function from any of those three modules (rather than their declared public seam surface — `isExpired`, `incrementInviteLinkUsage`, `markInviteLinkExpiryNotified`, `migrateInviteLinks`, the sweep's exported entry point, `approveJoinRequest`), identify which invariant forced that and whether the seam contract in architecture.md needs amending."
+    },
+    {
+      "question_id": "VQ-S5-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Confirm each of the six AC-INV tests genuinely drives its stated generator space (multiple interleavings/orderings/counts per architecture.md's Order-Sensitive Composition section), not a single hand-picked sequence relabeled as a property test. For at least AC-INV-1, AC-INV-5, and AC-INV-6, show that the test parametrizes over more than one interleaving/invocation-count value (e.g. via `Promise.all` racing, explicit await-reordering, or a small sweep over `[1,2,3,4]` invocations) and asserts the property holds across all of them, not just one representative case — a test hardcoded to one ordering would not be state-discriminating against an implementation that only handles that one ordering correctly."
+    },
+    {
+      "question_id": "VQ-S5-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "spec.md and architecture.md's Order-Sensitive Composition section together establish these six guarantees as the epic's actual correctness bar for concurrency/ordering — the per-story unit tests (S1/S2/S4) only prove single-invocation correctness. Confirm this test file is the FIRST point in the epic where two real, concurrently-invoked producers (e.g. two `approveJoinRequest` calls, two sweep invocations) are exercised against the same real idb-keyval-backed store in the same test run, rather than each producer being exercised in isolation against a freshly-reset store per test."
+    },
+    {
+      "question_id": "VQ-S5-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Confirm each of the six integration tests resets/isolates its own idb-keyval store state (or uses a fresh in-memory backing per test) so that a failure or a passing result in one AC-INV test cannot leak stale state into another — a shared, un-reset store across the six tests would make a later test's pass/fail depend on execution order, which is exactly the class of bug this story exists to catch, and getting it wrong in the test harness itself would undermine every other invariant's verdict."
+    },
+    {
+      "question_id": "VQ-S5-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-1",
+      "question": "For an expired, not-yet-`expiryNotified` link, across the generator space of {2-5 concurrent/rapid sweep invocations, call ordering, StrictMode-style double-invoke vs. overlapping-interval-tick triggering}, does the sweep notify that link (bump `inviteExpiries` AND call `markInviteLinkExpiryNotified`) EXACTLY once? Provide a test that fires at least 2 real, concurrent sweep invocations (e.g. `Promise.all([sweep(), sweep()])`) against the same fixture and asserts the final `inviteExpiries` count increased by exactly `1` (not `0`, not `2`) and `markInviteLinkExpiryNotified` was persisted exactly once — a test that runs the sweeps sequentially with an `await` between them would not exercise the in-flight-latch race this AC exists to catch."
+    },
+    {
+      "question_id": "VQ-S5-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-2",
+      "question": "For a sequence where the sweep notifies link `L` and then the app 'reloads' (fresh `initInviteExpiries` call against a fresh in-memory slice, simulating a page reload) before `L`'s notification is acknowledged, does `initInviteExpiries` derive `L`'s contribution to the unread count SOLELY from `L`'s persisted `expired && expiryNotified && !expiryAcknowledged` flags, producing an IDENTICAL count pre- and post-'reload'? Provide a test that runs the real sweep, captures the count from the live in-memory slice, then discards that slice and calls `initInviteExpiries` fresh (simulating reload) against the same persisted store, and asserts the two counts are equal — a test that never discards and re-derives the in-memory slice would not discriminate 'derived from persisted flags' from 'derived from an in-memory counter that happens to also be correct.'"
+    },
+    {
+      "question_id": "VQ-S5-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-3",
+      "question": "For a record set migrated by `migrateInviteLinks(now)` spanning the generator space of {already-expired non-muted, not-yet-expired non-muted, muted-regardless-of-computed-expiry} links in arbitrary combination and order, is the resulting `expiryNotified` value `true` for EXACTLY the already-expired-at-`now` and `muted` records, and `false` for every other record — no exceptions in either direction? Provide a test fixture mixing at least one record of each of the three categories in a non-sorted order, run the real `migrateInviteLinks(now)`, and assert per-record `expiryNotified` values against the expected set — asserting only an aggregate count (e.g. 'N records got stamped') would not catch the WRONG records being stamped while the count happens to match."
+    },
+    {
+      "question_id": "VQ-S5-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-4",
+      "question": "For a single link's sweep-then-notify sequence interrupted at an arbitrary point between 'compute expired' and 'bump the in-memory `inviteExpiries` counter,' does a subsequent `initInviteExpiries` computation NEVER read the link as 'shown' (contributed to the count) unless its `expiryNotified` was already persisted at the interruption point — i.e. does the persisted stamp write happen no later than the in-memory bump for every observed interruption point? Provide a test that instruments or races the sweep's internal steps (e.g. by resolving the IDB write and the in-memory bump as two separately-awaitable steps and interleaving an `initInviteExpiries` call between them) and asserts the interleaved `initInviteExpiries` result is consistent with 'stamped-not-yet-shown,' never 'shown-but-not-stamped' — since 'shown-but-not-stamped' would mean a crash at that exact point loses the notification permanently."
+    },
+    {
+      "question_id": "VQ-S5-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-5",
+      "question": "For two concurrent `approveJoinRequest` calls that both reference the same link's `nonce` and both resolve `inviteByNpub` with `{ok: true}`, across the generator space of interleavings of their respective load-modify-save cycles on `usageCount`, does the link's final `usageCount` reflect BOTH increments (increase by exactly `2` relative to its pre-call value), with no interleaving producing a lost update? Provide a test that fires two real, concurrent `approveJoinRequest` calls (`Promise.all`) against pending requests referencing the same nonce, both with a mocked `inviteByNpub` resolving `{ok: true}` (the ONLY permitted mock boundary — external network I/O, not the invite-link/join-flow producers under test), and asserts the final `usageCount` is exactly `+2` — running this single scenario multiple times or with an injected artificial delay between the two calls' read and write phases to force the race is acceptable and encouraged, since a naive load-modify-save is prone to passing by luck under fast, non-delayed execution."
+    },
+    {
+      "question_id": "VQ-S5-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-6",
+      "question": "For {1-4} sequential or concurrent invocations of `migrateInviteLinks(now)` against the same store, optionally racing a concurrent `loadInviteLinks` read, does the resulting persisted record set remain IDENTICAL to the record set produced by exactly one `migrateInviteLinks(now)` call, with no concurrent reader ever observing a partially-migrated record (some but not all of `expiresAt`/`usageCount`/`expiryNotified`/`expiryAcknowledged` backfilled)? Provide a test that fires at least 2 concurrent `migrateInviteLinks(now)` calls (`Promise.all`) plus a concurrent `loadInviteLinks` read racing them, asserts the final record set deep-equals a single-invocation baseline, AND asserts every record observed by the concurrent `loadInviteLinks` read has either none or all four backfilled fields present (never a partial subset) — this is the concurrent/interleaved counterpart to S1's AC-MIGRATE-6 single-invocation idempotency check."
+    },
+    {
+      "question_id": "VQ-S5-PI-001",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "AC-INV-2's reload-safety test initially asserted the wrong baseline: seeding 'extra' same-group links as already-notified was not by itself sufficient for `initInviteExpiries` to count them at the pre-L-expiry timestamp (4_999), because `initInviteExpiries`'s filter is `expiryNotified && !expiryAcknowledged && isExpired(link, now)` — all three, not just the flag. The extras' own `expiresAt` had to be set strictly before the baseline-derivation `now` too. Caught by the test itself failing on first run (expected 3, got 1) against the real implementation, not by inspection — fixed by giving the extras an earlier `expiresAt` (4_000) so they are genuinely expired at the 4_999 baseline check. No production code was touched; this was a test-fixture bug, not a finding against S4."
+    },
+    {
+      "question_id": "VQ-S5-PI-002",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The `vi.spyOn(unreadStoreModule, 'incrementInviteExpiry')` technique used for AC-INV-4 (forcing a throw between the IDB stamp and the in-memory bump) relies on `inviteExpirySweep.ts`'s static `import { incrementInviteExpiry } from '@/src/lib/unreadStore'` resolving to a live, mutable binding on the shared module namespace object under Vitest's SSR module transform — the same mechanism this repo's `contactCache.test.ts` already relies on for `rememberContact`. Confirmed working (not just plausible) by observation: the injected throw's `console.warn` fired from inside `inviteExpirySweep.ts`'s own catch block during the test run, proving the spy's override was actually invoked from the OTHER module's call site, not merely from a same-module self-call. No production seam change was needed to make this observable."
+    },
+    {
+      "question_id": "VQ-S5-PI-003",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "AC-INV-6's 'no partial-field record' assertion is real but structurally guaranteed by `migrateRecord()`'s design (it always returns either a null no-op or a fully-backfilled object — see `inviteLinkStorage.ts`'s `migrateRecord` doc comment) rather than by any lock the concurrent-reader test could defeat. The test still has value: it is a regression guard against a FUTURE change to `runMigration`'s per-record write loop (e.g. batching writes or splitting a record's field write into two `set()` calls) silently reintroducing a partial-write window that today's implementation does not have. No finding — recorded for the next reader of this test file so the intent (regression guard, not a live race being narrowly avoided) is not mistaken for the invariant being trivially unfalsifiable."
+    }
+  ]
+}

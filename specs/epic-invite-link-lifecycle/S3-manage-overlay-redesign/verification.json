@@ -1,0 +1,120 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-18T12:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Confirm the row's relative-time string, usage-count string, expired-treatment class, delete confirmation, and empty-state string are each computed from real `InviteLink` data (`createdAt`/`expiresAt`/`usageCount`/`isExpired`/`loadInviteLinks` result) — not a hardcoded placeholder string, a frozen 'expires soon' constant regardless of the actual link, or a confirmation step that is rendered but wired to a no-op `onConfirm` that never calls `deleteInviteLink`. Show the production code path from each rendered string/control back to the specific `InviteLink` field or array it derives from."
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Scope-boundary check: this story's diff must touch only `app/src/components/groups/ManageInviteLinksModal.tsx` and `app/src/lib/i18n.ts` (S3's own keys: relative-time, usage-count, expired marker, empty-state, trashcan confirmation — not S4's bell-row copy keys). Run `git diff --stat` and confirm `app/src/lib/marmot/inviteLinkStorage.ts` is untouched (S3 consumes `isExpired`/`deleteInviteLink`/`loadInviteLinks`, it does not reimplement expiry logic), and that the rendered output contains zero `Switch` elements (AC-UI-4) as a structural confirmation the old mute toggle was fully removed, not merely hidden."
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `manageOverlay` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? Per architecture.md's module map, `manageOverlay` owns no data of its own (\"renders inviteLinkStorage state\") and per this story's notes must not import `inviteExpirySweep.ts` directly for its live-updating expired treatment (AC-UI-8) — that module belongs to `notifications`. Confirm AC-UI-8's periodic re-render is implemented as a local interval/rerender inside `ManageInviteLinksModal.tsx`, with zero import from `app/src/lib/marmot/inviteExpirySweep.ts` or `app/src/lib/unreadStore.ts`; if any such import exists, identify why and whether it flows through a declared seam."
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Per the project's no-jsdom/`@testing-library` convention, confirm the row-classification logic (relative-time formatting, usage-count string assembly, expired-vs-live styling decision, empty-state condition) is extracted into exported pure functions unit-tested under vitest's default node environment — not left inline in JSX where it would be untestable without a DOM. Provide the test file path and at least one assertion per extracted function showing it is driven by an injectable `now`/link fixture, not wall-clock time or a rendered component tree."
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "spec.md's Technical Approach intends the manage overlay to replace the mute `Switch` with an explicit, confirmed hard-delete and to make expiry legible without requiring the admin to do date arithmetic. Confirm the redesigned row communicates state (live/expiring/expired, usage count) as legible copy rather than requiring the admin to cross-reference a bare timestamp against the current time themselves, and confirm no residual `muted`-flag UI (toggle, badge, or copy referencing 'muted') survives in the rendered output now that mute has been fully replaced by delete."
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Confirm the trashcan delete path cannot fire `deleteInviteLink` without the confirmation step completing (no double-click race, no keyboard-activation bypass of the confirm prompt), and confirm row rendering does not crash or render 'NaN'/'Invalid Date' on a legacy record missing `expiresAt`/`usageCount` (i.e. rendering degrades gracefully to the `isExpired` fallback and a `0`-usage default rather than throwing) — since `manageOverlay` may render records before `migrateInviteLinks` has backfilled them, per architecture.md's 'every read site uses `isExpired`' seam guarantee."
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UI-1",
+      "question": "Does each row display the link's creation time and expiry time with time-of-day precision or an equivalent relative form (not a bare calendar date), with both `en` and `de` Copy entries present for whichever form is chosen? Provide a rendered-string example for a fixed `now`/`createdAt`/`expiresAt` triple in both locales, and confirm via `i18n.ts` that neither the `en` nor `de` value is empty/undefined for the chosen key(s)."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UI-2",
+      "question": "Does each row display a usage-count string whose rendered `en` text contains the literal substring \"joined via this link\", populated from `link.usageCount`, with a natural `de` counterpart? Provide a test asserting the rendered `en` string for a fixture with `usageCount: 3` both contains \"joined via this link\" AND reflects the number `3` (not a fixed copy that never varies with the count) — a string-presence check alone would not catch a hardcoded count."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UI-3",
+      "question": "Does a row whose `isExpired(link, now)` is `true` render with a distinct 'expired' style/class and an 'Expired' text marker that a row with `isExpired(link, now) === false` does NOT receive? Provide two fixtures differing only in expiry state (paired, all other fields identical) and assert the rendered class list / marker text differs between them — a single-fixture test that only checks the expired case renders 'Expired' would not catch a bug where the live row ALSO renders it."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UI-4",
+      "question": "Does `ManageInviteLinksModal`'s rendered output contain zero `Switch` elements, with each row instead rendering a trashcan icon-button? Run `grep -n 'Switch' app/src/components/groups/ManageInviteLinksModal.tsx` (or an equivalent rendered-output query) and confirm zero matches for the mute toggle, and confirm a trashcan/delete icon-button is present per row as the structural replacement."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UI-5",
+      "question": "Does clicking a row's trashcan icon-button first render a confirmation prompt (\"Remove this link?\" or the translated equivalent) WITHOUT calling `deleteInviteLink` before that confirmation is accepted? Provide a test that clicks the trashcan, asserts the confirmation UI is present, asserts `deleteInviteLink` was NOT called (spy assertion) at that point, and only THEN accepts the confirmation — the pre-acceptance non-call assertion is the discriminating check; a test that only verifies the eventual delete would not catch a premature call."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UI-6",
+      "question": "Does accepting the trashcan confirmation call `deleteInviteLink(nonce)` with the correct row's nonce and remove that row from the modal's rendered list, without the modal being closed and reopened? Provide a test that seeds multiple rows, deletes one specific row via the full click-confirm-accept sequence, and asserts (a) `deleteInviteLink` was called with exactly that row's nonce and no other, and (b) the rendered list afterward contains the remaining rows but not the deleted one — still within the same render/mount, no remount."
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UI-7",
+      "question": "When `loadInviteLinks(groupId)` resolves to an empty array, does the modal body render a non-blank, translated empty-state string (not a blank body, not a raw i18n key like `manageLinks.empty` rendered literally)? Provide a test asserting the rendered output for an empty-array resolution contains the actual translated `en` copy text, and confirm the `de` counterpart is also non-empty in `i18n.ts`."
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UI-8",
+      "question": "While the modal is open, does a rendered row whose link crosses its expiry boundary (fixture: `now` advances from before to after `effectiveExpiry` without remounting the component) transition to the AC-UI-3 expired treatment, driven by the sweep tick or an equivalent periodic re-render — without the modal being closed and reopened? Provide a test that renders with `now` before expiry, advances the injectable clock past `effectiveExpiry`, triggers the local rerender mechanism (fake timer tick), and asserts the row's class/marker now matches the AC-UI-3 expired treatment — a test that only checks the state at two separate fresh renders (not a single continuous mount) would not discriminate a live in-place transition from a remount-triggered one."
+    },
+    {
+      "question_id": "VQ-S3-015",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "ac_id": "AC-UI-8",
+      "question": "`ManageInviteLinksModal.tsx` re-derives `now` on a local `setInterval(..., 60_000)` (a fixed 1-minute tick, chosen by the architect since AC-UI-8's text carries no explicit latency bound — only 'without the modal being closed and reopened'). Confirm a worst-case ~59s lag between a link's actual expiry boundary and its row visibly flipping to the AC-UI-3 expired treatment is within the AC's intent, rather than a gap that should instead be tightened (e.g. a shorter tick, or a one-shot `setTimeout` scheduled to the link's exact `effectiveExpiry` in addition to the periodic tick) to make the very next render after the boundary reflect the new state."
+    },
+    {
+      "question_id": "VQ-S3-016",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "ac_id": "AC-UI-5",
+      "question": "The trashcan confirmation state is a single `confirmingNonce: string | null` shared across the whole row list (not a per-row boolean set). Clicking a second row's trashcan while a first row's confirmation is still open silently swaps which row shows the confirm prompt, with no explicit cancel/warning for the first row (no `deleteInviteLink` call is ever made for the abandoned row — AC-UI-5's 'no call before accept' guarantee still holds). Confirm this single-open-confirmation-at-a-time UX is acceptable rather than a defect, given the trashcan action is per-row and mistakenly abandoning one confirm prompt to open another has no destructive side effect."
+    },
+    {
+      "question_id": "VQ-S3-017",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-UI-4",
+      "question": "The structural regression test for 'no residual muted-flag UI' (`VQ-S3-005` in `manageInviteLinksModal.redesign.test.ts`) strips the substring `textMuted` (the codebase-wide Chakra secondary-text color token, used 3x in this component for created/expiry/usage-count text color) before asserting the remaining source contains no case-insensitive `muted` occurrence. Confirm this exclusion is scoped precisely enough that it could not also silently mask a real reintroduction of the retired `muted` field, `updateInviteLinkMuted` call, or `manageLinksDeactivateLabel` copy key (e.g. a hypothetical future variable named `isMutedSomething` containing `textMuted` as a substring would NOT be stripped by the exact `/textMuted/g` regex, since it only removes that literal token, not arbitrary muted-prefixed identifiers) — re-derive that the stripped-then-checked string still fails loudly if any of those three retired symbols were reintroduced."
+    }
+  ]
+}

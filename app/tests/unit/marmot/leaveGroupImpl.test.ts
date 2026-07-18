@@ -51,6 +51,7 @@ function makeDeps(
     clearUnreadGroup: vi.fn(),
     clearPendingJoinRequestsForGroup: vi.fn().mockResolvedValue(undefined),
     clearInviteLinksForGroup: vi.fn().mockResolvedValue(undefined),
+    clearInviteExpiries: vi.fn(),
     reloadGroups: vi.fn().mockResolvedValue(undefined),
     markBackupDirty: vi.fn(),
     // Exposed for assertions against the mock passed to getGroup.
@@ -114,6 +115,41 @@ describe('leaveGroupImpl', () => {
 
     expect(deps.clearPendingJoinRequestsForGroup).toHaveBeenCalledWith(GROUP_ID);
     expect(deps.clearInviteLinksForGroup).toHaveBeenCalledWith(GROUP_ID);
+  });
+
+  // AC-DEEPLINK-4: clearInviteExpiries runs in the SAME unconditional purge
+  // call as clearInviteLinksForGroup, on both the abandon (solo) and the
+  // normal (multi-member) path — not a separate, independently-skippable step.
+  it('AC-DEEPLINK-4: solo/abandon path clears the invite-expiry badge alongside invite links', async () => {
+    const deps = makeDeps({ members: [SELF] });
+
+    await leaveGroupImpl(deps, GROUP_ID, SELF);
+
+    expect(deps.clearInviteLinksForGroup).toHaveBeenCalledWith(GROUP_ID);
+    expect(deps.clearInviteExpiries).toHaveBeenCalledWith(GROUP_ID);
+  });
+
+  it('AC-DEEPLINK-4: multi-member/normal path clears the invite-expiry badge alongside invite links', async () => {
+    const deps = makeDeps({ members: [SELF, OTHER] });
+
+    await leaveGroupImpl(deps, GROUP_ID, SELF);
+
+    expect(deps.clearInviteLinksForGroup).toHaveBeenCalledWith(GROUP_ID);
+    expect(deps.clearInviteExpiries).toHaveBeenCalledWith(GROUP_ID);
+  });
+
+  // AC-DEEPLINK-4: even when getGroup fails to resolve an mlsGroup (the
+  // early-fail-closed path — R2 above), the unconditional purge still
+  // reaches clearInviteExpiries — there is no early return between
+  // clearInviteLinksForGroup and clearInviteExpiries that a corrupt/missing
+  // mlsGroup could exploit to skip the badge clear.
+  it('AC-DEEPLINK-4: no mlsGroup — invite-expiry badge is still cleared', async () => {
+    const deps = makeDeps({ mlsGroup: null });
+
+    await leaveGroupImpl(deps, GROUP_ID, SELF);
+
+    expect(deps.clearInviteLinksForGroup).toHaveBeenCalledWith(GROUP_ID);
+    expect(deps.clearInviteExpiries).toHaveBeenCalledWith(GROUP_ID);
   });
 
   // AC-PURGE-1: the full pre-existing purge sequence still runs unconditionally.

@@ -1,0 +1,10 @@
+{
+  "captured_at": "2026-07-18T08:01:04Z",
+  "test_command": "make test-unit",
+  "test_files": 175,
+  "tests_passing": 3370,
+  "tests_failing": 0,
+  "tests_skipped": 1,
+  "lint": "NO_LINT",
+  "typecheck": "clean"
+}

@@ -1,0 +1,21 @@
+{
+  "module_name": "S5-invite-link-lifecycle-order-invariants",
+  "purpose": "Verification-only integration story: exercise the real, already-landed S1/S2/S4 producers (inviteLinkStorage, joinFlow's approveJoinRequestImpl, notifications' inviteExpirySweep + unreadStore) against the six order/concurrency-sensitive whole-flow invariants (AC-INV-1..6) declared in architecture.md's '## Order-Sensitive Composition' section. Owns no production code and introduces no new production seam — it proves the composition of existing seams, and escalates any invariant that fails against real code as a finding for the owning story rather than patching it here.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/unit/marmot/invite-link-lifecycle-integration.test.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "notifications",
+    "inviteLinkStorage",
+    "joinFlow"
+  ],
+  "dependencies_forbidden": [],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/invite-link-lifecycle-integration.test.ts"
+  ]
+}

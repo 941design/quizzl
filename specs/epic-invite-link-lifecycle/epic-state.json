@@ -1,0 +1,82 @@
+{
+  "epic_name": "invite-link-lifecycle",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-18T07:39:25Z",
+  "updated_at": "2026-07-18T13:22:00Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "CLAUDE.md",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md",
+    "specs/block-contact-spec-request.md",
+    "specs/contact-pairing-code-spec-request.md",
+    "specs/direct-contact-profile-exchange-spec-request.md",
+    "specs/epic-abandon-last-member-group/epic-state.json",
+    "specs/invite-group-member-from-contacts-spec-request.md",
+    "themes.json"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-18T07:39:25Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-18T13:22:00Z",
+      "trigger": "all_stories_done_review_clean"
+    }
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "937fc9ebf95e93f80243462f3da3137822a40676",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "gate_runs": [
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_remediated",
+      "detail": "codex converged clean after 10 remediation rounds (14 findings fixed)",
+      "structural_findings": {
+        "surfaced": 14,
+        "acted": 14,
+        "disclosed_unacted": 0
+      }
+    },
+    {
+      "gate_id": "mutation",
+      "outcome": "skipped",
+      "skip_reason": "user-directed: commit now, skip heavy gates"
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "skipped",
+      "skip_reason": "user-directed: commit now, skip heavy gates (Docker suite chronically flaky)"
+    }
+  ],
+  "manual_validation": [
+    {
+      "ac_id": "MV-1",
+      "status": "pending",
+      "note": "Native German phrasing quality of new invite-link-lifecycle Copy keys"
+    },
+    {
+      "ac_id": "MV-2",
+      "status": "pending",
+      "note": "Expired-row visual treatment (strike/grey + Expired marker) legible/contrast-adequate in both light and dark themes"
+    }
+  ],
+  "completed_at": "2026-07-18T13:22:00Z"
+}

@@ -1,0 +1,80 @@
+{
+  "epic": "invite-link-lifecycle",
+  "concepts": [
+    {
+      "id": "invite-link-record-shape",
+      "name": "InviteLink record shape & idb-keyval store ownership",
+      "owning_module": "inviteLinkStorage",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "invite-link-expiry-predicate",
+      "name": "Single expiry predicate (isExpired) with the expiresAt ?? createdAt+DAY_MS fallback",
+      "owning_module": "inviteLinkStorage",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "invite-link-migration-idempotency",
+      "name": "migrateInviteLinks() fills only missing fields, safe under repeat/concurrent invocation",
+      "owning_module": "inviteLinkStorage",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "join-request-expiry-gate",
+      "name": "Incoming join-request gate drops expired or muted links",
+      "owning_module": "joinFlow",
+      "type": "validation_rule",
+      "added_by_story": null
+    },
+    {
+      "id": "usage-count-approval-tally",
+      "name": "usageCount incremented only after an approved inviteByNpub, never gates approval itself",
+      "owning_module": "joinFlow",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "manage-overlay-row-contract",
+      "name": "Manage-overlay row rendering contract (created/expiry time, usage count, trashcan confirm, expired styling, empty state)",
+      "owning_module": "manageOverlay",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "invite-expiries-bell-slice",
+      "name": "inviteExpiries unread-bell slice, derived on init from persisted expired/expiryNotified/expiryAcknowledged flags, never an in-memory-only counter",
+      "owning_module": "notifications",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "expiry-sweep-single-notify",
+      "name": "Expiry sweep notifies each link at most once (module-level in-flight latch; IDB stamp precedes in-memory bump)",
+      "owning_module": "notifications",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "manage-links-deep-link-param",
+      "name": "manageLinks=1 query-param contract on /groups: opens only after the target group's detail view has rendered, then strips itself",
+      "owning_module": "notifications",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "locale-key-completeness",
+      "name": "Every new Copy key introduced by this epic has both a non-empty en and de value",
+      "owning_module": "i18n",
+      "type": "validation_rule",
+      "added_by_story": null
+    }
+  ],
+  "stories": [],
+  "reviewer_state": {
+    "last_story_reviewed": null,
+    "model_at": "2026-07-18T07:49:59Z"
+  }
+}

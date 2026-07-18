@@ -1,0 +1,21 @@
+{
+  "captured_at": "2026-07-18T08:22:23Z",
+  "tests": {
+    "command": "make test-unit (cd app && npx vitest run)",
+    "status": "PASS",
+    "test_files": 176,
+    "tests_passed": 3397,
+    "tests_skipped": 1,
+    "tests_failed": 0
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit",
+    "status": "clean"
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "note": "next lint has no committed ESLint config; invoking it drops into an interactive 'How would you like to configure ESLint?' setup prompt rather than running a check. No .eslintrc*/eslint.config.* exists in app/. Treated as NO_LINT per the NO_LINT tolerance — not a gate this story is required to satisfy."
+  },
+  "notes": "S1 (link-model-expiry-migration) is already landed in the working tree (uncommitted): app/src/lib/marmot/inviteLinkStorage.ts, app/src/components/groups/GenerateInviteLinkModal.tsx, and app/tests/unit/inviteLinkLifecycle.test.ts are already modified/added prior to this story starting. This baseline snapshot is taken with those S1 changes already present, since S2 depends on and consumes S1's isExpired/incrementInviteLinkUsage exports."
+}

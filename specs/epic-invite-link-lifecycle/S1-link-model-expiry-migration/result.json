@@ -1,0 +1,40 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-18T08:11:32Z",
+  "architect_skipped": false,
+  "files_created": [
+    "app/tests/unit/inviteLinkLifecycle.test.ts",
+    "specs/epic-invite-link-lifecycle/S1-link-model-expiry-migration/architecture.json",
+    "specs/epic-invite-link-lifecycle/S1-link-model-expiry-migration/baseline.json",
+    "specs/epic-invite-link-lifecycle/S1-link-model-expiry-migration/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/inviteLinkStorage.ts",
+    "app/src/components/groups/GenerateInviteLinkModal.tsx",
+    "specs/epic-invite-link-lifecycle/S1-link-model-expiry-migration/verification.json"
+  ],
+  "tests_added": {
+    "unit": 27
+  },
+  "test_counts": {
+    "baseline": 3370,
+    "final": 3397
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "inviteLinkStorage"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "AC-MIGRATE-3's literal wording ('every non-muted record whose post-backfill expiresAt is at or before now') and Design Decision 3 / AC-MIGRATE-6 pull in opposite directions if read too literally: DD-3 requires that migrateInviteLinks, called again at every later app startup, must never re-stamp expiryNotified on a NORMAL (non-legacy, already-fully-created) link that expires sometime after creation — that notification is the not-yet-built S4 sweep's job, not migration's. AC-MIGRATE-3's text has no explicit carve-out for that case. Reconciling the two required treating AC-MIGRATE-6's precondition ('a store it already migrated') as the load-bearing constraint: a fully-migrated, non-muted record must be a *permanent* no-op regardless of how much later now advances, which only holds if the AC-MIGRATE-3 stamp is gated on expiresAt itself having been the field that was missing (a genuinely legacy record) rather than on 'non-muted and currently expired' in general. Landed on that gate and added a dedicated regression test ('a second call at a LATER now still changes nothing') to pin it, plus post-impl question VQ-S1-020 asking the examiner to re-derive the same reasoning independently.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

@@ -36,6 +36,15 @@ type Deps = {
   clearUnreadGroup: (groupId: string) => void;
   clearPendingJoinRequestsForGroup: (groupId: string) => Promise<void>;
   clearInviteLinksForGroup: (groupId: string) => Promise<void>;
+  /**
+   * Clears the group's invite-expiry notification badge (epic:
+   * invite-link-lifecycle, story S4, Design Decision 12, AC-DEEPLINK-4).
+   * Called unconditionally alongside `clearInviteLinksForGroup` in the same
+   * purge sequence below — never gated behind a separate, independently
+   * skippable step — so a dangling badge can never deep-link to a group
+   * the admin no longer belongs to.
+   */
+  clearInviteExpiries: (groupId: string) => void;
   reloadGroups: () => Promise<void>;
   markBackupDirty: (dirty: boolean) => void;
 };
@@ -57,7 +66,9 @@ type Deps = {
  *  - Purge hygiene (AC-PURGE-1/2): the two-clear leak fix
  *    (clearPendingJoinRequestsForGroup, clearInviteLinksForGroup) runs
  *    unconditionally, after the send block, on BOTH the abandon and the
- *    normal-leave path.
+ *    normal-leave path. `clearInviteExpiries` (epic: invite-link-lifecycle,
+ *    S4) runs in the same unconditional block, immediately after
+ *    clearInviteLinksForGroup (AC-DEEPLINK-4).
  *  - Never throws to the caller: a failed kind-13 send is caught and logged;
  *    the purge always proceeds. Returns `true` unconditionally, matching the
  *    pre-extraction signature.
@@ -121,6 +132,9 @@ export async function leaveGroupImpl(
   // AC-PURGE-1/2: leak-fixing clears, unconditional on both paths.
   await deps.clearPendingJoinRequestsForGroup(groupId);
   await deps.clearInviteLinksForGroup(groupId);
+  // AC-DEEPLINK-4: same unconditional purge call, not a separate step —
+  // see the Deps field doc comment above.
+  deps.clearInviteExpiries(groupId);
   await deps.reloadGroups();
   deps.markBackupDirty(true);
   return true;

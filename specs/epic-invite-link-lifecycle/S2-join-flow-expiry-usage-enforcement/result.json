@@ -1,0 +1,37 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-18T08:35:00Z",
+  "files_created": [
+    "app/tests/unit/marmot/approveJoinRequestImpl.test.ts",
+    "specs/epic-invite-link-lifecycle/S2-join-flow-expiry-usage-enforcement/architecture.json",
+    "specs/epic-invite-link-lifecycle/S2-join-flow-expiry-usage-enforcement/baseline.json"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/joinRequestHandler.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/tests/unit/marmot/joinRequestHandler.test.ts"
+  ],
+  "tests_added": {
+    "unit": 10
+  },
+  "test_counts": {
+    "baseline": 3397,
+    "final": 3407
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": ["joinFlow"],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The stories.json scope note said MarmotContext.tsx's diff must stay 'confined to the approveJoinRequest call site', but the project's own no-jsdom/no-@testing-library/renderHook testing convention (pendingRequestsSection.test.ts's own comment: MarmotContext 'is difficult to unit test' for this reason) means a useCallback-wrapped closure cannot be invoked by any test without rendering React. Satisfying VQ-S2-004/009/010/011's requirement for real spy-based behavioral tests (not source-inspection alone) on AC-USAGE-1/2/3 required extracting approveJoinRequest's full body into a new exported, dependency-injected function (approveJoinRequestImpl) placed just before MarmotProvider, with the useCallback reduced to a thin resolver/delegator. This was a judgment call between the literal scope wording and the verification set's actual testing bar, resolved by following the codebase's own established in-file extraction pattern already used for fireAutoCommit/resolveAndApplyPairingAdmissionDigest — not a new pattern invented for this story. Flagged explicitly as VQ-S2-012 for verifier confirmation rather than silently deviating.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "created_at": "2026-07-18T07:39:25Z",
+  "language": "typescript",
+  "framework": "next.js (static export, output: 'export')",
+  "test": {
+    "unit": "vitest, tests under app/tests/unit/**/*.test.ts, no jsdom/@testing-library; hooks tested via exported pure-function extraction",
+    "e2e": "playwright under app/tests/e2e/; groups/relay bucket needs Docker (strfry + blossom); publish-through-app rule (no raw WebSocket)",
+    "gate": "Makefile is the only gate; make test-e2e-all is the full 60-test suite; make test adds unit"
+  },
+  "findings": {
+    "invite_link_model": {
+      "file": "app/src/lib/marmot/inviteLinkStorage.ts",
+      "interface": "InviteLink { nonce, groupId, createdAt, label?, muted }",
+      "store": "idb-keyval store 'few-invite-links'",
+      "helpers": "saveInviteLink/getInviteLink/loadInviteLinks/updateInviteLinkMuted/deleteInviteLink/clearInviteLinksForGroup/clearAllInviteLinks",
+      "notes": "no expiry, no usage count, no creator field; device-local only, never published"
+    },
+    "generation": {
+      "file": "app/src/lib/marmot/inviteLinkGeneration.ts",
+      "notes": "generateNonce() 16-byte hex; buildInviteUrl() => /groups/?join=<nonce>&admin=<npub>&name=<groupName>; group name+admin npub in URL cleartext"
+    },
+    "manage_overlay": {
+      "file": "app/src/components/groups/ManageInviteLinksModal.tsx",
+      "opened_from": "app/pages/groups.tsx:412-421 admin-only 'Manage Links' button (data-testid=manage-links-btn), local useDisclosure manageLinksDisclosure declared groups.tsx:74, wired groups.tsx:530-534",
+      "row": "label(or Untitled) + created date + Switch labeled 'Deactivated' (copy.groups.manageLinksDeactivateLabel); isChecked=link.muted -> handleToggleMute -> updateInviteLinkMuted",
+      "no_query_param_today": "groups.tsx reads only id, join, admin, name from router.query (lines 543-546)"
+    },
+    "generate_modal": {
+      "file": "app/src/components/groups/GenerateInviteLinkModal.tsx",
+      "notes": "creates nonce client-side, builds URL, persists InviteLink only on Copy or modal close (lines 98-136); saveInviteLink call lines 99-106"
+    },
+    "join_flow": {
+      "request_render": "app/pages/groups.tsx:544-559 reads join/admin/name -> JoinRequestCard",
+      "sender": "app/src/lib/marmot/joinRequestSender.ts:111-199 gift-wraps kind-21059 {type:'join_request', nonce, name, requesterName} to admin pubkey",
+      "handler": "app/src/lib/marmot/joinRequestHandler.ts:66-108; getInviteLink line 76-77; if(inviteLink.muted) return null line 80; persists PendingJoinRequest (store 'few-join-requests')",
+      "approve": "app/src/context/MarmotContext.tsx:1681 approveJoinRequest -> inviteByNpub(groupId, npub); returns {ok, error}; PendingJoinRequest carries nonce; nothing touches InviteLink record today"
+    },
+    "expiry": {
+      "notes": "NONE exists on invite links today; unrelated expiresAt in contact-pairing, outbound-join auto-accept, message-edits"
+    },
+    "notification_bell": {
+      "store": "app/src/lib/unreadStore.ts:17-24 UnreadState { counts, joinRequests, directMessages } (per-id numeric slices); module-level useSyncExternalStore; localStorage timestamps lp_unreadLastRead_v1 / lp_unreadLastReadDM_v1",
+      "joinRequests_slice_fns": "incrementJoinRequest/markJoinRequestsRead/decrementJoinRequest/clearJoinRequestGroup unreadStore.ts:317-361; initJoinRequestCounts recompute from IDB",
+      "bell_render": "app/src/components/NotificationBell.tsx hardcoded per-category .map() blocks: unread groups 133-183, DM 184-234, join-requests 235-285; useUnreadCounts sums all three (unreadStore.ts:630-644)",
+      "no_modal_autoopen": "no bell entry auto-opens a modal today; all link to a page via NextLink"
+    },
+    "i18n": {
+      "file": "app/src/lib/i18n.ts",
+      "access": "useCopy() from app/src/context/LanguageContext.tsx",
+      "existing_keys": "manageLinksButton/manageLinksTitle/manageLinksDeactivateLabel/manageLinksUntitled (type i18n.ts:173-176, en 816-819, de 1338+); dynamic fn example joinRequestNotification:(count)=>string"
+    },
+    "persistence": "all invite-link/notification state is idb-keyval/localStorage only; nothing published to Nostr or carried in MLS group state; only network artifact is gift-wrapped kind-21059 join request"
+  }
+}

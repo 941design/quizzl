@@ -1,0 +1,72 @@
+{
+  "module_name": "notifications",
+  "purpose": "Expiry-notification bell slice (inviteExpiries, derived from persisted InviteLink flags), the client-side expiry sweep with a module-level in-flight latch, the fourth NotificationBell render block, and the /groups?manageLinks=1 deep-link that opens the manage-links overlay once the detail view has rendered — plus wiring clearInviteExpiries into the existing group-leave/abandon purge.",
+  "public_api": [
+    {
+      "name": "initInviteExpiries",
+      "signature": "(now?: number) => Promise<void>",
+      "description": "Derives, per groupId, the count of that group's stored invite links satisfying isExpired(link, now) && expiryNotified && !expiryAcknowledged. Fully recomputes from persisted flags on every call (AC-NOTIFY-1, AC-INV-2) — never a cached value."
+    },
+    {
+      "name": "incrementInviteExpiry",
+      "signature": "(groupId: string) => void",
+      "description": "Bumps the live inviteExpiries counter for a group by 1. Called only by inviteExpirySweep.ts, after the corresponding IDB stamp has already landed (AC-INV-4)."
+    },
+    {
+      "name": "markInviteExpiriesRead",
+      "signature": "(groupId: string) => Promise<void>",
+      "description": "Persists expiryAcknowledged=true on the group's expired-and-notified links and zeroes that group's live count (AC-NOTIFY-4)."
+    },
+    {
+      "name": "clearInviteExpiries",
+      "signature": "(groupId: string) => void",
+      "description": "In-memory removal of a group's inviteExpiries entry, called on group leave/abandon (Design Decision 12, AC-DEEPLINK-4) and on the manageLinks deep-link's group-absent fallback (AC-DEEPLINK-3)."
+    },
+    {
+      "name": "useUnreadCounts",
+      "signature": "() => { counts, joinRequests, directMessages, inviteExpiries, totalUnread }",
+      "description": "Existing hook, extended: now also returns the inviteExpiries slice and folds it into totalUnread."
+    },
+    {
+      "name": "runInviteExpirySweep",
+      "signature": "(now?: number) => Promise<void>",
+      "description": "One expiry-sweep pass: for every locally-stored link that is expired and not yet expiryNotified, stamps expiryNotified=true (IDB write) then calls incrementInviteExpiry — in that order (AC-INV-4). Deduplicated via a module-level in-flight promise latch so concurrent/overlapping calls notify each link at most once (AC-INV-1, AC-NOTIFY-2)."
+    },
+    {
+      "name": "shouldOpenManageLinksOverlay",
+      "signature": "(params: { manageLinksParam: string | undefined; groupResolved: boolean; alreadyHandled: boolean }) => boolean",
+      "description": "Pure decision extracted from groups.tsx's GroupDetailView: whether the manageLinks=1 deep-link should open the overlay now (AC-DEEPLINK-1/2). Test-only public export — not consumed by another module."
+    },
+    {
+      "name": "shouldRedirectToGroupsList",
+      "signature": "(params: { manageLinksParam: string | undefined; ready: boolean; id: string | undefined; groupIds: string[] }) => boolean",
+      "description": "Pure decision extracted from groups.tsx's GroupsPage: whether a manageLinks=1 deep-link targeting an absent groupId should render the groups list instead of the detail view (AC-DEEPLINK-3). Test-only public export."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/marmot/inviteExpirySweep.ts (sweepInFlight latch, runSweep — internal)"
+  ],
+  "owned_data": [
+    "unreadStore.ts in-memory UnreadState.inviteExpiries (per-groupId live counter, derived from inviteLinkStorage's persisted flags — owns no independent persisted state of its own)"
+  ],
+  "dependencies_allowed": [
+    "inviteLinkStorage"
+  ],
+  "dependencies_forbidden": [
+    "joinFlow (does not reach into approveJoinRequest/joinRequestHandler.ts beyond the pre-existing, unmodified leaveGroup Deps wiring)",
+    "manageOverlay (does not reach into ManageInviteLinksModal.tsx/GenerateInviteLinkModal.tsx)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/inviteExpirySweep.test.ts",
+    "app/tests/unit/inviteExpiries.test.ts",
+    "app/tests/unit/pages/groupsManageLinksDeepLink.test.ts",
+    "app/tests/unit/marmot/leaveGroupImpl.test.ts (AC-DEEPLINK-4 additions)"
+  ],
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S5"]
+  }
+}

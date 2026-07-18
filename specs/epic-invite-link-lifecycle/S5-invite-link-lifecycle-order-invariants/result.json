@@ -1,0 +1,36 @@
+{
+  "story_id": "S5",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-18T12:00:00Z",
+  "files_created": [
+    "app/tests/unit/marmot/invite-link-lifecycle-integration.test.ts",
+    "specs/epic-invite-link-lifecycle/S5-invite-link-lifecycle-order-invariants/architecture.json",
+    "specs/epic-invite-link-lifecycle/S5-invite-link-lifecycle-order-invariants/baseline.json",
+    "specs/epic-invite-link-lifecycle/S5-invite-link-lifecycle-order-invariants/result.json"
+  ],
+  "files_modified": [
+    "specs/epic-invite-link-lifecycle/S5-invite-link-lifecycle-order-invariants/verification.json"
+  ],
+  "tests_added": {
+    "property_parametrized": 19,
+    "example_regression": 8
+  },
+  "test_counts": {
+    "baseline": 3474,
+    "final": 3501
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "architect_skipped": false,
+  "modules_touched": [
+    "notifications",
+    "inviteLinkStorage",
+    "joinFlow"
+  ],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  }
+}

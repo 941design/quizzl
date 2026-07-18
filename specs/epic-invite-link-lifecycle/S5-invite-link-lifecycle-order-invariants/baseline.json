@@ -1,0 +1,20 @@
+{
+  "tests": {
+    "command": "make test-unit",
+    "status": "PASS",
+    "test_files": 181,
+    "tests_passed": 3473,
+    "tests_skipped": 1,
+    "tests_failed": 0
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "notes": "No ESLint config present (.eslintrc*/eslint.config*) — next lint drops into the interactive first-run setup prompt rather than running against an existing config. Recorded as NO_LINT per the pre-existing-debt tolerance; not introduced or fixed by this story."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit -p tsconfig.json",
+    "status": "clean",
+    "notes": "Exit 0, no diagnostics."
+  }
+}

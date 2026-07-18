@@ -1,0 +1,31 @@
+{
+  "module_name": "joinFlow",
+  "purpose": "Enforce invite-link expiry on the incoming join-request gate, and increment per-link usage on successful approval, without ever gating approval itself on link liveness. Consumes S1's inviteLinkStorage seam (isExpired, incrementInviteLinkUsage) rather than reimplementing expiry/usage logic.",
+  "public_api": [
+    {
+      "name": "handleJoinRequest",
+      "signature": "handleJoinRequest(rumor: { pubkey: string; content: string }, eventId: string, groupMemberPubkeys: (groupId: string) => string[]): Promise<PendingJoinRequest | null>",
+      "description": "Unchanged signature. Behavior extended: now also returns null (drops the request, persists nothing) when the resolved invite link's isExpired(inviteLink, Date.now()) is true, exactly mirroring the pre-existing inviteLink.muted discard branch (AC-ENFORCE-1/2)."
+    },
+    {
+      "name": "approveJoinRequestImpl",
+      "signature": "approveJoinRequestImpl(deps: { inviteByNpub, pubkeyToNpub, deletePendingJoinRequest, incrementInviteLinkUsage, decrementJoinRequest, filterPendingRequest }, request: PendingJoinRequest): Promise<{ ok: boolean; error?: string }>",
+      "description": "New export, added inside MarmotContext.tsx immediately above the approveJoinRequest useCallback (not a new file — stays within this story's 'confined to the approveJoinRequest call site' scope constraint). Pure, dependency-injected implementation of the approval flow, extracted so it is unit-testable without rendering React (this repo has no jsdom/@testing-library/renderHook precedent — see pendingRequestsSection.test.ts's own comment that MarmotContext is 'difficult to unit test' without an extraction seam). The approveJoinRequest useCallback becomes a thin wrapper that resolves the real dynamic-import deps and delegates to this function, so production behavior is exercised verbatim by the unit tests, not shadow-reimplemented. Calls inviteByNpub unconditionally; on {ok:false} returns immediately without touching the invite link or completing approval; on {ok:true} calls incrementInviteLinkUsage(request.nonce) (a silent no-op per S1's contract when the nonce doesn't resolve) and then unconditionally completes approval (delete pending request, decrement badge, prune local pending-requests state) — approval completion never reads getInviteLink/isExpired as a precondition (AC-USAGE-2)."
+    }
+  ],
+  "private_files": [],
+  "owned_data": ["PendingJoinRequest records (via joinRequestStorage, unchanged ownership from before this story)"],
+  "dependencies_allowed": ["@/src/lib/marmot/inviteLinkStorage (isExpired, incrementInviteLinkUsage only — the declared seam)", "@/src/lib/marmot/joinRequestStorage", "@/src/lib/contactCard", "@/src/lib/nostrKeys", "@/src/lib/unreadStore (decrementJoinRequest)"],
+  "dependencies_forbidden": ["direct idb-keyval access to the 'few-invite-links' store", "recomputing expiresAt/effectiveExpiry inline instead of calling isExpired"],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/joinRequestHandler.test.ts",
+    "app/tests/unit/marmot/approveJoinRequestImpl.test.ts"
+  ],
+  "seam": {
+    "cross_story": false
+  },
+  "notes": "Boundary check (Step 1 Q3): joinFlow's only dependency on inviteLinkStorage is through the declared seam (isExpired(link, now), incrementInviteLinkUsage(nonce)) already frozen by S1's architecture.json ('seam.consumed_by' includes S2). No new seam is created by this story. Scope note: approveJoinRequestImpl is an addition to MarmotContext.tsx, not a new file, and is positioned immediately adjacent to (and is the real body of) approveJoinRequest — the diff remains confined to that call site per stories.json scope.includes; leaveGroup (~1581-1613) and every other MarmotContext.tsx export are untouched."
+}

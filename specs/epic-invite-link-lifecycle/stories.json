@@ -1,0 +1,253 @@
+{
+  "epic_name": "invite-link-lifecycle",
+  "created_at": "2026-07-18T07:49:59Z",
+  "total_stories": 5,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "link-model-expiry-migration",
+      "title": "Link model, expiry & migration",
+      "description": "Extend the InviteLink record with expiresAt/usageCount/expiryNotified/expiryAcknowledged, add the isExpired predicate (with the createdAt+DAY_MS fallback for legacy records), the usage/notification-flag storage helpers, set expiry fields at creation, and add the one-shot idempotent migrateInviteLinks() that backfills legacy records and resolves the retired muted flag.",
+      "acceptance_criteria": [
+        "AC-STRUCT-1",
+        "AC-MODEL-1",
+        "AC-MODEL-2",
+        "AC-MODEL-3",
+        "AC-MODEL-4",
+        "AC-MODEL-5",
+        "AC-MODEL-6",
+        "AC-MIGRATE-1",
+        "AC-MIGRATE-2",
+        "AC-MIGRATE-3",
+        "AC-MIGRATE-4",
+        "AC-MIGRATE-5",
+        "AC-MIGRATE-6"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/inviteLinkStorage.ts",
+          "app/src/components/groups/GenerateInviteLinkModal.tsx"
+        ],
+        "excludes": [
+          "app/src/lib/marmot/joinRequestHandler.ts (gate enforcement is S2)",
+          "app/src/context/MarmotContext.tsx (usage-increment call site is S2)",
+          "app/src/components/groups/ManageInviteLinksModal.tsx (row rendering is S3)",
+          "app/src/lib/unreadStore.ts, app/src/lib/marmot/inviteExpirySweep.ts (notifications is S4)"
+        ]
+      },
+      "complexity": "medium",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "inviteLinkStorage",
+      "creates_seam": false,
+      "lighter_path": false,
+      "is_integration_story": false,
+      "consumes_seams": [],
+      "notes": "Foundation story \u2014 every other story (S2-S5) reads isExpired/incrementInviteLinkUsage/markInviteLinkExpiryNotified/markInviteLinkExpiryAcknowledged/migrateInviteLinks from this module's exports (architecture.md Seams: 'inviteLinkStorage \u2194 everything'). Lands first so downstream stories consume the real implementation rather than a mock (Story Design Principle 1 exception is unneeded here because implementation is sequential). AC-MIGRATE-6 (idempotency) and the migration-order aspects of AC-MIGRATE-3/4/5 are unit-tested here at the single-invocation level; the concurrent/interleaved version of migration idempotency is AC-INV-6, owned by the S5 integration story."
+    },
+    {
+      "id": "S2",
+      "name": "join-flow-expiry-usage-enforcement",
+      "title": "Expiry & usage enforcement in the join flow",
+      "description": "Drop incoming join requests referencing an expired invite link at the existing mute gate in handleJoinRequest, and increment usageCount in approveJoinRequest only after inviteByNpub resolves {ok:true} \u2014 approval itself stays ungated on link liveness.",
+      "acceptance_criteria": [
+        "AC-ENFORCE-1",
+        "AC-ENFORCE-2",
+        "AC-USAGE-1",
+        "AC-USAGE-2",
+        "AC-USAGE-3"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/marmot/joinRequestHandler.ts",
+          "app/src/context/MarmotContext.tsx (approveJoinRequest, ~line 1681)"
+        ],
+        "excludes": [
+          "app/src/lib/marmot/inviteLinkStorage.ts (owned by S1; consume isExpired/incrementInviteLinkUsage, do not reimplement)",
+          "app/src/context/MarmotContext.tsx leaveGroup wiring (~line 1581-1613, owned by S4 for the AC-DEEPLINK-4 clear call)"
+        ]
+      },
+      "complexity": "low",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "joinFlow",
+      "creates_seam": false,
+      "lighter_path": false,
+      "is_integration_story": false,
+      "consumes_seams": [],
+      "notes": "MarmotContext.tsx is also touched by S4, at a different, non-overlapping call site (leaveGroup wiring vs. approveJoinRequest) \u2014 flagged as a shared surface, same caution as i18n.ts between S3/S4. Depends on S1 for isExpired and incrementInviteLinkUsage."
+    },
+    {
+      "id": "S3",
+      "name": "manage-overlay-redesign",
+      "title": "Manage overlay redesign",
+      "description": "Redesign each ManageInviteLinksModal row to show created/expiry time-of-day-precision (or relative) copy and a usage-count string, replace the mute Switch with a confirmed trashcan hard-delete, apply distinct expired-row styling that live-updates while the modal is open, and render a translated empty state when a group has no links.",
+      "acceptance_criteria": [
+        "AC-UI-1",
+        "AC-UI-2",
+        "AC-UI-3",
+        "AC-UI-4",
+        "AC-UI-5",
+        "AC-UI-6",
+        "AC-UI-7",
+        "AC-UI-8"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/components/groups/ManageInviteLinksModal.tsx",
+          "app/src/lib/i18n.ts (S3's keys only: relative-time strings, usage-count copy, expired marker, empty-state, trashcan confirmation)"
+        ],
+        "excludes": [
+          "app/src/lib/i18n.ts bell-row copy keys (owned by S4)",
+          "app/src/lib/marmot/inviteLinkStorage.ts (owned by S1; consume isExpired/deleteInviteLink/loadInviteLinks, do not reimplement expiry logic)"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "manageOverlay",
+      "creates_seam": false,
+      "lighter_path": false,
+      "is_integration_story": false,
+      "consumes_seams": [],
+      "notes": "i18n.ts is a shared surface with S4 \u2014 each story adds only the Copy keys it introduces (S3: row/empty-state/confirmation copy; S4: bell-row copy). AC-UI-8's live-updating expired treatment may read the same tick source S4's sweep uses, but must not import inviteExpirySweep.ts directly (manageOverlay owns no notifications dependency per architecture.md's module map) \u2014 use a local interval/rerender, consistent with 'renders inviteLinkStorage state' as manageOverlay's only owned data (none)."
+    },
+    {
+      "id": "S4",
+      "name": "expiry-notification-deep-link",
+      "title": "Expiry notification & deep-link",
+      "description": "Add the inviteExpiries unread-bell slice (derived on init from persisted link flags, mirroring the joinRequests slice), the client-side expiry sweep with a module-level in-flight latch, a fourth NotificationBell render block linking to the manageLinks deep-link, the /groups manageLinks=1 query-param handling that opens the overlay once the detail view has rendered, and wiring clearInviteExpiries into the existing group-leave/abandon purge alongside clearInviteLinksForGroup.",
+      "acceptance_criteria": [
+        "AC-NOTIFY-1",
+        "AC-NOTIFY-2",
+        "AC-NOTIFY-3",
+        "AC-NOTIFY-4",
+        "AC-DEEPLINK-1",
+        "AC-DEEPLINK-2",
+        "AC-DEEPLINK-3",
+        "AC-DEEPLINK-4",
+        "AC-LOCALE-1"
+      ],
+      "scope": {
+        "includes": [
+          "app/src/lib/unreadStore.ts",
+          "app/src/components/NotificationBell.tsx",
+          "app/src/lib/marmot/inviteExpirySweep.ts",
+          "app/pages/groups.tsx",
+          "app/src/lib/marmot/leaveGroupImpl.ts (add clearInviteExpiries to the unconditional purge sequence, AC-DEEPLINK-4)",
+          "app/src/context/MarmotContext.tsx (leaveGroup wiring, ~line 1581-1613: thread clearInviteExpiries into the Deps object)",
+          "app/src/lib/i18n.ts (S4's keys only: bell-row copy)"
+        ],
+        "excludes": [
+          "app/src/lib/i18n.ts row/empty-state/confirmation copy keys (owned by S3)",
+          "app/src/context/MarmotContext.tsx approveJoinRequest (owned by S2)",
+          "app/src/lib/marmot/inviteLinkStorage.ts (owned by S1; consume its exported helpers, do not reimplement)"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "owning_module": "notifications",
+      "creates_seam": false,
+      "lighter_path": false,
+      "is_integration_story": false,
+      "consumes_seams": [],
+      "notes": "AC-LOCALE-1 is a cross-cutting completeness AC (spanned_by S3+S4 in the top-level cross_cutting_acs array) assigned here as its primary owning story because S4 lands last among the copy-introducing stories, giving Mode 3 a natural single Part-B verification point over the full new-key set. inviteExpirySweep.ts is a new file (Design Decision 8/11, architecture.md's Order-Sensitive Composition flow 'expiry notification'); the single-invocation/basic-notify-once behavior is unit-tested here, while the StrictMode/overlapping-interval concurrent-interleaving property (AC-INV-1/2/4) is owned by the S5 integration story against this story's real, already-landed implementation. MarmotContext.tsx leaveGroup wiring is a shared surface with S2 at a distinct call site."
+    },
+    {
+      "id": "S5",
+      "name": "invite-link-lifecycle-order-invariants",
+      "title": "Cross-module order-sensitive invariant verification",
+      "description": "Integration-verify the six whole-flow, order/concurrency-sensitive guarantees architecture.md's Order-Sensitive Composition section calls out across inviteLinkStorage, joinFlow, and notifications, against the real, already-implemented producers from S1/S2/S4: exactly-once sweep notification under concurrent/rapid sweep invocations (AC-INV-1), reload-safe notification derivation from persisted flags (AC-INV-2), correct expiryNotified stamping across arbitrary link mixes during migration (AC-INV-3), crash-safe stamp-before-bump ordering under interrupted sweep-then-notify (AC-INV-4), lost-update-free usageCount increments under concurrent approveJoinRequest calls on the same nonce (AC-INV-5), and idempotent/non-racing migrateInviteLinks under repeated or concurrent invocation (AC-INV-6).",
+      "acceptance_criteria": [
+        "AC-INV-1",
+        "AC-INV-2",
+        "AC-INV-3",
+        "AC-INV-4",
+        "AC-INV-5",
+        "AC-INV-6"
+      ],
+      "scope": {
+        "includes": [
+          "app/tests/unit/marmot/invite-link-lifecycle-integration.test.ts"
+        ],
+        "excludes": [
+          "Any production source file under app/src/ \u2014 this story verifies the assembled whole, it does not re-implement inviteLinkStorage/joinFlow/notifications logic (Module Ownership principle 5 exemption is for reaching across modules to verify, not to duplicate their logic)"
+        ]
+      },
+      "complexity": "high",
+      "mock_dependencies": [],
+      "introduces_mocks": [],
+      "status": "done",
+      "creates_seam": false,
+      "lighter_path": false,
+      "is_integration_story": true,
+      "consumes_seams": [],
+      "notes": "FR-A7 integration story, triggered by architecture.md's '## Order-Sensitive Composition' signal and the six 'Spans modules:' lines Mode 1 wrote under acceptance-criteria.md's Cross-Cutting Invariants. Depends on S1 (inviteLinkStorage), S2 (joinFlow), and S4 (notifications) \u2014 the union of the six ACs' own Spans-modules sets \u2014 so story_order places it last. Runs against real producers per the Mock Strategy integration-story exception: never mock inviteLinkStorage/joinRequestHandler/approveJoinRequest/inviteExpirySweep, and no mocks-registry.json entry is added for them."
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5"
+  ],
+  "dependency_notes": "S1 is the foundation: it owns the InviteLink record shape and the isExpired/incrementInviteLinkUsage/markInviteLinkExpiryNotified/markInviteLinkExpiryAcknowledged/migrateInviteLinks exports every other story consumes (architecture.md Seams). S2 and S3 both depend only on S1 and are mutually independent (join-flow enforcement vs. manage-overlay rendering touch disjoint files), but are sequenced S2-before-S3 as the lower-complexity story first per Story Design Principle 4. S4 depends on S1 for the link-flag fields it derives inviteExpiries from, and touches a leaveGroupImpl.ts/MarmotContext.tsx call site adjacent to (but non-overlapping with) S2's. S5, the FR-A7 integration story, depends on S1+S2+S4 (the union of its six owned cross-cutting ACs' participating modules) and runs last, verifying real, already-landed producers rather than mocks.",
+  "mock_resolution_plan": "No temporary mocks are introduced by this epic \u2014 stories implement sequentially (Module Ownership principle 5: parallel story implementation is a non-goal) and each downstream story consumes S1's real, already-landed storage helpers directly. mocks-registry.json is seeded empty with all_resolved: true and requires no further action.",
+  "seams": [],
+  "cross_cutting_acs": [
+    {
+      "ac_id": "AC-INV-1",
+      "spanned_by": [
+        "S1",
+        "S4"
+      ]
+    },
+    {
+      "ac_id": "AC-INV-2",
+      "spanned_by": [
+        "S1",
+        "S4"
+      ]
+    },
+    {
+      "ac_id": "AC-INV-3",
+      "spanned_by": [
+        "S1",
+        "S4"
+      ]
+    },
+    {
+      "ac_id": "AC-INV-4",
+      "spanned_by": [
+        "S1",
+        "S4"
+      ]
+    },
+    {
+      "ac_id": "AC-INV-5",
+      "spanned_by": [
+        "S1",
+        "S2"
+      ]
+    },
+    {
+      "ac_id": "AC-INV-6",
+      "spanned_by": [
+        "S1"
+      ]
+    },
+    {
+      "ac_id": "AC-LOCALE-1",
+      "spanned_by": [
+        "S3",
+        "S4"
+      ]
+    }
+  ]
+}

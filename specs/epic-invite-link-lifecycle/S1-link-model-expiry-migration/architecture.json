@@ -1,0 +1,109 @@
+{
+  "module_name": "inviteLinkStorage",
+  "purpose": "Invite-link record model, expiry/usage helpers, and one-shot idempotent migration. Extends the existing idb-keyval-backed InviteLink store with a real lifecycle: expiresAt, usageCount, and the expiryNotified/expiryAcknowledged notification flags. Owns the single expiry predicate (isExpired) that every other module (joinFlow's gate, manageOverlay's UI, notifications' sweep) must consult instead of recomputing expiry inline.",
+  "public_api": [
+    {
+      "name": "DAY_MS",
+      "signature": "export const DAY_MS: number",
+      "description": "86_400_000 — one day in milliseconds. Single source of truth for the fixed expiry window; no other literal 86400000 exists in the module."
+    },
+    {
+      "name": "InviteLink",
+      "signature": "export interface InviteLink { nonce: string; groupId: string; createdAt: number; expiresAt: number; usageCount: number; expiryNotified: boolean; expiryAcknowledged: boolean; label?: string; muted: boolean }",
+      "description": "Extended record shape. expiresAt/usageCount/expiryNotified/expiryAcknowledged are typed required (new code always writes all four at creation), but a record loaded from idb-keyval may in practice be a pre-existing legacy record missing them at runtime — every read site MUST go through isExpired (for expiry) and the ?? fallback pattern, never assume the type guarantee holds for data already on disk."
+    },
+    {
+      "name": "isExpired",
+      "signature": "isExpired(link: Pick<InviteLink, 'expiresAt' | 'createdAt'>, now: number): boolean",
+      "description": "now >= (link.expiresAt ?? link.createdAt + DAY_MS). Pure, stateless, no memoization — computes effectiveExpiry fresh on every call so it is correct against un-migrated legacy records read via a single getInviteLink (the join-request gate's read path), independent of whether migrateInviteLinks has run."
+    },
+    {
+      "name": "buildNewInviteLink",
+      "signature": "buildNewInviteLink(params: { nonce: string; groupId: string; createdAt: number; label?: string }): InviteLink",
+      "description": "Pure factory for a freshly-created record: expiresAt = createdAt + DAY_MS, usageCount = 0, expiryNotified = false, expiryAcknowledged = false, muted = false (AC-MODEL-2). Added so GenerateInviteLinkModal.tsx's diff is a single call site rather than an inlined createdAt + DAY_MS computation, and so creation-time defaults are unit-testable without jsdom."
+    },
+    {
+      "name": "incrementInviteLinkUsage",
+      "signature": "incrementInviteLinkUsage(nonce: string): Promise<void>",
+      "description": "Load-modify-save: usageCount += 1, persisted. Silent no-op (never throws, never creates a record) when nonce does not resolve. Concurrent calls against the SAME nonce are serialized through a per-nonce promise chain (see Concurrency Strategy below) so two racing approvals cannot lose an increment."
+    },
+    {
+      "name": "markInviteLinkExpiryNotified",
+      "signature": "markInviteLinkExpiryNotified(nonce: string): Promise<void>",
+      "description": "Sets expiryNotified = true and persists; leaves expiryAcknowledged/usageCount/expiresAt untouched. Silent no-op when nonce does not resolve. Serialized via the same per-nonce lock."
+    },
+    {
+      "name": "markInviteLinkExpiryAcknowledged",
+      "signature": "markInviteLinkExpiryAcknowledged(nonce: string): Promise<void>",
+      "description": "Sets expiryAcknowledged = true and persists; leaves expiryNotified/usageCount/expiresAt untouched. Silent no-op when nonce does not resolve. Serialized via the same per-nonce lock."
+    },
+    {
+      "name": "migrateInviteLinks",
+      "signature": "migrateInviteLinks(now: number): Promise<void>",
+      "description": "One-shot, idempotent, store-wide migration. For each record: if all four of expiresAt/usageCount/expiryNotified/expiryAcknowledged are already present AND the record is not muted, the record is a total no-op (not even read back out as changed) — this is what makes repeated startup calls, and calls against records the sweep has since touched, safe. Otherwise: backfills any missing field (expiresAt = createdAt + DAY_MS, usageCount = 0, flags = false), then for a non-muted record whose expiresAt was itself the field that was missing (a genuinely legacy record) and whose backfilled expiresAt <= now, stamps expiryNotified = true (retroactive-expiry notification suppression, Design Decision 3) — a record that already carried its own expiresAt is never re-stamped by this path, so migrateInviteLinks running again at a later app-startup never steals a notification the sweep is responsible for. For a muted record (regardless of missing fields), clamps expiresAt = min(effectiveExpiry, now) and stamps expiryNotified = true unconditionally (Design Decision 4); this clamp is a mathematical fixed point (min is idempotent under a non-decreasing now), so reprocessing an already-fully-migrated muted record on a later call is safe and produces byte-for-byte identical output, satisfying AC-MIGRATE-6 without a separate muted-specific skip branch. Concurrent invocations (StrictMode double-effect, overlapping startup calls) are deduplicated via a module-level in-flight promise latch; sequential invocations after the first perform zero writes (verified via a per-record equality check before calling idb-keyval's set)."
+    },
+    {
+      "name": "createInviteLinkStore",
+      "signature": "createInviteLinkStore(): UseStore",
+      "description": "Unchanged from pre-existing code — returns the idb-keyval store handle."
+    },
+    {
+      "name": "saveInviteLink",
+      "signature": "saveInviteLink(link: InviteLink): Promise<void>",
+      "description": "Unchanged signature; callers (GenerateInviteLinkModal, relayBackup restore) now must supply the four new fields since InviteLink types them as required."
+    },
+    {
+      "name": "getInviteLink",
+      "signature": "getInviteLink(nonce: string): Promise<InviteLink | undefined>",
+      "description": "Unchanged. The join-request gate's sole read path (S2) — never passes through migrateInviteLinks, which is exactly why isExpired's own fallback must be load-bearing."
+    },
+    {
+      "name": "loadInviteLinks",
+      "signature": "loadInviteLinks(groupId: string): Promise<InviteLink[]>",
+      "description": "Unchanged."
+    },
+    {
+      "name": "loadAllInviteLinks",
+      "signature": "loadAllInviteLinks(): Promise<InviteLink[]>",
+      "description": "Unchanged. Consumed by relayBackup and (in a later story) the sweep."
+    },
+    {
+      "name": "updateInviteLinkMuted",
+      "signature": "updateInviteLinkMuted(nonce: string, muted: boolean): Promise<void>",
+      "description": "Unchanged behavior; now routed through the same per-nonce lock as the other single-record mutators for consistency. Still used by the gate/legacy UI until S3 removes the mute toggle."
+    },
+    {
+      "name": "deleteInviteLink",
+      "signature": "deleteInviteLink(nonce: string): Promise<void>",
+      "description": "Unchanged."
+    },
+    {
+      "name": "clearInviteLinksForGroup",
+      "signature": "clearInviteLinksForGroup(groupId: string): Promise<void>",
+      "description": "Unchanged."
+    },
+    {
+      "name": "clearAllInviteLinks",
+      "signature": "clearAllInviteLinks(): Promise<void>",
+      "description": "Unchanged."
+    }
+  ],
+  "private_files": [],
+  "owned_data": ["idb-keyval store 'few-invite-links'", "InviteLink record shape"],
+  "dependencies_allowed": ["idb-keyval"],
+  "dependencies_forbidden": ["react", "@internet-privacy/marmot-ts", "@/src/context/", "@/src/components/"],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": ["app/tests/unit/inviteLinkLifecycle.test.ts"],
+  "concurrency_strategy": {
+    "mechanism": "per-nonce in-module promise chain (Map<string, Promise<void>>)",
+    "applies_to": ["incrementInviteLinkUsage", "markInviteLinkExpiryNotified", "markInviteLinkExpiryAcknowledged", "updateInviteLinkMuted"],
+    "rationale": "idb-keyval's get/set on a single key has an await gap between read and write; two concurrent calls against the same nonce would otherwise both read the same stale value and one increment would be lost. Chaining each call onto a per-nonce promise serializes the read-modify-write without a cross-tab/cross-worker lock (out of scope — this project has no SharedWorker/BroadcastChannel coordination layer, and Design Decision 3 confines all invite-link state to a single device/session anyway).",
+    "migration_strategy": "separate module-level single in-flight promise latch (not per-nonce) since migrateInviteLinks touches the whole store, not one record; concurrent calls dedupe onto the same in-flight promise, sequential calls after the first are no-ops by construction (see migrateInviteLinks description)."
+  },
+  "seam": {
+    "cross_story": true,
+    "consumed_by": ["S2", "S3", "S4"]
+  }
+}

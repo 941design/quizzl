@@ -45,12 +45,80 @@ import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { PollStoreProvider } from '@/src/context/PollStoreContext';
 import PollPanel from '@/src/components/groups/PollPanel';
 import CreatePollModal from '@/src/components/groups/CreatePollModal';
-import { markAsRead } from '@/src/lib/unreadStore';
+import { markAsRead, markInviteExpiriesRead } from '@/src/lib/unreadStore';
 import type { Group, MemberProfile } from '@/src/types';
 
 /* ---------- Detail view (shown when ?id=xxx is present) ---------- */
 
 type MarmotGroupType = import('@internet-privacy/marmot-ts').MarmotGroup;
+
+/**
+ * Pure decision logic for the `manageLinks=1` deep-link (epic:
+ * invite-link-lifecycle, story S4, Design Decision 10). Extracted from the
+ * page's `useEffect`s so it is unit-testable without mounting React or
+ * Next's router (this repo has no jsdom/@testing-library precedent —
+ * mirrors `profile.tsx`'s `planProfileAnnounceFanout` extraction).
+ *
+ * AC-DEEPLINK-1: the overlay must open only once the detail view for `id`
+ * has actually rendered — `groupResolved` is the caller's `group?.id === id`
+ * check (the resolved group must MATCH the route; MLS init is async and, on
+ * client-side nav, `group` briefly holds the previous route's group, so a
+ * bare `group !== null` would fire against stale state per Design Decision 10).
+ */
+export function shouldOpenManageLinksOverlay(params: {
+  manageLinksParam: string | undefined;
+  groupResolved: boolean;
+  alreadyHandled: boolean;
+}): boolean {
+  return params.manageLinksParam === '1' && params.groupResolved && !params.alreadyHandled;
+}
+
+/**
+ * Guard-state transition for the `manageLinks=1` deep link. Returns whether to
+ * open the overlay this cycle and the next value of the id-keyed "handled"
+ * guard ref. Keyed to the group `id` so a deep link for a DIFFERENT group
+ * re-opens (Finding 1), and RESET whenever the param is absent so a repeat
+ * deep link for the SAME group re-opens (Finding 2, same-mount): the param is
+ * stripped after opening, so its absence is the natural reset signal. `open`
+ * still requires `manageLinksParam === '1'`, so clearing the guard on absence
+ * never itself re-opens a stripped URL (AC-DEEPLINK-2 holds).
+ */
+export function nextManageLinksGuard(params: {
+  manageLinksParam: string | undefined;
+  groupResolved: boolean;
+  handledForId: string | null;
+  id: string;
+}): { open: boolean; handledForId: string | null } {
+  const { manageLinksParam, groupResolved, handledForId, id } = params;
+  if (manageLinksParam !== '1') {
+    return { open: false, handledForId: null };
+  }
+  const open = shouldOpenManageLinksOverlay({
+    manageLinksParam,
+    groupResolved,
+    alreadyHandled: handledForId === id,
+  });
+  return { open, handledForId: open ? id : handledForId };
+}
+
+/**
+ * AC-DEEPLINK-3: when `manageLinks=1` targets a `groupId` absent from the
+ * admin's current group list, the page must render the groups list (not
+ * the detail view) instead of falling through to `GroupDetailView`'s own
+ * "not found" alert state. Gated on `ready` — before the group list has
+ * loaded, "absent" cannot yet be distinguished from "not loaded yet", and
+ * the caller must keep rendering the (loading) detail view until `ready`
+ * flips true.
+ */
+export function shouldRedirectToGroupsList(params: {
+  manageLinksParam: string | undefined;
+  ready: boolean;
+  id: string | undefined;
+  groupIds: string[];
+}): boolean {
+  const { manageLinksParam, ready, id, groupIds } = params;
+  return manageLinksParam === '1' && ready && id !== undefined && !groupIds.includes(id);
+}
 
 /** Captures sendMessage from ChatStore into a ref so GroupDetailView can use it. */
 function ChatSendMessageCapture({ sendMessageRef }: { sendMessageRef: React.MutableRefObject<((c: string) => Promise<void>) | null> }) {
@@ -61,6 +129,7 @@ function ChatSendMessageCapture({ sendMessageRef }: { sendMessageRef: React.Muta
 
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
+  const router = useRouter();
   const { groups, ready, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation, requestProfilesIfStale, grantAdmin, renameGroup, getPendingRemovals } = useMarmot();
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const signer = useMemo(
@@ -271,6 +340,44 @@ function GroupDetailView({ id }: { id: string }) {
       setNotFound(true);
     }
   }, [ready, groups, id, getMemberProfiles, pubkeyHex, ownProfile, profileVersion, groupDataVersion, requestProfilesIfStale]);
+
+  // Deep-link: `?manageLinks=1` opens the manage-invite-links overlay once
+  // this detail view has actually rendered (AC-DEEPLINK-1) — `group?.id === id`
+  // is that signal, set by the effect above only after `ready` AND a match
+  // in `groups` are both true, never on initial mount before the group
+  // resolves (and never against a stale previous-route group during nav).
+  // Opens exactly once per deep-link arrival (the ref guard), then
+  // strips the query param via router.replace (AC-DEEPLINK-2) so a reload of
+  // the resulting URL does not re-open it.
+  //
+  // Gate-remediation fix (Finding 1, epic invite-link-lifecycle): the guard
+  // is keyed to the group `id`, not a bare boolean. `GroupDetailView` is not
+  // unmounted on client-side navigation between group detail URLs, so a bare
+  // `useRef(false)` latches permanently after the first deep-link and blocks
+  // every subsequent one — including a later expiry notification for a
+  // DIFFERENT group. Mirrors the `requestedOnEntryForRef` /
+  // `redirectHandledForRef` id-keyed-ref precedent elsewhere in this file.
+  const manageLinksDeepLinkHandledRef = useRef<string | null>(null);
+  const manageLinksParam = router.query.manageLinks as string | undefined;
+  useEffect(() => {
+    const { open, handledForId } = nextManageLinksGuard({
+      manageLinksParam,
+      // Require the RESOLVED group to match the current route id, not merely
+      // `group !== null`: on client-side nav from group A to
+      // `?id=B&manageLinks=1`, `group` still holds A during the first effect
+      // pass after `id` changes. Gating on `group?.id === id` prevents opening
+      // the overlay against A's links and consuming the param before B renders.
+      groupResolved: group?.id === id,
+      handledForId: manageLinksDeepLinkHandledRef.current,
+      id,
+    });
+    manageLinksDeepLinkHandledRef.current = handledForId;
+    if (!open) return;
+    manageLinksDisclosure.onOpen();
+    const nextQuery = { ...router.query };
+    delete nextQuery.manageLinks;
+    void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
+  }, [manageLinksParam, group, id, manageLinksDisclosure, router]);
 
   if (!ready) {
     return (
@@ -544,10 +651,35 @@ export default function GroupsPage() {
   const joinNonce = router.query.join as string | undefined;
   const joinAdmin = router.query.admin as string | undefined;
   const joinName = router.query.name as string | undefined;
+  const manageLinksParam = router.query.manageLinks as string | undefined;
   const copy = useCopy();
   const { groups, ready, unsupported } = useMarmot();
   const { backedUp } = useNostrIdentity();
   const createDisclosure = useDisclosure();
+
+  // AC-DEEPLINK-3: `?id=<id>&manageLinks=1` targeting a groupId absent from
+  // the admin's current group list must render the groups list — not
+  // GroupDetailView's own "not found" alert — and must clear that group's
+  // inviteExpiries badge so a stale/foreign groupId can never wedge a
+  // phantom, unreachable notification count. Use markInviteExpiriesRead (which
+  // PERSISTS expiryAcknowledged on the stored links), not the in-memory-only
+  // clearInviteExpiries: the badge is re-derived from persisted flags on every
+  // cycle/reload, so an in-memory clear alone would be undone by the next
+  // derive if this group still has expired+notified links on disk.
+  const redirectToGroupsList = shouldRedirectToGroupsList({
+    manageLinksParam,
+    ready,
+    id,
+    groupIds: groups.map((g) => g.id),
+  });
+  const redirectHandledForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!redirectToGroupsList || !id) return;
+    if (redirectHandledForRef.current === id) return;
+    redirectHandledForRef.current = id;
+    void markInviteExpiriesRead(id);
+    void router.replace('/groups');
+  }, [redirectToGroupsList, id, router]);
 
   // When ?join=xxx is present, show the join request card. Epic:
   // first-visit-invite-welcome, story S4 — the isFreshIdentity branch that
@@ -559,8 +691,10 @@ export default function GroupsPage() {
     return <JoinRequestCard nonce={joinNonce} adminNpub={joinAdmin} groupName={joinName} />;
   }
 
-  // When ?id=xxx is present, show the detail view
-  if (id) {
+  // When ?id=xxx is present, show the detail view — unless the S4 deep-link
+  // redirect above determined the target group is absent (AC-DEEPLINK-3), in
+  // which case fall through to the plain groups list below.
+  if (id && !redirectToGroupsList) {
     return <GroupDetailView id={id} />;
   }
 

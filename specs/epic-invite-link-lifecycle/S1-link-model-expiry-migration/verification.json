@@ -1,0 +1,159 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-18T12:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Confirm `isExpired`, `incrementInviteLinkUsage`, `markInviteLinkExpiryNotified`, `markInviteLinkExpiryAcknowledged`, and `migrateInviteLinks` are each fully implemented against real idb-keyval reads/writes on the `'few-invite-links'` store — none is a stub that returns a frozen constant, a tautological `true`/`false`, or a no-op that only looks correct because no test exercises the branch where it must act. In particular, confirm `migrateInviteLinks(now)` actually mutates and persists records (not just computes values in memory and discards them) by showing a `loadInviteLinks` read after migration reflecting the backfilled fields."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Scope-boundary check: this story's diff must touch only `app/src/lib/marmot/inviteLinkStorage.ts` and `app/src/components/groups/GenerateInviteLinkModal.tsx`, per stories.json's `scope.includes`. Run `git diff --stat` for this story's commit(s) and confirm no file under `app/src/lib/marmot/joinRequestHandler.ts`, `app/src/context/MarmotContext.tsx`, `app/src/components/groups/ManageInviteLinksModal.tsx`, `app/src/lib/unreadStore.ts`, or `app/src/lib/marmot/inviteExpirySweep.ts` appears — those are explicitly excluded (S2/S3/S4 territory). Confirm `GenerateInviteLinkModal.tsx`'s diff only calls the new exported helpers to set expiry fields at creation and does not inline its own `createdAt + DAY_MS` computation."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `inviteLinkStorage` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? Its only declared consumers per architecture.md's Seams section are joinFlow, manageOverlay, and notifications, all of which are required to go through its exported helpers (`getInviteLink`, `loadInviteLinks`, `isExpired`, `incrementInviteLinkUsage`, `deleteInviteLink`, `markInviteLinkExpiryNotified`, `markInviteLinkExpiryAcknowledged`, `migrateInviteLinks`) rather than touching the `'few-invite-links'` idb-keyval store directly. If rewriting `inviteLinkStorage.ts` would force an edit to any consumer's internals (not just an import-site call), identify the specific cross-module dependency and whether it flows through a declared seam contract in architecture.md."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Confirm `isExpired` and `migrateInviteLinks` are unit-tested via exported pure-function calls in `app/tests/unit/` under vitest's default node environment (no jsdom/`@testing-library`), and that every time-dependent test passes an explicit injectable `now` argument rather than relying on `Date.now()` at test-run time. Provide the test file path and at least one assertion showing a fixed, non-wall-clock `now` value driving a boundary case (e.g. `now === effectiveExpiry` exactly)."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "spec.md's Technical Approach establishes `isExpired` as the single expiry predicate usable at every read site (gate, UI, sweep) even against un-migrated legacy records — because the join-request gate resolves a link on a single `getInviteLink` call and cannot depend on a startup migration having already run. Confirm `isExpired(link, now)` computes `effectiveExpiry` inline from `link.expiresAt ?? link.createdAt + DAY_MS` on every call (no cached/memoized value, no dependency on `migrateInviteLinks` having executed first) so a freshly-loaded legacy record with no `expiresAt` field evaluates correctly on its very first read."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "`incrementInviteLinkUsage`, `markInviteLinkExpiryNotified`, and `markInviteLinkExpiryAcknowledged` all take a bare `nonce` string as their sole identifying argument, and that nonce ultimately originates from untrusted, network-delivered join-request data (S2's gate) rather than from a value this module itself mints per call. Confirm each of the three helpers resolves the nonce via a lookup (not by trusting a caller-supplied index/key directly into a mutation) and that an unresolvable or malformed nonce produces the documented silent no-op (AC-MODEL-4) rather than creating a new record, throwing, or corrupting an unrelated record via a partial/loose key match."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STRUCT-1",
+      "question": "Does the exported `DAY_MS` constant equal exactly `86_400_000`? Provide the export site and a unit-test assertion `expect(DAY_MS).toBe(86_400_000)`, plus a `grep -n 'DAY_MS' app/src/lib/marmot/inviteLinkStorage.ts` showing there is exactly one definition (not a re-derived or duplicated literal `86400000` elsewhere in the module that could drift from the export)."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MODEL-1",
+      "question": "Does `isExpired(link, now)` return state-discriminating results at the exact boundary — `true` when `now === effectiveExpiry` and `now > effectiveExpiry`, `false` when `now === effectiveExpiry - 1` — for BOTH a record carrying `expiresAt` directly and a legacy record with only `createdAt` set (no `expiresAt` field at all, not merely `undefined`)? Provide four separate unit-test assertions (two records × two sides of the boundary) with production code and test evidence; a test that only checks `now` far past or far before expiry would not catch an off-by-one in the `>=` comparison."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MODEL-2",
+      "question": "Does the `GenerateInviteLinkModal` copy/close path persist a newly created record with `expiresAt === createdAt + DAY_MS`, `usageCount === 0`, `expiryNotified === false`, and `expiryAcknowledged === false` — all four fields, not just `expiresAt`? Provide the production write site and a test (component-level pure-function extraction, per the project's no-jsdom convention) asserting all four fields on the persisted record, distinguishing this from a test that only checks the record was created at all."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MODEL-3",
+      "question": "Does `incrementInviteLinkUsage(nonce)` increase `usageCount` by exactly `1` (not overwrite it to `1`, and not increment by a different amount) and persist the result when the nonce resolves? Provide a test seeding a record with a non-zero starting `usageCount` (e.g. `usageCount: 3`) and asserting the persisted result is `4` — a starting value of `0` alone would not catch an implementation that sets `usageCount = 1` unconditionally instead of incrementing."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MODEL-4",
+      "question": "Does `incrementInviteLinkUsage(nonce)` resolve without throwing and leave the store's record set unchanged (deep-equal before/after, no new record created) when `nonce` does not resolve to any stored record? Provide a test that snapshots the full record set before the call, invokes `incrementInviteLinkUsage('unknown-nonce')`, awaits its resolution, and asserts the post-call snapshot is deep-equal to the pre-call snapshot — not merely that the call didn't throw."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MODEL-5",
+      "question": "Does `markInviteLinkExpiryNotified(nonce)` set `expiryNotified` to `true` and persist it while leaving `expiryAcknowledged`, `usageCount`, and `expiresAt` byte-for-byte unchanged? Provide a test seeding a record with non-default values for all three unrelated fields (e.g. `expiryAcknowledged: true`, `usageCount: 5`, a specific `expiresAt`), calling `markInviteLinkExpiryNotified`, and asserting all three are unchanged post-call — a test starting from default/falsy values would not catch a bug that resets them."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MODEL-6",
+      "question": "Does `markInviteLinkExpiryAcknowledged(nonce)` set `expiryAcknowledged` to `true` and persist it while leaving `expiryNotified`, `usageCount`, and `expiresAt` byte-for-byte unchanged? Provide a test seeding a record with `expiryNotified: true` and non-default `usageCount`/`expiresAt`, calling `markInviteLinkExpiryAcknowledged`, and asserting the other three fields are unchanged post-call — mirroring AC-MODEL-5's discipline in the opposite direction so the two setters cannot be accidentally swapped in the implementation."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-1",
+      "question": "Does `migrateInviteLinks(now)` set `expiresAt = createdAt + DAY_MS` on every record missing `expiresAt`, AND leave `expiresAt` byte-for-byte unchanged on a non-muted record that already carries one (even a value that would NOT equal `createdAt + DAY_MS`, e.g. a manually-set custom expiry)? Provide two test fixtures in the same migration run — one legacy record (no `expiresAt`) and one already-migrated record with a deliberately non-standard `expiresAt` — and assert the first gets backfilled while the second's value is untouched; a test using only 'already has the default value' for the second fixture would not discriminate 'left unchanged' from 'recomputed to the same value by coincidence'."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-2",
+      "question": "Does `migrateInviteLinks(now)` default `usageCount` to `0` and `expiryNotified`/`expiryAcknowledged` to `false` ONLY when those fields are missing, without overwriting an already-present value (including a truthy/non-zero one)? Provide a test fixture carrying `usageCount: 7`, `expiryNotified: true`, `expiryAcknowledged: true` pre-migration and assert all three survive migration unchanged, alongside a second fixture missing all three and asserting they land at `0`/`false`/`false` — a test that only exercises the missing-field case would not catch an implementation that unconditionally resets these fields."
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-3",
+      "question": "Does `migrateInviteLinks(now)` set `expiryNotified = true` on every non-muted record whose POST-BACKFILL `expiresAt` is at or before `now`? Provide a test fixture that is a legacy record (no `expiresAt`, only `createdAt`) chosen so that `createdAt + DAY_MS <= now` — i.e. the backfilled value, not a pre-existing `expiresAt`, is what makes it already-expired — and assert `expiryNotified` lands `true` post-migration. This discriminates 'stamps based on the post-backfill value' from a buggy implementation that checks the (absent) pre-backfill `expiresAt` and never stamps legacy records at all."
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-4",
+      "question": "Does `migrateInviteLinks(now)` leave `expiryNotified` at `false` on every non-muted record whose post-backfill `expiresAt` is after `now`? Provide a test fixture with `expiresAt` (or a backfilled equivalent) strictly greater than `now` and assert `expiryNotified` remains `false` post-migration — paired directly against AC-MIGRATE-3's fixture (same shape, opposite side of the `now` boundary) so a single off-by-one or reversed comparison in the implementation cannot pass both tests by accident."
+    },
+    {
+      "question_id": "VQ-S1-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-5",
+      "question": "Does `migrateInviteLinks(now)` set `expiryNotified = true` AND clamp `expiresAt = min(effectiveExpiry, now)` on every record carrying `muted: true`, even when that record's un-clamped `effectiveExpiry` is still in the future (i.e. a muted link that would NOT otherwise be expired at `now`)? Provide a test fixture with `muted: true` and `expiresAt` set well after `now`, and assert BOTH that `expiryNotified` becomes `true` AND that the persisted `expiresAt` equals `now` (not the original future value) post-migration — a test using an already-past `expiresAt` on the muted fixture would not discriminate the clamp from ordinary AC-MIGRATE-3 stamping."
+    },
+    {
+      "question_id": "VQ-S1-019",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-6",
+      "question": "Does invoking `migrateInviteLinks(now)` a second time against an already-migrated store leave every field of every record unchanged? Provide a test that runs `migrateInviteLinks(now)` once against a mixed fixture set (legacy, already-migrated, and muted records), serializes the full record set, runs `migrateInviteLinks(now)` a second time (same or later `now`), serializes again, and asserts `deep-equal` between the two serializations — this is the single-invocation-level idempotency check; note in your response that the concurrent/interleaved version of this property is AC-INV-6, verified separately by S5 against the real implementation this story lands."
+    },
+    {
+      "question_id": "VQ-S1-020",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MIGRATE-3",
+      "question": "`migrateRecord` in `app/src/lib/marmot/inviteLinkStorage.ts` resolves a literal-text tension between AC-MIGRATE-3 ('every non-muted record whose post-backfill expiresAt is at or before now') and Design Decision 3 / AC-MIGRATE-6 (a later `migrateInviteLinks` call at a subsequent app startup must never re-stamp `expiryNotified` for a NORMAL, already-fully-created link that has since expired — that is the sweep's job, not migration's) by gating the AC-MIGRATE-3 stamp on `isLegacyExpiresAt` (the record's `expiresAt` was itself the field missing pre-migration), not merely on 'non-muted and expired'. Confirm this interpretation is correct: re-derive both ACs from spec.md's Design Decision 2/3 text and confirm a non-muted record that already carried its own `expiresAt` at the time `migrateInviteLinks` is called must NEVER have `expiryNotified` set by migration, only by the (not-yet-built, S4) sweep — and that the `inviteLinkLifecycle.test.ts` test 'a second call at a LATER now still changes nothing (the sweep-interference guard)' is a faithful encoding of that requirement rather than a narrowing of AC-MIGRATE-3 beyond its intended scope."
+    },
+    {
+      "question_id": "VQ-S1-021",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The per-nonce lock (`nonceLocks: Map<string, Promise<void>>` in `inviteLinkStorage.ts`) that serializes `incrementInviteLinkUsage`/`markInviteLinkExpiryNotified`/`markInviteLinkExpiryAcknowledged`/`updateInviteLinkMuted` is never pruned — every distinct nonce ever mutated during a session leaves a resolved-promise entry in the map for the lifetime of the page. Confirm this is an acceptable tradeoff given realistic invite-link volumes per admin session (tens, not thousands, per architecture.md's device-local/single-admin scope) rather than an unbounded-growth concern serious enough to warrant eviction (e.g. deleting the map entry once its chained promise settles and no further mutation is queued behind it)."
+    },
+    {
+      "question_id": "VQ-S1-022",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "`buildNewInviteLink` is a new exported factory function not named anywhere in spec.md's Technical Approach section (which describes the creation-time defaults as inline field population at `GenerateInviteLinkModal.tsx`'s `saveInviteLink` call site, lines 99-106 of the pre-story file). It was added so AC-MODEL-2 is unit-testable without jsdom (per VQ-S1-002's explicit expectation that the modal's diff 'only calls the new exported helpers' rather than inlining `createdAt + DAY_MS`) and so `GenerateInviteLinkModal.tsx`'s diff stays a single call-site change. Confirm this factory-function addition is within `inviteLinkStorage`'s owned surface (not a scope violation) and that no other story's stubbed seam contract assumed `GenerateInviteLinkModal.tsx` would construct the record inline rather than through a helper."
+    },
+    {
+      "question_id": "VQ-S1-023",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "`app/src/lib/backup/relayBackup.ts` reads `InviteLink[]` via `loadAllInviteLinks()` and re-persists them via `saveInviteLink(link)` during restore, without ever constructing an `InviteLink` object literal itself — so it type-checked cleanly against the four newly-required fields without modification (confirmed: `npx tsc --noEmit` is clean on the full `app/` project post-change). Confirm that a legacy backup blob captured BEFORE this story shipped (whose serialized invite-link entries lack `expiresAt`/`usageCount`/`expiryNotified`/`expiryAcknowledged`) still restores without a runtime crash on `restoreFromBackup` — TypeScript's structural typing does not protect against a JSON blob missing fields at runtime, and `saveInviteLink` performs no validation, so an old backup's links would be persisted still-legacy-shaped until the next `migrateInviteLinks(now)` call backfills them. Confirm this is the intended fallback (isExpired's fallback + the next migration pass) rather than a gap this story should have handled with an explicit backup-restore migration path — relayBackup.ts is out of this story's scope.includes, so no code change is being proposed here, only confirmation that the interaction is safe as designed."
+    }
+  ]
+}
