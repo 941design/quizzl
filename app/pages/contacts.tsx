@@ -14,13 +14,11 @@ import {
   Heading,
   HStack,
   IconButton,
-  LinkBox,
-  LinkOverlay,
   Text,
   VStack,
 } from '@chakra-ui/react';
 import ThemeIcon from '@/src/components/ThemeIcon';
-import ProfileSummary from '@/src/components/ProfileSummary';
+import UserCard, { ConfirmButton } from '@/src/components/UserCard';
 import ContactChat from '@/src/components/contacts/ContactChat';
 import ShareContactCard from '@/src/components/contacts/ShareContactCard';
 import BlockContactButton from '@/src/components/contacts/BlockContactButton';
@@ -169,93 +167,75 @@ function ContactListView() {
               };
               const sharedGroupNames = commonGroups(groups, contact.pubkeyHex).map((group) => group.name);
               return (
-                <LinkBox
-                  as="article"
+                <UserCard
                   key={contact.pubkeyHex}
-                  p={4}
-                  borderWidth="1px"
-                  borderRadius="lg"
-                  borderColor="borderSubtle"
-                  bg="surfaceBg"
-                  cursor="pointer"
-                  _hover={{ borderColor: 'brand.400', bg: 'surfaceMutedBg' }}
-                  transition="all 0.15s"
-                  data-testid={`contact-card-${contact.pubkeyHex}`}
-                >
-                  <Flex align="center" gap={3}>
-                    <Box flex="1" minW={0}>
-                      <NextLink href={`/contacts?id=${contact.pubkeyHex}`} passHref legacyBehavior>
-                        <LinkOverlay>
-                          <ProfileSummary profile={profile} fallbackName={fallbackName} size="sm" />
-                        </LinkOverlay>
-                      </NextLink>
-                      {sharedGroupNames.length > 0 ? (
-                        <Text
-                          mt={1}
-                          fontSize="xs"
-                          color="textMuted"
-                          noOfLines={1}
-                          data-testid={`contact-common-groups-${contact.pubkeyHex}`}
-                        >
-                          {copy.contacts.commonGroups(sharedGroupNames)}
-                        </Text>
+                  profile={profile}
+                  fallbackName={fallbackName}
+                  href={`/contacts?id=${contact.pubkeyHex}`}
+                  cardTestId={`contact-card-${contact.pubkeyHex}`}
+                  subline={sharedGroupNames.length > 0 ? (
+                    <Text
+                      mt={1}
+                      fontSize="xs"
+                      color="textMuted"
+                      noOfLines={1}
+                      data-testid={`contact-common-groups-${contact.pubkeyHex}`}
+                    >
+                      {copy.contacts.commonGroups(sharedGroupNames)}
+                    </Text>
+                  ) : null}
+                  actions={
+                    <>
+                      {contact.isArchived ? (
+                        <Badge colorScheme="gray">{copy.contacts.hiddenBadge}</Badge>
                       ) : null}
-                    </Box>
-                    {contact.isArchived ? (
-                      <Badge colorScheme="gray" flexShrink={0}>
-                        {copy.contacts.hiddenBadge}
-                      </Badge>
-                    ) : null}
-                    {/* Epic: pending-contact-confirmation, S2 (AC-UX-1).
-                        Gate-remediation (2026-07-15, finding B): gated on
-                        `!contact.isArchived` per spec.md Design Decision 9
-                        ("blocked always wins over pending") — a contact CAN
-                        be both pending and blocked at once, and DD-9 names
-                        that combination as the EXPECTED post-decline state:
-                        blocking is this epic's only decline mechanism (there
-                        is no separate "reject" action, spec.md Non-Goals),
-                        so a user who just blocked a pending contact to
-                        decline them would otherwise be shown a live
-                        "Confirm contact" button — an un-decline affordance
-                        DD-9's precedence forbids. The detail view below and
-                        the group-invite picker
-                        (`contacts.ts#selectableContactsForGroup`) already
-                        resolve blocked+pending to the blocked outcome; this
-                        list row must match both. */}
-                    {contact.isPendingConfirmation && !contact.isArchived ? (
-                      <>
-                        <Badge colorScheme="purple" flexShrink={0} data-testid={`contact-pending-badge-${contact.pubkeyHex}`}>
-                          {copy.contacts.pendingBadge}
-                        </Badge>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          flexShrink={0}
-                          data-testid={`contact-pending-confirm-${contact.pubkeyHex}`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleConfirmFromList(contact.pubkeyHex);
-                          }}
-                        >
-                          {copy.contacts.pendingConfirmButton}
-                        </Button>
-                      </>
-                    ) : null}
-                    <IconButton
-                      aria-label={copy.profile.viewProfile}
-                      icon={<ThemeIcon name="person" size={18} />}
-                      variant="ghost"
-                      size="sm"
-                      flexShrink={0}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        router.push(`/profile?pubkey=${contact.pubkeyHex}`);
-                      }}
-                    />
-                  </Flex>
-                </LinkBox>
+                      {/* Epic: pending-contact-confirmation, S2 (AC-UX-1).
+                          Gate-remediation (2026-07-15, finding B): gated on
+                          `!contact.isArchived` per spec.md Design Decision 9
+                          ("blocked always wins over pending") — a contact CAN
+                          be both pending and blocked at once, and DD-9 names
+                          that combination as the EXPECTED post-decline state:
+                          blocking is this epic's only decline mechanism (there
+                          is no separate "reject" action, spec.md Non-Goals),
+                          so a user who just blocked a pending contact to
+                          decline them would otherwise be shown a live
+                          "Confirm contact" button — an un-decline affordance
+                          DD-9's precedence forbids. The detail view below and
+                          the group-invite picker
+                          (`contacts.ts#selectableContactsForGroup`) already
+                          resolve blocked+pending to the blocked outcome; this
+                          list row must match both. */}
+                      {contact.isPendingConfirmation && !contact.isArchived ? (
+                        <>
+                          <Badge colorScheme="purple" data-testid={`contact-pending-badge-${contact.pubkeyHex}`}>
+                            {copy.contacts.pendingBadge}
+                          </Badge>
+                          <ConfirmButton
+                            data-testid={`contact-pending-confirm-${contact.pubkeyHex}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleConfirmFromList(contact.pubkeyHex);
+                            }}
+                          >
+                            {copy.contacts.pendingConfirmButton}
+                          </ConfirmButton>
+                        </>
+                      ) : null}
+                      <IconButton
+                        aria-label={copy.profile.viewProfile}
+                        icon={<ThemeIcon name="person" size={18} />}
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          router.push(`/profile?pubkey=${contact.pubkeyHex}`);
+                        }}
+                      />
+                    </>
+                  }
+                />
               );
             })}
           </VStack>

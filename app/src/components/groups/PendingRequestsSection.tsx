@@ -2,9 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Box,
   VStack,
-  HStack,
   Text,
-  Button,
   Heading,
   Alert,
   AlertDescription,
@@ -12,6 +10,8 @@ import {
 import { useCopy } from '@/src/context/LanguageContext';
 import { useMarmot } from '@/src/context/MarmotContext';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
+import UserCard, { ConfirmButton, RejectButton } from '@/src/components/UserCard';
+import type { UserProfile } from '@/src/types';
 import type { PendingJoinRequest } from '@/src/lib/marmot/joinRequestStorage';
 
 type PendingRequestRowProps = {
@@ -25,47 +25,46 @@ type PendingRequestRowProps = {
 function PendingRequestRow({ request, onApprove, onDeny, approving, error }: PendingRequestRowProps) {
   const copy = useCopy();
   const npub = pubkeyToNpub(request.pubkeyHex);
+  const fallbackName = truncateNpub(npub);
+  const cardProfile: UserProfile = {
+    nickname: request.nickname ?? '',
+    avatar: null,
+  };
 
   return (
-    <Box data-testid={`pending-request-row-${request.eventId}`}>
-      <HStack spacing={3} py={2} px={3} bg="surfaceMutedBg" borderRadius="md">
-        <Box flex="1" minW={0}>
-          <Text fontSize="sm" fontWeight="semibold" isTruncated>
-            {request.nickname ?? truncateNpub(npub)}
-          </Text>
-          {request.nickname && (
-            <Text fontSize="xs" color="textMuted" isTruncated>
-              {truncateNpub(npub)}
-            </Text>
-          )}
-        </Box>
-        <HStack spacing={2} flexShrink={0}>
-          <Button
-            size="xs"
-            colorScheme="green"
+    <UserCard
+      profile={cardProfile}
+      fallbackName={fallbackName}
+      cardTestId={`pending-request-row-${request.eventId}`}
+      subline={request.nickname ? (
+        <Text mt={1} fontSize="xs" color="textMuted" isTruncated>
+          {fallbackName}
+        </Text>
+      ) : null}
+      actions={
+        <>
+          <ConfirmButton
             onClick={() => onApprove(request)}
             isLoading={approving}
             data-testid={`approve-request-${request.eventId}`}
           >
             {copy.groups.pendingRequestsApprove}
-          </Button>
-          <Button
-            size="xs"
-            variant="ghost"
+          </ConfirmButton>
+          <RejectButton
             onClick={() => onDeny(request)}
             isDisabled={approving}
             data-testid={`deny-request-${request.eventId}`}
           >
             {copy.groups.pendingRequestsDeny}
-          </Button>
-        </HStack>
-      </HStack>
-      {error && (
-        <Alert status="error" mt={1} borderRadius="md" py={1} px={3}>
+          </RejectButton>
+        </>
+      }
+      footer={error ? (
+        <Alert status="error" mt={2} borderRadius="md" py={1} px={3}>
           <AlertDescription fontSize="xs">{copy.groups.pendingRequestsApproveError}</AlertDescription>
         </Alert>
-      )}
-    </Box>
+      ) : null}
+    />
   );
 }
 

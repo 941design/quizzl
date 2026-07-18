@@ -1,14 +1,10 @@
 import React, { useState } from 'react';
 import {
   VStack,
-  HStack,
   Text,
-  Code,
-  Box,
   Badge,
   Button,
   IconButton,
-  Image,
   Modal,
   ModalOverlay,
   ModalContent,
@@ -22,7 +18,8 @@ import { useRouter } from 'next/router';
 import { useCopy } from '@/src/context/LanguageContext';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import ThemeIcon from '@/src/components/ThemeIcon';
-import type { MemberProfile } from '@/src/types';
+import UserCard, { ConfirmButton, RejectButton } from '@/src/components/UserCard';
+import type { MemberProfile, UserProfile } from '@/src/types';
 
 type MemberListProps = {
   memberPubkeys: string[];
@@ -236,52 +233,31 @@ function MemberListItem({
     }
   }
 
-  const displayName = profile?.nickname ?? truncateNpub(npub) + '…';
+  const fallbackName = truncateNpub(npub);
+  const displayName = profile?.nickname || fallbackName;
+  const prefix = pubkey.slice(0, 8);
+  const cardProfile: UserProfile = {
+    nickname: profile?.nickname ?? '',
+    avatar: profile?.avatar ?? null,
+  };
 
   return (
     <>
-      <Box
-        p={3}
-        borderRadius="md"
-        bg="surfaceMutedBg"
-        borderWidth="1px"
-        borderColor="borderSubtle"
-        opacity={isPending ? 0.6 : 1}
-        data-testid={`member-item-${pubkey.slice(0, 8)}`}
-      >
-        <HStack justify="space-between" flexWrap="wrap" gap={2}>
-          <HStack spacing={2}>
-            {profile?.avatar && (
-              <Image
-                src={profile.avatar.imageUrl}
-                alt={profile.nickname}
-                boxSize="28px"
-                borderRadius="md"
-                objectFit="contain"
-                bg="white"
-              />
-            )}
-            {profile?.nickname ? (
-              <Text fontSize="sm" fontWeight="medium"
-                data-testid={`member-name-${pubkey.slice(0, 8)}`}>
-                {profile.nickname}
-              </Text>
-            ) : (
-              <Code
-                fontSize="xs"
-                bg="transparent"
-                userSelect="all"
-                data-testid={`member-npub-${pubkey.slice(0, 8)}`}
-              >
-                {truncateNpub(npub)}
-              </Code>
-            )}
+      <UserCard
+        profile={cardProfile}
+        fallbackName={fallbackName}
+        cardTestId={`member-item-${prefix}`}
+        nameTestId={`member-name-${prefix}`}
+        avatarTestId={`member-avatar-${prefix}`}
+        dimmed={isPending}
+        actions={
+          <>
             {isPending && (
               <Badge
                 colorScheme="yellow"
                 variant="subtle"
                 fontSize="2xs"
-                data-testid={`member-pending-${pubkey.slice(0, 8)}`}
+                data-testid={`member-pending-${prefix}`}
               >
                 {pendingLabel}
               </Badge>
@@ -291,7 +267,7 @@ function MemberListItem({
                 colorScheme="purple"
                 variant="subtle"
                 fontSize="2xs"
-                data-testid={`admin-badge-${pubkey.slice(0, 8)}`}
+                data-testid={`admin-badge-${prefix}`}
               >
                 {adminBadgeLabel}
               </Badge>
@@ -301,21 +277,11 @@ function MemberListItem({
                 colorScheme="orange"
                 variant="subtle"
                 fontSize="2xs"
-                data-testid={`removal-pending-${pubkey.slice(0, 8)}`}
+                data-testid={`removal-pending-${prefix}`}
               >
                 {removalPendingLabel}
               </Badge>
             )}
-            <IconButton
-              aria-label={viewProfileLabel}
-              icon={<ThemeIcon name="person" size={18} />}
-              variant="ghost"
-              size="xs"
-              onClick={() => isYou ? router.push('/settings') : router.push(`/profile?pubkey=${pubkey}`)}
-              data-testid={`member-view-profile-${pubkey.slice(0, 8)}`}
-            />
-          </HStack>
-          <HStack spacing={2}>
             {isYou && (
               <Text
                 fontSize="xs"
@@ -327,30 +293,32 @@ function MemberListItem({
               </Text>
             )}
             {showMakeAdmin && makeAdminLabel && (
-              <Button
-                size="xs"
-                colorScheme="purple"
-                variant="ghost"
+              <ConfirmButton
                 onClick={makeAdminDisclosure.onOpen}
-                data-testid={`make-admin-${pubkey.slice(0, 8)}`}
+                data-testid={`make-admin-${prefix}`}
               >
                 {makeAdminLabel}
-              </Button>
+              </ConfirmButton>
             )}
             {isPending && !isYou && onCancelInvite && (
-              <Button
-                size="xs"
-                colorScheme="red"
-                variant="ghost"
+              <RejectButton
                 onClick={cancelDisclosure.onOpen}
-                data-testid={`cancel-invite-${pubkey.slice(0, 8)}`}
+                data-testid={`cancel-invite-${prefix}`}
               >
                 {cancelInviteLabel}
-              </Button>
+              </RejectButton>
             )}
-          </HStack>
-        </HStack>
-      </Box>
+            <IconButton
+              aria-label={viewProfileLabel}
+              icon={<ThemeIcon name="person" size={18} />}
+              variant="ghost"
+              size="sm"
+              onClick={() => isYou ? router.push('/settings') : router.push(`/profile?pubkey=${pubkey}`)}
+              data-testid={`member-view-profile-${prefix}`}
+            />
+          </>
+        }
+      />
 
       <Modal isOpen={cancelDisclosure.isOpen} onClose={cancelDisclosure.onClose} isCentered>
         <ModalOverlay />
@@ -366,7 +334,7 @@ function MemberListItem({
               {cancelLabel}
             </Button>
             <Button
-              colorScheme="red"
+              colorScheme="danger"
               onClick={handleConfirmCancel}
               isLoading={isCancelling}
               data-testid={`cancel-invite-confirm-${pubkey.slice(0, 8)}`}
@@ -391,7 +359,7 @@ function MemberListItem({
               {cancelLabel}
             </Button>
             <Button
-              colorScheme="purple"
+              colorScheme="brand"
               onClick={handleConfirmMakeAdmin}
               isLoading={isMakingAdmin}
               data-testid={`make-admin-confirm-${pubkey.slice(0, 8)}`}

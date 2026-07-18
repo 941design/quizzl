@@ -17,12 +17,23 @@ type ProfileSummaryProps = {
    */
   fallbackName: string;
   size?: 'sm' | 'md';
+  /**
+   * Overrides the display-name element's `data-testid`. Defaults to
+   * `profile-display-name`. Group member rows pass a per-member id
+   * (`member-name-<pubkeyPrefix>`) so their existing test hooks survive the
+   * migration onto this shared summary.
+   */
+  nameTestId?: string;
+  /** Overrides the avatar wrapper's `data-testid` (default `profile-avatar-thumb`). */
+  avatarTestId?: string;
 };
 
 export default function ProfileSummary({
   profile,
   fallbackName,
   size = 'md',
+  nameTestId = 'profile-display-name',
+  avatarTestId = 'profile-avatar-thumb',
 }: ProfileSummaryProps) {
   const displayName = profile.nickname || fallbackName;
   const avatarSize = size === 'sm' ? '44px' : '64px';
@@ -42,12 +53,12 @@ export default function ProfileSummary({
         borderWidth="1px"
         borderColor="borderSubtle"
         flexShrink={0}
-        data-testid="profile-avatar-thumb"
+        data-testid={avatarTestId}
       >
         {profile.avatar ? (
           <Image
             src={profile.avatar.imageUrl}
-            alt="Profile avatar"
+            alt={displayName}
             w="100%"
             h="100%"
             objectFit="cover"
@@ -64,7 +75,7 @@ export default function ProfileSummary({
           <Text
             fontWeight="bold"
             fontSize={nameSize}
-            data-testid="profile-display-name"
+            data-testid={nameTestId}
           >
             {displayName}
           </Text>
