@@ -6,6 +6,7 @@ import {
   Alert,
   AlertDescription,
   AlertIcon,
+  Badge,
   Box,
   Button,
   Divider,
@@ -531,6 +532,11 @@ export default function ProfilePage() {
   const npub = pubkeyToNpub(pubkeyHex!);
   const displayName = contact?.nickname || truncateNpub(npub);
   const avatar = contact?.avatar ?? null;
+  // A blocked (archived) contact's profile is a management-only view: the
+  // Send message / Add to group actions are hidden (Send message would only
+  // route into the now-redirecting detail page), the identity is visually
+  // de-emphasised, and Unblock is promoted to the primary call to action.
+  const isBlocked = !!contact?.isArchived;
 
   const addableGroups = addableGroupsForContact(groups, pubkeyHex!, adminGroupIds);
   const effectiveGroupId = selectedGroupId || addableGroups[0]?.id || '';
@@ -568,14 +574,28 @@ export default function ProfilePage() {
         </Button>
 
         <VStack align="start" spacing={6}>
-          <HStack spacing={4} align="center">
+          <HStack spacing={4} align="center" opacity={isBlocked ? 0.6 : 1}>
             <AvatarDisplay avatar={avatar} displayName={displayName} size="80px" />
             <VStack align="start" spacing={1}>
-              <Heading as="h1" size="lg">
-                {displayName}
-              </Heading>
+              <HStack spacing={2} align="center">
+                <Heading as="h1" size="lg">
+                  {displayName}
+                </Heading>
+                {isBlocked && (
+                  <Badge colorScheme="gray" data-testid="profile-blocked-badge">
+                    {copy.contacts.hiddenBadge}
+                  </Badge>
+                )}
+              </HStack>
             </VStack>
           </HStack>
+
+          {isBlocked && (
+            <Alert status="info" borderRadius="md" data-testid="profile-blocked-notice">
+              <AlertIcon />
+              <AlertDescription fontSize="sm">{copy.profile.blockedNotice}</AlertDescription>
+            </Alert>
+          )}
 
           {/* npub display hidden on contact profile — see handleCopyNpub/npubCopied above
           <HStack spacing={3} align="center" flexWrap="wrap">
@@ -588,15 +608,17 @@ export default function ProfilePage() {
           </HStack>
           */}
 
-          <Button
-            colorScheme="brand"
-            onClick={() => router.push(`/contacts?id=${pubkeyHex}`)}
-            data-testid="profile-send-dm"
-          >
-            {copy.profile.sendDm}
-          </Button>
+          {!isBlocked && (
+            <Button
+              colorScheme="brand"
+              onClick={() => router.push(`/contacts?id=${pubkeyHex}`)}
+              data-testid="profile-send-dm"
+            >
+              {copy.profile.sendDm}
+            </Button>
+          )}
 
-          {contact && addableGroups.length > 0 && (
+          {!isBlocked && contact && addableGroups.length > 0 && (
             <Box w="100%" maxW="sm" data-testid="profile-add-to-group">
               <Text fontWeight="medium" mb={2}>
                 {copy.profile.addToGroupLabel}
@@ -648,6 +670,7 @@ export default function ProfilePage() {
             <BlockContactButton
               peerPubkeyHex={contact.pubkeyHex}
               isArchived={contact.isArchived}
+              prominent={isBlocked}
               onChanged={() => setVersion((v) => v + 1)}
             />
           )}

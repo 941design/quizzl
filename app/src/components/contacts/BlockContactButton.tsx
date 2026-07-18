@@ -37,6 +37,14 @@ type BlockContactButtonProps = {
    * Does not affect the unblock label.
    */
   label?: string;
+  /**
+   * Renders the trigger in the prominent (filled/solid) action category instead
+   * of the default subdued `outline`. Used on a blocked contact's profile page,
+   * where Send message / Add to group are hidden and Unblock becomes the primary
+   * call to action (solid brand). The inline list-row usages leave this false so
+   * their compact Unblock/Reject affordances stay visually secondary.
+   */
+  prominent?: boolean;
 };
 
 /**
@@ -65,6 +73,7 @@ export default function BlockContactButton({
   testId = 'profile-archive',
   isDisabled = false,
   label,
+  prominent = false,
 }: BlockContactButtonProps) {
   const copy = useCopy();
   const { notifyBlockedPeersChanged } = useMarmot();
@@ -94,7 +103,8 @@ export default function BlockContactButton({
   if (isArchived) {
     return (
       <Button
-        variant="outline"
+        variant={prominent ? 'solid' : 'outline'}
+        colorScheme={prominent ? 'brand' : undefined}
         onClick={handleUnblock}
         isDisabled={isDisabled}
         data-testid={testId}

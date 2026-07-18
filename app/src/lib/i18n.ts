@@ -399,6 +399,7 @@ export type Copy = {
     sendDm: string;
     archiveAction: string;
     unarchiveAction: string;
+    blockedNotice: string;
     viewProfile: string;
     notFound: string;
     addToGroupLabel: string;
@@ -984,6 +985,7 @@ const copy: Record<LanguageCode, Copy> = {
       sendDm: 'Send message',
       archiveAction: 'Block contact',
       unarchiveAction: 'Unblock contact',
+      blockedNotice: "You've blocked this contact. Unblock them to send messages or add them to a group.",
       viewProfile: 'View profile',
       notFound: 'Profile not found.',
       addToGroupLabel: 'Add to a group',
@@ -1539,6 +1541,7 @@ const copy: Record<LanguageCode, Copy> = {
       sendDm: 'Nachricht senden',
       archiveAction: 'Kontakt blockieren',
       unarchiveAction: 'Kontakt entsperren',
+      blockedNotice: 'Du hast diesen Kontakt blockiert. Entsperre ihn, um Nachrichten zu senden oder ihn zu einer Gruppe hinzuzufügen.',
       viewProfile: 'Profil ansehen',
       notFound: 'Profil nicht gefunden.',
       addToGroupLabel: 'Zu einer Gruppe hinzufügen',

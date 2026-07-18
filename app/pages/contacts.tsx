@@ -276,6 +276,7 @@ function ContactListView() {
               </Button>
               <Button
                 variant={showHidden ? 'solid' : 'outline'}
+                colorScheme="warning"
                 onClick={() => setShowHidden(true)}
                 data-testid="contacts-filter-show-hidden"
                 size="lg"
