@@ -205,7 +205,7 @@ function ContactListView() {
                           live Confirm for an already-blocked contact. */}
                       {isBlocked ? (
                         <>
-                          <Badge colorScheme="gray">{copy.contacts.hiddenBadge}</Badge>
+                          <Badge colorScheme="neutral">{copy.contacts.hiddenBadge}</Badge>
                           <BlockContactButton
                             peerPubkeyHex={contact.pubkeyHex}
                             isArchived
@@ -215,7 +215,7 @@ function ContactListView() {
                         </>
                       ) : isPending ? (
                         <>
-                          <Badge colorScheme="purple" data-testid={`contact-pending-badge-${contact.pubkeyHex}`}>
+                          <Badge colorScheme="warning" data-testid={`contact-pending-badge-${contact.pubkeyHex}`}>
                             {copy.contacts.pendingBadge}
                           </Badge>
                           <ConfirmButton
@@ -276,7 +276,7 @@ function ContactListView() {
               </Button>
               <Button
                 variant={showHidden ? 'solid' : 'outline'}
-                colorScheme="warning"
+                colorScheme="danger"
                 onClick={() => setShowHidden(true)}
                 data-testid="contacts-filter-show-hidden"
                 size="lg"

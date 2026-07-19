@@ -42,7 +42,7 @@ export default function UpdateBanner({ updateAvailable }: UpdateBannerProps) {
       <Button
         size="sm"
         variant="solid"
-        colorScheme="blue"
+        colorScheme="brand"
         mr={2}
         onClick={() => window.location.reload()}
         data-testid="update-banner-reload"

@@ -82,7 +82,7 @@ export default function ImageLightbox({
               icon={<DownloadIcon />}
               size="sm"
               variant="ghost"
-              colorScheme="whiteAlpha"
+              colorScheme="neutral"
               color="white"
               isDisabled={imageState.status !== 'ready'}
               onClick={handleDownload}
@@ -93,7 +93,7 @@ export default function ImageLightbox({
               icon={<CloseIcon />}
               size="sm"
               variant="ghost"
-              colorScheme="whiteAlpha"
+              colorScheme="neutral"
               color="white"
               onClick={onClose}
             />

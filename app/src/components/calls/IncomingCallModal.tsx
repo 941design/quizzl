@@ -114,7 +114,7 @@ export function IncomingCallModal() {
         </ModalBody>
         <ModalFooter gap={3}>
           <Button
-            colorScheme="red"
+            colorScheme="danger"
             variant="outline"
             onClick={handleDecline}
             data-testid="incoming-call-decline-btn"
@@ -122,7 +122,7 @@ export function IncomingCallModal() {
             {copy.calls.declineCall}
           </Button>
           <Button
-            colorScheme="green"
+            colorScheme="success"
             onClick={handleAccept}
             data-testid="incoming-call-accept-btn"
           >

@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Button color × style matrix — few.chat</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1f2b; --muted: #5b6472; --border: #e2e6ec;
+    --thead: #f4f6f9; --row-alt: #fafbfc; --code-bg: #f0f2f5;
+    --brand: #4c6ef5; --success: #2f9e44; --danger: #e03131; --neutral: #7a8291;
+    --accent-bar: #4c6ef5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --fg: #e6e9ee; --muted: #9aa4b2; --border: #2a2f38;
+      --thead: #1b1f26; --row-alt: #171b21; --code-bg: #21262e;
+      --brand: #7a94ff; --success: #69db7c; --danger: #ff8080; --neutral: #9aa4b2;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e9ee; --muted: #9aa4b2; --border: #2a2f38;
+    --thead: #1b1f26; --row-alt: #171b21; --code-bg: #21262e;
+    --brand: #7a94ff; --success: #69db7c; --danger: #ff8080; --neutral: #9aa4b2;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --fg: #1a1f2b; --muted: #5b6472; --border: #e2e6ec;
+    --thead: #f4f6f9; --row-alt: #fafbfc; --code-bg: #f0f2f5;
+    --brand: #4c6ef5; --success: #2f9e44; --danger: #e03131; --neutral: #7a8291;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+  header { border-left: 4px solid var(--accent-bar); padding-left: 16px; margin-bottom: 8px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0; }
+  h2 { font-size: 19px; margin: 40px 0 12px; }
+  p { margin: 12px 0; }
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.88em;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 16px 0 8px; font-size: 13.5px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .dot.brand { background: var(--brand); }
+  .dot.success { background: var(--success); }
+  .dot.danger { background: var(--danger); }
+  .dot.neutral { background: var(--neutral); }
+
+  .scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; margin: 18px 0; }
+  table { border-collapse: collapse; width: 100%; min-width: 820px; }
+  caption { text-align: left; caption-side: top; color: var(--muted); font-size: 13px; padding: 10px 12px 0; }
+  th, td { border: 1px solid var(--border); padding: 9px 11px; vertical-align: top; text-align: left; }
+  thead th { background: var(--thead); font-size: 13px; position: sticky; top: 0; }
+  th.rowhead { background: var(--thead); white-space: nowrap; font-size: 13.5px; }
+  tbody tr:nth-child(even) { background: var(--row-alt); }
+  .col-brand { color: var(--brand); }
+  .col-success { color: var(--success); }
+  .col-danger { color: var(--danger); }
+  .col-neutral { color: var(--neutral); }
+  td { font-size: 13px; }
+  td.empty { color: var(--muted); text-align: center; }
+  .tag {
+    display: inline-block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; margin-left: 4px;
+  }
+  .callout {
+    border: 1px solid var(--border); border-left: 3px solid var(--success);
+    border-radius: 8px; padding: 12px 16px; margin: 16px 0; background: var(--row-alt);
+  }
+  ul { margin: 10px 0; padding-left: 22px; }
+  li { margin: 6px 0; }
+  footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 14px; }
+  .sup { font-size: 0.75em; vertical-align: super; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Button color × style matrix</h1>
+    <p class="sub">Every <code>&lt;Button&gt;</code> / <code>&lt;IconButton&gt;</code> in the app, mapped by <code>colorScheme</code> (color) × <code>variant</code> (style). Every color is now theme-driven — no raw Chakra palettes.</p>
+  </header>
+
+  <p>
+    Rows are the Chakra <strong><code>variant</code></strong> (button style); columns are the
+    <strong><code>colorScheme</code></strong> (color). Each cell lists the components using that
+    combination. Buttons with <em>no</em> <code>colorScheme</code> resolve to the theme default
+    <code>brand</code> (every shipped theme sets <code>buttonColorScheme: "brand"</code>), so they
+    are folded into the brand column and marked <span class="sup">d</span>.
+    <code>theme-preview.tsx</code> is excluded — it is a QA showcase that renders every cell dynamically.
+  </p>
+
+  <div class="legend">
+    <span><i class="dot brand"></i> <code>brand</code> — primary / affirmative</span>
+    <span><i class="dot success"></i> <code>success</code> — accept / approve / confirm</span>
+    <span><i class="dot danger"></i> <code>danger</code> — reject / destroy / attention</span>
+    <span><i class="dot neutral"></i> <code>neutral</code> — muted controls on dark media chrome</span>
+  </div>
+
+  <div class="scroll">
+  <table>
+    <caption>All four columns are theme-driven: brand / success / danger are semantic schemes; neutral is the theme's neutral scale. No <code>red</code>/<code>green</code>/<code>blue</code>/<code>whiteAlpha</code>/<code>warning</code> remain on any button.</caption>
+    <thead>
+      <tr>
+        <th class="rowhead">variant&nbsp;↓ / color&nbsp;→</th>
+        <th class="col-brand">brand <span class="sup">(+ default d)</span></th>
+        <th class="col-success">success</th>
+        <th class="col-danger">danger</th>
+        <th class="col-neutral">neutral</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th class="rowhead">solid<br><span class="tag">= no variant</span></th>
+        <td>ShareContactCard · CreatePollModal · ChatBox (send) · PollCard (vote) · BlockContactButton (unblock) · profile · UpdateBanner (reload) · settings (backup-restore) · WelcomeInvite<span class="sup">d</span> · CreateGroupModal<span class="sup">d</span> · InviteMemberModal<span class="sup">d</span> · GenerateInviteLinkModal<span class="sup">d</span> · JoinRequestCard<span class="sup">d</span> · groups (create +4)<span class="sup">d</span> · settings<span class="sup">d</span> · AvatarBrowserModal (selected) · contacts (hide-hidden toggle)</td>
+        <td><code>ConfirmButton</code> (UserCard → confirm contact · approve join request · make admin) · PendingConfirmationPrompt (confirm) · MemberList (make-admin confirm) · PendingInvitations (accept) · IncomingCallModal (accept)</td>
+        <td><code>RejectButton</code> (UserCard → MemberList) · BlockContactButton (block) · MemberList (remove / cancel-invite) · LeaveGroupButton · BackupReminderBanner · contacts (show-hidden toggle) · CallScreen (hang-up; mute / camera when off) · ManageInviteLinksModal (delete) · PollCard (confirm close) · settings (wipe / destructive)</td>
+        <td>CallScreen (mute / camera idle · PiP)</td>
+      </tr>
+      <tr>
+        <th class="rowhead">outline</th>
+        <td>BlockContactButton (archive) · NpubQrModal (copy) · profile (copy npub) · settings (×10 neutral actions) · groups · AvatarBrowserModal (unselected) · contacts (hide-hidden toggle)</td>
+        <td class="empty">—</td>
+        <td>LeaveGroupButton (leave) · IncomingCallModal (decline) · contacts (show-hidden toggle) · settings (reset / delete / wipe ×4)</td>
+        <td class="empty">—</td>
+      </tr>
+      <tr>
+        <th class="rowhead">ghost</th>
+        <td>CallToolbar (×4) · EmojiReactionPicker · EmojiComposerPicker · ChatBox (edit / delete) · CreatePollModal (×3) · ManageInviteLinksModal (cancel) · PendingInvitations (decline) · MemberList (view-profile + cancels ×3) · Generate / CreateGroup / InviteMember (cancel) · NpubQrButton · ImageAttachmentButton · PollCard / PollPanel · LeaveGroupButton (×2) · BlockContactButton (cancel) · info / add / imprint / feedback (back) · groups · profile (back) · settings (×8) · contacts (×3)</td>
+        <td class="empty">—</td>
+        <td>ChatBox (delete-confirm) · ManageInviteLinksModal (trash) · PollCard (close poll) · settings (remove theme)</td>
+        <td>ImageLightbox (download / close)</td>
+      </tr>
+      <tr>
+        <th class="rowhead">link</th>
+        <td>JoinRequestCard · InviteMemberModal (guidance) · groups · contacts</td>
+        <td class="empty">—</td>
+        <td class="empty">—</td>
+        <td class="empty">—</td>
+      </tr>
+      <tr>
+        <th class="rowhead">unstyled</th>
+        <td>Layout (mobile menu)</td>
+        <td class="empty">—</td>
+        <td class="empty">—</td>
+        <td class="empty">—</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    <strong><code>CloseButton</code></strong> is a separate Chakra component with no
+    <code>variant</code>/<code>colorScheme</code>: UpdateBanner · StorageWarning · ChatBox (×3) ·
+    OfflineBanner · BackupReminderBanner.
+  </p>
+
+  <h2>Companion: status badges</h2>
+  <p>
+    Status badges were moved onto the same theme schemes. They carry text labels, so where two
+    states share a scheme the label still distinguishes them. <code>warning</code> lives here
+    (a state), never on a button.
+  </p>
+  <div class="scroll">
+  <table>
+    <caption>Badge <code>colorScheme</code> after the raw-palette purge.</caption>
+    <thead>
+      <tr><th class="rowhead">scheme</th><th>meaning</th><th>badges</th></tr>
+    </thead>
+    <tbody>
+      <tr><th class="rowhead col-brand">brand</th><td>role / identity</td><td>MemberList (admin)</td></tr>
+      <tr><th class="rowhead col-danger">danger</th><td>destructive-pending</td><td>MemberList (removal-pending)</td></tr>
+      <tr><th class="rowhead" style="color:#e8a12e">warning</th><td>awaiting / caution state</td><td>MemberList (invited-pending · join-requested) · contacts (pending) · GroupCard (near member limit)</td></tr>
+      <tr><th class="rowhead col-neutral">neutral</th><td>muted / inactive</td><td>contacts (hidden) · profile (blocked) · theme-preview (non-stable status)</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>What changed</h2>
+  <ul>
+    <li><strong>No warning buttons.</strong> <code>warning</code> is now a state colour only (badges + the GroupCard near-limit badge). The two former warning buttons — BackupReminderBanner and the contacts show-hidden toggle — were elevated to <code>danger</code>.</li>
+    <li><strong>No raw Chakra palettes on buttons or badges.</strong> <code>red → danger</code>, <code>green → success</code>, <code>blue → brand</code>, <code>whiteAlpha → neutral</code>; badge <code>purple → brand</code>, <code>yellow / blue → warning</code>, <code>orange → danger</code>, <code>gray → neutral</code>. Every button and badge now re-themes with the active theme.</li>
+    <li><strong>Affirmative family unified on success.</strong> The codified <code>ConfirmButton</code> category (confirm contact, approve join request, make admin) plus its two non-wrapper siblings (PendingConfirmationPrompt confirm, MemberList make-admin confirm dialog) moved from <code>brand</code> to <code>success</code>. Every accept/reject pair now reads green/red; <code>brand</code> is reserved for primary actions you initiate (create, send, submit, vote).</li>
+    <li><strong>theme-preview updated.</strong> The button showcase now iterates <code>brand · success · danger</code> (warning removed, success added because accept buttons use it); the badge showcase uses <code>neutral</code> in place of <code>gray</code>.</li>
+  </ul>
+
+  <div class="callout">
+    <strong>Resolved:</strong> the previous split between semantic and raw-Chakra colours is gone —
+    a destructive action reads as <code>danger</code> everywhere, an accept as <code>success</code>,
+    and all of it restyles per theme. The one deliberate specialisation is <code>neutral</code> on the
+    dark media overlays (call screen, image lightbox), where the theme's neutral scale stands in for
+    the old translucent-white controls; icon legibility there is preserved by explicit
+    <code>color="white"</code> (lightbox) and solid emoji glyphs (call screen).
+  </div>
+
+  <h2>Out of scope (follow-up)</h2>
+  <p>
+    This pass covered <code>colorScheme</code> on buttons and badges. A separate raw-palette surface
+    remains in <strong>ad-hoc <code>color=</code> / <code>bg=</code> props</strong> (~40 sites): error/status text
+    (<code>red.500</code>, <code>green.500</code>), muted announcement panels (<code>gray.50</code>), and
+    dark-overlay chrome (<code>blackAlpha</code>/<code>whiteAlpha</code>/<code>gray</code> on the call screen).
+    Many map to semantic tokens (<code>dangerText</code>, <code>successText</code>, <code>textMuted</code>); the
+    dark-overlay ones are intentional. Convert as a distinct change if desired.
+  </p>
+
+  <footer>
+    Generated from a static scan of <code>app/src/**</code> and <code>app/pages/**</code>.
+    Reflects the working tree after the theme-colour consolidation. Re-derive from source if button usage changes.
+  </footer>
+</div>
+</body>
+</html>

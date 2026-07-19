@@ -398,7 +398,7 @@ export function CallScreen() {
             aria-label={isMuted ? copy.calls.unmuteAudio : copy.calls.muteAudio}
             icon={<Text fontSize="xl">{isMuted ? '🔇' : '🎙️'}</Text>}
             onClick={handleToggleMute}
-            colorScheme={isMuted ? 'red' : 'whiteAlpha'}
+            colorScheme={isMuted ? 'danger' : 'neutral'}
             variant="solid"
             size="lg"
             borderRadius="full"
@@ -413,7 +413,7 @@ export function CallScreen() {
               aria-label={isCameraOff ? copy.calls.cameraOn : copy.calls.cameraOff}
               icon={<Text fontSize="xl">{isCameraOff ? '📵' : '📷'}</Text>}
               onClick={handleToggleCamera}
-              colorScheme={isCameraOff ? 'red' : 'whiteAlpha'}
+              colorScheme={isCameraOff ? 'danger' : 'neutral'}
               variant="solid"
               size="lg"
               borderRadius="full"
@@ -428,7 +428,7 @@ export function CallScreen() {
             aria-label={copy.calls.hangUp}
             icon={<Text fontSize="xl">📵</Text>}
             onClick={handleHangUp}
-            colorScheme="red"
+            colorScheme="danger"
             variant="solid"
             size="lg"
             borderRadius="full"
@@ -443,7 +443,7 @@ export function CallScreen() {
               aria-label="Picture in Picture"
               icon={<Text fontSize="xl">⧉</Text>}
               onClick={() => void handlePiP()}
-              colorScheme="whiteAlpha"
+              colorScheme="neutral"
               variant="solid"
               size="lg"
               borderRadius="full"

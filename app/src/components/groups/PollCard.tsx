@@ -144,7 +144,7 @@ export default function PollCard({ poll, votes, pubkey, profileMap }: PollCardPr
         <Button
           size="xs"
           variant="ghost"
-          colorScheme="red"
+          colorScheme="danger"
           mt={2}
           onClick={() => setConfirmClose(true)}
           data-testid={`poll-close-btn-${poll.id}`}
@@ -155,7 +155,7 @@ export default function PollCard({ poll, votes, pubkey, profileMap }: PollCardPr
       {isCreator && confirmClose && (
         <Flex mt={2} gap={2} align="center">
           <Text fontSize="xs" color="textMuted">{copy.polls.closeConfirm}</Text>
-          <Button size="xs" colorScheme="red" onClick={() => void handleClose()} isLoading={isClosing}>
+          <Button size="xs" colorScheme="danger" onClick={() => void handleClose()} isLoading={isClosing}>
             {copy.polls.confirm}
           </Button>
           <Button size="xs" variant="ghost" onClick={() => setConfirmClose(false)}>

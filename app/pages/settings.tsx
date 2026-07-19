@@ -1390,7 +1390,7 @@ export default function SettingsPage() {
                   {!wipeDisclosure.isOpen ? (
                     <Button
                       size="sm"
-                      colorScheme="red"
+                      colorScheme="danger"
                       variant="outline"
                       onClick={wipeDisclosure.onOpen}
                       data-testid="danger-zone-wipe-btn"
@@ -1410,7 +1410,7 @@ export default function SettingsPage() {
                       <HStack spacing={2}>
                         <Button
                           size="sm"
-                          colorScheme="red"
+                          colorScheme="danger"
                           isDisabled={wipeConfirmInput !== copy.advanced.dangerZone.wipeConfirmWord}
                           onClick={() => {
                             resetAllData();
@@ -1465,7 +1465,7 @@ export default function SettingsPage() {
             >
               Skip
             </Button>
-            <Button colorScheme="blue" onClick={handleConfirmBackupRestore}>
+            <Button colorScheme="brand" onClick={handleConfirmBackupRestore}>
               Restore
             </Button>
           </ModalFooter>

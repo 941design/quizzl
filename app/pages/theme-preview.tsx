@@ -17,6 +17,7 @@ import {
   Button,
   Divider,
   Flex,
+  Grid,
   Heading,
   HStack,
   Input,
@@ -132,7 +133,7 @@ export default function ThemePreviewPage() {
               >
                 {t.label.en}
                 {t.status !== 'stable' && (
-                  <Badge ml={2} fontSize="0.6em" colorScheme="gray">
+                  <Badge ml={2} fontSize="0.6em" colorScheme="neutral">
                     {t.status}
                   </Badge>
                 )}
@@ -403,36 +404,45 @@ export default function ThemePreviewPage() {
         */}
 
         <Section title="Buttons" subtitle="The theme's buttonColorScheme drives the default solid button in the app.">
-          <VStack align="stretch" spacing={4}>
-            {/* 'success' commented out — no colorScheme="success" button exists
-                anywhere in the app (green semantics use colorScheme="green"). */}
-            {(['brand', /* 'success', */ 'warning', 'danger'] as const).map((scheme) => (
-              <Wrap key={scheme} spacing={3} align="center">
-                <Box w="70px">
-                  <TokenLabel>{scheme}</TokenLabel>
-                </Box>
-                <Button colorScheme={scheme} sx={buttonSx}>
-                  Solid
-                </Button>
-                <Button colorScheme={scheme} variant="outline">
-                  Outline
-                </Button>
-                <Button colorScheme={scheme} variant="ghost">
-                  Ghost
-                </Button>
-                <Button colorScheme={scheme} isDisabled sx={buttonSx}>
-                  Disabled
-                </Button>
-              </Wrap>
-            ))}
-          </VStack>
+          {/* One shared Grid so every variant lines up in a fixed column across
+              schemes — Solid · Outline · Ghost · Link · Disabled. A scheme leaves
+              a column blank where it does not use that variant
+              (docs/themes/button-color-style-matrix.html): brand carries every
+              emphasis tier (primary → secondary → quiet → inline link); success
+              is solid-only (an affirmative action is always the primary CTA, never
+              de-emphasised to outline/ghost); danger runs solid → outline → ghost
+              (the quiet-to-loud destructive ladder). 'warning' is absent — warning
+              is a state (badge/banner), never a button. */}
+          <Grid templateColumns="70px repeat(5, max-content)" gap={3} alignItems="center">
+            {([
+              { scheme: 'brand', uses: ['solid', 'outline', 'ghost', 'link', 'disabled'] },
+              { scheme: 'success', uses: ['solid', 'disabled'] },
+              { scheme: 'danger', uses: ['solid', 'outline', 'ghost', 'disabled'] },
+            ] as const).flatMap(({ scheme, uses }) => [
+              <TokenLabel key={`${scheme}-label`}>{scheme}</TokenLabel>,
+              ...(['solid', 'outline', 'ghost', 'link', 'disabled'] as const).map((col) => {
+                const key = `${scheme}-${col}`;
+                if (!(uses as readonly string[]).includes(col)) return <Box key={key} />;
+                if (col === 'solid')
+                  return <Button key={key} colorScheme={scheme} sx={buttonSx}>Solid</Button>;
+                if (col === 'disabled')
+                  return <Button key={key} colorScheme={scheme} isDisabled sx={buttonSx}>Disabled</Button>;
+                return (
+                  <Button key={key} colorScheme={scheme} variant={col}>
+                    {col.charAt(0).toUpperCase() + col.slice(1)}
+                  </Button>
+                );
+              }),
+            ])}
+          </Grid>
         </Section>
 
         <Section title="Badges">
           <Wrap spacing={3}>
-            {/* 'success' commented out — no colorScheme="success" badge exists
-                anywhere in the app. */}
-            {(['brand', /* 'success', */ 'warning', 'danger', 'gray'] as const).map((c) => (
+            {/* Badges use brand (admin/role), warning (pending/awaiting states),
+                danger (removal-pending), and neutral (hidden/blocked/muted). No
+                success badge exists. All theme-driven — no raw Chakra palettes. */}
+            {(['brand', 'warning', 'danger', 'neutral'] as const).map((c) => (
               <Badge key={c} colorScheme={c}>
                 {c}
               </Badge>

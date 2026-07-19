@@ -33,7 +33,7 @@ export default function BackupReminderBanner() {
         </AlertDescription>
         <HStack mt={2} spacing={2}>
           <NextLink href="/settings" passHref legacyBehavior>
-            <Button as="a" size="xs" colorScheme="warning" variant="solid">
+            <Button as="a" size="xs" colorScheme="danger" variant="solid">
               {copy.identity.backupReminderAction}
             </Button>
           </NextLink>

@@ -26,9 +26,9 @@ import type { UserProfile } from '@/src/types';
  * (the view-profile icon) stay neutral ghost buttons and are exempt.
  */
 
-/** Filled brand button — the "confirming" action category. */
+/** Filled success (green) button — the "confirming / affirmative" action category. */
 export function ConfirmButton(props: ButtonProps) {
-  return <Button size="sm" variant="solid" colorScheme="brand" {...props} />;
+  return <Button size="sm" variant="solid" colorScheme="success" {...props} />;
 }
 
 /** Filled danger (red) button — the "rejecting / destructive" action category. */

@@ -187,7 +187,7 @@ function PendingRequestRow({
       actions={
         <>
           <Badge
-            colorScheme="blue"
+            colorScheme="warning"
             variant="subtle"
             fontSize="2xs"
             data-testid={`member-requested-${prefix}`}
@@ -476,7 +476,7 @@ function MemberListItem({
           <>
             {isPending && (
               <Badge
-                colorScheme="yellow"
+                colorScheme="warning"
                 variant="subtle"
                 fontSize="2xs"
                 data-testid={`member-pending-${prefix}`}
@@ -486,7 +486,7 @@ function MemberListItem({
             )}
             {isRowAdmin && adminBadgeLabel && (
               <Badge
-                colorScheme="purple"
+                colorScheme="brand"
                 variant="subtle"
                 fontSize="2xs"
                 data-testid={`admin-badge-${prefix}`}
@@ -496,7 +496,7 @@ function MemberListItem({
             )}
             {isPendingRemoval && removalPendingLabel && (
               <Badge
-                colorScheme="orange"
+                colorScheme="danger"
                 variant="subtle"
                 fontSize="2xs"
                 data-testid={`removal-pending-${prefix}`}
@@ -614,7 +614,7 @@ function MemberListItem({
               {cancelLabel}
             </Button>
             <Button
-              colorScheme="brand"
+              colorScheme="success"
               onClick={handleConfirmMakeAdmin}
               isLoading={isMakingAdmin}
               data-testid={`make-admin-confirm-${pubkey.slice(0, 8)}`}

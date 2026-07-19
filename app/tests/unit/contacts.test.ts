@@ -523,11 +523,11 @@ describe('PendingConfirmationPrompt.tsx renders a Reject button alongside Confir
     expect(source).toMatch(/<BlockContactButton[\s\S]*?isArchived=\{false\}/);
   });
 
-  it('the Confirm button remains the primary (brand-colored) action; the Reject (BlockContactButton) is the secondary control', () => {
+  it('the Confirm button remains the primary (success-colored) affirmative action; the Reject (BlockContactButton) is the secondary control', () => {
     const source = readSource('src/components/contacts/PendingConfirmationPrompt.tsx');
     const confirmBtnMatch = source.match(/<Button[\s\S]*?data-testid="pending-confirmation-confirm-btn"/);
     expect(confirmBtnMatch).not.toBeNull();
-    expect(confirmBtnMatch![0]).toContain('colorScheme="brand"');
+    expect(confirmBtnMatch![0]).toContain('colorScheme="success"');
   });
 
   it('the Reject label is passed via BlockContactButton\'s label prop from useCopy(), never hardcoded', () => {

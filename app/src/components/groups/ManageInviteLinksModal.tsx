@@ -205,7 +205,7 @@ export default function ManageInviteLinksModal({
                         </Button>
                         <Button
                           size="xs"
-                          colorScheme="red"
+                          colorScheme="danger"
                           onClick={() => void handleConfirmDelete(link.nonce)}
                           data-testid={`invite-link-delete-confirm-${link.nonce}`}
                         >
@@ -218,7 +218,7 @@ export default function ManageInviteLinksModal({
                         icon={<TrashIcon />}
                         size="sm"
                         variant="ghost"
-                        colorScheme="red"
+                        colorScheme="danger"
                         onClick={() => setConfirmingNonce(link.nonce)}
                         data-testid={`invite-link-delete-${link.nonce}`}
                       />

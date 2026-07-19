@@ -777,7 +777,7 @@ export default function ChatBox({
                                 icon={<TrashIcon />}
                                 size="xs"
                                 variant="ghost"
-                                colorScheme="red"
+                                colorScheme="danger"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeleteClick(msg.id);

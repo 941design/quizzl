@@ -94,7 +94,7 @@ function PendingInvitationRow({
         <HStack spacing={2} flexShrink={0}>
           <Button
             size="xs"
-            colorScheme="green"
+            colorScheme="success"
             onClick={() => void onAccept(invitation.id)}
             isLoading={accepting}
             data-testid={`accept-invitation-${invitation.id}`}

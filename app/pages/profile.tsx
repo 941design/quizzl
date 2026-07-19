@@ -634,7 +634,7 @@ export default function ProfilePage() {
                   {displayName}
                 </Heading>
                 {isBlocked && (
-                  <Badge colorScheme="gray" data-testid="profile-blocked-badge">
+                  <Badge colorScheme="neutral" data-testid="profile-blocked-badge">
                     {copy.contacts.hiddenBadge}
                   </Badge>
                 )}

@@ -112,7 +112,7 @@ export default function PendingConfirmationPrompt({
       <Box mt={4}>
         <HStack spacing={3} align="center" flexWrap="wrap">
           <Button
-            colorScheme="brand"
+            colorScheme="success"
             onClick={() => void handleConfirm()}
             isLoading={isConfirming}
             data-testid="pending-confirmation-confirm-btn"
