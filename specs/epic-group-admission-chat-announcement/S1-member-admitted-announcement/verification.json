@@ -1,0 +1,105 @@
+{
+  "story_id": "S1",
+  "created_at": "2026-07-19T13:40:05Z",
+  "pre_impl": [
+    {
+      "id": "VQ-S1-01",
+      "type": "SPEC",
+      "ac_id": "AC-PARSE-1",
+      "question": "Does parseStructured return { type: 'member_admitted', pubkey } for a well-formed member_admitted payload, and is there a unit test asserting it?"
+    },
+    {
+      "id": "VQ-S1-02",
+      "type": "SPEC",
+      "ac_id": "AC-PARSE-2",
+      "question": "Does parseStructured reject a member_admitted payload with missing/non-string pubkey (returns null / not member_admitted), with a unit test covering the malformed cases?"
+    },
+    {
+      "id": "VQ-S1-03",
+      "type": "SPEC",
+      "ac_id": "AC-ATTR-1",
+      "question": "Is the admitter attributed strictly from msg.senderPubkey (protocol sender), never from any payload field, with a test proving a spoofed self-reported admitter cannot change the shown admitter?"
+    },
+    {
+      "id": "VQ-S1-04",
+      "type": "SPEC",
+      "ac_id": "AC-RENDER-1",
+      "question": "Does ChatBox.renderStructuredMessage render MemberAdmittedChatAnnouncement (testid member-admitted-announcement) for a member_admitted message instead of a plain bubble, showing both display names via groups.admittedMemberAnnouncement?"
+    },
+    {
+      "id": "VQ-S1-05",
+      "type": "SPEC",
+      "ac_id": "AC-RENDER-2",
+      "question": "Does the admitted member's display name resolve from profileMap[structured.pubkey] with a truncated-npub fallback?"
+    },
+    {
+      "id": "VQ-S1-06",
+      "type": "SPEC",
+      "ac_id": "AC-I18N-1",
+      "question": "Is groups.admittedMemberAnnouncement typed on Copy and implemented in BOTH en and de, with the en form reading '<admitter> admitted <member>' and a correct de translation?"
+    },
+    {
+      "id": "VQ-S1-07",
+      "type": "SPEC",
+      "ac_id": "AC-SEND-1",
+      "question": "Does handleApproveRequest post exactly one member_admitted announcement carrying request.pubkeyHex via sendAnnouncementRef only when approveJoinRequest returns { ok: true }, and nothing on failure?"
+    },
+    {
+      "id": "VQ-S1-08",
+      "type": "SPEC",
+      "ac_id": "AC-SCOPE-1",
+      "question": "Is the direct-invite path (InviteMemberModal / invite-by-npub) confirmed to post NO member_admitted announcement (code inspection + e2e regression assertion)?"
+    },
+    {
+      "id": "VQ-S1-09",
+      "type": "BEHAVIOR",
+      "question": "Do the unit tests pass (make test-unit or vitest) and does typecheck/build succeed with the new StructuredContent variant and i18n keys?"
+    },
+    {
+      "id": "VQ-S1-10",
+      "type": "BEHAVIOR",
+      "question": "Is there a groups-*.spec.ts e2e (relay bucket) that drives a real join-request approval through the app and asserts the member-admitted-announcement testid renders with correct names for admin AND a second existing member, publishing through the app (no raw WebSocket)?"
+    },
+    {
+      "id": "VQ-S1-11",
+      "type": "SCOPE",
+      "question": "Are all edits confined to the story scope (parseStructured.ts, the new component, ChatBox.tsx, i18n.ts, groups.tsx, unit+e2e tests) with no unrelated files touched?"
+    }
+  ],
+  "post_impl": [
+    {
+      "id": "VQ-S1-P01",
+      "type": "SPEC",
+      "ac_id": "AC-PARSE-2/AC-ATTR-1",
+      "question": "Does the parseStructured guard for member_admitted structurally strip any extra attacker-supplied fields (e.g. a forged \"by\"/\"admitter\") from the returned object, so the payload cannot carry an admitter at all?",
+      "answer": "YES. The guard returns a freshly-constructed `{ type: 'member_admitted', pubkey: parsed.pubkey }` object (not `parsed as StructuredContent`), so any extra JSON field is dropped. Unit test 'drops any extra attacker-supplied fields' in app/tests/unit/marmot/parseStructured.test.ts asserts the parsed result has no `by`/`admitter` property even when the raw JSON string contains them."
+    },
+    {
+      "id": "VQ-S1-P02",
+      "type": "BEHAVIOR",
+      "ac_id": "AC-ATTR-1",
+      "question": "ChatBox's member_admitted branch resolves admitterDisplay inline (mirroring the group_renamed branch verbatim, not by calling resolveCancellerDisplay). Given this repo's unit tests never mount React components (no jsdom), does the unit-test coverage still validly pin the attribution guarantee, or is there a gap between what's tested and what ChatBox actually executes?",
+      "answer": "The inline expression in ChatBox (`profileMap[msg.senderPubkey]?.nickname ?? truncateNpub(pubkeyToNpub(msg.senderPubkey))`) is textually identical in structure to resolveCancellerDisplay's body (`profileMap[senderPubkey]?.nickname ?? truncate(senderPubkey)`), differing only in the truncate function being pubkeyToNpub-composed inline vs injected as a parameter. The new 'member_admitted admitter attribution — trust boundary' describe block in parseStructured.test.ts exercises resolveCancellerDisplay against a member_admitted-shaped scenario to pin the algorithm and its spoof-resistance; this is the same testing strategy the group_renamed precedent uses (that branch is likewise untested by direct component mount, relying on the algorithmic equivalence). Residual gap: a future refactor of the inline ChatBox expression to diverge from this algorithm would not be caught by this unit test — this is a pre-existing limitation of the group_renamed pattern being mirrored, not new to this story."
+    },
+    {
+      "id": "VQ-S1-P03",
+      "type": "BEHAVIOR",
+      "ac_id": "AC-RENDER-1/AC-RENDER-2",
+      "question": "Per DD-4, the approving admin (A) gets B's provisional MemberProfile seeded locally and immediately, but that seed is a LOCAL IDB write in approveJoinRequestImpl and does not sync to other remote members (e.g. C). Does the e2e spec's assertion strictness correctly reflect this asymmetry?",
+      "answer": "YES. The e2e spec asserts A's announcement strictly contains BOTH ADMIN_NICKNAME and REQUESTER_NICKNAME (A has the immediate provisional seed). For C's view, the spec only asserts ADMIN_NICKNAME strictly (C's copy of A's profile has had time to sync from earlier group interaction) and explicitly does not assert B's exact name on C's side, with an inline comment noting the AC-RENDER-2-sanctioned truncated-npub fallback is an acceptable outcome there."
+    },
+    {
+      "id": "VQ-S1-P04",
+      "type": "SCOPE",
+      "ac_id": "AC-SEND-1/AC-SCOPE-1",
+      "question": "Does the e2e spec's contexts-stay-open discipline (never closing B's BrowserContext or Page) avoid the join-request-autoaccept-masking trap that a sibling spec (groups-approved-requester-label.spec.ts) deliberately closes B's Page to guard against?",
+      "answer": "YES, and it does not need that guard for this story's ACs. The masking trap that sibling spec guards against is specifically about the PROVISIONAL member-profile/label persisting correctly when the real profile has NOT yet arrived (an assertion that depends on B staying offline so its real signed profile can't race in). This story's ACs (AC-SEND-1: exactly one announcement fires on success; AC-RENDER-1/2: the announcement renders with correct/fallback names) do not depend on B being offline — the announcement's admitter attribution comes from A's protocol sender identity, not from B's presence at all, and the admitted member's pubkey (not name) is what the payload carries. Keeping B's context and page open throughout (per the explicit task instruction and the closing-playwright-browsercontext-destroys learning) introduces no masking risk for these specific ACs."
+    },
+    {
+      "id": "VQ-S1-P05",
+      "type": "BEHAVIOR",
+      "question": "Final regression check: unit test count baseline vs after, typecheck, and e2e spec collection.",
+      "answer": "Unit: 193 test files (unchanged) / 3655 -> 3662 passed (+7 new: 4 parse-guard tests + 3 attribution-trust-boundary tests) / 1 skipped (unchanged). No previously-passing test failed. Typecheck (`npx tsc --noEmit -p tsconfig.json`): clean before and after. Lint: NO_LINT baseline (no .eslintrc under app/; `next lint` requires interactive scaffolding, unusable non-interactively) — unchanged by this story. E2E: `E2E_GROUPS=1 npx playwright test tests/e2e/groups-member-admitted-announcement.spec.ts --list` collects all 7 tests correctly; the spec was not executed (full e2e gate is lead-owned per project convention)."
+    }
+  ]
+}

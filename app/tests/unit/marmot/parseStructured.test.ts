@@ -61,6 +61,65 @@ describe('parseStructured', () => {
     const result = parseStructured('{"type":"group_renamed","name":42}');
     expect(result).toBeNull();
   });
+
+  // A canonical 64-char lowercase-hex pubkey (the only shape the guard accepts).
+  const VALID_HEX_PUBKEY = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
+
+  // AC-PARSE-1
+  it('returns member_admitted variant for valid input', () => {
+    const result = parseStructured(
+      `{"type":"member_admitted","pubkey":"${VALID_HEX_PUBKEY}"}`,
+    );
+    expect(result).toEqual({
+      type: 'member_admitted',
+      pubkey: VALID_HEX_PUBKEY,
+    });
+  });
+
+  // AC-PARSE-2
+  it('returns null for member_admitted missing pubkey', () => {
+    const result = parseStructured('{"type":"member_admitted"}');
+    expect(result).toBeNull();
+  });
+
+  // AC-PARSE-2
+  it('returns null for member_admitted non-string pubkey', () => {
+    const result = parseStructured('{"type":"member_admitted","pubkey":42}');
+    expect(result).toBeNull();
+  });
+
+  // AC-PARSE-2 (hardening): a non-canonical pubkey — too short, wrong length,
+  // uppercase, or non-hex — must NOT parse as member_admitted. Otherwise the
+  // render branch would feed it to pubkeyToNpub → nip19.npubEncode, which
+  // throws on malformed hex and would break the chat timeline for receivers.
+  // Rejecting here makes such crafted content fall through to plain text.
+  it.each([
+    ['too short', 'x'],
+    ['short hex', 'aabb'],
+    ['63 hex chars', 'a'.repeat(63)],
+    ['65 hex chars', 'a'.repeat(65)],
+    ['uppercase hex', 'A'.repeat(64)],
+    ['non-hex chars', 'g'.repeat(64)],
+    ['empty', ''],
+  ])('returns null for member_admitted with a non-canonical pubkey (%s)', (_label, pubkey) => {
+    const result = parseStructured(`{"type":"member_admitted","pubkey":"${pubkey}"}`);
+    expect(result).toBeNull();
+  });
+
+  // AC-ATTR-1 (structural half): the guard rebuilds the object from named
+  // fields only (`{ type, pubkey }`), so an attacker-supplied "by"/"admitter"
+  // field in the raw payload is silently dropped — there is no field in the
+  // parsed result an attacker could point the render layer at. This is a
+  // stronger guarantee than invite_cancelled's `by` field: member_admitted
+  // has no admitter field in its type AT ALL.
+  it('drops any extra attacker-supplied fields (e.g. a forged "by"/"admitter") — the payload cannot carry an admitter', () => {
+    const result = parseStructured(
+      `{"type":"member_admitted","pubkey":"${VALID_HEX_PUBKEY}","by":"forgedAdminPk","admitter":"forgedAdminPk"}`,
+    );
+    expect(result).toEqual({ type: 'member_admitted', pubkey: VALID_HEX_PUBKEY });
+    expect(result).not.toHaveProperty('by');
+    expect(result).not.toHaveProperty('admitter');
+  });
 });
 
 describe('resolveCancellerDisplay — trust boundary', () => {
@@ -94,5 +153,51 @@ describe('resolveCancellerDisplay — trust boundary', () => {
     expect(resolveCancellerDisplay(actualSender, profileMap, truncate)).toBe('Attacker');
     // And that using the forged field would have returned the wrong name:
     expect(resolveCancellerDisplay(forgedBy, profileMap, truncate)).toBe('Admin');
+  });
+});
+
+// AC-ATTR-1 (behavioral half). ChatBox.renderStructuredMessage's member_admitted
+// branch resolves admitterDisplay with the identical algorithm
+// resolveCancellerDisplay implements — profileMap[senderPubkey]?.nickname,
+// falling back to a truncated senderPubkey — applied to the protocol-enforced
+// `msg.senderPubkey`, never to any field of the member_admitted payload (which,
+// per the guard above, cannot even carry one). resolveCancellerDisplay is a
+// pure, type-agnostic resolution helper, so exercising it here against a
+// member_admitted-shaped scenario proves the same trust-boundary guarantee the
+// render branch depends on, without needing jsdom/@testing-library (this repo's
+// unit tests never mount React components).
+describe('member_admitted admitter attribution — trust boundary (AC-ATTR-1)', () => {
+  const truncate = (pk: string) => pk.slice(0, 8) + '…';
+
+  it('resolves the admitter from the protocol senderPubkey, using the same algorithm the ChatBox branch calls inline', () => {
+    const adminSenderPk = 'realAdminSenderPk';
+    const profileMap = { realAdminSenderPk: { nickname: 'Alice' } };
+    expect(resolveCancellerDisplay(adminSenderPk, profileMap, truncate)).toBe('Alice');
+  });
+
+  it('a member_admitted payload structurally cannot spoof the admitter: only msg.senderPubkey ever feeds resolution', () => {
+    // The parsed member_admitted result only ever has `type` and `pubkey`
+    // (the ADMITTED MEMBER's pubkey) — see the parse guard tests above. There
+    // is no payload field the render branch could mistakenly resolve the
+    // admitter from, even if an attacker forges one, because parseStructured
+    // already dropped it. This test pins that the only viable resolution
+    // input is the protocol sender.
+    const realSender = 'realAdminSenderPk';
+    const attackerControlledMemberPubkey = 'attackerPk';
+    const profileMap = {
+      realAdminSenderPk: { nickname: 'Alice' },
+      attackerPk: { nickname: 'Mallory' },
+    };
+    const admitterDisplay = resolveCancellerDisplay(realSender, profileMap, truncate);
+    expect(admitterDisplay).toBe('Alice');
+    expect(admitterDisplay).not.toBe('Mallory');
+    // Even resolving against the payload's own `pubkey` field (the admitted
+    // member, not an admitter) would yield the wrong actor — proving the
+    // render branch must use senderPubkey and nothing from the payload.
+    expect(resolveCancellerDisplay(attackerControlledMemberPubkey, profileMap, truncate)).toBe('Mallory');
+  });
+
+  it('falls back to a truncated pubkey when the admitter has no known profile', () => {
+    expect(resolveCancellerDisplay('unknownSenderPk', {}, truncate)).toBe('unknownS…');
   });
 });

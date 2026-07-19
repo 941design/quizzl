@@ -35,6 +35,7 @@ import PollChatResults from '@/src/components/groups/PollChatResults';
 import InviteCancelledChatAnnouncement from '@/src/components/groups/InviteCancelledChatAnnouncement';
 import LeaveChatAnnouncement from '@/src/components/groups/LeaveChatAnnouncement';
 import GroupRenamedChatAnnouncement from '@/src/components/groups/GroupRenamedChatAnnouncement';
+import MemberAdmittedChatAnnouncement from '@/src/components/groups/MemberAdmittedChatAnnouncement';
 import ImageAttachmentButton from '@/src/components/groups/ImageAttachmentButton';
 import ImageMessageBubble from '@/src/components/groups/ImageMessageBubble';
 import { ATTACHMENTS_ENABLED } from '@/src/config/features';
@@ -515,6 +516,17 @@ export default function ChatBox({
       const actorDisplay = profileMap[msg.senderPubkey]?.nickname
         ?? truncateNpub(pubkeyToNpub(msg.senderPubkey));
       return <GroupRenamedChatAnnouncement actorDisplay={actorDisplay} newName={structured.name} />;
+    }
+    if (structured?.type === 'member_admitted' && allowPollMessages) {
+      // Attribute the admitter to the protocol-enforced sender, never a
+      // self-reported field (mirrors resolveCancellerDisplay / group_renamed).
+      // The payload carries only the admitted member's pubkey — there is no
+      // admitter field to spoof.
+      const admitterDisplay = profileMap[msg.senderPubkey]?.nickname
+        ?? truncateNpub(pubkeyToNpub(msg.senderPubkey));
+      const memberDisplay = profileMap[structured.pubkey]?.nickname
+        ?? truncateNpub(pubkeyToNpub(structured.pubkey));
+      return <MemberAdmittedChatAnnouncement admitterDisplay={admitterDisplay} memberDisplay={memberDisplay} />;
     }
     if (structured?.type === 'call_notice') {
       const initiatorDisplay = profileMap[structured.initiator]?.nickname

@@ -392,7 +392,16 @@ function GroupDetailView({ id }: { id: string }) {
     setApprovingRequestId(request.eventId);
     setRequestErrors((prev) => { const next = { ...prev }; delete next[request.eventId]; return next; });
     const result = await approveJoinRequest(request);
-    if (!result.ok) {
+    if (result.ok) {
+      // Fire-and-forget in-chat notice, mirroring the group_renamed announcement
+      // (AC-SEND-1). Only on success — a failed approval posts nothing. The
+      // admitter is attributed from the protocol MLS sender on render, never
+      // from this payload (DD-2) — the payload carries only the admitted
+      // member's pubkey.
+      void sendAnnouncementRef.current?.(
+        JSON.stringify({ type: 'member_admitted', pubkey: request.pubkeyHex }),
+      );
+    } else {
       setRequestErrors((prev) => ({ ...prev, [request.eventId]: result.error ?? 'unknown' }));
     }
     setApprovingRequestId(null);

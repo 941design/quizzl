@@ -1,0 +1,26 @@
+{
+  "captured_at": "2026-07-19T13:55:00Z",
+  "commands": {
+    "unit_test": "make test-unit",
+    "typecheck": "cd app && npx tsc --noEmit -p tsconfig.json",
+    "lint": "cd app && npx next lint"
+  },
+  "unit_test": {
+    "status": "PASS",
+    "test_files": 193,
+    "tests_passed": 3655,
+    "tests_skipped": 1,
+    "tests_total": 3656
+  },
+  "typecheck": {
+    "status": "clean"
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "note": "No .eslintrc/eslint config exists under app/; `next lint` prompts interactively to scaffold one and cannot run non-interactively in this environment. Recorded as NO_LINT per the pre-existing-debt baseline convention — this story introduces no lint tooling change."
+  },
+  "e2e": {
+    "status": "NOT_RUN_BY_ARCHITECT",
+    "note": "Full e2e gate (make test-e2e-all) is owned by the lead per project convention; architect verifies only that the new spec is syntactically valid and collects via --list."
+  }
+}

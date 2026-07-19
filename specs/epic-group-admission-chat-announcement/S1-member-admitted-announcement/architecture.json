@@ -1,0 +1,73 @@
+{
+  "module_name": "member-admitted-announcement",
+  "purpose": "Post a display-only kind-9 chat announcement (\"<admitter> admitted <new member>\") when an admin approves a pending join request, mirroring the existing group_renamed announcement pattern end-to-end.",
+  "owning_module": "marmot-structured-content",
+  "spans_modules": [
+    "marmot-structured-content",
+    "chat-render",
+    "group-announcements",
+    "i18n",
+    "groups-page"
+  ],
+  "purpose_by_module": {
+    "marmot-structured-content": "Owns the member_admitted variant added to the StructuredContent union and its parse guard (app/src/lib/marmot/parseStructured.ts).",
+    "chat-render": "Owns the new render branch in ChatBox.renderStructuredMessage that resolves admitter (msg.senderPubkey) and member (structured.pubkey) display names and dispatches to the new presentational component.",
+    "group-announcements": "Owns the new MemberAdmittedChatAnnouncement.tsx presentational component, cloned from GroupRenamedChatAnnouncement.tsx.",
+    "i18n": "Owns the groups.admittedMemberAnnouncement copy key (en+de) added to Copy type + language objects.",
+    "groups-page": "Owns the single send site: handleApproveRequest fires the announcement via sendAnnouncementRef only after approveJoinRequest returns { ok: true }."
+  },
+  "public_api": [
+    {
+      "name": "StructuredContent (member_admitted variant)",
+      "signature": "{ type: 'member_admitted'; pubkey: string }",
+      "description": "New union member added to app/src/lib/marmot/parseStructured.ts. Payload carries only the admitted member's pubkey — no admitter field, by design (DD-2: admitter attribution is never payload-carried)."
+    },
+    {
+      "name": "parseStructured",
+      "signature": "(content: string) => StructuredContent",
+      "description": "Existing pure function; extended with a guard for type==='member_admitted' && typeof pubkey==='string'. No signature change."
+    },
+    {
+      "name": "MemberAdmittedChatAnnouncement",
+      "signature": "(props: { admitterDisplay: string; memberDisplay: string }) => JSX.Element",
+      "description": "New presentational component, app/src/components/groups/MemberAdmittedChatAnnouncement.tsx. Renders copy.groups.admittedMemberAnnouncement(admitterDisplay, memberDisplay) inside a Box with data-testid=\"member-admitted-announcement\", styling cloned verbatim from GroupRenamedChatAnnouncement.tsx."
+    },
+    {
+      "name": "copy.groups.admittedMemberAnnouncement",
+      "signature": "(admitter: string, member: string) => string",
+      "description": "New i18n Copy entry, app/src/lib/i18n.ts. en: \"${admitter} admitted ${member}\"; de: correct German equivalent."
+    }
+  ],
+  "private_files": [
+    "app/src/components/groups/MemberAdmittedChatAnnouncement.tsx"
+  ],
+  "owned_data": [
+    "StructuredContent member_admitted variant shape (owned by marmot-structured-content, per architecture.md seam declaration)"
+  ],
+  "dependencies_allowed": [
+    "marmot-structured-content -> (none new)",
+    "chat-render -> marmot-structured-content, group-announcements",
+    "group-announcements -> i18n",
+    "groups-page -> marmot-structured-content (payload shape only, via JSON.stringify — no import)"
+  ],
+  "dependencies_forbidden": [
+    "No new cross-module coupling beyond the group_renamed seam already declared in architecture.md",
+    "No self-reported admitter field in the payload (security invariant, DD-2)",
+    "No announcement on the direct-invite path (InviteMemberModal / invite-by-npub) — AC-SCOPE-1"
+  ],
+  "external_ports": [],
+  "events_emitted": [
+    "kind-9 application rumor: { type: 'member_admitted', pubkey: string } — sent via sendAnnouncementRef.current on successful join-request approval only"
+  ],
+  "events_consumed": [
+    "kind-9 application rumor content, parsed by parseStructured and branched in ChatBox.renderStructuredMessage"
+  ],
+  "test_targets": [
+    "app/tests/unit/marmot/parseStructured.test.ts (AC-PARSE-1, AC-PARSE-2, AC-ATTR-1 via resolveCancellerDisplay-style resolution + payload-shape assertion)",
+    "app/tests/e2e/groups-member-admitted-announcement.spec.ts (AC-RENDER-1, AC-RENDER-2, AC-SEND-1, AC-SCOPE-1 end-to-end through the real app)"
+  ],
+  "seam": {
+    "cross_story": false
+  },
+  "notes": "Single-story epic (S1 is the only story). Five existing modules are each extended along a seam they already expose for the group_renamed sibling per architecture.md; no new module is created. This story does not carry is_integration_story: true — the Boundary check crosses marmot-structured-content -> chat-render -> group-announcements -> i18n and groups-page -> (payload contract), all declared as the single seam in architecture.md's Seams section, so no Architect escalation was needed."
+}

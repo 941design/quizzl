@@ -214,6 +214,7 @@ export type Copy = {
     renameGroupSuccess: string;
     renameGroupError: string;
     renamedGroupAnnouncement: (actor: string, name: string) => string;
+    admittedMemberAnnouncement: (admitter: string, member: string) => string;
     makeAdminButton: string;
     makeAdminTitle: string;
     makeAdminBody: string;
@@ -876,6 +877,7 @@ const copy: Record<LanguageCode, Copy> = {
       renameGroupSuccess: 'Group renamed',
       renameGroupError: 'Failed to rename group. Please try again.',
       renamedGroupAnnouncement: (actor: string, name: string) => `${actor} renamed the group to “${name}”`,
+      admittedMemberAnnouncement: (admitter: string, member: string) => `${admitter} admitted ${member}`,
       makeAdminButton: 'Make Admin',
       makeAdminTitle: 'Make Admin?',
       makeAdminBody: 'This cannot be undone. Admins can invite members, accept join requests, cancel invitations, and grant admin to others.',
@@ -1439,6 +1441,7 @@ const copy: Record<LanguageCode, Copy> = {
       renameGroupSuccess: 'Gruppe umbenannt',
       renameGroupError: 'Gruppe konnte nicht umbenannt werden. Bitte erneut versuchen.',
       renamedGroupAnnouncement: (actor: string, name: string) => `${actor} hat die Gruppe in „${name}“ umbenannt`,
+      admittedMemberAnnouncement: (admitter: string, member: string) => `${admitter} hat ${member} aufgenommen`,
       makeAdminButton: 'Als Admin festlegen',
       makeAdminTitle: 'Als Admin festlegen?',
       makeAdminBody: 'Das kann nicht rückgängig gemacht werden. Admins können Mitglieder einladen, Beitrittsanfragen bestätigen, Einladungen zurückziehen und anderen Admin-Rechte erteilen.',

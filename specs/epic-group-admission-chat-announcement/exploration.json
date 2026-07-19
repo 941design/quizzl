@@ -1,0 +1,32 @@
+{
+  "created_at": "2026-07-19T13:40:05Z",
+  "note": "Exploration authored by lead from a thorough in-session investigation of the announcement pattern; no redundant code-explorer fan-out was needed because the full mechanism, precedent, send/render sites, i18n, and test conventions were already mapped and are recorded in spec.md ## Technical Approach.",
+  "similar_features": {
+    "canonical_precedent": "group_renamed structured announcement — end-to-end display-only kind-9 timeline notice attributed to the protocol sender",
+    "sibling_announcements": ["invite_cancelled", "leave_intent", "poll_open", "poll_close", "call_notice"],
+    "files": {
+      "parse": "app/src/lib/marmot/parseStructured.ts (StructuredContent union L16-24, guards L26-55, resolveCancellerDisplay L8-14)",
+      "render": "app/src/components/chat/ChatBox.tsx renderStructuredMessage L471-581 (group_renamed branch L512-518)",
+      "component": "app/src/components/groups/GroupRenamedChatAnnouncement.tsx",
+      "i18n": "app/src/lib/i18n.ts (Copy type renamedGroupAnnouncement L216, en L878, de L1441)",
+      "send_site": "app/pages/groups.tsx handleRename L452-496 (send L468-470); handleApproveRequest L391-399; sendAnnouncementRef wiring L280 + ChatSendMessageCapture L842",
+      "approval_impl": "app/src/context/MarmotContext.tsx approveJoinRequestImpl L495-577 (seeds provisional MemberProfile from request.nickname)",
+      "non_actionable": "app/src/lib/messageEdits/messageActionUi.ts L59-66 (parseStructured!=null => no edit/delete affordance)"
+    }
+  },
+  "architecture": {
+    "paradigm": "React + context providers; MLS group messaging via marmot-ts; kind-9 application rumors as the chat substrate",
+    "announcement_flow": "actor sends structured kind-9 via ChatStore.sendMessage (optimistic append + persist for actor) -> remote members ingest via applicationRumorDispatcher -> ChatBox.renderStructuredMessage branches on parseStructured(content) and renders a presentational component; actor attribution always from msg.senderPubkey (protocol-enforced)"
+  },
+  "testing_and_conventions": {
+    "unit": "vitest, tests/unit/**/*.test.ts; hooks tested via pure-function extraction (no jsdom/@testing-library). parseStructured is a pure function — direct unit test. Structured-message parse tests already exist for siblings.",
+    "e2e": "Playwright under app/tests/e2e/. Bucket split by FILENAME: groups-*.spec.ts runs in the Docker relay bucket. Publish-through-the-app rule (no raw WebSocket). Full gate = make test-e2e-all (60 tests).",
+    "i18n_rule": "All user-facing strings via i18n.ts en+de; never hardcode in components."
+  },
+  "prior_learnings": [
+    {"id": "invitebynpub-commits-memberpubkeys-immediately", "relevance": "inviteByNpub (called by approveJoinRequest) commits the Add and memberPubkeys immediately at approval time, not on invitee accept — so the approval moment is a valid, well-defined point to fire the announcement."},
+    {"id": "memberprofile-pubkeyhex-already-keyed-signed", "relevance": "member display-name resolution keys on the signed author pubkey; the announcement's structured.pubkey is the admitted member's hex, resolved against profileMap the same way siblings do."},
+    {"id": "closing-playwright-browsercontext-destroys", "relevance": "e2e: do NOT close the requester's BrowserContext before/around approval — it destroys MLS KeyPackage material and masks bugs. Keep contexts open while asserting the announcement renders."},
+    {"id": "non-flaky-app-trigger-rawpublish-failure", "relevance": "e2e propagation: poll live-updating UI with retrying toBeVisible; avoid fixed waits and reload-based polling."}
+  ]
+}

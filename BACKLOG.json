@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-19T12:00:05Z",
+  "updated_at": "2026-07-19T14:35:52Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -209,6 +209,11 @@
     },
     {
       "path": "specs/epic-invite-rescind-and-member-removal/",
+      "status": "DONE",
+      "next_action": "completed 2026-07-19"
+    },
+    {
+      "path": "specs/epic-group-admission-chat-announcement/",
       "status": "DONE",
       "next_action": "completed 2026-07-19"
     }
@@ -570,6 +575,19 @@
       "behavior": "handleAddToGroup awaits inviteByNpub, which internally awaits reloadGroups() before resolving. The added contact thus becomes a (pending) member and addableGroupsForContact returns empty BEFORE inviteByNpub resolves. The entire Add-to-Group widget — select, button, AND the success/error Alerts — is gated on addableGroups.length > 0 (profile.tsx:673), so the whole block (success Alert included) unmounts in the same render pass that would have shown the success state. When the contact has exactly one addable group (the common/tested case), the success confirmation is structurally unreachable through the real UI.",
       "approach": "Render the success/error confirmation OUTSIDE the addableGroups.length > 0 gate, or defer/decouple the membership refresh from the confirmation render so the Alert can show before addableGroups empties. Pre-existing (the widget gating predates the epic); the invite + marker-write themselves work correctly.",
       "success_signal": "Adding a contact to a group from their profile page shows a visible success confirmation even when it was their only addable group"
+    },
+    {
+      "slug": "display-only-chat-announcements-spoofable-share",
+      "scope": "groups",
+      "anchor": {
+        "path": "app/src/lib/marmot/parseStructured.ts",
+        "line": 26
+      },
+      "text": "Display-only chat announcements are spoofable and share a latent malformed-pubkey crash gap",
+      "created_at": "2026-07-19",
+      "motivation": "All structured timeline notices (group_renamed, leave_intent, invite_cancelled, poll_*, member_admitted) render from any member-sent kind-9 with no authentication, so a member can post a cosmetic fake notice; separately, the leave_intent/invite_cancelled guards accept any string pubkey which can throw in pubkeyToNpub on malformed hex and break the timeline for receivers (member_admitted was hardened to 64-hex in epic group-admission-chat-announcement; the siblings were left for a uniform pass).",
+      "behavior": "Notices are display-only decorations; membership/admin state remains authoritative from MLS, so a spoof cannot change real state, and the actor is always the real protocol sender. Product owner accepted the spoofability as-is for member_admitted (2026-07-19). The malformed-pubkey render throw is latent in the sibling guards.",
+      "approach": "If hardening is desired: add a non-forgeable/authenticated marker (or validate against a real approval/commit event) uniformly across all announcement types; and tighten leave_intent/invite_cancelled pubkey guards to canonical 64-hex like member_admitted now is."
     }
   ],
   "archive": [

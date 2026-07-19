@@ -1,0 +1,41 @@
+{
+  "epic_name": "group-admission-chat-announcement",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-19T13:40:05Z",
+  "updated_at": "2026-07-19T16:45:00Z",
+  "completed_at": "2026-07-19T16:45:00Z",
+  "pre_existing_dirty_files": [],
+  "completed_stories": ["S1"],
+  "escalated_stories": [],
+  "reviewer_agent_id": "ae942eecf6d8863e4",
+  "phase_history": [
+    {"phase": "SPEC_VALIDATED", "timestamp": "2026-07-19T13:40:05Z", "trigger": "validation_passed"},
+    {"phase": "IMPLEMENTATION", "timestamp": "2026-07-19T16:05:00Z", "trigger": "story_S1_done"},
+    {"phase": "COMPLETE", "timestamp": "2026-07-19T16:45:00Z", "trigger": "gates_passed"}
+  ],
+  "ac_closure": [
+    {"ac_id": "AC-PARSE-1", "status": "met", "evidence": "parseStructured.ts:63-64 + unit test parseStructured.test.ts (valid 64-hex parses)"},
+    {"ac_id": "AC-PARSE-2", "status": "met", "evidence": "parseStructured.ts:63 /^[0-9a-f]{64}$/ guard + 9 reject cases (missing/non-string/non-canonical)"},
+    {"ac_id": "AC-ATTR-1", "status": "met", "evidence": "ChatBox.tsx member_admitted branch resolves admitter from msg.senderPubkey; payload type has no admitter field; attribution + drop-extra-fields unit tests"},
+    {"ac_id": "AC-RENDER-1", "status": "met", "evidence": "ChatBox.tsx renders MemberAdmittedChatAnnouncement (testid member-admitted-announcement); e2e asserts render"},
+    {"ac_id": "AC-RENDER-2", "status": "met", "evidence": "ChatBox.tsx profileMap[structured.pubkey] with truncated-npub fallback"},
+    {"ac_id": "AC-I18N-1", "status": "met", "evidence": "i18n.ts Copy type + en 'admitted' + de 'aufgenommen'"},
+    {"ac_id": "AC-SEND-1", "status": "met", "evidence": "groups.tsx handleApproveRequest posts on result.ok only, carrying request.pubkeyHex; e2e drives real approval"},
+    {"ac_id": "AC-SCOPE-1", "status": "met", "evidence": "InviteMemberModal untouched; e2e regression asserts direct invite posts zero announcements"}
+  ],
+  "manual_validation": [],
+  "gate_runs": [
+    {"gate_id": "mutation", "outcome": "fired_pass", "detail": "parseStructured.ts audited 0.74->0.94 (26 real gaps closed by parseStructured.contract.test.ts, 36 tests); 8 residual survivors all equivalent; i18n.ts + groups.tsx + ChatBox.tsx skipped (no unit-test surface / data table)"},
+    {"gate_id": "e2e", "outcome": "fired_pass", "detail": "New groups-member-admitted-announcement.spec.ts (7 tests, real join-request approval + both-member render + exactly-one + AC-SCOPE-1 direct-invite regression) PASS. High-risk sibling regression set PASS: groups-rename + groups-leave-intent (announcement renderers), groups-approved-requester-label + groups-join-request-live + groups-join-request-profile (approval flow) = 33 tests. Targeted 40-test groups-bucket run in lieu of the full 60 given documented chronic flakiness of the full gate (rotating VM-latency timeouts unrelated to changes); judged by own+adjacent specs per project memory. Unit suite (3669) + mutation gate green."},
+    {"gate_id": "pre_commit_review", "outcome": "fired_remediated", "detail": "Stage-1 Opus (resumable, agentId ae942eecf6d8863e4): 1 sub-sev-5 finding (empty-pubkey edge, precedent-shared) — resolved by the same hex-guard fix. Stage-2 Codex: P2 malformed-pubkey throw REMEDIATED (64-hex guard); P2 spoofability = product-owner-authorized non-action (ship-as-is, consistent with all siblings). Only post-review addition is the additive mutation-gap contract test file (test-only, green).", "structural_findings": {"surfaced": 2, "acted": 1, "disclosed_unacted": 1}}
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "340edfe81ab2785dd8441021976f6c6b1f757c39",
+  "models": {
+    "lead": "opus",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json"
+}

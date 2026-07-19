@@ -1,0 +1,28 @@
+{
+  "epic_name": "group-admission-chat-announcement",
+  "created_at": "2026-07-19T13:40:05Z",
+  "concepts": [
+    {
+      "name": "member_admitted announcement payload {type,pubkey}",
+      "owner": "marmot-structured-content (parseStructured.ts)",
+      "producer": "groups-page (handleApproveRequest)",
+      "consumer": "chat-render (renderStructuredMessage)",
+      "note": "single-owner, no multi-owner/fork; admitter attribution owned by ChatBox via msg.senderPubkey, security invariant shared with group_renamed/invite_cancelled"
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "surfaces_touched": [
+        "marmot-structured-content:parseStructured",
+        "chat-render:renderStructuredMessage",
+        "group-announcements:MemberAdmittedChatAnnouncement",
+        "i18n:admittedMemberAnnouncement",
+        "groups-page:handleApproveRequest"
+      ],
+      "findings": 1,
+      "max_severity": 2
+    }
+  ],
+  "reviewer_state": {"last_story_reviewed": "S1"}
+}

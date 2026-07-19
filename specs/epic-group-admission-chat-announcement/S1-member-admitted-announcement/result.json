@@ -1,0 +1,48 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-19T16:00:00Z",
+  "files_created": [
+    "app/src/components/groups/MemberAdmittedChatAnnouncement.tsx",
+    "app/tests/e2e/groups-member-admitted-announcement.spec.ts",
+    "specs/epic-group-admission-chat-announcement/S1-member-admitted-announcement/architecture.json",
+    "specs/epic-group-admission-chat-announcement/S1-member-admitted-announcement/baseline.json",
+    "specs/epic-group-admission-chat-announcement/S1-member-admitted-announcement/result.json"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/parseStructured.ts",
+    "app/src/components/chat/ChatBox.tsx",
+    "app/src/lib/i18n.ts",
+    "app/pages/groups.tsx",
+    "app/tests/unit/marmot/parseStructured.test.ts",
+    "specs/epic-group-admission-chat-announcement/S1-member-admitted-announcement/verification.json"
+  ],
+  "tests_added": {
+    "unit": 12,
+    "e2e": 7
+  },
+  "test_counts": {
+    "baseline": 3656,
+    "final": 3669
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "review_gate_notes": [
+    "Stage-2 (Codex) P2: parser accepted any string pubkey; a crafted member_admitted message would reach pubkeyToNpub and throw, breaking the timeline for receivers. REMEDIATED by lead: tightened the member_admitted guard to require /^[0-9a-f]{64}$/ (malformed content falls through to plain text). Added 7 parse-guard cases (incl. empty/short/long/uppercase/non-hex). Sibling guards (leave_intent/invite_cancelled) share the latent gap — left for a uniform follow-up (BACKLOG: display-only-chat-announcements-spoofable-share).",
+    "Stage-2 (Codex) P2: display-only announcement is spoofable by any member sending matching chat JSON. PRODUCT-OWNER-AUTHORIZED NON-ACTION (2026-07-19, 'ship as-is'): identical to every existing notice (group_renamed/leave_intent/invite_cancelled/polls); a spoof is cosmetic and cannot change authenticated membership/admin state, and the admitter is always the real protocol sender. Follow-up filed for uniform hardening."
+  ],
+  "architect_skipped": false,
+  "modules_touched": [
+    "marmot-structured-content",
+    "chat-render",
+    "group-announcements",
+    "i18n",
+    "groups-page"
+  ],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  }
+}
