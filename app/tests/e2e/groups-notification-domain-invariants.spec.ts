@@ -12,7 +12,7 @@
  * DMs via the __fewPublishDm bridge) — never raw relay writes.
  *
  * Requires the strfry relay harness (make e2e-up). Run:
- *   node scripts/run-e2e.mjs tests/e2e/notification-domain-invariants.spec.ts
+ *   E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-notification-domain-invariants.spec.ts
  */
 
 import { test, expect, BrowserContext, Page } from '@playwright/test';
@@ -69,6 +69,11 @@ async function bootUserOnGroups(
 }
 
 async function openGroupDetail(page: Page): Promise<void> {
+  // Normalize the entry point: after createGroupAndInvite the inviter is left
+  // ON the group detail page (no group-card to click), while the invitee is on
+  // the list. Go to the list first so the card click is deterministic for both.
+  await page.goto('/groups/');
+  await expect(page.getByTestId('groups-list')).toBeVisible({ timeout: 60_000 });
   await dismissErrorOverlay(page);
   await page.locator('[data-testid^="group-card-"]', { hasText: GROUP_NAME }).click();
   await expect(page.getByTestId('group-detail-page')).toBeVisible({ timeout: 30_000 });
@@ -149,6 +154,14 @@ test.describe.serial('Notification bell — domain invariants', () => {
     await waitForBridge(alicePage);
     // Give ContactChat's init() time to register its live subscriptions.
     await expect(alicePage.getByTestId('chat-input')).toBeVisible({ timeout: 30_000 });
+    // Let ContactChat's mount cycle settle before publishing. Under `next dev`
+    // React StrictMode double-invokes the setActiveView effect on mount
+    // (set -> clear -> set, all in one tick); if the incoming DM's async
+    // gift-wrap handler checks isActiveView('dm', peer) during that momentary
+    // clear window it wrongly sees "no active view" and rings the bell. This is
+    // a dev-only churn — in production ContactChat mounts once with no re-set —
+    // so a short settle makes the active-view registration stable first.
+    await alicePage.waitForTimeout(2_000);
     const baseline = await badgeCount(alicePage);
 
     const content = `dm-inv2-${Date.now()}`;

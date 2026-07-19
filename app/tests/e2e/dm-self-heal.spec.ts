@@ -196,6 +196,15 @@ test.describe.serial('DM self-heal — AC-29 and AC-27', () => {
       await seedMalformedRow(pageA);
       await pageA.waitForTimeout(200); // let IDB write settle
 
+      // Reset the self-heal precondition. The group-setup step above adds Bob as
+      // a contact via seedContact, which lands Alice on Bob's contact detail page
+      // and mounts ContactChat — its mount-time loadMessages() runs the one-time
+      // self-heal pass over the (then empty) thread and records dm:<bob> in the
+      // healed marker. That marker would make the loadMessages() below skip the
+      // pass, leaving the just-seeded malformed row un-decoded. Clear it so the
+      // pass runs against the seeded row — exactly what the AC-27 test does.
+      await pageA.evaluate(() => localStorage.removeItem('lp_dmHealed_v1'));
+
       // Verify the malformed row is in IDB before opening the chat
       const preChat = await readDmThread(pageA, bobPub);
       expect(preChat).not.toBeNull();

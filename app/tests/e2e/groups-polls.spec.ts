@@ -22,6 +22,19 @@ async function bootUserWithProfile(
   const page = await context.newPage();
   await page.goto('/');
   await clearAppState(page);
+  // Re-seed identity + profile AFTER clearAppState, before reload. The
+  // addInitScript above seeds the profile only `if (!lp_userProfile_v1)`, which
+  // races with ProfileContext's hydrate-and-persist: if the first page's
+  // ProfileContext effect runs after clearAppState wiped the profile, it
+  // persists an empty-nickname default ({nickname:'', avatar:<random>}) that
+  // then survives the reload guard. Alice would then broadcast a blank nickname
+  // to the group, so B renders her npub instead of "Alice" in the poll
+  // announcement. Writing the profile explicitly here guarantees a non-empty
+  // nickname when the reloaded ProfileContext hydrates.
+  await page.evaluate(({ privateKeyHex, pubkeyHex, seedHex, nickname }) => {
+    localStorage.setItem('lp_nostrIdentity_v1', JSON.stringify({ privateKeyHex, pubkeyHex, seedHex }));
+    localStorage.setItem('lp_userProfile_v1', JSON.stringify({ nickname, avatar: null }));
+  }, { privateKeyHex: user.privateKeyHex, pubkeyHex: user.pubkeyHex, seedHex: user.seedHex, nickname });
   await page.reload();
   await page.goto('/groups/');
   await expect(
