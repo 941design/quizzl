@@ -1,0 +1,38 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "completed_at": "2026-07-19T18:20:00Z",
+  "remediation_rounds": 0,
+  "files_created": [],
+  "files_modified": [
+    "app/src/lib/marmot/outboundJoinRequests.ts",
+    "app/tests/unit/marmot/outboundJoinRequests.test.ts"
+  ],
+  "tests_added": {
+    "unit": 8
+  },
+  "test_counts": {
+    "baseline": 3709,
+    "final": 3717
+  },
+  "mocks": [],
+  "modules_touched": [
+    "Outbound-join-request store"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The project's one-import-per-test-file convention (a single top-of-file `await import(...)` after the idb-keyval mock is registered) combined with module-level singletons (`_loaded`/`_loadStarted`) made the pre-impl commitment VQ-S2-009 (assert loaded-flag false BEFORE the async load resolves) untestable within the shared test file \u2014 earlier tests already trigger and resolve the load, and there is no reset hook. Only the true-after state is assertable. The store LOGIC is correct; the gap is purely a test-convention constraint, carried forward as VQ-S2-013 for verifier judgment rather than worked around with a fragile vi.resetModules().",
+    "surprised_by": "The pre-impl commitment VQ-S2-009 asked for a test proving isOutboundJoinRequestsLoaded() is false before the initial async IDB load resolves and true after. That could not be honored as written: _loaded/_loadStarted are module-level singletons and this test file does a single top-of-file `await import(...)` (the project's mocked-idb-keyval convention), so by the time the new reactive-layer describe block runs, earlier tests in the same file have already triggered and resolved the load with no exposed reset. dev documented this in-file and settled for a true-after-load assertion only. I did not treat this as a defect \u2014 it's a structural consequence of the one-import-per-file test convention, not a design gap in the store \u2014 but recorded it as post-impl question VQ-S2-013 so a verifier can judge whether an isolated fresh-import test file would be worth adding.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "note": "Flagged the loaded-flag false-then-true test as infeasible within the shared-module-import test file (module singleton, no reset hook); settled for a documented true-after-load-only assertion per the task's explicit fallback instruction."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted"
+}

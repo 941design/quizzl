@@ -1,0 +1,40 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-19T18:05:00Z",
+  "files_created": [
+    "app/tests/unit/inviteAwaiting.i18n.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/i18n.ts"
+  ],
+  "tests_added": {
+    "unit": 3
+  },
+  "test_counts": {
+    "baseline": 3706,
+    "final": 3709
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "i18n copy"
+  ],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "routine"
+  },
+  "notes": {
+    "chosen_key_names": {
+      "groups.inviteAwaitingBanner": "(groupName: string) => string \u2014 Invited-state banner. EN: \"You've been invited to join {groupName}.\" DE: \"Du wurdest eingeladen, der Gruppe {groupName} beizutreten.\"",
+      "groups.awaitingApprovalBanner": "(groupName: string) => string \u2014 Awaiting-state banner. EN: \"Waiting for the admin to approve your request to join {groupName}.\" DE: \"Warte darauf, dass der Admin deine Anfrage zum Beitritt zu {groupName} genehmigt.\"",
+      "groups.awaitingBadgeLabel": "string \u2014 EN: \"Awaiting\" DE: \"Ausstehend\"",
+      "groups.cancelOutboundRequestLabel": "string \u2014 EN: \"Cancel Request\" DE: \"Anfrage zur\u00fcckziehen\""
+    },
+    "key_shape_decision": "Keys added as flat fields directly under groups.* (not nested under a new groups.inviteAwaiting sub-object like groups.pendingInvitations), because stories.json's seams[].contract.fields for GroupsInviteAwaitingCopy already commits to the flat field names groups.inviteAwaitingBanner / groups.awaitingApprovalBanner / groups.awaitingBadgeLabel / groups.cancelOutboundRequestLabel. Following that literal contract (rather than re-deriving a nested shape from the pendingInvitations precedent mentioned in the story prompt's Conventions section) keeps S3/S4 able to consume the exact paths already frozen in the seam.",
+    "reuse_decision": "No new 'Request to join' copy key was added; the existing groups.joinRequestButton key ('Request to Join' / 'Beitritt anfragen', i18n.ts lines 164/826/1390) is reused by S3's inline banner action per the story prompt's explicit instruction to check first.",
+    "baseline_lint_typecheck": "lint: NO_LINT (no ESLint config present in app/; `next lint` prompts to scaffold one interactively rather than running a check). typecheck: clean (npx tsc --noEmit, no errors) before and after this change."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "story_id": "S5",
+  "captured_at": "2026-07-19T21:16:27Z",
+  "test": {
+    "command": "make test-unit",
+    "status": "PASS",
+    "test_files": 197,
+    "tests_passed": 3744,
+    "tests_skipped": 1,
+    "tests_total": 3745
+  },
+  "e2e_diagnostic": {
+    "note": "Pre-existing-suite ground-truth check performed before writing this story's new spec, to determine whether the returning-user identity signal (isFreshIdentity) needed special seeding. Ran the sibling prior-epic spec groups-invite-link.spec.ts (unmodified, out of this story's scope) against the current working tree via `E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-invite-link.spec.ts`.",
+    "command": "E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-invite-link.spec.ts",
+    "status": "2 of 11 tests FAILED (pre-existing, not introduced by this story)",
+    "detail": "Both failures are `expect(getByTestId('join-request-card')).toBeVisible()` timeouts for a NAMED, boot-identity user opening a raw invite link. Root cause: S3's uncommitted groups.tsx:950 change narrows the full-screen JoinRequestCard branch to `isFreshIdentity === true`; every e2e-booted identity (via the addInitScript pattern all groups-*.spec.ts files share) already reads as non-fresh at mount, so these pre-existing specs — written before this epic's returning-user redesign — now hit the NEW list+banner landing instead of the full-screen card they assert. This is the epic's INTENDED behavior change surfacing as staleness in a prior epic's e2e spec, not a bug introduced by this story. Reported to the lead/architect as a cross-story finding (see result.json retrospective) rather than fixed here — out of this story's scope (production code and other spec files are both off-limits)."
+  },
+  "lint": "NO_LINT",
+  "lint_detail": "No .eslintrc*/eslint.config* present under app/ (next lint prompts for first-time interactive setup) — matches S1-S4's recorded NO_LINT baseline.",
+  "typecheck": "clean",
+  "typecheck_detail": "npx tsc --noEmit -p tsconfig.json (app/) — zero errors at baseline (post S1-S4, pre-S5)."
+}

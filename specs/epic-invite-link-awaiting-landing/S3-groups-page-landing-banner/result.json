@@ -1,0 +1,36 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "completed_at": "2026-07-19T18:45:00Z",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/src/components/groups/InviteAwaitingBanner.tsx",
+    "app/src/lib/inviteBannerState.ts",
+    "app/tests/unit/lib/inviteBannerState.test.ts"
+  ],
+  "files_modified": [
+    "app/pages/groups.tsx"
+  ],
+  "tests_added": {
+    "unit": 13
+  },
+  "test_counts": {
+    "baseline": 3717,
+    "final": 3730
+  },
+  "mocks": [],
+  "modules_touched": [
+    "Groups page"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "AC-REACT-3 (banner flips Invited -> Awaiting with no manual reload) and AC-LAND-3 (URL cleanup strips join/admin/name right after send) are in mild tension: once the URL is stripped, groups.tsx's own hasJoinParams check goes false and InviteAwaitingBanner unmounts entirely, so the 'Awaiting' render is only actually observable in the brief window between the reactive store's synchronous emit (inside sendJoinRequest's saveOutboundJoinRequest call) and router.replace's query update propagating to router.query. Working out that ordering \u2014 and that it holds because outboundJoinRequests.ts's emit happens synchronously before sendJoinRequest resolves, ahead of the (async, unawaited) router.replace call \u2014 took careful reading of S2's emit-then-return code rather than something a test could confirm, since this repo has no jsdom/@testing-library to mount the component and observe the actual render sequence. I recorded the open question as VQ-S3-020 rather than asserting a false confidence level in a component-level test that doesn't exist.",
+    "surprised_by": "AC-BANNER-3 names isWelcomeJoinRequestDisabled specifically (the visible-field-only predicate JoinRequestCard's fresh-identity/WelcomeInvite variant uses), not the combined requestDisabled predicate its returning-user card variant uses even though the banner itself is a returning-user surface. Once traced to JoinRequestCard's own Finding-A gate-remediation comment, this reads as a deliberate choice (the banner's name field is always visible, like the welcome variant, so the welcome-style gate is the correct match) rather than a spec typo \u2014 but it's a smaller AC-to-precedent leap than the other banner ACs, worth flagging so a reviewer double-checks the reasoning rather than only the letter of the AC.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted"
+}

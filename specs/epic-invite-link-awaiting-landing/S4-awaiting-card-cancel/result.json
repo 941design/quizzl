@@ -1,0 +1,41 @@
+{
+  "story_id": "S4",
+  "status": "done",
+  "completed_at": "2026-07-19T19:05:00Z",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/src/components/groups/OutboundJoinRequestCard.tsx",
+    "app/tests/unit/components/OutboundJoinRequestCard.test.ts"
+  ],
+  "files_modified": [
+    "app/pages/groups.tsx"
+  ],
+  "tests_added": {
+    "unit": 15
+  },
+  "test_counts": {
+    "baseline": 3730,
+    "final": 3745
+  },
+  "mocks": [],
+  "modules_touched": [
+    "Awaiting card"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The dev pass's first source-scan test draft used naive whole-file regexes to prove the ABSENCE of banned symbols (LinkBox, retract), but the component's own JSDoc comments explain what it deliberately does NOT do by naming those exact words (\"NOT a LinkBox\", discussing the rumor never being retracted), so the negative assertions self-tripped against the doc comments rather than the code. Fixed by scoping the LinkBox/LinkOverlay check to the @chakra-ui/react import statement specifically and rewording the doc comment to avoid the literal string \"retract\". Worth recording as a reusable pattern for this codebase's no-jsdom source-scan test convention: a negative-assertion regex proving a component doesn't do X must be scoped to code (import lists, JSX blocks), never full-file text, because doc comments explaining the design decision routinely name the exact forbidden thing.",
+    "surprised_by": "",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [
+      {
+        "agent": "dev",
+        "spawn_index": 1,
+        "note": "Negative-assertion source-scan regexes must be scoped to import/JSX blocks, not whole-file text, since explanatory doc comments name the exact forbidden symbols/words they're describing the absence of."
+      }
+    ],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted"
+}

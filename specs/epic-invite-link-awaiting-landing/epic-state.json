@@ -1,0 +1,222 @@
+{
+  "epic_name": "invite-link-awaiting-landing",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-19T17:35:42Z",
+  "updated_at": "2026-07-20T00:42:00Z",
+  "pre_existing_dirty_files": [],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-19T17:35:42Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "IMPLEMENTING",
+      "timestamp": "2026-07-19T17:55:00Z",
+      "trigger": "story_loop_start"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-20T00:42:00Z",
+      "trigger": "all_gates_passed"
+    }
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "1df12bd15c257496697b8e36ce6e90c88387fa71",
+  "models": {
+    "lead": "sonnet",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "gate_runs": [
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_remediated",
+      "detail": "7 epic specs green (groups-awaiting-confirmation + 6 reconciled prior-epic specs); groups-invite-link payoff selectors fixed; residual bucket fails (groups-contacts:54, groups-lazy-updates, groups-profile-reactive) confirmed pre-existing VM-latency flakes (pass with changes present, zero coupling)"
+    },
+    {
+      "gate_id": "mutation",
+      "outcome": "fired_remediated",
+      "detail": "outboundJoinRequests.ts passed (score 0.86, 5 tests written closing 9 real gaps: TTL boundary, cap eviction order, snapshot ref-stability); inviteBannerState.ts passed (score 0.97). UI components (InviteAwaitingBanner, OutboundJoinRequestCard), groups.tsx, i18n.ts not audited \u2014 no jsdom unit harness (e2e-covered per project convention) / data-only."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_remediated",
+      "detail": "Opus (cold whole-tree) + Codex converge-first cascade. 4 findings remediated: Opus first-visit hydration flash (hydrated gate); Codex P1 Invited-banner stuck on empty async load (loaded routed through useSyncExternalStore); Codex P2 empty-state flash for awaiting-but-no-groups (outboundLoaded gate); Codex P3 cancel stuck-loading on silent storage failure (finally reset). Codex final pass clean. 1 Opus inference deferred (async load-vs-delete race \u2014 documented unreachable in architecture.md, matches AC-OBS-1 candidate).",
+      "structural_findings": {
+        "surfaced": 0,
+        "acted": 0,
+        "disclosed_unacted": 0
+      }
+    }
+  ],
+  "mutation_gate_residuals": [],
+  "ac_closure": [
+    {
+      "ac_id": "AC-BANNER-1",
+      "status": "met",
+      "evidence": "inviteBannerState.test.ts (unit, mutation 0.97) + groups-* e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-BANNER-2",
+      "status": "met",
+      "evidence": "inviteBannerState.test.ts (unit, mutation 0.97) + groups-* e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-BANNER-3",
+      "status": "met",
+      "evidence": "inviteBannerState.test.ts (unit, mutation 0.97) + groups-* e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-BANNER-4",
+      "status": "met",
+      "evidence": "inviteBannerState.test.ts (unit, mutation 0.97) + groups-* e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-BANNER-5",
+      "status": "met",
+      "evidence": "inviteBannerState.test.ts (unit, mutation 0.97) + groups-* e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-CARD-1",
+      "status": "met",
+      "evidence": "OutboundJoinRequestCard.test.ts (source-scan) + e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-CARD-2",
+      "status": "met",
+      "evidence": "OutboundJoinRequestCard.test.ts (source-scan) + e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-CARD-3",
+      "status": "met",
+      "evidence": "OutboundJoinRequestCard.test.ts (source-scan) + e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-E2E-1",
+      "status": "met",
+      "evidence": "groups-awaiting-confirmation.spec.ts (e2e, relay bucket) \u2014 passing"
+    },
+    {
+      "ac_id": "AC-E2E-2",
+      "status": "met",
+      "evidence": "groups-awaiting-confirmation.spec.ts (e2e, relay bucket) \u2014 passing"
+    },
+    {
+      "ac_id": "AC-E2E-3",
+      "status": "met",
+      "evidence": "groups-awaiting-confirmation.spec.ts (e2e, relay bucket) \u2014 passing"
+    },
+    {
+      "ac_id": "AC-E2E-4",
+      "status": "met",
+      "evidence": "groups-awaiting-confirmation.spec.ts (e2e, relay bucket) \u2014 passing"
+    },
+    {
+      "ac_id": "AC-I18N-1",
+      "status": "met",
+      "evidence": "inviteAwaiting.i18n.test.ts (EN/DE exact-string parity) \u2014 passing"
+    },
+    {
+      "ac_id": "AC-I18N-2",
+      "status": "met",
+      "evidence": "inviteAwaiting.i18n.test.ts (EN/DE exact-string parity) \u2014 passing"
+    },
+    {
+      "ac_id": "AC-I18N-3",
+      "status": "met",
+      "evidence": "inviteAwaiting.i18n.test.ts (EN/DE exact-string parity) \u2014 passing"
+    },
+    {
+      "ac_id": "AC-LAND-1",
+      "status": "met",
+      "evidence": "inviteBannerState.test.ts (unit, mutation 0.97) + groups-* e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-LAND-2",
+      "status": "met",
+      "evidence": "inviteBannerState.test.ts (unit, mutation 0.97) + groups-* e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-LAND-3",
+      "status": "met",
+      "evidence": "inviteBannerState.test.ts (unit, mutation 0.97) + groups-* e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-LAND-4",
+      "status": "met",
+      "evidence": "inviteBannerState.test.ts (unit, mutation 0.97) + groups-* e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-LAND-5",
+      "status": "met",
+      "evidence": "inviteBannerState.test.ts (unit, mutation 0.97) + groups-* e2e \u2014 passing"
+    },
+    {
+      "ac_id": "AC-OBS-1",
+      "status": "met",
+      "evidence": "groups-awaiting-confirmation.spec.ts (e2e, relay bucket) \u2014 passing"
+    },
+    {
+      "ac_id": "AC-OBS-2",
+      "status": "met",
+      "evidence": "groups-awaiting-confirmation.spec.ts (e2e, relay bucket) \u2014 passing"
+    },
+    {
+      "ac_id": "AC-OBS-3",
+      "status": "met",
+      "evidence": "groups-awaiting-confirmation.spec.ts (e2e, relay bucket) \u2014 passing"
+    },
+    {
+      "ac_id": "AC-REACT-1",
+      "status": "met",
+      "evidence": "outboundJoinRequests.test.ts (unit) \u2014 passing; mutation score 0.86"
+    },
+    {
+      "ac_id": "AC-REACT-2",
+      "status": "met",
+      "evidence": "outboundJoinRequests.test.ts (unit) \u2014 passing; mutation score 0.86"
+    },
+    {
+      "ac_id": "AC-REACT-3",
+      "status": "met",
+      "evidence": "outboundJoinRequests.test.ts (unit) \u2014 passing; mutation score 0.86"
+    },
+    {
+      "ac_id": "AC-STORE-1",
+      "status": "met",
+      "evidence": "outboundJoinRequests.test.ts (unit) \u2014 passing; mutation score 0.86"
+    },
+    {
+      "ac_id": "AC-STORE-2",
+      "status": "met",
+      "evidence": "outboundJoinRequests.test.ts (unit) \u2014 passing; mutation score 0.86"
+    },
+    {
+      "ac_id": "AC-STORE-3",
+      "status": "met",
+      "evidence": "outboundJoinRequests.test.ts (unit) \u2014 passing; mutation score 0.86"
+    },
+    {
+      "ac_id": "AC-STORE-4",
+      "status": "met",
+      "evidence": "outboundJoinRequests.test.ts (unit) \u2014 passing; mutation score 0.86"
+    },
+    {
+      "ac_id": "AC-STORE-5",
+      "status": "met",
+      "evidence": "outboundJoinRequests.test.ts (unit) \u2014 passing; mutation score 0.86"
+    }
+  ],
+  "manual_validation": []
+}

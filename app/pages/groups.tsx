@@ -33,6 +33,9 @@ import InviteMemberModal from '@/src/components/groups/InviteMemberModal';
 import GenerateInviteLinkModal from '@/src/components/groups/GenerateInviteLinkModal';
 import ManageInviteLinksModal from '@/src/components/groups/ManageInviteLinksModal';
 import JoinRequestCard from '@/src/components/groups/JoinRequestCard';
+import InviteAwaitingBanner from '@/src/components/groups/InviteAwaitingBanner';
+import OutboundJoinRequestCard from '@/src/components/groups/OutboundJoinRequestCard';
+import { useOutboundJoinRequests } from '@/src/lib/marmot/outboundJoinRequests';
 import PendingInvitations from '@/src/components/groups/PendingInvitations';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
 import GroupChat from '@/src/components/groups/GroupChat';
@@ -905,7 +908,8 @@ export default function GroupsPage() {
   const manageLinksParam = router.query.manageLinks as string | undefined;
   const copy = useCopy();
   const { groups, ready, unsupported } = useMarmot();
-  const { backedUp } = useNostrIdentity();
+  const { backedUp, isFreshIdentity, hydrated } = useNostrIdentity();
+  const { records: outboundRecords, loaded: outboundLoaded } = useOutboundJoinRequests();
   const createDisclosure = useDisclosure();
 
   // AC-DEEPLINK-3: `?id=<id>&manageLinks=1` targeting a groupId absent from
@@ -932,13 +936,27 @@ export default function GroupsPage() {
     void router.replace('/groups');
   }, [redirectToGroupsList, id, router]);
 
-  // When ?join=xxx is present, show the join request card. Epic:
-  // first-visit-invite-welcome, story S4 — the isFreshIdentity branch that
-  // swaps in the blended WelcomeInvite (group variant) for a genuine
-  // first-time visitor lives INSIDE JoinRequestCard itself (it already owns
-  // the name-draft/send-guard state that variant reuses), not here; this
-  // call site is unchanged from pre-S4.
-  if (joinNonce && joinAdmin && joinName) {
+  // When ?join=xxx is present AND this is a genuine first-time visitor
+  // (DD-5, AC-LAND-2), show the full-screen join request card unchanged
+  // from pre-S3 behavior — the isFreshIdentity branch that swaps in the
+  // blended WelcomeInvite (group variant) lives INSIDE JoinRequestCard
+  // itself (epic: first-visit-invite-welcome, story S4; it already owns the
+  // name-draft/send-guard state that variant reuses), not here.
+  //
+  // Epic: invite-link-awaiting-landing, story S3 (AC-LAND-1) — a RETURNING
+  // user (isFreshIdentity === false) with the same query params no longer
+  // gets this full-screen replacement; it falls through to the normal list
+  // view below, which renders InviteAwaitingBanner above the list instead.
+  //
+  // `!hydrated` is part of the gate so the pre-hydration window is byte-
+  // equivalent to pre-S3: both `isFreshIdentity` and `hydrated` initialise to
+  // false, so before identity resolves EVERY visitor would otherwise fall
+  // through and a genuine first-timer would briefly flash the list/banner
+  // before snapping to the full-screen card. Holding the full-screen path
+  // until `hydrated` (JoinRequestCard renders its own loading state) preserves
+  // the old first-visit experience; only a confirmed returning user
+  // (hydrated && !isFreshIdentity) reaches the new banner landing.
+  if (joinNonce && joinAdmin && joinName && (isFreshIdentity || !hydrated)) {
     return <JoinRequestCard nonce={joinNonce} adminNpub={joinAdmin} groupName={joinName} />;
   }
 
@@ -961,6 +979,15 @@ export default function GroupsPage() {
         {/* Backup reminder: only when user is in groups and hasn't backed up */}
         {ready && groups.length > 0 && !backedUp && (
           <BackupReminderBanner />
+        )}
+
+        {/* AC-LAND-1/AC-BANNER-1..5: returning-user invite-link banner,
+            rendered above the list — its own container, visually distinct
+            from PendingInvitations below (AC-BANNER-5). Only mounted when
+            join+admin+name are all present; the component itself resolves
+            Invited/Awaiting/already-member/loading via S2's reactive store. */}
+        {joinNonce && joinAdmin && joinName && (
+          <InviteAwaitingBanner nonce={joinNonce} adminNpub={joinAdmin} groupName={joinName} />
         )}
 
         <Box mb={6}>
@@ -1003,7 +1030,13 @@ export default function GroupsPage() {
         {/* AC-INVITE-7: PendingInvitations renders ABOVE joined-groups list */}
         {ready && !unsupported && <PendingInvitations />}
 
-        {ready && groups.length === 0 && (
+        {/* `outboundLoaded` gate (Codex pre-commit review, P2): the outbound
+            store loads asynchronously, so `outboundRecords` is empty during
+            its initial IDB read. Without this gate, a returning user with
+            persisted awaiting requests but no joined groups would briefly see
+            the "no groups" empty state before the awaiting cards render. Only
+            treat an empty outbound set as authoritative once it has loaded. */}
+        {ready && outboundLoaded && groups.length === 0 && outboundRecords.length === 0 && (
           <Alert
             status="info"
             borderRadius="md"
@@ -1022,10 +1055,13 @@ export default function GroupsPage() {
           </Alert>
         )}
 
-        {ready && groups.length > 0 && (
+        {ready && (groups.length > 0 || outboundRecords.length > 0) && (
           <VStack spacing={3} align="stretch" data-testid="groups-list">
             {groups.map((group) => (
               <GroupCard key={group.id} group={group} />
+            ))}
+            {outboundRecords.map((record) => (
+              <OutboundJoinRequestCard key={record.nonce} record={record} />
             ))}
           </VStack>
         )}

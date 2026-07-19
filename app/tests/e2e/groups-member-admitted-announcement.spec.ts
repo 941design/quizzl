@@ -162,10 +162,16 @@ test.describe.serial('Member-admitted chat announcement (join-request approval o
     const url = new URL(inviteUrl);
     await pageB.goto(url.pathname + url.search);
     await dismissErrorOverlay(pageB);
-    await expect(pageB.getByTestId('join-request-card')).toBeVisible({ timeout: 30_000 });
+    // epic: invite-link-awaiting-landing (S3) -- User B is a returning user
+    // (identity seeded via bootUser's addInitScript before navigation), so
+    // this now lands on InviteAwaitingBanner, not the full-screen
+    // JoinRequestCard.
+    await expect(pageB.getByTestId('invite-awaiting-banner')).toBeVisible({ timeout: 30_000 });
     await expect(pageB.getByText(GROUP_NAME)).toBeVisible();
-    await pageB.getByTestId('join-request-send-btn').click();
-    await expect(pageB.getByTestId('join-request-sent')).toBeVisible({ timeout: 30_000 });
+    await pageB.getByTestId('invite-awaiting-request-btn').click();
+    const nonce = url.searchParams.get('join');
+    expect(nonce).toBeTruthy();
+    await expect(pageB.getByTestId(`outbound-request-card-${nonce!.slice(0, 6)}`)).toBeVisible({ timeout: 30_000 });
   });
 
   test('AC-SEND-1: A approves the pending join request', async () => {

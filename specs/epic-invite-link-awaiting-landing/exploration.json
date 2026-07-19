@@ -1,0 +1,53 @@
+{
+  "epic": "invite-link-awaiting-landing",
+  "generated_at": "2026-07-19T17:35:42Z",
+  "focuses": ["similar-features", "architecture", "testing-and-conventions"],
+  "similar_features": {
+    "invite_link_format": "/groups/?join=<hex-nonce>&admin=<npub>&name=<groupName>; built by buildInviteUrl (app/src/lib/marmot/inviteLinkGeneration.ts:46); query-params, not path segments (static-export convention).",
+    "groups_page_branch": "app/pages/groups.tsx GroupsPage() (:899) branches on router.query: (1) join+admin+name all present -> returns <JoinRequestCard> full replacement (:941) before any list chrome; (2) ?id= -> <GroupDetailView> (:948); (3) else -> list view (:952-1039).",
+    "current_landing": "Returning user on an invite link sees a full-screen JoinRequestCard; after Request-to-Join only the join-request-sent success alert renders (JoinRequestCard.tsx:171). Existing groups never shown; awaiting group never shown.",
+    "outbound_record": "OutboundJoinRequestRecord {nonce, adminPubkeyHex, groupName, sentAt} persisted to IndexedDB store few-outbound-join-requests on successful sendJoinRequest; carries the display name already. Written by joinRequestSender; deleted by welcomeSubscription on correlated auto-accept. Never read by UI today. 7-day TTL, 256 cap.",
+    "auto_accept": "welcomeSubscription.ts:553 calls deleteOutboundJoinRequest(matchedRecord.nonce) after a correlated auto-accept join; the ONLY delete call site outside the module.",
+    "adjacent_done_epics": {
+      "epic-group-invite-link-onboarding": "DONE. Built name-gate on join card, requester-nickname transport in the gift-wrapped rumor, authenticated gift-wrap unwrap, outbound record + auto-accept. This feature builds on that backbone.",
+      "epic-first-visit-invite-welcome": "DONE. Owns the FIRST-TIME-visitor welcome screen that intercepts /groups/?join=. This feature must preserve that interception and only change the returning-user branch.",
+      "epic-cancel-pending-invitations": "DONE. Admin-side cancel of an in-tree pending member; provides the cancel-modal + testid-suffix-by-pubkey-prefix convention to mirror."
+    },
+    "adr_constraints": {
+      "ADR-002": "mutual-contact-graph-and-pull-only-invitations governs the invitation model; this feature only surfaces the already-persisted outbound record and adds no push, so it is consistent."
+    }
+  },
+  "architecture": {
+    "reactive_precedents": "app/src/lib/pendingInvitations.ts (:43-56 _snapshot/_listeners/_emit/subscribe/getSnapshot; :94-103 writeRaw single choke point notifies on every mutation; :205-210 eager sync snapshot init) and app/src/lib/unreadStore.ts (:45-56 same shape; :743 useUnreadCounts hook wrapper; :146-203 reconcileInit async-source-to-sync-store idiom).",
+    "idb_reactivity_gap": "outboundJoinRequests.ts/joinRequestStorage.ts/inviteLinkStorage.ts are plain async idb-keyval CRUD with NO subscribe/emit. All mutations funnel through saveOutboundJoinRequest(:78) + deleteOutboundJoinRequest(:115) (clearAllOutboundJoinRequests(:124) is dead code). An emitter inside those two covers all cases incl. auto-accept delete for free.",
+    "idb_snapshot_risk": "IDB has no synchronous initial snapshot (unlike localStorage), so getSnapshot() must return a cached array; populate via async load then _emit(). Need a not-yet-loaded vs loaded-empty distinction to avoid a one-frame false-empty flash.",
+    "hook_stability_risk": "useSyncExternalStore requires a STABLE cached getSnapshot return (same reference until a real change). A hook returning a fresh object/array literal each render causes an infinite render loop (prior learning react-hook-returning-fresh-object-literal).",
+    "marmot_context": "MarmotContext exposes groups/ready/unsupported/whenReady (MarmotContext.tsx:246-258); groups.tsx destructures {groups, ready, unsupported} (:907). New awaiting section guards on ready && !unsupported, rendered near PendingInvitations (:1004).",
+    "group_card": "GroupCard.tsx takes {group}; Chakra LinkBox with theme tokens. No dimmed variant. Awaiting card is a DIFFERENT row shape (no group id/member-count/preview) -> own small component. UserCard.tsx:61-62,122 has a dimmed?:boolean (opacity 0.6) precedent.",
+    "styling": "Chakra UI. Banner = Alert status=\"info\" + AlertIcon + AlertDescription (groups.tsx:978-995,1006-1023). Awaiting badge = Badge colorScheme=\"warning\" variant=\"subtle\" (mirror MemberList requested badge :189-196), i18n-sourced.",
+    "distinct_sections": "PendingInvitations = inbound Welcomes awaiting user's accept/decline. Outbound join requests = this device's requests awaiting a remote admin. Keep as visually distinct sections."
+  },
+  "testing_and_conventions": {
+    "unit": "Vitest, app/tests/unit/**/*.test.ts, no jsdom/@testing-library. outboundJoinRequests.test.ts mocks idb-keyval with a Map-backed fake then await import()s the module. Reactive emitter test pattern from pendingInvitations.test.ts:145-155 (listener called once + getSnapshot reflects) and :298-314 (unsubscribe silences).",
+    "react_logic_testing": "Test React/hook logic via extracted pure functions + source-scan (no jsdom). Prior learnings: extract-pure-helpers-ts-when-vitest, vitest-env-has-no-jsdom-testing, react-watcher-pure-function-export-lets.",
+    "i18n": "Copy is one shared TS interface -> a missing EN/DE key is a compile error. Per-feature i18n test asserts exact EN+DE strings (pendingInvitations.i18n.test.ts). Add a nested block under groups.* (dynamic values as functions, e.g. (name:string)=>string).",
+    "e2e": {
+      "framework": "Playwright, app/tests/e2e/*.spec.ts. Bucket by FILENAME glob: must be named groups-* to run in the relay bucket (trap: e2e_bucket_naming_relay_trap).",
+      "publish_via_app": "Drive publishes through the running app (second browser.newContext(), sign in via addInitScript, interact through real UI). Never raw WebSocket.",
+      "mirror_specs": "Best: groups-invite-link.spec.ts (two-context generate-link -> join-request -> approve, both named and name-gated). Live-update: groups-join-request-live.spec.ts (assert without goto/reload). Cancel pattern: groups-cancel-pending.spec.ts (cancel-<prefix> -> cancel-<prefix>-confirm testids).",
+      "existing_testids": "join-request-card, join-request-name-gate, join-request-name-input, join-request-send-btn, join-request-sent, join-request-already-member, pending-request-row-*, approve-request-*, groups-list, group-card-*.",
+      "new_testids_needed": "awaiting banner (e.g. awaiting-confirmation-banner), awaiting card (e.g. groups-awaiting-card-<prefix>), cancel action (e.g. cancel-outbound-request-<prefix>).",
+      "e2e_hazards": "Trailing-slash URL matching after router.replace (learnings next-js-static-export-trailing-slash, ac-prescribing-url-regex-must-name). Gate on rendered readiness markers not fixed timeouts (mls-over-relay-playwright-e2e-must). Do NOT close the invitee context mid-test (destroys MLS KeyPackage: closing-playwright-browsercontext-destroys). Poll live-updating UI, don't reload (e2e_no_reload_poll_for_propagation)."
+    },
+    "make_targets": "make test-unit (vitest); make test-e2e-all (full 60-test gate = fast + relay buckets); make test (unit + e2e-all, definitive gate). Subsets (test-e2e-fast/groups) are dev aids, never a pass."
+  },
+  "prior_learnings": [
+    "react-hook-returning-fresh-object-literal — stable cached snapshot required or infinite loop",
+    "extract-pure-helpers-ts-when-vitest / vitest-env-has-no-jsdom-testing — test via pure functions",
+    "welcome-join-request-name-gate-must — reuse isWelcomeJoinRequestDisabled predicate on the visible field",
+    "next-js-static-export-trailing-slash / ac-prescribing-url-regex-must-name — trailing-slash URL matching",
+    "mls-over-relay-playwright-e2e-must — readiness markers not fixed timeouts",
+    "closing-playwright-browsercontext-destroys — keep invitee context open",
+    "chakra-ui-modal-does-not-forward — data-testid not forwarded to Modal DOM node"
+  ]
+}

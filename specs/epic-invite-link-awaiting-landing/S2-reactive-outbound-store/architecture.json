@@ -1,0 +1,36 @@
+{
+  "module_name": "Outbound-join-request store",
+  "purpose": "Add a reactive (subscribe/getSnapshot/loaded-flag/cancel) read layer over the existing IndexedDB-backed outbound join-request record store, without changing its wire behavior, keys, TTL, or auto-accept correlation semantics.",
+  "public_api": [
+    { "name": "OutboundJoinRequestRecord", "signature": "interface { nonce: string; adminPubkeyHex: string; groupName: string; sentAt: number }", "description": "Pre-existing record shape (unchanged)." },
+    { "name": "createOutboundJoinRequestStore", "signature": "(): UseStore", "description": "Pre-existing idb-keyval store accessor (unchanged)." },
+    { "name": "OUTBOUND_JOIN_REQUEST_CAP", "signature": "const: number", "description": "Pre-existing global record cap (unchanged)." },
+    { "name": "OUTBOUND_JOIN_REQUEST_TTL_MS", "signature": "const: number", "description": "Pre-existing 7-day TTL (unchanged)." },
+    { "name": "saveOutboundJoinRequest", "signature": "(record: OutboundJoinRequestRecord): Promise<void>", "description": "Pre-existing persist funnel; now also recomputes the cached snapshot and emits exactly once before returning (AC-STORE-4)." },
+    { "name": "loadUnexpiredOutboundJoinRequestsForAdmin", "signature": "(adminPubkeyHex: string): Promise<OutboundJoinRequestRecord[]>", "description": "Pre-existing async correlation read (unchanged)." },
+    { "name": "deleteOutboundJoinRequest", "signature": "(nonce: string): Promise<void>", "description": "Pre-existing delete funnel; now also recomputes the cached snapshot and emits exactly once before returning (AC-STORE-4). This is the funnel welcomeSubscription.ts:553's auto-accept path already calls — made reactive with zero edits to that file." },
+    { "name": "clearAllOutboundJoinRequests", "signature": "(): Promise<void>", "description": "Pre-existing dead-code account-wide reset; recomputes + emits too for funnel consistency, but remains unwired (not part of this story's tested behavior)." },
+    { "name": "subscribe", "signature": "(listener: () => void): () => void", "description": "NEW (AC-STORE-1). Adds listener to _listeners; on first subscribe (if not yet loaded), kicks the async initial IDB load. Returns an unsubscribe function." },
+    { "name": "getSnapshot", "signature": "(): OutboundJoinRequestRecord[]", "description": "NEW (AC-STORE-1, AC-STORE-2). Synchronous; returns the cached, TTL-filtered _snapshot. Stable reference until the record set changes." },
+    { "name": "getServerSnapshot", "signature": "(): OutboundJoinRequestRecord[]", "description": "NEW. SSR/static-export-safe stable empty array, mirroring pendingInvitations/unreadStore." },
+    { "name": "isOutboundJoinRequestsLoaded", "signature": "(): boolean", "description": "NEW (AC-STORE-3). Distinguishes not-yet-loaded from loaded-and-empty." },
+    { "name": "cancelOutboundJoinRequest", "signature": "(nonce: string): Promise<void>", "description": "NEW (AC-STORE-5). The only sanctioned UI-facing delete entry point; delegates to deleteOutboundJoinRequest(nonce)." },
+    { "name": "useOutboundJoinRequests", "signature": "(): { records: OutboundJoinRequestRecord[]; loaded: boolean }", "description": "NEW. useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot) wrapper, mirroring useUnreadCounts. Also exposes isOutboundJoinRequestsLoaded() as `loaded` for consumers (React hook — imports React only in this module)." }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "few-outbound-join-requests IndexedDB store (unchanged ownership)",
+    "module-level _snapshot: readonly OutboundJoinRequestRecord[] (new, in-memory cache)",
+    "module-level _listeners: Set<() => void> (new, in-memory)",
+    "module-level _loaded: boolean flag (new, in-memory)"
+  ],
+  "dependencies_allowed": ["idb-keyval", "react"],
+  "dependencies_forbidden": [
+    "app/pages/groups.tsx and any component must not import idb-keyval directly to reach this store; they use subscribe/getSnapshot/useOutboundJoinRequests/cancelOutboundJoinRequest exclusively",
+    "welcomeSubscription.ts is NOT edited by this story"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": ["app/tests/unit/marmot/outboundJoinRequests.test.ts"]
+}

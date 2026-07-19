@@ -1,0 +1,112 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T18:30:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S5-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Do the assertions in groups-awaiting-confirmation.spec.ts assert concrete DOM/state changes (visible/hidden elements, testid presence/absence) rather than tautological waits (e.g. a waitForTimeout followed by an assertion that always passes), and is there no fixed-sleep step standing in for a real poll/expect.poll on the live-updating UI, per this project's known e2e-flake precedent?"
+    },
+    {
+      "question_id": "VQ-S5-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the new spec avoid any raw WebSocket publish to the relay for admin/invitee actions (publish-via-app rule), and does it keep the invitee's browser context open through the auto-accept assertion (closing it destroys the MLS KeyPackage, per project precedent) rather than closing and reopening it before the approval assertion?"
+    },
+    {
+      "question_id": "VQ-S5-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could this integration story's verification surface be deleted and rewritten without modifying any file outside its dependencies_allowed list (the union of its owned ACs' Spans modules: set — Outbound-join-request store, Groups page, welcomeSubscription.ts (auto-accept path))? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S5-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Is groups-awaiting-confirmation.spec.ts named to land in the relay bucket (groups-*.spec.ts filename convention, not accidentally run in the no-relay fast bucket — a known project e2e trap), does it use two real browser.newContext() sessions (invitee + admin) signed in through the app rather than mocked signers, and does every live-transition assertion use expect.poll/toBeVisible rather than reload()+isVisible() (a known project hydration-race trap)?"
+    },
+    {
+      "question_id": "VQ-S5-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the spec drive the full flow described in acceptance-criteria.md's E2E Coverage section end-to-end — land on Invited banner, confirm to Awaiting, persist-across-reload, Cancel with no reload, and a second-context admin approval with no reload — through real app UI interactions only, with no production-code changes introduced by this story?"
+    },
+    {
+      "question_id": "VQ-S5-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the spec publish every join-request/approval action through the app's real UI/publish helpers (no hand-signed raw event WebSocket.send to the relay), consistent with this project's e2e-testing rule that a raw-WebSocket-driven test can pass even when the app's own signer/publish path is broken?"
+    },
+    {
+      "question_id": "VQ-S5-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-1",
+      "question": "Show the spec step driving a returning user opening an invite link, observing the Invited banner, tapping Request to join, observing the Awaiting banner and card, then reload()-ing and asserting the awaiting card is still present; confirm this exercises the real saveOutboundJoinRequest IndexedDB persistence path (survives reload) rather than in-memory-only mock state."
+    },
+    {
+      "question_id": "VQ-S5-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-2",
+      "question": "Show the spec step tapping Cancel on the awaiting card and asserting both the card and Awaiting banner are removed WITHOUT any reload() call anywhere in that assertion path; confirm the assertion uses expect.poll/toBeVisible against the live DOM, not a reload-then-check pattern that would pass even if live reactivity were broken."
+    },
+    {
+      "question_id": "VQ-S5-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-3",
+      "question": "Show the spec step using a second browser.newContext() signed in as the real admin to approve the join request through the app's real approval UI, and the assertion (in the requester's still-open session, no reload()) that the awaiting card disappears and the real joined-group card appears; confirm the invitee context is never closed before this assertion."
+    },
+    {
+      "question_id": "VQ-S5-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-E2E-4",
+      "question": "Show the data-testid attributes referenced by the spec for the awaiting banner, the awaiting card (nonce-prefix keyed, mirroring pending-request-row-*), and the Cancel action, and confirm each is asserted present in the rendered DOM at the corresponding component (not merely referenced in the spec's selector strings without a presence assertion)."
+    },
+    {
+      "question_id": "VQ-S5-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-OBS-1",
+      "question": "Show the ordering-property test/assertion demonstrating that once a delete for a nonce has been applied to the few-outbound-join-requests store, no subsequent getSnapshot() call — including one from an async load that started before the delete but resolves after — includes a record for that nonce; confirm this is exercised against S2's real store/emitter implementation via a genuine race (e.g. triggering the async load and the delete close together), not a sequential happy-path call order that could never expose the race."
+    },
+    {
+      "question_id": "VQ-S5-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-OBS-2",
+      "question": "Show the assertion that across the auto-accept transition for a given nonce, no observed rendered frame shows both the awaiting card and the real joined-group card simultaneously, and no observed frame shows neither; confirm the assertion polls intermediate frames (not just before/after snapshots) so a transient double-visible or double-absent frame would actually be caught."
+    },
+    {
+      "question_id": "VQ-S5-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-OBS-3",
+      "question": "Show the scenario where a user Cancels (local delete) before a later-arriving admin-approval Welcome for the same nonce arrives, and the assertion that the Welcome is NOT silently dropped — it surfaces via the existing manual Accept/Decline pending-invitations path; confirm this is driven through the app's real welcomeSubscription/pending-invitations handling, not a stub that always shows the manual path regardless of the cancel-then-approve ordering."
+    },
+    {
+      "question_id": "VQ-S5-014",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-OBS-3",
+      "question": "The AC-OBS-3 test reuses nonce1's ORIGINAL join-request rumor (sent in the 'taps Request to join' test, never retracted by the later Cancel per AC-CARD-3/DD-4) rather than sending a fresh request-then-cancel pair. Does this genuinely exercise 'Cancel precedes a later-arriving admin-approval Welcome for the same nonce', or does reusing the stale pending rumor risk a different code path (e.g. an already-processed/seen-event guard) than a fresh cancel-then-approve sequence would hit?"
+    },
+    {
+      "question_id": "VQ-S5-015",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "ac_id": "AC-OBS-2",
+      "question": "The AC-OBS-2 poll loop (250ms interval, up to 90s) ran green on the real implementation with no observed both-visible or neither-visible frame, despite MarmotContext.tsx's onGroupJoined callback firing `void reloadGroups()` (fire-and-forget, not awaited) AFTER `deleteOutboundJoinRequest` inside welcomeSubscription.ts's auto-accept branch — a theoretical gap where the card is already gone but the real group card has not yet rendered. Is 250ms polling fine-grained enough to have a real chance of catching that gap in this app's actual IDB-read + React-commit latency, or is the gap structurally too small for browser-level Playwright polling to ever observe regardless of whether it exists?"
+    },
+    {
+      "question_id": "VQ-S5-016",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "This story discovered that groups-invite-link.spec.ts, groups-join-request-live.spec.ts, groups-approved-requester-label.spec.ts, groups-welcome.spec.ts, groups-join-request-profile.spec.ts, and groups-member-admitted-announcement.spec.ts all assert the full-screen JoinRequestCard (`getByTestId('join-request-card')`) for a NAMED, boot-identity invite-link visitor — a user who, under this epic's S3 change (groups.tsx:950's `isFreshIdentity` gate), no longer reaches that branch, since every e2e-booted identity is non-fresh at mount. Ground-truthed: groups-invite-link.spec.ts currently fails 2 of 11 tests for exactly this reason. Should these prior-epic specs be updated (by this epic or a follow-up) to assert the NEW returning-user landing (list + InviteAwaitingBanner) instead of the old full-screen replacement, before `make test-e2e-all` is run as this epic's gate?"
+    }
+  ]
+}

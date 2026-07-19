@@ -1,0 +1,16 @@
+{
+  "story_id": "S4",
+  "captured_at": "2026-07-19T20:48:04Z",
+  "test": {
+    "command": "make test-unit",
+    "status": "PASS",
+    "test_files": 196,
+    "tests_passed": 3729,
+    "tests_skipped": 1,
+    "tests_total": 3730
+  },
+  "lint": "NO_LINT",
+  "lint_detail": "No .eslintrc*/eslint.config* present under app/ — matches S1/S2/S3's recorded baseline; the project has no configured lint gate.",
+  "typecheck": "clean",
+  "typecheck_detail": "npx tsc --noEmit (app/) — zero errors at baseline (post S1+S2+S3, pre-S4)."
+}

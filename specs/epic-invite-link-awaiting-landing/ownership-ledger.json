@@ -1,0 +1,59 @@
+{
+  "epic": "invite-link-awaiting-landing",
+  "concepts": [
+    {
+      "id": "outbound-store-reactive-surface",
+      "name": "Outbound-join-request store reactive read/cancel surface (subscribe/getSnapshot/loaded-flag/cancelOutboundJoinRequest)",
+      "owning_module": "Outbound-join-request store",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "outbound-store-mutation-funnel",
+      "name": "All few-outbound-join-requests mutations funnel through saveOutboundJoinRequest / deleteOutboundJoinRequest only",
+      "owning_module": "Outbound-join-request store",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "groups-i18n-copy-keys",
+      "name": "groups.* i18n copy keys (EN + DE parity)",
+      "owning_module": "i18n copy",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "groups-page-returning-user-branch",
+      "name": "Groups page returning-user route branch (list view vs. first-visit welcome vs. group-detail)",
+      "owning_module": "Groups page",
+      "type": "invariant",
+      "added_by_story": null
+    },
+    {
+      "id": "invite-awaiting-banner-contract",
+      "name": "Invited/awaiting info banner (two-state, presentational)",
+      "owning_module": "Awaiting banner",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "awaiting-card-contract",
+      "name": "Dimmed/badged awaiting card + Cancel (presentational, non-navigable)",
+      "owning_module": "Awaiting card",
+      "type": "public_contract",
+      "added_by_story": null
+    },
+    {
+      "id": "join-request-send-reuse",
+      "name": "Join-request send + name-gate logic (reused inline by the banner, not re-implemented)",
+      "owning_module": "Join-request send",
+      "type": "public_contract",
+      "added_by_story": null
+    }
+  ],
+  "stories": [],
+  "reviewer_state": {
+    "last_story_reviewed": null,
+    "model_at": "2026-07-19T18:00:00Z"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "story_id": "S5",
+  "status": "done",
+  "is_integration_story": true,
+  "completed_at": "2026-07-19T23:30:00Z",
+  "remediation_rounds": 0,
+  "files_created": [
+    "app/tests/e2e/groups-awaiting-confirmation.spec.ts"
+  ],
+  "files_modified": [],
+  "tests_added": {
+    "e2e": 11
+  },
+  "test_counts": {
+    "baseline": 3745,
+    "final": 3745,
+    "note": "This is a test-only integration story adding a new Playwright e2e spec (11 tests), not a Vitest unit-test story; the unit-test count is unchanged (11 e2e tests were added and verified separately via `make test-e2e-groups`-style filtered run, all 11 passing)."
+  },
+  "mocks": [],
+  "modules_touched": [
+    "Outbound-join-request store",
+    "Groups page",
+    "Awaiting card"
+  ],
+  "e2e_verification": {
+    "command": "E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-awaiting-confirmation.spec.ts (after make e2e-up)",
+    "status": "11 passed (33.8s)",
+    "note": "Full-suite make test-e2e-all is the epic's Step 5.8 gate, run separately by the lead \u2014 not run here per story instructions."
+  },
+  "findings": [
+    {
+      "severity": "blocking-for-epic-gate",
+      "title": "S3's returning-user branch change breaks 6 pre-existing prior-epic e2e specs",
+      "detail": "groups.tsx:950 now gates the full-screen JoinRequestCard behind `isFreshIdentity === true`. Every e2e-booted identity in this suite (via the shared addInitScript-seeds-localStorage-before-every-navigation bootUser pattern) reads as non-fresh at mount (deriveIsFreshIdentity finds a non-null stored identity), so these boot identities now land on the NEW list+banner returning-user experience instead of the full-screen card. Ground-truthed by running the unmodified prior-epic spec groups-invite-link.spec.ts: 2 of 11 tests fail with `getByTestId('join-request-card')` timeouts. The SAME `join-request-card` assertion pattern (a named boot-identity user expecting the full-screen card on a raw invite-link visit) also appears in groups-join-request-live.spec.ts, groups-approved-requester-label.spec.ts, groups-welcome.spec.ts, groups-join-request-profile.spec.ts, and groups-member-admitted-announcement.spec.ts (found via grep, not individually re-run). This is the epic's INTENDED behavior change surfacing as staleness in prior-epic e2e specs, not a bug in the new code \u2014 but it will make `make test-e2e-all` (the epic's Step 5.8 gate) fail on unrelated-looking prior-epic tests if not addressed before that gate runs. Not fixed here: out of this story's scope (no production-code changes; this story's scope names only the new spec file). Escalating to the architect/lead running the epic to decide: update the affected prior-epic specs to assert the new returning-user landing, or otherwise reconcile before the full-suite gate.",
+      "evidence": "app/tests/e2e/groups-invite-link.spec.ts run via `E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-invite-link.spec.ts` \u2014 2 failed / 6 did not run / 3 passed. Both failures at `getByTestId('join-request-card')).toBeVisible({ timeout: 30_000 })` (lines 116 and 269).",
+      "recommendation": "Update the 6 affected groups-*.spec.ts files' 'named returning user opens raw invite link' assertions to expect the new list+InviteAwaitingBanner landing (this epic's actual, intended behavior) instead of the full-screen JoinRequestCard, before running make test-e2e-all as the epic gate. Alternatively, if any of those specs specifically need to exercise the FIRST-VISIT (fresh-identity) path, they should boot without pre-seeding an identity via addInitScript so isFreshIdentity is genuinely true at mount."
+    }
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Determining the 'returning user' signal required tracing deriveIsFreshIdentity -> NostrIdentityContext's sole call site -> the existing bootUser e2e helper's addInitScript timing, rather than a documented answer; this also surfaced that the standard bootUser pattern ALWAYS yields isFreshIdentity=false (identity is seeded before every navigation, including reload()), which is not stated anywhere and only became clear by reading NostrIdentityProvider's init effect line-by-line. That same tracing exposed that 6 pre-existing prior-epic e2e specs now fail against the current (uncommitted) working tree for exactly this reason -- verified by actually running one of them before writing my own spec, rather than assuming the existing suite was green.",
+    "surprised_by": "The AC-OBS-2 adversarial construction (tight 250ms polling across the auto-accept transition, targeting the real gap where welcomeSubscription.ts's `deleteOutboundJoinRequest` fires synchronously but MarmotContext's onGroupJoined callback triggers `reloadGroups()` fire-and-forget, unawaited) did not reproduce a both-visible or neither-visible frame in 11/11 runs -- the theoretical race exists in the code's control flow but is apparently too fast (or React's batching absorbs it) for browser-level Playwright polling to observe. Recorded as a non-finding per the construction-must-reproduce-before-reporting rule, and surfaced as a post-impl verification question (VQ-S5-015) rather than a blocking finding.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted"
+}

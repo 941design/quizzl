@@ -1,0 +1,110 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T18:30:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is getSnapshot()'s stable-reference behavior implemented by genuinely caching and recomputing a shared array only on real change (not by returning a fresh literal/spread array per call that happens to satisfy a shallow-equality check only in the test's specific setup), and is the 7-day TTL/expiry check a real date comparison rather than a frozen always-included stub?"
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does the change-notification emitter live only inside saveOutboundJoinRequest and deleteOutboundJoinRequest (the sole funnel points named in architecture.md's Boundary rules), with a one-line contract comment at each call site, and is there no second/parallel code path elsewhere in the codebase that mutates the few-outbound-join-requests IDB store without invoking the emitter?"
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could Outbound-join-request store be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do the extended tests in outboundJoinRequests.test.ts include: (a) notify-on-mutation and silent-after-unsub (the pendingInvitations.test.ts two-test shape), (b) an assertion that getSnapshot() returns the identical array reference across repeated calls when nothing changed (not just a deep-equal check), (c) an assertion that a record older than 7 days is excluded from getSnapshot() at snapshot-compute time, and (d) a regression test that calls deleteOutboundJoinRequest directly (the exact call welcomeSubscription.ts:553 already makes) and asserts a subscribed listener fires — with none of these tests substituting a hand-rolled mock of getSnapshot/subscribe in place of the real module exports?"
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the reactive read/cancel surface added to outboundJoinRequests.ts match the OutboundJoinRequestReadSurface seam contract in stories.json (subscribe, getSnapshot, isOutboundJoinRequestsLoaded, cancelOutboundJoinRequest, useOutboundJoinRequests) exactly, with no renamed, reshaped, or missing export?"
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does cancelOutboundJoinRequest no-op safely (without throwing an unhandled rejection or corrupting the cached snapshot) if called with a nonce that has no matching record, and does the loaded-state signal default to 'not loaded' rather than 'loaded-empty' before the first async IDB read resolves, avoiding a false-empty flash?"
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STORE-1",
+      "question": "Show the production export of subscribe(listener): () => void and synchronous getSnapshot(): OutboundJoinRequestRecord[] in outboundJoinRequests.ts, the test proving getSnapshot() returns the SAME array reference across repeated calls when the record set is unchanged, and confirm the test does not stub subscribe/getSnapshot with a mock that trivially satisfies the assertion."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STORE-2",
+      "question": "Show the production logic in getSnapshot() that excludes any record at/past the 7-day TTL (matching loadUnexpiredOutboundJoinRequestsForAdmin's boundary), the test that seeds a record just past expiry and one just before expiry and asserts only the unexpired one appears in getSnapshot(), and confirm the test exercises a real date-boundary computation rather than a hardcoded fixture with no boundary math."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STORE-3",
+      "question": "Show the production loaded-state export (e.g. isOutboundJoinRequestsLoaded()) and the async initial-load path, the test proving the signal is false before the first IDB read resolves and true afterward (loaded-and-empty vs not-yet-loaded distinguished), and confirm no test-only fake resolves the load path synchronously in a way that would hide a real async-timing bug."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STORE-4",
+      "question": "Show the emitter invocation sites inside saveOutboundJoinRequest and deleteOutboundJoinRequest, the test asserting the emitter/listener fires exactly once per call to each function (not zero, not twice), and confirm the snapshot is recomputed before listeners are notified by asserting the listener observes the post-mutation snapshot."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-STORE-5",
+      "question": "Show the production export of cancelOutboundJoinRequest(nonce) delegating to deleteOutboundJoinRequest(nonce), the test/source-scan proving no other exported UI-facing delete path exists and that no component imports idb-keyval directly, and confirm this is asserted against real source files rather than a manually maintained allowlist that could drift from the codebase."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REACT-1",
+      "question": "Show the new regression test that calls deleteOutboundJoinRequest(nonce) — the exact call welcomeSubscription.ts:553 already makes — without touching welcomeSubscription.ts itself, and confirm it asserts a subscribed listener fires as the state-discriminating evidence that the auto-accept path becomes reactive purely from S2's emitter; confirm the test would fail against the pre-S2 version of outboundJoinRequests.ts (no emitter) and pass after."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-STORE-3",
+      "question": "The implemented 'loaded-flag' test only asserts isOutboundJoinRequestsLoaded() === true post-load (documented in-file as infeasible to test false-then-true within one shared-module-import test file, since _loaded/_loadStarted are un-resettable module singletons and earlier tests in the same file already resolve the load). Given VQ-S2-009's pre-impl question explicitly asked for a false-before/true-after test: is the false-before behavior nonetheless verifiable — e.g. via a small isolated test file that imports the module fresh and asserts isOutboundJoinRequestsLoaded() === false synchronously right after the first subscribe() call, before awaiting a tick? If such isolation is achievable without vi.resetModules() fragility, is it worth adding, or does the current single-file constraint make the post-only assertion an acceptable residual gap for this story?"
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "saveOutboundJoinRequest and deleteOutboundJoinRequest each perform a full entries() re-read of the IDB store AFTER their own set()/del() call, purely to recompute the reactive snapshot from ground truth, rather than reusing the `all` array already read earlier in saveOutboundJoinRequest (with the delta applied in memory) or the deleted nonce filtered out of a prior read. Under a fast back-to-back save/delete sequence on the same nonce (e.g. two overlapping calls before either's second entries() read resolves), could the recompute observe a snapshot that doesn't correspond to that call's own mutation, and if so is that ever user-visible given each recompute is itself a full re-read of persisted truth (i.e. the LAST recompute to run always reflects storage state at that moment, regardless of which call's set()/del() produced it)?"
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "_recomputeSnapshot's 'unchanged' check compares only nonce identity + array length + positional order, not full record equality (groupName/adminPubkeyHex/sentAt). Since records in this store are write-once-by-nonce in current call sites (a nonce is saved once at send time and never re-saved with different content before being deleted), is this sufficient for all real usage, or could a hypothetical future caller that re-saves an existing nonce with changed content silently fail to get a new snapshot reference (stale content behind an unchanged array identity)? Is this assumption worth a one-line code comment warning future maintainers, if not already present?"
+    },
+    {
+      "question_id": "VQ-S2-016",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "question": "The module-init-time load trigger (`if (typeof window !== 'undefined') { _ensureLoadStarted(); }`) never fires in this project's Vitest environment (node, not jsdom, per project convention), so all test coverage of the initial-load path in outboundJoinRequests.test.ts exercises only the first-subscribe() trigger, never the module-init trigger. Is there any realistic browser-runtime difference between the two trigger paths (e.g. ordering relative to React hydration, or a component calling getSnapshot() before ever subscribing) that would benefit from a targeted regression test with `window` stubbed present at import time, or is the shared `_ensureLoadStarted`/`_loadStarted` guard's symmetry between both call sites sufficient to consider both paths equivalently covered by construction?"
+    }
+  ]
+}

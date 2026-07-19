@@ -18,6 +18,7 @@
  * purposes on the sender's own device.
  */
 
+import { useSyncExternalStore } from 'react';
 import { createStore, set, del, entries, clear } from 'idb-keyval';
 
 export interface OutboundJoinRequestRecord {
@@ -62,6 +63,158 @@ function isExpired(record: OutboundJoinRequestRecord, now: number): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Reactive read layer (S2, epic: invite-link-awaiting-landing)
+//
+// Additive on top of the async CRUD above — no wire behavior, storage keys,
+// TTL value, or auto-accept correlation semantics change here. Mirrors
+// pendingInvitations.ts's _snapshot/_listeners/_emit()/subscribe()/
+// getSnapshot() shape, with one addition pendingInvitations.ts does not need:
+// a `_loaded` flag, since this store is IDB-backed (async) rather than
+// localStorage-backed (always synchronously "loaded").
+// ---------------------------------------------------------------------------
+
+const EMPTY_SNAPSHOT: readonly OutboundJoinRequestRecord[] = [];
+
+let _snapshot: readonly OutboundJoinRequestRecord[] = EMPTY_SNAPSHOT;
+const _listeners = new Set<() => void>();
+let _loaded = false;
+let _loadStarted = false;
+
+/**
+ * Recomputes the cached snapshot from a full record set, filtering to
+ * unexpired-only (AC-STORE-2: the TTL filter is evaluated at snapshot-compute
+ * time — i.e. exactly here, at each mutation/load point — not lazily inside
+ * `getSnapshot()` on every call, which would defeat the stable-reference
+ * guarantee below since "now" changes constantly).
+ *
+ * Replaces `_snapshot` with a NEW array reference only when the filtered
+ * content actually differs from the current snapshot (by nonce identity +
+ * length) — repeated calls with no real change return the SAME reference.
+ */
+function _recomputeSnapshot(all: OutboundJoinRequestRecord[]): void {
+  const now = Date.now();
+  const unexpired = all.filter((record) => !isExpired(record, now));
+
+  // NB: the unchanged-check compares by nonce identity + length only, which
+  // is sound because every write is keyed by a unique nonce and records are
+  // write-once (saved once on send, deleted on cancel/auto-accept — never
+  // re-saved with mutated content). If a future caller ever re-saves an
+  // existing nonce with a changed field (e.g. a different groupName), this
+  // check would retain the stale snapshot reference; extend it to compare
+  // record content if that invariant is ever relaxed.
+  const unchanged =
+    unexpired.length === _snapshot.length &&
+    unexpired.every((record, i) => record.nonce === _snapshot[i].nonce);
+  if (unchanged) return;
+
+  _snapshot = unexpired;
+}
+
+function _emit(): void {
+  _listeners.forEach((listener) => listener());
+}
+
+/**
+ * Async one-shot initial load: reads every persisted record, recomputes the
+ * cached snapshot, marks the store loaded, and notifies subscribers. Never
+ * throws — on failure the store is still marked loaded (with a best-effort
+ * snapshot) so a subscribed UI does not spin forever.
+ */
+async function _initialLoad(): Promise<void> {
+  try {
+    const all = await entries<string, OutboundJoinRequestRecord>(outboundJoinRequestStore);
+    _recomputeSnapshot(all.map(([, record]) => record));
+  } catch {
+    // Never throw — best-effort snapshot, still mark loaded below.
+  } finally {
+    _loaded = true;
+    _emit();
+  }
+}
+
+function _ensureLoadStarted(): void {
+  if (_loadStarted) return;
+  _loadStarted = true;
+  void _initialLoad();
+}
+
+/**
+ * Subscribe to reactive-store changes — for useSyncExternalStore. Kicks off
+ * the async initial load on the first-ever subscribe (idempotent alongside
+ * the module-init-time trigger below via the `_loadStarted` guard).
+ */
+export function subscribe(listener: () => void): () => void {
+  _listeners.add(listener);
+  _ensureLoadStarted();
+  return () => _listeners.delete(listener);
+}
+
+/** Synchronous, cached snapshot accessor — for useSyncExternalStore. Never
+ *  performs I/O; the underlying array is treated as immutable. */
+export function getSnapshot(): OutboundJoinRequestRecord[] {
+  return _snapshot as OutboundJoinRequestRecord[];
+}
+
+/** Stable empty snapshot for SSR/static export — mirrors pendingInvitations.ts
+ *  / unreadStore.ts's getServerSnapshot() pattern. */
+export function getServerSnapshot(): OutboundJoinRequestRecord[] {
+  return EMPTY_SNAPSHOT as OutboundJoinRequestRecord[];
+}
+
+/** Whether the async initial load has resolved (success or failure). */
+export function isOutboundJoinRequestsLoaded(): boolean {
+  return _loaded;
+}
+
+/** Synchronous `loaded`-flag accessor for useSyncExternalStore. Returns a
+ *  PRIMITIVE boolean so useSyncExternalStore's Object.is check detects the
+ *  one-shot false→true transition even when the loaded record set is empty
+ *  (see the hook's doc comment for why that case is the bug this fixes). */
+function getLoadedSnapshot(): boolean {
+  return _loaded;
+}
+
+/** SSR/static-export loaded snapshot — always false before hydration. */
+function getLoadedServerSnapshot(): boolean {
+  return false;
+}
+
+/**
+ * React hook — mirrors unreadStore.ts's `useUnreadCounts` wrapper shape.
+ *
+ * Both `records` AND `loaded` are piped through `useSyncExternalStore` over
+ * the same `subscribe`. This is load-bearing: on an EMPTY initial load,
+ * `_recomputeSnapshot([])` leaves `getSnapshot`'s array reference unchanged
+ * (empty→empty), so the records subscription alone produces no re-render —
+ * useSyncExternalStore suppresses re-renders when the snapshot reference is
+ * Object.is-equal. A consumer that mounted before the load resolved would
+ * then stay stuck at `loaded === false` and render nothing (e.g. the Invited
+ * banner for a returning user opening a fresh invite link with no prior
+ * outbound records). Reading `_loaded` plainly here does NOT fix that,
+ * because there is no guaranteed re-render at which to re-read it. Routing
+ * `loaded` through its own primitive-boolean snapshot makes the false→true
+ * flip itself the re-render trigger (Codex pre-commit review, P1).
+ */
+export function useOutboundJoinRequests() {
+  const records = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const loaded = useSyncExternalStore(subscribe, getLoadedSnapshot, getLoadedServerSnapshot);
+  return { records, loaded };
+}
+
+// Kick off the initial load at module-init time in a browser environment, not
+// only on first subscribe — mirrors pendingInvitations.ts's bottom-of-file
+// `if (typeof window !== 'undefined')` guard, but fires the async load
+// without awaiting (`void _initialLoad()`), so a component calling
+// `getSnapshot()` before ever subscribing still eventually sees loaded data.
+// The first-subscribe trigger in `subscribe()` above is a redundant guard for
+// SSR/module-eval environments where `window` may not exist yet at import
+// time but a subscribe happens later client-side; both paths are idempotent
+// via `_loadStarted`.
+if (typeof window !== 'undefined') {
+  _ensureLoadStarted();
+}
+
+// ---------------------------------------------------------------------------
 // CRUD
 // ---------------------------------------------------------------------------
 
@@ -85,6 +238,19 @@ export async function saveOutboundJoinRequest(record: OutboundJoinRequestRecord)
     await set(record.nonce, record, outboundJoinRequestStore);
   } catch {
     // Never throw — see doc comment above.
+  }
+
+  // Reactive-store funnel point (AC-STORE-4): every mutation of this IDB store
+  // MUST recompute the cached snapshot and emit here — this is the ONLY place
+  // saveOutboundJoinRequest notifies subscribers.
+  try {
+    const persisted = await entries<string, OutboundJoinRequestRecord>(outboundJoinRequestStore);
+    _recomputeSnapshot(persisted.map(([, r]) => r));
+  } catch {
+    // Never throw
+  } finally {
+    _loaded = true;
+    _emit();
   }
 }
 
@@ -118,9 +284,44 @@ export async function deleteOutboundJoinRequest(nonce: string): Promise<void> {
   } catch {
     // Never throw
   }
+
+  // Reactive-store funnel point (AC-STORE-4): every mutation of this IDB store
+  // MUST recompute the cached snapshot and emit here — this is the ONLY place
+  // deleteOutboundJoinRequest notifies subscribers. This is what makes
+  // welcomeSubscription.ts:553's existing `deleteOutboundJoinRequest(matchedRecord.nonce)`
+  // call reactive, with zero edits to that file.
+  try {
+    const persisted = await entries<string, OutboundJoinRequestRecord>(outboundJoinRequestStore);
+    _recomputeSnapshot(persisted.map(([, r]) => r));
+  } catch {
+    // Never throw
+  } finally {
+    _loaded = true;
+    _emit();
+  }
 }
 
-/** Drop every outbound join-request record (account-wide reset). */
+/**
+ * The ONLY sanctioned UI-facing delete entry point (AC-STORE-5). Delegates
+ * entirely to `deleteOutboundJoinRequest` — no reimplementation — so the
+ * reactive-store funnel point above stays the single source of truth for
+ * this mutation's recompute+emit.
+ */
+export async function cancelOutboundJoinRequest(nonce: string): Promise<void> {
+  return deleteOutboundJoinRequest(nonce);
+}
+
+/**
+ * Drop every outbound join-request record (account-wide reset).
+ *
+ * Dead code (nothing calls it) per the story brief — the recompute+emit
+ * below is added for funnel consistency only and is not load-bearing for
+ * any behavior beyond "it still clears the store."
+ */
 export async function clearAllOutboundJoinRequests(): Promise<void> {
   await clear(outboundJoinRequestStore);
+
+  _recomputeSnapshot([]);
+  _loaded = true;
+  _emit();
 }

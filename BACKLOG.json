@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-19T14:35:52Z",
+  "updated_at": "2026-07-19T22:43:41Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -216,6 +216,11 @@
       "path": "specs/epic-group-admission-chat-announcement/",
       "status": "DONE",
       "next_action": "completed 2026-07-19"
+    },
+    {
+      "path": "specs/epic-invite-link-awaiting-landing/",
+      "status": "DONE",
+      "next_action": "completed 2026-07-20"
     }
   ],
   "findings": [

@@ -1,0 +1,30 @@
+{
+  "module_name": "Awaiting card",
+  "purpose": "New presentational component rendering a dimmed, 'awaiting'-badged card (mirroring UserCard.tsx's dimmed pattern and MemberList.tsx's requested-badge pattern) for every unexpired outbound join-request record, listed among the joined-group GroupCards in groups.tsx. The card is never a navigable LinkBox (no MLS group joined yet for that record) and exposes a Cancel action wired exclusively to cancelOutboundJoinRequest(nonce).",
+  "public_api": [
+    { "name": "OutboundJoinRequestCard", "signature": "(props: { record: OutboundJoinRequestRecord }) => JSX.Element", "description": "NEW default export, app/src/components/groups/OutboundJoinRequestCard.tsx. Renders a dimmed (opacity 0.6) plain Box container — never LinkBox/LinkOverlay, no ?id= navigation — with group name, an 'awaiting' Badge (colorScheme=warning, variant=subtle) sourced from copy.groups.awaitingBadgeLabel, and a Cancel button (copy.groups.cancelOutboundRequestLabel) that calls cancelOutboundJoinRequest(record.nonce). data-testid on the card is `outbound-request-card-<nonce6>`; on the Cancel action, `cancel-outbound-request-<nonce6>` (nonce6 = record.nonce.slice(0, 6), mirroring the pubkey.slice(0,8)/eventId prefix-keyed testid convention used by MemberList.tsx/GroupCard.tsx)." },
+    { "name": "GroupsPage", "signature": "(): JSX.Element", "description": "Pre-existing default export (app/pages/groups.tsx). Small follow-on edit to the list-rendering block S3 established: reads useOutboundJoinRequests() and renders one OutboundJoinRequestCard per unexpired record after the joined-group GroupCards inside the same groups-list VStack (DD-3), and adjusts the empty-state condition so the 'no groups' alert only shows when there are neither joined groups nor outbound records." }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "none — presentational only, per architecture.md's module map ('Awaiting card... none (presentational)')"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/outboundJoinRequests.ts — via useOutboundJoinRequests() and cancelOutboundJoinRequest(nonce) exclusively (OutboundJoinRequestReadSurface seam, S2)",
+    "app/src/lib/i18n.ts — via useCopy() exclusively (GroupsInviteAwaitingCopy seam, S1)",
+    "@chakra-ui/react — Box, Badge, Button, HStack/VStack, Text (presentational primitives only, no LinkBox/LinkOverlay)"
+  ],
+  "dependencies_forbidden": [
+    "No idb-keyval import — outbound records are read only via useOutboundJoinRequests()",
+    "No direct import of deleteOutboundJoinRequest — Cancel calls cancelOutboundJoinRequest only",
+    "No LinkBox/LinkOverlay/NextLink usage in OutboundJoinRequestCard.tsx (AC-CARD-2)",
+    "No rumor-retraction/publish call from the Cancel handler (DD-4)",
+    "No edits to app/src/lib/marmot/outboundJoinRequests.ts, InviteAwaitingBanner.tsx, inviteBannerState.ts, or welcomeSubscription.ts"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/components/OutboundJoinRequestCard.test.ts"
+  ]
+}

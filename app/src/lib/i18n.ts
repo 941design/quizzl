@@ -271,6 +271,18 @@ export type Copy = {
       relativeHoursAgo: (n: number) => string;
       relativeDaysAgo: (n: number) => string;
     };
+    /**
+     * Returning-user invite-link awaiting landing (epic-invite-link-awaiting-landing, S1).
+     * GroupsInviteAwaitingCopy seam: consumed by S3 (InviteAwaitingBanner) and S4
+     * (OutboundJoinRequestCard). Flat under groups.* per the seam contract's field
+     * names — not nested like groups.pendingInvitations. The existing
+     * groups.joinRequestButton key ("Request to Join") is reused for the inline
+     * action, not duplicated here.
+     */
+    inviteAwaitingBanner: (groupName: string) => string;
+    awaitingApprovalBanner: (groupName: string) => string;
+    awaitingBadgeLabel: string;
+    cancelOutboundRequestLabel: string;
   };
   contacts: {
     pageTitle: string;
@@ -930,6 +942,10 @@ const copy: Record<LanguageCode, Copy> = {
         relativeHoursAgo: (n: number) => `${n}h ago`,
         relativeDaysAgo: (n: number) => `${n}d ago`,
       },
+      inviteAwaitingBanner: (groupName: string) => `You've been invited to join ${groupName}.`,
+      awaitingApprovalBanner: (groupName: string) => `Waiting for the admin to approve your request to join ${groupName}.`,
+      awaitingBadgeLabel: 'Awaiting',
+      cancelOutboundRequestLabel: 'Cancel Request',
     },
     contacts: {
       pageTitle: 'Contacts',
@@ -1493,6 +1509,10 @@ const copy: Record<LanguageCode, Copy> = {
         relativeHoursAgo: (n: number) => `vor ${n} Std.`,
         relativeDaysAgo: (n: number) => `vor ${n} Tagen`,
       },
+      inviteAwaitingBanner: (groupName: string) => `Du wurdest eingeladen, der Gruppe ${groupName} beizutreten.`,
+      awaitingApprovalBanner: (groupName: string) => `Warte darauf, dass der Admin deine Anfrage zum Beitritt zu ${groupName} genehmigt.`,
+      awaitingBadgeLabel: 'Ausstehend',
+      cancelOutboundRequestLabel: 'Anfrage zurückziehen',
     },
     contacts: {
       pageTitle: 'Kontakte',

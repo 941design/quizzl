@@ -1,0 +1,37 @@
+{
+  "module_name": "Groups page",
+  "purpose": "Rewire the returning-user branch of GroupsPage() so a returning user (isFreshIdentity === false) opening a group invite link lands on the normal groups list (with a new Invited/Awaiting info banner above it) instead of the full-screen JoinRequestCard replacement, while a genuine first-time visitor's existing full-screen delegation (DD-5) is left byte-identical. Folds the 'Awaiting banner' presentational row from architecture.md's module map into this module (per stories.json's note) since it is inline landing-page chrome with no owned data of its own.",
+  "public_api": [
+    { "name": "resolveInviteBannerState", "signature": "(params: { hasJoinParams: boolean; isFreshIdentity: boolean; isAlreadyMember: boolean; nonceHasUnexpiredRecord: boolean; loaded: boolean }) => 'none' | 'first-visit' | 'already-member' | 'loading' | 'awaiting' | 'invited'", "description": "NEW. Pure state machine (app/src/lib/inviteBannerState.ts) deciding the landing/banner state. Drives both groups.tsx's first-visit branch and InviteAwaitingBanner's own render decision so there is a single source of truth for the priority order (AC-LAND-1/2/4, AC-BANNER-1/2/4)." },
+    { "name": "computeGroupsPathAfterJoinSend", "signature": "(asPath: string) => string", "description": "NEW. Pure URL-cleanup helper (app/src/lib/inviteBannerState.ts). Strips join/admin/name from router.asPath, trailing-slash aware, preserving any other query params (AC-LAND-3)." },
+    { "name": "InviteAwaitingBanner", "signature": "(props: { nonce: string; adminNpub: string; groupName: string }) => JSX.Element | null", "description": "NEW default export, app/src/components/groups/InviteAwaitingBanner.tsx. Self-contained (like JoinRequestCard) — reads identity/marmot/profile/outbound-store via hooks internally; renders Invited/Awaiting/already-member/nothing per resolveInviteBannerState. Inline send reuses sendJoinRequest (joinRequestSender.ts) directly and gates the visible name field with JoinRequestCard's exported isWelcomeJoinRequestDisabled predicate (AC-BANNER-3) — no re-implementation." },
+    { "name": "GroupsPage", "signature": "(): JSX.Element", "description": "Pre-existing default export (app/pages/groups.tsx). Its returning-user query-param branch now additionally requires isFreshIdentity (destructured from useNostrIdentity()) to return the full-screen <JoinRequestCard>; otherwise falls through to the list view, which now also mounts <InviteAwaitingBanner> above PendingInvitations when join/admin/name are present." },
+    { "name": "shouldOpenManageLinksOverlay / nextManageLinksGuard / shouldRedirectToGroupsList / computeStillMember / performGroupMemberRemoval / classifyRemovalResult", "signature": "(unchanged)", "description": "Pre-existing exports from prior epics — untouched by this story." }
+  ],
+  "private_files": [
+    "app/pages/groups.tsx (page — GroupDetailView and the manageLinks/removal helpers are unaffected)"
+  ],
+  "owned_data": [
+    "route-branch logic only (no persisted data owned by this module, per architecture.md's module map)"
+  ],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/outboundJoinRequests.ts — via subscribe/getSnapshot/useOutboundJoinRequests/isOutboundJoinRequestsLoaded exclusively (OutboundJoinRequestReadSurface seam, S2)",
+    "app/src/lib/i18n.ts — via useCopy() exclusively (GroupsInviteAwaitingCopy seam, S1)",
+    "app/src/components/groups/JoinRequestCard.tsx — <JoinRequestCard> component reuse (first-visit branch) and the exported isWelcomeJoinRequestDisabled predicate (S-SEND seam) — read-only import, no edits made to that file",
+    "app/src/lib/marmot/joinRequestSender.ts — via sendJoinRequest",
+    "app/src/lib/nostrKeys.ts — via npubToPubkeyHex",
+    "app/src/context/NostrIdentityContext.tsx, MarmotContext.tsx, ProfileContext.tsx, LanguageContext.tsx — existing context hooks, unchanged"
+  ],
+  "dependencies_forbidden": [
+    "No direct idb-keyval import from groups.tsx or InviteAwaitingBanner.tsx — the outbound store's reactive surface is the only sanctioned path",
+    "No edits to app/src/lib/marmot/welcomeSubscription.ts",
+    "No edits to app/src/lib/marmot/outboundJoinRequests.ts's exports (consume-only)",
+    "No new/changed keys in app/src/lib/i18n.ts (consume-only)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/lib/inviteBannerState.test.ts"
+  ]
+}

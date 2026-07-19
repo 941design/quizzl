@@ -1,0 +1,82 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T18:30:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Do the four new groups.* copy values (Invited banner, Awaiting banner, awaiting badge label, Cancel label) contain real, distinct EN and DE prose rather than placeholder/copy-paste stand-ins (e.g. the EN string reused verbatim as the DE value, or a TODO/lorem token), and does the new parity test assert the exact string content for both locales rather than merely that the keys exist?"
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Are the four new copy keys declared under a groups.* namespace consistent with existing key naming conventions in i18n.ts (e.g. the groups.pendingInvitations.* precedent), and do they avoid introducing a second copy-storage mechanism outside the existing Copy type / en / de objects?"
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could i18n copy be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does the new per-feature i18n parity test (mirroring pendingInvitations.i18n.test.ts) assert exact EN and exact DE string values for all four new keys, including that the two function-valued keys are actually typed/callable as (groupName: string) => string and produce a string containing the passed groupName rather than ignoring the argument?"
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Do the four copy keys added to i18n.ts match the wording intent described in acceptance-criteria.md's Info Banner / Awaiting Card / i18n Copy Parity sections (Invited-state action framing, Awaiting-state no-action framing, badge label, Cancel label), with no leftover placeholder text?"
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does every new user-facing string introduced by this story live exclusively in i18n.ts's Copy objects (no hardcoded literal strings added to any component or non-parity test), per the project's 'no hardcoded UI strings' rule?"
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-I18N-1",
+      "question": "Show the production code defining the Invited-banner and Awaiting-banner groups.* copy keys as (groupName: string) => string under both en and de Copy objects in app/src/lib/i18n.ts, the test asserting each function is invoked with a group name and returns the expected exact EN/DE string, and confirm the test is not a mock-spy stub that never calls the real Copy object."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-I18N-2",
+      "question": "Show the production code defining the groups.* awaiting-badge label string key under both en and de Copy objects, the test asserting its exact EN and exact DE string value, and confirm the test reads the real i18n.ts export rather than a duplicated literal."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-I18N-3",
+      "question": "Show the production code defining the groups.* Cancel control label string key under both en and de Copy objects, the test asserting its exact EN and exact DE string value, and confirm the test reads the real i18n.ts export rather than a duplicated literal."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The seam contract in stories.json's `seams[]` names the four new keys as flat fields directly under `groups.*` (`groups.inviteAwaitingBanner`, `groups.awaitingApprovalBanner`, `groups.awaitingBadgeLabel`, `groups.cancelOutboundRequestLabel`), while the story prompt's Conventions section suggested mirroring `groups.pendingInvitations`'s nested-sub-object shape. Confirm that the implementation followed the flat seam-contract naming (not a new nested sub-object) in both the Copy type and the en/de value objects in app/src/lib/i18n.ts, so S3/S4 can consume the exact field paths already committed in the seam."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "post-impl",
+      "category": "REUSE",
+      "question": "Confirm no new 'Request to join' / join-request-button copy key was added by this story, and that the existing groups.joinRequestButton key ('Request to Join' / 'Beitritt anfragen') is the one S3 is expected to reuse for the banner's inline action, per the story prompt's explicit reuse instruction."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Does app/tests/unit/inviteAwaiting.i18n.test.ts assert on the real getCopy('en')/getCopy('de') exports (not a locally duplicated string literal or a mock), and does its third test's group-name-interpolation assertion (a distinctive marker string contained in the output) rule out an implementation that ignores the groupName argument and returns a constant string?"
+    }
+  ]
+}

@@ -1,0 +1,145 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T18:30:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the returning-user-vs-first-visit branch decided by a real check of isFreshIdentity (not a hardcoded false/true or a dead branch that never evaluates the fresh-identity condition), and does the Invited/Awaiting/already-member state decision genuinely query S2's real getSnapshot()/useOutboundJoinRequests() output (not a frozen empty-array stub that would always render the Invited state regardless of real store contents)?"
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does InviteAwaitingBanner.tsx read outbound-request state only via S2's exported hook/subscribe/getSnapshot surface (no direct idb-keyval or internal outboundJoinRequests.ts access), and does it read all copy strings only via useCopy() (no hardcoded banner text)?"
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could Groups page be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "What test coverage (unit-level pure-function extraction, since this project avoids jsdom) exists for the returning-user-vs-first-visit branch decision, the Invited-vs-Awaiting-vs-already-member state selection logic, and the URL-replace-on-send logic (bare /groups, trailing-slash aware)? Are these extracted as pure functions and tested directly rather than relying only on S5's e2e spec for coverage?"
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the rewired groups.tsx returning-user branch match acceptance-criteria.md's Landing/Route Branch and Info Banner sections precisely — list-view render for returning users, DD-5 first-visit precedence preserved unchanged, and the ?id= detail branch left untouched?"
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the inline Request-to-join action in InviteAwaitingBanner apply the exact same isWelcomeJoinRequestDisabled name-gate predicate JoinRequestCard already uses (imported, not re-implemented or a looser copy of the gate), such that a nameless/invalid-name user is blocked identically in both surfaces?"
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LAND-1",
+      "question": "Show the production branch in groups.tsx that renders the list view (group cards, offline/backup banners, PendingInvitations) for a returning user with join+admin+name present, the test/e2e evidence that a returning user no longer sees a full-screen JoinRequestCard replacement, and confirm this is exercised against a real non-fresh-identity fixture, not a mocked isFreshIdentity that always returns false."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LAND-2",
+      "question": "Show the unchanged first-visit branch condition (isFreshIdentity check) still taking precedence over the returning-user list-view branch, and evidence (test or e2e) that a genuine first-time visitor still sees the full-screen JoinRequestCard unchanged."
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LAND-3",
+      "question": "Show the router.replace call to the bare /groups path (trailing-slash aware) fired after a successful inline send, the test/e2e assertion that join/admin/name are stripped from the URL for both /groups and /groups/ entry points, and confirm this is asserted against the actual router call/resulting URL state, not a hand-rolled string check that would pass even if the real replace never fired."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LAND-4",
+      "question": "Show the production check that renders the Awaiting state immediately (no Invited flash) when an unexpired outbound record already exists for the nonce at page-open time, the test/e2e evidence exercising the 'record already exists at open' path specifically, and confirm the assertion captures the very first rendered frame rather than an eventually-consistent later frame that would mask a flash."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LAND-5",
+      "question": "Show that the existing ?id= GroupDetailView branch is untouched by this story's diff, and the regression test/e2e evidence that ?id= navigation still renders GroupDetailView correctly after this change."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BANNER-1",
+      "question": "Show the Invited-state Alert rendering with info status, the group name from the name query param, and the Request-to-join action, the test/e2e evidence asserting all three are present when no outbound record exists for the nonce, and confirm the group name shown is the real name query-param value, not a hardcoded fixture string."
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BANNER-2",
+      "question": "Show the Awaiting-state Alert rendering with info status and the awaiting-admin-approval copy with no Request-to-join action, the test/e2e evidence asserting the action is genuinely absent (not merely disabled/hidden via CSS) when an unexpired outbound record exists for the nonce."
+    },
+    {
+      "question_id": "VQ-S3-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BANNER-3",
+      "question": "Show the inline Request-to-join action applying isWelcomeJoinRequestDisabled to gate the visible name field, the test/e2e evidence that a nameless user is blocked identically to JoinRequestCard's existing gate, and confirm the test drives the real imported predicate, not a duplicated re-implementation."
+    },
+    {
+      "question_id": "VQ-S3-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BANNER-4",
+      "question": "Show the already-member case rendering JoinRequestCard's existing already-member alert (JoinRequestCard.tsx:113) instead of an actionable Invited/Awaiting banner, and the test/e2e evidence exercising a fixture where the requesting user is already a group member."
+    },
+    {
+      "question_id": "VQ-S3-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BANNER-5",
+      "question": "Show the banner section rendered in its own container/heading, visually and structurally distinct from PendingInvitations (not merged into one list/heading), and the test/e2e or DOM-structure evidence confirming the two sections are independently addressable (e.g. distinct data-testid/container roots)."
+    },
+    {
+      "question_id": "VQ-S3-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REACT-3",
+      "question": "Show the banner switching from Invited to Awaiting state driven by S2's reactive read path (useOutboundJoinRequests) after a successful send resolves, the e2e no-reload evidence (S5) or a component-level test proving the transition happens without any manual reload() or page refresh in this story's own code, and confirm no polling/setTimeout workaround masks a missing subscription."
+    },
+    {
+      "question_id": "VQ-S3-018",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "InviteAwaitingBanner.tsx renders null (no visible UI at all) when !hydrated, when identity/private key are not yet available, or when the admin npub fails to decode — unlike JoinRequestCard.tsx, which surfaces an explicit error Alert (copy.groups.inviteErrorInvalidNpub) for the invalid-npub case. Is silently rendering nothing an acceptable divergence for the banner (it is non-blocking chrome above an otherwise-functional list page), or should the invalid-npub case surface the same explicit error the full-screen card does?"
+    },
+    {
+      "question_id": "VQ-S3-019",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "InviteAwaitingBanner is positioned in groups.tsx between BackupReminderBanner/OfflineBanner and the page Heading — above PendingInvitations but not immediately adjacent to it. Does this placement satisfy AC-BANNER-5's 'visually distinct, never merged' requirement as intended, or was a placement directly above/adjacent to PendingInvitations expected?"
+    },
+    {
+      "question_id": "VQ-S3-020",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The claimed AC-REACT-3 transition (Invited -> Awaiting with no reload) relies on this render order within a single async continuation: sendJoinRequest's internal saveOutboundJoinRequest recomputes+emits synchronously before InviteAwaitingBanner's own router.replace call fires, so the reactive re-render (nonceHasUnexpiredRecord flips true) is observed by useOutboundJoinRequests() before router.query catches up to the stripped URL and unmounts the banner. This reasoning was not verified by mounting the component (no jsdom in this repo) — only by reading the store's emit-then-return ordering in outboundJoinRequests.ts. Does S5's e2e spec need to assert the intermediate Awaiting-banner-still-visible frame explicitly, or is 'awaiting card visible, banner gone after URL strip' sufficient e2e coverage?"
+    },
+    {
+      "question_id": "VQ-S3-021",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-BANNER-3",
+      "question": "InviteAwaitingBanner always renders the name-entry Input (never gated behind a gateActive-style conditional, unlike JoinRequestCard's returning-user branch which only shows the field when gateActive is true) — mirroring JoinRequestCard's isFreshIdentity/WelcomeInvite variant's always-visible-field design, since isWelcomeJoinRequestDisabled is a visible-field-only predicate. Confirm this always-visible choice (rather than conditionally hiding the field when the user already has a saved nickname) is the intended reading of AC-BANNER-3, not an unintended UX regression versus the returning-user card's own field-hiding behavior."
+    }
+  ]
+}

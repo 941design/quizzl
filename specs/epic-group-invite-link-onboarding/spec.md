@@ -174,6 +174,13 @@ third exposed.
   possession-of-nonce matching, is the correct basis for auto-accept here. *(ADR-009 is
   Status: Proposed, not Accepted. The asymmetry it describes is stable, but if ADR-009 is
   revised before this epic ships, re-check DD-3's reliance on it.)*
+- **ADR-011 (Proposed) (Returning-user invite links land on the groups page, not a
+  full-screen card)** — `epic-invite-link-awaiting-landing` (2026-07-20) reverses the
+  returning-user branch of this epic's invite-link landing: the full-screen
+  `<JoinRequestCard>` this epic shipped is retired for returning users, replaced by the
+  groups list + info banner + awaiting card. This epic's own auto-accept mechanics
+  (`joinGroupFromWelcome`, the authenticated-unwrap correlation) are unchanged; only the
+  landing surface changes.
 
 ## Relationship to Other Epics
 

@@ -112,24 +112,26 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
     await pageB.goto(pathWithQuery);
     await dismissErrorOverlay(pageB);
 
-    // Should see the JoinRequestCard
-    await expect(pageB.getByTestId('join-request-card')).toBeVisible({ timeout: 30_000 });
+    // epic: invite-link-awaiting-landing (S3) -- User B is booted via
+    // bootUser's addInitScript, which seeds an identity BEFORE navigation, so
+    // isFreshIdentity is false: a returning user now lands on the groups list
+    // with InviteAwaitingBanner instead of the full-screen JoinRequestCard.
+    await expect(pageB.getByTestId('invite-awaiting-banner')).toBeVisible({ timeout: 30_000 });
     await expect(pageB.getByText(GROUP_NAME)).toBeVisible();
 
     // AC-ETE-2 / AC-GATE-4: User B already has a name ('Invitee', set at
-    // boot), so the card MUST render exactly as it does today -- no name
-    // gate, no name input. This repo has no component-render/snapshot
-    // capability (vitest only, no jsdom), so this explicit e2e assertion is
-    // what verifies AC-GATE-4's no-change guarantee for the named-user case.
-    await expect(pageB.getByTestId('join-request-name-gate')).toHaveCount(0);
-    await expect(pageB.getByTestId('join-request-name-input')).toHaveCount(0);
-    await expect(pageB.getByTestId('join-request-send-btn')).toBeEnabled();
+    // boot), so the banner's inline name field is pre-filled from it and the
+    // request button is enabled -- no separate gate to clear.
+    await expect(pageB.getByTestId('invite-awaiting-name-input')).toHaveValue('Invitee');
+    await expect(pageB.getByTestId('invite-awaiting-request-btn')).toBeEnabled();
 
     // Click "Request to Join"
-    await pageB.getByTestId('join-request-send-btn').click();
+    await pageB.getByTestId('invite-awaiting-request-btn').click();
 
-    // Should see success message
-    await expect(pageB.getByTestId('join-request-sent')).toBeVisible({ timeout: 30_000 });
+    // Should see the Awaiting card appear (reactive banner state change).
+    const nonce = url.searchParams.get('join');
+    expect(nonce).toBeTruthy();
+    await expect(pageB.getByTestId(`outbound-request-card-${nonce!.slice(0, 6)}`)).toBeVisible({ timeout: 30_000 });
   });
 
   test('User A sees the pending join request', async () => {
@@ -189,7 +191,14 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
       .poll(
         async () => {
           await dismissErrorOverlay(pageB);
-          return pageB.getByText(GROUP_NAME).isVisible();
+          // Scope to the real joined-group card, not a bare text match: the
+          // new returning-user landing (InviteAwaitingBanner + awaiting card)
+          // renders GROUP_NAME in several places, so getByText(GROUP_NAME)
+          // now hits a strict-mode multi-match. The group-card testid appears
+          // only once the auto-accept join lands.
+          return pageB
+            .locator('[data-testid^="group-card-"]', { hasText: GROUP_NAME })
+            .isVisible();
         },
         { timeout: 90_000, intervals: [3_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000] },
       )
@@ -266,26 +275,35 @@ test.describe.serial('Invite link flow — nameless invitee gate, nickname trans
     await pageInvitee.goto(pathWithQuery);
     await dismissErrorOverlay(pageInvitee);
 
-    await expect(pageInvitee.getByTestId('join-request-card')).toBeVisible({ timeout: 30_000 });
+    // epic: invite-link-awaiting-landing (S3) -- USER_C is a returning user
+    // (identity seeded via bootUser's addInitScript before navigation), so
+    // this now lands on InviteAwaitingBanner, not the full-screen
+    // JoinRequestCard.
+    await expect(pageInvitee.getByTestId('invite-awaiting-banner')).toBeVisible({ timeout: 30_000 });
     // AC-GATE-2: the group name stays visible while the gate is shown.
     await expect(pageInvitee.getByText(GROUP_NAME)).toBeVisible();
 
-    // AC-GATE-1: a nameless user sees the gate and a disabled button.
-    await expect(pageInvitee.getByTestId('join-request-name-gate')).toBeVisible();
-    await expect(pageInvitee.getByTestId('join-request-name-input')).toBeVisible();
-    const sendBtn = pageInvitee.getByTestId('join-request-send-btn');
+    // AC-GATE-1: a nameless user sees the banner's inline name field, empty,
+    // and a disabled request button.
+    const nameInput = pageInvitee.getByTestId('invite-awaiting-name-input');
+    await expect(nameInput).toBeVisible();
+    await expect(nameInput).toHaveValue('');
+    const sendBtn = pageInvitee.getByTestId('invite-awaiting-request-btn');
     await expect(sendBtn).toBeDisabled();
 
+    const nonce = url.searchParams.get('join');
+    expect(nonce).toBeTruthy();
+    const noncePrefix = nonce!.slice(0, 6);
+
     // Clicking the disabled button must not call sendJoinRequest -- force
-    // the click past Playwright's actionability check and confirm the card
-    // never transitions to the sent-confirmation view.
+    // the click past Playwright's actionability check and confirm no
+    // outbound record was created.
     await sendBtn.click({ force: true });
-    await expect(pageInvitee.getByTestId('join-request-sent')).not.toBeVisible({ timeout: 2_000 });
+    await expect(pageInvitee.getByTestId(`outbound-request-card-${noncePrefix}`)).toHaveCount(0);
 
     // AC-GATE-3: the gate is reactive -- entering a name enables the button
     // live, and clearing it back out disables it again (not evaluated only
     // on mount).
-    const nameInput = pageInvitee.getByTestId('join-request-name-input');
     await nameInput.fill(INVITEE_NAME);
     await expect(sendBtn).toBeEnabled();
     await nameInput.fill('');
@@ -294,7 +312,7 @@ test.describe.serial('Invite link flow — nameless invitee gate, nickname trans
     await expect(sendBtn).toBeEnabled();
 
     await sendBtn.click();
-    await expect(pageInvitee.getByTestId('join-request-sent')).toBeVisible({ timeout: 30_000 });
+    await expect(pageInvitee.getByTestId(`outbound-request-card-${noncePrefix}`)).toBeVisible({ timeout: 30_000 });
   });
 
   test("Admin's pending row shows the requester's real name, not a truncated npub (AC-NAME-4)", async () => {
@@ -345,7 +363,12 @@ test.describe.serial('Invite link flow — nameless invitee gate, nickname trans
       .poll(
         async () => {
           await dismissErrorOverlay(pageInvitee);
-          return pageInvitee.getByText(GROUP_NAME).isVisible();
+          // Scope to the real joined-group card (see the named-invitee case
+          // above): the new returning-user landing renders GROUP_NAME in
+          // several places, so a bare getByText would strict-mode multi-match.
+          return pageInvitee
+            .locator('[data-testid^="group-card-"]', { hasText: GROUP_NAME })
+            .isVisible();
         },
         { timeout: 90_000, intervals: [3_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000] },
       )

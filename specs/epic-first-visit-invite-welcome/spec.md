@@ -125,6 +125,16 @@ to the invite entry points.
   `name` param. No relay read and no profile broadcast is involved in showing the
   invite line (privacy invariant preserved).
 
+## Constrained by ADRs
+
+- **ADR-011 (Proposed) (Returning-user invite links land on the groups page, not a
+  full-screen card)** — `epic-invite-link-awaiting-landing` (2026-07-20) reverses this
+  epic's returning-user scoping decision: returning users (`isFreshIdentity === false`)
+  no longer see the full-screen `<JoinRequestCard>` this epic left them on; they land on
+  the groups list with an info banner + awaiting card instead. **This epic's own
+  first-visit branch (`isFreshIdentity === true`) is unchanged** — genuine first-time
+  visitors still see this epic's full-screen welcome screen, unaffected.
+
 ## Technical Approach
 
 Affected areas (the integration architect owns the final structure):

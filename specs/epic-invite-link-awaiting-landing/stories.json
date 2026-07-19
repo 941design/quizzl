@@ -1,0 +1,334 @@
+{
+  "epic_name": "invite-link-awaiting-landing",
+  "created_at": "2026-07-19T18:00:00Z",
+  "updated_at": "2026-07-19T18:00:00Z",
+  "total_stories": 5,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "i18n-copy",
+      "title": "Invited/awaiting banner, badge, and Cancel copy (EN + DE)",
+      "description": "Add groups.* copy keys for the Invited-state banner text, the Awaiting-state banner text (both taking the group name as a function argument), the 'awaiting' badge label, and the Cancel control label, present under both the en and de Copy objects in app/src/lib/i18n.ts. No component wiring \u2014 S3 and S4 consume these keys.",
+      "acceptance_criteria": [
+        "AC-I18N-1",
+        "AC-I18N-2",
+        "AC-I18N-3"
+      ],
+      "scope": {
+        "includes": [
+          "Add a groups.* Invited-banner copy key typed `(groupName: string) => string` under both `en` and `de` Copy objects in app/src/lib/i18n.ts (AC-I18N-1)",
+          "Add a groups.* Awaiting-banner copy key typed `(groupName: string) => string` under both `en` and `de` Copy objects (AC-I18N-1)",
+          "Add a groups.* awaiting-badge label string key under both `en` and `de` (AC-I18N-2)",
+          "Add a groups.* Cancel control label string key under both `en` and `de` (AC-I18N-3)",
+          "New per-feature i18n parity test (new file under app/tests/unit/) asserting exact EN+DE strings for all four new keys, mirroring pendingInvitations.i18n.test.ts"
+        ],
+        "excludes": [
+          "No component or hook changes \u2014 reading these keys via useCopy() is S3's and S4's concern",
+          "No changes to outboundJoinRequests.ts"
+        ]
+      },
+      "complexity": "low",
+      "status": "done",
+      "owning_module": "i18n copy",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "notes": "Ordered first so downstream stories (S3, S4) reference real, already-defined copy keys rather than placeholders. lighter_path is false because app/src/lib/i18n.ts is a .ts file (files_code non-empty), not a markdown-class file target."
+    },
+    {
+      "id": "S2",
+      "name": "reactive-outbound-store",
+      "title": "Reactive subscribe/getSnapshot/cancel read path over the outbound join-request store",
+      "description": "Add a module-level cached snapshot + listener set + emitter inside app/src/lib/marmot/outboundJoinRequests.ts (mirroring unreadStore.ts's shape), exporting subscribe(listener), a stable synchronous getSnapshot() (unexpired-only), a loaded-state signal, and cancelOutboundJoinRequest(nonce). The emitter is invoked from the existing saveOutboundJoinRequest and deleteOutboundJoinRequest funnel points, which makes welcomeSubscription.ts:553's existing auto-accept delete call reactive for free, with zero edits to that prior-epic file. This story verifies that reactivity, it does not implement it there.",
+      "acceptance_criteria": [
+        "AC-STORE-1",
+        "AC-STORE-2",
+        "AC-STORE-3",
+        "AC-STORE-4",
+        "AC-STORE-5",
+        "AC-REACT-1"
+      ],
+      "scope": {
+        "includes": [
+          "Add module-level `_snapshot` (cached array, stable reference), `_listeners` Set, and `_emit()` inside outboundJoinRequests.ts, mirroring unreadStore.ts's `_snapshot`/`_listeners`/`_emit` shape",
+          "Export `subscribe(listener: () => void): () => void` (AC-STORE-1)",
+          "Export synchronous `getSnapshot(): OutboundJoinRequestRecord[]` returning only unexpired records (same 7-day TTL as loadUnexpiredOutboundJoinRequestsForAdmin), evaluated at snapshot-compute time, with a stable reference until the record set actually changes (AC-STORE-1, AC-STORE-2)",
+          "Add an async initial-load-then-emit path (module init or first subscribe, mirroring unreadStore.ts's reconcileInit async-source-to-sync-store idiom) plus a loaded-state export (e.g. `isOutboundJoinRequestsLoaded(): boolean`) distinguishing not-yet-loaded from loaded-and-empty (AC-STORE-3)",
+          "Recompute the cached snapshot and invoke the emitter exactly once inside saveOutboundJoinRequest, and exactly once inside deleteOutboundJoinRequest, before either function returns (AC-STORE-4)",
+          "Export `cancelOutboundJoinRequest(nonce: string): Promise<void>` that calls deleteOutboundJoinRequest(nonce) \u2014 the only sanctioned UI-facing delete entry point (AC-STORE-5)",
+          "Add a `useOutboundJoinRequests()` React hook (useSyncExternalStore wrapper around subscribe/getSnapshot) in the same file, mirroring unreadStore.ts's useUnreadCounts hook wrapper",
+          "Add a one-line contract comment at the emitter call sites inside saveOutboundJoinRequest/deleteOutboundJoinRequest per architecture.md's Boundary rules",
+          "Extend app/tests/unit/marmot/outboundJoinRequests.test.ts with: notify-on-mutation + silent-after-unsub tests (pendingInvitations.test.ts two-test shape), a stable-reference/no-fresh-literal assertion, an expiry-at-snapshot-time assertion, and a regression test proving deleteOutboundJoinRequest (the exact call welcomeSubscription.ts:553 already makes) fires the emitter \u2014 the state-discriminating evidence for AC-REACT-1's auto-accept reactivity claim"
+        ],
+        "excludes": [
+          "No edits to welcomeSubscription.ts \u2014 its existing deleteOutboundJoinRequest(matchedRecord.nonce) call becomes reactive for free via the emitter added here; this story verifies that fact via a unit-level regression test, it does not touch that prior-epic file",
+          "No component/page changes (S3, S4)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "Outbound-join-request store",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "notes": "AC-REACT-1 literally describes a rendered-groups-page transition; this story's unit-level regression test is the store-side proxy for it (no edits to welcomeSubscription.ts needed), while AC-E2E-3 (S5) supplies the full rendered-DOM proof of the same auto-accept transition. lighter_path is false: outboundJoinRequests.ts is a .ts file (files_code non-empty)."
+    },
+    {
+      "id": "S3",
+      "name": "groups-page-landing-banner",
+      "title": "Returning-user list-view landing with invited/awaiting info banner",
+      "description": "Rewire GroupsPage()'s returning-user branch (groups.tsx:941) to render the normal list view (existing group cards, offline/backup banners, PendingInvitations) with a new InviteAwaitingBanner above the list, instead of a full-screen JoinRequestCard replacement. The first-visit welcome interception (DD-5) is preserved by keeping the full-screen JoinRequestCard delegation for isFreshIdentity users only.",
+      "acceptance_criteria": [
+        "AC-LAND-1",
+        "AC-LAND-2",
+        "AC-LAND-3",
+        "AC-LAND-4",
+        "AC-LAND-5",
+        "AC-BANNER-1",
+        "AC-BANNER-2",
+        "AC-BANNER-3",
+        "AC-BANNER-4",
+        "AC-BANNER-5",
+        "AC-REACT-3"
+      ],
+      "scope": {
+        "includes": [
+          "In groups.tsx, read `isFreshIdentity` from useNostrIdentity() at the top level; when join+admin+name are present AND isFreshIdentity is true, keep returning <JoinRequestCard> full-screen unchanged (AC-LAND-2, DD-5); otherwise (returning user) fall through to the list view render below instead of the current unconditional full-screen return (AC-LAND-1)",
+          "New component app/src/components/groups/InviteAwaitingBanner.tsx: Invited state (no unexpired outbound record for the link's nonce) renders an `info`-status Alert naming the group with an inline 'Request to join' action (AC-BANNER-1); the inline action gates the visible name field using the same isWelcomeJoinRequestDisabled predicate JoinRequestCard already applies (AC-BANNER-3); already-a-member renders JoinRequestCard's existing already-member alert instead of an actionable banner (AC-BANNER-4)",
+          "Awaiting state (unexpired outbound record exists for the nonce) renders an `info`-status Alert stating the request is awaiting admin approval, with no 'Request to join' action for that nonce (AC-BANNER-2); when a record already exists at page-open time, render Awaiting immediately with no Invited flash (AC-LAND-4)",
+          "Render the banner section visually distinct from PendingInvitations \u2014 its own container/heading, never merged into one list or heading (AC-BANNER-5)",
+          "On successful inline send (reusing JoinRequestCard's sendJoinRequest + name-gate handler, factored so the banner can invoke it): call router.replace to the bare /groups path, trailing-slash aware (matches /groups and /groups/), stripping join/admin/name (AC-LAND-3); the banner switches Invited -> Awaiting without a manual reload, driven by S2's reactive read path (AC-REACT-3)",
+          "Preserve the existing ?id= GroupDetailView branch unaffected by this change (AC-LAND-5)",
+          "Consume S2's subscribe/getSnapshot/useOutboundJoinRequests()/loaded-flag surface and S1's groups.* copy keys (both via their exported seam contracts)"
+        ],
+        "excludes": [
+          "Awaiting-card rendering among the joined-group cards and its Cancel action (S4)",
+          "No changes to outboundJoinRequests.ts's exports beyond consuming them",
+          "No changes to i18n.ts beyond consuming its exported keys"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "Groups page",
+      "creates_seam": false,
+      "consumes_seams": [
+        "OutboundJoinRequestReadSurface",
+        "GroupsInviteAwaitingCopy"
+      ],
+      "lighter_path": false,
+      "notes": "The architecture.md module map lists 'Awaiting banner' as its own presentational row; this story deliberately folds that component's ownership into 'Groups page' (per planning direction) since it is inline landing-page chrome with no owned data of its own. lighter_path is false: groups.tsx and the new banner component are .tsx files (files_code non-empty)."
+    },
+    {
+      "id": "S4",
+      "name": "awaiting-card-cancel",
+      "title": "Dimmed/badged awaiting card in the groups list with Cancel",
+      "description": "Add a new OutboundJoinRequestCard component (dimmed styling + 'awaiting' badge) rendered among the joined-group GroupCards for every unexpired outbound record, with a Cancel action wired to cancelOutboundJoinRequest. Not navigable to a group-detail view.",
+      "acceptance_criteria": [
+        "AC-CARD-1",
+        "AC-CARD-2",
+        "AC-CARD-3",
+        "AC-REACT-2"
+      ],
+      "scope": {
+        "includes": [
+          "New app/src/components/groups/OutboundJoinRequestCard.tsx: dimmed styling (opacity ~0.6, mirroring UserCard.tsx's `dimmed` prop precedent) plus an 'awaiting' Badge (colorScheme=warning, variant=subtle, mirroring MemberList.tsx's requested-badge pattern), sourced from S1's groups.* copy keys",
+          "Render one such card per unexpired outbound record (from S2's useOutboundJoinRequests()) among the existing GroupCard entries in groups.tsx's list, positioned per DD-3 (AC-CARD-1) \u2014 a small, sequential follow-on edit to the list-rendering block S3 already established, not new ownership of the Groups-page module",
+          "The card is a plain Box/container, never a LinkBox/navigable link to `?id=` (no group-detail navigation, since no MLS group has been joined for that record yet) (AC-CARD-2)",
+          "Cancel action calls cancelOutboundJoinRequest(nonce) \u2014 never idb-keyval or deleteOutboundJoinRequest directly \u2014 and does not attempt to retract or otherwise signal the already-sent join-request rumor (AC-CARD-3, DD-4)",
+          "Tapping Cancel removes the card and the Awaiting banner from the rendered page without a manual reload, driven by S2's reactive read path (AC-REACT-2)",
+          "data-testid values for the awaiting card (keyed by nonce-prefix, mirroring the pending-request-row-* convention) and the Cancel action"
+        ],
+        "excludes": [
+          "No changes to the Invited/Awaiting banner itself (S3)",
+          "No changes to outboundJoinRequests.ts's exports beyond consuming cancelOutboundJoinRequest"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "Awaiting card",
+      "creates_seam": false,
+      "consumes_seams": [
+        "OutboundJoinRequestReadSurface",
+        "GroupsInviteAwaitingCopy"
+      ],
+      "lighter_path": false,
+      "notes": "lighter_path is false: OutboundJoinRequestCard.tsx and groups.tsx are .tsx/.ts files (files_code non-empty); the new component file also does not exist on disk yet (new_file signal true)."
+    },
+    {
+      "id": "S5",
+      "name": "e2e-awaiting-confirmation-flow",
+      "title": "E2E coverage + whole-flow ordering guarantees for the awaiting-confirmation experience",
+      "description": "FR-A7 integration story. New groups-awaiting-confirmation.spec.ts drives the full returning-user flow (land -> Invited banner -> confirm -> Awaiting banner + card -> persists across reload -> Cancel removes live; and a second admin context approving the request -> awaiting card disappears, real group appears, live) through the running app. Also exercises the AC-OBS-* cross-cutting ordering guarantees derived from architecture.md's Order-Sensitive Composition signal (async load vs. mutation race; auto-accept vs. Cancel-then-late-approval race), verified against S2's and S3's real, already-landed implementations \u2014 never mocked.",
+      "acceptance_criteria": [
+        "AC-E2E-1",
+        "AC-E2E-2",
+        "AC-E2E-3",
+        "AC-E2E-4",
+        "AC-OBS-1",
+        "AC-OBS-2",
+        "AC-OBS-3"
+      ],
+      "scope": {
+        "includes": [
+          "New app/tests/e2e/groups-awaiting-confirmation.spec.ts (relay bucket by filename convention), mirroring groups-invite-link.spec.ts (two-context generate-link -> join-request -> approve), groups-join-request-live.spec.ts (live-update, no reload), and groups-cancel-pending.spec.ts (cancel-<prefix> testid convention)",
+          "Drive: returning user opens an invite link -> observes the Invited banner -> taps Request-to-join -> observes the Awaiting banner + awaiting card -> reload() -> awaiting card still present (AC-E2E-1)",
+          "Drive Cancel on the awaiting card; assert the awaiting card and Awaiting banner are removed with NO reload() call (AC-E2E-2)",
+          "Via a second browser.newContext() signed in as the admin, approve the join request; assert (without reload() in the requester's session) the awaiting card disappears and the real joined-group card appears (AC-E2E-3), and that at no observed frame are both the awaiting card and the real group card simultaneously visible, nor neither visible (AC-OBS-2)",
+          "Assert data-testid values for the awaiting banner, the awaiting card (nonce-prefix keyed), and the Cancel action are present in the rendered DOM at the corresponding component (AC-E2E-4)",
+          "Ordering-property coverage: an async initial snapshot load racing a save/delete must never resurrect a deleted nonce in a later getSnapshot() (AC-OBS-1); a user Cancel preceding a later-arriving admin-approval Welcome for the same nonce must not be silently dropped \u2014 it must surface via the existing manual Accept/Decline pending-invitations path (AC-OBS-3)"
+        ],
+        "excludes": [
+          "No production code changes \u2014 this story is test-only, verified against S1-S4's already-landed real implementations (FR-A4), never mocked",
+          "No changes to welcomeSubscription.ts or any prior-epic admin-approval file"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "is_integration_story": true,
+      "lighter_path": false,
+      "notes": "FR-A7 integration story: depends on S2 (Outbound-join-request store) and S3 (Groups page) \u2014 the union of AC-OBS-1/2/3's own spanned_by sets \u2014 so story_order places it after both. Additionally sequenced after S4 since its e2e assertions require the awaiting-card UI (S4) to exist; this is a practical scheduling need on top of, not instead of, the FR-A7 minimum. Omits owning_module per FR-A7 step 5: it spans modules by design rather than owning one. acceptance_criteria carries both the plain AC-E2E-* set and the Spans-modules-derived AC-OBS-* set \u2014 the 'and only those' ownership rule for the cross-cutting subset is read as governing which ACs receive a cross_cutting_acs entry (AC-OBS-* only), not as forbidding this same whole-flow story from also owning the ordinary AC-E2E-* coverage that naturally lives in the identical spec file; flagged in the retrospective as a genuine ambiguity in the Mode 2 instructions.",
+      "consumes_seams": []
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5"
+  ],
+  "dependency_notes": "Implementation is strictly sequential (parallel story implementation is a non-goal). S1 (i18n copy) and S2 (reactive store) have no dependency on each other and land first so S3/S4 can consume real copy keys and a real reactive surface rather than placeholders. S3 (Groups page landing + banner) and S4 (Awaiting card + Cancel) both consume S1's GroupsInviteAwaitingCopy seam and S2's OutboundJoinRequestReadSurface seam; S4 lands after S3 because it makes a small follow-on edit to the list-rendering block S3 establishes in groups.tsx. S5 (E2E integration story, FR-A7) depends on S2 and S3 per AC-OBS-1/2/3's spanned_by union, and is additionally sequenced after S4 for practical e2e coverage of the awaiting card. No temporary mocks are introduced anywhere in this epic: because each producing story lands before its consumers, S3/S4 always consume the real S1/S2 implementations directly.",
+  "mock_resolution_plan": "No temporary mocks introduced by this epic \u2014 sequential story_order removes the need (see dependency_notes).",
+  "seams": [
+    {
+      "data": "Reactive outbound join-request read/cancel surface",
+      "contract": {
+        "type_name": "OutboundJoinRequestReadSurface",
+        "fields": [
+          {
+            "name": "subscribe",
+            "type": "(listener: () => void) => () => void"
+          },
+          {
+            "name": "getSnapshot",
+            "type": "() => OutboundJoinRequestRecord[]"
+          },
+          {
+            "name": "isOutboundJoinRequestsLoaded",
+            "type": "() => boolean"
+          },
+          {
+            "name": "cancelOutboundJoinRequest",
+            "type": "(nonce: string) => Promise<void>"
+          },
+          {
+            "name": "useOutboundJoinRequests",
+            "type": "() => { records: OutboundJoinRequestRecord[]; loaded: boolean }"
+          }
+        ],
+        "invariants": [
+          "getSnapshot() returns the same array reference across repeated calls until the underlying record set actually changes (AC-STORE-1)",
+          "getSnapshot() excludes any record at/past the 7-day TTL, evaluated at snapshot-compute time (AC-STORE-2)",
+          "isOutboundJoinRequestsLoaded() is false until the initial async IDB load resolves at least once, then stays true (AC-STORE-3)",
+          "saveOutboundJoinRequest and deleteOutboundJoinRequest each invoke the emitter exactly once per call, snapshot recomputed before notifying (AC-STORE-4)",
+          "cancelOutboundJoinRequest delegates to deleteOutboundJoinRequest; no consumer imports idb-keyval directly (AC-STORE-5)"
+        ]
+      },
+      "source": {
+        "story": "S2",
+        "artifact": "app/src/lib/marmot/outboundJoinRequests.ts"
+      },
+      "destination": {
+        "story": "S3",
+        "artifact": "app/pages/groups.tsx / InviteAwaitingBanner.tsx"
+      }
+    },
+    {
+      "data": "Reactive outbound join-request read/cancel surface",
+      "contract": {
+        "type_name": "OutboundJoinRequestReadSurface"
+      },
+      "source": {
+        "story": "S2",
+        "artifact": "app/src/lib/marmot/outboundJoinRequests.ts"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/components/groups/OutboundJoinRequestCard.tsx"
+      }
+    },
+    {
+      "data": "groups.* i18n copy keys for the invited/awaiting banner, awaiting badge, and Cancel control",
+      "contract": {
+        "type_name": "GroupsInviteAwaitingCopy",
+        "fields": [
+          {
+            "name": "groups.inviteAwaitingBanner",
+            "type": "(groupName: string) => string"
+          },
+          {
+            "name": "groups.awaitingApprovalBanner",
+            "type": "(groupName: string) => string"
+          },
+          {
+            "name": "groups.awaitingBadgeLabel",
+            "type": "string"
+          },
+          {
+            "name": "groups.cancelOutboundRequestLabel",
+            "type": "string"
+          }
+        ],
+        "invariants": [
+          "Each key is present, with identical shape, under both the en and de Copy objects (AC-I18N-1, AC-I18N-2, AC-I18N-3)",
+          "The two function-valued keys accept the group name as their sole argument"
+        ]
+      },
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/i18n.ts"
+      },
+      "destination": {
+        "story": "S3",
+        "artifact": "app/pages/groups.tsx / InviteAwaitingBanner.tsx"
+      }
+    },
+    {
+      "data": "groups.* i18n copy keys for the invited/awaiting banner, awaiting badge, and Cancel control",
+      "contract": {
+        "type_name": "GroupsInviteAwaitingCopy"
+      },
+      "source": {
+        "story": "S1",
+        "artifact": "app/src/lib/i18n.ts"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "app/src/components/groups/OutboundJoinRequestCard.tsx"
+      }
+    }
+  ],
+  "cross_cutting_acs": [
+    {
+      "ac_id": "AC-OBS-1",
+      "spanned_by": [
+        "S2",
+        "S3"
+      ]
+    },
+    {
+      "ac_id": "AC-OBS-2",
+      "spanned_by": [
+        "S2",
+        "S3"
+      ]
+    },
+    {
+      "ac_id": "AC-OBS-3",
+      "spanned_by": [
+        "S2",
+        "S3"
+      ]
+    }
+  ]
+}

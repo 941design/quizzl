@@ -1,0 +1,84 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T18:30:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the dimmed styling and 'awaiting' badge driven by real record data (opacity prop and badge bound to a genuine outbound-record presence check), not a permanently-dimmed/always-badged stub that would render identically whether or not S2 actually reports any records?"
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does OutboundJoinRequestCard.tsx read outbound records only via S2's useOutboundJoinRequests() hook (no direct idb-keyval/internal outboundJoinRequests.ts state access), and is it implemented as a plain Box/container (never a LinkBox) per AC-CARD-2?"
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could Awaiting card be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "What test coverage exists proving: one card renders per unexpired outbound record (a multiple-record case, not just a single-record fixture), the card is not a LinkBox and does not navigate on click, and Cancel invokes cancelOutboundJoinRequest(nonce) specifically (not deleteOutboundJoinRequest or idb-keyval directly)? Is this exercised via pure-function/source-scan tests per project convention (no jsdom) or via e2e (S5), and which?"
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the awaiting-card implementation match acceptance-criteria.md's Awaiting Card + Cancel section exactly — dimmed styling with badge, non-navigable container, and Cancel wired only to cancelOutboundJoinRequest — with no additional cancel/retract side effect?"
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the Cancel action avoid any call that would retract or otherwise signal the already-sent join-request rumor (DD-4), and is this absence of a retraction/publish call verifiable by source inspection (grep/AST) rather than only by the absence of a failing test?"
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-1",
+      "question": "Show the production rendering of one dimmed 'awaiting'-badged card per unexpired outbound record sourced from useOutboundJoinRequests(), the test/e2e evidence exercising a multi-record case (more than one unexpired record renders more than one card), and confirm the test is not asserting against a single-item fixture that would pass even with an off-by-one/first-record-only bug."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-2",
+      "question": "Show the card implemented as a plain Box/container with no onClick/href navigation to ?id=, the test/e2e evidence clicking the card and asserting no navigation occurs, and confirm this is checked against the real rendered DOM element, not an assumption based on the component's props alone."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-3",
+      "question": "Show the Cancel action's production code calling cancelOutboundJoinRequest(nonce) exclusively, the test/e2e evidence or source-scan confirming no direct deleteOutboundJoinRequest or idb-keyval call from this component, and confirm no rumor-retraction/publish call is made as part of Cancel."
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REACT-2",
+      "question": "Show the card and the Awaiting banner both disappearing from the rendered page after Cancel, driven by S2's reactive read path with no manual reload() call in this story's code, the e2e evidence (S5) asserting the no-reload live removal, and confirm the removal is asserted on live DOM state rather than by re-navigating/reloading the page, which would pass even if reactivity were broken."
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-CARD-1",
+      "question": "This story's unit coverage (app/tests/unit/components/OutboundJoinRequestCard.test.ts) is a source-scan proving groups.tsx maps ALL of outboundRecords (not sliced/filtered to one element) into OutboundJoinRequestCard instances, plus that the component itself is record-driven (props.record, no hardcoded fixture). It does NOT render a real multi-record DOM tree and count resulting cards (this repo has no jsdom/component-mount capability — see architecture.md's Testing constraint). Confirm S5's e2e spec (groups-awaiting-confirmation.spec.ts) is the story that actually exercises a rendered multi-record case, or if S5's scope never produces >1 simultaneous outbound record in its drive script, flag this as a residual gap rather than assuming it is covered."
+    },
+    {
+      "question_id": "VQ-S4-012",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "OutboundJoinRequestCard.tsx's handleCancel wraps `await cancelOutboundJoinRequest(record.nonce)` in a try/catch that resets `cancelling` to false only in the catch branch — but cancelOutboundJoinRequest/deleteOutboundJoinRequest (outboundJoinRequests.ts) never throws (both internally catch and always resolve). Is the catch branch here dead/defensive-only code, and if so, is that acceptable given the store's documented never-throws contract, or should the button surface an error state at all given a delete that silently no-ops on failure?"
+    }
+  ]
+}

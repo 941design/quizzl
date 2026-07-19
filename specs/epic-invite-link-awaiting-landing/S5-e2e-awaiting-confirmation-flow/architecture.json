@@ -1,0 +1,33 @@
+{
+  "module_name": "e2e-awaiting-confirmation-flow",
+  "purpose": "Integration/e2e verification story (FR-A7): drives the full returning-user invite-link awaiting-confirmation flow through the running app (Playwright, publish-via-app only, never raw WebSocket) against the REAL, already-landed S1-S4 implementations. Verifies AC-E2E-1..4 (land -> Invited banner -> confirm -> Awaiting banner+card -> persists across reload -> Cancel removes live -> admin approval -> card disappears/real group appears live) and the cross-cutting AC-OBS-1..3 whole-flow ordering guarantees (async-load-vs-delete no-resurrection, atomic no-both/no-neither auto-accept transition, cancel-then-later-approval falls through to manual Accept/Decline). Owns no production module and no data; it is a verification harness only.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/e2e/groups-awaiting-confirmation.spec.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "Outbound-join-request store (app/src/lib/marmot/outboundJoinRequests.ts)",
+    "Groups page (app/pages/groups.tsx)",
+    "welcomeSubscription.ts (auto-accept path, app/src/lib/marmot/welcomeSubscription.ts)",
+    "InviteAwaitingBanner.tsx (app/src/components/groups/InviteAwaitingBanner.tsx)",
+    "OutboundJoinRequestCard.tsx (app/src/components/groups/OutboundJoinRequestCard.tsx)",
+    "PendingInvitations.tsx (app/src/components/groups/PendingInvitations.tsx)",
+    "i18n copy (app/src/lib/i18n.ts, consumed transitively via rendered UI, no direct import)"
+  ],
+  "dependencies_forbidden": [
+    "No production-code edits of any kind (test-only story, FR-A4)",
+    "No raw WebSocket publish to the relay for admin/invitee actions",
+    "No mocking of S2/S3/S4's real implementations"
+  ],
+  "external_ports": [
+    "Playwright browser automation against the running dev server",
+    "strfry relay (Docker, via docker-compose.e2e.yml / make e2e-up)",
+    "blossom-mock (Docker, unused directly by this spec but part of the shared e2e stack)"
+  ],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/e2e/groups-awaiting-confirmation.spec.ts"
+  ]
+}

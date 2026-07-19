@@ -1,0 +1,42 @@
+{
+  "module_name": "i18n copy",
+  "purpose": "EN/DE copy keys for the returning-user invite-link awaiting UI: Invited-state banner, Awaiting-state banner, awaiting badge label, and Cancel control label. Consumed by S3 (Groups page / InviteAwaitingBanner) and S4 (OutboundJoinRequestCard) via the GroupsInviteAwaitingCopy seam. No component wiring in this story.",
+  "public_api": [
+    {
+      "name": "groups.inviteAwaitingBanner",
+      "signature": "(groupName: string) => string",
+      "description": "Invited-state banner text naming the group and framing the pending 'Request to join' action."
+    },
+    {
+      "name": "groups.awaitingApprovalBanner",
+      "signature": "(groupName: string) => string",
+      "description": "Awaiting-state banner text stating the request to join the named group awaits admin approval; no action framing."
+    },
+    {
+      "name": "groups.awaitingBadgeLabel",
+      "signature": "string",
+      "description": "Static 'awaiting' badge label rendered on the dimmed OutboundJoinRequestCard (S4)."
+    },
+    {
+      "name": "groups.cancelOutboundRequestLabel",
+      "signature": "string",
+      "description": "Static Cancel-action label for the awaiting card's Cancel control (S4)."
+    }
+  ],
+  "private_files": [],
+  "owned_data": ["groups.inviteAwaitingBanner", "groups.awaitingApprovalBanner", "groups.awaitingBadgeLabel", "groups.cancelOutboundRequestLabel", "and the existing groups.joinRequestButton key, reused (not owned/duplicated) by this story"],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": ["app/pages/groups.tsx", "app/src/components/groups/*", "app/src/lib/marmot/outboundJoinRequests.ts"],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/inviteAwaiting.i18n.test.ts"
+  ],
+  "seam": {
+    "type_name": "GroupsInviteAwaitingCopy",
+    "cross_story": true,
+    "consumed_by": ["S3", "S4"]
+  },
+  "notes": "Flat key names under groups.* (not nested under a sub-object like groups.pendingInvitations) chosen to match the exact field names already committed in stories.json's seams[].contract.fields for GroupsInviteAwaitingCopy, so S3/S4 consume the literal contract rather than a re-derived shape."
+}
