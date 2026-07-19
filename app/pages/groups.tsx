@@ -304,7 +304,11 @@ function GroupDetailView({ id }: { id: string }) {
         const confirmed = new Set<string>();
         for (const p of profiles) {
           map[p.pubkeyHex] = p;
-          confirmed.add(p.pubkeyHex);
+          // Provisional entries (e.g. a name seeded from an approved join
+          // request) fill the display name but do NOT confirm membership — the
+          // member keeps the "Pending" badge until their real signed profile
+          // arrives and supersedes the provisional entry.
+          if (!p.provisional) confirmed.add(p.pubkeyHex);
         }
 
         // Fill gaps from the global contact cache (known from other groups)

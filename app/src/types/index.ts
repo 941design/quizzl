@@ -113,6 +113,17 @@ export type MemberProfile = {
   updatedAt: string;
   /** Verified signed envelope when the profile arrived via a sig-bearing rumor. Absent for legacy peers. */
   signedEvent?: SignedProfileEvent;
+  /**
+   * Provisional name seeded locally from a self-asserted source (e.g. the
+   * name carried in a join request, persisted when the admin approves it) —
+   * NOT a signed in-group profile the member has actually sent. Provisional
+   * entries fill the member-list name so it isn't a raw npub, but do NOT count
+   * as "confirmed membership": the "Pending" badge stays until the member's
+   * real signed profile arrives and supersedes this entry via LWW. Seeded with
+   * an epoch-0 `updatedAt` so any real profile always wins the merge and the
+   * member is still treated as stale by the profile-request sweep.
+   */
+  provisional?: boolean;
 };
 
 // ============================

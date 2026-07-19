@@ -509,6 +509,8 @@ function makeApproveDeps(overrides: Partial<Parameters<typeof approveJoinRequest
     incrementInviteLinkUsage,
     decrementJoinRequest: vi.fn(),
     filterPendingRequest: vi.fn(),
+    mergeMemberProfile: vi.fn(async () => true),
+    bumpProfileVersion: vi.fn(),
     ...overrides,
   };
 }

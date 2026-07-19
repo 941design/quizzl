@@ -44,6 +44,8 @@ function makeDeps(overrides: Partial<Parameters<typeof approveJoinRequestImpl>[0
     incrementInviteLinkUsage: vi.fn(async () => {}),
     decrementJoinRequest: vi.fn(),
     filterPendingRequest: vi.fn(),
+    mergeMemberProfile: vi.fn(async () => true),
+    bumpProfileVersion: vi.fn(),
     ...overrides,
   };
 }
@@ -183,6 +185,79 @@ describe('approveJoinRequestImpl', () => {
     expect(deps.deletePendingJoinRequest).toHaveBeenCalledWith('evt-7');
     expect(deps.decrementJoinRequest).toHaveBeenCalledWith('group-7');
     expect(deps.filterPendingRequest).toHaveBeenCalledWith('group-7', 'evt-7');
+    warnSpy.mockRestore();
+  });
+
+  // ── Provisional profile seed (join-request name shown, not npub) ─────────
+  // On approval the requester's self-provided name (carried in the join
+  // request, shown for confirmation) is persisted so the new member row shows
+  // the name immediately instead of a raw npub — the same "name first, avatar
+  // later" behavior as accepting a contact card.
+
+  it('seeds a PROVISIONAL member profile from the join-request nickname after a successful invite', async () => {
+    const deps = makeDeps();
+    const request = makeRequest({
+      groupId: 'group-9',
+      pubkeyHex: 'requester-pk-9',
+      nickname: 'Invitee',
+    });
+
+    const result = await approveJoinRequestImpl(deps, request);
+
+    expect(result).toEqual({ ok: true });
+    expect(deps.mergeMemberProfile).toHaveBeenCalledTimes(1);
+    expect(deps.mergeMemberProfile).toHaveBeenCalledWith('group-9', {
+      pubkeyHex: 'requester-pk-9',
+      nickname: 'Invitee',
+      avatar: null,
+      // Epoch-0 so the member's real signed profile always wins LWW and the
+      // seed is always treated as stale by the profile-request sweep.
+      updatedAt: new Date(0).toISOString(),
+      provisional: true,
+    });
+    // Open group detail views must re-read member profiles to pick up the seed.
+    expect(deps.bumpProfileVersion).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT seed a member profile when inviteByNpub fails', async () => {
+    const deps = makeDeps({ inviteByNpub: vi.fn(async () => ({ ok: false, error: 'boom' })) });
+    const request = makeRequest({ nickname: 'Invitee' });
+
+    await approveJoinRequestImpl(deps, request);
+
+    expect(deps.mergeMemberProfile).not.toHaveBeenCalled();
+    expect(deps.bumpProfileVersion).not.toHaveBeenCalled();
+  });
+
+  it('does NOT seed a member profile when the join request carried no nickname', async () => {
+    const deps = makeDeps();
+    const request = makeRequest({ nickname: undefined });
+
+    const result = await approveJoinRequestImpl(deps, request);
+
+    expect(result).toEqual({ ok: true });
+    expect(deps.mergeMemberProfile).not.toHaveBeenCalled();
+    expect(deps.bumpProfileVersion).not.toHaveBeenCalled();
+  });
+
+  it('best-effort: a mergeMemberProfile failure never fails an approval whose invite already succeeded', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const deps = makeDeps({
+      mergeMemberProfile: vi.fn(async () => {
+        throw new Error('IndexedDB write failed (quota)');
+      }),
+    });
+    const request = makeRequest({ groupId: 'group-11', eventId: 'evt-11', nickname: 'Invitee' });
+
+    const result = await approveJoinRequestImpl(deps, request);
+
+    expect(result).toEqual({ ok: true });
+    // Cleanup still ran despite the seed failure.
+    expect(deps.deletePendingJoinRequest).toHaveBeenCalledWith('evt-11');
+    expect(deps.decrementJoinRequest).toHaveBeenCalledWith('group-11');
+    expect(deps.filterPendingRequest).toHaveBeenCalledWith('group-11', 'evt-11');
+    // bumpProfileVersion is only reached after a successful merge, so a throw skips it.
+    expect(deps.bumpProfileVersion).not.toHaveBeenCalled();
     warnSpy.mockRestore();
   });
 });

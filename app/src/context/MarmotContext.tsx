@@ -497,6 +497,17 @@ export async function approveJoinRequestImpl(
     incrementInviteLinkUsage: (nonce: string) => Promise<void>;
     decrementJoinRequest: (groupId: string) => void;
     filterPendingRequest: (groupId: string, eventId: string) => void;
+    /**
+     * Persists a MemberProfile into the group's local store using LWW-by-
+     * updatedAt (the same merge the inbound profile-rumor path uses). Injected
+     * so the seeding below is unit-testable without IndexedDB.
+     */
+    mergeMemberProfile: (
+      groupId: string,
+      profile: import('@/src/types').MemberProfile,
+    ) => Promise<boolean>;
+    /** Bumps the profile version so an open group detail view re-reads member profiles. */
+    bumpProfileVersion: () => void;
   },
   request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -512,6 +523,32 @@ export async function approveJoinRequestImpl(
   await deps.deletePendingJoinRequest(request.eventId);
   deps.decrementJoinRequest(request.groupId);
   deps.filterPendingRequest(request.groupId, request.eventId);
+
+  // Seed the requester's self-provided name (carried in the join request and
+  // shown in the approval prompt) into this group's member-profile store, so
+  // the new member row shows the name immediately instead of a raw npub —
+  // mirroring how accepting a contact card shows the name first, avatar later.
+  // The entry is PROVISIONAL (see MemberProfile.provisional): stamped epoch-0
+  // so the member's real signed profile always wins LWW and the member is still
+  // requested as stale, and it does NOT mark the member as "confirmed" (the
+  // Pending badge stays until their real profile arrives). Best-effort: a seed
+  // failure must never fail an approval whose invite already succeeded. No
+  // avatar is carried in a join request, so the avatar still arrives later over
+  // the encrypted group profile channel.
+  if (request.nickname) {
+    try {
+      await deps.mergeMemberProfile(request.groupId, {
+        pubkeyHex: request.pubkeyHex,
+        nickname: request.nickname,
+        avatar: null,
+        updatedAt: new Date(0).toISOString(),
+        provisional: true,
+      });
+      deps.bumpProfileVersion();
+    } catch (err) {
+      console.warn('[Marmot] seeding provisional member profile after approval failed (non-blocking):', err);
+    }
+  }
   // Count this as a usage of the invite link that referenced this request
   // (no-op if the link was since deleted/expired). Best-effort: a rejection
   // here (IndexedDB write/quota/transient failure) must never surface as an
@@ -1789,6 +1826,8 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
               return { ...prev, [groupId]: current.filter((r) => r.eventId !== eventId) };
             });
           },
+          mergeMemberProfile,
+          bumpProfileVersion: () => setProfileVersion((v) => v + 1),
         },
         request,
       );
