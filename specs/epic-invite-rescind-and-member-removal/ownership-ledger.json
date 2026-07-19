@@ -1,0 +1,326 @@
+{
+  "epic": "invite-rescind-and-member-removal",
+  "concepts": [
+    {
+      "id": "pending-direct-invite-marker",
+      "name": "Pending-direct-invite marker (groupId:pubkey persisted record)",
+      "owning_module": "PendingInviteStore",
+      "type": "invariant",
+      "added_by_story": "S1"
+    },
+    {
+      "id": "per-member-profile-purge",
+      "name": "Per-member profile purge primitive (deleteMemberProfile)",
+      "owning_module": "MemberProfileStore",
+      "type": "public_contract",
+      "added_by_story": "S2"
+    },
+    {
+      "id": "shared-removal-helper",
+      "name": "Shared, label-agnostic MLS removal helper (cancelPendingInvitationImpl)",
+      "owning_module": "RemovalImpl",
+      "type": "invariant",
+      "added_by_story": "S9",
+      "defect_fixed": "VQ-S9-P1 — pre-check gated on pending (in-tree AND no-profile) → no-op'd Remove Member on confirmed members. Lead loosened it to tree-membership-only; isPendingMemberImpl left intact for MarmotContext.isPendingMember. Regression test added to cancelInvitationImpl.test.ts (confirmed-member → commits, not raceDetected)."
+    },
+    {
+      "id": "context-method-four-site-pattern",
+      "name": "MarmotContext method-exposure convention (type / useCallback boundary / useMemo value+deps / DEFAULT_MARMOT fallback)",
+      "owning_module": "MarmotContext",
+      "type": "path_convention",
+      "added_by_story": "S5"
+    },
+    {
+      "id": "approve-path-marker-exclusion",
+      "name": "approveJoinRequestImpl's structural exclusion from marker-write",
+      "owning_module": "MarmotContext",
+      "type": "invariant",
+      "added_by_story": "S5"
+    },
+    {
+      "id": "own-signed-profile-clear-gate",
+      "name": "Own-signed-profile marker-clear gate (signedEvent.pubkey match, merge-result-independent)",
+      "owning_module": "ProfileHandler",
+      "type": "validation_rule",
+      "added_by_story": "S4"
+    },
+    {
+      "id": "per-group-leave-cleanup-fanout",
+      "name": "Per-group leave cleanup dependency fan-out",
+      "owning_module": "LeaveGroupImpl",
+      "type": "path_convention",
+      "added_by_story": "S3"
+    },
+    {
+      "id": "member-row-label-mutex",
+      "name": "Member-row label mutual exclusion (Cancel Invite XOR Remove Member, never both/neither for an admin-visible non-self row)",
+      "owning_module": "MemberList",
+      "type": "invariant",
+      "added_by_story": "S10"
+    },
+    {
+      "id": "confirmed-pubkeys-derivation",
+      "name": "confirmedPubkeys / isPending derivation (groups.tsx member-loading effect)",
+      "owning_module": "GroupsPage",
+      "type": "invariant",
+      "added_by_story": "S9"
+    },
+    {
+      "id": "marker-write-before-invite-convention",
+      "name": "Write-before-invite, best-effort, clear-on-failure marker convention at direct-invite call sites",
+      "owning_module": "InviteMemberModal",
+      "type": "path_convention",
+      "added_by_story": "S7"
+    },
+    {
+      "id": "profile-page-direct-invite-marker-write",
+      "name": "profile.tsx handleAddToGroup marker-write mirror of the InviteMemberModal convention",
+      "owning_module": "ProfilePage",
+      "type": "path_convention",
+      "added_by_story": "S8"
+    },
+    {
+      "id": "remove-member-copy-keys",
+      "name": "removeMember* i18n key set (en + de)",
+      "owning_module": "i18n",
+      "type": "naming_scheme",
+      "added_by_story": "S6"
+    }
+  ],
+  "stories": [
+    {
+      "id": "S1",
+      "surfaces_touched": [
+        {"module": "PendingInviteStore", "file": "app/src/lib/marmot/pendingDirectInviteStorage.ts", "status": "new",
+         "exports": ["markerKey", "markPendingDirectInvite", "clearPendingDirectInvite", "loadPendingDirectInviteMarkers", "clearPendingDirectInvitesForGroup", "clearAllPendingDirectInvites"]},
+        {"module": "PendingInviteStore(tests)", "file": "app/tests/unit/marmot/pendingDirectInviteStorage.test.ts", "status": "new"}
+      ],
+      "concepts_touched": ["pending-direct-invite-marker"],
+      "boundary_check": "PASS — pure idb-keyval storage module; zero imports from app/src/context/.",
+      "notes": [
+        "loadPendingDirectInviteMarkers returns Set<string> of pubkeys — matches PendingDirectInviteMarkerSet seam (S5 getPendingDirectInvites).",
+        "clearPendingDirectInvite (per-key) is the PendingDirectInviteClearFn seam S4 profileHandler injects.",
+        "Two distinct bulk-clear exports, NO '*' sentinel: S2 calls clearAllPendingDirectInvites(); S3 calls clearPendingDirectInvitesForGroup(groupId). Watch for wrong-scope call at those seams.",
+        "markPendingDirectInvite lets IDB throws propagate by design; best-effort log-and-proceed is the S7/S8 call-site responsibility (AC-MARKER-2).",
+        "Lead applied 2 sub-threshold review fixes: removed unused `get` import; added prefix-of-groupId isolation test (11 tests green)."
+      ],
+      "reviewer_verdict": "clean_after_lead_fixes"
+    },
+    {
+      "id": "S2",
+      "surfaces_touched": [
+        {"module": "MemberProfileStore", "file": "app/src/lib/marmot/groupStorage.ts", "status": "modified", "exports_added": ["deleteMemberProfile"], "functions_modified": ["clearAllGroupData"]},
+        {"module": "MemberProfileStore(tests)", "file": "app/tests/unit/marmot/groupStorage.test.ts", "status": "modified"},
+        {"module": "MemberProfileStore(tests)", "file": "app/tests/unit/marmot/groupStorage.clearAllGroupData.test.ts", "status": "new"}
+      ],
+      "concepts_touched": ["per-member-profile-purge", "pending-direct-invite-marker"],
+      "boundary_check": "PASS — storage→storage import (pendingDirectInviteStorage into groupStorage); no context reach-in.",
+      "seam_resolutions": [
+        {"seam": "S1→S2 account-reset marker clear", "status": "RESOLVED-CORRECT", "detail": "clearAllGroupData calls zero-arg clearAllPendingDirectInvites() (account-wide), not the per-group clear."}
+      ],
+      "notes": [
+        "deleteMemberProfile: read-filter-rewrite, case-INsensitive pubkeyHex match, no-op-write when unchanged. AC-PURGE-1 satisfied.",
+        "CASE-SENSITIVITY ASYMMETRY (deliberate, low risk): deleteMemberProfile matches case-insensitively; mergeMemberProfile matches case-sensitively. Safe under canonical lowercase nostr pubkeys. WATCH at S9: the marker clear is exact-key ${groupId}:${pubkey} — pass the SAME identity to deleteMemberProfile and clearPendingDirectInvite or an orphan marker survives.",
+        "Lead remediated reviewer sev-5: the .clearAllGroupData.test.ts idb mock was shared-Map (clear ignored store arg) → test was vacuous (passed even without line 135). Rewrote mock per-store (vi.hoisted, each createStore gets its own Map) so removing the marker-clear wiring now fails the test. 10 tests green."
+      ],
+      "reviewer_verdict": "needs_work_then_lead_remediated"
+    },
+    {
+      "id": "S3",
+      "surfaces_touched": [
+        {"module": "LeaveGroupImpl", "file": "app/src/lib/marmot/leaveGroupImpl.ts", "status": "modified", "deps_added": ["clearPendingDirectInvitesForGroup"], "call_site": "leaveGroupImpl.ts:151 (unconditional purge block)"},
+        {"module": "MarmotContext", "file": "app/src/context/MarmotContext.tsx", "status": "modified", "detail": "leaveGroup injection site only — dynamic import :1717 + Deps field :1738; dep array :1745 unchanged/correct."},
+        {"module": "LeaveGroupImpl(tests)", "file": "app/tests/unit/marmot/leaveGroupImpl.test.ts", "status": "modified"}
+      ],
+      "concepts_touched": ["per-group-leave-cleanup-fanout", "pending-direct-invite-marker"],
+      "boundary_check": "PASS — leaveGroupImpl stays pure; marker clear via injected Deps; MarmotContext wiring mirrors sibling-clear convention.",
+      "seam_resolutions": [
+        {"seam": "S1→S3 per-group leave-fan-out marker clear (#1 watch)", "status": "RESOLVED-CORRECT", "detail": "Calls per-group clearPendingDirectInvitesForGroup(groupId), NOT account-wide. Unconditional purge block (fires on all leave paths incl. fail-closed corrupt-state). Real-storage test is the mutation-killing counter-example."}
+      ],
+      "findings_summary": "0 findings — clean.",
+      "reviewer_verdict": "clean"
+    },
+    {
+      "id": "S4",
+      "order_sensitive": true,
+      "surfaces_touched": [
+        {"module": "ProfileHandler", "file": "app/src/lib/marmot/handlers/profileHandler.ts", "status": "modified", "deps_added": ["clearPendingDirectInvite"], "call_site": "profileHandler.ts:51-57 (own-signed gate, OUTSIDE if(merged), best-effort try/catch)"},
+        {"module": "ProfileHandler", "file": "app/src/lib/marmot/registerHandlers.ts", "status": "modified"},
+        {"module": "MarmotContext", "file": "app/src/context/MarmotContext.tsx", "status": "modified", "detail": "static import per-key clearPendingDirectInvite :46; wired into handler deps :1482"},
+        {"module": "ProfileHandler(tests)", "file": "app/tests/unit/marmot/profileHandler.test.ts", "status": "modified"},
+        {"module": "ProfileHandler(tests)", "file": "app/tests/unit/marmot/registerHandlers.test.ts", "status": "modified"}
+      ],
+      "concepts_touched": ["own-signed-profile-clear-gate", "pending-direct-invite-marker"],
+      "boundary_check": "PASS — profileHandler pure; clear injected; MarmotContext composition root.",
+      "seam_resolutions": [
+        {"seam": "S1→S4 own-signed-arrival per-key marker clear", "status": "RESOLVED-CORRECT", "detail": "per-KEY clear, merge-result-independent (outside if(merged)), gated on signedEvent presence (clear-on-rumor.pubkey-alone structurally impossible). AC-MARKER-5/6 satisfied."}
+      ],
+      "cross_story_dependencies": [
+        {"depends_on_story": "S9/S10", "invariant": "orphan-marker-safety via label mutex", "detail": "S4 clears marker AFTER setProfileVersion → transient (confirmed profile + marker present) is safe ONLY if label = isPending && markerSet.has(pubkey). If label keys on marker alone, invariant #1 breaks."}
+      ],
+      "findings_summary": "0 findings — clean. Order-sensitive invariant #1 upheld.",
+      "reviewer_verdict": "clean"
+    },
+    {
+      "id": "S5",
+      "surfaces_touched": [
+        {"module": "MarmotContext", "file": "app/src/context/MarmotContext.tsx", "status": "modified", "method_added": "getPendingDirectInvites", "four_site": "type :301-302, useCallback :1914-1917 (dynamic import loadPendingDirectInviteMarkers, [] deps), value :2138, dep-array :2177, DEFAULT_MARMOT :2227 (new Set())"},
+        {"module": "MarmotContext(tests)", "file": "app/tests/unit/marmot/approveJoinRequestImpl.test.ts", "status": "modified"}
+      ],
+      "concepts_touched": ["context-method-four-site-pattern", "approve-path-marker-exclusion", "pending-direct-invite-marker"],
+      "boundary_check": "PASS — dynamic-import-at-boundary read method, consistent with siblings.",
+      "seam_resolutions": [
+        {"seam": "PendingDirectInviteMarkerSet read (MarmotContext → S9)", "status": "ESTABLISHED", "detail": "getPendingDirectInvites(groupId): Promise<Set<string>> returns loadPendingDirectInviteMarkers verbatim (no transformation). S9 calls it ONCE per load."}
+      ],
+      "notes": [
+        "AC-MARKER-4 exclusion proven at two layers: approveJoinRequestImpl's Deps has NO marker-write field (structural), + real-store (fake-indexeddb) empty-before/empty-after test on both nickname branches.",
+        "UNACTIONED (sev-2, deliberate): redundant dynamic import at :1915 (S4 already static-imports the module at :46 → no code-splitting benefit). Left as-is: functionally correct, matches sibling read-method convention; not worth re-churning MarmotContext."
+      ],
+      "reviewer_verdict": "needs_review_then_lead_accepted_nit"
+    },
+    {
+      "id": "S6",
+      "surfaces_touched": [
+        {"module": "i18n", "file": "app/src/lib/i18n.ts", "status": "modified", "keys_added": ["removeMemberButton","removeMemberTitle","removeMemberBody","removeMemberConfirm","removeMemberSuccess","removeMemberError"], "sites": {"copy_type": "204-209", "en": "866-872", "de": "1430-1436"}},
+        {"module": "i18n(tests)", "file": "app/tests/unit/removeMember.i18n.test.ts", "status": "new"}
+      ],
+      "concepts_touched": ["remove-member-copy-keys"],
+      "boundary_check": "N/A — pure i18n, no logic/boundaries.",
+      "notes": [
+        "Type+both-locales parity verified; en≠de all six; framing distinct from cancelInvite* rescind copy (not a calque).",
+        "removeMemberButton === removeMemberTitle per locale (deliberate copy choice; surfaced to product owner for S10 if a more descriptive title is wanted).",
+        "MANUAL VALIDATION MV-1 (native-German read of de copy) is pending — carry to manual_validation ledger at wrap-up.",
+        "S10 must consume via useCopy(), no hardcoded strings."
+      ],
+      "reviewer_verdict": "clean"
+    },
+    {
+      "id": "S7",
+      "order_sensitive": true,
+      "surfaces_touched": [
+        {"module": "InviteMemberModal", "file": "app/src/components/groups/InviteMemberModal.tsx", "status": "modified", "exports_added": ["submitInviteWithMarker", "PendingInviteMarkerDeps"], "unchanged": ["submitInvite (byte-for-byte, constraint 1)"], "call_site": "handleInvite :257"},
+        {"module": "InviteMemberModal(tests)", "file": "app/tests/unit/cards/inviteByCard.test.ts", "status": "modified"},
+        {"module": "PendingInviteStore", "file": "app/src/lib/marmot/pendingDirectInviteStorage.ts", "status": "modified-by-lead", "detail": "markerKey now lowercases pubkey (structural fix for reviewer Finding B — casing invariant moved from caller convention to store level; de-risks S8)."},
+        {"module": "PendingInviteStore(tests)", "file": "app/tests/unit/marmot/pendingDirectInviteStorage.test.ts", "status": "modified-by-lead", "detail": "+2 canonicalization tests (13 total)"}
+      ],
+      "concepts_touched": ["marker-write-before-invite-convention", "pending-direct-invite-marker"],
+      "boundary_check": "PASS — UI consumes storage directly (allowed); marker logic in an injectable wrapper; submitInvite untouched so approve path stays marker-free.",
+      "seam_resolutions": [
+        {"seam": "casing linchpin (write ↔ S4 clear ↔ S5 read)", "status": "RESOLVED-STRUCTURAL", "detail": "S7 writes/clears under lowercased pubkey; lead additionally normalized markerKey in the S1 store so casing is store-enforced, not per-call-site convention. Finding B closed."}
+      ],
+      "findings": [
+        {"id": "S7-A", "severity": 3, "disposition": "accepted-deliberate", "detail": "throw-path orphan: inviteByNpub throwing (vs {ok:false}) does not clear the marker. Accepted: a partial-Add-then-throw means the member IS in the tree, so 'Cancel Invite' is correct; invariant #4 hides any true orphan. Clearing on throw could be wrong. Left as-is intentionally."},
+        {"id": "S7-B", "severity": 3, "disposition": "fixed-structural", "detail": "casing normalization was caller-side convention → moved into markerKey (store). S8 no longer needs to remember .toLowerCase()."}
+      ],
+      "reviewer_verdict": "needs_review_then_lead_remediated"
+    },
+    {
+      "id": "S8",
+      "order_sensitive": true,
+      "surfaces_touched": [
+        {"module": "ProfilePage", "file": "app/pages/profile.tsx", "status": "modified", "exports_added": ["addToGroupWithMarker", "ProfileAddToGroupMarkerDeps"], "call_site": "handleAddToGroup :603"},
+        {"module": "ProfilePage(tests)", "file": "app/tests/unit/pages/profile-add-to-group-marker.test.ts", "status": "new"}
+      ],
+      "concepts_touched": ["profile-page-direct-invite-marker-write", "pending-direct-invite-marker"],
+      "boundary_check": "PASS — page consuming storage directly (allowed); injectable wrapper mirrors S7.",
+      "seam_resolutions": [
+        {"seam": "S7-B casing linchpin", "status": "CLOSED", "detail": "markerKey lowercases pubkey at store level (implemented+tested). S8 relies on it (no caller-side .toLowerCase()). Validated at the 2nd write site."},
+        {"seam": "2nd direct-invite write site", "status": "RESOLVED-CORRECT", "detail": "mirrors S7; AC-MARKER-1/2/3; inviteByNpub unmodified (approve stays marker-free)."}
+      ],
+      "findings": [
+        {"id": "S8-A", "severity": 3, "disposition": "accepted-deliberate", "detail": "throw-path orphan (S7-A analog, marginally larger — pubkeyToNpub has no hex validation). Accepted: defended by invariant #4; pubkeyHex is a validated route identity here."}
+      ],
+      "reviewer_verdict": "needs_review_then_lead_accepted_finding"
+    },
+    {
+      "id": "S9",
+      "order_sensitive": true,
+      "surfaces_touched": [
+        {"module": "GroupsPage", "file": "app/pages/groups.tsx", "status": "modified", "exports_added": ["computeStillMember", "runPostRemovalCleanup", "performGroupMemberRemoval", "classifyRemovalResult"], "wiring": "getPendingDirectInvites once in effect → pendingInviteMarkers state → MemberList prop; onRemoveMember + onCancelInvite both via performGroupMemberRemoval"},
+        {"module": "MemberList", "file": "app/src/components/groups/MemberList.tsx", "status": "modified", "detail": "prop DECLARATIONS only (pendingInviteMarkers, onRemoveMember); label render is S10"},
+        {"module": "GroupsPage(tests)", "file": "app/tests/unit/pages/groupsMemberRemoval.test.ts", "status": "new", "count": 19},
+        {"module": "RemovalImpl", "file": "app/src/lib/marmot/cancelInvitationImpl.ts", "status": "modified-by-lead", "detail": "VQ-S9-P1 fix: pre-check gates on tree-membership only (was pending-only)"},
+        {"module": "RemovalImpl(tests)", "file": "app/tests/unit/marmot/cancelInvitationImpl.test.ts", "status": "modified-by-lead", "detail": "confirmed-member-removal regression (closes the sev-6 test-gap)"}
+      ],
+      "concepts_touched": ["confirmed-pubkeys-derivation", "member-row-label-mutex", "shared-removal-helper", "per-member-profile-purge", "pending-direct-invite-marker"],
+      "boundary_check": "PASS — groups.tsx consumes storage directly (UI layer); purge/marker-clear attach in the caller AFTER removal, gated on post-hoc tree-membership, never in the pure impl.",
+      "blocking_finding": {
+        "id": "VQ-S9-P1", "severity": 9, "status": "FIXED-BY-LEAD",
+        "detail": "cancelPendingInvitationImpl's isPendingMemberImpl pre-check no-op'd Remove Member on confirmed members (its target population) → architecture guarantee #3 (no-stuck-unremovable) violated. Lead fix: gate pre-check on tree-membership only; isPendingMemberImpl untouched (still backs isPendingMember label derivation); regression test added. 3-agent consensus (architect+examiner+reviewer) on the diagnosis and fix. Full unit suite green (3618)."
+      },
+      "order_sensitive_verification": "runPostRemovalCleanup gates SOLELY on stillMember (live re-read via getLiveMemberPubkeys), never result.ok/raceDetected. Both raceDetected shapes still purge (mutant-killers); failure+still-member does NOT (AC-PURGE-4). Marker Set refreshes on profileVersion/groupDataVersion → invariant #1 UI-freshness loop closed.",
+      "findings": [
+        {"id": "S9-P1", "severity": 9, "disposition": "fixed-by-lead"},
+        {"id": "S9-test-gap", "severity": 6, "disposition": "fixed-by-lead", "detail": "S9 suite mocked the removal helper, hiding P1; regression added to the impl's own suite."}
+      ],
+      "reviewer_verdict": "needs_work_then_lead_remediated"
+    },
+    {
+      "id": "S10",
+      "order_sensitive": true,
+      "surfaces_touched": [
+        {"module": "MemberList", "file": "app/src/components/groups/MemberList.tsx", "status": "modified", "exports_added": ["selectMemberRowAffordance", "MemberRowAffordance"], "rendering": "Remove Member button (remove-member-${prefix}) + confirm dialog (remove-member-confirm-${prefix} on inner Button); label mutex"},
+        {"module": "MemberList(tests)", "file": "app/tests/unit/memberListAdminUi.test.ts", "status": "modified", "count": 20}
+      ],
+      "concepts_touched": ["member-row-label-mutex", "remove-member-copy-keys", "pending-direct-invite-marker"],
+      "boundary_check": "PASS — presentational; selectMemberRowAffordance is a pure exported predicate; no MarmotContext import (tested); copy via useCopy().",
+      "seam_resolutions": [
+        {"seam": "member-row-label-mutex (S9-elevated critical watch)", "status": "RESOLVED-CORRECT", "detail": "cancel-invite ONLY on isPending && hasMarker (conjunction, never marker alone); confirmed+lingering-marker → remove-member. isPending leg hides transient/failed S4 clear (invariant #1/#4). AC-LABEL-2..6, AC-UNIV-2, AC-REMOVE-2 satisfied."},
+        {"seam": "VQ-S9-P1 / VQ-S10-P3", "status": "RESOLVED-VERIFIED", "detail": "cancelInvitationImpl pre-check tree-membership fix confirmed present; Remove Member evicts confirmed members end-to-end."}
+      ],
+      "findings": [
+        {"id": "S10-nit", "severity": 2, "disposition": "fixed-by-lead", "detail": "canonicalize rowKey once for all three identity checks (isYou/isPending/hasMarker) instead of only hasMarker. 44 tests green."}
+      ],
+      "notes": ["S10 closes the pending-direct-invite lifecycle UI. Invariant #1 loop closed end-to-end: mark(S7/S8) → read once(S9) → label mutex(S10) → clear on own-signed(S4) with profileVersion Set refresh(S9)."],
+      "reviewer_verdict": "needs_review_then_lead_accepted"
+    },
+    {
+      "id": "S11",
+      "is_integration_story": true,
+      "surfaces_touched": [
+        {"module": "E2E", "file": "app/tests/e2e/groups-approved-requester-label.spec.ts", "status": "new", "acs": ["SCEN-1", "SCEN-2"]},
+        {"module": "E2E", "file": "app/tests/e2e/groups-direct-invite-lifecycle.spec.ts", "status": "new", "acs": ["SCEN-3", "SCEN-4", "SCEN-6"]},
+        {"module": "E2E", "file": "app/tests/e2e/groups-remove-member.spec.ts", "status": "new", "acs": ["SCEN-5", "REMOVE-4", "SCEN-7", "UNIV-1", "SCEN-8", "PURGE-5"]},
+        {"module": "E2E-helper", "file": "app/tests/e2e/helpers/namelessJoinRequestFixture.ts", "status": "new"}
+      ],
+      "boundary_check": "PASS — e2e-only; no product code. Publish-through-app except the documented nameless fixture.",
+      "runtime_status": "GREEN — 24/24 e2e pass on the live relay.",
+      "e2e_fixes": [
+        {"tests": "5/11", "root_cause": "closing the whole BrowserContext destroyed the invitee's MLS KeyPackage SECRET in IDB → no fresh context could rejoin.", "fix": "test-only: close only the Page (masking-trap intact) so Context IDB survives.", "product_impact": "none"},
+        {"tests": "17", "fix": "added waitForKeyPackage before the profile-page add; gate on real member-row outcome not the unreachable success Alert.", "surfaced_bug": "BACKLOG profile-page-add-group-success-confirmation — PRE-EXISTING: Add-to-Group widget (incl. success Alert) is mount-gated on addableGroups.length>0 and unmounts when the invite makes the contact a member. Feature works (invite+marker succeed); only the confirmation UI is unreachable. NOT patched (pre-existing, product-behavior; surfaced for user)."}
+      ],
+      "coverage": "all 8 SCEN + REMOVE-4/PURGE-5/UNIV-1 with discriminating assertions; SCEN-5/7 behaviorally confirm the VQ-S9-P1 fix.",
+      "reviewer_verdict": "clean (static) + GREEN (runtime)"
+    },
+    {
+      "id": "S12",
+      "is_integration_story": true,
+      "surfaces_touched": [
+        {"module": "InvariantVerification", "file": "app/tests/unit/inviteRescindInvariants.test.ts", "status": "new", "count": 17, "acs": ["INV-1", "INV-2", "INV-3", "INV-4"]}
+      ],
+      "boundary_check": "PASS — verification-only; real pure fns + real fake-indexeddb stores (not mocked).",
+      "invariant_assessment": {
+        "INV-1": "strengthened by lead (sev-3 finding): primary assertion is now marker-cleared-after-every-ordering (discriminating across all 16), coexistence entailed; failure-mode masking delegated to INV-4.",
+        "INV-2": "GENUINE-STRONG — 3×2 removal-shape×marker + PURGE-4 counter-space + concurrent race; spy-wrapping-real asserts call AND real IDB effect (avoids the S2 vacuity trap).",
+        "INV-3": "GENUINE — full 2×2 admin-non-self rows never 'none'; inviter axis structurally unbranchable.",
+        "INV-4": "GENUINE — viewer×marker with isPending=false never cancel-invite; double-failure (throwing clear) drives a REAL orphan and confirms conjunction masking."
+      },
+      "findings": [{"id": "S12-INV1", "severity": 3, "disposition": "fixed-by-lead", "detail": "INV-1 enumeration was decorative for its stated failure condition; strengthened to assert marker-cleared across all orderings."}],
+      "notes": "No NEW production defects surfaced by the audit layer — consistent with S1-S11 order-sensitive logic being correct post the S9-P1 fix.",
+      "reviewer_verdict": "needs_review_then_lead_remediated"
+    }
+  ],
+  "reviewer_state": {
+    "last_story_reviewed": "S12",
+    "reviewer_agent_id": "a11ba1b2d1b4ea996",
+    "model_at": "2026-07-19T00:00:00Z",
+    "watch_items": [
+      "CLOSED — S2 vacuous test; S7-B casing (store-level markerKey); S9-P1 confirmed-member no-op (pre-check now tree-membership; regression added); S9 test-gap.",
+      "ACCEPTED — S7-A/S8-A throw-path orphan (invariant #4); S5 sev-2 redundant dynamic import.",
+      "CRITICAL for S10 — label render MUST be the mutex `isPending && markerSet.has(pubkey)` (conjunction), NEVER marker alone (S4 clears after setProfileVersion; isPending leg hides transient/failed clear). markerSet.has(pubkey) must compare a canonical-lowercase pubkey (Set contents are store-lowercased; MLS memberPubkeys are lowercase).",
+      "S10 MemberList render: Cancel-Invite iff (isPending && marker); Remove Member for every OTHER in-tree non-self admin row (universal — now functional post-P1). Mutually exclusive per row. Consume removeMember* via useCopy(); confirm-dialog testid on inner Button (Chakra Modal drops it); remove-member-${prefix} testid convention.",
+      "S11 e2e: scenario 1&2 close invitee ctx before approve (masking trap); scenario 5/7 exercise real Remove Member (now works post-P1); seedContact not pairing.ts; groups-*.spec.ts filename.",
+      "S12: INV-1..4 property assertions across the assembled flow."
+    ]
+  }
+}

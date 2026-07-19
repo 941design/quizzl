@@ -1,0 +1,43 @@
+{
+  "module_name": "MemberList",
+  "purpose": "Per-row removal-affordance label selection (Cancel Invite vs Remove Member vs none), mutual exclusion, admin/self gating, and the new Remove Member confirm dialog with distinct copy from Cancel Invite. Consumes the pendingInviteMarkers Set and onRemoveMember handler S9 already threaded in as prop declarations, without touching their loading/threading or post-removal cleanup logic.",
+  "public_api": [
+    {
+      "name": "selectMemberRowAffordance",
+      "signature": "(opts: { isYou: boolean; isAdmin: boolean; isPending: boolean; hasMarker: boolean }) => 'cancel-invite' | 'remove-member' | 'none'",
+      "description": "Single source of truth for AC-LABEL-2/3/4/5/6. isYou and !isAdmin short-circuit to 'none' before the marker/isPending conjunction is even consulted (AC-LABEL-6 requires isYou to win regardless of marker state). Otherwise: isPending && hasMarker -> 'cancel-invite' (AC-LABEL-2's conjunction); every other case -> 'remove-member' (AC-LABEL-3's 'every other in-tree, not-self, admin-visible row'). Exactly one non-'none' branch can be true per row (structural if/else, not independent booleans), so AC-LABEL-4's mutual exclusion is a property of the return type, not a runtime check."
+    },
+    {
+      "name": "isRowAdmin",
+      "signature": "(pubkey: string, adminPubkeys?: string[]) => boolean",
+      "description": "Pre-existing (S4), unchanged."
+    },
+    {
+      "name": "computeShowMakeAdmin",
+      "signature": "(opts: { isCurrentUserAdmin?: boolean; isRowAdmin: boolean; isYou: boolean; isPending: boolean; hasHandler: boolean }) => boolean",
+      "description": "Pre-existing (S4), unchanged."
+    }
+  ],
+  "private_files": [
+    "app/src/components/groups/MemberList.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "LanguageContext (useCopy() -- reads copy.groups.removeMember{Button,Title,Body,Confirm}, S6's keys, and copy.groups.cancelInvite* already in use)",
+    "UserCard (RejectButton -- reused for the new Remove Member trigger button, same destructive-action visual category as Cancel Invite)",
+    "@chakra-ui/react (Modal/useDisclosure -- mirrors the existing Cancel Invite dialog wiring)"
+  ],
+  "dependencies_forbidden": [
+    "pendingDirectInviteStorage.ts / useMarmot().getPendingDirectInvites -- the marker read is S9's exclusive responsibility in groups.tsx; MemberList consumes the already-loaded Set only via the pendingInviteMarkers prop (PendingDirectInviteMarkerSet seam), verified by zero matches for `pendingDirectInviteStorage|getPendingDirectInvites` in this file",
+    "MarmotContext (no import) -- this is a pure UI component, admin gating and marker read both arrive as props"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/memberListAdminUi.test.ts"
+  ],
+  "notes": [
+    "AC-UNIV-2's 'functioning removal affordance' is scoped, in this story, to: rendered, enabled, clickable, and wired to call onRemoveMember/onCancelInvite. Whether the underlying MLS commit actually evicts a confirmed member is RemovalImpl's (cancelInvitationImpl.ts) concern, not MemberList's -- and S9's post-impl finding VQ-S9-P1 already flags a real gap there (isPendingMemberImpl's pre-check short-circuits to raceDetected-no-commit for any pubkey with an existing profile entry, which covers exactly the confirmed/provisional rows Remove Member targets). This story does not fix that gap (different owning_module, no mandate) and does not re-file it -- it is already tracked against S9/S11/S12."
+  ]
+}

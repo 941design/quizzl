@@ -1,0 +1,30 @@
+{
+  "module_name": "S12-cross-cutting-invariant-verification",
+  "purpose": "FR-A7 adversarial-falsification audit layer over architecture.md's '## Order-Sensitive Composition' whole-flow guarantees (AC-INV-1..4). Verifies, via property/matrix tests over the PURE decision functions that embody the four guarantees, that no member of each AC's named generator space can falsify the invariant. Introduces NO new production logic — this story verifies the already-implemented S1/S2/S3/S4/S9/S10 assembly, it does not build anything.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/unit/inviteRescindInvariants.test.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "PendingInviteStore (app/src/lib/marmot/pendingDirectInviteStorage.ts) — markerKey, markPendingDirectInvite, clearPendingDirectInvite, loadPendingDirectInviteMarkers, clearAllPendingDirectInvites — real IDB-backed producer (fake-indexeddb/auto), never mocked",
+    "MemberProfileStore (app/src/lib/marmot/groupStorage.ts) — mergeMemberProfile, loadMemberProfiles, deleteMemberProfile, clearAllGroupData — real IDB-backed producer, never mocked",
+    "GroupsPage (app/pages/groups.tsx) — computeStillMember, runPostRemovalCleanup, performGroupMemberRemoval, classifyRemovalResult, CancelPendingInvitationResult type — the pure post-removal gate, imported directly (page-level React/Chakra code is not mounted)",
+    "RemovalImpl (app/src/lib/marmot/cancelInvitationImpl.ts) — CancelPendingInvitationResult shape only, referenced via groups.tsx's re-exported type; the raceDetected-via-not-pending / raceDetected-via-empty-leaves distinction is exercised as two liveMembers fixture shapes at the computeStillMember/runPostRemovalCleanup seam (this story does not import cancelInvitationImpl.ts's internals directly, mirroring S9's own dependencies_forbidden)",
+    "ProfileHandler (app/src/lib/marmot/handlers/profileHandler.ts) — modeled via its documented AC-MARKER-5/6 contract (clear marker unconditionally on signedEvent presence, never on rumor.pubkey alone) applied through the real PendingInviteStore clear function; profileHandler's own handle() dispatcher is exercised by S4's existing test file (app/tests/unit/marmot/profileHandler.test.ts), not re-driven here",
+    "MemberList (app/src/components/groups/MemberList.tsx) — selectMemberRowAffordance — the pure label-mutex decision function, imported directly"
+  ],
+  "dependencies_forbidden": [
+    "Any production source file edit — this is a verification-only story (scope excludes 'any new production logic')",
+    "cancelInvitationImpl.ts's internal exports beyond the CancelPendingInvitationResult shape",
+    "pendingDirectInviteStorage.ts's internal store object / non-exported helpers"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/inviteRescindInvariants.test.ts"
+  ],
+  "is_integration_story": true,
+  "notes": "Consistency with architecture.md's Order-Sensitive Composition participating-modules list (PendingInviteStore, RemovalImpl, MemberProfileStore, ProfileHandler, GroupsPage) is corroborative, not sourced from it directly — this story's actual scope derives from the union of AC-INV-1..4's 'Spans modules:' lines in acceptance-criteria.md, which names the identical five modules. Per the integration-story carve-out, dependencies_allowed spanning this union is expected, not a boundary violation, and grants no license to re-implement any spanned module's logic (none was re-implemented; only its existing public exports are exercised)."
+}

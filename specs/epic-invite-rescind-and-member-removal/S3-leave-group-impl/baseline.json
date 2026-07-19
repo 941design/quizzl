@@ -1,0 +1,21 @@
+{
+  "story_id": "S3",
+  "captured_at": "2026-07-19T09:51:04Z",
+  "command": "npx vitest run",
+  "test_counts": {
+    "files": 189,
+    "passed": 3571,
+    "skipped": 1,
+    "failed": 0,
+    "total": 3572
+  },
+  "status": "PASS",
+  "lint": {
+    "status": "NO_LINT",
+    "detail": "next lint has no ESLint config in app/ and drops into an interactive 'How would you like to configure ESLint?' prompt with no non-interactive path; no .eslintrc*/eslint.config* file exists. Recorded as NO_LINT per Step 0 tolerance (same as S1's baseline)."
+  },
+  "typecheck": {
+    "status": "clean",
+    "command": "npx tsc --noEmit -p ."
+  }
+}

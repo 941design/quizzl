@@ -1,0 +1,107 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "The new `clearPendingDirectInvitesForGroup` dep is added to `leaveGroupImpl.ts`'s `Deps` type (`:25-50`) alongside `clearMemberProfiles`/`clearPendingJoinRequestsForGroup`/`clearInviteLinksForGroup`. Confirm the dep is actually INVOKED in the leave-cleanup body (not merely declared in the `Deps` type and left uncalled) — a type-only addition that compiles but is never called at a call site would satisfy no test that only checks the type shape. Provide the exact line where it is called, alongside its sibling clear-dep calls."
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "`leaveGroupImpl.ts` has zero imports from `app/src/context/` and never imports marmot-ts directly (per this file's own header comment and AC-BOUND-1 from a prior epic) — every side effect arrives via injected `Deps`. Confirm `clearPendingDirectInvitesForGroup` is added to the `Deps` type as an injected function (matching the existing `clearMemberProfiles: (groupId: string) => Promise<void>` shape) rather than importing `pendingDirectInviteStorage.ts` directly into this pure-impl file — run `grep -n \"pendingDirectInviteStorage\" app/src/lib/marmot/leaveGroupImpl.ts` and confirm zero matches (the import belongs in `MarmotContext.tsx`'s Deps-wiring site, not here)."
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `LeaveGroupImpl` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: this story's only cross-module surface is the ONE new `Deps` field it adds — `clearPendingDirectInvitesForGroup` — which must be satisfiable by a mock function in this story's own unit tests without importing `pendingDirectInviteStorage.ts`'s real implementation. Confirm the story's tests inject a mock/spy for this dep (proving the impl is decoupled) rather than importing the real store module into the impl's test file."
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Provide a unit test asserting `leaveGroupImpl`'s leave-cleanup fan-out calls `clearPendingDirectInvitesForGroup(groupId)` exactly once, for the SAME `groupId` the caller passed in — not the wrong group, and not the marker-store's ALL-groups clear function (that is S2's exclusive scope). Also confirm the existing sibling clear-dep calls (`clearMemberProfiles`, `clearPendingJoinRequestsForGroup`, `clearInviteLinksForGroup`) are still invoked unchanged by this story's diff (a regression check that adding the new dep did not accidentally reorder or drop an existing one)."
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Architecture.md's implementation constraint 3 states per-group marker cleanup is dual-sited: `clearAllGroupData` (S2, all groups) AND `leaveGroupImpl`'s per-group fan-out (this story, one group). Confirm this story does NOT modify `groupStorage.ts`'s `clearAllGroupData` (that is S2's exclusive scope per this story's `excludes`) and that the function it calls is scoped to exactly the group being left, never all groups."
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "The existing sibling `clear*` deps in `leaveGroupImpl.ts`'s fan-out are called unconditionally as part of the leave sequence (not gated behind the last-member send-skip logic described in this file's header comment, which only gates the kind-13/kind-9 rumor sends). Confirm `clearPendingDirectInvitesForGroup` is likewise called unconditionally regardless of whether the caller was the group's last member — a leave by the last member must still purge that group's markers, since the group's local data (including markers) is being torn down either way."
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-9",
+      "question": "AC-MARKER-9 requires `leaveGroupImpl`'s per-group leave fan-out to clear every marker scoped to the group being left (this story's half of the joint AC; S1 exposes the clear function and S2 covers the account-reset half). Provide a unit test seeding markers for the group being left AND for a second, unrelated group, calling `leaveGroupImpl`, and asserting the left group's markers are gone while the unrelated group's markers remain untouched — proving the leave-fan-out clear is correctly scoped, not an accidental all-groups clear that would make S2's dedicated wiring redundant or, worse, a per-group clear that clears the wrong group."
+    },
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "Answering VQ-S3-001: is clearPendingDirectInvitesForGroup actually invoked, not just declared?",
+      "answer": "YES. Invoked at app/src/lib/marmot/leaveGroupImpl.ts:151 (`await deps.clearPendingDirectInvitesForGroup(groupId);`), immediately after the existing clearInviteLinksForGroup/clearInviteExpiries calls in the unconditional purge block. Covered by four new unit tests (solo path, multi-member path, no-mlsGroup path, corrupt-state path) that all assert `toHaveBeenCalledWith(GROUP_ID)`, so a type-only/dead declaration would fail every one of them."
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Answering VQ-S3-002: is the dep injected via Deps, with zero direct pendingDirectInviteStorage import in leaveGroupImpl.ts?",
+      "answer": "YES. `grep -n \"pendingDirectInviteStorage\" app/src/lib/marmot/leaveGroupImpl.ts` returns zero matches (checked). The Deps type field is `clearPendingDirectInvitesForGroup: (groupId: string) => Promise<void>` (leaveGroupImpl.ts:50), matching the existing clearMemberProfiles/clearInviteLinksForGroup shape exactly. The concrete import (`await import('@/src/lib/marmot/pendingDirectInviteStorage')`) lives at the MarmotContext.tsx:1717 Deps-wiring site, wired into the Deps object at MarmotContext.tsx:1738."
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "Answering VQ-S3-003: do the story's unit tests inject a mock for the new dep rather than importing the real store into the impl's test file at large?",
+      "answer": "YES for every pre-existing and newly-added mock-based test — `makeDeps()`'s factory in leaveGroupImpl.test.ts adds `clearPendingDirectInvitesForGroup: vi.fn().mockResolvedValue(undefined)` alongside its siblings, and all AC-MARKER-9 assertions in the main `describe('leaveGroupImpl', ...)` block run against this mock. One additional, clearly-separated describe block (`'leaveGroupImpl — AC-MARKER-9 real-storage scoping (VQ-S3-007)'`) deliberately imports the REAL `pendingDirectInviteStorage` module to satisfy VQ-S3-007's real-storage scoping requirement — this is an intentional, explicitly-commented exception, not a violation of the decoupling proof, and it overrides only that one test's mock with the real function via direct property assignment on the deps object, never a top-level vi.mock of the store."
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "Answering VQ-S3-004: exact-groupId + regression coverage of unchanged siblings?",
+      "answer": "YES. Two new tests ('solo/abandon path' and 'multi-member/normal path') each assert `clearPendingDirectInvitesForGroup` was called exactly once, `toHaveBeenCalledWith(GROUP_ID)`, and in the same assertions re-check `clearMemberProfiles`, `clearPendingJoinRequestsForGroup`, and `clearInviteLinksForGroup` were still called with GROUP_ID — proving the new dep's addition did not reorder or drop a sibling. The full pre-existing 13-test suite (AC-SEND-1/2, AC-PURGE-1, AC-DEEPLINK-4, AC-STRUCT-3, R2, send-failure paths) also passed unmodified after the diff, confirming no regression."
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "Answering VQ-S3-005: did this story avoid touching groupStorage.ts/clearAllGroupData, and is the invoked function group-scoped?",
+      "answer": "YES. Files touched by this story are exactly app/src/lib/marmot/leaveGroupImpl.ts, app/src/context/MarmotContext.tsx, and app/tests/unit/marmot/leaveGroupImpl.test.ts — groupStorage.ts is untouched (verified via `git status`/diff scope). The invoked function, `clearPendingDirectInvitesForGroup(groupId: string)`, is S1's per-group export (distinct from the zero-arg `clearAllPendingDirectInvites()` S2 calls) — the account-wide sentinel is never referenced anywhere in this story's diff."
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Answering VQ-S3-006: is the new clear called unconditionally regardless of last-member status?",
+      "answer": "YES. The call sits in the same unconditional purge block as the pre-existing leak-fixing clears (leaveGroupImpl.ts:151), after the last-member-gated send block, not inside it. Two dedicated tests ('no mlsGroup' and 'corrupt MLS state: getGroupMembers throws') assert the clear still fires when the last-member determination itself is unavailable/fails, proving it is not accidentally coupled to the send-skip branch."
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-9",
+      "question": "Answering VQ-S3-007: is there a real-storage test proving correct per-group scoping (left group cleared, unrelated group untouched)?",
+      "answer": "YES. New describe block 'leaveGroupImpl — AC-MARKER-9 real-storage scoping (VQ-S3-007)' seeds a marker for LEFT_GROUP and a marker for an unrelated OTHER_GROUP via the real pendingDirectInviteStorage module (fake-indexeddb-backed, no mocking), injects the real `clearPendingDirectInvitesForGroup` into leaveGroupImpl's Deps (overriding the mock), calls `leaveGroupImpl(deps, LEFT_GROUP, SELF)`, and asserts `loadPendingDirectInviteMarkers(LEFT_GROUP)` is empty while `loadPendingDirectInviteMarkers(OTHER_GROUP)` still contains its marker. This closes the loop from leaveGroupImpl's call-with-correct-groupId (proven by the mock-based tests) to the actual on-disk scoping guarantee (already unit-tested independently in S1's pendingDirectInviteStorage.test.ts)."
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "MarmotContext.tsx's `leaveGroup` useCallback has a dependency array `[reloadGroups, markBackupDirty, pubkeyHex]` that does not list `clearPendingDirectInvitesForGroup` (nor its pre-existing siblings clearPendingJoinRequestsForGroup/clearInviteLinksForGroup/clearMemberProfiles). Is this a stale-closure risk introduced or worsened by this story?",
+      "answer": "NO new risk. `clearPendingDirectInvitesForGroup` is obtained via a dynamic `await import(...)` INSIDE the callback body (MarmotContext.tsx:1717), exactly like its siblings `clearPendingJoinRequestsForGroup`/`clearInviteLinksForGroup` (also dynamically imported inside the body, also absent from the dep array) — it is a fresh module-level binding on every invocation, not a closed-over prop/state value, so omitting it from the dependency array is consistent with the pre-existing pattern this story mirrors and introduces no new staleness."
+    }
+  ]
+}

@@ -1,5 +1,24 @@
 # few-chat
 
+## ⛔ Privacy invariant — NEVER broadcast profile information
+
+**Profile information (nickname, avatar, or any personal metadata) must NEVER be
+broadcast to public relays, under any circumstances.** This is a hard,
+non-negotiable product constraint that overrides convenience, feature requests,
+and "it's just public data anyway" reasoning.
+
+- **No public kind-0.** The app must not publish the user's kind-0 metadata (name,
+  about, picture) to public relays. Profile data is exchanged *only* over encrypted,
+  recipient-addressed channels.
+- **Allowed channels are targeted and encrypted only:** MLS group application rumors
+  (encrypted, sent only to group members) and NIP-59 gift-wrapped events (encrypted
+  to a specific recipient's pubkey, sender hidden by an ephemeral key). A gift wrap is
+  *not* a broadcast — it is addressed private mail that happens to transit a relay.
+- **Reading others' profiles** must likewise not require or induce any public
+  broadcast of our own data.
+- Before adding or changing any code that publishes, syncs, or fetches profile data,
+  confirm it cannot leak profile metadata to an unaddressed audience.
+
 ## Multi-platform development
 
 This project is developed across Linux x86_64 and macOS ARM (darwin-arm64). Native dependencies (rolldown, @next/swc) are platform-specific.
@@ -26,6 +45,22 @@ All user-facing UI text must be translated. The app supports English (`en`) and 
 - When adding new UI text, add both `en` and `de` entries to the `Copy` type and both language objects in `i18n.ts`.
 - Dynamic strings use functions (e.g. `(count: number) => string`). Use the same pattern for new entries.
 
+### Long-form content pages → markdown, not i18n
+
+Short UI strings (labels, buttons, headings, page titles) stay in `i18n.ts`. **Long-form
+prose pages** (info, imprint) instead live as one markdown file per language under
+`app/src/content/` (e.g. `info.en.md`, `info.de.md`), rendered by the shared
+`@/src/components/Markdown` component. This keeps editable prose out of TS string literals.
+
+- Legal/structured facts are **not** duplicated into the markdown. `imprint.*.md` are
+  [Mustache](https://github.com/janl/mustache.js) templates fed the single-sourced
+  `IMPRINT` constant (`app/src/config/imprint.ts`); `{{#field}}…{{/field}}` sections drop
+  empty fields (phone, VAT). The address is written once, never per-language.
+- Only page chrome for these pages stays in `i18n.ts` (page `<title>`, the `<h1>`, the
+  info page's collapse-toggle label).
+- The `.md` files are imported as raw strings via the `asset/source` webpack rule in
+  `next.config.mjs` (typed by `app/src/content.d.ts`).
+
 ## E2E tests
 
 E2E tests (Playwright, under `app/tests/e2e/`) must drive publishes through the app, not via raw `WebSocket` to the strfry relay.
@@ -38,12 +73,13 @@ E2E tests (Playwright, under `app/tests/e2e/`) must drive publishes through the 
 
 The suite is physically split into two buckets by infrastructure need, **not** by importance:
 the **non-relay** bucket (12 tests: profile, avatar, theming, settings, emoji, notifications, info page, imprint) runs on
-`next dev` alone, and the **groups/relay** bucket (44 tests: `groups-*`, `dm-*`, including the
-contact-pairing-code epic's 6 `dm-pairing-*.spec.ts` specs) needs Docker
+`next dev` alone, and the **groups/relay** bucket (48 tests: `groups-*`, `dm-*`, including the
+contact-pairing-code epic's 6 `dm-pairing-*.spec.ts` specs and the direct-contact-profile-exchange
+epic's 4 `dm-profile-*.spec.ts` specs) needs Docker
 (strfry relay + blossom mock) and a differently-configured server. There is no CI — the Makefile is
 the only gate.
 
-- **The definitive e2e gate is the full 56-test suite: `make test-e2e-all` (or `make test`, which adds unit tests).** A feature or bug is not e2e-verified until that passes end to end.
+- **The definitive e2e gate is the full 60-test suite: `make test-e2e-all` (or `make test`, which adds unit tests).** A feature or bug is not e2e-verified until that passes end to end.
 - `make test-e2e-fast`, `make test-e2e-groups`, `make test-e2e-image-sharing`, and any filtered `node scripts/run-e2e.mjs <pattern>` run a **subset**. They are dev-iteration aids. A green subset is **never** an e2e pass — `test-e2e-fast` prints a partial-run warning when run standalone for this reason.
 - When the `/feature` or `/bug` workflow reaches its e2e step, the pass criterion is the full suite, not the tests that happen to touch the changed files.
 

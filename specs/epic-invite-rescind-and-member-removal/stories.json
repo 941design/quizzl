@@ -1,0 +1,567 @@
+{
+  "epic_name": "invite-rescind-and-member-removal",
+  "created_at": "2026-07-19T00:00:00Z",
+  "total_stories": 12,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "pending-invite-store",
+      "title": "Pending direct-invite marker store",
+      "description": "New idb-keyval store app/src/lib/marmot/pendingDirectInviteStorage.ts persisting the pending-direct-invite marker keyed `${groupId}:${pubkey}`, mirroring the profileRequestStorage.ts template. Exposes save, per-key clear, per-group clear, and a '*' full-clear sentinel. This is the sole place that owns the marker's on-disk shape and its two bulk-clear entrypoints, which S2 (clearAllGroupData) and S3 (leaveGroupImpl) each wire into independently.",
+      "acceptance_criteria": [
+        "AC-MARKER-9",
+        "AC-MARKER-10"
+      ],
+      "scope": {
+        "includes": [
+          "new store file with save/load/per-key-clear/per-group-clear/'*' full-clear API (createStore pattern, mirrors profileRequestStorage.ts)",
+          "marker persistence surviving reload (AC-MARKER-10)",
+          "exposing the per-group-clear and full-clear functions that S2 and S3 each call (AC-MARKER-9's store-side half)"
+        ],
+        "excludes": [
+          "the call sites that invoke save() before inviteByNpub (InviteMemberModal/profile.tsx — S7/S8)",
+          "the read consumption in groups.tsx's member-loading effect (S9)",
+          "the actual wiring inside clearAllGroupData (S2) and leaveGroupImpl (S3) — this story only exposes the functions they call"
+        ]
+      },
+      "complexity": "low",
+      "status": "done",
+      "owning_module": "PendingInviteStore",
+      "lighter_path": false,
+      "creates_seam": true,
+      "consumes_seams": [],
+      "notes": "AC-MARKER-9 is jointly satisfied with S2 and S3 (the AC asserts BOTH clearAllGroupData and leaveGroupImpl independently clear markers, and 'dropping either call site MUST leave stale markers reachable through the other's code path' — a single story cannot make that assertion true alone). The story schema has no native way to express an AC whose truth depends on two other stories' wiring, so the ID is duplicated across S1/S2/S3 rather than split. Flagged in the retrospective."
+    },
+    {
+      "id": "S2",
+      "name": "member-profile-store",
+      "title": "Per-member profile purge + account-reset marker clear",
+      "description": "Adds `deleteMemberProfile(groupId, pubkey)` to groupStorage.ts (load, filter by pubkeyHex case-insensitive, save if changed — mirrors mergeMemberProfile's read-filter-rewrite at :79-102), and wires the new marker store's '*' full-clear into clearAllGroupData's account-reset composition root (groupStorage.ts:112-118), per architecture.md's dual-cleanup-site requirement.",
+      "acceptance_criteria": [
+        "AC-PURGE-1",
+        "AC-MARKER-9"
+      ],
+      "scope": {
+        "includes": [
+          "deleteMemberProfile(groupId, pubkey) removing only that pubkey's profile entry, leaving every other member's entry in that group unchanged (AC-PURGE-1)",
+          "clearAllGroupData additionally clearing every pending-direct-invite marker across all groups (AC-MARKER-9's account-reset half)"
+        ],
+        "excludes": [
+          "the per-group leave fan-out clear (S3)",
+          "the caller that decides WHEN to invoke deleteMemberProfile after a removal (S9)"
+        ]
+      },
+      "complexity": "low",
+      "status": "done",
+      "owning_module": "MemberProfileStore",
+      "lighter_path": false,
+      "creates_seam": true,
+      "consumes_seams": [],
+      "notes": "AC-MARKER-9 duplicated with S1/S3 — see S1's notes for rationale."
+    },
+    {
+      "id": "S3",
+      "name": "leave-group-impl",
+      "title": "Per-group leave cleanup fan-out: marker clear",
+      "description": "Adds one clear* dependency (clearPendingDirectInvitesForGroup) to leaveGroupImpl.ts's per-group cleanup fan-out Deps list (:25-50), alongside the existing clearMemberProfiles/clearPendingJoinRequestsForGroup/clearInviteLinksForGroup siblings.",
+      "acceptance_criteria": [
+        "AC-MARKER-9"
+      ],
+      "scope": {
+        "includes": [
+          "leaveGroupImpl's per-group leave clearing every marker scoped to the group being left (AC-MARKER-9's leave-fan-out half)"
+        ],
+        "excludes": [
+          "the account-reset clear site (S2)",
+          "the marker store's own clear-function implementation (S1)"
+        ]
+      },
+      "complexity": "low",
+      "status": "done",
+      "owning_module": "LeaveGroupImpl",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [],
+      "notes": "AC-MARKER-9 duplicated with S1/S2 — see S1's notes for rationale."
+    },
+    {
+      "id": "S4",
+      "name": "profile-handler-marker-clear",
+      "title": "Clear marker on invitee's own signed profile arrival",
+      "description": "Injects a clearPendingDirectInvite dep into ProfileHandlerDeps (profileHandler.ts :19-25, threaded through registerHandlers.ts :18-65,93-99). Clears the marker when profilePayload.signedEvent is present and signedEvent.pubkey equals the marked pubkey — independent of mergeMemberProfile's boolean result — and never on rumor.pubkey alone (relay-on-behalf safety).",
+      "acceptance_criteria": [
+        "AC-MARKER-5",
+        "AC-MARKER-6"
+      ],
+      "scope": {
+        "includes": [
+          "clearing the marker on own-signed-profile arrival regardless of merge outcome (AC-MARKER-5)",
+          "refusing to clear on a rumor-only payload lacking a signed envelope (AC-MARKER-6)"
+        ],
+        "excludes": [
+          "the marker store's del() implementation (S1)",
+          "marker-write at invite time (S7/S8)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "ProfileHandler",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "PendingDirectInviteClearFn"
+      ]
+    },
+    {
+      "id": "S5",
+      "name": "marmot-context-marker-read",
+      "title": "MarmotContext.getPendingDirectInvites + approve-path exclusion",
+      "description": "Adds getPendingDirectInvites(groupId) as a new MarmotContext method following the established 4-site pattern (type in MarmotContextValue, useCallback dynamic-import boundary, useMemo value object + dep array, DEFAULT_MARMOT fallback), reading the marker store. Verifies approveJoinRequestImpl (:492-574, inviteByNpub at :515) remains structurally excluded from the marker-write — the approve path's insertion point never wraps a marker save.",
+      "acceptance_criteria": [
+        "AC-MARKER-4"
+      ],
+      "scope": {
+        "includes": [
+          "new getPendingDirectInvites(groupId) context method (4-site pattern)",
+          "regression coverage proving approveJoinRequestImpl never causes a marker to exist for the approved pubkey (AC-MARKER-4)"
+        ],
+        "excludes": [
+          "the groups.tsx effect that calls this method once per load (S9)",
+          "the removal-side context method (cancelPendingInvitation is pre-existing and reused as-is, untouched by this epic)"
+        ]
+      },
+      "complexity": "low",
+      "status": "done",
+      "owning_module": "MarmotContext",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "PendingDirectInviteMarkerSet"
+      ]
+    },
+    {
+      "id": "S6",
+      "name": "i18n-remove-member-copy",
+      "title": "removeMember* i18n keys (en + de)",
+      "description": "Adds removeMemberButton, removeMemberTitle, removeMemberBody, removeMemberConfirm, removeMemberSuccess, removeMemberError to the Copy type and both en/de objects in i18n.ts (~:196-203, ~:852-859, ~:1409-1416), mirroring the cancelInvite* / makeAdmin* precedent. Adds a vitest test asserting every key resolves to its exact expected string for both locales.",
+      "acceptance_criteria": [
+        "AC-LOCALE-1",
+        "AC-LOCALE-2"
+      ],
+      "scope": {
+        "includes": [
+          "Copy type + en + de definitions for all six removeMember* keys, each with en text distinct from de text (AC-LOCALE-1)",
+          "a vitest test asserting getCopy('en') and getCopy('de') resolve each key exactly (AC-LOCALE-2)"
+        ],
+        "excludes": [
+          "MV-1 (native-German-speaker manual read of the de copy) — manual validation, not automatable",
+          "consuming the copy in rendered UI (S10)"
+        ]
+      },
+      "complexity": "low",
+      "status": "done",
+      "owning_module": "i18n",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": []
+    },
+    {
+      "id": "S7",
+      "name": "invite-member-modal-marker-write",
+      "title": "Marker write-before-invite at InviteMemberModal",
+      "description": "Wraps InviteMemberModal's existing submitInvite (:66-76, called by handleInvite :184-209 at :192) so the marker is written before inviteByNpub is called, best-effort (log and proceed on throw), and cleared if inviteByNpub resolves {ok:false}.",
+      "acceptance_criteria": [
+        "AC-MARKER-1",
+        "AC-MARKER-2",
+        "AC-MARKER-3"
+      ],
+      "scope": {
+        "includes": [
+          "write marker before inviteByNpub at this call site (AC-MARKER-1's InviteMemberModal half)",
+          "best-effort write: log and still invite on a throwing marker-write (AC-MARKER-2)",
+          "clear marker on inviteByNpub {ok:false} (AC-MARKER-3)"
+        ],
+        "excludes": [
+          "the mirror call site at profile.tsx (S8)",
+          "the marker store's implementation (S1)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "InviteMemberModal",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "PendingDirectInviteMarkerSet"
+      ],
+      "notes": "AC-MARKER-1/2/3 are jointly satisfied with S8 — each AC's text names 'either InviteMemberModal's submitInvite path or profile.tsx's handleAddToGroup' as one criterion, and both call sites must independently implement the identical wrap. The story schema cannot express partial/joint AC satisfaction across two stories, so the IDs are duplicated across S7/S8 rather than split. Each half is independently unit-testable (mocked inviteByNpub). Flagged in the retrospective."
+    },
+    {
+      "id": "S8",
+      "name": "profile-page-marker-write",
+      "title": "Marker write-before-invite at profile.tsx",
+      "description": "Wraps profile.tsx's handleAddToGroup (:550-564, inviteByNpub at :554) with the same write-before-invite / best-effort / clear-on-failure pattern as S7, at the profile-page direct-invite entry point.",
+      "acceptance_criteria": [
+        "AC-MARKER-1",
+        "AC-MARKER-2",
+        "AC-MARKER-3"
+      ],
+      "scope": {
+        "includes": [
+          "write marker before inviteByNpub at this call site (AC-MARKER-1's profile.tsx half)",
+          "best-effort write: log and still invite on a throwing marker-write (AC-MARKER-2)",
+          "clear marker on inviteByNpub {ok:false} (AC-MARKER-3)"
+        ],
+        "excludes": [
+          "the mirror call site at InviteMemberModal (S7)",
+          "the marker store's implementation (S1)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "ProfilePage",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "PendingDirectInviteMarkerSet"
+      ],
+      "notes": "AC-MARKER-1/2/3 duplicated with S7 — see S7's notes for rationale."
+    },
+    {
+      "id": "S9",
+      "name": "groups-page-wiring",
+      "title": "GroupsPage marker load, Remove Member handler, post-removal purge/clear gate",
+      "description": "In the groups.tsx member-loading effect (:298-343): calls getPendingDirectInvites(groupId) exactly once per load, threading the resulting Set<string> to MemberList as a new prop (no per-row async call). Adds the onRemoveMember handler, invoking the same MarmotContext.cancelPendingInvitation wrapper the existing onCancelInvite already calls. After either handler resolves — including both raceDetected short-circuits — gates a post-hoc 'pubkey no longer in group.memberPubkeys' check that runs deleteMemberProfile and clears the marker.",
+      "acceptance_criteria": [
+        "AC-LABEL-1",
+        "AC-MARKER-7",
+        "AC-MARKER-8",
+        "AC-PURGE-2",
+        "AC-PURGE-3",
+        "AC-PURGE-4",
+        "AC-REMOVE-1",
+        "AC-REMOVE-3"
+      ],
+      "scope": {
+        "includes": [
+          "single getPendingDirectInvites call per member-list load, not per-row (AC-LABEL-1)",
+          "marker cleared after ordinary-committing removal once pubkey confirmed gone (AC-MARKER-7)",
+          "marker cleared on either raceDetected short-circuit too, gated on tree-membership not on 'this client committed' (AC-MARKER-8)",
+          "deleteMemberProfile called after ordinary removal (AC-PURGE-2) and after either raceDetected path (AC-PURGE-3)",
+          "deleteMemberProfile NOT called when the removal attempt fails and the pubkey remains a member (AC-PURGE-4)",
+          "onCancelInvite and the new onRemoveMember both invoke the same shared removal helper (AC-REMOVE-1)",
+          "confirmed Cancel Invite removes the pending invitee from the rendered list once resolved (AC-REMOVE-3)"
+        ],
+        "excludes": [
+          "the MemberList row-label rendering logic itself (S10)",
+          "the two-client / relay-level scenario verification (S11)",
+          "the getPendingDirectInvites method's own implementation (S5)",
+          "deleteMemberProfile's own implementation (S2)"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "owning_module": "GroupsPage",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "PendingDirectInviteMarkerSet",
+        "CancelPendingInvitationResult",
+        "DeleteMemberProfileFn"
+      ]
+    },
+    {
+      "id": "S10",
+      "name": "member-list-affordances",
+      "title": "MemberList: Cancel Invite vs Remove Member label + confirm dialogs",
+      "description": "MemberList.tsx renders exactly one of 'Cancel Invite' (marker present AND still isPending) or 'Remove Member' (every other in-tree, not-self, admin-visible row), mutually exclusive, hidden entirely for non-admin viewers and on the viewer's own row. Adds the Remove Member button + its own useDisclosure confirm dialog (remove-member-confirm-${prefix} testid on the inner Button), with distinct en/de body copy from the Cancel Invite dialog.",
+      "acceptance_criteria": [
+        "AC-LABEL-2",
+        "AC-LABEL-3",
+        "AC-LABEL-4",
+        "AC-LABEL-5",
+        "AC-LABEL-6",
+        "AC-REMOVE-2",
+        "AC-UNIV-2"
+      ],
+      "scope": {
+        "includes": [
+          "Cancel Invite iff marker present AND isPending (AC-LABEL-2)",
+          "Remove Member for every other in-tree not-self admin-visible row (AC-LABEL-3)",
+          "mutual exclusion — never both on one row (AC-LABEL-4)",
+          "no affordance for a non-admin viewer (AC-LABEL-5)",
+          "no affordance on the viewer's own row (AC-LABEL-6)",
+          "distinct rendered confirm-dialog body text per affordance (AC-REMOVE-2)",
+          "a functioning removal affordance on every in-tree row across the marker/pending/confirmed state matrix, for an admin who is not the row's subject (AC-UNIV-2)"
+        ],
+        "excludes": [
+          "the marker Set's loading/threading (S9)",
+          "the onRemoveMember handler's post-removal purge/clear logic (S9)",
+          "two-client / co-admin scenario verification (S11)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "MemberList",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "PendingDirectInviteMarkerSet"
+      ]
+    },
+    {
+      "id": "S11",
+      "name": "groups-page-e2e-scenarios",
+      "title": "End-to-end removal/rescind scenarios (spec §5)",
+      "description": "Authors the 8 required groups-*.spec.ts e2e scenarios (Docker relay bucket, publish through the app) plus AC-REMOVE-4/AC-PURGE-5/AC-UNIV-1, which are the same class of two-client/relay-round-trip assertion as their SCEN siblings. Runs after every other non-integration story so it drives real, already-implemented producers end to end (no mocks): the masking-trap precaution (close invitee context before approve) applies to scenarios 1-2; contact setup uses seedContact/inviteContactViaPicker, not helpers/pairing.ts.",
+      "acceptance_criteria": [
+        "AC-REMOVE-4",
+        "AC-PURGE-5",
+        "AC-UNIV-1",
+        "AC-SCEN-1",
+        "AC-SCEN-2",
+        "AC-SCEN-3",
+        "AC-SCEN-4",
+        "AC-SCEN-5",
+        "AC-SCEN-6",
+        "AC-SCEN-7",
+        "AC-SCEN-8"
+      ],
+      "scope": {
+        "includes": [
+          "approved join-requester (with and without nickname) always shows Remove Member, never Cancel Invite (AC-SCEN-1, AC-SCEN-2)",
+          "direct invite via both InviteMemberModal and profile.tsx flips Cancel Invite -> Remove Member on accept without reload (AC-SCEN-3)",
+          "Cancel Invite end-to-end eviction (AC-SCEN-4)",
+          "Remove Member end-to-end eviction visible to both the acting admin and a second admin (AC-SCEN-5, AC-REMOVE-4)",
+          "marker survives reload (AC-SCEN-6)",
+          "co-admin with no local marker sees and can use Remove Member (AC-SCEN-7, AC-UNIV-1)",
+          "re-invite after removal shows Cancel Invite again, proving the per-member purge ran (AC-SCEN-8, AC-PURGE-5)"
+        ],
+        "excludes": [
+          "the cross-cutting property/invariant verification across ordering permutations (S12 — a distinct, narrower audit layer)",
+          "unit-level wiring already covered by S9/S10"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "owning_module": "GroupsPage",
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "PendingDirectInviteMarkerSet",
+        "CancelPendingInvitationResult",
+        "DeleteMemberProfileFn"
+      ],
+      "notes": "Shares owning_module 'GroupsPage' with S9. Justified by spec.md's '## 5. Testing' section, which frames these 8 scenarios as their own required, distinct testing deliverable (a full make test-e2e-all gate item) separate from the wiring implementation in S9 — the spec explicitly treats end-to-end scenario coverage as its own layer, not a byproduct of S9's unit tests. These ACs (SCEN-*, UNIV-1, REMOVE-4, PURGE-5) do not carry a 'Spans modules:' line in acceptance-criteria.md, so per Mode 2's FR-A7 ownership rule they are NOT eligible for the S12 integration story (whose acceptance_criteria is restricted to exactly the Spans-modules-line ACs) — they must live in an ordinary story, and GroupsPage is where groups-*.spec.ts scenarios are authored and where every dependency (S1-S10) is already real by build-order, so no mocks are needed despite the multi-client nature."
+    },
+    {
+      "id": "S12",
+      "name": "cross-cutting-invariant-verification",
+      "title": "Order-sensitive invariant verification (marker/purge/removal composition)",
+      "description": "FR-A7 integration story, triggered by architecture.md's '## Order-Sensitive Composition' signal (composed flow: pending-direct-invite lifecycle; participating modules PendingInviteStore, RemovalImpl, MemberProfileStore, ProfileHandler, GroupsPage). Verifies the four whole-flow property guarantees derived by Mode 1 as AC-INV-1..4 hold across the generator spaces of ordering/interleaving/race each AC names — a distinct, adversarial-falsification audit layer beyond the concrete example scenarios in S11, run last against the fully assembled, real system.",
+      "acceptance_criteria": [
+        "AC-INV-1",
+        "AC-INV-2",
+        "AC-INV-3",
+        "AC-INV-4"
+      ],
+      "scope": {
+        "includes": [
+          "marker-implies-pending-or-gone across the {profile-arrival, cancel, remove, raceDetected} ordering space (AC-INV-1)",
+          "purge-and-clear-both-run, commit-independent, across the {ordinary, raceDetected-x2} x {marker present/absent} space (AC-INV-2)",
+          "every in-tree row always has a functioning removal affordance across the {marker present/absent, pending/confirmed, inviter/non-inviter} space (AC-INV-3)",
+          "orphan-marker safety across the {clear-succeeds, clear-fails} x {pubkey never entered tree, entered via unrelated concurrent invite} space (AC-INV-4)"
+        ],
+        "excludes": [
+          "the 8 concrete e2e scenarios and their example-based assertions (S11)",
+          "any new production logic — this story verifies, it does not implement"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "is_integration_story": true,
+      "lighter_path": false,
+      "creates_seam": false,
+      "consumes_seams": [
+        "PendingDirectInviteMarkerSet",
+        "CancelPendingInvitationResult",
+        "DeleteMemberProfileFn",
+        "PendingDirectInviteClearFn"
+      ]
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7",
+    "S8",
+    "S9",
+    "S10",
+    "S11",
+    "S12"
+  ],
+  "dependency_notes": "Foundation-first: S1 (PendingInviteStore) has no dependencies and must land first — S2, S3, S4, S5, S7, S8 all call its exposed functions. S2/S3 (the two independent marker-clear cleanup sites) and S4 (ProfileHandler) and S5 (MarmotContext read method) and S6 (i18n, fully independent) can follow in any relative order once S1 exists; they are sequenced S2-S6 for narrative clarity, not because of a hard dependency chain among themselves. S7/S8 (the two direct-invite UI call sites) depend only on S1. S9 (GroupsPage wiring) depends on S1, S2, and S5 (getPendingDirectInvites). S10 (MemberList) depends on the prop contract S9 defines (PendingDirectInviteMarkerSet reaching MemberList) but can be built against a mocked prop shape if sequencing needs to shift. S11 (e2e scenarios) depends on every one of S1-S10 being real (no mocks — sequential implementation guarantees this by the time S11 lands). S12 (the FR-A7 integration story) is placed last per its cross_cutting_acs union {S1, S2, S4, S9, S11}, which it trivially satisfies by being the final entry in story_order regardless. No temporary mocks are introduced anywhere in this epic: because implementation is sequential (per Module Ownership principle 5) and every consumer is ordered after its producer, each story's dependencies are already real by the time it is built.",
+  "mock_resolution_plan": "No temporary mocks are introduced by this epic (see dependency_notes) — nothing to resolve.",
+  "seams": [
+    {
+      "data": "pending-direct-invite marker set for a group, flowing from storage through the context boundary to the member-list UI",
+      "source": {
+        "story": "S1",
+        "artifact": "pendingDirectInviteStorage.ts save/load/del/clearGroup/clearAll exports"
+      },
+      "intermediaries": [
+        {
+          "story": "S5",
+          "artifact": "MarmotContext.getPendingDirectInvites(groupId)"
+        },
+        {
+          "story": "S9",
+          "artifact": "groups.tsx member-loading effect (:298-343), called once per load"
+        }
+      ],
+      "destination": {
+        "story": "S10",
+        "artifact": "MemberList's new markerSet prop"
+      },
+      "contract": {
+        "type_name": "PendingDirectInviteMarkerSet",
+        "fields": [
+          {
+            "name": "pubkeys",
+            "type": "Set<string>"
+          }
+        ],
+        "invariants": [
+          "a pubkey is present in the Set iff a marker record exists for groupId:pubkey and has not since been cleared",
+          "getPendingDirectInvites resolves exactly once per member-list load — never invoked per-row"
+        ]
+      }
+    },
+    {
+      "data": "removal outcome (ordinary commit vs raceDetected short-circuit) gating the post-removal purge/clear step",
+      "source": {
+        "story": "existing (RemovalImpl, unmodified by this epic)",
+        "artifact": "cancelPendingInvitationImpl / MarmotContext.cancelPendingInvitation wrapper"
+      },
+      "destination": {
+        "story": "S9",
+        "artifact": "groups.tsx onCancelInvite/onRemoveMember post-hoc 'pubkey no longer in tree' gate"
+      },
+      "contract": {
+        "type_name": "CancelPendingInvitationResult",
+        "fields": [
+          {
+            "name": "ok",
+            "type": "boolean"
+          },
+          {
+            "name": "raceDetected",
+            "type": "boolean",
+            "optional": true
+          }
+        ],
+        "invariants": [
+          "ok:true with raceDetected:true means a concurrent co-admin already committed the Remove and this client performed no MLS commit",
+          "the purge and marker-clear MUST run whenever the pubkey is confirmed no longer in the tree, regardless of the raceDetected value"
+        ]
+      }
+    },
+    {
+      "data": "marker-clear trigger fired when the invitee's own signed profile arrives",
+      "source": {
+        "story": "S1",
+        "artifact": "pendingDirectInviteStorage.ts del(groupId, pubkey)"
+      },
+      "destination": {
+        "story": "S4",
+        "artifact": "profileHandler.ts own-signed-profile gate"
+      },
+      "contract": {
+        "type_name": "PendingDirectInviteClearFn",
+        "fields": [
+          {
+            "name": "groupId",
+            "type": "string"
+          },
+          {
+            "name": "pubkey",
+            "type": "string"
+          }
+        ],
+        "invariants": [
+          "invoked iff profilePayload.signedEvent is present and signedEvent.pubkey equals the marked pubkey — never on rumor.pubkey alone",
+          "invoked independent of mergeMemberProfile's boolean result"
+        ]
+      }
+    },
+    {
+      "data": "per-member profile purge trigger fired after a confirmed removal",
+      "source": {
+        "story": "S2",
+        "artifact": "groupStorage.ts deleteMemberProfile(groupId, pubkey)"
+      },
+      "destination": {
+        "story": "S9",
+        "artifact": "groups.tsx post-removal purge call"
+      },
+      "contract": {
+        "type_name": "DeleteMemberProfileFn",
+        "fields": [
+          {
+            "name": "groupId",
+            "type": "string"
+          },
+          {
+            "name": "pubkey",
+            "type": "string"
+          }
+        ],
+        "invariants": [
+          "removes only the specified pubkey's stored profile entry; every other member's entry in that group is left unchanged",
+          "is a no-op (does not throw) when no entry exists for that pubkey"
+        ]
+      }
+    }
+  ],
+  "cross_cutting_acs": [
+    {
+      "ac_id": "AC-INV-1",
+      "spanned_by": [
+        "S1",
+        "S2",
+        "S4",
+        "S9",
+        "S11"
+      ]
+    },
+    {
+      "ac_id": "AC-INV-2",
+      "spanned_by": [
+        "S1",
+        "S2",
+        "S9",
+        "S11"
+      ]
+    },
+    {
+      "ac_id": "AC-INV-3",
+      "spanned_by": [
+        "S1",
+        "S9",
+        "S11"
+      ]
+    },
+    {
+      "ac_id": "AC-INV-4",
+      "spanned_by": [
+        "S1",
+        "S9",
+        "S11"
+      ]
+    }
+  ]
+}

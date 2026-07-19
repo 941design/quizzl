@@ -17,10 +17,22 @@
  * plain import time (verified: importing the module under vitest's default
  * node environment succeeds without jsdom) — only rendering the component
  * would need a DOM, and this test never renders it.
+ *
+ * AC-MARKER-4 block (epic: invite-rescind-and-member-removal, story S5):
+ * `import 'fake-indexeddb/auto'` is required here (no global vitest setup
+ * wires it project-wide — checked vitest.config.ts, no `setupFiles` entry)
+ * because that block reads the REAL pendingDirectInviteStorage store via
+ * loadPendingDirectInviteMarkers, mirroring pendingDirectInviteStorage.test.ts's
+ * own header comment on why a real IDB surface (not a mock) is used.
  */
 
+import 'fake-indexeddb/auto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PendingJoinRequest } from '@/src/lib/marmot/joinRequestStorage';
+import {
+  loadPendingDirectInviteMarkers,
+  clearAllPendingDirectInvites,
+} from '@/src/lib/marmot/pendingDirectInviteStorage';
 
 const { approveJoinRequestImpl } = await import('@/src/context/MarmotContext');
 
@@ -259,5 +271,61 @@ describe('approveJoinRequestImpl', () => {
     // bumpProfileVersion is only reached after a successful merge, so a throw skips it.
     expect(deps.bumpProfileVersion).not.toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+});
+
+// ── AC-MARKER-4 (epic: invite-rescind-and-member-removal, story S5) ────────
+// The join-request approve path (approveJoinRequestImpl) must never write a
+// pending-direct-invite marker — that marker is scoped exclusively to the
+// direct-invite-by-npub flow (S7/S8), not the join-request flow. The deps
+// type approveJoinRequestImpl accepts has no marker-write field at all, so
+// the exclusion is structural rather than a runtime guard: there is no call
+// site inside the function that could write a marker even if it wanted to.
+// The proof is behavioral, using the REAL store (not a mock): start empty
+// for the (groupId, pubkeyHex) key, run the real approveJoinRequestImpl,
+// confirm the real store is still empty for that key.
+describe('AC-MARKER-4: approve path never writes a pending-direct-invite marker', () => {
+  beforeEach(async () => {
+    await clearAllPendingDirectInvites();
+  });
+
+  it('request WITH a nickname (provisional-profile seed branch): marker absent before and after approval', async () => {
+    const deps = makeDeps();
+    const request = makeRequest({
+      groupId: 'marker-group-nick',
+      pubkeyHex: 'marker-pubkey-nick',
+      nickname: 'Has A Nickname',
+    });
+
+    const before = await loadPendingDirectInviteMarkers(request.groupId);
+    expect(before.has(request.pubkeyHex)).toBe(false);
+
+    const result = await approveJoinRequestImpl(deps, request);
+    expect(result).toEqual({ ok: true });
+    // Sanity: this request did take the provisional-seed branch.
+    expect(deps.mergeMemberProfile).toHaveBeenCalledTimes(1);
+
+    const after = await loadPendingDirectInviteMarkers(request.groupId);
+    expect(after.has(request.pubkeyHex)).toBe(false);
+  });
+
+  it('request WITHOUT a nickname (plain-invite path only): marker absent before and after approval', async () => {
+    const deps = makeDeps();
+    const request = makeRequest({
+      groupId: 'marker-group-no-nick',
+      pubkeyHex: 'marker-pubkey-no-nick',
+      nickname: undefined,
+    });
+
+    const before = await loadPendingDirectInviteMarkers(request.groupId);
+    expect(before.has(request.pubkeyHex)).toBe(false);
+
+    const result = await approveJoinRequestImpl(deps, request);
+    expect(result).toEqual({ ok: true });
+    // Sanity: no nickname means the provisional-seed branch was skipped.
+    expect(deps.mergeMemberProfile).not.toHaveBeenCalled();
+
+    const after = await loadPendingDirectInviteMarkers(request.groupId);
+    expect(after.has(request.pubkeyHex)).toBe(false);
   });
 });

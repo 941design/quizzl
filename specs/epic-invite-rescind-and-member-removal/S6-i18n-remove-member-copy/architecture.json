@@ -1,0 +1,51 @@
+{
+  "module_name": "i18n",
+  "purpose": "Adds the six removeMember* Copy keys (button/title/body/confirm/success/error) for the new Remove Member affordance, distinct in framing from the existing cancelInvite* (rescind-an-invite) copy, for both en and de locales.",
+  "public_api": [
+    {
+      "name": "Copy.groups.removeMemberButton",
+      "signature": "string",
+      "description": "Member-list row button label for removing an established (non-pending) member."
+    },
+    {
+      "name": "Copy.groups.removeMemberTitle",
+      "signature": "string",
+      "description": "Confirm-dialog header for the Remove Member action."
+    },
+    {
+      "name": "Copy.groups.removeMemberBody",
+      "signature": "string",
+      "description": "Confirm-dialog body copy explaining the consequence of removing a member."
+    },
+    {
+      "name": "Copy.groups.removeMemberConfirm",
+      "signature": "string",
+      "description": "Confirm-dialog primary action button label."
+    },
+    {
+      "name": "Copy.groups.removeMemberSuccess",
+      "signature": "string",
+      "description": "Success toast shown after a member is removed."
+    },
+    {
+      "name": "Copy.groups.removeMemberError",
+      "signature": "string",
+      "description": "Error toast shown when member removal fails."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [
+    "The six removeMember* Copy type declarations and their en/de string literal values in app/src/lib/i18n.ts"
+  ],
+  "dependencies_allowed": [],
+  "dependencies_forbidden": [
+    "app/src/components/groups/MemberList.tsx (S10 is the exclusive consumer)",
+    "app/pages/groups.tsx"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/removeMember.i18n.test.ts"
+  ]
+}

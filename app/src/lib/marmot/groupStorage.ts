@@ -11,6 +11,7 @@ import { createStore, get, set, del, keys, clear } from 'idb-keyval';
 import type { Group, MemberProfile } from '@/src/types';
 import type { StoredKeyPackage, SerializedClientState } from '@internet-privacy/marmot-ts';
 import { clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage';
+import { clearAllPendingDirectInvites } from '@/src/lib/marmot/pendingDirectInviteStorage';
 // KeyValueStoreBackend is an internal utility type — import directly from subpath
 type KeyValueStoreBackend<T> = {
   getItem(key: string): Promise<T | null>;
@@ -105,6 +106,22 @@ export async function clearMemberProfiles(groupId: string): Promise<void> {
   await del(memberProfileKey(groupId), memberProfileStore);
 }
 
+/**
+ * Remove a single member's profile entry from a group's stored profile list.
+ * Mirrors mergeMemberProfile's read-filter-rewrite pattern: only writes back
+ * to IDB when the target pubkey was actually present (no-op-write avoidance).
+ * Never throws when the pubkey has no stored entry, or when the group has no
+ * stored profiles at all.
+ */
+export async function deleteMemberProfile(groupId: string, pubkey: string): Promise<void> {
+  const existing = await loadMemberProfiles(groupId);
+  const filtered = existing.filter((p) => p.pubkeyHex.toLowerCase() !== pubkey.toLowerCase());
+
+  if (filtered.length !== existing.length) {
+    await saveMemberProfiles(groupId, filtered);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Clear all group data (for resetAllData)
 // ---------------------------------------------------------------------------
@@ -115,6 +132,7 @@ export async function clearAllGroupData(): Promise<void> {
   await clear(keyPackageStore);
   await clear(memberProfileStore);
   await clearProfileRequestMemos('*'); // clear all — groupId filter handled internally
+  await clearAllPendingDirectInvites();
 }
 
 // ---------------------------------------------------------------------------

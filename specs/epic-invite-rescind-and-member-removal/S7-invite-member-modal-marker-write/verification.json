@@ -1,0 +1,85 @@
+{
+  "story_id": "S7",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S7-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Confirm the marker-write wrapper actually calls the real `pendingDirectInviteStorage.ts` save function with the real `groupId`/`pubkeyHex` values in scope at the `submitInvite` call site (`InviteMemberModal.tsx:192`) — not a hard-coded or memoized marker payload, and not a wrapper that only LOGS an intent to write without invoking the store. Provide the exact wrapping code around the existing `submitInvite(selectedPubkeyHex, groupId, inviteByNpub)` call at `:192`."
+    },
+    {
+      "question_id": "VQ-S7-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Architecture.md's implementation constraint 1 states the marker write must wrap the two UI call sites directly and must NOT route through `inviteByNpub` (that would also fire on the approve path). Confirm the marker-write call is placed in `InviteMemberModal.tsx`'s `handleInvite` (`:184-209`), BEFORE the call to `submitInvite`/`inviteByNpub` — not inside `submitInvite` itself (`:66-76`), which this story's own description confirms stays a pure, unmodified function (`inviteByNpub` unchanged), and not inside `inviteByNpub` in `MarmotContext.tsx` (which `approveJoinRequestImpl` also calls at `:515` — wrapping it there would violate AC-MARKER-4)."
+    },
+    {
+      "question_id": "VQ-S7-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `InviteMemberModal` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: this component may depend on `pendingDirectInviteStorage.ts`'s exported save/clear functions (the `PendingDirectInviteMarkerSet` seam) and the pre-existing `useMarmot().inviteByNpub`, but must not import any MLS/`*Impl.ts` internals directly. Confirm the new marker-write import is a named import of the store's save function, not a reach into its internal IDB store handle."
+    },
+    {
+      "question_id": "VQ-S7-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Provide unit-test evidence with a MOCKED `inviteByNpub` (per this story's independently-unit-testable design note) for: (a) the marker save is called with the correct `groupId`/`pubkeyHex` BEFORE `inviteByNpub` resolves (assert call order via a shared spy log, not just 'both were called'); (b) when the mocked marker-save throws, `inviteByNpub` is STILL called (best-effort — AC-MARKER-2) and a warning/error log call is asserted; (c) when the mocked `inviteByNpub` resolves `{ok: false}`, the marker written in this same flow is cleared (AC-MARKER-3) before `handleInvite` returns; (d) when `inviteByNpub` resolves `{ok: true}`, the marker is NOT cleared (a regression guard — a bug that clears on success would make a freshly-sent invite show 'Remove Member' immediately, defeating the whole marker's purpose)."
+    },
+    {
+      "question_id": "VQ-S7-005",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "AC-MARKER-2's best-effort contract requires the marker-write failure to be logged via 'a warning/error log call.' Confirm the log call uses `console.warn` or `console.error` (matching this codebase's established best-effort-failure convention, e.g. `MarmotContext.tsx`'s `console.warn('[Marmot] seeding provisional member profile after approval failed (non-blocking):', err)` at the approve path) rather than a silent `catch {}` with no log statement — a silent swallow would make marker-write failures undiagnosable in production."
+    },
+    {
+      "question_id": "VQ-S7-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Confirm this story's diff is confined to `InviteMemberModal.tsx`'s `handleInvite` and does not touch `profile.tsx` (S8's exclusive scope) or `pendingDirectInviteStorage.ts`'s implementation (S1's exclusive scope, per this story's own `excludes`)."
+    },
+    {
+      "question_id": "VQ-S7-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-1",
+      "question": "AC-MARKER-1 requires submitting via `InviteMemberModal`'s path to persist a marker for `${groupId}:${pubkey}` BEFORE `inviteByNpub` is called. Provide the exact source ordering (marker-write statement, then the `submitInvite`/`inviteByNpub` call) and a unit test asserting the marker exists (via a real or spied store read) at the moment `inviteByNpub` is invoked, not merely 'eventually' after `handleInvite` resolves — the ordering, not just the eventual presence, is the load-bearing assertion (a marker written AFTER a slow `inviteByNpub` call would let a race window exist where the member list briefly shows neither 'Cancel Invite' nor a marker, contradicting AC-INV-1's whole-flow guarantee)."
+    },
+    {
+      "question_id": "VQ-S7-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-2",
+      "question": "AC-MARKER-2 requires a throwing marker-write to NOT prevent `inviteByNpub` from being called, and requires a log call. Provide the try/catch structure around the marker-write call and a unit test that mocks the marker-save to throw (simulating IDB quota/transient failure), asserting `inviteByNpub` is STILL invoked with the correct arguments afterward, and that a `console.warn`/`console.error` call was made with the caught error."
+    },
+    {
+      "question_id": "VQ-S7-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-3",
+      "question": "AC-MARKER-3 requires the marker written in this flow to be cleared when `inviteByNpub` resolves `{ok: false}`, BEFORE the flow returns. Provide a unit test mocking `inviteByNpub` to resolve `{ok: false, error: '...'}`, asserting the marker-clear function is called with the same `groupId`/`pubkeyHex` used for the write, and that this clear happens before `handleInvite`'s `finally` block sets `isLoading` back to `false` (i.e. it is not deferred to a later, unawaited microtask that could race with a re-render reading the marker set)."
+    },
+    {
+      "question_id": "VQ-S7-010",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": null,
+      "question": "The implementation resolves VQ-S7-002 by extracting a NEW exported function `submitInviteWithMarker(pubkeyHex, groupId, inviteByNpub, markerDeps)` (InviteMemberModal.tsx ~lines 82-141) that `handleInvite` calls in place of `submitInvite`, rather than inlining the marker try/catch directly inside `handleInvite`'s body. `submitInvite` itself is byte-for-byte unmodified; `inviteByNpub` in MarmotContext.tsx is unmodified; `approveJoinRequestImpl`'s direct call to `inviteByNpub` (MarmotContext.tsx:515) is untouched and structurally cannot pick up this wrapper. Confirm this factoring — a sibling exported wrapper following the file's own established hooks-via-pure-function-extraction convention (same pattern as `submitInvite`, `computeSelectionState`, `getErrorMessage`, `getInviteReasonText`) — satisfies VQ-S7-002's substantive intent (marker logic outside `submitInvite`/`inviteByNpub`, approve path unaffected, AC-MARKER-4 upheld) even though the marker try/catch text is not physically inline inside `handleInvite`'s own function body."
+    },
+    {
+      "question_id": "VQ-S7-011",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-MARKER-1",
+      "question": "`submitInviteWithMarker` writes the marker unconditionally BEFORE delegating to `submitInvite`, even for a `pubkeyHex` that `resolveInviteTarget` will reject as `invalid_npub` (verified by the added test 'clears the marker for an invalid pubkeyHex too...' — mark is called, then immediately cleared, `inviteByNpub` never runs). Confirm this write-then-immediately-clear round trip for an invalid/malformed `pubkeyHex` produces no observable side effect in the real IDB store or the member-list UI (no flicker, no reachable state where `loadPendingDirectInviteMarkers` could return the doomed marker mid-flight) — i.e. that the two awaited IDB operations are sequential and non-interleavable with a concurrent `getPendingDirectInvites(groupId)` read from `groups.tsx`'s member-loading effect (architecture.md constraint 1)."
+    },
+    {
+      "question_id": "VQ-S7-012",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-MARKER-3",
+      "question": "Trace the full await chain confirming VQ-S7-009's ordering claim against the actual implementation: `handleInvite` does `const result = await submitInviteWithMarker(...)` (single awaited call), and inside `submitInviteWithMarker`, the `clearPendingDirectInvite` call on the `!result.ok` branch is itself `await`-ed before the function returns its `result`. Confirm there is no code path (e.g. a fire-and-forget promise, a `.catch()` without `await`) where `handleInvite`'s `finally { setIsLoading(false) }` could run before the marker clear settles, for both the `inviteByNpub`-failure case and the `resolveInviteTarget`-rejection case (VQ-S7-011)."
+    }
+  ]
+}

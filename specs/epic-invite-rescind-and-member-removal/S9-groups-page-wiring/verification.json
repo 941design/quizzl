@@ -1,0 +1,125 @@
+{
+  "story_id": "S9",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S9-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "The post-hoc purge/clear gate ('pubkey no longer in `group.memberPubkeys`') must be a REAL membership check against fresh data after the removal call resolves — not a check against the pre-removal `group.memberPubkeys` snapshot captured in closure before the removal ran (which would always show the pubkey as still present, since React state hasn't re-rendered yet), and not a check that is skipped entirely (e.g. `deleteMemberProfile`/marker-clear called unconditionally on every removal attempt regardless of outcome, which would violate AC-PURGE-4). Provide the exact re-fetch or re-read this gate performs after `cancelPendingInvitation` resolves."
+    },
+    {
+      "question_id": "VQ-S9-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Architecture.md states the per-member profile purge and marker clear 'attach in the `groups.tsx` caller AFTER the removal resolves, gated on a post-hoc \"pubkey no longer in the tree\" check — never inside the pure impl.' Confirm neither `deleteMemberProfile` nor the marker-clear call is added inside `cancelInvitationImpl.ts` (that would violate the pure-impl boundary and duplicate logic S2/S1 already own) — run `grep -n \"deleteMemberProfile\\|clearPendingDirectInvite\" app/src/lib/marmot/cancelInvitationImpl.ts` and confirm zero matches; both calls must originate from `groups.tsx`."
+    },
+    {
+      "question_id": "VQ-S9-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `GroupsPage` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: `groups.tsx` depends on S5's `getPendingDirectInvites` (the `PendingDirectInviteMarkerSet` seam), the pre-existing `cancelPendingInvitation` wrapper (the `CancelPendingInvitationResult` seam), and S2's `deleteMemberProfile` (the `DeleteMemberProfileFn` seam) — confirm all three are consumed through their documented context/module exports, never through a direct import of `pendingDirectInviteStorage.ts` or `groupStorage.ts`'s internals bypassing the context boundary."
+    },
+    {
+      "question_id": "VQ-S9-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Provide unit/component-level test evidence that the member-loading effect (`:298-343`) calls `getPendingDirectInvites(groupId)` EXACTLY ONCE per load — instrument the mock and assert call count is 1 regardless of the number of member rows (e.g. test with 0, 1, and 5 members and assert the call count stays 1 in all three cases) — a per-row call would still pass a test with only 1 member, so the multi-member case is load-bearing evidence, not the single-member case."
+    },
+    {
+      "question_id": "VQ-S9-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Confirm the new `onRemoveMember` handler invokes the SAME shared removal helper (`cancelPendingInvitation`) the existing `onCancelInvite` already calls (`:158-194`) — not a second, parallel MLS-remove code path. Provide both handlers' bodies and confirm they differ only in caller-facing details (e.g. which toast copy key is used on success/failure), never in which underlying function performs the MLS commit."
+    },
+    {
+      "question_id": "VQ-S9-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "The post-removal purge/clear gate runs after ANY removal outcome, including both `raceDetected` short-circuits (`cancelInvitationImpl.ts:56-63` `!stillPending`, and `:80-83` empty `leafIndexes`). Confirm the gate reads `result.ok` (true in both raceDetected cases per the contract) and checks live tree membership — NOT `result.raceDetected === undefined` or 'this client committed' — as the sole condition for running the purge/clear. A gate that skips the purge/clear specifically because `raceDetected` is true would leave a removed member's profile and marker stranded whenever a concurrent co-admin wins the race, reproducing the exact 're-invite looks confirmed' bug architecture.md calls out (§3, F7/V3) — this is the load-bearing security/data-integrity property of this story."
+    },
+    {
+      "question_id": "VQ-S9-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LABEL-1",
+      "question": "AC-LABEL-1 requires the member-loading effect to call `getPendingDirectInvites(groupId)` exactly once per load, threading a `Set<string>` to `MemberList` as a prop — no per-row invocation. Provide the exact prop name and its assignment, and confirm `MemberList`'s row-rendering `.map()` (mirroring the existing `confirmedPubkeys.has(pubkey)` pattern at `:100`) reads from this SAME loaded `Set` synchronously per row, never calling `getPendingDirectInvites` or an `isPendingMember`-style async function from inside the map callback."
+    },
+    {
+      "question_id": "VQ-S9-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-7",
+      "question": "AC-MARKER-7 requires the marker to be cleared after an ORDINARY committing removal, once the pubkey is confirmed no longer in the tree. Provide a unit test where `cancelPendingInvitation` resolves `{ok: true}` (no `raceDetected`), the post-hoc membership check confirms the pubkey is gone, and assert the marker-clear function was called with the correct `groupId`/pubkey — distinct from AC-MARKER-8's raceDetected test below."
+    },
+    {
+      "question_id": "VQ-S9-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-8",
+      "question": "AC-MARKER-8 requires the marker to STILL be cleared after EITHER `raceDetected` short-circuit, gated on tree-membership, not on 'this client committed.' Provide TWO separate unit tests — one where `cancelPendingInvitation` resolves `{ok: true, raceDetected: true}` because `stillPending` was already false (`cancelInvitationImpl.ts:56-63`), and one because `leafIndexes` was empty (`:80-83`) — asserting in BOTH cases the marker-clear function is called once the pubkey is confirmed absent from the tree. A single combined test would not prove BOTH raceDetected code paths are handled identically."
+    },
+    {
+      "question_id": "VQ-S9-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-2",
+      "question": "AC-PURGE-2 requires `deleteMemberProfile(groupId, pubkey)` to have been called after an ordinary committing removal resolves with the pubkey confirmed gone. Provide a unit test asserting this call with the correct arguments, for the same ordinary-commit scenario as AC-MARKER-7 — confirm both the marker-clear AND the profile-purge fire from the SAME post-hoc gate (not two independently-triggered gates that could drift out of sync with each other over time)."
+    },
+    {
+      "question_id": "VQ-S9-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-3",
+      "question": "AC-PURGE-3 requires `deleteMemberProfile` to STILL have been called after either `raceDetected` short-circuit, mirroring AC-MARKER-8's gate. Provide two unit tests (one per raceDetected code path, matching AC-MARKER-8's two-test structure) asserting `deleteMemberProfile(groupId, pubkey)` was called in both."
+    },
+    {
+      "question_id": "VQ-S9-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-4",
+      "question": "AC-PURGE-4 requires `deleteMemberProfile` MUST NOT be called when the removal attempt fails and the pubkey remains a tree member. Provide a unit test where `cancelPendingInvitation` resolves `{ok: false, error: '...'}` (a genuine commit failure, e.g. `cancelInvitationImpl.ts`'s `catch` branch returning `{ok: false, error: 'commit_failed'}`) and assert `deleteMemberProfile` is NEVER called — this is the counterexample to AC-PURGE-2/3 and the one most likely to be broken by an implementation that runs the purge unconditionally on 'the handler resolved' rather than on the tree-membership check."
+    },
+    {
+      "question_id": "VQ-S9-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REMOVE-1",
+      "question": "AC-REMOVE-1 requires both `onCancelInvite` and `onRemoveMember` to invoke the shared removal helper, not two distinct MLS-remove code paths. Provide both handlers' source and confirm they call the identical `cancelPendingInvitation(groupId, pubkey, sendAnnouncementRef.current ?? undefined)` signature — same function reference, same argument shape — differing only in UI-facing concerns (toast copy)."
+    },
+    {
+      "question_id": "VQ-S9-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REMOVE-3",
+      "question": "AC-REMOVE-3 requires confirming Cancel Invite on a pending invitee to result in that pubkey being absent from the group's member list after the removal resolves. Provide a unit/component test asserting the rendered member list (or its underlying `group.memberPubkeys`/re-fetched state) no longer includes the pubkey after `onCancelInvite` resolves with `{ok: true}` — confirm this reflects the `reloadGroups()` call already inside `cancelPendingInvitationImpl` (`cancelInvitationImpl.ts`'s unconditional `await deps.reloadGroups()`), not a separate re-fetch this story would need to add redundantly."
+    },
+    {
+      "question_id": "VQ-S9-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Cross-story contract question (FR-5) for the `CancelPendingInvitationResult` seam (source: existing, unmodified `cancelPendingInvitationImpl`; destination: this story's post-hoc gate). The contract requires: `{ok: boolean, raceDetected?: boolean}`, with 'ok:true with raceDetected:true' meaning a concurrent co-admin already committed and this client performed no MLS commit, and 'the purge and marker-clear MUST run whenever the pubkey is confirmed no longer in the tree, regardless of the raceDetected value.' Confirm this story's gate reads `result.ok` and independently re-checks live tree membership (NOT `result.raceDetected`) to decide whether to purge/clear — i.e. the gate's condition is never simply `if (result.ok)` without the membership re-check, since `{ok: false}` on a genuine commit failure must also be excluded from the purge (AC-PURGE-4) even though `ok` alone can't distinguish that from a raceDetected success."
+    },
+    {
+      "question_id": "VQ-S9-P1",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "severity": "high",
+      "question": "BLOCKING FINDING discovered during S9 implementation, not an S9 defect (RemovalImpl is a different owning_module, reused as-is per architecture.md — S9 has no scope to fix this): `cancelPendingInvitationImpl`'s internal `isPendingMemberImpl` pre-check (`cancelInvitationImpl.ts:56-63`) short-circuits to `{ok:true, raceDetected:true}` WITHOUT calling `mlsGroup.commit` whenever `loadMemberProfiles(groupId)` returns ANY profile entry (provisional or confirmed) for the target pubkey — not only when a concurrent co-admin already removed them. This is proven by the PRE-EXISTING test `cancelInvitationImpl.test.ts`'s own 'race-guard path: member has profile (just came online) → raceDetected, no commit' case, and by `isPendingMemberImpl`'s literal implementation (`!profiles.some(p => p.pubkeyHex... === pubkey...)`, no `provisional` filter). Since `onRemoveMember` (built correctly per AC-REMOVE-1, calling the identical shared helper) targets confirmed AND provisional-profile rows by design — that is the entire distinction between Cancel Invite and Remove Member — this gate will make Remove Member silently no-op (report success/raceDetected, perform NO MLS removal) for every row it is meant to serve, EXCEPT the degenerate case of a truly-pending-with-zero-profile pubkey (which is exactly Cancel Invite's domain, not Remove Member's). Verify by writing a scenario in `cancelInvitationImpl.test.ts`'s style: a member WITH a profile entry, calling `cancelPendingInvitationImpl` to REMOVE them (not cancel an invite) — confirm `mockCommit` is never called. This blocks AC-UNIV-1/AC-UNIV-2 (S10), AC-SCEN-5/AC-REMOVE-4 (S11), and AC-INV-3 (S12) — none of which are S9-owned, but all of which assume Remove Member actually evicts confirmed members. No story in `stories.json` currently modifies this gate. Recommend surfacing to the epic owner before S10 begins: either decouple `isPendingMemberImpl`'s 'still removable' check from 'has a profile entry' (e.g. gate solely on live tree membership, matching this story's own post-hoc gate philosophy), or give Remove Member a distinct pre-check that only treats 'pubkey absent from the tree' as `raceDetected`, never 'pubkey has a profile'. S9's own 8 assigned ACs (AC-LABEL-1, AC-MARKER-7/8, AC-PURGE-2/3/4, AC-REMOVE-1, AC-REMOVE-3) remain satisfied regardless, since none of them assert that Remove Member evicts a confirmed member — that assertion lives entirely in S10/S11/S12."
+    },
+    {
+      "question_id": "VQ-S9-P2",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-LABEL-1",
+      "question": "This repo has no jsdom/@testing-library/renderHook precedent (confirmed via `groupsManageLinksDeepLink.test.ts`'s header and `exploration.json`'s testing conventions), so AC-LABEL-1's 'exactly once per load, regardless of member count' guarantee could not be proven with a mounted-component call-count assertion (VQ-S9-004's ideal evidence). The guarantee as implemented is STRUCTURAL: `getPendingDirectInvites(id)` is called once, directly in the top-level body of the member-loading `useEffect` (`groups.tsx`, immediately after `getMarmotGroup(id).then(setMlsGroup)...` and before `getMemberProfiles(id).then(...)`), never inside a `.map()`/loop/per-row callback — identical in kind to the pre-existing, untested-for-call-count `getMemberProfiles(id)` call two lines below it in the same effect. Confirm this structural argument is accepted as sufficient evidence for AC-LABEL-1, consistent with how the codebase already treats `getMemberProfiles`'s single-call guarantee, or determine whether a stronger form of evidence is required and, if so, what harness would need to be introduced (this story did not introduce one, to stay within its stated scope of 'no per-row async read' rather than a broader testing-infrastructure change)."
+    },
+    {
+      "question_id": "VQ-S9-P3",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "This story's post-hoc gate re-derives tree membership via the pre-existing `MarmotContext.getLiveMemberPubkeys(groupId)` context method (not a new context method, not `group.memberPubkeys` from the render closure) — chosen because it already performs exactly the 're-fetch live MLS group, call `getGroupMembers(state)`' sequence exploration.json's `removal_path.purge_and_clear_attach` note calls for, is already fail-closed (`undefined` on any read failure), and is an established precedent (`LeaveGroupButton.tsx` uses it identically for its own abandon-modal gate). This story's `computeStillMember` treats `undefined` as 'still a member' (skip purge) — the OPPOSITE polarity from `LeaveGroupButton`'s use of the same `undefined` signal (which blocks its 'abandon' branch) — because the two decisions have different safe defaults: an unreadable membership check must never trigger a destructive purge/marker-clear here, whereas `LeaveGroupButton` must never let an unreadable check imply the group is abandonable. Confirm this polarity choice is correct and that reusing `getLiveMemberPubkeys` (rather than adding a new context method) is consistent with the epic's 'reuse existing seams' posture."
+    }
+  ]
+}

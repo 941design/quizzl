@@ -1,0 +1,152 @@
+{
+  "story_id": "S11",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S11-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Per CLAUDE.md's E2E tests section, every scenario must drive publishes THROUGH the app (a second `browser.newContext()` signed in as the peer, calling the app's UI/publish helpers) — never a hand-signed event `WebSocket.send` to the relay. Confirm none of the 8 scenarios (or the 3 supplemental AC-REMOVE-4/AC-PURGE-5/AC-UNIV-1 assertions) fabricates a direct invite, a profile publish, or a removal via raw relay access; every state change must originate from a real button click / form submit in a real browser context."
+    },
+    {
+      "question_id": "VQ-S11-002",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Multi-context e2e specs are prone to resource/state leakage across scenarios within the same file (a `BrowserContext` left open from an earlier scenario contaminating a later one's member-list read, or a fixed `waitForTimeout` masking a real race instead of asserting on it). Confirm every `browser.newContext()` opened by any of the 8 scenarios (or the 3 supplemental assertions) is explicitly closed in a cleanup step (afterEach or end-of-test) even on assertion failure, and confirm no scenario uses a bare `page.waitForTimeout(...)` as its sole wait mechanism for an async state transition (per learning `e2e_ac60_flaky_fixed_timeout` — use `expect.poll`/retrying `toBeVisible`/`toBeHidden` instead)."
+    },
+    {
+      "question_id": "VQ-S11-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Architecture.md's implementation constraint 7 requires new specs named `groups-*.spec.ts` (relay-bucket filename glob, per CLAUDE.md's e2e bucket-naming rule) and contact setup via `seedContact`/`inviteContactViaPicker` (`helpers/group-setup.ts`), NOT the heavier `helpers/pairing.ts`. Run `grep -l \"groups-\" app/tests/e2e/*.spec.ts | grep -c invite-rescind` — actually, run `ls app/tests/e2e/groups-*rescind*.spec.ts` (or whatever filename this story lands under) to confirm the glob match, and `grep -n \"from './helpers/pairing'\\|from './helpers/group-setup'\" <the new spec file>` to confirm it imports from `group-setup.ts`, not `pairing.ts`."
+    },
+    {
+      "question_id": "VQ-S11-004",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `GroupsPage`'s e2e verification surface be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: this story is a pure CONSUMER of S1-S10's already-implemented, real production code — it must introduce zero new production logic and zero mocks (per this story's description, 'no mocks — sequential implementation guarantees this by the time S11 lands'). Confirm no `page.route()` interception, no fixture-injected fake relay responses, and no monkey-patched `MarmotContext` method appear anywhere in the new spec file."
+    },
+    {
+      "question_id": "VQ-S11-005",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Provide the exact masking-trap sequencing for scenarios 1 and 2 (mirroring `groups-join-request-profile.spec.ts:132-137`'s `ctxB.close()` BEFORE the admin's approval click): confirm the invitee's `BrowserContext` is closed (not merely the page) before `pageA` clicks approve, for BOTH the with-nickname (AC-SCEN-1) and without-nickname (AC-SCEN-2) variants — a context left open would let B's real profile round-trip immediately after approval, masking whether the approved-requester row would have shown 'Remove Member' from provisional/join-request data alone (the exact bug class this masking-trap precaution exists to catch, per learning `e2e_join_request_autoaccept_masks_approval`)."
+    },
+    {
+      "question_id": "VQ-S11-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Confirm scenario ordering/isolation: each of the 8 scenarios asserts a `data-testid`-scoped element (e.g. `remove-member-${prefix}`, `cancel-invite-${prefix}`) rather than a page-wide text search that could accidentally match a DIFFERENT row's label in a multi-member test fixture — a scenario using `page.getByText('Remove Member')` without scoping to the specific member's row could false-pass by matching an unrelated row."
+    },
+    {
+      "question_id": "VQ-S11-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Learning `e2e_no_reload_poll_for_propagation` warns against polling a peer's UI for relay-propagated state via `reload()`+`isVisible()` (races hydration). AC-SCEN-3 explicitly requires the Cancel-Invite → Remove-Member transition to be observed 'without requiring a page reload.' Confirm the assertion uses a plain retrying `expect(...).toBeVisible()`/`toBeHidden()` poll against the LIVE-updating UI (no `page.reload()` anywhere in that assertion's vicinity) — a reload-based check would not merely be slower, it would fail to prove the no-reload requirement at all."
+    },
+    {
+      "question_id": "VQ-S11-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCEN-1",
+      "question": "AC-SCEN-1 requires: with the invitee's context closed before approval, the approved member's row renders 'Remove Member' — never 'Cancel Invite' — at EVERY observed point before and after their profile round-trips. Provide the spec assertions at (a) immediately after approval (before B's context is ever reopened) and (b) after B later reopens and their real signed profile arrives — TWO separate assertion points, both checking for 'Remove Member' and the ABSENCE of 'Cancel Invite', not a single assertion after all state has settled."
+    },
+    {
+      "question_id": "VQ-S11-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCEN-2",
+      "question": "AC-SCEN-2 requires the same 'Remove Member, never Cancel Invite' outcome for a join request carrying NO nickname (`joinRequestStorage`'s optional `nickname` field omitted) — the provisional-inference regression guard. Provide the spec's join-request submission step confirming the nickname field is genuinely omitted/empty (not merely defaulted client-side to an empty string that a lenient parser might still treat as present), and the same before/after assertion pair as AC-SCEN-1."
+    },
+    {
+      "question_id": "VQ-S11-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCEN-3",
+      "question": "AC-SCEN-3 requires BOTH direct-invite paths (`InviteMemberModal` AND profile-page `handleAddToGroup`) to show 'Cancel Invite' while pending, then 'Remove Member' after accept+profile-arrival, without a page reload. Provide TWO distinct test flows (or one parametrized over both entry points) — a test exercising only ONE of the two UI paths would leave S8's profile-page marker-write path e2e-unverified even though S7's modal path passed."
+    },
+    {
+      "question_id": "VQ-S11-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCEN-4",
+      "question": "AC-SCEN-4 requires clicking 'Cancel Invite' and confirming to remove the pending invitee's row from the member list. Provide the assertion querying the SPECIFIC invitee's row testid (not a generic member-count assertion that could pass even if the wrong row disappeared) and confirming it becomes absent/hidden after confirmation, with an explicit wait for the removal to complete (not a fixed `waitForTimeout`, per learning `e2e_ac60_flaky_fixed_timeout` — use `expect.poll` or a retrying `toBeHidden()`)."
+    },
+    {
+      "question_id": "VQ-S11-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCEN-5",
+      "question": "AC-SCEN-5 requires Removing a confirmed member via 'Remove Member' to make that member's row disappear from BOTH the acting admin's client AND a second admin's client. Provide a THREE-context test setup (removed member, acting admin, second admin) and TWO separate assertions — one on the acting admin's page, one on the second admin's page — both confirming the row's absence, with the second admin's observation NOT relying on a page reload (mirroring AC-SCEN-3's no-reload discipline) since the second admin's client must pick up the MLS commit via the live group-data-version/reload-groups mechanism already wired by S9."
+    },
+    {
+      "question_id": "VQ-S11-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCEN-6",
+      "question": "AC-SCEN-6 requires that after a direct invite, RELOADING the admin's page still renders 'Cancel Invite' for the pending invitee's row. Provide a test that performs an actual `page.reload()` (deliberately, unlike AC-SCEN-3/5's no-reload discipline — this scenario specifically tests reload-survival of the marker, per AC-MARKER-10) after the invite is sent but BEFORE the invitee accepts, and asserts 'Cancel Invite' (not 'Remove Member' and not neither) still renders post-reload."
+    },
+    {
+      "question_id": "VQ-S11-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCEN-7",
+      "question": "AC-SCEN-7 requires a co-admin with NO local marker for admin A's pending invitee to see 'Remove Member' on that row and be able to evict via it. Provide a test with a SECOND admin context (B) who never wrote or received the marker (marker storage is per-device/IDB, so B's browser context genuinely never has it — confirm the test does not accidentally seed B's IDB with the marker, which would defeat the point of this scenario), asserting B's row for the pending invitee shows 'Remove Member', clicking it, and confirming eviction succeeds."
+    },
+    {
+      "question_id": "VQ-S11-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-SCEN-8",
+      "question": "AC-SCEN-8 requires that after removing a confirmed member and then directly re-inviting the SAME pubkey, the row renders 'Cancel Invite' (not 'Remove Member'), proving the per-member profile purge ran. Provide a test sequence: confirm-member → Remove Member → re-invite same pubkey → assert 'Cancel Invite' renders. Explicitly assert this is NOT 'Remove Member' (a purge failure would leave the OLD profile entry behind, making `isPending` false and the re-invited row incorrectly show 'Remove Member' immediately) — the negative assertion is the load-bearing one, not merely 'Cancel Invite is present somewhere'."
+    },
+    {
+      "question_id": "VQ-S11-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REMOVE-4",
+      "question": "AC-REMOVE-4 requires Remove Member's eviction to be visible on BOTH the acting admin's and a second admin's client (the two-client cross-check distinct from AC-SCEN-5's row-level assertion — confirm this AC's coverage is not a duplicate no-op of AC-SCEN-5 but asserts the SAME underlying scenario's cross-client visibility explicitly, or is folded into AC-SCEN-5's own two-assertion structure with an explicit cross-reference comment in the spec so a future reader does not mistake it for missing coverage)."
+    },
+    {
+      "question_id": "VQ-S11-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-5",
+      "question": "AC-PURGE-5 requires that after a confirmed member's profile entry is purged following removal, re-inviting shows 'Cancel Invite' (pending) not 'Remove Member' (confirmed) — the same end-to-end proof as AC-SCEN-8, at the e2e layer specifically confirming the STORAGE-level purge (not just the label). Confirm the spec's assertion for this AC (whether it is the same test as AC-SCEN-8 or a distinct one) is explicit about WHICH storage artifact's absence it is inferring from the rendered label — since e2e cannot directly inspect IDB, state clearly in the spec's comment that the label transition is the observable proxy for the purge, consistent with how the other ACs in this file reason about storage state."
+    },
+    {
+      "question_id": "VQ-S11-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UNIV-1",
+      "question": "AC-UNIV-1 requires: admin A directly invites a pubkey (marker exists ONLY on A's device), admin B (co-admin, no local marker) views the same pending row, B's row renders 'Remove Member' (functioning, not disabled/absent), and confirming it evicts the pubkey. Provide the test's explicit proof that B's device never held the marker (e.g. B's browser context is fresh / never ran the invite flow) — this is the identical setup as AC-SCEN-7; confirm in the spec whether this is the same test or a separate one, and that in either case the assertion explicitly clicks the button and confirms eviction succeeds (not just that the button is present) — a rendered-but-non-functional button would satisfy a weaker 'is visible' check but violate this AC's 'functioning control' requirement."
+    },
+    {
+      "question_id": "VQ-S11-019",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-SCEN-2",
+      "question": "AC-SCEN-2's nameless join request was implemented via a new documented raw-WebSocket exception (helpers/namelessJoinRequestFixture.ts), because JoinRequestCard.tsx's own Send button is client-side gated on `hasShareableName` and structurally cannot submit a blank name — confirmed by reading isJoinRequestDisabled/isWelcomeJoinRequestDisabled, both of which return true whenever the draft name fails hasShareableName regardless of identity freshness. Is this exception within CLAUDE.md's narrow carve-out (\"events the app cannot itself produce\"), given the one existing precedent (helpers/forgedPairingAck.ts, epic contact-pairing-code S6) covers a structurally-analogous case (an input shape no real UI action can produce)? Independently verify: does the fixture use the requester's OWN real, derived-matching private key (no spoofed authenticated sender), and does it hit only the joinRequestHandler.ts parse path (kind 21059, `type: 'join_request'`) with `requesterName` genuinely absent from the JSON (not an empty string), matching joinRequestHandler.ts:39-40's own trim-to-undefined tolerance for exactly this shape?"
+    },
+    {
+      "question_id": "VQ-S11-020",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-SCEN-8",
+      "question": "groups-remove-member.spec.ts collapses AC-SCEN-8/AC-PURGE-5 and AC-SCEN-7/AC-UNIV-1 into ONE re-invite of the same pubkey C: A re-invites C (asserted Cancel Invite on A's page, proving the purge), and the SAME still-pending C row is then asserted from B's page (co-admin, no local marker for this specific re-invite) to show Remove Member, which B then uses to evict. Confirm this sequencing is sound: (a) does B's prior admin-grant / earlier interaction with C (as a now-removed, now-purged member) leave ANY residual local state on B's device that could make 'no local marker' untrue in spirit even though B's IDB literally never called markPendingDirectInvite for this invite occurrence; (b) is a single combined test an adequate substitute for two independent tests, or does bundling them reduce the diagnostic value of a future regression (a break in ONE of the two behaviors would still fail the shared test, but debugging which AC regressed requires reading the assertion order)?"
+    },
+    {
+      "question_id": "VQ-S11-021",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "groups-direct-invite-lifecycle.spec.ts's AC-SCEN-4 cancellation scenario uses a freshly-generated, non-salted, throwaway identity (`userD`, via nostr-tools/pure generateSecretKey) rather than one of auth-helpers.ts's USER_A/B/C — because all three are already committed to other roles within the SAME file's serial describe block. Confirm this is safe under the suite's relay-contamination-avoidance discipline (learning documented in auth-helpers.ts's own header comment): a randomly-generated key is inherently collision-free across runs/files (unlike a fixed BASE.D that would need per-file salting), and this identity is used only transiently (KeyPackage publish, one invite, one cancel) with its context closed immediately after — it is never relied upon to persist state across a re-run the way USER_A/B/C are."
+    },
+    {
+      "question_id": "VQ-S11-022",
+      "phase": "post-impl",
+      "category": "BEST_PRACTICES",
+      "question": "This story's e2e verification run required creating two symlinks under /opt/playwright-browsers (chromium-1208 -> chromium-1228, chromium_headless_shell-1208 -> chromium_headless_shell-1228) to work around a revision mismatch between the pre-baked browser image and the installed @playwright/test package. Confirm this workaround is purely local to this execution environment (not committed to the repo, not referenced by any spec or helper file, no Makefile/CI change), so it carries no risk of masking a real dependency-version drift for other contributors — and confirm whether this mismatch should be raised as a meta-level environment-provisioning finding rather than folded into this story's own retrospective."
+    }
+  ]
+}

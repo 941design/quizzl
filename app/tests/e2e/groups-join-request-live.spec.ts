@@ -61,10 +61,10 @@ async function openGroupDetail(page: Page, groupName: string): Promise<void> {
 // The crux of this test is what it does NOT do: after generating the invite
 // link, User A's page is never `goto`'d or `reload`'d again. Contrast with
 // groups-invite-link.spec.ts, where User A navigates to /groups/ and back
-// before checking for the pending-requests section — that round trip masks
-// this bug because the mount-only effect in PendingRequestsSection re-reads
-// from IDB on the fresh mount. Here the section must already be mounted and
-// must update via live state, or the second assertion below fails.
+// before checking for the inline join-request rows — that round trip masks
+// this bug because the group-entry effect re-reads pending requests from IDB
+// on the fresh mount. Here the member list must already be mounted and must
+// update via live state, or the assertion below fails.
 // ---------------------------------------------------------------------------
 test.describe.serial('Join request live-refreshes an already-open group detail view', () => {
   const GROUP_NAME = 'Live Refresh Test Group';
@@ -125,23 +125,20 @@ test.describe.serial('Join request live-refreshes an already-open group detail v
     await expect(pageB.getByTestId('join-request-sent')).toBeVisible({ timeout: 30_000 });
   });
 
-  test('User A sees the live pending-requests section, and the bell stays dark for the group on screen (INV-2)', async () => {
-    // Arrival proof: the pending-requests section on the ALREADY-OPEN group
-    // detail page must update live — no goto/reload of pageA above or below
-    // this line. Pre-fix, this timed out because the join-request callback only
-    // updated the bell store, never the `pendingRequests` React state that
-    // PendingRequestsSection renders from. This positive assertion also proves
-    // the rumor was received and processed, so the negative bell assertion
-    // below is not racing an unarrived event.
-    await expect(pageA.getByTestId('pending-requests-section')).toBeVisible({ timeout: 60_000 });
-
-    // Concrete pending-request row rendered (not just the section shell).
-    await expect(pageA.locator('[data-testid^="pending-request-row-"]').first()).toBeVisible({ timeout: 5_000 });
+  test('User A sees the live inline join-request row, and the bell stays dark for the group on screen (INV-2)', async () => {
+    // Arrival proof: the inline join-request row at the top of the member list
+    // on the ALREADY-OPEN group detail page must update live — no goto/reload of
+    // pageA above or below this line. Pre-fix, this timed out because the
+    // join-request callback only updated the bell store, never the
+    // `pendingRequests` React state the member list renders these rows from.
+    // This positive assertion also proves the rumor was received and processed,
+    // so the negative bell assertion below is not racing an unarrived event.
+    await expect(pageA.locator('[data-testid^="pending-request-row-"]').first()).toBeVisible({ timeout: 60_000 });
 
     // notification-domain-invariants (INV-2): the join request is for the group
     // whose detail is currently OPEN, so the bell must NOT ring — the request
-    // surfaces in the section above instead. The event has already been
-    // processed (the section rendered), so a badge would be visible by now if
+    // surfaces in the inline row above instead. The event has already been
+    // processed (the row rendered), so a badge would be visible by now if
     // the bell were (wrongly) ringing. Pre-invariant, this badge appeared.
     await dismissErrorOverlay(pageA);
     await expect(pageA.getByTestId('notification-badge')).toHaveCount(0);

@@ -1,0 +1,24 @@
+{
+  "story_id": "S11",
+  "status": "done",
+  "final_outcome": "accepted",
+  "is_integration_story": true,
+  "modules_touched": [
+    "GroupsPage"
+  ],
+  "files_modified": [
+    "app/tests/e2e/groups-approved-requester-label.spec.ts",
+    "app/tests/e2e/groups-direct-invite-lifecycle.spec.ts",
+    "app/tests/e2e/groups-remove-member.spec.ts",
+    "app/tests/e2e/helpers/namelessJoinRequestFixture.ts"
+  ],
+  "remediation_rounds": 2,
+  "completed_at": "2026-07-19T12:40:00Z",
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The masking-trap's close-then-reopen-fresh-context re-join is unprecedented in the suite and initially failed 100%: closing the whole BrowserContext destroys the invitee's KeyPackage SECRET material in IndexedDB, so no fresh context can ever complete the join ('No matching secret found'). Fix: close only the Page (masking-trap intact, no live JS) while the Context's IDB survives. Also: the profile-page invite path (S8) surfaced a pre-existing product bug — the Add-to-Group success Alert is gated on addableGroups.length>0 and unmounts the instant the invite makes the contact a member, so the success confirmation is structurally unreachable in the single-addable-group case (filed BACKLOG profile-page-add-group-success-confirmation; e2e gates on the real outcome instead).",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "surprised_by": "Closing a Playwright BrowserContext silently destroys the invitee's MLS KeyPackage secret material — a fresh same-identity context can never complete a pending join."
+  }
+}

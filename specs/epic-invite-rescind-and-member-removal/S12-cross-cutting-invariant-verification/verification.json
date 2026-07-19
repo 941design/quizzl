@@ -1,0 +1,86 @@
+{
+  "story_id": "S12",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S12-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "This story verifies four whole-flow property guarantees (AC-INV-1..4) against the fully assembled, REAL system (S1-S11 already implemented) — per this story's own scope, it introduces NO new production logic. Confirm none of the four property checks is satisfied by a tautological assertion (e.g. asserting a mocked/stubbed function returned what the test told it to return) or a mock-spy standing in for a real producer — every property test must drive the real `pendingDirectInviteStorage.ts`, the real `cancelInvitationImpl.ts`, the real `groupStorage.ts`, the real `profileHandler.ts`, and the real `groups.tsx`/`MemberList.tsx` render path, consistent with the FR-A7 exemption's rationale (verified against real, already-implemented producers, never mocked)."
+    },
+    {
+      "question_id": "VQ-S12-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "This story's ownership is the union of the four ACs' `Spans modules:` sets from acceptance-criteria.md: PendingInviteStore, ProfileHandler, RemovalImpl, MemberProfileStore, GroupsPage (per AC-INV-1's line) — confirm the union across all four ACs is exactly `{PendingInviteStore, RemovalImpl, MemberProfileStore, ProfileHandler, GroupsPage}` (matching `cross_cutting_acs`' `spanned_by: [S1, S2, S4, S9, S11]` in stories.json) and that this story's dependency list in `story_order` places it after all five of S1, S2, S4, S9, S11 — confirm `story_order`'s final entry is `S12`, satisfying this trivially by placement, but verify the DEPENDENCY reasoning (not just the placement coincidence) is documented in this story's own notes or commit message."
+    },
+    {
+      "question_id": "VQ-S12-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could this integration story's verification surface be deleted and rewritten without modifying any file outside its `dependencies_allowed` list (the union of its owned ACs' `Spans modules:` set)? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: this story's test files may import and exercise PendingInviteStore/RemovalImpl/MemberProfileStore/ProfileHandler/GroupsPage's PUBLIC exports (the four seam contracts already defined: `PendingDirectInviteMarkerSet`, `CancelPendingInvitationResult`, `PendingDirectInviteClearFn`, `DeleteMemberProfileFn`), but must not modify any of those five modules' production source — a finding that this story had to patch production code to make a property pass would mean the property genuinely fails and must be escalated, not silently 'fixed' by this verification-only story."
+    },
+    {
+      "question_id": "VQ-S12-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Confirm each of the four property tests is implemented as a genuine generator sweep (a property-based test iterating/enumerating the named ordering/interleaving space) rather than a single hand-picked example masquerading as the property — per this skill's altitude check, 'an Observable that reduces to one example is a smell.' For AC-INV-1's ordering space of {profile-arrival, Cancel Invite, Remove Member, raceDetected-first-commit}, provide evidence of at least the pairwise racing orderings being exercised, not just the four orderings taken one at a time."
+    },
+    {
+      "question_id": "VQ-S12-005",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "AC-INV-4's generator space includes 'the failure-triggered marker-clear itself throwing/being skipped' — i.e. a scenario where BOTH the initial marker-write's clear-on-failure (S7/S8) fails AND the invite genuinely fails. Confirm the property test can force this double-failure branch (e.g. by injecting a marker-store clear that throws, via the same Deps-injection seam the store already exposes, not by monkey-patching internals) and still asserts the `isPending && marker` conjunction (AC-LABEL-2, owned by S10) correctly masks the orphaned marker — this is the load-bearing defense-in-depth property: even a broken clear must never surface a spurious 'Cancel Invite' on a pubkey that never entered the tree."
+    },
+    {
+      "question_id": "VQ-S12-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-1",
+      "question": "AC-INV-1: for the ordering space of {own-signed-profile-arrival, admin Cancel Invite, admin Remove Member, concurrent co-admin Remove committing first (raceDetected)} taken one at a time or racing pairwise, no ordering may leave a persisted marker on a row simultaneously confirmed in `confirmedPubkeys`. Provide (a) the production code paths this property depends on (S1's clear functions, S4's profile-arrival gate, S9's post-removal gate), (b) a property/integration test sweeping the ordering space and asserting `NOT (marker exists AND pubkey in confirmedPubkeys)` holds after every reachable terminal state, and (c) confirmation the test is not a mock-spy proxy — it must exercise real store reads after each simulated event, not assert against an in-memory model of what 'should' have happened."
+    },
+    {
+      "question_id": "VQ-S12-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-2",
+      "question": "AC-INV-2: for {ordinary commit, raceDetected-via-not-pending, raceDetected-via-empty-leaf-indexes} × {marker present, marker absent}, crossed with a concurrent co-admin's own removal attempt on the same pubkey, the per-member profile purge AND the marker clear MUST both have run by the time the pubkey is confirmed gone, in EVERY member of that space. Provide (a) the production code (S9's post-hoc gate, S2's `deleteMemberProfile`, S1's clear function), (b) a test enumerating all 6 base combinations (3 removal-outcome kinds × 2 marker-presence states) PLUS at least one genuinely concurrent two-admin race, asserting both side effects ran in every case, and (c) confirmation neither assertion is satisfied by a mock recording 'was called' without verifying the underlying IDB state actually changed."
+    },
+    {
+      "question_id": "VQ-S12-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-3",
+      "question": "AC-INV-3: for {marker present/absent for viewing admin, row pending/confirmed, viewing admin is/isn't the marker-holding inviter}, every in-tree row MUST always render a functioning removal affordance — no member of that space may produce a row with neither control or a non-functional control. Provide (a) the production code (S10's mutual-exclusion render logic, S9's handler wiring), (b) a test sweeping the 2×2×2 combinations (minus the viewer's-own-row/non-admin exclusions already covered elsewhere) and asserting exactly one enabled button renders per combination, and (c) confirmation the test clicks the rendered button and confirms it actually triggers `cancelPendingInvitation` — not merely that a button element with the right testid exists in the DOM."
+    },
+    {
+      "question_id": "VQ-S12-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-4",
+      "question": "AC-INV-4: for {the failure-triggered marker-clear succeeding vs. throwing/being skipped} × {pubkey never entered the tree, entered via an unrelated concurrent invite}, no member of that space may cause the row to render 'Cancel Invite' when the pubkey is absent from the tree — the `isPending && marker` conjunction MUST mask an orphaned marker in every case, even when the clear itself did not run. Provide (a) the production code (S7/S8's clear-on-failure call, S10's AC-LABEL-2 conjunction), (b) a test that forces the clear-fails branch (via dependency injection at the marker-store seam, not internal monkey-patching) and asserts the row still does not show 'Cancel Invite' once the pubkey is confirmed absent from the tree, and (c) confirmation this masking behavior is verified end-to-end through the render layer (S10), not merely asserted against the raw marker-store state in isolation."
+    },
+    {
+      "question_id": "VQ-S12-010",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-INV-3",
+      "question": "VQ-S12-008(c) asked for a test that 'clicks the rendered button and confirms it actually triggers cancelPendingInvitation' through the render layer. `app/tests/unit/inviteRescindInvariants.test.ts`'s AC-INV-3 block (describe 'AC-INV-3 — every in-tree row has a functioning removal affordance') does NOT mount MemberList or click anything — it exhaustively sweeps `selectMemberRowAffordance`'s {isPending, hasMarker} 2x2 and asserts the pure decision function never returns 'none', per this repo's stated no-jsdom/@testing-library convention (see `app/tests/unit/memberListAdminUi.test.ts`'s own header comment, which draws the identical boundary). The actual real-DOM-click assertion that a rendered 'Remove Member'/'Cancel Invite' button invokes the handler prop lives in `app/tests/e2e/groups-remove-member.spec.ts` (clicks `remove-member-{shortPk}` then `remove-member-confirm-{shortPk}`) and `groups-direct-invite-lifecycle.spec.ts`. Confirm the examiner is satisfied that VQ-S12-008(c)'s DOM-click requirement is met by that e2e coverage rather than by this story's unit layer, since this repo has no jsdom precedent to satisfy it at the unit level — if not satisfied, this is a genuine coverage gap (a unit-level render harness would need to be introduced, which is new test infrastructure, not covered by this story's scope)."
+    },
+    {
+      "question_id": "VQ-S12-011",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-INV-2",
+      "question": "The `REMOVAL_OUTCOMES` fixture in `inviteRescindInvariants.test.ts` (AC-INV-2 block) models 'ordinary-commit' and 'raceDetected-via-not-pending' with an IDENTICAL `liveMembersAfter` array — the two variants are distinguished only by the `result` shape passed separately to `classifyRemovalResult` (a toast-routing sanity check unrelated to the purge gate itself), not by any input that reaches `computeStillMember`/`runPostRemovalCleanup`. This is a deliberate finding, not an oversight: it demonstrates that `runPostRemovalCleanup` is structurally blind to which of the three named removal-outcome kinds produced 'gone from tree', which IS architecture.md guarantee #2 ('gate on \"no longer a member,\" never on \"this client committed\"'). Confirm this collapsed-input choice is read as evidence FOR the invariant (the pure gate has no code path capable of distinguishing them) rather than as the property test failing to exercise a real difference between the three generator-space members — the actual difference between the three lives one layer down, inside `cancelInvitationImpl.ts`'s internal short-circuit reasoning (already covered by S9/`cancelInvitationImpl.test.ts`'s existing suite, out of this verification-only story's scope to re-drive)."
+    },
+    {
+      "question_id": "VQ-S12-012",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-INV-2",
+      "question": "The 'genuinely concurrent two-admin race' test (`inviteRescindInvariants.test.ts`, 'a genuinely concurrent two-admin race...') calls `runOnce()` twice and awaits `Promise.all([runOnce(), runOnce()])` against the real `fake-indexeddb`-backed stores. Node's single-threaded event loop means this interleaves microtasks rather than achieving true parallel execution (no real thread-level race), so the test proves idempotent-under-interleaving behavior (both calls' `Promise.all([deleteMemberProfile, clearPendingDirectInvite])` racing against the same IDB keys resolve without throwing and leave correct final state) but does NOT prove safety under genuine multi-thread/multi-tab concurrency (e.g. two separate browser tabs writing to the same IndexedDB origin at the OS scheduler's discretion). Confirm this distinction is an acceptable scope boundary for a unit-level property test (true cross-tab concurrency would require a browser-level e2e harness, out of this story's scope), or flag it as a residual risk worth a follow-up e2e scenario."
+    }
+  ]
+}

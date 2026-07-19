@@ -1,0 +1,70 @@
+{
+  "prior_learnings": [
+    {"id": "invitebynpub-commits-memberpubkeys-immediately", "note": "inviteByNpub commits members immediately on invite, not on accept — the pending-in-tree window is real"},
+    {"id": "chakra-ui-modal-does-not-forward", "note": "Chakra Modal drops data-testid; put testid on inner Button; assert dialog via button visibility"},
+    {"id": "marmot-ts-0-5-1-drops", "note": "MLS group mutations are member-attested (ADR-006)"},
+    {"id": "mls-over-relay-playwright-e2e-must", "note": "gate e2e on rendered readiness markers not fixed timeouts"},
+    {"id": "playwright-selectoption-can-force-set-disabled", "note": "invite picker disabled-option behavior in Chromium"},
+    {"id": "memberprofile-pubkeyhex-already-keyed-signed", "note": "MemberProfile.pubkeyHex is already keyed to the signed author (payloadToMemberProfile) — use it for marker-clear identity"}
+  ],
+  "marker_store_template": {
+    "template_file": "app/src/lib/marmot/profileRequestStorage.ts",
+    "notes": "createStore('few-...','...'); key = `${groupId}:${pubkey}`; API: load(get-or-null), save(set), per-key del, per-group prefix-delete via entries()+filter+del, '*' sentinel for full clear(). New: app/src/lib/marmot/pendingDirectInviteStorage.ts (createStore('few-pending-invite-markers','markers')).",
+    "sibling_stores": ["app/src/lib/marmot/groupStorage.ts:30 memberProfileStore", "app/src/lib/marmot/joinRequestStorage.ts:37", "app/src/lib/marmot/groupStorage.ts:112 clearAllGroupData (account reset composition root)"]
+  },
+  "direct_invite_call_sites": [
+    {"site": "app/src/components/groups/InviteMemberModal.tsx", "fn": "submitInvite (:66-76) called by handleInvite (:184-209) at :192; pure fn taking inviteByNpub; write marker before, clear on !result.ok"},
+    {"site": "app/pages/profile.tsx", "fn": "handleAddToGroup (:550-564) calls inviteByNpub directly at :554; write marker before, clear in the else branch"}
+  ],
+  "approve_path": {"file": "app/src/context/MarmotContext.tsx", "fn": "approveJoinRequestImpl (:492-574) calls inviteByNpub directly at :515; provisional seed at :538 only if request.nickname; MUST NOT write marker (structurally excluded by insertion-point choice)"},
+  "confirmed_pending_derivation": {
+    "confirmed_set": "app/pages/groups.tsx :298-343 effect; `if(!p.provisional) confirmed.add(pubkey)` at :311; own pubkey always added :329; stored in confirmedPubkeys state :150; passed to MemberList :568",
+    "isPending": "app/src/components/groups/MemberList.tsx:100 `isPending = confirmedPubkeys ? !confirmedPubkeys.has(pubkey) && !isYou : false`",
+    "marker_set_wiring": "load pendingInviteMarkers Set once in the groups.tsx :298-343 effect (async context method getPendingDirectInvites(groupId)); thread as new MemberList prop; select label at MemberList.tsx:100/303 — NO per-row async call"
+  },
+  "member_list_ui": {
+    "row_testids": "member-item-${prefix}, member-name-${prefix}, member-pending-${prefix}, make-admin-${prefix}, cancel-invite-${prefix} (:306), cancel-invite-confirm-${prefix} (:340); prefix=pubkey.slice(0,8). NO remove-member-${prefix} yet — add it.",
+    "cancel_button_block": "MemberList.tsx:303-310 (isPending && !isYou && onCancelInvite); confirm modal :323-346",
+    "admin_gate": "onCancelInvite passed from groups.tsx:569 already admin-gated (isAdmin ? onCancelInvite : undefined); onRemoveMember follows same prop-undefined gating",
+    "new_affordance": "second button adjacent to :303-310, shown for every other in-tree not-self admin row; own useDisclosure confirm modal mirroring :323-346 with removeMember* copy; remove-member-confirm-${prefix} testid on inner Button"
+  },
+  "removal_path": {
+    "shared_helper": "app/src/lib/marmot/cancelInvitationImpl.ts cancelPendingInvitationImpl (:50-126) is ALREADY label-agnostic (takes groupId, pubkey, optional sendAnnouncement). Both onCancelInvite and new onRemoveMember call the SAME MarmotContext.cancelPendingInvitation wrapper (:1872-1906), differing only in toast copy keys.",
+    "race_paths": "two raceDetected short-circuits return {ok:true,raceDetected:true} WITHOUT commit: :56-63 (already not pending) and :80-83 (leaf indexes empty). Purge+marker-clear must run on these too.",
+    "purge_and_clear_attach": "in the groups.tsx caller (onCancelInvite/onRemoveMember) AFTER cancelPendingInvitation resolves, gated on post-hoc 'pubkey no longer in group.memberPubkeys' — NOT inside cancelInvitationImpl (IDB-decoupled)."
+  },
+  "member_profile_purge": {
+    "gap": "only whole-group clearMemberProfiles(groupId) exists (groupStorage.ts:104-106; single array under key group:${groupId}). NO per-member delete.",
+    "new_fn": "app/src/lib/marmot/groupStorage.ts deleteMemberProfile(groupId, pubkey): load, filter by pubkeyHex (case-insensitive), save if changed — mirrors mergeMemberProfile read-filter-rewrite (:79-102)"
+  },
+  "profile_merge_hook": {
+    "file": "app/src/lib/marmot/handlers/profileHandler.ts (:27-60)",
+    "author_field": ":33 authorPubkey = profilePayload.signedEvent?.pubkey ?? rumor.pubkey; also memberProfile.pubkeyHex already keyed to signed author (profileSync.ts:164-185 payloadToMemberProfile)",
+    "merge_call": ":38 mergeMemberProfile; :41-43 recordRequestAnswered only when merged===true",
+    "marker_clear": "attach after :38, gated on profilePayload.signedEvent present AND author == pubkey; INDEPENDENT of merged boolean (arrival is the fact). New dep clearPendingDirectInvite added to ProfileHandlerDeps (:19-25), threaded through registerHandlers.ts:18-65,93-99. Single handler — no dual-listener (consolidated)."
+  },
+  "context_method_pattern": {
+    "sites": "adding a context method touches 4 places in MarmotContext.tsx: (1) type in MarmotContextValue :245-359; (2) useCallback boundary (dynamic import pure impl); (3) value useMemo object :2100-2138 AND its dep array :2139-2176; (4) DEFAULT_MARMOT fallback :2187-2225",
+    "precedents": "grantAdmin :1930-1953, renameGroup :1960-1985 (simple); cancelPendingInvitation :1872-1906, isPendingMember :1852-1870 (back cancelInvitationImpl)"
+  },
+  "leave_cleanup": {
+    "per_group": "leaveGroupImpl.ts:25-50 Deps lists every per-group clear* (clearMemberProfiles, clearPendingJoinRequestsForGroup, clearInviteLinksForGroup...) from MarmotContext.tsx:1710-1743; add clearPendingDirectInvitesForGroup here",
+    "account_reset": "clearAllGroupData groupStorage.ts:112-118; add marker '*' full-clear here too (dual-cleanup precedent)"
+  },
+  "i18n": {
+    "file": "app/src/lib/i18n.ts",
+    "pattern": "Copy type groups section ~:196-203; en ~:852-859; de ~:1409-1416. cancelInvite{Button,Title,Body,Confirm,Success,Error,RaceNotice,AnnouncementWarning}. Add removeMember* mirrors in all 3 locations. makeAdmin{Button,Title,Body,Confirm} is the sibling precedent for a second admin confirm-dialog action."
+  },
+  "testing": {
+    "unit": "vitest app/tests/unit/, node env, no jsdom/@testing-library; makeDeps() factory + injected mocked callables; template tests: cancelInvitationImpl.test.ts (race paths, extraProposals shape), approveJoinRequestImpl.test.ts (best-effort throw + console.warn spy — template for marker-write-failure), groupStorage.test.ts (idb-keyval Map mock + idbSetSpy net-write assertions)",
+    "e2e_bucket": "groups-*.spec.ts = relay bucket (Docker strfry). test.describe.serial, two browser.newContext per peer, publish THROUGH THE APP. auth-helpers.ts USER_A/B/C salted per file.",
+    "e2e_templates": {
+      "approved_requester_masking": "groups-join-request-profile.spec.ts:58-67,132-137 — close invitee ctx before approve (scenarios 1,2)",
+      "direct_invite_cancel": "groups-cancel-pending.spec.ts (scenarios 3,4,6); inviteContactViaPicker + waitForKeyPackage (helpers/group-setup.ts:78-99)",
+      "contact_setup": "seedContact(page, npub) via /add#c=npub (helpers/group-setup.ts:44-51) — NOT helpers/pairing.ts",
+      "profile_page_invite": "NO existing e2e precedent for profile.tsx handleAddToGroup direct invite — scenario 3 authors fresh (navigate /profile?pubkey=... drive that button)",
+      "remove_member": "no template (affordance new); nearest groups-admin.spec.ts (readiness-marker gating)"
+    },
+    "make_targets": "make test-e2e-all (60-test gate) = test-e2e-fast + test-e2e; make test-e2e-groups (dev subset, NOT the gate); single spec: E2E_GROUPS=1 node scripts/run-e2e.mjs tests/e2e/groups-<name>.spec.ts (needs e2e-up); run playwright test --list after collection edits"
+  }
+}

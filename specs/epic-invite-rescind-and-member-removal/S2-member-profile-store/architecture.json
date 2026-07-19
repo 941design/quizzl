@@ -1,0 +1,38 @@
+{
+  "module_name": "MemberProfileStore",
+  "purpose": "Member-profile IDB storage (existing module, app/src/lib/marmot/groupStorage.ts). This story adds a per-member purge primitive (deleteMemberProfile) mirroring mergeMemberProfile's read-filter-rewrite pattern, and wires S1's PendingInviteStore account-wide marker clear into clearAllGroupData's account-reset composition root (AC-MARKER-9's account-reset half).",
+  "public_api": [
+    {
+      "name": "deleteMemberProfile",
+      "signature": "(groupId: string, pubkey: string) => Promise<void>",
+      "description": "Loads the group's stored MemberProfile[] via loadMemberProfiles(groupId), filters out the entry whose pubkeyHex matches pubkey case-insensitively, and calls saveMemberProfiles(groupId, filtered) only when the filtered array's length differs from the loaded array (no-op write avoidance, mirroring mergeMemberProfile's zero-write-on-no-change convention at :79-102). No-op (does not throw) when no entry exists for that pubkey — this is the DeleteMemberProfileFn seam S9 consumes verbatim, no adaptation needed."
+    },
+    {
+      "name": "clearAllGroupData",
+      "signature": "() => Promise<void>",
+      "description": "Existing account-reset composition root, modified to additionally call PendingInviteStore's clearAllPendingDirectInvites() (S1's zero-arg full-clear export) alongside the four pre-existing clear() calls and the existing clearProfileRequestMemos('*') call. Ordering preserved; no early-abort coupling between the sequential clears (each already independent)."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/marmot/groupStorage.ts"
+  ],
+  "owned_data": [
+    "idb-keyval store 'few-member-profiles' / 'profiles' — MemberProfile[] arrays keyed group:${groupId}"
+  ],
+  "dependencies_allowed": [
+    "idb-keyval",
+    "@/src/lib/marmot/profileRequestStorage (clearProfileRequestMemos — pre-existing import)",
+    "./pendingDirectInviteStorage (clearAllPendingDirectInvites — new import, S1's declared seam per architecture.md Implementation constraint 3)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/* (this is a Storage-layer module; consumed only via context methods or injected Deps, per architecture.md Boundary rules)",
+    "app/src/lib/marmot/*Impl.ts (never imported directly into a pure-impl file)",
+    "./pendingDirectInviteStorage internals (only its exported clearAllPendingDirectInvites function, never its internal store handle or markerKey helper)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/groupStorage.test.ts"
+  ]
+}

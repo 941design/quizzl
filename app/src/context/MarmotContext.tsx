@@ -43,6 +43,7 @@ import { purgeStrangerDmReactions } from '@/src/lib/reactions/api';
 import { loadKnownPeers, rememberKnownPeers, knownPeersMigrationComplete, markKnownPeersMigrationComplete } from '@/src/lib/knownPeers';
 import { MAINTAINER_PUBKEYS_HEX } from '@/src/config/maintainer';
 import { buildDispatcher } from '@/src/lib/marmot/registerHandlers';
+import { clearPendingDirectInvite } from '@/src/lib/marmot/pendingDirectInviteStorage';
 import { applyInboundRumor } from '@/src/lib/reactions/api';
 import { applyDeleteEditSignal, resolvePendingSignalsForSlot } from '@/src/lib/messageEdits/api';
 import { savePoll, saveVote, getPoll, clearPollData } from '@/src/lib/marmot/pollPersistence';
@@ -297,6 +298,8 @@ type MarmotContextValue = {
   isPendingMember: (groupId: string, pubkey: string) => Promise<boolean>;
   /** Cancel a pending invitation: MLS Remove+UpdateMetadata commit + announcement + refresh. sendAnnouncement is optional and called after commit if provided. */
   cancelPendingInvitation: (groupId: string, pubkey: string, sendAnnouncement?: (content: string) => Promise<void>) => Promise<{ ok: boolean; error?: string; raceDetected?: boolean; announcementError?: string }>;
+  /** Read every pubkey currently marked pending-direct-invite for a group, as a fresh Set<string> (no cache) — the PendingDirectInviteMarkerSet seam contract. */
+  getPendingDirectInvites: (groupId: string) => Promise<Set<string>>;
   /** Proactive sweep: emit PROFILE_REQUEST_KIND for all stale members in a single group. Fire-and-forget. */
   requestProfilesIfStale: (groupId: string) => Promise<void>;
   /** Accept a pending invitation: calls joinGroupFromWelcome, removes from queue on success/failure. */
@@ -1125,16 +1128,16 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
           (request) => {
             // A join request was received and persisted — increment the bell
             // counter AND update the live pendingRequests state so an
-            // already-open PendingRequestsSection re-renders without a
-            // navigate/reload. Both orderings converge with the mount-only
+            // already-open group member list re-renders its inline join-request
+            // rows without a navigate/reload. Both orderings converge with the mount-only
             // IDB read in loadPendingRequestsForGroup: if that effect runs
             // after this, it replaces from IDB (which already contains the
             // persisted request — no loss); if this runs after mount, the
             // append below shows it live. Dedup by eventId keeps either
             // ordering idempotent.
             // notification-domain-invariants (INV-2): if the admin has THIS
-            // group's detail open, the join request appears live in the
-            // pending-requests section below — so it must NOT also ring the
+            // group's detail open, the join request appears live in the member
+            // list's inline join-request rows — so it must NOT also ring the
             // bell. Any other view rings it (INV-1). The live setPendingRequests
             // append runs unconditionally either way.
             if (!isActiveView('group', request.groupId)) {
@@ -1478,6 +1481,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             resolvePendingSignalsForSlot,
             // Profile
             mergeMemberProfile,
+            clearPendingDirectInvite,
             notifyProfileObserved,
             recordRequestAnswered,
             writeContactEntry: (pubkey: string, entry: { nickname: string; avatar: import('@/src/types').ProfileAvatar | null; updatedAt: string }) => {
@@ -1714,6 +1718,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     const { clearMessages } = await import('@/src/lib/marmot/chatPersistence');
     const { clearPendingJoinRequestsForGroup } = await import('@/src/lib/marmot/joinRequestStorage');
     const { clearInviteLinksForGroup } = await import('@/src/lib/marmot/inviteLinkStorage');
+    const { clearPendingDirectInvitesForGroup } = await import('@/src/lib/marmot/pendingDirectInviteStorage');
 
     return leaveGroupImpl(
       {
@@ -1734,6 +1739,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
         clearPendingJoinRequestsForGroup,
         clearInviteLinksForGroup,
         clearInviteExpiries,
+        clearPendingDirectInvitesForGroup,
         reloadGroups,
         markBackupDirty,
       },
@@ -1904,6 +1910,11 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     },
     [groups, reloadGroups, markBackupDirty, pubkeyHex],
   );
+
+  const getPendingDirectInvites = useCallback(async (groupId: string): Promise<Set<string>> => {
+    const { loadPendingDirectInviteMarkers } = await import('@/src/lib/marmot/pendingDirectInviteStorage');
+    return loadPendingDirectInviteMarkers(groupId);
+  }, []);
 
   // S2: Accept a pending invitation — calls joinGroupFromWelcome via the stored
   // welcomeEventJson, removes from queue on success or MLS failure, fires onGroupJoined.
@@ -2124,6 +2135,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       denyJoinRequest,
       isPendingMember,
       cancelPendingInvitation,
+      getPendingDirectInvites,
       requestProfilesIfStale,
       acceptPendingInvitation,
       declinePendingInvitation,
@@ -2162,6 +2174,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       denyJoinRequest,
       isPendingMember,
       cancelPendingInvitation,
+      getPendingDirectInvites,
       requestProfilesIfStale,
       acceptPendingInvitation,
       declinePendingInvitation,
@@ -2211,6 +2224,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   denyJoinRequest: NOOP_ASYNC,
   isPendingMember: async () => false,
   cancelPendingInvitation: async () => ({ ok: false, error: 'not_ready' }),
+  getPendingDirectInvites: async () => new Set(),
   requestProfilesIfStale: NOOP_ASYNC,
   acceptPendingInvitation: NOOP_ASYNC,
   declinePendingInvitation: NOOP_ASYNC,

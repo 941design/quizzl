@@ -1,0 +1,35 @@
+{
+  "module_name": "ProfilePage",
+  "purpose": "Wraps profile.tsx's existing handleAddToGroup/inviteByNpub call with a pending-direct-invite marker write-before-invite (AC-MARKER-1), best-effort on marker-write failure (AC-MARKER-2), and marker-clear on invite failure (AC-MARKER-3) — the profile-page mirror of S7's InviteMemberModal.tsx submitInviteWithMarker — without modifying inviteByNpub itself.",
+  "public_api": [
+    {
+      "name": "addToGroupWithMarker",
+      "signature": "(pubkeyHex: string, groupId: string, inviteByNpub: (groupId: string, npub: string) => Promise<{ok: boolean; error?: string}>, markerDeps: ProfileAddToGroupMarkerDeps) => Promise<{ok: boolean; error?: string}>",
+      "description": "New exported wrapper in app/pages/profile.tsx (hooks-via-pure-function-extraction convention, same as planProfileAnnounceFanout/executeProfileAnnounceFanout already exported from this file). Converts pubkeyHex to npub internally (pubkeyToNpub), writes the marker BEFORE calling inviteByNpub(groupId, npub); a throwing marker write is caught, logged via console.warn, and does not block the invite; if inviteByNpub resolves {ok:false}, the marker written above is cleared before returning. handleAddToGroup calls this instead of calling inviteByNpub directly, keeping all React state transitions (setAddToGroupStatus/setSelectedGroupId) in the component."
+    },
+    {
+      "name": "ProfileAddToGroupMarkerDeps (type)",
+      "signature": "{ markPendingDirectInvite: (groupId: string, pubkey: string) => Promise<void>; clearPendingDirectInvite: (groupId: string, pubkey: string) => Promise<void>; }",
+      "description": "Injected-deps shape for addToGroupWithMarker, mirroring S7's PendingInviteMarkerDeps convention. The component passes the real markPendingDirectInvite/clearPendingDirectInvite imports from pendingDirectInviteStorage.ts; unit tests pass vi.fn() spies."
+    }
+  ],
+  "private_files": [
+    "app/pages/profile.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/pendingDirectInviteStorage.ts (markPendingDirectInvite, clearPendingDirectInvite — named imports of the S1 store's public API only, per architecture.md Boundary rules; never the internal IDB store handle)",
+    "app/src/context/MarmotContext.tsx (useMarmot().inviteByNpub — pre-existing, unchanged)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/marmot/*Impl.ts (no direct MLS/pure-impl imports)",
+    "modifying inviteByNpub in MarmotContext.tsx (would also fire on the approveJoinRequestImpl path, violating AC-MARKER-4)",
+    "app/src/components/groups/InviteMemberModal.tsx (S7's exclusive scope)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/pages/profile-add-to-group-marker.test.ts (new — imports addToGroupWithMarker from @/pages/profile, mirrors the submitInviteWithMarker describe block in app/tests/unit/cards/inviteByCard.test.ts)"
+  ]
+}

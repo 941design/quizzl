@@ -18,6 +18,7 @@ import type { ApplicationRumor, DispatcherContext, RumorHandler } from '@/src/li
 
 export interface ProfileHandlerDeps {
   mergeMemberProfile: (groupId: string, profile: MemberProfile) => Promise<boolean>;
+  clearPendingDirectInvite: (groupId: string, pubkey: string) => Promise<void>;
   notifyProfileObserved: (args: { groupId: string; targetPubkey: string; observedUpdatedAt: string }) => void;
   recordRequestAnswered: (groupId: string, authorPubkey: string, timestamp: number) => Promise<void>;
   writeContactEntry: (pubkey: string, entry: { nickname: string; avatar: ProfileAvatar | null; updatedAt: string }) => void;
@@ -37,6 +38,23 @@ async function handle(rumor: ApplicationRumor, ctx: DispatcherContext, deps: Pro
   // after the write has landed (avoids stale-read race).
   const merged = await deps.mergeMemberProfile(ctx.groupId, memberProfile);
   deps.setProfileVersion((v) => v + 1);
+
+  // AC-MARKER-5/6: clear the pending-direct-invite marker when the invitee's OWN
+  // signed profile arrives. Merge-result-independent — a stale/duplicate resend
+  // that loses the LWW race is still proof the invitee is live (AC-MARKER-5).
+  // Gated strictly on profilePayload.signedEvent being present: authorPubkey
+  // equals signedEvent.pubkey exactly whenever signedEvent is present (per the
+  // ternary above), so this never falls back to rumor.pubkey alone — a
+  // relay-on-behalf peer forwarding an unsigned/rumor-only payload must NOT be
+  // able to clear another pubkey's marker (AC-MARKER-6). Best-effort: a
+  // clear failure must not break profile handling.
+  if (profilePayload.signedEvent) {
+    try {
+      await deps.clearPendingDirectInvite(ctx.groupId, authorPubkey);
+    } catch (err) {
+      console.warn(`[Marmot] clearPendingDirectInvite failed for ${ctx.groupId}:${authorPubkey}:`, err);
+    }
+  }
 
   if (merged) {
     await deps.recordRequestAnswered(ctx.groupId, authorPubkey, Date.now());

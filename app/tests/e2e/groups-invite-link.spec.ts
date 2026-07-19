@@ -154,8 +154,8 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
     // Open the group detail
     await openGroupDetail(pageA, GROUP_NAME);
 
-    // Should see the pending requests section
-    await expect(pageA.getByTestId('pending-requests-section')).toBeVisible({ timeout: 30_000 });
+    // Should see the inline join-request row at the top of the member list
+    await expect(pageA.locator('[data-testid^="pending-request-row-"]').first()).toBeVisible({ timeout: 30_000 });
   });
 
   test('User A approves the join request', async () => {
@@ -164,8 +164,8 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
     // Click Approve on the first pending request
     await pageA.locator('[data-testid^="approve-request-"]').first().click();
 
-    // Wait for the pending requests section to disappear (request was approved)
-    await expect(pageA.getByTestId('pending-requests-section')).not.toBeVisible({ timeout: 60_000 });
+    // Wait for the join-request row to disappear (request was approved)
+    await expect(pageA.locator('[data-testid^="pending-request-row-"]')).toHaveCount(0, { timeout: 60_000 });
   });
 
   test('User B receives the Welcome and lands in the group with no second click (auto-accept)', async () => {
@@ -315,19 +315,18 @@ test.describe.serial('Invite link flow — nameless invitee gate, nickname trans
       .toBe(true);
 
     await openGroupDetail(pageAdmin, GROUP_NAME);
-    await expect(pageAdmin.getByTestId('pending-requests-section')).toBeVisible({ timeout: 30_000 });
 
-    // The S2 payoff: the admin sees the requester's REAL name inside the
-    // pending row, not merely a truncated npub.
+    // The S2 payoff: the admin sees the requester's REAL name inside the inline
+    // join-request row at the top of the member list, not merely a truncated npub.
     await expect(
       pageAdmin.locator('[data-testid^="pending-request-row-"]').filter({ hasText: INVITEE_NAME }),
-    ).toBeVisible({ timeout: 10_000 });
+    ).toBeVisible({ timeout: 30_000 });
   });
 
   test('Admin approves the join request', async () => {
     await dismissErrorOverlay(pageAdmin);
     await pageAdmin.locator('[data-testid^="approve-request-"]').first().click();
-    await expect(pageAdmin.getByTestId('pending-requests-section')).not.toBeVisible({ timeout: 60_000 });
+    await expect(pageAdmin.locator('[data-testid^="pending-request-row-"]')).toHaveCount(0, { timeout: 60_000 });
   });
 
   test('Nameless invitee lands in the group with NO second click (AC-AUTO-2 / AC-ETE-1 payoff)', async () => {

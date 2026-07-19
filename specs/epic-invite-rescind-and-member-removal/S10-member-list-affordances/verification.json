@@ -1,0 +1,114 @@
+{
+  "story_id": "S10",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S10-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "The label-selection predicate must be a REAL conjunction of the marker `Set` and `isPending`, not a stub that always returns the same label, and not a predicate that silently drops one of the two conditions (e.g. rendering 'Cancel Invite' for every `isPending` row regardless of the marker, which was the PRE-existing behavior at `MemberList.tsx:127` — `isPending && !isYou ? onCancelInvite : undefined` — before this story's marker-gating change). Confirm the new predicate genuinely reads the new `markerSet` prop, not a frozen `true`/`false` default that would make the marker prop dead weight."
+    },
+    {
+      "question_id": "VQ-S10-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Architecture.md's implementation constraint 5 requires reusing 'the existing `confirmedPubkeys`→`isPending` derivation (`MemberList.tsx:100`); do not re-derive.' Confirm this story does NOT introduce a second, parallel `isPending`-equivalent computation inside the new label-selection logic — it must read the SAME `isPending` local variable already computed at `:100` (`!confirmedPubkeys.has(pubkey) && !isYou`), combined with the new `markerSet.has(pubkey)` check, rather than recomputing membership/confirmation status independently."
+    },
+    {
+      "question_id": "VQ-S10-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `MemberList` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: `MemberList.tsx` must consume the marker set ONLY via the new `markerSet` prop (the `PendingDirectInviteMarkerSet` seam's destination, per the top-level `seams` array), never by importing `pendingDirectInviteStorage.ts` or calling `useMarmot().getPendingDirectInvites` directly inside this component — the read is S9's exclusive responsibility (per this story's `excludes`). Run `grep -n \"pendingDirectInviteStorage\\|getPendingDirectInvites\" app/src/components/groups/MemberList.tsx` and confirm zero matches."
+    },
+    {
+      "question_id": "VQ-S10-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Provide unit/component-test evidence covering architecture.md's implementation constraint 6 (Chakra `Modal` testid placement): the new Remove Member confirm dialog's testid (`remove-member-confirm-${prefix}`) must be on the inner actionable `<Button>`, never the Chakra `<Modal>`/`<ModalContent>` wrapper (per the `chakra-ui-modal-does-not-forward` learning). Provide a test that queries by this exact testid and asserts it resolves to a `<button>` DOM element (not a `<div>` or other non-interactive wrapper) — a testid placed on the Modal wrapper would still 'exist' in the DOM query but would not be clickable the way an e2e test (S11) expects."
+    },
+    {
+      "question_id": "VQ-S10-005",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "AC-LABEL-5/6 are authorization-boundary requirements: no removal affordance for a non-admin viewer, and none on the viewer's own row, regardless of marker/confirmed state. Confirm the admin-gating check (mirroring the existing `isAdmin ? onCancelInvite : undefined` pattern already used for `onCancelInvite` at `groups.tsx:569`) is applied uniformly to BOTH 'Cancel Invite' and 'Remove Member' — a component that gates only the NEW 'Remove Member' button on `isAdmin` while leaving the pre-existing 'Cancel Invite' button ungated (or vice versa) would let a non-admin see one of the two removal affordances, a privilege-escalation-adjacent regression."
+    },
+    {
+      "question_id": "VQ-S10-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Confirm this story's diff is confined to `MemberList.tsx` — it does not touch the marker Set's loading/threading in `groups.tsx` (S9's exclusive scope) and does not implement the `onRemoveMember` handler's post-removal purge/clear logic (also S9's, per this story's `excludes`); this story only renders the label and dialog, and calls the `onRemoveMember` prop it is given."
+    },
+    {
+      "question_id": "VQ-S10-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LABEL-2",
+      "question": "AC-LABEL-2 requires 'Cancel Invite' to render if and only if BOTH (a) the pubkey is in the marker `Set` and (b) `isPending` is true. Provide four unit-test cases covering the full truth table: (marker present, isPending true) → renders 'Cancel Invite'; (marker present, isPending false) → does NOT render 'Cancel Invite'; (marker absent, isPending true) → does NOT render 'Cancel Invite'; (marker absent, isPending false) → does NOT render 'Cancel Invite'. A test suite covering only the positive case would miss an implementation that renders 'Cancel Invite' whenever EITHER condition holds (an OR instead of an AND)."
+    },
+    {
+      "question_id": "VQ-S10-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LABEL-3",
+      "question": "AC-LABEL-3 requires 'Remove Member' to render for every in-tree, not-self, admin-visible row where AC-LABEL-2's conjunction is false. Provide unit tests for the three sub-cases of 'conjunction false' distinctly: (marker present but NOT pending — i.e. a confirmed member who happens to still carry a stale local marker), (marker absent but pending — e.g. a co-admin viewing another admin's direct invite, or an approved join-requester), and (marker absent, not pending — the ordinary confirmed-member case) — confirm 'Remove Member' renders in all three, proving the fallback is genuinely 'every other case,' not just the common one."
+    },
+    {
+      "question_id": "VQ-S10-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LABEL-4",
+      "question": "AC-LABEL-4 requires mutual exclusion: no row may render both affordances simultaneously. Provide a test that renders a row and asserts querying for BOTH the Cancel-Invite testid AND the Remove-Member testid never both return a truthy/present result for the same row — assert this specifically for the boundary case (marker present, isPending true) where a naive implementation might render 'Remove Member' as a fallback FIRST and then ALSO render 'Cancel Invite' as an additional badge rather than a true if/else branch."
+    },
+    {
+      "question_id": "VQ-S10-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LABEL-5",
+      "question": "AC-LABEL-5 requires neither affordance to render when the viewer is not an admin. Provide a unit test with `isAdmin: false` and BOTH a pending-with-marker row and a confirmed row present, asserting NEITHER the Cancel-Invite testid NOR the Remove-Member testid appears anywhere in the rendered output — a regression here would let a non-admin member trigger a destructive MLS removal."
+    },
+    {
+      "question_id": "VQ-S10-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LABEL-6",
+      "question": "AC-LABEL-6 requires the viewer's own row to render neither affordance, regardless of marker/confirmed state. Provide a unit test where the viewer's OWN pubkey happens to also be present in the marker `Set` (an edge case, e.g. stale local state) and assert neither affordance renders for that row — proving `isYou` short-circuits BEFORE the marker/isPending conjunction is even consulted, not after."
+    },
+    {
+      "question_id": "VQ-S10-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REMOVE-2",
+      "question": "AC-REMOVE-2 requires the rendered Cancel-Invite confirm dialog's body text to differ from the rendered Remove-Member confirm dialog's body text (distinct `en` strings for `copy.groups.cancelInviteBody` vs. `copy.groups.removeMemberBody`). Provide a test that opens each dialog in turn and asserts the rendered body `<Text>` content differs between them, both reading from S6's i18n keys — confirm this is NOT the same string rendered twice under two different confirm buttons."
+    },
+    {
+      "question_id": "VQ-S10-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-UNIV-2",
+      "question": "AC-UNIV-2 requires a functioning removal affordance on every in-tree row (pending or confirmed) viewed by an admin who is not the row's subject — no combination of join-request-nickname-absence, catching-up-approval state, or missing marker may leave a row with no removal control. Provide a unit test sweeping the full matrix: {marker present, marker absent} × {isPending true, isPending false} × {admin viewer is the original inviter, admin viewer is a different admin who never held the marker} (8 combinations minus the viewer's-own-row and non-admin cases already covered by AC-LABEL-5/6), asserting EVERY combination renders exactly one enabled, clickable removal button — never zero, and never a rendered-but-disabled button."
+    },
+    {
+      "question_id": "VQ-S10-P1",
+      "phase": "post-impl",
+      "category": "TEST",
+      "severity": "low",
+      "question": "VQ-S10-004 asked for evidence that the `remove-member-confirm-${prefix}` testid resolves to an actual clickable `<button>` DOM element, not the Chakra `<Modal>`/`<ModalContent>` wrapper. This repo has no jsdom/@testing-library/render harness (confirmed by every prior MemberList test file, e.g. memberListAdminUi.test.ts's own header), so that claim cannot be proven by a mounted-DOM assertion here. The evidence available is STRUCTURAL, mirroring how S9's VQ-S9-P2 treated an analogous no-harness gap: reading MemberList.tsx directly, `data-testid={`remove-member-confirm-${prefix}`}` is placed on the inner `<Button colorScheme=\"danger\" onClick={handleConfirmRemove} ...>` (MemberList.tsx, the removeDisclosure Modal's ModalFooter), never on the surrounding `<Modal>`/`<ModalContent>` — byte-for-byte the same placement pattern already proven safe for `cancel-invite-confirm-${prefix}` on the pre-existing Cancel Invite dialog. Confirm this structural argument is accepted as sufficient for this story, with true click-through DOM verification deferred to S11's e2e suite (which drives the real rendered app via Playwright)."
+    },
+    {
+      "question_id": "VQ-S10-P2",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "severity": "low",
+      "question": "The story brief flagged a casing risk: `pendingInviteMarkers` (S1's store) is lowercase-keyed, and the implementation defensively lowercases the row's pubkey before the `.has()` check (`pendingInviteMarkers?.has(pubkey.toLowerCase())`). In this codebase's actual call graph, MemberList has exactly one caller (`groups.tsx`), which sources `pubkey` from `group.memberPubkeys` — already lowercase hex per every sibling derivation in this file (`confirmedPubkeys`, `adminPubkeys` comparisons via `isRowAdmin`'s own `.toLowerCase()` normalization). No test could construct a genuinely mixed-case `pubkey` reaching this component through its real caller, so the defensive `.toLowerCase()` is unverified by any failing-without-it test — it is a hygiene/defense-in-depth measure, not a proven-necessary one. Confirm this is an acceptable posture (matching `isRowAdmin`'s own precedent of unconditionally normalizing rather than trusting the caller), rather than a false sense of coverage."
+    },
+    {
+      "question_id": "VQ-S10-P3",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "severity": "medium",
+      "ac_id": "AC-UNIV-2",
+      "question": "This story's tests prove AC-UNIV-2 only at the label/render layer: `selectMemberRowAffordance` returns a non-'none' value for every admin-non-self combination, and the button is wired to call `onRemoveMember`/`onCancelInvite` when clicked. They do NOT (and structurally cannot, from MemberList.tsx alone) prove the affordance is 'functioning' in the sense of 'actually evicts the member' — that depends on RemovalImpl (`cancelInvitationImpl.ts`), which S9's post-impl finding VQ-S9-P1 already flags as having a pre-check (`isPendingMemberImpl`) that short-circuits to a no-op `raceDetected` result for any pubkey with an existing profile entry, i.e. exactly the confirmed/provisional rows Remove Member is meant to serve. This story did not re-verify or re-file that gap (different owning_module, already tracked against S9/S11/S12); it is surfaced here only so whoever verifies AC-UNIV-2 end-to-end (S11/S12) is aware that a 'Remove Member' button which renders correctly per S10 can still perform zero MLS work today, pending VQ-S9-P1's resolution."
+    }
+  ]
+}

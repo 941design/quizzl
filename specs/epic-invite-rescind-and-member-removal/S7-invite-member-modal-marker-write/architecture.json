@@ -1,0 +1,45 @@
+{
+  "module_name": "InviteMemberModal",
+  "purpose": "Wraps InviteMemberModal's existing submitInvite/inviteByNpub call with a pending-direct-invite marker write-before-invite (AC-MARKER-1), best-effort on marker-write failure (AC-MARKER-2), and marker-clear on invite failure (AC-MARKER-3), without modifying submitInvite or inviteByNpub themselves.",
+  "public_api": [
+    {
+      "name": "submitInviteWithMarker",
+      "signature": "(pubkeyHex: string, groupId: string, inviteByNpub: (groupId: string, npub: string) => Promise<{ok: boolean; error?: string}>, markerDeps: PendingInviteMarkerDeps) => Promise<{ok: boolean; error?: string}>",
+      "description": "New exported wrapper (hooks-via-pure-function-extraction convention, same as submitInvite/computeSelectionState/getErrorMessage/getInviteReasonText in this file). Writes the marker under the canonical-lowercase pubkeyHex BEFORE calling the unmodified submitInvite(pubkeyHex, groupId, inviteByNpub); a throwing marker write is caught, logged via console.warn, and does not block the invite; if the resulting submitInvite call resolves {ok:false} (whether from resolveInviteTarget's own invalid_npub rejection or from a real inviteByNpub failure), the marker written above is cleared before returning. Called by handleInvite instead of calling submitInvite directly."
+    },
+    {
+      "name": "PendingInviteMarkerDeps (type)",
+      "signature": "{ markPendingDirectInvite: (groupId: string, pubkey: string) => Promise<void>; clearPendingDirectInvite: (groupId: string, pubkey: string) => Promise<void>; }",
+      "description": "Injected-deps shape for submitInviteWithMarker, mirroring submitInvite's injected-inviteByNpub convention. Production call site (handleInvite) passes the real markPendingDirectInvite/clearPendingDirectInvite imports from pendingDirectInviteStorage.ts; unit tests pass vi.fn() spies."
+    },
+    {
+      "name": "submitInvite (unchanged, pre-existing)",
+      "signature": "(pubkeyHex: string, groupId: string, inviteByNpub: (groupId: string, npub: string) => Promise<{ok: boolean; error?: string}>) => Promise<{ok: boolean; error?: string}>",
+      "description": "Not modified by this story (architecture.md constraint 1 / VQ-S7-002) — stays pure, npub/pubkey-only, no marker awareness. submitInviteWithMarker wraps it; it does not wrap itself."
+    },
+    {
+      "name": "resolveInviteTarget, computeSelectionState, getErrorMessage, getInviteReasonText (unchanged, pre-existing)",
+      "signature": "(unchanged)",
+      "description": "Out of scope for this story."
+    }
+  ],
+  "private_files": [
+    "app/src/components/groups/InviteMemberModal.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/pendingDirectInviteStorage.ts (markPendingDirectInvite, clearPendingDirectInvite — named imports of the S1 store's public API only, per architecture.md Boundary rules; never the internal IDB store handle)",
+    "app/src/context/MarmotContext.tsx (useMarmot().inviteByNpub — pre-existing, unchanged)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/marmot/*Impl.ts (no direct MLS/pure-impl imports)",
+    "modifying inviteByNpub in MarmotContext.tsx (would also fire on the approveJoinRequestImpl path, violating AC-MARKER-4)",
+    "modifying submitInvite's own signature/body (stays pure/unmodified per constraint 1)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/cards/inviteByCard.test.ts (extended with a new describe block for submitInviteWithMarker, reusing this file's existing idb-keyval/ndkClient mock setup)"
+  ]
+}

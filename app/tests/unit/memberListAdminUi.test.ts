@@ -88,7 +88,11 @@ describe('MemberList admin-UI i18n keys (S4)', () => {
 // passing against a shadow copy. (computeIsPending mirrors the trivial inline
 // pending-check, which has no exported helper.)
 
-import { computeShowMakeAdmin, isRowAdmin as computeIsRowAdmin } from '@/src/components/groups/MemberList';
+import {
+  computeShowMakeAdmin,
+  isRowAdmin as computeIsRowAdmin,
+  selectMemberRowAffordance,
+} from '@/src/components/groups/MemberList';
 
 function computeIsPending(pubkey: string, ownPubkeyHex: string | null, confirmedPubkeys?: Set<string>): boolean {
   const isYou = pubkey === ownPubkeyHex;
@@ -276,5 +280,182 @@ describe('MemberList boundary (AC-BOUND-2)', () => {
     // If MemberList.tsx imported MarmotContext it would fail SSR — the
     // i18n import here simply verifies the test harness is healthy.
     expect(typeof getCopy).toBe('function');
+  });
+});
+
+// ─── S10: Cancel Invite vs Remove Member label mutex ──────────────────────────
+//
+// selectMemberRowAffordance is the SINGLE source of truth the component binds
+// to for AC-LABEL-2/3/4/5/6 and AC-UNIV-2 (imported from MemberList.tsx, not
+// re-implemented here — a drift in production gating fails these tests).
+// No jsdom/@testing-library in this repo (project convention), so the
+// decision logic is verified directly; DOM-level render/click assertions
+// (button visibility, dialog open/close) are deferred to S11's e2e suite.
+
+describe('selectMemberRowAffordance — AC-LABEL-2 (Cancel Invite iff marker AND isPending)', () => {
+  it('marker present + isPending true -> cancel-invite', () => {
+    expect(
+      selectMemberRowAffordance({ isYou: false, isAdmin: true, isPending: true, hasMarker: true }),
+    ).toBe('cancel-invite');
+  });
+
+  it('marker present + isPending false -> NOT cancel-invite (stale local marker on a now-confirmed member)', () => {
+    expect(
+      selectMemberRowAffordance({ isYou: false, isAdmin: true, isPending: false, hasMarker: true }),
+    ).not.toBe('cancel-invite');
+  });
+
+  it('marker absent + isPending true -> NOT cancel-invite (co-admin view / approved requester catching up)', () => {
+    expect(
+      selectMemberRowAffordance({ isYou: false, isAdmin: true, isPending: true, hasMarker: false }),
+    ).not.toBe('cancel-invite');
+  });
+
+  it('marker absent + isPending false -> NOT cancel-invite (ordinary confirmed member)', () => {
+    expect(
+      selectMemberRowAffordance({ isYou: false, isAdmin: true, isPending: false, hasMarker: false }),
+    ).not.toBe('cancel-invite');
+  });
+});
+
+describe('selectMemberRowAffordance — AC-LABEL-3 (Remove Member for every other case)', () => {
+  it('marker present but NOT pending (stale marker on a confirmed member) -> remove-member', () => {
+    expect(
+      selectMemberRowAffordance({ isYou: false, isAdmin: true, isPending: false, hasMarker: true }),
+    ).toBe('remove-member');
+  });
+
+  it('marker absent but pending (co-admin with no local marker, or approved join-requester) -> remove-member', () => {
+    expect(
+      selectMemberRowAffordance({ isYou: false, isAdmin: true, isPending: true, hasMarker: false }),
+    ).toBe('remove-member');
+  });
+
+  it('marker absent, not pending (ordinary confirmed member) -> remove-member', () => {
+    expect(
+      selectMemberRowAffordance({ isYou: false, isAdmin: true, isPending: false, hasMarker: false }),
+    ).toBe('remove-member');
+  });
+});
+
+describe('selectMemberRowAffordance — AC-LABEL-4 (mutual exclusion)', () => {
+  it('the boundary case (marker present, isPending true) resolves to exactly one label, never both', () => {
+    // A naive implementation might treat "remove-member" as a default that
+    // renders alongside "cancel-invite" as an extra badge, rather than a true
+    // if/else branch. The return type is a single string, so asserting the
+    // exact value on the boundary case proves only one branch fired.
+    const result = selectMemberRowAffordance({ isYou: false, isAdmin: true, isPending: true, hasMarker: true });
+    expect(result).toBe('cancel-invite');
+    expect(result).not.toBe('remove-member');
+  });
+
+  it('every combination of isPending x hasMarker yields exactly one of the two labels for an admin non-self viewer', () => {
+    for (const isPending of [true, false]) {
+      for (const hasMarker of [true, false]) {
+        const result = selectMemberRowAffordance({ isYou: false, isAdmin: true, isPending, hasMarker });
+        expect(['cancel-invite', 'remove-member']).toContain(result);
+      }
+    }
+  });
+});
+
+describe('selectMemberRowAffordance — AC-LABEL-5 (non-admin viewer sees neither affordance)', () => {
+  it('isAdmin=false -> none, even for a pending+marked row', () => {
+    expect(
+      selectMemberRowAffordance({ isYou: false, isAdmin: false, isPending: true, hasMarker: true }),
+    ).toBe('none');
+  });
+
+  it('isAdmin=false -> none, even for a confirmed row', () => {
+    expect(
+      selectMemberRowAffordance({ isYou: false, isAdmin: false, isPending: false, hasMarker: false }),
+    ).toBe('none');
+  });
+});
+
+describe('selectMemberRowAffordance — AC-LABEL-6 (own row renders neither, regardless of marker/pending state)', () => {
+  it('isYou=true -> none even when marker present and isPending true (stale local state edge case)', () => {
+    expect(
+      selectMemberRowAffordance({ isYou: true, isAdmin: true, isPending: true, hasMarker: true }),
+    ).toBe('none');
+  });
+
+  it('isYou short-circuits BEFORE the marker/isPending conjunction — asserted across the full matrix', () => {
+    for (const isPending of [true, false]) {
+      for (const hasMarker of [true, false]) {
+        expect(
+          selectMemberRowAffordance({ isYou: true, isAdmin: true, isPending, hasMarker }),
+        ).toBe('none');
+      }
+    }
+  });
+});
+
+describe('selectMemberRowAffordance — AC-UNIV-2 (functioning affordance on every in-tree row for a non-subject admin)', () => {
+  it('every combination of marker x pending x inviter-identity yields a non-none affordance', () => {
+    // The "viewer is or is not the inviter who holds the marker" axis does not
+    // appear as a parameter here — selectMemberRowAffordance never consults
+    // "who wrote the marker," only "does a marker exist for this pubkey" —
+    // which is precisely what makes Remove Member universal (AC-UNIV-1):
+    // a co-admin with no local marker sees the identical hasMarker=false
+    // input a same-device admin would see after their own marker clears.
+    for (const hasMarker of [true, false]) {
+      for (const isPending of [true, false]) {
+        const result = selectMemberRowAffordance({ isYou: false, isAdmin: true, isPending, hasMarker });
+        expect(result).not.toBe('none');
+      }
+    }
+  });
+});
+
+// ─── i18n contract (S6 keys consumed here) ────────────────────────────────────
+
+describe('MemberList removeMember* copy (AC-LOCALE-1, consumed here)', () => {
+  it('English copy has all required removeMember keys, non-empty', async () => {
+    const { getCopy } = await import('@/src/lib/i18n');
+    const en = getCopy('en');
+    expect(en.groups.removeMemberButton).toBeTruthy();
+    expect(en.groups.removeMemberTitle).toBeTruthy();
+    expect(en.groups.removeMemberBody).toBeTruthy();
+    expect(en.groups.removeMemberConfirm).toBeTruthy();
+  });
+
+  it('German copy has all required removeMember keys, non-empty', async () => {
+    const { getCopy } = await import('@/src/lib/i18n');
+    const de = getCopy('de');
+    expect(de.groups.removeMemberButton).toBeTruthy();
+    expect(de.groups.removeMemberTitle).toBeTruthy();
+    expect(de.groups.removeMemberBody).toBeTruthy();
+    expect(de.groups.removeMemberConfirm).toBeTruthy();
+  });
+});
+
+describe('MemberList confirm-dialog body copy (AC-REMOVE-2)', () => {
+  it('removeMemberBody differs from cancelInviteBody in en', async () => {
+    const { getCopy } = await import('@/src/lib/i18n');
+    const en = getCopy('en');
+    expect(en.groups.removeMemberBody).not.toBe(en.groups.cancelInviteBody);
+  });
+
+  it('removeMemberBody differs from cancelInviteBody in de', async () => {
+    const { getCopy } = await import('@/src/lib/i18n');
+    const de = getCopy('de');
+    expect(de.groups.removeMemberBody).not.toBe(de.groups.cancelInviteBody);
+  });
+});
+
+// ─── data-testid contract (Remove Member) ─────────────────────────────────────
+
+describe('MemberList Remove Member data-testid naming contract', () => {
+  const pubkey = ALICE;
+  const prefix = pubkey.slice(0, 8);
+
+  it('trigger button testid follows remove-member-{prefix} pattern', () => {
+    expect(`remove-member-${prefix}`).toMatch(/^remove-member-[0-9a-f]{8}$/);
+  });
+
+  it('confirm button testid follows remove-member-confirm-{prefix} pattern, distinct from cancel-invite-confirm', () => {
+    expect(`remove-member-confirm-${prefix}`).toMatch(/^remove-member-confirm-[0-9a-f]{8}$/);
+    expect(`remove-member-confirm-${prefix}`).not.toBe(`cancel-invite-confirm-${prefix}`);
   });
 });

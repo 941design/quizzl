@@ -1,0 +1,34 @@
+{
+  "module_name": "ProfileHandler",
+  "purpose": "Clear the pending-direct-invite marker for a profile's author when the invitee's own signed profile arrives via the profile rumor handler, independent of the LWW merge outcome and never on the basis of rumor.pubkey alone (relay-on-behalf safety).",
+  "public_api": [
+    {
+      "name": "ProfileHandlerDeps.clearPendingDirectInvite",
+      "signature": "(groupId: string, pubkey: string) => Promise<void>",
+      "description": "New injected dependency (added to the existing ProfileHandlerDeps interface). Called by handle() after mergeMemberProfile, gated on profilePayload.signedEvent being present and signedEvent.pubkey equal to the marked pubkey. Best-effort: a rejection is caught and logged, never rethrown."
+    },
+    {
+      "name": "createProfileHandler",
+      "signature": "(deps: ProfileHandlerDeps) => RumorHandler",
+      "description": "Unchanged public factory signature; deps object shape grows by one field (clearPendingDirectInvite)."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/marmot/handlers/profileHandler.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/pendingDirectInviteStorage.ts (clearPendingDirectInvite export, consumed only via registerHandlers.ts wiring — never imported directly into profileHandler.ts)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/* (profileHandler.ts remains zero-import from context per its header contract)",
+    "direct import of pendingDirectInviteStorage.ts into profileHandler.ts itself"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/profileHandler.test.ts",
+    "app/tests/unit/marmot/registerHandlers.test.ts"
+  ]
+}

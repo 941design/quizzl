@@ -35,6 +35,7 @@ export interface HandlerDeps {
   resolvePendingSignalsForSlot: (thread: MessageEditsThreadKey, slotId: string, originalAuthorPubkeyHex: string) => Promise<ChangeResult>;
   // Profile handler deps
   mergeMemberProfile: (groupId: string, profile: MemberProfile) => Promise<boolean>;
+  clearPendingDirectInvite: (groupId: string, pubkey: string) => Promise<void>;
   notifyProfileObserved: (args: { groupId: string; targetPubkey: string; observedUpdatedAt: string }) => void;
   recordRequestAnswered: (groupId: string, authorPubkey: string, timestamp: number) => Promise<void>;
   writeContactEntry: (pubkey: string, entry: { nickname: string; avatar: ProfileAvatar | null; updatedAt: string }) => void;
@@ -92,6 +93,7 @@ export function buildDispatcher(deps: HandlerDeps): Dispatcher {
     }),
     createProfileHandler({
       mergeMemberProfile: deps.mergeMemberProfile,
+      clearPendingDirectInvite: deps.clearPendingDirectInvite,
       notifyProfileObserved: deps.notifyProfileObserved,
       recordRequestAnswered: deps.recordRequestAnswered,
       writeContactEntry: deps.writeContactEntry,

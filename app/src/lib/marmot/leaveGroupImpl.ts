@@ -37,6 +37,18 @@ type Deps = {
   clearPendingJoinRequestsForGroup: (groupId: string) => Promise<void>;
   clearInviteLinksForGroup: (groupId: string) => Promise<void>;
   /**
+   * Clears every pending-direct-invite marker scoped to exactly this group
+   * (epic: invite-rescind-and-member-removal, story S3, AC-MARKER-9's
+   * leave-fan-out half). This is the PER-GROUP clear
+   * (`clearPendingDirectInvitesForGroup` from `pendingDirectInviteStorage.ts`)
+   * — never the account-wide `clearAllPendingDirectInvites()` sentinel, which
+   * is exclusively `clearAllGroupData`'s (S2) call to make. Called
+   * unconditionally alongside the other leak-fixing clears below, regardless
+   * of whether this leave is the last-member (abandon) path — the group's
+   * local data is being torn down either way.
+   */
+  clearPendingDirectInvitesForGroup: (groupId: string) => Promise<void>;
+  /**
    * Clears the group's invite-expiry notification badge (epic:
    * invite-link-lifecycle, story S4, Design Decision 12, AC-DEEPLINK-4).
    * Called unconditionally alongside `clearInviteLinksForGroup` in the same
@@ -68,7 +80,9 @@ type Deps = {
  *    unconditionally, after the send block, on BOTH the abandon and the
  *    normal-leave path. `clearInviteExpiries` (epic: invite-link-lifecycle,
  *    S4) runs in the same unconditional block, immediately after
- *    clearInviteLinksForGroup (AC-DEEPLINK-4).
+ *    clearInviteLinksForGroup (AC-DEEPLINK-4). `clearPendingDirectInvitesForGroup`
+ *    (epic: invite-rescind-and-member-removal, S3, AC-MARKER-9) runs in the
+ *    same unconditional block, scoped to exactly the group being left.
  *  - Never throws to the caller: a failed kind-13 send is caught and logged;
  *    the purge always proceeds. Returns `true` unconditionally, matching the
  *    pre-extraction signature.
@@ -132,6 +146,9 @@ export async function leaveGroupImpl(
   // AC-PURGE-1/2: leak-fixing clears, unconditional on both paths.
   await deps.clearPendingJoinRequestsForGroup(groupId);
   await deps.clearInviteLinksForGroup(groupId);
+  // AC-MARKER-9: per-group leave fan-out clear — scoped to groupId only, the
+  // account-wide sibling clear lives exclusively in clearAllGroupData (S2).
+  await deps.clearPendingDirectInvitesForGroup(groupId);
   // AC-DEEPLINK-4: same unconditional purge call, not a separate step —
   // see the Deps field doc comment above.
   deps.clearInviteExpiries(groupId);

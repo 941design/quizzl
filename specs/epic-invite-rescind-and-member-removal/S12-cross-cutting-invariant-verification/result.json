@@ -1,0 +1,36 @@
+{
+  "story_id": "S12",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-19T11:40:00Z",
+  "files_created": [
+    "app/tests/unit/inviteRescindInvariants.test.ts",
+    "specs/epic-invite-rescind-and-member-removal/S12-cross-cutting-invariant-verification/architecture.json",
+    "specs/epic-invite-rescind-and-member-removal/S12-cross-cutting-invariant-verification/baseline.json",
+    "specs/epic-invite-rescind-and-member-removal/S12-cross-cutting-invariant-verification/result.json"
+  ],
+  "files_modified": [
+    "app/tests/unit/inviteRescindInvariants.test.ts"
+  ],
+  "tests_added": {
+    "property": 3,
+    "parameterized_matrix": 14
+  },
+  "test_counts": {
+    "baseline": 3639,
+    "final": 3656
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "PendingInviteStore",
+    "RemovalImpl",
+    "MemberProfileStore",
+    "ProfileHandler",
+    "GroupsPage"
+  ],
+  "retrospective": {
+    "skipped": true,
+    "reason": "routine"
+  }
+}

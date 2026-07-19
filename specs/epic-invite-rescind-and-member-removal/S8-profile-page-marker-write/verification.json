@@ -1,0 +1,82 @@
+{
+  "story_id": "S8",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S8-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Confirm the marker-write wrapper actually calls the real `pendingDirectInviteStorage.ts` save function with the real `effectiveGroupId`/`pubkeyHex` values in scope at `profile.tsx`'s `handleAddToGroup` (`:550-564`, `inviteByNpub` at `:554`) — not a hard-coded payload, and not a wrapper that only logs an intent to write without invoking the store. Provide the exact wrapping code around the existing `inviteByNpub(effectiveGroupId, pubkeyToNpub(pubkeyHex))` call at `:554`."
+    },
+    {
+      "question_id": "VQ-S8-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Architecture.md's implementation constraint 1 states the marker write must wrap the two UI call sites directly and must NOT route through `inviteByNpub` (that would also fire on the approve path). Confirm the marker-write call is placed inside `profile.tsx`'s `handleAddToGroup` function body, BEFORE the call to `inviteByNpub` — not inside `inviteByNpub` itself in `MarmotContext.tsx` (which `approveJoinRequestImpl` also calls at `:515` — wrapping it there would violate AC-MARKER-4, and this profile-page site must remain independent of that shared function's internals)."
+    },
+    {
+      "question_id": "VQ-S8-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `ProfilePage` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: this page may depend on `pendingDirectInviteStorage.ts`'s exported save/clear functions (the `PendingDirectInviteMarkerSet` seam) and the pre-existing `useMarmot().inviteByNpub`, but must not import any MLS/`*Impl.ts` internals directly. Confirm the new marker-write import is a named import of the store's save function, not a reach into its internal IDB store handle."
+    },
+    {
+      "question_id": "VQ-S8-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Provide unit-test evidence with a MOCKED `inviteByNpub` for: (a) the marker save is called with the correct `effectiveGroupId`/`pubkeyHex` BEFORE `inviteByNpub` resolves (assert call order, not just 'both were called'); (b) when the mocked marker-save throws, `inviteByNpub` is STILL called (best-effort — AC-MARKER-2) and a warning/error log call is asserted; (c) when the mocked `inviteByNpub` resolves `{ok: false}`, the marker written in this same flow is cleared (AC-MARKER-3) before `handleAddToGroup` sets `addToGroupStatus` to `'error'`; (d) when `inviteByNpub` resolves `{ok: true}`, the marker is NOT cleared."
+    },
+    {
+      "question_id": "VQ-S8-005",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "AC-MARKER-2's best-effort contract requires the marker-write failure to be logged via 'a warning/error log call.' Confirm the log call uses `console.warn` or `console.error`, matching this codebase's established best-effort-failure convention, rather than a silent `catch {}` with no log statement (`handleAddToGroup`'s existing outer `catch { setAddToGroupStatus('error'); }` at `:561-563` sets UI state on `inviteByNpub` failure but does not log — confirm the NEW marker-write-failure catch is a SEPARATE, distinct catch that logs, not folded into that existing silent catch)."
+    },
+    {
+      "question_id": "VQ-S8-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Confirm this story's diff is confined to `profile.tsx`'s `handleAddToGroup` and does not touch `InviteMemberModal.tsx` (S7's exclusive scope) or `pendingDirectInviteStorage.ts`'s implementation (S1's exclusive scope, per this story's own `excludes`)."
+    },
+    {
+      "question_id": "VQ-S8-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-1",
+      "question": "AC-MARKER-1 requires submitting via `profile.tsx`'s `handleAddToGroup` path to persist a marker for `${groupId}:${pubkey}` BEFORE `inviteByNpub` is called. Provide the exact source ordering (marker-write statement, then the `inviteByNpub` call) and a unit test asserting the marker exists at the moment `inviteByNpub` is invoked, not merely 'eventually' after `handleAddToGroup` resolves."
+    },
+    {
+      "question_id": "VQ-S8-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-2",
+      "question": "AC-MARKER-2 requires a throwing marker-write to NOT prevent `inviteByNpub` from being called, and requires a log call. Provide the try/catch structure around the marker-write call and a unit test that mocks the marker-save to throw, asserting `inviteByNpub` is STILL invoked with the correct arguments afterward, and that a `console.warn`/`console.error` call was made."
+    },
+    {
+      "question_id": "VQ-S8-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-3",
+      "question": "AC-MARKER-3 requires the marker written in this flow to be cleared when `inviteByNpub` resolves `{ok: false}`, BEFORE the flow returns. Provide a unit test mocking `inviteByNpub` to resolve `{ok: false}`, asserting the marker-clear function is called with the same `effectiveGroupId`/`pubkeyHex` used for the write, and that `setAddToGroupStatus('error')` does not run before the clear has been initiated (the clear must not be lost in a code path that returns early on error before reaching the clear statement)."
+    },
+    {
+      "question_id": "VQ-S8-010",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The landed `addToGroupWithMarker` (app/pages/profile.tsx) does NOT call `.toLowerCase()` on `pubkeyHex` before passing it to `markPendingDirectInvite`/`clearPendingDirectInvite` — unlike S7's landed `submitInviteWithMarker` (InviteMemberModal.tsx), which explicitly lowercases before calling the same store functions. Confirm this divergence is safe: `pendingDirectInviteStorage.ts`'s `markerKey(groupId, pubkey)` now lowercases the pubkey internally (a lead hardening applied after S7's review), so both call sites converge on the same canonical stored key regardless of caller casing. Verify by reading `markerKey`'s current body and confirming a mixed-case `pubkeyHex` input to `addToGroupWithMarker` still round-trips through the same key as a lowercase input would."
+    },
+    {
+      "question_id": "VQ-S8-011",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "`addToGroupWithMarker` and its test file both import from/via `@/pages/profile`, a Next.js page module with Chakra/Next imports, evaluated under Vitest's node (non-jsdom) environment per this repo's convention (mirrors the pre-existing `profile-announce-fanout.test.ts`). Confirm this module import path has no side effects that would make the new test file's pass non-representative (e.g. a top-level side-effecting call in profile.tsx that only no-ops accidentally under node, rather than being genuinely side-effect-free at module scope)."
+    },
+    {
+      "question_id": "VQ-S8-012",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "`addToGroupWithMarker`'s console.warn calls use the `[ProfilePage]` prefix, distinct from InviteMemberModal's `[InviteMemberModal]` prefix (S7). Confirm this distinct prefixing is intentional and sufficient for a developer to distinguish which of the two direct-invite call sites logged a given best-effort marker failure in production console output, without needing additional context (e.g. groupId/pubkey) in the log line."
+    }
+  ]
+}

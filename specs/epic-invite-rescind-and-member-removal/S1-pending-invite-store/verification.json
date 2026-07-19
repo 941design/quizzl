@@ -1,0 +1,88 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "`pendingDirectInviteStorage.ts` mirrors `profileRequestStorage.ts`'s `createStore`/`get`/`set`/`del`/`entries`/`clear` idb-keyval pattern. Confirm the save/load/per-key-clear functions are NOT stubs that return a hard-coded value or a frozen constant regardless of input — each must perform a real IDB read/write keyed on the literal string `${groupId}:${pubkey}` (mirroring `memoKey` in `profileRequestStorage.ts`), and the per-group-clear and '*' full-clear functions must enumerate real store keys (via `entries`/`keys`) rather than silently no-op-ing. Provide the function bodies as evidence, not just their type signatures."
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Per architecture.md's Module map, PendingInviteStore is a Storage-layer module (`app/src/lib/marmot/pendingDirectInviteStorage.ts`) that must be consumed only via a context method — never imported directly into a pure-impl (`*Impl.ts`) file. Run `grep -rn \"pendingDirectInviteStorage\" app/src/lib/marmot/*Impl.ts` and confirm zero matches; the only permitted importers at this point in the epic are the new store's own test file and (in later stories) `MarmotContext.tsx`, `profileHandler.ts`'s injected-Deps wiring site, and the two UI call sites — never a `*Impl.ts` file directly."
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `PendingInviteStore` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: `pendingDirectInviteStorage.ts` may depend only on `idb-keyval` and its own internal key-formatting helper — it must import nothing from `app/src/context/`, `app/src/lib/marmot/*Impl.ts`, or `app/src/lib/marmot/handlers/`. Every other module's dependency on it (S2's `clearAllGroupData` wiring, S3's `leaveGroupImpl` Deps, S4's `ProfileHandlerDeps`, S5's `MarmotContext` method, S7/S8's UI call sites) must flow through this module's exported function signatures (the `PendingDirectInviteMarkerSet` and `PendingDirectInviteClearFn` seam contracts), never a reach into its internal key-formatting or IDB store handle. Confirm with a `grep -rn \"pendingDirectInviteStorage\" app/src app/pages` listing every importer and its imported symbols."
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Provide unit-test evidence (in `app/tests/unit/`) for: (a) save-then-load round-trips a marker for a given `groupId:pubkey`; (b) per-key clear (del) removes only that key, leaving a sibling `groupId:otherPubkey` marker intact; (c) per-group clear removes every marker for a `groupId` across multiple pubkeys, leaving markers for a different `groupId` intact; (d) the `'*'` full-clear sentinel removes every marker across every group. Each of (a)-(d) must be a real IDB-backed assertion (via the actual `idb-keyval` store, not a mocked module that reimplements the store's behavior) — a test that mocks `idb-keyval`'s `get`/`set`/`del` itself would only prove the mock was called, not that persistence works."
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Spec §2.1/§2.2 requires this store to be 'the sole place that owns the marker's on-disk shape and its two bulk-clear entrypoints' (per this story's description). Confirm no other file in this epic (S2's `clearAllGroupData`, S3's `leaveGroupImpl`) reimplements marker key-formatting or a parallel clear routine — both must call this store's exported per-group-clear / full-clear functions, never construct the `${groupId}:${pubkey}` key format independently. Provide the exact exported function names S2 and S3 are expected to call (their signatures, not just names)."
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "idb-keyval operations can throw (quota exceeded, IDB unavailable in a private-browsing context). Does this store's `save` function let a throw propagate to its caller (required by AC-MARKER-2's best-effort-write contract, which needs the call site to observe and swallow the failure) rather than swallowing it silently inside the store itself? Confirm the store does NOT catch-and-ignore internally — that responsibility belongs to the call sites (S7/S8), and a store-level silent catch would make AC-MARKER-2's 'log the failure' requirement unimplementable at the call site."
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-9",
+      "question": "AC-MARKER-9 requires both `clearAllGroupData` and `leaveGroupImpl`'s per-group leave fan-out to independently clear markers via functions this store exposes. Does `pendingDirectInviteStorage.ts` export one function that clears every marker across ALL groups (consumed by S2's `clearAllGroupData`) and a SEPARATE function that clears every marker scoped to ONE group (consumed by S3's `leaveGroupImpl`) — two distinct exports, not one function overloaded on an optional `groupId` argument that a caller could accidentally omit? Provide both export names and signatures, and a unit test proving the per-group export never touches a different group's markers."
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-10",
+      "question": "AC-MARKER-10 requires a written, uncleared marker to survive a member-list reload and still cause 'Cancel Invite' to render. Provide a unit test that: writes a marker via `save`, simulates a fresh load by calling `load`/the per-group read function in a NEW async call (not reading from an in-memory variable retained across the save), and asserts the marker is still present. Confirm the store has no in-memory cache that could make this test pass without real IDB persistence (e.g. no module-level `Map` shadowing the IDB store that would survive a reload in-test but not survive an actual browser reload)."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Cross-story contract question (FR-5) for the `PendingDirectInviteMarkerSet` seam this story defines (consumed by S5, S9, S10). The contract requires: 'a pubkey is present in the Set iff a marker record exists for groupId:pubkey and has not since been cleared.' Does this store expose a function returning exactly a `Set<string>` of pubkeys for a given `groupId` (not an array, not a Record, not the raw stored records) — the exact shape S5's `getPendingDirectInvites(groupId)` will wrap with zero transformation? Provide the function's exact return-type signature and confirm no other shape (e.g. `MarkerRecord[]`) is what gets exposed to S5 as the seam boundary."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Cross-story contract question (FR-5) for the `PendingDirectInviteClearFn` seam this story defines (consumed by S4's profile handler). The contract requires the clear function to take exactly `(groupId: string, pubkey: string)` and to be idempotent (a second clear on an already-cleared or never-set key must not throw). Provide the exact exported `del`-equivalent function's signature and a unit test asserting a double-clear (clear, then clear again) on the same key does not throw and leaves the store in the same cleared state."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "ac_id": "AC-MARKER-9",
+      "question": "Implementation deviated from the story brief's suggested single-function `'*'`-sentinel clear (profileRequestStorage.ts's exact `clearProfileRequestMemos(groupId)` shape) in favor of VQ-S1-007's explicit two-distinct-exports requirement: `clearPendingDirectInvitesForGroup(groupId: string)` (per-group only, no `'*'` handling) and a separate zero-arg `clearAllPendingDirectInvites()` (full clear). When S2 wires `clearAllGroupData` and S3 wires `leaveGroupImpl`'s per-group fan-out, confirm each calls the correct, distinctly-named export for its scope (S2 → `clearAllPendingDirectInvites()`, S3 → `clearPendingDirectInvitesForGroup(groupId)`) and that neither passes a `'*'` string literal anywhere — that sentinel does not exist in this store's API."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "question": "The store persists marker presence only (`set(key, true, ...)`), no timestamp or metadata payload — the on-disk value carries no information beyond \"this key exists\". Confirm no later story (S4/S5/S9/S10) ever expects to read a richer marker record (e.g. an invite timestamp for display or expiry logic) from this store; if such a need surfaces, it requires a schema change to this store, not a workaround in a consuming module reading the raw IDB value directly."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "`loadPendingDirectInviteMarkers(groupId)` derives the returned pubkey by slicing the stored key on the known `${groupId}:` prefix (`key.slice(prefix.length)`) rather than storing pubkey as a separate field in the record. Confirm this is safe against pubkeys or groupIds containing a literal `:` character — since Nostr hex pubkeys are `[0-9a-f]{64}` (no colon) and groupId values in this codebase are also colon-free, prefix-slicing cannot misattribute a suffix; flag if either invariant is not actually guaranteed elsewhere in the codebase."
+    }
+  ]
+}

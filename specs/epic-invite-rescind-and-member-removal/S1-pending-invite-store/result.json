@@ -1,0 +1,36 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "completed_at": "2026-07-19T09:30:00Z",
+  "files_created": [
+    "app/src/lib/marmot/pendingDirectInviteStorage.ts",
+    "app/tests/unit/marmot/pendingDirectInviteStorage.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/pendingDirectInviteStorage.ts",
+    "app/tests/unit/marmot/pendingDirectInviteStorage.test.ts"
+  ],
+  "tests_added": {
+    "unit": 10
+  },
+  "test_counts": {
+    "baseline": 3555,
+    "final": 3565
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "PendingInviteStore"
+  ],
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The task brief and the immutable pre-impl verification.json commitment (VQ-S1-007) specified two different shapes for the bulk-clear API. The brief said to mirror profileRequestStorage.ts's clearProfileRequestMemos(groupId) exactly — a single function with a '*' sentinel for full-clear. VQ-S1-007 explicitly required two distinct exports instead ('not one function overloaded on an optional groupId argument that a caller could accidentally omit'). I resolved this by following the immutable verification.json commitment (clearPendingDirectInvitesForGroup(groupId) + a separate zero-arg clearAllPendingDirectInvites()), since that is the artifact the post-impl audit will actually check against, and documented the resolution in architecture.json, the source file's header comment, and a new post-impl verification question (VQ-S1-011) so S2/S3 wire the correct distinctly-named export. Also resolved a second, smaller divergence: the brief suggested loadPendingDirectInviteMarkers return Promise<string[]>, but VQ-S1-009 required exactly Promise<Set<string>> as the PendingDirectInviteMarkerSet seam shape — implemented as Set<string>.",
+    "surprised_by": "",
+    "scope": "meta",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted"
+}

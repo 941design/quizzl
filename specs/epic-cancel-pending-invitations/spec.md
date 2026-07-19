@@ -140,3 +140,11 @@ The story planner derives the canonical, story-mappable AC list in `acceptance-c
 - The leave-intent flow described in `specs/out-of-band-leave.md` Flow 2 is the closest reference for: structured kind-9 chat announcements, debounce considerations (not needed here — single-action), and `EpochResolver` interaction.
 - The pending-status derivation should live alongside the existing member-profile state in `MarmotContext` so consumers can read it via context selector (e.g., `isPendingMember(groupId, pubkey)`), avoiding component-level prop drilling.
 - The E2E test should follow the pattern in `specs/epic-group-invite-links/S9-e2e-invite-link-flow` (two browser contexts, serial test, IndexedDB cleanup).
+
+## Constrained by ADRs
+
+- **ADR-010** — Make Remove Member a universal admin-only eviction affordance
+  with no co-admin broadcast. `epic-invite-rescind-and-member-removal`
+  superseded this spec's `isPendingMember`-only cancel affordance with a
+  universal admin-eviction model; the marker/label distinction this ADR
+  describes now governs which button copy a given row shows.

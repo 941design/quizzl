@@ -1,0 +1,50 @@
+{
+  "module_name": "GroupsPage",
+  "purpose": "Author the 8 required e2e scenarios (AC-SCEN-1..8) plus AC-REMOVE-4/AC-PURGE-5/AC-UNIV-1 that exercise the already-implemented S1-S10 pending-direct-invite-marker and universal-removal machinery end-to-end through the REAL app UI, relay, and MLS protocol. This story introduces zero new production logic and zero mocks — it is a pure consumer of every module S1-S10 built, verifying the whole-flow guarantees architecture.md's 'Order-Sensitive Composition' section lists (marker-implies-pending-or-gone, purge-on-removal is commit-independent, no stuck-unremovable state, orphan-marker safety) at the black-box/UI level rather than in unit tests.",
+  "public_api": [],
+  "private_files": [
+    "app/tests/e2e/groups-approved-requester-label.spec.ts",
+    "app/tests/e2e/groups-direct-invite-lifecycle.spec.ts",
+    "app/tests/e2e/groups-remove-member.spec.ts",
+    "app/tests/e2e/helpers/namelessJoinRequestFixture.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/pages/groups.tsx",
+    "app/src/components/groups/MemberList.tsx",
+    "app/src/components/groups/InviteMemberModal.tsx",
+    "app/pages/profile.tsx",
+    "app/src/context/MarmotContext.tsx",
+    "app/src/lib/marmot/pendingDirectInviteStorage.ts",
+    "app/src/lib/marmot/groupStorage.ts",
+    "app/src/lib/marmot/cancelInvitationImpl.ts",
+    "app/src/lib/marmot/handlers/profileHandler.ts",
+    "app/src/lib/marmot/joinRequestHandler.ts",
+    "app/src/lib/marmot/joinRequestSender.ts",
+    "app/tests/e2e/helpers/group-setup.ts",
+    "app/tests/e2e/helpers/auth-helpers.ts",
+    "app/tests/e2e/helpers/clear-state.ts",
+    "app/tests/e2e/helpers/dismiss-error-overlay.ts",
+    "app/tests/e2e/helpers/relay-query.ts"
+  ],
+  "dependencies_forbidden": [
+    "no edits to any S1-S10-owned production file",
+    "no page.route() interception or fixture-injected fake relay responses",
+    "no monkey-patched MarmotContext methods",
+    "no raw WebSocket publish except the one documented AC-SCEN-2 exception (helpers/namelessJoinRequestFixture.ts), mirroring the sole prior precedent (helpers/forgedPairingAck.ts)"
+  ],
+  "external_ports": [
+    "strfry relay (ws://localhost:7777, Docker, real MLS/NIP-59 traffic through the app's own publish paths)"
+  ],
+  "events_emitted": [],
+  "events_consumed": [
+    "PendingDirectInviteMarkerSet (consumed via getPendingDirectInvites, observed as Cancel Invite / Remove Member row affordance)",
+    "CancelPendingInvitationResult (consumed via the shared performGroupMemberRemoval removal path, observed as row disappearance)",
+    "DeleteMemberProfileFn (consumed indirectly — observed via the re-invite-after-removal label transition, the only externally observable proxy for the purge)"
+  ],
+  "test_targets": [
+    "app/tests/e2e/groups-approved-requester-label.spec.ts",
+    "app/tests/e2e/groups-direct-invite-lifecycle.spec.ts",
+    "app/tests/e2e/groups-remove-member.spec.ts"
+  ]
+}

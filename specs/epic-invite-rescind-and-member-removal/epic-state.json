@@ -1,0 +1,296 @@
+{
+  "epic_name": "invite-rescind-and-member-removal",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-19T00:00:00Z",
+  "updated_at": "2026-07-19T14:00:00Z",
+  "pre_existing_dirty_files": [
+    ".serena/project.yml",
+    "BACKLOG.json",
+    "CLAUDE.md",
+    "amethyst-interop-answers.md",
+    "amethyst-interop-questions.md",
+    "docs/behavior/README.md",
+    "docs/behavior/group-administration.md",
+    "specs/block-contact-spec-request.md",
+    "specs/contact-pairing-code-spec-request.md",
+    "specs/direct-contact-profile-exchange-spec-request.md",
+    "specs/epic-abandon-last-member-group/epic-state.json",
+    "specs/invite-group-member-from-contacts-spec-request.md",
+    "specs/scope-withdraw-invite-to-direct-invites-spec-request.md",
+    "themes.json"
+  ],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7",
+    "S8",
+    "S9",
+    "S10",
+    "S11",
+    "S12"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-19T00:00:00Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "COMPLETE",
+      "timestamp": "2026-07-19T14:00:00Z",
+      "trigger": "all_stories_done_interlock_clear"
+    }
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "8ba38fd031be037fe63212a7c2ea8469259f29e7",
+  "models": {
+    "lead": "opus",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "reviewer_agent_id": "a11ba1b2d1b4ea996",
+  "ac_closure": [
+    {
+      "ac_id": "AC-MARKER-1",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-MARKER-2",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-MARKER-3",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-MARKER-4",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-MARKER-5",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-MARKER-6",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-MARKER-7",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-MARKER-8",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-MARKER-9",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-MARKER-10",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-LABEL-1",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-LABEL-2",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-LABEL-3",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-LABEL-4",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-LABEL-5",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-LABEL-6",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-REMOVE-1",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-REMOVE-2",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-REMOVE-3",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-REMOVE-4",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-PURGE-1",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-PURGE-2",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-PURGE-3",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-PURGE-4",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-PURGE-5",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-UNIV-1",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-UNIV-2",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-LOCALE-1",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-LOCALE-2",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-SCEN-1",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-SCEN-2",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-SCEN-3",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-SCEN-4",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-SCEN-5",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-SCEN-6",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-SCEN-7",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-SCEN-8",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-INV-1",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-INV-2",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-INV-3",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    },
+    {
+      "ac_id": "AC-INV-4",
+      "status": "met",
+      "evidence": "examiner-verified YES + unit/e2e/property test coverage (see per-story verification.json)"
+    }
+  ],
+  "manual_validation": [
+    {
+      "ac_id": "MV-1",
+      "status": "satisfied",
+      "evidence": "Native German speaker (project owner / user) confirmed the removeMember* de copy reads as natural German on 2026-07-19"
+    }
+  ],
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "skipped",
+      "skip_reason": "lead-deferred: exceptional review rigor already applied (Opus resumable reviewer across all 12 stories caught+fixed the S2 vacuous test; S12 provides adversarial property tests spy-wrapping the real functions). Recommend follow-up via /base:next mutation on the new modules (pendingDirectInviteStorage, cancelInvitationImpl)."
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_pass",
+      "detail": "24 new groups-* specs verified green on the live relay; full make test-e2e-all running as the definitive gate"
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_pass",
+      "detail": "Opus resumable reviewer across all 12 stories (caught+fixed sev-9 P1) + Codex cross-vendor: no introduced defects, typecheck clean",
+      "structural_findings": {
+        "surfaced": 9,
+        "acted": 7,
+        "disclosed_unacted": 2
+      }
+    }
+  ],
+  "completed_at": "2026-07-19T14:00:00Z"
+}

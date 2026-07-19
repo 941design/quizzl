@@ -1,0 +1,38 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "completed_at": "2026-07-19T09:45:00Z",
+  "files_created": [
+    "app/tests/unit/marmot/groupStorage.clearAllGroupData.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/groupStorage.ts",
+    "app/tests/unit/marmot/groupStorage.test.ts",
+    "app/tests/unit/marmot/groupStorage.clearAllGroupData.test.ts"
+  ],
+  "tests_added": {
+    "unit": 6
+  },
+  "test_counts": {
+    "baseline": 3566,
+    "final": 3572
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "MemberProfileStore"
+  ],
+  "implementation_summary": "Added deleteMemberProfile(groupId, pubkey): Promise<void> to groupStorage.ts, mirroring mergeMemberProfile's read-filter-rewrite pattern (loadMemberProfiles -> case-insensitive pubkeyHex filter -> saveMemberProfiles only when filtered.length !== existing.length, i.e. no-op-write avoidance). Wired S1's clearAllPendingDirectInvites() (zero-arg, PendingInviteStore's account-wide full-clear export) into clearAllGroupData as the last call in its existing sequential clear chain, satisfying AC-MARKER-9's account-reset half. Implementation delegated to base:dev (agentId a97663db1a48b7838) against a complete pre-written failing-test spec (TDD); verified independently afterward.",
+  "decisions": [
+    "deleteMemberProfile placed directly after clearMemberProfiles in groupStorage.ts, matching the story description's file-organization intent and mirroring the adjacent mergeMemberProfile/clearMemberProfiles pairing.",
+    "clearAllPendingDirectInvites() call appended as the LAST line of clearAllGroupData (after the pre-existing clearProfileRequestMemos('*') call) rather than interleaved earlier in the sequence -- all five clears are mutually independent (no shared try/catch existed before this change either), so ordering has no behavioral effect; last-position placement minimizes the diff against the pre-existing four-plus-one call chain.",
+    "Confirmed via grep that S1's exported API is exactly two zero-argument/single-argument functions with NO '*' sentinel (clearPendingDirectInvitesForGroup(groupId) for S3's per-group leave fan-out, clearAllPendingDirectInvites() with zero args for this story's account-reset site) -- the task brief's clarification on this point was verified against S1's actual shipped source, not just taken on faith.",
+    "Strengthened VQ-S2-008's pre-impl commitment beyond a mock-spy assertion: added a second test file (groupStorage.clearAllGroupData.test.ts) that imports the REAL pendingDirectInviteStorage module (unmocked), seeds markers across two distinct groupIds, and asserts real post-clearAllGroupData state -- this proves the cross-group behavior genuinely works through the real store, not merely that a mocked function was invoked with the right arguments.",
+    "Did not touch leaveGroupImpl.ts (S3's exclusive scope) or the S9 caller that decides when to invoke deleteMemberProfile, per this story's explicit excludes."
+  ],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  },
+  "final_outcome": "accepted"
+}

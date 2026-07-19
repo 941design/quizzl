@@ -1,0 +1,22 @@
+{
+  "story_id": "S12",
+  "captured_at": "2026-07-19T11:28:44Z",
+  "tests": {
+    "command": "cd app && npx vitest run",
+    "status": "PASS",
+    "test_files": 192,
+    "tests_passed": 3638,
+    "tests_skipped": 1,
+    "tests_total": 3639
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "note": "No .eslintrc present; `next lint` prompts interactively to scaffold one (no committed ESLint config in this repo) — matches S9's recorded baseline."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit -p .",
+    "status": "clean",
+    "note": "Exit 0, no diagnostics."
+  }
+}

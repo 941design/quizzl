@@ -3,7 +3,7 @@
   "status": "done",
   "phase": "COMPLETE",
   "created_at": "2026-07-17T14:32:36Z",
-  "updated_at": "2026-07-17T17:26:35Z",
+  "updated_at": "2026-07-17T17:32:00Z",
   "pre_existing_dirty_files": [
     ".serena/project.yml",
     "CLAUDE.md",
@@ -213,5 +213,11 @@
       "skip_reason": "codex unavailable (ENFILE x2, host fd exhaustion); Opus Stage-1 reviewed all 4 stories clean incrementally; user-authorized commit without final Codex pass"
     }
   ],
-  "completed_at": "2026-07-17T17:26:35Z"
+  "completed_at": "2026-07-17T17:26:35Z",
+  "auto_commit": {
+    "sha": "31d78d5",
+    "subject": "feat(groups): abandon a group as its last remaining member",
+    "committed_at": "2026-07-17T17:32:00Z",
+    "files_changed": 36
+  }
 }

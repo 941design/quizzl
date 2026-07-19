@@ -122,11 +122,10 @@ test.describe.serial('Join request approval shows the requester name, not an npu
   });
 
   test('User A approves the request — the new member shows "Invitee", not an npub, and stays Pending', async () => {
-    // The pending-requests section surfaces the request, showing the name from
-    // the join request ("Invitee") for confirmation.
-    await expect(pageA.getByTestId('pending-requests-section')).toBeVisible({ timeout: 60_000 });
+    // The inline join-request row (top of the member list) surfaces the request,
+    // showing the name from the join request ("Invitee") for confirmation.
     const requestRow = pageA.locator('[data-testid^="pending-request-row-"]').first();
-    await expect(requestRow).toBeVisible({ timeout: 10_000 });
+    await expect(requestRow).toBeVisible({ timeout: 60_000 });
     await expect(requestRow).toContainText('Invitee');
 
     // Take User B offline BEFORE approval (see the determinism note above): no

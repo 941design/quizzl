@@ -1,0 +1,56 @@
+{
+  "module_name": "PendingInviteStore",
+  "purpose": "Persist the pending-direct-invite marker (groupId:pubkey), keyed exactly like profileRequestStorage.ts's memoKey. Owns the marker's on-disk shape and both bulk-clear entrypoints (per-group and full-'*') that S2 (clearAllGroupData) and S3 (leaveGroupImpl) each independently call to satisfy AC-MARKER-9.",
+  "public_api": [
+    {
+      "name": "markPendingDirectInvite",
+      "signature": "(groupId: string, pubkey: string) => Promise<void>",
+      "description": "Writes the marker for (groupId, pubkey). Lets IDB errors (quota, unavailable) propagate uncaught to the caller — best-effort semantics (AC-MARKER-2) belong to the call sites (S7/S8), never to this store (VQ-S1-006)."
+    },
+    {
+      "name": "clearPendingDirectInvite",
+      "signature": "(groupId: string, pubkey: string) => Promise<void>",
+      "description": "Per-key delete. Idempotent: clearing an absent or already-cleared key does not throw (VQ-S1-010). This is the PendingDirectInviteClearFn seam S4's profileHandler consumes."
+    },
+    {
+      "name": "loadPendingDirectInviteMarkers",
+      "signature": "(groupId: string) => Promise<Set<string>>",
+      "description": "Returns exactly the set of pubkeys currently marked pending for groupId — a real Set<string>, not an array or record (VQ-S1-009). This is the PendingDirectInviteMarkerSet seam S5's getPendingDirectInvites wraps with zero transformation."
+    },
+    {
+      "name": "clearPendingDirectInvitesForGroup",
+      "signature": "(groupId: string) => Promise<void>",
+      "description": "Per-group prefix delete via entries()+filter+del, mirroring clearProfileRequestMemos. Scoped to exactly one group; never touches another group's markers. Consumed by S3's leaveGroupImpl per-group leave fan-out (AC-MARKER-9's leave half). Distinct export from clearAllPendingDirectInvites (VQ-S1-007) — no shared function overloaded on an optional groupId."
+    },
+    {
+      "name": "clearAllPendingDirectInvites",
+      "signature": "() => Promise<void>",
+      "description": "Full clear() of the underlying store — every marker across every group. Consumed by S2's clearAllGroupData (AC-MARKER-9's account-reset half). Kept as its own zero-arg export (not the '*' sentinel routed through clearPendingDirectInvitesForGroup) so a caller cannot accidentally omit a groupId and get a full wipe; internally it still shares the '*' sentinel path for symmetry with the profileRequestStorage.ts template, exposed as a distinct, explicitly-named, zero-argument function per VQ-S1-007."
+    },
+    {
+      "name": "markerKey",
+      "signature": "(groupId: string, pubkey: string) => string",
+      "description": "Internal key-formatting helper (${groupId}:${pubkey}), exported only for the test file's assertions on key shape — not intended for cross-module use; S2/S3 must call the clear exports above, never reconstruct this format themselves (VQ-S1-005)."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/marmot/pendingDirectInviteStorage.ts"
+  ],
+  "owned_data": [
+    "idb-keyval store 'few-pending-invite-markers' / 'markers' — the pending-direct-invite marker records, keyed ${groupId}:${pubkey}"
+  ],
+  "dependencies_allowed": [
+    "idb-keyval"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/* (consumed only via a context method per architecture.md Boundary rules)",
+    "app/src/lib/marmot/*Impl.ts (never imported directly into a pure-impl file)",
+    "app/src/lib/marmot/handlers/*"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/pendingDirectInviteStorage.test.ts"
+  ]
+}

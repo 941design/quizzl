@@ -383,6 +383,11 @@ redundant but not harmful. Re-check on marmot-ts upgrades.
 ## Constrained by ADRs
 
 - **ADR-003** — Accept last-writer-wins for MLS metadata mutations (no protocol-level no-clobber in marmot-ts).
+- **ADR-010** — Make Remove Member a universal admin-only eviction affordance
+  with no co-admin broadcast. Whatever this feature settles for "who is an
+  admin," the removal capability stays universal among whoever qualifies —
+  this ADR's "any admin can evict any in-tree member, marker is label-only"
+  shape should not be re-litigated when scoping admin-gated actions here.
 
 ### 2026-06-11 — AC-GRANT-7 reduced to last-writer-wins (concurrent grant)
 

@@ -1,9 +1,14 @@
+import 'fake-indexeddb/auto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // NOTE: leaveGroupImpl has zero top-level imports from marmot-ts or context —
 // getGroup/getGroupMembers/sendRumorSafe/buildRumor are all injected via the
 // Deps interface. We therefore do NOT need a vi.mock('@internet-privacy/marmot-ts')
 // at the top of this file, mirroring grantAdminImpl.test.ts.
+//
+// fake-indexeddb/auto is imported here (rather than mocked) solely to back the
+// real-storage AC-MARKER-9 scoping test below (VQ-S3-007) — every other test
+// in this file continues to exercise leaveGroupImpl against fully-mocked Deps.
 
 const { leaveGroupImpl } = await import('@/src/lib/marmot/leaveGroupImpl');
 
@@ -52,6 +57,7 @@ function makeDeps(
     clearPendingJoinRequestsForGroup: vi.fn().mockResolvedValue(undefined),
     clearInviteLinksForGroup: vi.fn().mockResolvedValue(undefined),
     clearInviteExpiries: vi.fn(),
+    clearPendingDirectInvitesForGroup: vi.fn().mockResolvedValue(undefined),
     reloadGroups: vi.fn().mockResolvedValue(undefined),
     markBackupDirty: vi.fn(),
     // Exposed for assertions against the mock passed to getGroup.
@@ -259,5 +265,91 @@ describe('leaveGroupImpl', () => {
     expect(deps.clearPendingJoinRequestsForGroup).toHaveBeenCalledWith(GROUP_ID);
     expect(deps.clearInviteLinksForGroup).toHaveBeenCalledWith(GROUP_ID);
     expect(deps.reloadGroups).toHaveBeenCalledTimes(1);
+  });
+
+  // AC-MARKER-9 (leave-fan-out half, S3): the new clearPendingDirectInvitesForGroup
+  // dep must actually be INVOKED — not merely declared in Deps (VQ-S3-001) —
+  // with exactly the groupId being left, on both the abandon and normal-leave
+  // paths (VQ-S3-006: unconditional, not gated behind the last-member branch).
+  // The pre-existing sibling clear-dep calls are re-asserted alongside it to
+  // prove this story's diff did not reorder or drop them (VQ-S3-004).
+  it('AC-MARKER-9: solo/abandon path clears the pending-direct-invite marker for the group being left', async () => {
+    const deps = makeDeps({ members: [SELF] });
+
+    await leaveGroupImpl(deps, GROUP_ID, SELF);
+
+    expect(deps.clearPendingDirectInvitesForGroup).toHaveBeenCalledTimes(1);
+    expect(deps.clearPendingDirectInvitesForGroup).toHaveBeenCalledWith(GROUP_ID);
+    expect(deps.clearMemberProfiles).toHaveBeenCalledWith(GROUP_ID);
+    expect(deps.clearPendingJoinRequestsForGroup).toHaveBeenCalledWith(GROUP_ID);
+    expect(deps.clearInviteLinksForGroup).toHaveBeenCalledWith(GROUP_ID);
+  });
+
+  it('AC-MARKER-9: multi-member/normal path clears the pending-direct-invite marker for the group being left', async () => {
+    const deps = makeDeps({ members: [SELF, OTHER] });
+
+    await leaveGroupImpl(deps, GROUP_ID, SELF);
+
+    expect(deps.clearPendingDirectInvitesForGroup).toHaveBeenCalledTimes(1);
+    expect(deps.clearPendingDirectInvitesForGroup).toHaveBeenCalledWith(GROUP_ID);
+    expect(deps.clearMemberProfiles).toHaveBeenCalledWith(GROUP_ID);
+    expect(deps.clearPendingJoinRequestsForGroup).toHaveBeenCalledWith(GROUP_ID);
+    expect(deps.clearInviteLinksForGroup).toHaveBeenCalledWith(GROUP_ID);
+  });
+
+  it('AC-MARKER-9: no mlsGroup — the marker clear still runs unconditionally (mirrors R2 fail-closed purge)', async () => {
+    const deps = makeDeps({ mlsGroup: null });
+
+    await leaveGroupImpl(deps, GROUP_ID, SELF);
+
+    expect(deps.clearPendingDirectInvitesForGroup).toHaveBeenCalledWith(GROUP_ID);
+  });
+
+  it('AC-MARKER-9: corrupt MLS state (getGroupMembers throws) — the marker clear still runs', async () => {
+    const deps = makeDeps({ members: [SELF, OTHER] });
+    deps.getGroupMembers.mockImplementation(() => {
+      throw new Error('corrupt state');
+    });
+
+    await leaveGroupImpl(deps, GROUP_ID, SELF);
+
+    expect(deps.clearPendingDirectInvitesForGroup).toHaveBeenCalledWith(GROUP_ID);
+  });
+});
+
+// AC-MARKER-9 (VQ-S3-007): wires the REAL pendingDirectInviteStorage clear
+// (not a mock) into leaveGroupImpl's Deps to prove the leave-fan-out clear is
+// correctly scoped to exactly the group being left — a second, unrelated
+// group's markers must survive. This is the one test in this file that
+// intentionally imports the real storage module: every other test proves
+// leaveGroupImpl calls its injected Deps correctly; this one additionally
+// proves that call, wired to the real store, has the intended real-world effect.
+describe('leaveGroupImpl — AC-MARKER-9 real-storage scoping (VQ-S3-007)', () => {
+  const LEFT_GROUP = 'left-group';
+  const OTHER_GROUP = 'other-group';
+
+  it('clears markers for the group being left, leaving an unrelated group untouched', async () => {
+    const {
+      markPendingDirectInvite,
+      loadPendingDirectInviteMarkers,
+      clearPendingDirectInvitesForGroup,
+      clearAllPendingDirectInvites,
+    } = await import('@/src/lib/marmot/pendingDirectInviteStorage');
+
+    await clearAllPendingDirectInvites();
+    await markPendingDirectInvite(LEFT_GROUP, SELF);
+    await markPendingDirectInvite(OTHER_GROUP, OTHER);
+
+    const deps = makeDeps({ members: [SELF] });
+    // Override the mock with the real, un-mocked storage function.
+    (deps as { clearPendingDirectInvitesForGroup: typeof clearPendingDirectInvitesForGroup }).clearPendingDirectInvitesForGroup =
+      clearPendingDirectInvitesForGroup;
+
+    await leaveGroupImpl(deps, LEFT_GROUP, SELF);
+
+    expect(await loadPendingDirectInviteMarkers(LEFT_GROUP)).toEqual(new Set());
+    expect(await loadPendingDirectInviteMarkers(OTHER_GROUP)).toEqual(new Set([OTHER]));
+
+    await clearAllPendingDirectInvites();
   });
 });

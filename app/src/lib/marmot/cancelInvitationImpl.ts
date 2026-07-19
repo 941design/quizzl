@@ -53,17 +53,25 @@ export async function cancelPendingInvitationImpl(
   pubkey: string,
   sendAnnouncement?: (content: string) => Promise<void>,
 ): Promise<{ ok: boolean; error?: string; raceDetected?: boolean; announcementError?: string }> {
-  const stillPending = await isPendingMemberImpl(
-    { getGroup: deps.getGroup, loadMemberProfiles: deps.loadMemberProfiles, getGroupMembers: deps.getGroupMembers },
-    groupId,
-    pubkey,
-  );
-  if (!stillPending) {
-    return { ok: true, raceDetected: true };
-  }
-
   const mlsGroup = await deps.getGroup(groupId);
   if (!mlsGroup) return { ok: false, error: 'group_not_found' };
+
+  // Gate on TREE-MEMBERSHIP ONLY (not pending-vs-confirmed). Remove Member
+  // (epic invite-rescind-and-member-removal, S9) must evict CONFIRMED members —
+  // in-tree WITH a profile; the prior isPendingMemberImpl pre-check (in-tree AND
+  // no-profile) treated any confirmed member as raceDetected and silently
+  // no-op'd, so Remove Member did nothing for its entire target population
+  // (VQ-S9-P1). Not-in-tree ⇒ a co-admin already removed them ⇒ raceDetected
+  // (the caller's post-removal cleanup still runs, gated on "no longer a
+  // member"). Cancel Invite's population (pending/no-profile) is a strict subset
+  // of in-tree, so its behavior is unchanged. isPendingMemberImpl is left intact
+  // — it still backs MarmotContext.isPendingMember's label derivation.
+  const isStillMember = deps
+    .getGroupMembers(mlsGroup.state)
+    .some((pk) => pk.toLowerCase() === pubkey.toLowerCase());
+  if (!isStillMember) {
+    return { ok: true, raceDetected: true };
+  }
 
   const currentAdmins = mlsGroup.groupData?.adminPubkeys ?? [];
   const filteredAdmins = currentAdmins.filter(

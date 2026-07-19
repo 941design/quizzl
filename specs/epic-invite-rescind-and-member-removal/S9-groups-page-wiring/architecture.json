@@ -1,0 +1,50 @@
+{
+  "module_name": "GroupsPage",
+  "purpose": "Load the pending-direct-invite marker Set once per member-list load and thread it to MemberList; add the onRemoveMember handler (reusing the existing cancelPendingInvitation MLS-remove wrapper, same as onCancelInvite); after either handler resolves (including both raceDetected short-circuits), gate a post-hoc 'pubkey no longer in the tree' check that runs the per-member profile purge (S2) and the marker clear (S1) exactly when the pubkey is confirmed gone -- never when it is still a member.",
+  "public_api": [
+    {
+      "name": "computeStillMember",
+      "signature": "(liveMembers: string[] | undefined, pubkey: string) => boolean",
+      "description": "Case-insensitive membership test against a freshly-read live member list. Fail-closed toward 'still a member' (returns true) when liveMembers is undefined (unreadable) -- an ambiguous read must never trigger a purge/clear."
+    },
+    {
+      "name": "runPostRemovalCleanup",
+      "signature": "(params: { groupId: string; pubkey: string; stillMember: boolean; deleteMemberProfile: (groupId: string, pubkey: string) => Promise<void>; clearPendingDirectInvite: (groupId: string, pubkey: string) => Promise<void>; }) => Promise<void>",
+      "description": "AC-PURGE-2/3/4, AC-MARKER-7/8 gate: no-ops when stillMember is true; otherwise calls deleteMemberProfile and clearPendingDirectInvite concurrently, swallowing (and logging) any purge/clear failure so a best-effort cleanup step never breaks the caller's toast flow."
+    },
+    {
+      "name": "performGroupMemberRemoval",
+      "signature": "(params: { groupId: string; pubkey: string; sendAnnouncement?: (content: string) => Promise<void>; cancelPendingInvitation: (groupId: string, pubkey: string, sendAnnouncement?: (content: string) => Promise<void>) => Promise<CancelPendingInvitationResult>; getLiveMemberPubkeys: (groupId: string) => Promise<string[] | undefined>; deleteMemberProfile: (groupId: string, pubkey: string) => Promise<void>; clearPendingDirectInvite: (groupId: string, pubkey: string) => Promise<void>; }) => Promise<CancelPendingInvitationResult>",
+      "description": "AC-REMOVE-1's shared removal helper: calls cancelPendingInvitation, independently re-reads live tree membership via getLiveMemberPubkeys (never the pre-removal group.memberPubkeys closure), runs runPostRemovalCleanup, and returns the raw result so callers can render their own toast copy. Both onCancelInvite and onRemoveMember call this one function -- never two divergent MLS-remove code paths."
+    },
+    {
+      "name": "classifyRemovalResult",
+      "signature": "(result: { ok: boolean; raceDetected?: boolean; announcementError?: string }) => 'raceNotice' | 'announcementWarning' | 'success' | 'error'",
+      "description": "Pure toast-routing decision shared by onCancelInvite and onRemoveMember; only the copy keys used for 'success'/'error' differ between the two callers (cancelInvite* vs removeMember*), the race/announcement branches reuse the same shared copy."
+    }
+  ],
+  "private_files": [
+    "app/pages/groups.tsx"
+  ],
+  "owned_data": [
+    "pendingInviteMarkers React state (Set<string>, in-memory only, reloaded once per member-list load)"
+  ],
+  "dependencies_allowed": [
+    "MarmotContext (useMarmot(): getPendingDirectInvites, cancelPendingInvitation, getLiveMemberPubkeys -- all pre-existing/S5 context methods, consumed as-is)",
+    "groupStorage.ts (deleteMemberProfile -- S2's exported storage function, imported directly since no context wrapper exists)",
+    "pendingDirectInviteStorage.ts (clearPendingDirectInvite -- S1's exported storage function, imported directly since no context wrapper exists)",
+    "MemberList (new pendingInviteMarkers / onRemoveMember props threaded through; consuming/rendering logic is S10's)",
+    "i18n (copy.groups.removeMember{Success,Error} -- S6's keys; copy.groups.cancelInvite{RaceNotice,AnnouncementWarning} reused for both handlers)"
+  ],
+  "dependencies_forbidden": [
+    "cancelInvitationImpl.ts internals (direct import) -- only the MarmotContext.cancelPendingInvitation wrapper is consumed",
+    "pendingDirectInviteStorage.ts's markerKey/internal store object -- only the exported clearPendingDirectInvite function is consumed",
+    "groupStorage.ts's internal stores -- only the exported deleteMemberProfile function is consumed"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/pages/groupsMemberRemoval.test.ts"
+  ]
+}

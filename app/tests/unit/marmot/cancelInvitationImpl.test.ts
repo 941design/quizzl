@@ -134,15 +134,30 @@ describe('cancelPendingInvitationImpl', () => {
     expect(deps.mockCommit).not.toHaveBeenCalled();
   });
 
-  it('race-guard path: member has profile (just came online) → raceDetected, no commit', async () => {
+  it('confirmed-member path (in-tree WITH a profile) → commits the Remove, { ok: true } NOT raceDetected (VQ-S9-P1 regression)', async () => {
+    // Remove Member's entire target population: a CONFIRMED member (in the MLS
+    // tree AND with a stored profile). The prior pending-only pre-check
+    // (isPendingMemberImpl) returned false here and short-circuited to a
+    // raceDetected no-op, so Remove Member silently did nothing. The pre-check
+    // now gates on tree-membership only, so a confirmed member is actually
+    // removed. This is the regression the S9 orchestration suite could not
+    // catch (it mocks cancelPendingInvitation).
     const deps = makeDeps();
     deps.getGroupMembers.mockReturnValue([INVITEE, SELF]);
     deps.loadMemberProfiles.mockResolvedValue([makeProfile(INVITEE)]);
 
     const result = await cancelPendingInvitationImpl(deps, 'g1', INVITEE);
 
-    expect(result).toEqual({ ok: true, raceDetected: true });
-    expect(deps.mockCommit).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(result.raceDetected).toBeUndefined();
+    expect(deps.mockCommit).toHaveBeenCalledTimes(1);
+    const commitCall = deps.mockCommit.mock.calls[0][0];
+    expect(
+      commitCall.extraProposals.some(
+        (p: { proposalType: number; remove?: { removed: number } }) =>
+          p.proposalType === 3 && p.remove?.removed === 0,
+      ),
+    ).toBe(true);
   });
 
   it('leaf-not-found path: getPubkeyLeafNodeIndexes returns [] → raceDetected, no commit', async () => {

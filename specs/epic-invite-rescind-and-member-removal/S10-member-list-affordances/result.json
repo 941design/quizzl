@@ -1,0 +1,47 @@
+{
+  "story_id": "S10",
+  "status": "done",
+  "completed_at": "2026-07-19T00:00:00Z",
+  "files_created": [],
+  "files_modified": [
+    "app/src/components/groups/MemberList.tsx",
+    "app/tests/unit/memberListAdminUi.test.ts"
+  ],
+  "tests_added": {
+    "unit": 20
+  },
+  "test_counts": {
+    "baseline": 3619,
+    "final": 3639
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "MemberList"
+  ],
+  "implementation_summary": "MemberList.tsx: added the exported pure function selectMemberRowAffordance({ isYou, isAdmin, isPending, hasMarker }) -> 'cancel-invite' | 'remove-member' | 'none', the single source of truth for AC-LABEL-2/3/4/5/6 and AC-UNIV-2. isYou/!isAdmin short-circuit to 'none' before the marker/isPending conjunction is consulted (AC-LABEL-6/5); otherwise isPending && hasMarker selects 'cancel-invite' (AC-LABEL-2's conjunction, never the marker alone), everything else falls through to 'remove-member' (AC-LABEL-3). Being a single if/else with no independent booleans makes the two affordances structurally mutually exclusive (AC-LABEL-4) and guarantees a non-'none' result for every admin-non-self row (AC-UNIV-2). MemberList's per-row map now destructures the pendingInviteMarkers prop (declared by S9 but unconsumed until now) and onRemoveMember, computes hasMarker via pendingInviteMarkers?.has(pubkey.toLowerCase()) (defensive lowercase-canonicalization since the store is lowercase-keyed), calls selectMemberRowAffordance reusing the existing isPending local (never re-derived, per architecture.md constraint 5), and threads the resolved affordance plus onCancelInvite/onRemoveMember (each gated to fire only when the affordance value picks it) down to MemberListItem. MemberListItem now renders the Cancel Invite button when affordance==='cancel-invite' (unchanged visuals) and a new Remove Member button (RejectButton, same destructive-action visual category) when affordance==='remove-member', each opening its own useDisclosure confirm Modal. The new Remove Member Modal mirrors the Cancel Invite one exactly in structure, using S6's removeMember{Title,Body,Confirm} copy (already present in i18n.ts, en/de, with removeMemberBody textually distinct from cancelInviteBody per AC-REMOVE-2) and puts the confirm testid remove-member-confirm-${prefix} on the inner actionable <Button>, never the Modal wrapper (architecture.md constraint 6 / learning chakra-ui-modal-does-not-forward), matching the pre-existing cancel-invite-confirm-${prefix} placement byte-for-byte. On confirm, handleConfirmRemove calls onRemoveMember(pubkey) (S9's already-implemented post-removal purge/clear logic; untouched here).",
+  "decisions": [
+    "selectMemberRowAffordance takes isAdmin as an explicit parameter (not just 'handler is truthy') so the admin/self gate is provable independently of prop-wiring at the groups.tsx call site (VQ-S10-005's concern about uniform gating) -- defense-in-depth alongside groups.tsx's own isAdmin ? handler : undefined wiring, not a replacement for it.",
+    "Reused RejectButton (danger colorScheme) for the new Remove Member trigger, matching Cancel Invite's visual category -- both are destructive/rejecting actions in UserCard.tsx's documented button-category convention.",
+    "Did not introduce a second isPending-equivalent computation: the existing MemberList.tsx:100 (now shifted) isPending local is passed straight into selectMemberRowAffordance, per architecture.md constraint 5.",
+    "Kept the marker-casing defensive lowercase on the read side only (pendingInviteMarkers?.has(pubkey.toLowerCase())) rather than assuming the caller always supplies canonical-case pubkeys, mirroring isRowAdmin's own precedent of normalizing case at the point of comparison rather than trusting upstream data shape."
+  ],
+  "verification": {
+    "verification_json_pre_impl": 13,
+    "verification_json_post_impl": 3,
+    "all_tests_passing": 3639,
+    "lint": "NO_LINT (unchanged from baseline -- no .eslintrc in this repo)",
+    "typecheck": "clean (npx tsc --noEmit -p . -- 0 errors, unchanged from baseline)"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "None -- the S9/S6 groundwork (prop declarations, i18n keys, the marker-Set seam) left this story a clean, self-contained render/logic change with no cross-story blockers.",
+    "surprised_by": "S9's result.json/verification.json already carries a filed, unresolved post-impl finding (VQ-S9-P1) that RemovalImpl's isPendingMemberImpl pre-check will silently no-op (raceDetected, zero MLS commit) for exactly the confirmed/provisional rows Remove Member targets -- meaning this story's correctly-rendering, correctly-wired Remove Member button can currently perform no real eviction end-to-end. This is out of MemberList's scope/owning_module to fix and was not re-verified here, but is re-surfaced (VQ-S10-P3) so S11/S12 don't mistake S10's green tests for proof of end-to-end removal.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted"
+}

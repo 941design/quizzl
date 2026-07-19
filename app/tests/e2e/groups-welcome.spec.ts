@@ -254,10 +254,9 @@ test.describe.serial('Group-invite welcome screen — first-time visitor', () =>
       .toBe(true);
 
     await openGroupDetail(pageAdmin, GROUP_NAME);
-    await expect(pageAdmin.getByTestId('pending-requests-section')).toBeVisible({ timeout: 30_000 });
     await expect(
       pageAdmin.locator('[data-testid^="pending-request-row-"]').filter({ hasText: INVITEE_NAME }),
-    ).toBeVisible({ timeout: 10_000 });
+    ).toBeVisible({ timeout: 30_000 });
   });
 });
 
@@ -506,10 +505,9 @@ test.describe('Group-invite welcome screen — fresh session, already-named firs
         )
         .toBe(true);
       await openGroupDetail(pageAdmin, GROUP_NAME);
-      await expect(pageAdmin.getByTestId('pending-requests-section')).toBeVisible({ timeout: 30_000 });
       await expect(
         pageAdmin.locator('[data-testid^="pending-request-row-"]').filter({ hasText: FIXED_NAME }),
-      ).toBeVisible({ timeout: 10_000 });
+      ).toBeVisible({ timeout: 30_000 });
     } finally {
       await ctxAdmin.close();
       await ctxInvitee.close();

@@ -1,0 +1,36 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "completed_at": "2026-07-19T10:05:00Z",
+  "files_created": [],
+  "files_modified": [
+    "app/src/lib/marmot/leaveGroupImpl.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/tests/unit/marmot/leaveGroupImpl.test.ts"
+  ],
+  "tests_added": {
+    "unit": 5
+  },
+  "test_counts": {
+    "baseline": 3572,
+    "final": 3577
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "LeaveGroupImpl"
+  ],
+  "implementation_summary": "Added one new injected Deps field, clearPendingDirectInvitesForGroup: (groupId: string) => Promise<void>, to leaveGroupImpl.ts's Deps type (mirroring clearMemberProfiles/clearPendingJoinRequestsForGroup/clearInviteLinksForGroup exactly), and invoked it unconditionally in the purge block immediately after clearInviteLinksForGroup/clearInviteExpiries — running on every leave path (solo/abandon, multi-member, no-mlsGroup fail-closed, corrupt-MLS-state fail-closed) regardless of last-member status. Wired the concrete S1 function via `await import('@/src/lib/marmot/pendingDirectInviteStorage')` at MarmotContext.tsx's existing leaveGroup Deps-construction site (:1717, :1738), alongside the sibling dynamic imports for clearPendingJoinRequestsForGroup/clearInviteLinksForGroup. Deliberately used clearPendingDirectInvitesForGroup (S1's per-group export), never clearAllPendingDirectInvites (S2's zero-arg account-wide export) — the two are distinct named exports specifically to prevent this confusion (S1's architecture.json / VQ-S1-007).",
+  "verification": {
+    "verification_json_pre_impl": 7,
+    "verification_json_post_impl": 8,
+    "all_tests_passing": 3577,
+    "lint": "NO_LINT (unchanged from baseline)",
+    "typecheck": "clean (npx tsc --noEmit -p . — 0 errors, unchanged from baseline)"
+  },
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  },
+  "final_outcome": "accepted"
+}

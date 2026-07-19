@@ -114,6 +114,7 @@ function makeCtx() {
 function makeDeps(mergeResult = true) {
   return {
     mergeMemberProfile: vi.fn(async () => mergeResult),
+    clearPendingDirectInvite: vi.fn(async () => {}),
     notifyProfileObserved: vi.fn(),
     recordRequestAnswered: vi.fn(async () => {}),
     writeContactEntry: vi.fn(),
@@ -245,5 +246,76 @@ describe('profileHandler', () => {
     expect(deps.writeContactEntry).toHaveBeenCalledOnce();
     const [contactPubkey] = deps.writeContactEntry.mock.calls[0];
     expect(contactPubkey).toBe(AUTHOR_PUBKEY);
+  });
+
+  // ─── AC-MARKER-5/6: clearPendingDirectInvite wiring ─────────────────────────
+
+  it('AC-MARKER-5: own-signed profile (merged=true) clears the pending-direct-invite marker', async () => {
+    const deps = makeDeps(true);
+    const handler = createProfileHandler(deps);
+    const rumor = makeSignedProfileRumor({ authorPubkey: AUTHOR_PUBKEY });
+    const ctx = makeCtx();
+
+    await handler.handle(rumor, ctx);
+
+    expect(deps.clearPendingDirectInvite).toHaveBeenCalledOnce();
+    expect(deps.clearPendingDirectInvite).toHaveBeenCalledWith(GROUP_ID, AUTHOR_PUBKEY);
+  });
+
+  it('AC-MARKER-5: own-signed profile that LOSES the LWW merge (merged=false) still clears the marker', async () => {
+    const deps = makeDeps(false);
+    const handler = createProfileHandler(deps);
+    const rumor = makeSignedProfileRumor({ authorPubkey: AUTHOR_PUBKEY });
+    const ctx = makeCtx();
+
+    await handler.handle(rumor, ctx);
+
+    // Crux of AC-MARKER-5: must NOT regress to `if (merged) clear()` — arrival
+    // of the invitee's own signed profile is proof of liveness regardless of
+    // whether the LWW merge won.
+    expect(deps.clearPendingDirectInvite).toHaveBeenCalledOnce();
+    expect(deps.clearPendingDirectInvite).toHaveBeenCalledWith(GROUP_ID, AUTHOR_PUBKEY);
+  });
+
+  it('AC-MARKER-6: rumor-only payload (no signedEvent) never clears any marker, even though rumor.pubkey looks marked', async () => {
+    const deps = makeDeps(true);
+    const handler = createProfileHandler(deps);
+    // makeProfileRumor() has pubkey: PEER_PUBKEY and no embedded signed envelope.
+    const rumor = makeProfileRumor();
+    const ctx = makeCtx();
+
+    await handler.handle(rumor, ctx);
+
+    expect(deps.clearPendingDirectInvite).not.toHaveBeenCalled();
+  });
+
+  it('AC-MARKER-6: relay-on-behalf clears the AUTHOR pubkey, never the relayer pubkey', async () => {
+    const deps = makeDeps(true);
+    const handler = createProfileHandler(deps);
+    // rumor sender (relayer) is PEER_PUBKEY; the embedded signed event's author is AUTHOR_PUBKEY.
+    const rumor = makeSignedProfileRumor({ rumorSenderPubkey: PEER_PUBKEY, authorPubkey: AUTHOR_PUBKEY });
+    const ctx = makeCtx();
+
+    await handler.handle(rumor, ctx);
+
+    expect(deps.clearPendingDirectInvite).toHaveBeenCalledOnce();
+    expect(deps.clearPendingDirectInvite).toHaveBeenCalledWith(GROUP_ID, AUTHOR_PUBKEY);
+    expect(deps.clearPendingDirectInvite).not.toHaveBeenCalledWith(GROUP_ID, PEER_PUBKEY);
+  });
+
+  it('clearPendingDirectInvite failure is best-effort and does not abort the rest of handle()', async () => {
+    const deps = {
+      ...makeDeps(true),
+      clearPendingDirectInvite: vi.fn(async () => {
+        throw new Error('idb quota');
+      }),
+    };
+    const handler = createProfileHandler(deps);
+    const rumor = makeSignedProfileRumor({ authorPubkey: AUTHOR_PUBKEY });
+    const ctx = makeCtx();
+
+    await expect(handler.handle(rumor, ctx)).resolves.not.toThrow();
+    expect(deps.mergeMemberProfile).toHaveBeenCalledOnce();
+    expect(deps.writeContactEntry).toHaveBeenCalledOnce();
   });
 });

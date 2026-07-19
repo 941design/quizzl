@@ -1,0 +1,54 @@
+{
+  "story_id": "S9",
+  "status": "done",
+  "completed_at": "2026-07-19T12:00:00Z",
+  "files_created": [
+    "app/tests/unit/pages/groupsMemberRemoval.test.ts"
+  ],
+  "files_modified": [
+    "app/pages/groups.tsx",
+    "app/src/components/groups/MemberList.tsx",
+    "app/tests/unit/pages/groupsMemberRemoval.test.ts",
+    "app/src/lib/marmot/cancelInvitationImpl.ts",
+    "app/tests/unit/marmot/cancelInvitationImpl.test.ts"
+  ],
+  "tests_added": {
+    "unit": 19
+  },
+  "test_counts": {
+    "baseline": 3600,
+    "final": 3619
+  },
+  "mocks": [],
+  "remediation_rounds": 1,
+  "modules_touched": [
+    "GroupsPage",
+    "RemovalImpl"
+  ],
+  "implementation_summary": "In app/pages/groups.tsx's member-loading effect, added a single getPendingDirectInvites(id) call (alongside, never inside, the existing getMemberProfiles fetch) storing the result in new pendingInviteMarkers state, threaded to MemberList as a new prop (AC-LABEL-1). Extracted four exported, dependency-injectable pure/async functions ahead of GroupDetailView: computeStillMember (case-insensitive live-membership check, fails CLOSED toward 'still a member' on an unreadable/undefined read), runPostRemovalCleanup (the AC-MARKER-7/8 + AC-PURGE-2/3/4 gate -- purges/clears iff !stillMember, best-effort/non-throwing), performGroupMemberRemoval (the AC-REMOVE-1 shared removal helper: calls cancelPendingInvitation, re-reads LIVE tree membership via the pre-existing MarmotContext.getLiveMemberPubkeys -- never the pre-removal group.memberPubkeys closure -- then runs the cleanup gate), and classifyRemovalResult (shared toast-routing decision). Rewrote onCancelInvite and added onRemoveMember; both now call performGroupMemberRemoval and only differ in which copy keys render the 'success'/'error' toast (cancelInvite* vs S6's removeMember* keys) -- the race/announcement-warning toasts are shared. deleteMemberProfile (groupStorage.ts) and clearPendingDirectInvite (pendingDirectInviteStorage.ts) are imported directly as plain module functions (no MarmotContext wrapper exists for either, per S1/S2's stated scope), matching the DeleteMemberProfileFn / PendingDirectInviteClearFn seam contracts. MemberList.tsx gained two new optional prop DECLARATIONS only (pendingInviteMarkers?: Set<string>, onRemoveMember?: (pubkey) => Promise<void>) so the seam type-checks -- consuming them for row-label selection and the Remove Member button/dialog is S10's scope, untouched here.",
+  "decisions": [
+    "Used the pre-existing MarmotContext.getLiveMemberPubkeys(groupId) (already used identically by LeaveGroupButton.tsx) as the 're-derive tree membership independently' mechanism, rather than adding a new context method or re-deriving via getGroup+getGroupMembers inline -- it already performs the exact fresh-read sequence needed and is already fail-closed (undefined on any read failure).",
+    "computeStillMember treats an unreadable live-membership read (undefined) as 'still a member' (skip purge) -- the OPPOSITE polarity from LeaveGroupButton's use of the same undefined signal (which blocks its abandon branch) -- because an unreadable check must never trigger a destructive purge/clear here, whereas LeaveGroupButton must never let an unreadable check imply a group is abandonable. Same input, different safe default for a different decision.",
+    "runPostRemovalCleanup is gated SOLELY on stillMember, never on result.ok/result.raceDetected -- this single condition already satisfies AC-PURGE-4 (a failed removal that leaves the pubkey a member has stillMember=true, so cleanup is skipped) without needing a separate result.ok check, per architecture.md's 'gate on no longer a member, never on this client committed' guarantee.",
+    "classifyRemovalResult and performGroupMemberRemoval are shared verbatim by onCancelInvite and onRemoveMember (AC-REMOVE-1) -- the two handlers differ only in the 'success'/'error' toast copy key, never in which function performs the MLS commit or which function decides the purge/clear gate.",
+    "MemberList.tsx received only prop-type declarations for pendingInviteMarkers/onRemoveMember (no destructuring, no rendering logic) -- TypeScript's JSX excess-property check requires the type to declare a prop before groups.tsx can pass it, but consuming it is explicitly S10's scope."
+  ],
+  "verification": {
+    "verification_json_pre_impl": 15,
+    "verification_json_post_impl": 3,
+    "all_tests_passing": 3619,
+    "lint": "NO_LINT (unchanged from baseline -- no .eslintrc in this repo)",
+    "typecheck": "clean (npx tsc --noEmit -p . -- 0 errors, unchanged from baseline)"
+  },
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "Verifying VQ-S9-005/013's premise ('onRemoveMember can just call the same shared helper as onCancelInvite, unmodified') required tracing cancelPendingInvitationImpl's internal isPendingMemberImpl pre-check line by line and cross-referencing its own pre-existing unit test ('race-guard path: member has profile -> raceDetected, no commit') -- architecture.md asserts RemovalImpl is 'already label-agnostic... reused as-is', but that pre-check gates on 'pubkey has ANY profile entry', not on 'pubkey still in tree', so it silently no-ops (raceDetected, zero commit) for exactly the confirmed/provisional-profile rows Remove Member exists to serve.",
+    "surprised_by": "This is a real, currently-unowned gap: no story in stories.json modifies isPendingMemberImpl's gate, yet S10 (AC-UNIV-2), S11 (AC-SCEN-5/AC-REMOVE-4/AC-UNIV-1), and S12 (AC-INV-3) all assume Remove Member actually evicts confirmed members. S9's own 8 ACs are unaffected and pass honestly (none of them assert an actual eviction of a confirmed member -- that assertion lives entirely downstream), but shipping S10-S12 against the current cancelInvitationImpl.ts would produce a Remove Member button that reports success and does nothing. Filed as VQ-S9-P1 (post-impl, severity high) rather than fixed in-place, since RemovalImpl is a different owning_module and this story has no scope/mandate to change its gate semantics.",
+    "scope": "project_specific",
+    "outcome": "merged",
+    "commits_made": [],
+    "absorbed_from": [],
+    "lead_clarifications": []
+  },
+  "final_outcome": "accepted"
+}

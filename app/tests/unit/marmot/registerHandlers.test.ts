@@ -96,6 +96,7 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
     resolvePendingSignalsForSlot: vi.fn(async () => ({ thread: { kind: 'group', groupId: 'g' }, slotId: null, kind: 'noop' })),
     // profile
     mergeMemberProfile: vi.fn(async () => true),
+    clearPendingDirectInvite: vi.fn(async () => {}),
     notifyProfileObserved: vi.fn(),
     recordRequestAnswered: vi.fn(async () => {}),
     writeContactEntry: vi.fn(),
@@ -199,6 +200,7 @@ describe('buildDispatcher — every handler factory is invoked with the correct 
     buildDispatcher(deps);
     expect(createProfileHandler).toHaveBeenCalledWith({
       mergeMemberProfile: deps.mergeMemberProfile,
+      clearPendingDirectInvite: deps.clearPendingDirectInvite,
       notifyProfileObserved: deps.notifyProfileObserved,
       recordRequestAnswered: deps.recordRequestAnswered,
       writeContactEntry: deps.writeContactEntry,

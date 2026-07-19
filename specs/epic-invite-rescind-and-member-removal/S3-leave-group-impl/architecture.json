@@ -1,0 +1,31 @@
+{
+  "module_name": "LeaveGroupImpl",
+  "purpose": "Per-group leave cleanup fan-out (pure impl, zero context/marmot-ts imports). This story adds one more injected clear* dependency — clearPendingDirectInvitesForGroup — so that leaving a group also clears that group's pending-direct-invite markers (AC-MARKER-9's leave-fan-out half), alongside the pre-existing clearMemberProfiles/clearPendingJoinRequestsForGroup/clearInviteLinksForGroup/clearInviteExpiries siblings.",
+  "public_api": [
+    {
+      "name": "leaveGroupImpl",
+      "signature": "(deps: Deps, groupId: string, selfPubkeyHex: string) => Promise<boolean>",
+      "description": "Unchanged signature. Deps now includes clearPendingDirectInvitesForGroup: (groupId: string) => Promise<void>, invoked unconditionally in the purge sequence alongside the other leak-fixing clears, scoped to exactly the groupId being left."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/marmot/leaveGroupImpl.ts"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/leaveEligibility.ts (isLastMember)",
+    "app/src/lib/marmot/leaveSync.ts (LEAVE_INTENT_KIND, serialiseLeaveIntent)",
+    "injected Deps functions only for all storage/context side effects (unchanged boundary — clearPendingDirectInvitesForGroup arrives as an injected function, matching the existing clearMemberProfiles/clearInviteLinksForGroup shape; this file does not import pendingDirectInviteStorage.ts directly, per VQ-S3-002)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/context/* (AC-BOUND-1 — zero context imports)",
+    "@internet-privacy/marmot-ts (never imported directly; getGroupMembers arrives via Deps)",
+    "app/src/lib/marmot/pendingDirectInviteStorage.ts (the concrete store import belongs at the MarmotContext.tsx Deps-wiring site, not in this pure-impl file)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/leaveGroupImpl.test.ts"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "story_id": "S11",
+  "captured_at": "2026-07-19T12:00:00Z",
+  "unit_tests": {
+    "command": "make test-unit (vitest run)",
+    "status": "PASS",
+    "test_files": 192,
+    "tests_passed": 3638,
+    "tests_skipped": 1,
+    "tests_failed": 0
+  },
+  "e2e_tests": {
+    "note": "This story ADDS e2e specs; no pre-existing groups-approved-requester-label.spec.ts / groups-direct-invite-lifecycle.spec.ts / groups-remove-member.spec.ts existed. The relevant baseline is the pre-existing groups-*/dm-* relay-bucket suite continuing to collect and run unaffected by these additions.",
+    "playwright_list_e2e_groups_mode": "collected cleanly pre-change (existing groups-*.spec.ts / dm-*.spec.ts specs); definitive gate is make test-e2e-all (60 tests)"
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "detail": "npx next lint has no ESLint config committed in this repo (interactive first-run prompt, not a CI-usable command); no .eslintrc*/eslint.config* present. Treated as NO_LINT per Step 0's NO_TESTS-style tolerance."
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit -p .",
+    "status": "clean",
+    "detail": "0 errors before any change in this story."
+  },
+  "environment": {
+    "docker": "available",
+    "relay": "brought up via `make e2e-up` (strfry + blossom-mock, both healthy)",
+    "playwright_browsers_note": "The pre-baked /opt/playwright-browsers image ships chromium-1228/chromium_headless_shell-1228, but the installed @playwright/test (1.58.2) expects revision 1208. Worked around by creating two symlinks (chromium-1208 -> chromium-1228, chromium_headless_shell-1208 -> chromium_headless_shell-1228) in /opt/playwright-browsers, which is world-writable (777) even though its .links registry subdirectory is root-owned. This is an environment provisioning mismatch unrelated to this story's code; flagged for the meta-retro."
+  }
+}

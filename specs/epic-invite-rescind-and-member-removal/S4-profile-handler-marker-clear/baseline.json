@@ -1,0 +1,22 @@
+{
+  "captured_at": "2026-07-19T10:02:36Z",
+  "baseline_commit": "8ba38fd031be037fe63212a7c2ea8469259f29e7",
+  "tests": {
+    "command": "cd app && npx vitest run",
+    "status": "PASS",
+    "test_files": 189,
+    "tests_passed": 3576,
+    "tests_skipped": 1,
+    "tests_failed": 0
+  },
+  "lint": {
+    "command": "cd app && npx next lint",
+    "status": "NO_LINT",
+    "note": "No ESLint config present in the repo; `next lint` drops into an interactive first-time-setup prompt rather than running against existing config. No dedicated `lint` gate exists to baseline against."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit",
+    "status": "clean",
+    "note": "Exit 0, zero diagnostics."
+  }
+}

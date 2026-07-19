@@ -1,0 +1,75 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "`deleteMemberProfile(groupId, pubkey)` must mirror `mergeMemberProfile`'s read-filter-rewrite pattern (`groupStorage.ts:79-102`: `loadMemberProfiles` → filter → `saveMemberProfiles` only if changed). Confirm the implementation is not a no-op stub or a function that always resolves without touching IDB — it must call `loadMemberProfiles(groupId)`, filter out the matching `pubkeyHex` (case-insensitive), and call `saveMemberProfiles(groupId, filtered)` ONLY when the filtered array actually differs in length from the loaded array (mirroring the 'save if changed' comment in this story's description) — a version that always calls `saveMemberProfiles` unconditionally would still pass a shallow test but performs a wasted IDB write on every no-op call, diverging from the established convention."
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Per architecture.md, MemberProfileStore lives in `app/src/lib/marmot/groupStorage.ts` (Storage layer) and its new `deleteMemberProfile` export must be consumed only through the `GroupsPage` (S9) caller and `clearAllGroupData`'s composition root in this same file — never imported directly into a pure-impl (`*Impl.ts`) file. Run `grep -rn \"deleteMemberProfile\" app/src/lib/marmot/*Impl.ts` and confirm zero matches outside `groupStorage.ts` itself and its designated consumer sites."
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `MemberProfileStore` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: `groupStorage.ts`'s new `deleteMemberProfile` may depend only on `idb-keyval` and this file's own `memberProfileStore`/`memberProfileKey` internals — it must not reach into `pendingDirectInviteStorage.ts`'s internals (only its exported `'*'` full-clear function, imported the same way `clearProfileRequestMemos` already is at `groupStorage.ts:14`). Confirm the new import mirrors the existing `import { clearProfileRequestMemos } from '@/src/lib/marmot/profileRequestStorage'` pattern exactly (named import of the exported clear function, not a reach into `pendingDirectInviteStorage.ts`'s internal store handle)."
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Provide unit-test evidence for: (a) `deleteMemberProfile(groupId, pubkey)` removes only that pubkey's entry, leaving a sibling member's profile in the same group's stored array untouched (AC-PURGE-1's core assertion); (b) calling it for a pubkey with no stored entry does not throw (no-op, matching the `DeleteMemberProfileFn` seam contract's 'is a no-op when no entry exists' invariant); (c) `clearAllGroupData` after this change still clears `groupMetaStore`/`groupStateStore`/`keyPackageStore`/`memberProfileStore` exactly as before AND additionally clears every pending-direct-invite marker across all groups — a regression test proving the four pre-existing `clear()` calls at `groupStorage.ts:112-117` are untouched, not just that the new call was added."
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Spec's dual-cleanup-site requirement (architecture.md Implementation constraint 3) places the account-reset marker clear in `clearAllGroupData` and the per-group clear in `leaveGroupImpl` (S3) — two DISTINCT call sites, never one calling the other. Confirm `clearAllGroupData` calls the marker store's ALL-groups clear function (not the per-group one), and that this story does not also modify `leaveGroupImpl.ts` (that is S3's exclusive scope, per this story's `excludes`)."
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "`clearAllGroupData` composes several `clear()`/store-clear calls sequentially without a shared try/catch (`groupStorage.ts:112-118`). Does adding the marker full-clear preserve that same fire-in-sequence-without-early-abort behavior — i.e. if the marker clear were to throw, would it be positioned so a throw does not prevent the OTHER pre-existing clears from having already run (since they run before it in sequence), and is its placement in the sequence deliberate (not accidentally reordering existing calls)? Provide the exact ordering of calls in the modified function."
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PURGE-1",
+      "question": "`deleteMemberProfile(groupId, pubkey)` MUST remove only the stored profile entry for that specific `pubkey` within that `groupId`, leaving every other member's stored profile entry in that group unchanged. Provide a unit test with at least two other members' entries present in the same group's stored array, asserting both remain byte-for-byte unchanged (not merely 'still present' — their `nickname`/`avatar`/`updatedAt`/`provisional` fields must be untouched) after the target pubkey's entry is removed."
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-9",
+      "question": "AC-MARKER-9 requires `clearAllGroupData` to clear every pending-direct-invite marker across ALL groups (this story's half of the joint AC; S1 exposes the clear function and S3 covers the leave-fan-out half). Provide the exact line(s) added to `clearAllGroupData` and a unit test seeding markers for at least two different `groupId`s, calling `clearAllGroupData`, and asserting both are gone afterward — proving the account-reset path is genuinely all-groups, not scoped to only the currently-open group."
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Cross-story contract question (FR-5) for the `DeleteMemberProfileFn` seam this story defines (consumed by S9's post-removal purge call). The contract requires: 'removes only the specified pubkey's stored profile entry; every other member's entry in that group is left unchanged' and 'is a no-op (does not throw) when no entry exists for that pubkey.' Provide `deleteMemberProfile`'s exact exported signature `(groupId: string, pubkey: string) => Promise<void>` and confirm S9 can call it with zero adaptation (no wrapper needed) as the seam boundary — the function name and parameter order must match exactly what S9's `dependency_notes` and the seams array assume."
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "VQ-S2-008 asked for evidence that clearAllGroupData clears markers seeded across at least two distinct groupIds, not merely that a mocked clear function was invoked. The implementation added a mock-spy assertion in groupStorage.test.ts (asserts clearAllPendingDirectInvites() was called with zero arguments) PLUS a separate integration test file, app/tests/unit/marmot/groupStorage.clearAllGroupData.test.ts, that imports the REAL (unmocked) pendingDirectInviteStorage module, seeds markers for GROUP_A/PUBKEY_1 and GROUP_B/PUBKEY_2 via markPendingDirectInvite, calls the real clearAllGroupData, and asserts loadPendingDirectInviteMarkers returns an empty Set for both groups afterward. Confirm this two-test combination (wiring-correctness spy + real cross-group behavior) is accepted as satisfying VQ-S2-008's literal ask, and that the new test file's use of a separate module-scoped idb-keyval mock (module-per-file isolation under Vitest) does not leak IDB state into groupStorage.test.ts or vice versa (verify by running both files together, which was done: 21/21 tests pass across groupStorage.test.ts + groupStorage.clearAllGroupData.test.ts + pendingDirectInviteStorage.test.ts)."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "VQ-S2-006 asked for the exact ordering of clearAllGroupData's calls after this story's edit. The final ordering is: clear(groupMetaStore) → clear(groupStateStore) → clear(keyPackageStore) → clear(memberProfileStore) → clearProfileRequestMemos('*') → clearAllPendingDirectInvites() — i.e. the new marker full-clear was appended as the LAST call in the existing sequential chain, after the pre-existing clearProfileRequestMemos('*') line, with no shared try/catch (matching the pre-existing fire-in-sequence-without-early-abort pattern). Confirm this ordering is acceptable given none of the five clears depend on another's completion or failure state, and that a hypothetical throw from clearAllPendingDirectInvites() (the last call) would still have let all five prior clears complete — the only asymmetric risk is that a throw here would surface as an uncaught rejection from clearAllGroupData itself, identical to the pre-existing behavior for any of the earlier calls throwing (no new risk introduced, not a regression)."
+    }
+  ]
+}

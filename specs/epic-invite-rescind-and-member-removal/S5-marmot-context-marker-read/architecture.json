@@ -1,0 +1,26 @@
+{
+  "module_name": "MarmotContext",
+  "purpose": "Expose a new getPendingDirectInvites(groupId) context method that faithfully reads the S1 pending-direct-invite marker store, and provide regression evidence that the approve-join-request path is structurally excluded from ever writing that marker (AC-MARKER-4).",
+  "public_api": [
+    {
+      "name": "MarmotContextValue.getPendingDirectInvites",
+      "signature": "(groupId: string) => Promise<Set<string>>",
+      "description": "New context method (4-site pattern). Dynamic-imports loadPendingDirectInviteMarkers from pendingDirectInviteStorage.ts at the boundary and returns its result unmodified — no transformation, filtering, or caching layer. DEFAULT_MARMOT fallback (outside a provider) resolves an empty Set, never undefined or a throw, so S9's unconditional per-load caller cannot crash before the provider is ready."
+    }
+  ],
+  "private_files": [],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/marmot/pendingDirectInviteStorage.ts (loadPendingDirectInviteMarkers export, consumed via dynamic import at the useCallback boundary only, per the established cancelPendingInvitation/isPendingMember precedent)"
+  ],
+  "dependencies_forbidden": [
+    "no static top-level import of pendingDirectInviteStorage.ts's loadPendingDirectInviteMarkers (dynamic-import-at-boundary is the fixed convention for this method; a static top-level import already exists in this file for clearPendingDirectInvite (S4) and clearPendingDirectInvitesForGroup (S3's leaveGroup boundary uses dynamic import) — this story's read method follows the read-boundary precedent, not S4's write precedent)",
+    "no new runtime guard inside approveJoinRequestImpl to 'prevent' a marker write — the exclusion is structural (insertion-point choice) and this story verifies that fact, it does not add a guard"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/marmot/approveJoinRequestImpl.test.ts (AC-MARKER-4 regression: approveJoinRequestImpl never causes a marker to exist for the approved pubkey)"
+  ]
+}

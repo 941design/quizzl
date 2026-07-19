@@ -33,7 +33,6 @@ import InviteMemberModal from '@/src/components/groups/InviteMemberModal';
 import GenerateInviteLinkModal from '@/src/components/groups/GenerateInviteLinkModal';
 import ManageInviteLinksModal from '@/src/components/groups/ManageInviteLinksModal';
 import JoinRequestCard from '@/src/components/groups/JoinRequestCard';
-import PendingRequestsSection from '@/src/components/groups/PendingRequestsSection';
 import PendingInvitations from '@/src/components/groups/PendingInvitations';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
 import GroupChat from '@/src/components/groups/GroupChat';
@@ -47,6 +46,8 @@ import PollPanel from '@/src/components/groups/PollPanel';
 import CreatePollModal from '@/src/components/groups/CreatePollModal';
 import { markAsRead, markInviteExpiriesRead } from '@/src/lib/unreadStore';
 import { setActiveView, clearActiveView } from '@/src/lib/activeViewStore';
+import { deleteMemberProfile } from '@/src/lib/marmot/groupStorage';
+import { clearPendingDirectInvite } from '@/src/lib/marmot/pendingDirectInviteStorage';
 import type { Group, MemberProfile } from '@/src/types';
 
 /* ---------- Detail view (shown when ?id=xxx is present) ---------- */
@@ -121,6 +122,123 @@ export function shouldRedirectToGroupsList(params: {
   return manageLinksParam === '1' && ready && id !== undefined && !groupIds.includes(id);
 }
 
+/* ---------- S9: Remove Member / post-removal purge+clear gate ----------
+ * Epic: invite-rescind-and-member-removal. Pure helpers extracted so the
+ * order-sensitive post-removal gate (architecture.md's Order-Sensitive
+ * Composition guarantee #2: "Purge-on-removal is commit-independent") is
+ * unit-testable without mounting React. */
+
+/** Result shape of MarmotContext.cancelPendingInvitation (the shared removal helper). */
+export type CancelPendingInvitationResult = {
+  ok: boolean;
+  error?: string;
+  raceDetected?: boolean;
+  announcementError?: string;
+};
+
+/**
+ * Case-insensitive membership test against a freshly-read live member list.
+ *
+ * Fail-closed toward "still a member" (returns true) when `liveMembers` is
+ * `undefined` (getLiveMemberPubkeys couldn't read live MLS state) — an
+ * ambiguous read must never trigger a purge/marker-clear that could destroy
+ * real data. This is the opposite polarity from LeaveGroupButton's
+ * fail-closed direction (which blocks the "abandon" branch on unknown
+ * state) — same "undefined means we don't know" input, different safe
+ * default for a different decision.
+ */
+export function computeStillMember(
+  liveMembers: string[] | undefined,
+  pubkey: string,
+): boolean {
+  if (liveMembers === undefined) return true;
+  return liveMembers.some((pk) => pk.toLowerCase() === pubkey.toLowerCase());
+}
+
+/**
+ * AC-MARKER-7/8, AC-PURGE-2/3/4: the post-hoc purge/clear gate.
+ *
+ * Gated SOLELY on `stillMember` (tree membership), never on whether this
+ * client's commit succeeded — architecture.md's guarantee #2 requires the
+ * purge and marker-clear to run on every exit where the pubkey ends up no
+ * longer in the tree, including both `raceDetected` short-circuits where
+ * this client performed no MLS commit at all. A genuine removal failure
+ * that leaves the pubkey still a member (AC-PURGE-4) is excluded purely
+ * because `stillMember` is true in that case — no separate `result.ok`
+ * check is needed or consulted here.
+ *
+ * Best-effort: a purge/clear failure is logged, not thrown, so it never
+ * breaks the caller's toast flow.
+ */
+export async function runPostRemovalCleanup(params: {
+  groupId: string;
+  pubkey: string;
+  stillMember: boolean;
+  deleteMemberProfile: (groupId: string, pubkey: string) => Promise<void>;
+  clearPendingDirectInvite: (groupId: string, pubkey: string) => Promise<void>;
+}): Promise<void> {
+  if (params.stillMember) return;
+  try {
+    await Promise.all([
+      params.deleteMemberProfile(params.groupId, params.pubkey),
+      params.clearPendingDirectInvite(params.groupId, params.pubkey),
+    ]);
+  } catch (err) {
+    console.warn('[GroupsPage] post-removal purge/clear failed:', err);
+  }
+}
+
+/**
+ * AC-REMOVE-1: the shared removal helper both onCancelInvite and
+ * onRemoveMember invoke — a single code path, never two divergent
+ * MLS-remove implementations. Calls the shared `cancelPendingInvitation`
+ * MLS-remove wrapper, then independently re-reads LIVE tree membership via
+ * `getLiveMemberPubkeys` (never the pre-removal `group.memberPubkeys`
+ * closure snapshot, which will not have re-rendered yet), and runs the
+ * post-removal purge/clear gate. Returns the raw removal result so each
+ * caller can render its own (differently-worded) toast.
+ */
+export async function performGroupMemberRemoval(params: {
+  groupId: string;
+  pubkey: string;
+  sendAnnouncement?: (content: string) => Promise<void>;
+  cancelPendingInvitation: (
+    groupId: string,
+    pubkey: string,
+    sendAnnouncement?: (content: string) => Promise<void>,
+  ) => Promise<CancelPendingInvitationResult>;
+  getLiveMemberPubkeys: (groupId: string) => Promise<string[] | undefined>;
+  deleteMemberProfile: (groupId: string, pubkey: string) => Promise<void>;
+  clearPendingDirectInvite: (groupId: string, pubkey: string) => Promise<void>;
+}): Promise<CancelPendingInvitationResult> {
+  const result = await params.cancelPendingInvitation(
+    params.groupId,
+    params.pubkey,
+    params.sendAnnouncement,
+  );
+  const liveMembers = await params.getLiveMemberPubkeys(params.groupId);
+  const stillMember = computeStillMember(liveMembers, params.pubkey);
+  await runPostRemovalCleanup({
+    groupId: params.groupId,
+    pubkey: params.pubkey,
+    stillMember,
+    deleteMemberProfile: params.deleteMemberProfile,
+    clearPendingDirectInvite: params.clearPendingDirectInvite,
+  });
+  return result;
+}
+
+/** Toast-routing outcomes shared by onCancelInvite and onRemoveMember; only the
+ * copy keys used for 'success'/'error' differ between the two callers. */
+export type RemovalToastOutcome = 'raceNotice' | 'announcementWarning' | 'success' | 'error';
+
+export function classifyRemovalResult(result: CancelPendingInvitationResult): RemovalToastOutcome {
+  if (result.ok && result.raceDetected) return 'raceNotice';
+  if (result.ok && result.announcementError) return 'announcementWarning';
+  if (result.ok) return 'success';
+  return 'error';
+}
+
 /** Captures sendMessage from ChatStore into a ref so GroupDetailView can use it. */
 function ChatSendMessageCapture({ sendMessageRef }: { sendMessageRef: React.MutableRefObject<((c: string) => Promise<void>) | null> }) {
   const { sendMessage } = useChatStore();
@@ -131,7 +249,7 @@ function ChatSendMessageCapture({ sendMessageRef }: { sendMessageRef: React.Muta
 function GroupDetailView({ id }: { id: string }) {
   const copy = useCopy();
   const router = useRouter();
-  const { groups, ready, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation, requestProfilesIfStale, grantAdmin, renameGroup, getPendingRemovals } = useMarmot();
+  const { groups, ready, getMemberProfiles, getGroup: getMarmotGroup, profileVersion, chatVersion, groupDataVersion, pollVersion, reactionsVersion, cancelPendingInvitation, requestProfilesIfStale, grantAdmin, renameGroup, getPendingRemovals, getPendingDirectInvites, getLiveMemberPubkeys, pendingRequests, loadPendingRequestsForGroup, approveJoinRequest, denyJoinRequest } = useMarmot();
   const { pubkeyHex, privateKeyHex } = useNostrIdentity();
   const signer = useMemo(
     () => (privateKeyHex ? createPrivateKeySigner(privateKeyHex) : null),
@@ -148,50 +266,141 @@ function GroupDetailView({ id }: { id: string }) {
   const [notFound, setNotFound] = useState(false);
   const [profileMap, setProfileMap] = useState<Record<string, MemberProfile>>({});
   const [confirmedPubkeys, setConfirmedPubkeys] = useState<Set<string>>(new Set());
+  // AC-LABEL-1: pending-direct-invite marker Set, loaded exactly once per
+  // member-list load (alongside confirmedPubkeys below) — never per-row.
+  const [pendingInviteMarkers, setPendingInviteMarkers] = useState<Set<string>>(new Set());
   const [mlsGroup, setMlsGroup] = useState<MarmotGroupType | null>(null);
+  // Join-request row UI state (formerly owned by the standalone
+  // PendingRequestsSection): which request is mid-approve, and per-request
+  // approve-failure flags. The request list itself lives in MarmotContext and
+  // updates live as requests arrive/are approved/denied.
+  const [approvingRequestId, setApprovingRequestId] = useState<string | null>(null);
+  const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
   // Ref to capture sendMessage from inside ChatStoreProvider without prop drilling
   const sendAnnouncementRef = useRef<((content: string) => Promise<void>) | null>(null);
   // Guards requestProfilesIfStale so it fires only once per group entry (on mount /
   // group-ID change), not on every profileVersion / groupDataVersion tick.
   const requestedOnEntryForRef = useRef<string | null>(null);
 
+  // AC-REMOVE-1: both onCancelInvite and onRemoveMember call the SAME
+  // performGroupMemberRemoval helper (which itself calls the same
+  // cancelPendingInvitation MLS-remove wrapper) — they differ only in which
+  // toast copy keys render the 'success'/'error' outcomes.
   const onCancelInvite = useCallback(async (pubkey: string) => {
     if (!group) return;
-    const result = await cancelPendingInvitation(
-      group.id,
+    const result = await performGroupMemberRemoval({
+      groupId: group.id,
       pubkey,
-      sendAnnouncementRef.current ?? undefined,
-    );
-    if (result.ok && result.raceDetected) {
-      toast({
-        title: copy.groups.cancelInviteRaceNotice,
-        status: 'info',
-        duration: 4000,
-        isClosable: true,
-      });
-    } else if (result.ok && result.announcementError) {
-      toast({
-        title: copy.groups.cancelInviteAnnouncementWarning,
-        status: 'warning',
-        duration: 5000,
-        isClosable: true,
-      });
-    } else if (result.ok) {
-      toast({
-        title: copy.groups.cancelInviteSuccess,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-    } else {
-      toast({
-        title: copy.groups.cancelInviteError,
-        status: 'error',
-        duration: 4000,
-        isClosable: true,
-      });
+      sendAnnouncement: sendAnnouncementRef.current ?? undefined,
+      cancelPendingInvitation,
+      getLiveMemberPubkeys,
+      deleteMemberProfile,
+      clearPendingDirectInvite,
+    });
+    switch (classifyRemovalResult(result)) {
+      case 'raceNotice':
+        toast({
+          title: copy.groups.cancelInviteRaceNotice,
+          status: 'info',
+          duration: 4000,
+          isClosable: true,
+        });
+        break;
+      case 'announcementWarning':
+        toast({
+          title: copy.groups.cancelInviteAnnouncementWarning,
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+        break;
+      case 'success':
+        toast({
+          title: copy.groups.cancelInviteSuccess,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+        break;
+      case 'error':
+        toast({
+          title: copy.groups.cancelInviteError,
+          status: 'error',
+          duration: 4000,
+          isClosable: true,
+        });
+        break;
     }
-  }, [group, cancelPendingInvitation, toast, copy.groups]);
+  }, [group, cancelPendingInvitation, getLiveMemberPubkeys, toast, copy.groups]);
+
+  // AC-REMOVE-1: Remove Member reuses the identical shared removal helper —
+  // same underlying MLS commit, only the success/error toast copy differs
+  // (S6's removeMember* keys vs onCancelInvite's cancelInvite* keys).
+  const onRemoveMember = useCallback(async (pubkey: string) => {
+    if (!group) return;
+    const result = await performGroupMemberRemoval({
+      groupId: group.id,
+      pubkey,
+      sendAnnouncement: sendAnnouncementRef.current ?? undefined,
+      cancelPendingInvitation,
+      getLiveMemberPubkeys,
+      deleteMemberProfile,
+      clearPendingDirectInvite,
+    });
+    switch (classifyRemovalResult(result)) {
+      case 'raceNotice':
+        toast({
+          title: copy.groups.cancelInviteRaceNotice,
+          status: 'info',
+          duration: 4000,
+          isClosable: true,
+        });
+        break;
+      case 'announcementWarning':
+        toast({
+          title: copy.groups.cancelInviteAnnouncementWarning,
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+        break;
+      case 'success':
+        toast({
+          title: copy.groups.removeMemberSuccess,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+        break;
+      case 'error':
+        toast({
+          title: copy.groups.removeMemberError,
+          status: 'error',
+          duration: 4000,
+          isClosable: true,
+        });
+        break;
+    }
+  }, [group, cancelPendingInvitation, getLiveMemberPubkeys, toast, copy.groups]);
+
+  // Join-request approve/deny — the merged inline affordance that replaced the
+  // standalone admission section. MarmotContext owns the request list and
+  // removes the row on success (approve) or discard (deny); this only tracks
+  // the per-row spinner and error flag. Mirrors the former
+  // PendingRequestsSection handlers verbatim.
+  const handleApproveRequest = useCallback(async (request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest) => {
+    setApprovingRequestId(request.eventId);
+    setRequestErrors((prev) => { const next = { ...prev }; delete next[request.eventId]; return next; });
+    const result = await approveJoinRequest(request);
+    if (!result.ok) {
+      setRequestErrors((prev) => ({ ...prev, [request.eventId]: result.error ?? 'unknown' }));
+    }
+    setApprovingRequestId(null);
+  }, [approveJoinRequest]);
+
+  const handleDenyRequest = useCallback(async (request: import('@/src/lib/marmot/joinRequestStorage').PendingJoinRequest) => {
+    await denyJoinRequest(request);
+  }, [denyJoinRequest]);
 
   const handleMakeAdmin = useCallback(async (pubkey: string) => {
     if (!group) return;
@@ -297,6 +506,14 @@ function GroupDetailView({ id }: { id: string }) {
       }
       markAsRead(id);
       void getMarmotGroup(id).then(setMlsGroup).catch(() => {});
+      // Load open join requests for the inline approve/deny rows at the top of
+      // the member list (admin-only render; harmless empty read for non-admins).
+      void loadPendingRequestsForGroup(id);
+      // AC-LABEL-1: load the pending-direct-invite marker Set exactly ONCE per
+      // member-list load, alongside (not per-row inside) the profile fetch below.
+      void getPendingDirectInvites(id).then(setPendingInviteMarkers).catch(() => {
+        setPendingInviteMarkers(new Set());
+      });
       void getMemberProfiles(id).then((profiles) => {
         const map: Record<string, MemberProfile> = {};
         // Track members who have sent a profile in this group (confirmed membership).
@@ -344,7 +561,7 @@ function GroupDetailView({ id }: { id: string }) {
     } else {
       setNotFound(true);
     }
-  }, [ready, groups, id, getMemberProfiles, pubkeyHex, ownProfile, profileVersion, groupDataVersion, requestProfilesIfStale]);
+  }, [ready, groups, id, getMemberProfiles, getPendingDirectInvites, loadPendingRequestsForGroup, pubkeyHex, ownProfile, profileVersion, groupDataVersion, requestProfilesIfStale]);
 
   // Register this group as the active view (epic: notification-domain-
   // invariants, INV-2): while its detail is open, a chat message, join request
@@ -552,25 +769,31 @@ function GroupDetailView({ id }: { id: string }) {
         <Divider mb={6} />
 
         <VStack spacing={6} align="stretch">
-          {/* Pending Join Requests (admin-only) */}
-          {isAdmin && <PendingRequestsSection groupId={group.id} />}
-
-          {/* Members Section */}
+          {/* Members Section — a SINGLE list. Open join requests (admin-only)
+              render as inline approve/deny rows at the top; in-tree members
+              follow. The former standalone admission section is merged here. */}
           <Box>
             <Heading as="h2" size="md" mb={3}>
               {copy.groups.membersHeading}
             </Heading>
-            {/* AC-GATE-3: onCancelInvite is an admin-only action */}
+            {/* AC-GATE-3: onCancelInvite/onRemoveMember are admin-only actions */}
             <MemberList
               memberPubkeys={group.memberPubkeys}
               ownPubkeyHex={pubkeyHex}
               memberProfiles={profileMap}
               confirmedPubkeys={confirmedPubkeys}
+              pendingInviteMarkers={pendingInviteMarkers}
               onCancelInvite={isAdmin ? onCancelInvite : undefined}
+              onRemoveMember={isAdmin ? onRemoveMember : undefined}
               adminPubkeys={adminPubkeys}
               isCurrentUserAdmin={isAdmin}
               onMakeAdmin={isAdmin ? handleMakeAdmin : undefined}
               pendingRemovalPubkeys={pendingRemovalPubkeys}
+              pendingRequests={isAdmin ? (pendingRequests[group.id] ?? []) : undefined}
+              onApproveRequest={isAdmin ? handleApproveRequest : undefined}
+              onDenyRequest={isAdmin ? handleDenyRequest : undefined}
+              approvingRequestId={approvingRequestId}
+              requestErrors={requestErrors}
             />
           </Box>
 

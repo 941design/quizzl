@@ -411,10 +411,10 @@ describe('joinRequestHandler', () => {
     // ── SEC: nickname stored as literal text, never markup (AC-SEC-2) ───────
     // No jsdom/render capability in this repo (see exploration.json); the
     // guarantee this test can prove is that handleJoinRequest stores the
-    // string verbatim (no sanitization/stripping), which combined with
-    // PendingRequestsSection.tsx never using dangerouslySetInnerHTML (verified
-    // by source inspection, not rewritten) is what makes React's default JSX
-    // escaping the actual XSS control at render time.
+    // string verbatim (no sanitization/stripping), which combined with the
+    // member list's inline join-request rows (MemberList.tsx) never using
+    // dangerouslySetInnerHTML (verified by source inspection, not rewritten) is
+    // what makes React's default JSX escaping the actual XSS control at render time.
 
     it('stores an HTML/script nickname literally, unmodified aside from the byte cap', async () => {
       inviteLinkStore.set('valid-nonce', makeInviteLink());

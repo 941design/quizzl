@@ -1,0 +1,76 @@
+{
+  "story_id": "S4",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S4-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "The new `clearPendingDirectInvite` dep is added to `ProfileHandlerDeps` (`profileHandler.ts:19-25`) and threaded through `registerHandlers.ts` (`:18-65,93-99`). Confirm it is actually WIRED (a real function reference passed at the registration site, not a placeholder `async () => {}` or `undefined` cast to satisfy the type) — run `grep -n \"clearPendingDirectInvite\" app/src/lib/marmot/handlers/registerHandlers.ts` and confirm the wired value is `pendingDirectInviteStorage`'s real `del`-equivalent export, not a stub."
+    },
+    {
+      "question_id": "VQ-S4-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "`profileHandler.ts`'s header comment states 'zero imports from `app/src/context/`... all IDB and state-setter deps received via injection.' Confirm `clearPendingDirectInvite` is added to `ProfileHandlerDeps` as an injected function (matching the file's existing `mergeMemberProfile`/`notifyProfileObserved`/etc. shape) rather than a direct import of `pendingDirectInviteStorage.ts` into `profileHandler.ts` itself. Run `grep -n \"pendingDirectInviteStorage\" app/src/lib/marmot/handlers/profileHandler.ts` and confirm zero matches — the import belongs only in `registerHandlers.ts`'s wiring site."
+    },
+    {
+      "question_id": "VQ-S4-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `ProfileHandler` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: `profileHandler.ts`'s only new cross-module surface is the `PendingDirectInviteClearFn` seam (consumed here, defined by S1) — confirm this story's tests can inject a mock `clearPendingDirectInvite` without importing S1's real store, and that the handler's existing `mergeMemberProfile`/`recordRequestAnswered`/`notifyProfileObserved` deps are untouched by this diff (a regression check that this story only ADDS one dep, never modifies the shape of the existing four)."
+    },
+    {
+      "question_id": "VQ-S4-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Provide unit tests for both branches of `handle()`'s new gate: (a) `profilePayload.signedEvent` present with `signedEvent.pubkey` equal to the marked pubkey → `clearPendingDirectInvite(ctx.groupId, authorPubkey)` is called, asserted for BOTH `mergeMemberProfile` returning `true` and returning `false` (two separate test cases, not one — a naive `if (merged) clear()` gate would pass only the `true` case); (b) a rumor-only payload with no `signedEvent` → `clearPendingDirectInvite` is NOT called, even though `rumor.pubkey` equals the marked pubkey (proving the gate does not fall back to `rumor.pubkey`)."
+    },
+    {
+      "question_id": "VQ-S4-005",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Architecture.md's implementation constraint 2 states the clear gate must be 'relay-on-behalf safe: require the signed envelope, do not fall back to `rumor.pubkey`' — a relayer forwarding a rumor on behalf of another member has `rumor.pubkey` equal to the RELAYER, not the profile's subject, per this file's existing `authorPubkey = profilePayload.signedEvent?.pubkey ?? rumor.pubkey` line (`:33`). Confirm the marker-clear gate reads `signedEvent.pubkey` directly (or the already-derived `authorPubkey` ONLY when `profilePayload.signedEvent` is truthy) and never clears a marker keyed to `rumor.pubkey` when `signedEvent` is absent — a bug here would let a malicious or buggy relayer clear an invitee's marker by forwarding an unsigned rumor claiming to be that invitee, letting a still-pending invite masquerade as confirmed."
+    },
+    {
+      "question_id": "VQ-S4-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Confirm this story does not modify `pendingDirectInviteStorage.ts`'s `del()` implementation (S1's exclusive scope, per this story's `excludes`) and does not touch marker-write call sites at `InviteMemberModal.tsx`/`profile.tsx` (S7/S8's exclusive scope). This story's diff should be confined to `profileHandler.ts` and `registerHandlers.ts`."
+    },
+    {
+      "question_id": "VQ-S4-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-5",
+      "question": "AC-MARKER-5 requires the marker for `${groupId}:${pubkey}` to be cleared 'regardless of whether `mergeMemberProfile` returns `true` or `false`' when the profile handler processes an own-signed profile for a marked pubkey. Provide the exact line in `handle()` where the clear call is placed RELATIVE to the `merged` boolean check (`:38-42`) — it must NOT be nested inside `if (merged) { ... }`, since that branch is specifically for `recordRequestAnswered`, a DIFFERENT side effect with different gating semantics. Provide two passing test assertions, one for each `merged` value, both confirming the clear was called."
+    },
+    {
+      "question_id": "VQ-S4-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-6",
+      "question": "AC-MARKER-6 requires the marker MUST NOT be cleared 'on the basis of `rumor.pubkey` alone' when the payload lacks a signed envelope. Provide a unit test where `profilePayload.signedEvent` is `undefined`/absent, `rumor.pubkey` equals the marked pubkey, and assert `clearPendingDirectInvite` is never invoked for this call — distinct from AC-MARKER-5's test (which requires a present `signedEvent`), so a single shared fixture cannot satisfy both ACs."
+    },
+    {
+      "question_id": "VQ-S4-009",
+      "phase": "post-impl",
+      "category": "QUALITY",
+      "question": "The implemented clear block wraps `deps.clearPendingDirectInvite(ctx.groupId, authorPubkey)` in try/catch and does `console.warn` on failure (profileHandler.ts, new block right after `deps.setProfileVersion((v) => v + 1)` and before `if (merged) { ... recordRequestAnswered ... }`). Confirm this try/catch does not also accidentally swallow a throw from `deps.setProfileVersion` or `deps.mergeMemberProfile` (i.e. the catch's scope is exactly the one `await deps.clearPendingDirectInvite(...)` call, not a wider block) — a catch with too broad a scope would silently hide a merge failure as a 'marker clear failed' log line, misleading anyone debugging a lost profile update."
+    },
+    {
+      "question_id": "VQ-S4-010",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "`app/src/context/MarmotContext.tsx` now has two distinct call sites touching the pending-direct-invite marker store: the new `clearPendingDirectInvite` (singular, per-key) wired into `buildDispatcher`'s profile deps (this story), and the pre-existing `clearPendingDirectInvitesForGroup` (plural, per-group bulk) wired into the `leaveGroup` useCallback (S3, already present in the working tree before this story started — confirmed via `git show HEAD:app/src/context/MarmotContext.tsx` showing zero occurrences of either name, i.e. both are uncommitted). Confirm these two functions are genuinely distinct exports from `pendingDirectInviteStorage.ts` (not the same function aliased twice) and that this story's diff to `MarmotContext.tsx` is confined to the two-line addition in the profile-deps section (import + `buildDispatcher` field) — i.e. this story did not modify, duplicate, or interact with the S3 `leaveGroup` wiring."
+    },
+    {
+      "question_id": "VQ-S4-011",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-MARKER-6",
+      "question": "Beyond the 'no signedEvent at all' case, the implementation added a distinct relay-on-behalf test asserting `clearPendingDirectInvite` is called with the AUTHOR's pubkey and explicitly NOT with the relayer's (`rumor.pubkey`) pubkey, using `makeSignedProfileRumor({ rumorSenderPubkey: PEER_PUBKEY, authorPubkey: AUTHOR_PUBKEY })`. Confirm this test would actually fail under a buggy implementation that derives the clear-target from `rumor.pubkey` instead of `authorPubkey`/`signedEvent.pubkey` when both are present but differ — i.e. that PEER_PUBKEY and AUTHOR_PUBKEY are distinct constants and the assertion `not.toHaveBeenCalledWith(GROUP_ID, PEER_PUBKEY)` is meaningful (not vacuously true because the mock was never called with any group/pubkey pair at all)."
+    }
+  ]
+}

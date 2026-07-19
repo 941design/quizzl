@@ -1,0 +1,27 @@
+{
+  "story_id": "S7",
+  "status": "done",
+  "completed_at": "2026-07-19T00:00:00Z",
+  "files_created": [],
+  "files_modified": [
+    "app/src/components/groups/InviteMemberModal.tsx",
+    "app/tests/unit/cards/inviteByCard.test.ts"
+  ],
+  "tests_added": {
+    "unit": 6
+  },
+  "test_counts": {
+    "baseline": 3587,
+    "final": 3593
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "InviteMemberModal"
+  ],
+  "retrospective": {
+    "skipped": true,
+    "reason": "routine"
+  },
+  "final_outcome": "accepted"
+}

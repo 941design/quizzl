@@ -166,11 +166,9 @@ export type Copy = {
     joinRequestError: string;
     joinRequestAlreadyMember: string;
     joinRequestGoToGroup: string;
-    pendingRequestsHeading: string;
     pendingRequestsApprove: string;
     pendingRequestsDeny: string;
     pendingRequestsApproveError: string;
-    pendingRequestsEmpty: string;
     manageLinksButton: string;
     manageLinksTitle: string;
     manageLinksDeactivateLabel: string;
@@ -192,6 +190,7 @@ export type Copy = {
     backToGroups: string;
     noMembersYet: string;
     memberPending: string;
+    memberRequestedBadge: string;
     memberYou: string;
     cancelInviteButton: string;
     cancelInviteTitle: string;
@@ -201,6 +200,12 @@ export type Copy = {
     cancelInviteError: string;
     cancelInviteRaceNotice: string;
     cancelInviteAnnouncementWarning: string;
+    removeMemberButton: string;
+    removeMemberTitle: string;
+    removeMemberBody: string;
+    removeMemberConfirm: string;
+    removeMemberSuccess: string;
+    removeMemberError: string;
     cancelledByAnnouncement: (member: string, canceller: string) => string;
     leftGroup: (member: string) => string;
     renameGroupButton: string;
@@ -822,11 +827,9 @@ const copy: Record<LanguageCode, Copy> = {
       joinRequestError: 'Failed to send join request. Please try again.',
       joinRequestAlreadyMember: "You're already a member of this group.",
       joinRequestGoToGroup: 'Go to group',
-      pendingRequestsHeading: 'Pending Join Requests',
       pendingRequestsApprove: 'Approve',
       pendingRequestsDeny: 'Deny',
       pendingRequestsApproveError: 'Failed to approve request. Please try again.',
-      pendingRequestsEmpty: 'No pending requests.',
       manageLinksButton: 'Manage Links',
       manageLinksTitle: 'Manage Invite Links',
       manageLinksDeactivateLabel: 'Deactivated',
@@ -848,6 +851,7 @@ const copy: Record<LanguageCode, Copy> = {
       backToGroups: 'Back to Groups',
       noMembersYet: 'No members yet.',
       memberPending: 'Pending',
+      memberRequestedBadge: 'Requested to join',
       memberYou: 'You',
       cancelInviteButton: 'Cancel Invite',
       cancelInviteTitle: 'Cancel Pending Invitation',
@@ -857,6 +861,13 @@ const copy: Record<LanguageCode, Copy> = {
       cancelInviteError: 'Failed to cancel invitation',
       cancelInviteRaceNotice: 'This invitation is no longer pending',
       cancelInviteAnnouncementWarning: 'Invitation cancelled, but the group chat could not be notified',
+      removeMemberButton: 'Remove Member',
+      removeMemberTitle: 'Remove Member',
+      removeMemberBody:
+        'Remove this member from the group? They will lose access to the group and its messages.',
+      removeMemberConfirm: 'Remove',
+      removeMemberSuccess: 'Member removed',
+      removeMemberError: 'Failed to remove member',
       cancelledByAnnouncement: (member: string, canceller: string) => `${member} was uninvited by ${canceller}`,
       leftGroup: (member: string) => `${member} left the group`,
       renameGroupButton: 'Rename group',
@@ -1379,11 +1390,9 @@ const copy: Record<LanguageCode, Copy> = {
       joinRequestError: 'Beitrittsanfrage fehlgeschlagen. Bitte erneut versuchen.',
       joinRequestAlreadyMember: 'Du bist bereits Mitglied dieser Gruppe.',
       joinRequestGoToGroup: 'Zur Gruppe',
-      pendingRequestsHeading: 'Offene Beitrittsanfragen',
       pendingRequestsApprove: 'Genehmigen',
       pendingRequestsDeny: 'Ablehnen',
       pendingRequestsApproveError: 'Anfrage konnte nicht genehmigt werden. Bitte erneut versuchen.',
-      pendingRequestsEmpty: 'Keine offenen Anfragen.',
       manageLinksButton: 'Links verwalten',
       manageLinksTitle: 'Einladungslinks verwalten',
       manageLinksDeactivateLabel: 'Deaktiviert',
@@ -1405,6 +1414,7 @@ const copy: Record<LanguageCode, Copy> = {
       backToGroups: 'Zurück zu Gruppen',
       noMembersYet: 'Noch keine Mitglieder.',
       memberPending: 'Ausstehend',
+      memberRequestedBadge: 'Beitritt angefragt',
       memberYou: 'Du',
       cancelInviteButton: 'Einladung zurückziehen',
       cancelInviteTitle: 'Ausstehende Einladung zurückziehen',
@@ -1414,6 +1424,13 @@ const copy: Record<LanguageCode, Copy> = {
       cancelInviteError: 'Einladung konnte nicht zurückgezogen werden',
       cancelInviteRaceNotice: 'Diese Einladung ist nicht mehr ausstehend',
       cancelInviteAnnouncementWarning: 'Einladung zurückgezogen, aber der Gruppenchat konnte nicht benachrichtigt werden',
+      removeMemberButton: 'Mitglied entfernen',
+      removeMemberTitle: 'Mitglied entfernen',
+      removeMemberBody:
+        'Dieses Mitglied aus der Gruppe entfernen? Es verliert den Zugriff auf die Gruppe und ihre Nachrichten.',
+      removeMemberConfirm: 'Entfernen',
+      removeMemberSuccess: 'Mitglied entfernt',
+      removeMemberError: 'Mitglied konnte nicht entfernt werden',
       cancelledByAnnouncement: (member: string, canceller: string) => `${member} wurde von ${canceller} ausgeladen`,
       leftGroup: (member: string) => `${member} hat die Gruppe verlassen`,
       renameGroupButton: 'Gruppe umbenennen',

@@ -1,0 +1,62 @@
+{
+  "story_id": "S5",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S5-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "`getPendingDirectInvites(groupId)` must be a real read against `pendingDirectInviteStorage.ts` (via dynamic import at the boundary, per the 4-site pattern), not a stub returning an empty `Set` unconditionally or a hard-coded fixture. Confirm the `DEFAULT_MARMOT` fallback value (`MarmotContext.tsx:2187+`) for this method returns an empty `Set<string>` (matching the established `async () => ({ ok: false, error: 'not_ready' })`-style fallback pattern for other methods) — NOT `undefined` or a throw, since S9's caller will call this unconditionally on every group load and must not crash before the provider is ready."
+    },
+    {
+      "question_id": "VQ-S5-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "MarmotContext's established 4-site method-add pattern requires: (1) a type entry in `MarmotContextValue` (mirroring `inviteByNpub`/`cancelPendingInvitation` at `:261`/`:299`), (2) a `useCallback`-wrapped closure with a dynamic-import boundary to the storage module, (3) inclusion in the `useMemo` value object AND its dependency array (`:2100+`), (4) a `DEFAULT_MARMOT` fallback (`:2187+`). Confirm all four sites are touched for `getPendingDirectInvites` — a method added to only 2 or 3 of the 4 sites (e.g. present in the type but missing from the `useMemo` dep array) would cause a stale-closure bug where a re-render doesn't pick up a fresh reference."
+    },
+    {
+      "question_id": "VQ-S5-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `MarmotContext` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: `getPendingDirectInvites` must import `pendingDirectInviteStorage.ts` only via the dynamic-import boundary pattern already used by `cancelPendingInvitation` (`:1881`: `const { cancelPendingInvitationImpl } = await import(...)`), never a static top-level import — confirm the new method follows the same dynamic-import convention, and that it exposes ONLY the `PendingDirectInviteMarkerSet` contract (a `Set<string>`) to its callers, never the store's internal record shape."
+    },
+    {
+      "question_id": "VQ-S5-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Provide regression-test evidence proving `approveJoinRequestImpl` (`:492-574`) never causes a marker to exist for the approved pubkey: seed a `PendingJoinRequest`, call `approveJoinRequestImpl` with test-double deps (its `inviteByNpub` deliberately does NOT touch the marker store, since the real `MarmotContext.tsx:515` call site never wraps a marker save), then call `getPendingDirectInvites` for that group and assert the approved pubkey is absent from the returned `Set`. This test must exercise the REAL `approveJoinRequestImpl` function (not a re-implementation of its logic) against the REAL marker-read path."
+    },
+    {
+      "question_id": "VQ-S5-005",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Architecture.md states the approve path's exclusion from the marker-write is 'structural (insertion-point choice), not a guard' — meaning there is no runtime `if` check preventing a marker write on the approve path; the exclusion holds because `approveJoinRequestImpl`'s code never calls the marker-write function at all. Confirm this story does not introduce any new runtime guard or defensive check inside `approveJoinRequestImpl` to 'prevent' a marker write (that would be scope creep into S7/S8/architecture territory) — this story's job is verification-only: proving the existing structural exclusion holds, not adding a new one."
+    },
+    {
+      "question_id": "VQ-S5-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-MARKER-4",
+      "question": "AC-MARKER-4 requires calling `approveJoinRequestImpl` for a pubkey MUST NOT result in a marker existing for that `groupId:pubkey`, either BEFORE or AFTER the call. Provide a unit test asserting the marker is absent before AND after `approveJoinRequestImpl` runs (two assertions, not one — the 'before' assertion guards against a test fixture that accidentally seeded a marker and coincidentally never checked it disappeared), for both a request WITH a nickname (triggering the provisional-profile seed at `:538` — a different code path than the invite call) and WITHOUT one, since either path could theoretically introduce a marker-write regression independently."
+    },
+    {
+      "question_id": "VQ-S5-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Cross-story consumption question for the `PendingDirectInviteMarkerSet` seam (defined by S1, this story is the intermediary consumed next by S9). Confirm `getPendingDirectInvites(groupId)` returns EXACTLY the `Set<string>` S1's store-level read function returns, with no transformation, filtering, or caching layer inserted at the context boundary that could cause this method's result to diverge from a fresh IDB read — S9's caller depends on this method being a faithful passthrough, not a memoized or stale-tolerant wrapper."
+    },
+    {
+      "question_id": "VQ-S5-008",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The built AC-MARKER-4 regression tests (`approveJoinRequestImpl.test.ts`, new describe block) assert against the real `loadPendingDirectInviteMarkers` store-level function rather than the `getPendingDirectInvites` context method directly, because `getPendingDirectInvites` is a `useCallback` living inside `MarmotProvider` and is not independently exported/invokable outside a live render (unlike `approveJoinRequestImpl`, which was extracted specifically for testability). Since the built method's body is a single-line passthrough (`return loadPendingDirectInviteMarkers(groupId);`, `MarmotContext.tsx:1913-1916`) with no transformation, is testing the underlying store function an adequate proxy for AC-MARKER-4, or does the AC's literal text (\"getPendingDirectInvites\") require an additional test that renders `MarmotProvider` and calls the context method by name? Assessment: adequate as built — the passthrough has zero branching/transformation to diverge from the store's own behavior, and full context-level exercise (a live provider calling `getPendingDirectInvites`) is explicitly deferred to S9's integration per this story's own scope exclusion (\"the groups.tsx effect that calls this method\"). A future regression in the passthrough itself (e.g. someone adds filtering logic) would need a new context-level test at that time, not here."
+    },
+    {
+      "question_id": "VQ-S5-009",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "The two new AC-MARKER-4 tests use distinct fixture values (`groupId: 'marker-group-nick'`/`'marker-group-no-nick'`, `pubkeyHex: 'marker-pubkey-nick'`/`'marker-pubkey-no-nick'`) rather than the file's existing shared fixtures (e.g. `'group-1'`/`'requester-pk'` from `makeRequest()`'s defaults), and each test's own `beforeEach` calls `clearAllPendingDirectInvites()`. Given `pendingDirectInviteStorage.ts`'s `createStore('few-pending-invite-markers', 'markers')` is a module-level singleton backed by `fake-indexeddb/auto`, could a marker written by an unrelated test elsewhere in the same file (or a future test added later reusing `'group-1'`/`'requester-pk'`) collide with these two tests or vice versa? Assessment: no collision risk introduced by this change — the two new tests use unique fixture values not reused anywhere else in this file (verified via search), and the per-test `beforeEach` clear plus fresh IDB state per vitest test file (each file gets its own module registry) isolates this describe block from the rest of the suite; a future test that reused these exact literal strings would need to account for this, but that risk is not new to this story."
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "story_id": "S6",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-19T00:00:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S6-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Confirm none of the six `removeMember*` keys (`removeMemberButton`, `removeMemberTitle`, `removeMemberBody`, `removeMemberConfirm`, `removeMemberSuccess`, `removeMemberError`) is a placeholder string (e.g. `'TODO'`, `'removeMemberBody'` echoing its own key name, or an empty string) in either `en` or `de` — each must be genuine, non-empty user-facing prose distinct from every other key's text, mirroring the `cancelInvite*`/`makeAdmin*` precedent's level of finish (e.g. `cancelInviteBody`'s full sentence at `i18n.ts:854`, not a stub)."
+    },
+    {
+      "question_id": "VQ-S6-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Per CLAUDE.md's Translations section, all six keys must be added to BOTH the `Copy` type (`~i18n.ts:196-203`) AND both the `en` (`~:852-859`) and `de` (`~:1409-1416`) objects — never hardcoded into a component. Run `grep -n \"removeMember\" app/src/lib/i18n.ts` and confirm exactly 18 matches (6 keys × 3 locations: type + en + de), not fewer (a key present in `en` but missing from the `Copy` type would compile only if the type isn't actually enforced at the `en`/`de` object literals, which would itself be a latent type-safety gap worth flagging)."
+    },
+    {
+      "question_id": "VQ-S6-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could `i18n` be deleted and rewritten without modifying any file outside its `dependencies_allowed` list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md? Concretely: this story adds ONLY new `Copy` keys and their `en`/`de` values — it must not modify any existing key's text (a regression to `cancelInvite*`/`makeAdmin*` copy) and must not touch any component file (S10 is the exclusive consumer of this copy, per this story's `excludes`). Provide a diff scoped to `app/src/lib/i18n.ts` only, plus the new test file."
+    },
+    {
+      "question_id": "VQ-S6-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "AC-LOCALE-2's vitest test IS this story's primary test artifact. Confirm the test asserts `getCopy('en').removeMemberButton` etc. resolve to the EXACT literal string values authored in the `en` object (a snapshot-style exact-match, not a truthy/non-empty check that would pass even if the copy were accidentally swapped with another key's text), and does the same for `getCopy('de')`. A test that only asserts `typeof value === 'string'` or `value.length > 0` would pass even if the German copy were English text pasted into the `de` object by mistake."
+    },
+    {
+      "question_id": "VQ-S6-005",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "AC-LOCALE-1 requires `en` text distinct from `de` text for each key. Confirm each of the six keys' `en` value is NOT byte-identical to its `de` value (a real translation risk when a key is added under time pressure and the author copy-pastes the English string into both locales as a placeholder). Provide the six `en`/`de` string pairs side by side and confirm none of the six pairs match exactly."
+    },
+    {
+      "question_id": "VQ-S6-006",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LOCALE-1",
+      "question": "AC-LOCALE-1 requires the `Copy` type and both `en`/`de` objects to define non-empty values for all six `removeMember*` keys, each with `en` text distinct from `de` text. Provide the six key definitions from the `Copy` type declaration and the corresponding `en`/`de` object entries as evidence, and confirm TypeScript compilation succeeds with no `Copy` type error (i.e. the `en`/`de` object literals are not missing any of the six required properties, which the type system enforces only if the properties are non-optional)."
+    },
+    {
+      "question_id": "VQ-S6-007",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-LOCALE-2",
+      "question": "AC-LOCALE-2 requires a vitest test in `app/tests/unit/` asserting every `removeMember*` key resolves to its exact expected string for both `getCopy('en')` and `getCopy('de')`. Provide the test file path and its full assertion list (12 assertions: 6 keys × 2 locales), and confirm the test is wired into the existing vitest run (`make test` picks it up) — run the test and provide its pass output as evidence, not just the test source."
+    },
+    {
+      "question_id": "VQ-S6-008",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "The six keys were inserted into the Copy type and both locale objects immediately after `cancelInviteAnnouncementWarning` (type ~:204-209, en ~:866-872, de ~:1430-1436) rather than after the `makeAdmin*` block, since the pre-impl question set anchored the location to the `~:196-203` cancelInvite region. Confirm `grep -n \"removeMember\" app/src/lib/i18n.ts` returns exactly 18 matches (6 keys × 3 locations) and that no existing `cancelInvite*`/`makeAdmin*` key's text was altered by the insertion (diff should show only additions, 0 deletions, in `i18n.ts`)."
+    },
+    {
+      "question_id": "VQ-S6-009",
+      "phase": "post-impl",
+      "category": "TEST",
+      "question": "`removeMemberBody`'s German copy ('Dieses Mitglied aus der Gruppe entfernen? Es verliert den Zugriff auf die Gruppe und ihre Nachrichten.') was authored as an independent sentence about removing an established member, not a translation of `cancelInviteBody`'s German ('Diese ausstehende Einladung zurückziehen? Das Mitglied wird dauerhaft aus der Gruppe entfernt.'). Confirm the two German strings share no more than incidental short words (e.g. 'aus der Gruppe') and are not a mechanical calque of one another — this is the automatable proxy for MV-1 (native-speaker read), which remains manual/out of scope for this story."
+    }
+  ]
+}

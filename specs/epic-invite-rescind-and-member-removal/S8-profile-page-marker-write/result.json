@@ -1,0 +1,29 @@
+{
+  "story_id": "S8",
+  "status": "done",
+  "completed_at": "2026-07-19T00:00:00Z",
+  "files_created": [
+    "app/tests/unit/pages/profile-add-to-group-marker.test.ts"
+  ],
+  "files_modified": [
+    "app/pages/profile.tsx",
+    "app/tests/unit/pages/profile-add-to-group-marker.test.ts"
+  ],
+  "tests_added": {
+    "unit": 5
+  },
+  "test_counts": {
+    "baseline": 3595,
+    "final": 3600
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "modules_touched": [
+    "ProfilePage"
+  ],
+  "retrospective": {
+    "skipped": true,
+    "reason": "routine — direct mirror of S7's already-landed submitInviteWithMarker pattern, spec was fully unambiguous, no debugging cycles, no surprises"
+  },
+  "final_outcome": "accepted"
+}
