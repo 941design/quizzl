@@ -13,6 +13,8 @@ import type { Group } from '@/src/types';
 import { useCopy } from '@/src/context/LanguageContext';
 import { loadMessages } from '@/src/lib/marmot/chatPersistence';
 import { formatThreadPreviewText } from '@/src/lib/messageEdits/messageActionUi';
+import { useUnreadCounts } from '@/src/lib/unreadStore';
+import UnreadCountBadge from '@/src/components/UnreadCountBadge';
 
 type GroupCardProps = {
   group: Group;
@@ -20,6 +22,8 @@ type GroupCardProps = {
 
 export default function GroupCard({ group }: GroupCardProps) {
   const copy = useCopy();
+  const { counts } = useUnreadCounts();
+  const unreadCount = counts[group.id] ?? 0;
   const memberCount = group.memberPubkeys.length;
   const nearLimit = memberCount >= 45;
 
@@ -66,9 +70,15 @@ export default function GroupCard({ group }: GroupCardProps) {
         <VStack align="flex-start" spacing={1} flex={1} minW={0}>
           <NextLink href={`/groups?id=${group.id}`} passHref legacyBehavior>
             <LinkOverlay>
-              <Text fontWeight="semibold" fontSize="md" noOfLines={1}>
-                {group.name}
-              </Text>
+              <HStack spacing={2} align="center">
+                <Text fontWeight="semibold" fontSize="md" noOfLines={1}>
+                  {group.name}
+                </Text>
+                <UnreadCountBadge
+                  count={unreadCount}
+                  testId={`group-unread-badge-${group.id}`}
+                />
+              </HStack>
             </LinkOverlay>
           </NextLink>
           <HStack spacing={2}>

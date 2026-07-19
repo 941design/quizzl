@@ -19,6 +19,7 @@ import {
 } from '@chakra-ui/react';
 import ThemeIcon from '@/src/components/ThemeIcon';
 import UserCard, { ConfirmButton } from '@/src/components/UserCard';
+import UnreadCountBadge from '@/src/components/UnreadCountBadge';
 import ContactChat from '@/src/components/contacts/ContactChat';
 import ShareContactCard from '@/src/components/contacts/ShareContactCard';
 import BlockContactButton from '@/src/components/contacts/BlockContactButton';
@@ -30,6 +31,7 @@ import { useMarmot } from '@/src/context/MarmotContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useProfile } from '@/src/context/ProfileContext';
 import { commonGroups, confirmContact, getContact, listContacts, rememberContactsFromGroups } from '@/src/lib/contacts';
+import { useUnreadCounts } from '@/src/lib/unreadStore';
 import { isMaintainerPubkey } from '@/src/config/maintainer';
 import { createPrivateKeySigner } from '@/src/lib/marmot/signerAdapter';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
@@ -40,6 +42,7 @@ function ContactListView() {
   const router = useRouter();
   const { pubkeyHex } = useNostrIdentity();
   const { groups, ready } = useMarmot();
+  const { directMessages } = useUnreadCounts();
   const [showHidden, setShowHidden] = useState(false);
   // Revision counter forces a re-read of localStorage after rememberContactsFromGroups runs.
   const [contactsRevision, setContactsRevision] = useState(0);
@@ -194,6 +197,10 @@ function ContactListView() {
                   ) : null}
                   actions={
                     <>
+                      <UnreadCountBadge
+                        count={directMessages[contact.pubkeyHex.toLowerCase()] ?? 0}
+                        testId={`contact-unread-badge-${contact.pubkeyHex}`}
+                      />
                       {/* Blocked wins over pending (spec.md Design Decision 9):
                           the blocked row shows the Hidden badge + an inline
                           Unblock button — the sole unblock affordance now that
