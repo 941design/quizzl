@@ -179,7 +179,6 @@ function PendingRequestRow({
       profile={cardProfile}
       fallbackName={fallbackName}
       cardTestId={`pending-request-row-${request.eventId}`}
-      dimmed
       subline={request.nickname ? (
         <Text mt={1} fontSize="xs" color="textMuted" isTruncated>
           {fallbackName}
@@ -472,7 +471,6 @@ function MemberListItem({
         cardTestId={`member-item-${prefix}`}
         nameTestId={`member-name-${prefix}`}
         avatarTestId={`member-avatar-${prefix}`}
-        dimmed={isPending}
         actions={
           <>
             {isPending && (

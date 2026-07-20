@@ -334,7 +334,6 @@ export default function InviteMemberModal({ isOpen, onClose, groupId }: InviteMe
                         boxShadow={isSelected ? '0 0 0 2px var(--chakra-colors-brand-400)' : undefined}
                         bg="surfaceBg"
                         transition="all 0.15s"
-                        opacity={entry.selectable ? 1 : 0.5}
                         cursor={entry.selectable ? 'pointer' : 'not-allowed'}
                         _hover={entry.selectable ? { borderColor: 'brand.400', bg: 'surfaceMutedBg' } : undefined}
                         {...(entry.selectable

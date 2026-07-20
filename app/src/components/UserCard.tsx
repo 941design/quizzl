@@ -58,8 +58,6 @@ type UserCardProps = {
   actions?: React.ReactNode;
   /** Full-width content below the row (e.g. an inline error alert). */
   footer?: React.ReactNode;
-  /** Dim the card (e.g. a pending, not-yet-confirmed member). */
-  dimmed?: boolean;
 };
 
 export default function UserCard({
@@ -72,7 +70,6 @@ export default function UserCard({
   subline,
   actions,
   footer,
-  dimmed,
 }: UserCardProps) {
   const summary = (
     <ProfileSummary
@@ -119,7 +116,6 @@ export default function UserCard({
     borderRadius: 'lg',
     borderColor: 'borderSubtle',
     bg: 'surfaceBg',
-    opacity: dimmed ? 0.6 : 1,
     'data-testid': cardTestId,
   } as const;
 
