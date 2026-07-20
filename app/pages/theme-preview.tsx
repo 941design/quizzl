@@ -440,7 +440,7 @@ export default function ThemePreviewPage() {
 
         <Section
           title="Badges"
-          subtitle="A decorative, non-hierarchical palette: the theme's five hued scales used as colors only (badgeAccent.ts). No badge outranks another — the color just distinguishes one kind from the next. Attention badges (unread count, nav dot) are separate and keep a single strong color."
+          subtitle="A decorative, non-hierarchical palette (badge1..badge5, badgeAccent.ts): five neutral-named theme colors used as colors only. No badge outranks another — the color just distinguishes one kind from the next. Attention badges (unread count, nav dot) are separate and keep a single strong color."
         >
           <Wrap spacing={3}>
             {/* The full decorative badge palette — brand / success / warning /

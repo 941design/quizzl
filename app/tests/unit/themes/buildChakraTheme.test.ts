@@ -86,6 +86,15 @@ describe('themes/buildChakraTheme: buildThemeOverride', () => {
     expect(roundTripped.colors.brand[50]).toBe(override.colors.brand[50]);
   });
 
+  it('exposes the neutral-named decorative badge palette (badge1..badge5) aliasing the five semantic scales', () => {
+    const override = buildThemeOverride(lightManifestFixture);
+    expect(override.colors.badge1).toEqual(override.colors.brand);
+    expect(override.colors.badge2).toEqual(override.colors.success);
+    expect(override.colors.badge3).toEqual(override.colors.warning);
+    expect(override.colors.badge4).toEqual(override.colors.danger);
+    expect(override.colors.badge5).toEqual(override.colors.neutral);
+  });
+
   it('sets buttonColorScheme from the manifest, other components fixed to brand', () => {
     const override = buildThemeOverride(lightManifestFixture);
     expect(override.components.Button.defaultProps).toEqual({ colorScheme: 'brand' });

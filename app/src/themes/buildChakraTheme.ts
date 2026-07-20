@@ -66,6 +66,12 @@ export type ThemeOverride = {
     warning: ColorScale;
     danger: ColorScale;
     neutral: ColorScale;
+    // Neutral-named decorative badge palette — see badge1..badge5 below.
+    badge1: ColorScale;
+    badge2: ColorScale;
+    badge3: ColorScale;
+    badge4: ColorScale;
+    badge5: ColorScale;
   };
   semanticTokens: {
     colors: Record<string, string>;
@@ -101,13 +107,30 @@ export function buildThemeOverride(manifest: ThemeManifest): ThemeOverride {
   const { colors, typography, shape } = manifest;
   const backgroundImage = colors.backgroundImage;
 
+  const brand = createScale(colors.brand);
+  const success = createScale(colors.success);
+  const warning = createScale(colors.warning);
+  const danger = createScale(colors.danger);
+  const neutral = createScale(colors.neutral);
+
   return {
     colors: {
-      brand: createScale(colors.brand),
-      success: createScale(colors.success),
-      warning: createScale(colors.warning),
-      danger: createScale(colors.danger),
-      neutral: createScale(colors.neutral),
+      brand,
+      success,
+      warning,
+      danger,
+      neutral,
+      // Decorative, neutral-named badge palette (see lib/badgeAccent.ts).
+      // badge1..badge5 alias the five semantic scales above purely as COLORS,
+      // deliberately stripped of their semantic names so no severity meaning
+      // ("danger", "warning") reads through a badge's color. Registered as
+      // distinct color keys so Chakra's `colorScheme` can target them without
+      // reusing a status-scale name.
+      badge1: brand,
+      badge2: success,
+      badge3: warning,
+      badge4: danger,
+      badge5: neutral,
     },
     semanticTokens: {
       colors: {
@@ -156,7 +179,7 @@ export function buildThemeOverride(manifest: ThemeManifest): ThemeOverride {
       Button: { defaultProps: { colorScheme: colors.buttonColorScheme } },
       Tabs: { defaultProps: { colorScheme: 'brand' } },
       Progress: { defaultProps: { colorScheme: 'brand' } },
-      Badge: { defaultProps: { colorScheme: 'brand' } },
+      Badge: { defaultProps: { colorScheme: 'badge1' } },
       Tag: { defaultProps: { colorScheme: 'brand' } },
       Checkbox: { defaultProps: { colorScheme: 'brand' } },
       Radio: { defaultProps: { colorScheme: 'brand' } },

@@ -2,11 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { BADGE_ACCENTS, BADGE_ACCENT } from '@/src/lib/badgeAccent';
 
 describe('badgeAccent — decorative badge palette', () => {
-  it('exposes the theme\'s five hued scales as the palette', () => {
-    expect(BADGE_ACCENTS).toEqual(['brand', 'success', 'warning', 'danger', 'neutral']);
+  it('exposes five neutral-named palette colors (no semantic scale names)', () => {
+    expect(BADGE_ACCENTS).toEqual(['badge1', 'badge2', 'badge3', 'badge4', 'badge5']);
+    // Guard the intent: no badge color is named after a status/severity scale.
+    for (const accent of BADGE_ACCENTS) {
+      expect(accent).not.toMatch(/danger|warning|success|alert|error/);
+    }
   });
 
-  it('every badge-kind accent is drawn from the palette (no raw Chakra colors)', () => {
+  it('every badge-kind color is drawn from the palette (no raw or semantic colors)', () => {
     for (const [kind, accent] of Object.entries(BADGE_ACCENT)) {
       expect(BADGE_ACCENTS, `${kind} -> ${accent}`).toContain(accent);
     }
