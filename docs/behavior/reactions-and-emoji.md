@@ -26,13 +26,13 @@ emoji. Reactions are **additive per person**: you may attach **several different
 the same message, and each is tracked separately.
 
 A reaction you add appears **immediately**, before it has finished being sent. If sending
-fails (every relay rejects a direct-message reaction, or the group send fails), the reaction
+fails (a direct-message reaction's sealed message reaches no relay, or the group send fails), the reaction
 is **rolled back** and you are told it did not go through; it is **not** retried
 automatically, so a failed *added* reaction simply disappears rather than lingering in a
 half-sent state.
 
 A reaction is delivered over the **same private channel as the conversation it belongs
-to** — inside the encrypted group for a group message, and as sealed 1:1 mail for a direct
+to** — inside the encrypted group for a group message, and sealed and single-addressed for a direct
 message (§6). It carries which message it reacts to, so it attaches to the right message on
 every participant's device.
 

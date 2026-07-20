@@ -123,7 +123,7 @@ clearly signalled.
 ## 6. Direct-message history
 
 Direct messages are **not** in the relay backup, but the **incoming** half is recoverable, because
-a message sent to you is sealed mail that stays on relays addressed to you. On a new device with
+a message sent to you is sealed and stays on relays addressed to you. On a new device with
 your recovered identity, the app **re-fetches** those messages and decrypts them, rebuilding the
 other person's side of each conversation.
 

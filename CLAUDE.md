@@ -13,7 +13,7 @@ and "it's just public data anyway" reasoning.
 - **Allowed channels are targeted and encrypted only:** MLS group application rumors
   (encrypted, sent only to group members) and NIP-59 gift-wrapped events (encrypted
   to a specific recipient's pubkey, sender hidden by an ephemeral key). A gift wrap is
-  *not* a broadcast — it is addressed private mail that happens to transit a relay.
+  *not* a broadcast — it is an addressed private message that happens to transit a relay.
 - **Reading others' profiles** must likewise not require or induce any public
   broadcast of our own data.
 - Before adding or changing any code that publishes, syncs, or fetches profile data,

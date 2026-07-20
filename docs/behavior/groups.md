@@ -166,7 +166,7 @@ Opening a link produces a **join request** to the admin (§4.3); it is permissio
 
 ### 4.3 Join requests
 
-A join request is private mail to the admin — encrypted and addressed, never a public
+A join request is a private message to the admin — encrypted and addressed, never a public
 post — and it carries the requester's chosen display name inside that encrypted
 envelope (never broadcast). The request's sender is cryptographically authenticated,
 so it cannot be forged to look like it came from someone else.

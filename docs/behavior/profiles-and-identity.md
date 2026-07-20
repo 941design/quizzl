@@ -14,7 +14,7 @@ read.** It is disclosed only to an audience already entitled to it, and only in 
 cannot be turned into a public posting of your profile. Concretely, it travels:
 
 - **inside a group**, as a message encrypted to that group's members;
-- **to a single contact**, as sealed, single-recipient private mail (a join request
+- **to a single contact**, as a sealed, single-recipient private message (a join request
   likewise carries your name privately to the one admin who receives it);
 - **on a contact card you deliberately hand out**, which carries your name; and
 - **inside your own backup**, encrypted so that only you can read it (see the backup
@@ -101,7 +101,7 @@ answer, the **most recent** profile wins.
 
 ### 5.2 With a single contact
 
-With a 1:1 contact, your profile travels as sealed private mail addressed to that one
+With a 1:1 contact, your profile travels as a sealed private message addressed to that one
 person. This channel **heals itself**: when a contact is missing your name or avatar, their
 app asks for it and yours answers. It retries on a slowing schedule, but **not forever** — it
 gives up after about a month of unanswered attempts, and treats an answer that brings a name

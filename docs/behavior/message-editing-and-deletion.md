@@ -125,7 +125,7 @@ original, edit, and delete, every participant ends at the same final state.
 
 - **Nothing is published publicly.** Edit and delete signals travel only over the same
   encrypted channels as the messages themselves — inside the encrypted group, or as sealed
-  1:1 mail — never to a public relay. There is no public deletion request.
+  1:1 messages — never to a public relay. There is no public deletion request.
 - **Group edit/delete is a Few-only convention.** A group member using a different client
   will simply keep showing the original — edits and deletes have no effect there. For 1:1
   messages, a cooperating other client may honour a deletion and may render an edit as *the

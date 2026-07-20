@@ -13,7 +13,7 @@ A **contact** is a person you can exchange private, 1:1 messages with. Direct me
 are end-to-end encrypted and wrapped so that the relays carrying them cannot see the
 **sender** or the **content**. Relays *can* see the **recipient** and the time a message
 arrives — delivery depends on the message being addressed to the recipient — so a gift
-wrap is best understood as *sealed, addressed private mail*, not anonymous traffic.
+wrap is best understood as *a sealed, addressed private message*, not anonymous traffic.
 
 Who is allowed to reach you is deliberately narrow — a **walled garden** (§8): a stranger
 cannot simply message you. This gate, and blocking (§5), are enforced by **your own app**,
