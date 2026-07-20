@@ -1,10 +1,13 @@
 /**
- * E2E: Pull-only invitation accept flow (AC-TEST-5)
+ * E2E: Pull-only invitation accept flow (AC-TEST-1, epic: inline-invitation-cards S2)
  *
  * Alice (USER_A) creates a group and invites Bob (USER_B) by npub.
- * Bob sees a pending invitation card on /groups/ (NOT a group card) and clicks Accept.
+ * Bob sees an INLINE invitation card on /groups/ (invitation-card-<id>, showing
+ * the group name + invitation badge + "Invited by" attribution — NOT a bare
+ * pending row, NOT a joined group-card) and clicks Accept.
  * After accepting:
- *   a. Bob's groups list includes the group.
+ *   a. The invitation card is gone and the group appears as a normal joined
+ *      group-card in Bob's list.
  *   b. Alice DMs Bob via publishDirectMessage.
  *   c. Bob's notification bell increments.
  *   d. The message renders in Bob's DM thread with Alice.
@@ -55,7 +58,7 @@ async function bootUser(
   return { context, page };
 }
 
-test.describe.serial('Pull-only invitation: Accept (AC-TEST-5)', () => {
+test.describe.serial('Pull-only invitation: Accept (AC-TEST-1)', () => {
   let aliceCtx: BrowserContext;
   let bobCtx: BrowserContext;
   let alicePage: Page;
@@ -96,25 +99,49 @@ test.describe.serial('Pull-only invitation: Accept (AC-TEST-5)', () => {
     await alicePage.waitForTimeout(3_000);
   });
 
-  test('Bob sees a pending invitation (not a group card) and clicks Accept', async () => {
+  test('Bob sees an inline invitation card (name + badge + Invited by), taps to preview, and clicks Accept', async () => {
     // Bob waits for the Welcome to arrive over the relay
     await bobPage.waitForTimeout(5_000);
     await bobPage.goto('/groups/');
 
-    // AC-TEST-5(b): Bob sees a pending invitation row (before the group appears)
+    // AC-TEST-1 / AC-CARD-1: Bob sees an inline invitation CARD (not a bare
+    // pending row) pinned at the top of the list, before the group is accepted.
     await expect(bobPage.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
-    const invitationRow = bobPage.locator('[data-testid^="pending-invitation-row-"]').last();
-    await expect(invitationRow).toBeVisible({ timeout: 30_000 });
+    const invitationCard = bobPage.locator('[data-testid^="invitation-card-"]').last();
+    await expect(invitationCard).toBeVisible({ timeout: 30_000 });
 
-    // Confirm the group card is NOT yet visible (invitation not yet accepted)
+    // The card shows the real, pre-join-decoded group name, an invitation
+    // badge, and "Invited by" attribution — not a bare pending row.
+    await expect(invitationCard.getByText(GROUP_NAME)).toBeVisible();
+    await expect(invitationCard.getByText('Invitation')).toBeVisible();
+    await expect(invitationCard.getByText(/Invited by/)).toBeVisible();
+
+    // Confirm the group is NOT yet a joined group-card (invitation not yet
+    // accepted) — the group name shown above is the invitation card's own
+    // text, distinct from a `group-card-*` element.
     await expect(bobPage.locator('[data-testid^="group-card-"]', { hasText: GROUP_NAME })).toHaveCount(0);
 
-    // AC-TEST-5(c): Bob clicks Accept (pick the most recent so we don't grab a
-    // stale invitation from earlier specs in the same suite run).
+    // AC-CARD-4: tapping the card body (outside Accept/Decline) navigates to
+    // the read-only preview route. S2 only wires the link — the preview VIEW
+    // itself ships in a later story, so today this falls through to the
+    // plain groups list without crashing. Assert the URL carries the invite
+    // id (trailing-slash-safe, unanchored per the static-export URL idiom),
+    // then return to /groups/ to continue the accept flow.
+    await invitationCard.click();
+    await expect(bobPage).toHaveURL(/invite=/, { timeout: 15_000 });
+    await bobPage.goto('/groups/');
+    await expect(bobPage.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 30_000 });
+
+    // AC-TEST-1 / AC-CARD-5: Bob clicks Accept (pick the most recent so we
+    // don't grab a stale invitation from earlier specs in the same suite run).
     await bobPage.locator('[data-testid^="accept-invitation-"]').last().click();
 
-    // AC-TEST-5(d): After accepting, the group appears in Bob's list
-    await expect(bobPage.getByText(GROUP_NAME)).toBeVisible({ timeout: 90_000 });
+    // AC-TEST-1 / AC-CARD-5: after accepting, the invitation card is gone and
+    // the group appears as a normal joined group-card in Bob's list.
+    await expect(
+      bobPage.locator('[data-testid^="group-card-"]', { hasText: GROUP_NAME }),
+    ).toBeVisible({ timeout: 90_000 });
+    await expect(bobPage.locator('[data-testid^="invitation-card-"]', { hasText: GROUP_NAME })).toHaveCount(0);
   });
 
   test('Alice DMs Bob; Bob bell increments and message renders', async () => {
@@ -133,7 +160,7 @@ test.describe.serial('Pull-only invitation: Accept (AC-TEST-5)', () => {
       return parseInt((badge.textContent ?? '0').trim(), 10);
     });
 
-    // AC-TEST-5(f): Alice DMs Bob via the app bridge (not raw WebSocket)
+    // Regression coverage (kept from the pre-S2 spec): Alice DMs Bob via the app bridge (not raw WebSocket)
     const DM_CONTENT = `accept-test-dm-${Date.now()}`;
     await alicePage.waitForFunction(
       () => typeof (window as any).__fewPublishDm === 'function',
@@ -147,7 +174,7 @@ test.describe.serial('Pull-only invitation: Accept (AC-TEST-5)', () => {
       { bobPub: USER_B.pubkeyHex, content: DM_CONTENT },
     );
 
-    // AC-TEST-5(f): Bob's bell increments above the baseline
+    // Bob's bell increments above the baseline
     await bobPage.waitForFunction(
       (baseline) => {
         const badge = document.querySelector('[data-testid="notification-badge"]');
@@ -158,7 +185,7 @@ test.describe.serial('Pull-only invitation: Accept (AC-TEST-5)', () => {
       { timeout: 60_000 },
     );
 
-    // AC-TEST-5(f): message renders in Bob's DM thread with Alice
+    // message renders in Bob's DM thread with Alice
     await bobPage.goto(`/contacts?id=${USER_A.pubkeyHex}`);
     await bobPage.waitForLoadState('networkidle');
     const bubble = bobPage.locator('[data-testid^="msg-"]').filter({ hasText: DM_CONTENT }).first();

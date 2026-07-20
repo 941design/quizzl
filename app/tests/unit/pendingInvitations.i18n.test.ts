@@ -10,20 +10,24 @@ describe('pendingInvitations i18n keys', () => {
   it('English copy has all pendingInvitations keys', () => {
     const en = getCopy('en');
     const pi = en.groups.pendingInvitations;
-    expect(pi.heading).toBe('Pending Invitations');
+    expect(pi.badge).toBe('Invitation');
+    expect(pi.invitedBy('Alice')).toBe('Invited by Alice');
+    expect(pi.unknownGroupFallback).toBe('Group invitation');
+    expect(pi.adminLabel).toBe('Group admins');
     expect(pi.acceptBtn).toBe('Accept');
     expect(pi.declineBtn).toBe('Decline');
-    expect(pi.empty).toBe('No pending invitations');
     expect(pi.acceptError).toBe('This invitation is no longer valid');
   });
 
   it('German copy has all pendingInvitations keys', () => {
     const de = getCopy('de');
     const pi = de.groups.pendingInvitations;
-    expect(pi.heading).toBe('Ausstehende Einladungen');
+    expect(pi.badge).toBe('Einladung');
+    expect(pi.invitedBy('Alice')).toBe('Eingeladen von Alice');
+    expect(pi.unknownGroupFallback).toBe('Gruppeneinladung');
+    expect(pi.adminLabel).toBe('Gruppen-Admins');
     expect(pi.acceptBtn).toBe('Annehmen');
     expect(pi.declineBtn).toBe('Ablehnen');
-    expect(pi.empty).toBe('Keine ausstehenden Einladungen');
     expect(pi.acceptError).toBe('Diese Einladung ist nicht mehr gültig');
   });
 });

@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updated_at": "2026-07-19T22:43:41Z",
+  "updated_at": "2026-07-20T07:20:57Z",
   "epics": [
     {
       "path": "specs/epic-cancel-pending-invitations/",
@@ -219,6 +219,11 @@
     },
     {
       "path": "specs/epic-invite-link-awaiting-landing/",
+      "status": "DONE",
+      "next_action": "completed 2026-07-20"
+    },
+    {
+      "path": "specs/epic-inline-invitation-cards/",
       "status": "DONE",
       "next_action": "completed 2026-07-20"
     }

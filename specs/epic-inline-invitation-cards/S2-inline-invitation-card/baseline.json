@@ -1,0 +1,20 @@
+{
+  "captured_at": "2026-07-20T08:35:00Z",
+  "tests": {
+    "status": "PASS",
+    "command": "make test-unit",
+    "test_files": 201,
+    "tests_passed": 3766,
+    "tests_skipped": 1,
+    "tests_total": 3767
+  },
+  "lint": {
+    "status": "NO_LINT",
+    "notes": "`npm run lint` (next lint) has no ESLint config committed; it prompts interactively to scaffold one (Strict/Base/Cancel) rather than running a check. Not a Makefile target. Treated as NO_LINT per Step 0 tolerance."
+  },
+  "typecheck": {
+    "status": "clean",
+    "command": "npx tsc --noEmit -p tsconfig.json",
+    "notes": "No dedicated Makefile/package.json typecheck script; `next build` also typechecks. Used tsc directly for a fast baseline; zero errors."
+  }
+}

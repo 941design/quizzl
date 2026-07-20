@@ -1,0 +1,152 @@
+{
+  "story_id": "S2",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-20T06:16:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S2-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the Accept/Decline wiring on InvitationCard calling the real acceptPendingInvitation/declinePendingInvitation store functions (not stubbed no-ops), and is the async name-decode fallback label a genuine pending/undecodable state driven by getInvitationGroupData's real resolution (not a frozen constant that always shows the fallback, and not a hardcoded name that bypasses the decode)?"
+    },
+    {
+      "question_id": "VQ-S2-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does InvitationCard.tsx consume marmot data only via useMarmot().getInvitationGroupData() (never importing welcomeSubscription.ts or constructing a MarmotClient directly)? Does it consume attribution via S1's exported resolveInviterLabel/truncatePubkey (not a re-implemented inline truncation or a duplicated contact lookup)? Is BADGE_ACCENT.invitation added in badgeAccent.ts alongside the existing kinds rather than an inline one-off color?"
+    },
+    {
+      "question_id": "VQ-S2-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could invitation card component be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S2-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Do the rewritten groups-pull-only-invitation-accept.spec.ts and groups-pull-only-invitation-decline.spec.ts exercise the inline card's accept and decline flows end-to-end through the app's real publish path, and does any unit-level coverage exist for the pure parts of the card's logic (e.g. fallback-label selection) beyond what the two e2e specs exercise?"
+    },
+    {
+      "question_id": "VQ-S2-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the assembled InvitationCard + groups.tsx wiring match acceptance-criteria.md's 'Inline card' and 'Section removal' sections in full — top-pinned placement, full colour (not dimmed), tap-to-preview link, and the visible heading/empty-state genuinely gone — with no partial implementation of any one AC (e.g. card built but heading not actually removed)?"
+    },
+    {
+      "question_id": "VQ-S2-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does InvitationCard render only locally-decoded/local-store data (group name via getInvitationGroupData, attribution via resolveInviterLabel), with no new relay publish or public lookup introduced by the card itself — e.g. no accidental kind-0 fetch, no public profile query triggered merely by rendering an invitation card?"
+    },
+    {
+      "question_id": "VQ-S2-007",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does S2's diff stay within app/src/components/groups/InvitationCard.tsx (new), app/pages/groups.tsx, app/src/lib/badgeAccent.ts, app/src/lib/i18n.ts, PendingInvitations.tsx (removal only), and the two target e2e specs — with no edits to welcomeSubscription.ts, MarmotContext.tsx, pubkeyDisplay.ts, resolveInviterLabel, or the pendingInvitations.ts store shape (all owned by S1 or explicitly excluded from S2's scope)?"
+    },
+    {
+      "question_id": "VQ-S2-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "When getInvitationGroupData rejects or returns null for one invitation among several rendered cards, do the groups list and every other invitation card still render correctly — verified by a test/e2e scenario with at least one undecodable invitation alongside a decodable one — rather than the whole list failing to render or an unhandled promise rejection surfacing?"
+    },
+    {
+      "question_id": "VQ-S2-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Grep the diff for the literal strings accept-invitation-, decline-invitation-, and pending-invitations-section — are all three present unchanged in the new InvitationCard/groups.tsx code (not renamed, not restructured to a different testid scheme)? Does the wrapper's pending-invitations-section testid render only when invitations.length >= 1, never as an always-present empty wrapper?"
+    },
+    {
+      "question_id": "VQ-S2-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-1",
+      "question": "Show the production InvitationCard.tsx rendering group name (or fallback), a status badge (BADGE_ACCENT.invitation), an 'Invited by <X>' line, and Accept+Decline controls for an unaccepted invitation; show the rewritten e2e spec assertion(s) that the inline card genuinely displays all four elements against a real invitation delivered through the app; and confirm the test is an end-to-end DOM assertion against the rendered page, not a mock-spy check of component props."
+    },
+    {
+      "question_id": "VQ-S2-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-2",
+      "question": "Show the production groups.tsx wiring that renders invitation cards as the first children inside the groups-list VStack, above all joined-group cards; show the e2e assertion (or DOM-order check) that an invitation card's position precedes every joined-group card in the rendered list; and confirm this is verified with at least one joined group present alongside a pending invitation, not only in isolation."
+    },
+    {
+      "question_id": "VQ-S2-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-3",
+      "question": "Show the production styling of InvitationCard confirming it uses the same full-colour Card/Box treatment as joined-group cards with no opacity/greyscale/dimmed variant; show a test or DOM-attribute assertion distinguishing it from the old PendingInvitations dimmed-row styling; and confirm no leftover dimmed-row CSS from PendingInvitations.tsx survives into the new card."
+    },
+    {
+      "question_id": "VQ-S2-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-4",
+      "question": "Show the production LinkBox/NextLink wiring the card body (excluding the Accept/Decline buttons) to /groups?invite=<invitationId>; show the e2e assertion that tapping the card body navigates to the preview route with the correct invitation id in the URL; and confirm tapping directly on Accept/Decline does NOT trigger this navigation (event propagation correctly stopped)."
+    },
+    {
+      "question_id": "VQ-S2-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-5",
+      "question": "Show the production Accept handler calling the existing acceptPendingInvitation flow and triggering reloadGroups; show the rewritten groups-pull-only-invitation-accept.spec.ts assertion that after Accept the invitation card disappears and the group appears as a normal joined-group card; and confirm this is driven by a real accept through the app, not a store mutation injected directly by the test."
+    },
+    {
+      "question_id": "VQ-S2-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-CARD-6",
+      "question": "Show the production Decline handler calling declinePendingInvitation immediately with no confirmation dialog; show the rewritten groups-pull-only-invitation-decline.spec.ts assertion that the invitation is removed immediately and the group never appears in the list; and confirm no window.confirm or modal-confirmation step exists in the Decline code path."
+    },
+    {
+      "question_id": "VQ-S2-016",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REMOVE-1",
+      "question": "Search the codebase for the literal 'Pending Invitations' heading text and any 'No pending invitations' empty-state string/copy key — confirm neither renders anywhere in the app (grep across components and i18n.ts for the retired copy.groups.pendingInvitations.heading/empty keys and any remaining hardcoded occurrence), and confirm invitations render only as the inline top-pinned cards, not via any surviving heading/empty-state UI."
+    },
+    {
+      "question_id": "VQ-S2-017",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REMOVE-2",
+      "question": "Show the diff removing PendingInvitations.tsx's heading/empty-state/row render path and its import in groups.tsx (or the component's deletion); confirm no remaining file imports a symbol that no longer exists from PendingInvitations.tsx; confirm the old heading/empty i18n keys are deleted from the Copy type and both en/de objects in i18n.ts; and confirm pendingInvitations.ts's store shape/exports are byte-for-byte unchanged from before this story."
+    },
+    {
+      "question_id": "VQ-S2-018",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TESTID-1",
+      "question": "Grep the implementation for the literal testid strings accept-invitation-${id}, decline-invitation-${id}, and pending-invitations-section — confirm all three are present, unchanged, and attached to the same semantic elements (Accept button, Decline button, section wrapper) as before. Confirm (by running, or by showing an unmodified diff of) the dependent peripheral e2e specs and helpers/group-setup.ts's invite-accept helper — none of them required a code change to keep passing."
+    },
+    {
+      "question_id": "VQ-S2-019",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-COPY-1",
+      "question": "Show the new i18n.ts entries (badge label, invitedBy(name), unknownGroupFallback, and any other new invitation-card copy) present in both the Copy type and the en and de objects; show that InvitationCard.tsx references every user-facing string via useCopy() with no hardcoded literal; and confirm the existing i18n parity test passes for the new key set."
+    },
+    {
+      "question_id": "VQ-S2-020",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REG-1",
+      "question": "Show that Layout.tsx's invitation-count indicator reads the same pendingInvitations store unchanged by this story; show a test or e2e assertion that the nav badge count still reflects the number of pending invitations after S2's changes; and confirm no S2 change touches Layout.tsx's counting logic."
+    },
+    {
+      "question_id": "VQ-S2-021",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-1",
+      "question": "Show the rewritten groups-pull-only-invitation-accept.spec.ts asserting the invitee sees an inline invitation-card-<id> with group name, invitation badge, and 'Invited by' attribution (not a bare pending row), that the card is tappable to the preview, and that Accept (from card or preview) joins the group and becomes a joined-group card. Confirm all peer publishes in the spec go through the app's real publish helpers (never a raw WebSocket send to the relay), and confirm the filename retains the groups- prefix."
+    },
+    {
+      "question_id": "VQ-S2-022",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-2",
+      "question": "Show the rewritten groups-pull-only-invitation-decline.spec.ts asserting the invitee sees the inline card and that Decline removes it immediately with the group never joined (not present in the list afterward), and confirm peer publishes in the spec go through the app's real publish helpers, never raw WebSocket."
+    }
+  ]
+}

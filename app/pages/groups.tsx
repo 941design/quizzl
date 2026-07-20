@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Box,
   Flex,
@@ -36,7 +36,14 @@ import JoinRequestCard from '@/src/components/groups/JoinRequestCard';
 import InviteAwaitingBanner from '@/src/components/groups/InviteAwaitingBanner';
 import OutboundJoinRequestCard from '@/src/components/groups/OutboundJoinRequestCard';
 import { useOutboundJoinRequests } from '@/src/lib/marmot/outboundJoinRequests';
-import PendingInvitations from '@/src/components/groups/PendingInvitations';
+import InvitationCard from '@/src/components/groups/InvitationCard';
+import {
+  subscribe as subscribePendingInvitations,
+  getSnapshot as getPendingInvitationsSnapshot,
+} from '@/src/lib/pendingInvitations';
+import type { PendingInvitation } from '@/src/lib/pendingInvitations';
+import { resolveInviterLabel, truncatePubkey } from '@/src/lib/pubkeyDisplay';
+import { BADGE_ACCENT } from '@/src/lib/badgeAccent';
 import LeaveGroupButton from '@/src/components/groups/LeaveGroupButton';
 import GroupChat from '@/src/components/groups/GroupChat';
 // Voice/video calls are gated behind the CALLS_ENABLED feature toggle.
@@ -52,6 +59,12 @@ import { setActiveView, clearActiveView } from '@/src/lib/activeViewStore';
 import { deleteMemberProfile } from '@/src/lib/marmot/groupStorage';
 import { clearPendingDirectInvite } from '@/src/lib/marmot/pendingDirectInviteStorage';
 import type { Group, MemberProfile } from '@/src/types';
+
+/* ---------- Pending-invitations store (SSR-safe stub) ---------- */
+
+function getPendingInvitationsServerSnapshot(): ReadonlyArray<PendingInvitation> {
+  return [];
+}
 
 /* ---------- Detail view (shown when ?id=xxx is present) ---------- */
 
@@ -897,11 +910,175 @@ function GroupDetailView({ id }: { id: string }) {
   );
 }
 
+/* ---------- Invitation preview (read-only, pre-join) ---------- */
+
+/**
+ * Read-only preview of a pending invitation, reached via `/groups?invite=<id>`
+ * (query param only — no dynamic path segment, per the static-export routing
+ * rule). Shows the pre-join-decoded group name, description, "Invited by <X>"
+ * attribution, and the group admin(s), plus Accept/Decline (epic:
+ * inline-invitation-cards, S3). Group data is decoded locally from the stored
+ * Welcome via `getInvitationGroupData` (S1) — no relay call; attribution reads
+ * only local contacts. A member roster is NOT recoverable pre-join, so only
+ * admins are shown.
+ *
+ * AC-PREVIEW-3: a stale/unknown invite id (already accepted/declined, or never
+ * existed) does not crash — once client state has hydrated, it falls back to
+ * the groups list. The `hydrated` gate avoids a redirect during the pre-
+ * hydration render window where the store snapshot is still the SSR empty
+ * array.
+ */
+function InvitationPreviewView({ id }: { id: string }) {
+  const router = useRouter();
+  const copy = useCopy();
+  const { getInvitationGroupData, acceptPendingInvitation, declinePendingInvitation } = useMarmot();
+  const { pubkeyHex, hydrated } = useNostrIdentity();
+  const invitations = useSyncExternalStore(
+    subscribePendingInvitations,
+    getPendingInvitationsSnapshot,
+    getPendingInvitationsServerSnapshot,
+  );
+  const invitation = invitations.find((inv) => inv.id === id);
+
+  const [groupData, setGroupData] = useState<{ name: string; description: string; adminPubkeys: string[] } | null>(null);
+  const [accepting, setAccepting] = useState(false);
+  const [error, setError] = useState<string | undefined>(undefined);
+
+  // AC-PREVIEW-3: stale/unknown (or just accepted/declined) invite id → back to
+  // the list. Gated on `hydrated` so we don't redirect during the pre-hydration
+  // window (store snapshot is the SSR [] until the client settles). Accept and
+  // Decline also remove the invitation from the store, so this same effect
+  // performs the post-action navigation back to the list.
+  useEffect(() => {
+    if (hydrated && !invitation) {
+      void router.replace('/groups');
+    }
+  }, [hydrated, invitation, router]);
+
+  const welcomeJson = invitation?.welcomeEventJson;
+  useEffect(() => {
+    if (!welcomeJson) return;
+    let cancelled = false;
+    getInvitationGroupData(welcomeJson)
+      .then((data) => {
+        if (!cancelled) setGroupData(data);
+      })
+      .catch(() => {
+        if (!cancelled) setGroupData(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [welcomeJson, getInvitationGroupData]);
+
+  if (!invitation) return null;
+
+  const displayName = groupData?.name ? groupData.name : copy.groups.pendingInvitations.unknownGroupFallback;
+  const description = groupData?.description?.trim();
+  const admins = groupData?.adminPubkeys ?? [];
+  const inviterLabel = resolveInviterLabel(invitation.inviterPubkeyHex, pubkeyHex);
+
+  async function handleAccept() {
+    setAccepting(true);
+    setError(undefined);
+    try {
+      await acceptPendingInvitation(invitation!.id);
+      await router.replace('/groups');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'unknown');
+      setAccepting(false);
+    }
+  }
+
+  async function handleDecline() {
+    await declinePendingInvitation(invitation!.id);
+    await router.replace('/groups');
+  }
+
+  return (
+    <>
+      <Head>
+        <title>{`${displayName} - ${copy.appName}`}</title>
+      </Head>
+      <Box data-testid="invitation-preview">
+        <Button variant="ghost" size="sm" mb={4} onClick={() => void router.replace('/groups')}>
+          ← {copy.groups.backToGroups}
+        </Button>
+        <VStack align="stretch" spacing={4} p={4} borderWidth="1px" borderRadius="lg" borderColor="borderSubtle" bg="surfaceBg">
+          <HStack spacing={2} align="center" flexWrap="wrap">
+            <Heading size="md" data-testid="invitation-preview-name">
+              {displayName}
+            </Heading>
+            <Badge colorScheme={BADGE_ACCENT.invitation} variant="subtle">
+              {copy.groups.pendingInvitations.badge}
+            </Badge>
+          </HStack>
+
+          <Text fontSize="sm" color="textMuted" data-testid="invitation-preview-invited-by">
+            {copy.groups.pendingInvitations.invitedBy(inviterLabel)}
+          </Text>
+
+          {description && (
+            <Text fontSize="sm" data-testid="invitation-preview-description">
+              {description}
+            </Text>
+          )}
+
+          {admins.length > 0 && (
+            <Box data-testid="invitation-preview-admins">
+              <Text fontSize="xs" fontWeight="semibold" color="textMuted" mb={1}>
+                {copy.groups.pendingInvitations.adminLabel}
+              </Text>
+              <VStack align="stretch" spacing={0}>
+                {admins.map((admin) => (
+                  <Text key={admin} fontSize="xs" color="textMuted" noOfLines={1}>
+                    {resolveInviterLabel(admin, pubkeyHex) || truncatePubkey(admin)}
+                  </Text>
+                ))}
+              </VStack>
+            </Box>
+          )}
+
+          {error && (
+            <Alert status="error" borderRadius="md" py={1} px={3}>
+              <AlertIcon />
+              <AlertDescription fontSize="xs">
+                {copy.groups.pendingInvitations.acceptError}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <Divider />
+          <HStack spacing={2}>
+            <Button
+              colorScheme="success"
+              onClick={() => void handleAccept()}
+              isLoading={accepting}
+              data-testid="invitation-preview-accept"
+            >
+              {copy.groups.pendingInvitations.acceptBtn}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => void handleDecline()}
+              isDisabled={accepting}
+              data-testid="invitation-preview-decline"
+            >
+              {copy.groups.pendingInvitations.declineBtn}
+            </Button>
+          </HStack>
+        </VStack>
+      </Box>
+    </>
+  );
+}
+
 /* ---------- List view (default) ---------- */
 
 export default function GroupsPage() {
   const router = useRouter();
   const id = router.query.id as string | undefined;
+  const inviteId = router.query.invite as string | undefined;
   const joinNonce = router.query.join as string | undefined;
   const joinAdmin = router.query.admin as string | undefined;
   const joinName = router.query.name as string | undefined;
@@ -910,6 +1087,11 @@ export default function GroupsPage() {
   const { groups, ready, unsupported } = useMarmot();
   const { backedUp, isFreshIdentity, hydrated } = useNostrIdentity();
   const { records: outboundRecords, loaded: outboundLoaded } = useOutboundJoinRequests();
+  const invitations = useSyncExternalStore(
+    subscribePendingInvitations,
+    getPendingInvitationsSnapshot,
+    getPendingInvitationsServerSnapshot,
+  );
   const createDisclosure = useDisclosure();
 
   // AC-DEEPLINK-3: `?id=<id>&manageLinks=1` targeting a groupId absent from
@@ -958,6 +1140,14 @@ export default function GroupsPage() {
   // (hydrated && !isFreshIdentity) reaches the new banner landing.
   if (joinNonce && joinAdmin && joinName && (isFreshIdentity || !hydrated)) {
     return <JoinRequestCard nonce={joinNonce} adminNpub={joinAdmin} groupName={joinName} />;
+  }
+
+  // When ?invite=<id> is present, show the read-only invitation preview
+  // (epic: inline-invitation-cards, S3). Query-param only, no dynamic path
+  // segment (static-export routing rule). A stale/unknown id falls back to the
+  // list inside the view itself (AC-PREVIEW-3).
+  if (inviteId) {
+    return <InvitationPreviewView id={inviteId} />;
   }
 
   // When ?id=xxx is present, show the detail view — unless the S4 deep-link
@@ -1027,16 +1217,13 @@ export default function GroupsPage() {
           </Box>
         )}
 
-        {/* AC-INVITE-7: PendingInvitations renders ABOVE joined-groups list */}
-        {ready && !unsupported && <PendingInvitations />}
-
         {/* `outboundLoaded` gate (Codex pre-commit review, P2): the outbound
             store loads asynchronously, so `outboundRecords` is empty during
             its initial IDB read. Without this gate, a returning user with
             persisted awaiting requests but no joined groups would briefly see
             the "no groups" empty state before the awaiting cards render. Only
             treat an empty outbound set as authoritative once it has loaded. */}
-        {ready && outboundLoaded && groups.length === 0 && outboundRecords.length === 0 && (
+        {ready && outboundLoaded && groups.length === 0 && outboundRecords.length === 0 && invitations.length === 0 && (
           <Alert
             status="info"
             borderRadius="md"
@@ -1055,8 +1242,23 @@ export default function GroupsPage() {
           </Alert>
         )}
 
-        {ready && (groups.length > 0 || outboundRecords.length > 0) && (
+        {ready && (groups.length > 0 || outboundRecords.length > 0 || (!unsupported && invitations.length > 0)) && (
           <VStack spacing={3} align="stretch" data-testid="groups-list">
+            {!unsupported && invitations.length > 0 && (
+              <Box data-testid="pending-invitations-section">
+                {/* This testid is a deliberately retained stable readiness gate, NOT
+                    a visible section anymore (AC-REMOVE-1: no heading text, no
+                    empty-state — this wrapper renders only when >=1 invitation
+                    exists). ~19 peripheral e2e spec files plus
+                    helpers/group-setup.ts's invite-accept helper poll this testid
+                    before interacting with an invitation card — do not rename it. */}
+                <VStack spacing={3} align="stretch">
+                  {invitations.map((inv) => (
+                    <InvitationCard key={inv.id} invitation={inv} />
+                  ))}
+                </VStack>
+              </Box>
+            )}
             {groups.map((group) => (
               <GroupCard key={group.id} group={group} />
             ))}

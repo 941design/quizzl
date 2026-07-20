@@ -1,0 +1,74 @@
+{
+  "epic": "inline-invitation-cards",
+  "explored_at": "2026-07-20T05:55:00Z",
+  "anchors": {
+    "groups_page": {
+      "file": "app/pages/groups.tsx",
+      "notes": "GroupsPage() at line 902. Query-param branches: joinNonce/admin/name (JoinRequestCard, gated on isFreshIdentity||!hydrated, line 959), id (GroupDetailView, line 966). Add router.query.invite branch (read ~905, branch analogous to 966-968 -> InvitationPreviewView). List JSX 975-1067: OfflineBanner, BackupReminderBanner, InviteAwaitingBanner (989), heading+create (993), PendingInvitations (1031 -- REPLACE), empty-state Alert (1039, condition must add invitations.length===0), VStack data-testid=groups-list (1059) with groups.map(GroupCard) then outboundRecords.map(OutboundJoinRequestCard). Pin invitation cards as FIRST children inside groups-list VStack. Imports readContactCache (line 26), resolves pubkey->nickname at 545-555. shouldRedirectToGroupsList (118), GroupDetailView notFound pattern (638-654) is the precedent for stale-target fallback to list (AC-PREVIEW-3). Exported pure helpers already unit-tested: shouldOpenManageLinksOverlay, nextManageLinksGuard, shouldRedirectToGroupsList, computeStillMember, etc. (73-243)."
+    },
+    "group_card": {
+      "file": "app/src/components/groups/GroupCard.tsx",
+      "notes": "GroupCard({group}) line 24. LinkBox as=article data-testid=group-card-{id} (68) -> NextLink href=/groups?id={id} -> LinkOverlay(name + UnreadCountBadge) + member-count Badge colorScheme=BADGE_ACCENT.memberCount + soft-limit text + last-message preview via loadMessages. REUSE for invitation card: LinkBox/NextLink/LinkOverlay chrome (fully coloured, AC-CARD-3), Badge+BADGE_ACCENT pattern. NOT reusable pre-join: unread (useUnreadCounts), memberCount (group.memberPubkeys), preview (loadMessages). Invitation card is a DISTINCT sibling component."
+    },
+    "pending_store": {
+      "file": "app/src/lib/pendingInvitations.ts",
+      "notes": "PendingInvitation type 32-41: {id, inviterPubkeyHex (authenticated seal pubkey), receivedAt, welcomeEventJson}. localStorage key lp_pendingInvitations_v1. subscribe/getSnapshot 43-61 (useSyncExternalStore pair). STORE IS UNCHANGED by epic. getServerSnapshot stub lives in PendingInvitations.tsx:56-58 (returns []). Other consumer: Layout.tsx:35,72-77 (nav badge count) -- UNTOUCHED."
+    },
+    "pending_component": {
+      "file": "app/src/components/groups/PendingInvitations.tsx",
+      "notes": "To be removed/replaced. Component 134-198. Truncation helper INLINED at 80-81: pk.length>=16 ? pk.slice(0,8)+'...'+pk.slice(-8) : pk -- ONLY occurrence in app/src; extract to shared util (boy-scout). testids: pending-invitations-section (168), pending-invitation-row-{id} (84), accept-invitation-{id} (100), decline-invitation-{id} (109), pending-invitations-empty (178). Copy at copy.groups.pendingInvitations.heading/empty."
+    },
+    "prejoin_helper": {
+      "file": "app/src/lib/marmot/welcomeSubscription.ts",
+      "notes": "readPreJoinGroupName(welcomeRumor: UnwrappedRumor, marmotClient: MarmotClient): Promise<string|null> at 293-326. Loops getWelcomeKeyPackageRefs -> keyPackages.get -> getCiphersuiteImpl -> readWelcomeMarmotGroupData({welcome,keyPackage,ciphersuiteImpl}) -> returns groupData.name (313). SIDE-EFFECT-FREE (277-291): no key-package burn, no MLS adoption. Returns null on failure/no-match. ADD SIBLING returning {name, description, adminPubkeys}|null (near-copy, wider slice of groupData). MarmotGroupData (marmot-ts protocol.d.ts:46-66) has name, description, adminPubkeys:string[] (hex x-only). Do NOT use readInviteGroupInfo (extensions empty in release). acceptPendingInvitation(id, marmotClient, onGroupJoined) 863-917 (parse welcomeEventJson; throws 'This invitation is no longer valid' on parse fail = AC-PREVIEW-3 stale case). declinePendingInvitation(id) 919-922 (removePendingInvitation + log, no network)."
+    },
+    "marmot_context": {
+      "file": "app/src/context/MarmotContext.tsx",
+      "notes": "acceptPendingInvitation(id) useCallback 1921 (dynamic-imports impl, on join -> reloadGroups()+markBackupDirty(true)). declinePendingInvitation(id) 1933. Both exposed via useMarmot(). NEW context read method needed to expose pre-join group data: a method like getInvitationGroupData(welcomeEventJson)->Promise<{name,description,adminPubkeys}|null> that JSON.parses the rumor and calls the new welcomeSubscription sibling with clientRef.current. Mirror the existing dynamic-import boundary pattern."
+    },
+    "contact_name_resolution": {
+      "primary": "app/src/lib/contacts.ts",
+      "notes": "getContact(pubkeyHex, ownPubkeyHex, options?): ContactListItem|null at 341-346 -> the KNOWN-CONTACT test matching AC-ATTR-1. Returns null if not in stored contacts (lp_contacts_v1). ContactListItem.nickname may be '' if no profile synced. LOCAL-ONLY, synchronous, no relay. Resolution rule: getContact(inviterPubkeyHex, ownPubkeyHex)?.nickname || truncate(inviterPubkeyHex); treat both null and '' as fall-through to truncated pubkey (AC-ATTR-2). Alt (looser, DO NOT USE for known-contact test): contactCache.readContactEntry (contactCache.ts:58) resolves ANY seen pubkey incl. non-contacts. Own pubkey available from identity/marmot context."
+    },
+    "badge": {
+      "file": "app/src/lib/badgeAccent.ts",
+      "notes": "BADGE_ACCENT kind->color map 30-49 (admin, memberRequested, memberPending, awaiting, memberCount, ...). Decorative palette badge1..badge5 (no severity). ADD BADGE_ACCENT.invitation = 'badgeN' distinct from any badge that co-renders."
+    },
+    "outbound_coexistence": {
+      "files": ["app/src/components/groups/OutboundJoinRequestCard.tsx", "app/src/components/groups/InviteAwaitingBanner.tsx"],
+      "notes": "ADR-011 outbound (invite-link, ?join=&admin=&name=) flow. OutboundJoinRequestCard = plain Box (not LinkBox), dimmed opacity=0.6, non-navigating, renders AFTER groups.map (1063-1065). data-testid=outbound-request-card-{nonce6}. NO param collision with ?invite=. Removing PendingInvitations does not touch these. Intentional visual asymmetry (dimmed outbound vs fully-coloured inbound)."
+    }
+  },
+  "e2e": {
+    "target_specs": {
+      "files": ["app/tests/e2e/groups-pull-only-invitation-accept.spec.ts", "app/tests/e2e/groups-pull-only-invitation-decline.spec.ts"],
+      "notes": "Structurally identical. bootUser double-seeds identity (addInitScript + post-clearAppState page.evaluate); asserts groups-empty-state|groups-list ready. Alice invites Bob through the app: create-group-btn -> create-group-name-input -> create-group-submit-btn -> click group-card-* -> inviteContactViaPicker(alicePage, USER_B.npub) -> assert invite-success. Bob today: getByTestId('pending-invitations-section'); locator [data-testid^=pending-invitation-row-].last(); accept asserts group-card-* hasText GROUP_NAME toHaveCount(0) pre-accept (line 110, the invariant to REWRITE); click [data-testid^=accept-invitation-].last() / decline; post-accept expect getByText(GROUP_NAME) visible; post-decline row count->0, group-card count stays 0. 3rd test: DM/bell via window.__fewPublishDm bridge (publish-through-app)."
+    },
+    "harness": {
+      "notes": "computeTestKeypairs() in beforeAll salts USER_A/B/C by spec FILENAME (auth-helpers.ts:82-113). browser.newContext({baseURL}) per user + suppressErrorOverlay. inviteContactViaPicker (helpers/group-setup.ts:79-103) drives seedContact->/add#c=<npub>->InviteMemberModal->click contact row->invite-submit-btn. isFreshIdentity ALWAYS false under bootUser (freshIdentity.ts:24-26; identity seeded before goto) -> e2e always renders list-view path, never full-screen JoinRequestCard. Readiness via expect(...).toBeVisible on live testids, not reload()+isVisible. Prefer expect.poll over waitForTimeout for new assertions."
+    },
+    "url_idiom": {
+      "notes": "Static-export renders internal hrefs + URLs WITH TRAILING SLASH. For /groups?invite=<id>: use toHaveURL(new RegExp('invite='+id)) (unanchored) OR expect.poll on new URL(page.url()).pathname+search matched against /^\\/groups\\/?$/ + query check. NEVER toHaveURL(/^\\/groups\\?invite=/) (never matches absolute URL). href attrs carry trailing slash (e.g. '/contacts/')."
+    },
+    "buckets": {
+      "notes": "playwright.config.ts:3,43-44: E2E_GROUPS env -> testMatch ['groups-*.spec.ts','dm-*.spec.ts'] else testIgnore same. FILENAME-GLOB only. New preview spec MUST be groups-* prefix. Makefile: test = test-unit test-e2e-all; test-e2e-all = test-e2e-fast (non-relay, 12) + test-e2e (E2E_GROUPS=1, docker relay, 48). Gate = make test-e2e-all."
+    },
+    "blast_radius_DECISION": {
+      "notes": "LEAD DECISION (testid stability): accept-invitation-{id} (29 files), decline-invitation-{id}, pending-invitations-section wrapper (19 files incl. helpers/group-setup.ts:179,184) KEPT STABLE. New card exposes same button testids; a structural wrapper (rendered only when invitations exist, no heading/empty-state) keeps pending-invitations-section testid. Only the 2 target specs rewritten + 1 new groups-invitation-preview.spec.ts. group-setup.ts UNCHANGED. See AC-TESTID-1."
+    }
+  },
+  "unit_tests": {
+    "notes": "vitest, app/tests/unit/**/*.test.ts. NO jsdom/testing-library/renderHook. Test React logic via exported pure functions (precedent: app/pages/groups.tsx exports shouldOpenManageLinksOverlay etc., tested in app/tests/unit/pages/groupsManageLinksDeepLink.test.ts importing from @/pages/groups). Extract pure helpers (truncate, attribution formatting) to .ts and unit-test directly. NOTE: vitest passing != build passing (TS/Chakra JSX errors slip past); run the build/typecheck too."
+  },
+  "chakra": {
+    "notes": "data-testid on both Modal + ModalContent (Modal portals don't forward). Preview is a PAGE branch not a modal, so N/A unless modal chosen. Navigation: NextLink + LinkBox/LinkOverlay for tappable cards; router.push/replace only for programmatic redirects."
+  },
+  "prior_learnings": [
+    {"id": "next-js-static-export-trailing-slash", "why": "preview route URL assertions + internal hrefs carry trailing slash"},
+    {"id": "chakra-ui-modal-does-not-forward-data-testid", "why": "testid placement convention"},
+    {"id": "extract-pure-helpers-ts-when-vitest", "why": "unit-test pattern for extracted helpers"},
+    {"id": "vitest-passing-does-not-mean-build", "why": "must run build/typecheck, not just vitest"},
+    {"id": "bootuser-e2e-helper-always-yields-isfreshidentity", "why": "e2e always hits list-view path, never full-screen"},
+    {"id": "marmot_prejoin_group_read", "why": "use readWelcomeMarmotGroupData not readInviteGroupInfo"}
+  ]
+}

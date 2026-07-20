@@ -1,0 +1,125 @@
+{
+  "story_id": "S1",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-20T06:15:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S1-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is readPreJoinGroupData's null-return path (AC-DATA-2) reached only when a real key-package match against the Welcome genuinely fails (not a hardcoded early return that always/never returns null), and does resolveInviterLabel call the real getContact lookup and truncatePubkey rather than a frozen/mocked contact map or a stand-in constant label?"
+    },
+    {
+      "question_id": "VQ-S1-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Is readPreJoinGroupData added to welcomeSubscription.ts as a side-effect-free sibling of readPreJoinGroupName using readWelcomeMarmotGroupData (not readInviteGroupInfo)? Is getInvitationGroupData added to MarmotContext.tsx as a dynamic-imported boundary method mirroring acceptPendingInvitation, rather than any component importing welcomeSubscription.ts or constructing a MarmotClient directly? Is truncatePubkey extracted into its own pure module (e.g. app/src/lib/pubkeyDisplay.ts) rather than left inlined at PendingInvitations.tsx:80-81?"
+    },
+    {
+      "question_id": "VQ-S1-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could welcome-subscription (marmot lib) be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S1-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Are truncatePubkey and resolveInviterLabel covered by real unit tests under app/tests/unit using the project's extracted-pure-function pattern (no jsdom), including: a known-contact-with-nickname case, a known-contact-with-empty-nickname fall-through case, an unknown-contact truncation case, and a short/edge-length input case for truncatePubkey?"
+    },
+    {
+      "question_id": "VQ-S1-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the combined S1 surface (readPreJoinGroupData, getInvitationGroupData, truncatePubkey, resolveInviterLabel) match all four seam contracts frozen in architecture.md's Seams section in full — names, parameter order, return shape — with nothing renamed, reshaped, or partially implemented ahead of S2/S3 consuming them?"
+    },
+    {
+      "question_id": "VQ-S1-006",
+      "phase": "pre-impl",
+      "category": "SECURITY",
+      "question": "Does the new decode/attribution code path make zero calls to any relay-publish function (no kind-0, no group-metadata broadcast)? Does it read group data only via readWelcomeMarmotGroupData decrypting the locally stored Welcome, and does attribution read only local getContact — never a public relay query for name, description, admins, or contact/profile info?"
+    },
+    {
+      "question_id": "VQ-S1-007",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does S1's diff touch only welcomeSubscription.ts, MarmotContext.tsx, the new pubkeyDisplay.ts (or equivalent attribution-helper module), and app/tests/unit files — with no edits to InvitationCard.tsx, groups.tsx, PendingInvitations.tsx's render path, badgeAccent.ts, i18n.ts, or the pendingInvitations.ts store shape (all explicitly excluded from S1's scope per stories.json)?"
+    },
+    {
+      "question_id": "VQ-S1-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DATA-1",
+      "question": "Does readPreJoinGroupData's resolved (non-null) return value match the exact contract shape { name: string, description: string | undefined, adminPubkeys: string[] } — no renamed field, no added/missing field, no differing type — and does getInvitationGroupData(welcomeEventJson: string) preserve this exact shape after its own JSON-parse and null/error handling? Show the exported type signature and a test asserting field-by-field shape against a real decoded Welcome fixture (not a mocked readWelcomeMarmotGroupData return that trivially satisfies the assertion)."
+    },
+    {
+      "question_id": "VQ-S1-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ATTR-1",
+      "question": "Do resolveInviterLabel(inviterPubkeyHex: string, ownPubkeyHex: string): string and truncatePubkey(hex: string): string match this exact signature (parameter names/order, non-nullable string return) with no additional required parameter, so S2's InvitationCard and S3's preview can call them directly with no adapter shim? Show the exported type signatures and a test importing and exercising both from a fresh module import."
+    },
+    {
+      "question_id": "VQ-S1-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DATA-1",
+      "question": "Show the production readPreJoinGroupData(welcomeRumor, marmotClient) implementation returning {name, description, adminPubkeys} via readWelcomeMarmotGroupData without joining the group, burning a key package, or making any network-publish call; show the unit/integration test exercising a genuine decodable Welcome fixture end-to-end; and confirm the test asserts against real decoded output rather than a mocked readWelcomeMarmotGroupData return value."
+    },
+    {
+      "question_id": "VQ-S1-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-DATA-2",
+      "question": "Show the production null/empty-return path in readPreJoinGroupData/getInvitationGroupData taken when no local key package matches the Welcome (no throw), the test seeding a non-matching Welcome and asserting a null/empty result rather than an exception, and confirm at least one test demonstrates that a single failed decode does not throw or reject in a way that would propagate uncaught to a caller rendering a list of multiple invitations."
+    },
+    {
+      "question_id": "VQ-S1-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ATTR-1",
+      "question": "Show the production resolveInviterLabel branch returning getContact(inviterPubkeyHex)?.nickname when the inviter is a known contact with a non-empty nickname, the unit test seeding a known contact and asserting the nickname (not the pubkey) is returned, and confirm the test drives the real getContact from contacts.ts rather than a mock hardcoding the expected nickname."
+    },
+    {
+      "question_id": "VQ-S1-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ATTR-2",
+      "question": "Show the production fallback branch in resolveInviterLabel returning truncatePubkey(inviterPubkeyHex) when the inviter is not a known contact OR the known contact's nickname is an empty string, the unit test covering both the 'no contact' and 'contact with empty nickname' cases, and confirm the returned value is genuinely truncated (not the full raw pubkey, not blank)."
+    },
+    {
+      "question_id": "VQ-S1-014",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ATTR-3",
+      "question": "Show that resolveInviterLabel and its callees (getContact, pubkey formatting) make zero network/relay calls — no fetch/WebSocket/NDK relay query — sourcing only local contacts state; show test or static evidence (e.g. no relay-client import in the helper module) proving this; and confirm no call site could accidentally trigger a public lookup for attribution."
+    },
+    {
+      "question_id": "VQ-S1-015",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-REG-2",
+      "question": "Show that no code added or changed in S1 (readPreJoinGroupData, getInvitationGroupData, truncatePubkey, resolveInviterLabel) calls any relay-publish function or constructs a kind-0/public event; show source-level evidence (no import of a publish/broadcast helper in these new/changed files); and confirm the group-data source is exclusively the decrypted Welcome and the attribution source is exclusively local getContact — never a live fetch of any kind."
+    },
+    {
+      "question_id": "VQ-S1-016",
+      "phase": "post-impl",
+      "category": "SPEC",
+      "ac_id": "AC-ATTR-1",
+      "question": "The shipped `resolveInviterLabel` types its second parameter as `ownPubkeyHex: string | null | undefined`, whereas the pre-impl commitment VQ-S1-009 described the signature as `ownPubkeyHex: string`. This widening exactly mirrors `getContact`'s own real signature at `app/src/lib/contacts.ts:341` (`ownPubkeyHex: string | null | undefined`) — a caller passing a plain `string` still type-checks under the shipped signature (the widening is a strict superset, not a narrowing), so S2/S3 call sites written against either the narrower pre-impl description or the actual `getContact` contract both work with no adapter shim. Confirm this is the correct read (no contract-breaking narrowing occurred) and that the deviation from VQ-S1-009's literal wording is immaterial to AC-ATTR-1's callers."
+    },
+    {
+      "question_id": "VQ-S1-017",
+      "phase": "post-impl",
+      "category": "TEST",
+      "ac_id": "AC-DATA-2",
+      "question": "`app/tests/unit/marmot/readPreJoinGroupData.nullPath.test.ts` covers the AC-DATA-2 null path by mocking `@internet-privacy/marmot-ts`'s `getWelcome`/`getWelcomeKeyPackageRefs`/`readWelcomeMarmotGroupData` (a genuinely non-matching real MLS Welcome was judged impractical to construct deterministically without faking underlying secrets — see that file's header comment), while the happy path (`readPreJoinGroupData.realMarmot.test.ts`) is fully unmocked end-to-end. Is mocking marmot-ts at this SUT boundary for the null-path test alone an acceptable trade-off (precedented by `welcomeSubscriptionAutoAccept.test.ts`'s existing 'group name unreadable' case), or does it reintroduce the 'mock the helper at the SUT's own call site' blind spot this repo has previously flagged (see `feedback_test_mocking_blind_spots` project memory) for this specific branch?"
+    },
+    {
+      "question_id": "VQ-S1-018",
+      "phase": "post-impl",
+      "category": "ARCHITECTURE",
+      "question": "`readPreJoinGroupName` was refactored to delegate to `readPreJoinGroupData` (`(await readPreJoinGroupData(...))?.name ?? null`) rather than being left as an independent implementation. Its sole pre-existing consumer is the AC-AUTO-4a auto-accept disambiguation path, covered by the pre-existing real-fixture test `app/tests/unit/marmot/readPreJoinGroupName.realMarmot.test.ts`, which still passes unmodified after the refactor. Confirm the refactor introduced no behavioral change to `readPreJoinGroupName` (same null/error semantics, same logged warning conditions) beyond the internal delegation, and that no other call site in the codebase depends on `readPreJoinGroupName` having its own independent try/catch or log-tag string (the log tag changed from `dm:auto-accept-group-name-read-failed` to `dm:pre-join-group-data-read-failed`)."
+    }
+  ]
+}

@@ -42,6 +42,10 @@ export const BADGE_ACCENT = {
   memberCount: 'badge1',
   /** Our own outbound join request awaiting a decision. */
   awaiting: 'badge3',
+  /** Inline invitation card status badge (epic: inline-invitation-cards, S2). Shares
+   * `awaiting`'s scale — both mark something awaiting a decision, and the two never
+   * co-render (different list sections), so no adjacency clash. */
+  invitation: 'badge3',
   /** Incoming video call. */
   callVideo: 'badge1',
   /** Incoming voice call. */

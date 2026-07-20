@@ -1,11 +1,15 @@
 /**
- * E2E: Pull-only invitation decline flow (AC-TEST-6)
+ * E2E: Pull-only invitation decline flow (AC-TEST-2, epic: inline-invitation-cards S2)
  *
  * Alice (USER_A) creates a group and invites Bob (USER_B) by npub.
- * Bob sees a pending invitation card on /groups/ and clicks Decline.
+ * Bob sees an INLINE invitation card on /groups/ (invitation-card-<id>, showing
+ * the group name + invitation badge + "Invited by" attribution) and clicks
+ * Decline.
  * After declining:
- *   a. The pending invitation card is removed from the UI.
- *   b. Bob's groups list does NOT include the group.
+ *   a. The invitation card is removed from the UI IMMEDIATELY — no confirmation
+ *      dialog.
+ *   b. Bob's groups list does NOT include the group; the group name is no
+ *      longer visible anywhere on the page.
  *   c. After Alice publishes a DM via publishDirectMessage, Bob's bell stays at 0.
  *      (Alice is a stranger to Bob post-decline — she never became a known peer.)
  *
@@ -55,7 +59,7 @@ async function bootUser(
   return { context, page };
 }
 
-test.describe.serial('Pull-only invitation: Decline (AC-TEST-6)', () => {
+test.describe.serial('Pull-only invitation: Decline (AC-TEST-2)', () => {
   let aliceCtx: BrowserContext;
   let bobCtx: BrowserContext;
   let alicePage: Page;
@@ -96,26 +100,35 @@ test.describe.serial('Pull-only invitation: Decline (AC-TEST-6)', () => {
     await alicePage.waitForTimeout(3_000);
   });
 
-  test('Bob sees pending invitation and clicks Decline', async () => {
+  test('Bob sees the inline invitation card and clicks Decline', async () => {
     // Wait for the Welcome to arrive over the relay
     await bobPage.waitForTimeout(5_000);
     await bobPage.goto('/groups/');
 
-    // Wait for the pending invitation to appear
+    // AC-TEST-2 / AC-CARD-1: Bob sees the inline invitation card showing the
+    // real group name, an invitation badge, and "Invited by" attribution.
     await expect(bobPage.getByTestId('pending-invitations-section')).toBeVisible({ timeout: 90_000 });
-    await expect(bobPage.locator('[data-testid^="pending-invitation-row-"]').last()).toBeVisible({ timeout: 30_000 });
+    const invitationCard = bobPage.locator('[data-testid^="invitation-card-"]').last();
+    await expect(invitationCard).toBeVisible({ timeout: 30_000 });
+    await expect(invitationCard.getByText(GROUP_NAME)).toBeVisible();
+    await expect(invitationCard.getByText('Invitation')).toBeVisible();
+    await expect(invitationCard.getByText(/Invited by/)).toBeVisible();
 
-    // AC-TEST-6(a): Bob clicks Decline on the most recent (fresh) invitation.
+    // AC-TEST-2 / AC-CARD-6: Bob clicks Decline on the most recent (fresh)
+    // invitation — immediate, no confirmation dialog.
     await bobPage.locator('[data-testid^="decline-invitation-"]').last().click();
 
-    // AC-TEST-6(a): The fresh invitation row must disappear (the warm-up at the
-    // start of the previous test cleared any stale entries so only one remained).
-    await expect(bobPage.locator('[data-testid^="pending-invitation-row-"]')).toHaveCount(0, { timeout: 10_000 });
+    // AC-TEST-2 / AC-CARD-6: the fresh invitation card must disappear
+    // immediately (the warm-up at the start of the previous test cleared any
+    // stale entries so only one remained).
+    await expect(bobPage.locator('[data-testid^="invitation-card-"]')).toHaveCount(0, { timeout: 10_000 });
 
-    // AC-TEST-6(b): The group does NOT appear in Bob's list
+    // AC-TEST-2 / AC-CARD-6: the group is never joined — no group-card appears,
+    // and the group name is no longer visible anywhere on the page.
     await expect(
       bobPage.locator('[data-testid^="group-card-"]', { hasText: GROUP_NAME }),
     ).toHaveCount(0);
+    await expect(bobPage.getByText(GROUP_NAME)).toHaveCount(0);
   });
 
   test('Alice DMs Bob after decline; Bob bell stays at 0', async () => {
@@ -152,7 +165,8 @@ test.describe.serial('Pull-only invitation: Decline (AC-TEST-6)', () => {
     // Wait 15 s for any potential relay delivery and gate processing
     await bobPage.waitForTimeout(15_000);
 
-    // AC-TEST-6(c): Bob's bell counter must remain at the baseline (Alice is a stranger)
+    // Regression coverage (kept from the pre-S2 spec): Bob's bell counter must
+    // remain at the baseline (Alice is a stranger — she never became a known peer)
     const afterBadge = await bobPage.evaluate(() => {
       const badge = document.querySelector('[data-testid="notification-badge"]');
       if (!badge) return 0;

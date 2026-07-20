@@ -1,0 +1,31 @@
+{
+  "story_id": "S2",
+  "status": "done",
+  "final_outcome": "accepted",
+  "modules_touched": [
+    "invitation card component",
+    "groups page",
+    "badge accents",
+    "i18n"
+  ],
+  "files_modified": [
+    "app/src/components/groups/InvitationCard.tsx",
+    "app/pages/groups.tsx",
+    "app/src/lib/badgeAccent.ts",
+    "app/src/lib/i18n.ts",
+    "app/src/components/groups/PendingInvitations.tsx (deleted)",
+    "app/tests/e2e/groups-pull-only-invitation-accept.spec.ts",
+    "app/tests/e2e/groups-pull-only-invitation-decline.spec.ts",
+    "app/tests/unit/pendingInvitations.i18n.test.ts",
+    "app/tests/unit/components/InvitationCard.test.ts"
+  ],
+  "remediation_rounds": 0,
+  "completed_at": "2026-07-20T07:05:00Z",
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "The S2 architect subagent died on an API stream-idle timeout AFTER landing all code (InvitationCard, groups.tsx wiring, PendingInvitations deletion, i18n keys, badge kind, both e2e spec rewrites, i18n parity test) but BEFORE writing result.json and post-impl verification records. The lead completed the story out-of-band: re-ran typecheck (clean) and the 34 targeted unit tests (pass), grep-verified no dangling refs / dead copy / broken testids, and reviewed the full diff (Stage-1). No implementation gap resulted, but a mid-story architect death required lead recovery rather than a clean architect handoff.",
+    "surprised_by": "The crashed architect had already made the two rewritten e2e specs S3-compatible (tap-to-preview asserts URL then goto('/groups/') to decouple from whether the preview view exists yet) and preserved the pending-invitation-row-<id> testid too, beyond the required stable testids \u2014 careful work despite the abrupt termination.",
+    "scope": "meta",
+    "outcome": "merged"
+  }
+}

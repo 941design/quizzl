@@ -1,0 +1,178 @@
+{
+  "epic_name": "inline-invitation-cards",
+  "status": "done",
+  "phase": "COMPLETE",
+  "created_at": "2026-07-20T05:51:52Z",
+  "updated_at": "2026-07-20T07:58:00Z",
+  "pre_existing_dirty_files": [],
+  "completed_stories": [
+    "S1",
+    "S2",
+    "S3"
+  ],
+  "escalated_stories": [],
+  "phase_history": [
+    {
+      "phase": "SPEC_VALIDATED",
+      "timestamp": "2026-07-20T05:51:52Z",
+      "trigger": "validation_passed"
+    },
+    {
+      "phase": "IMPLEMENTATION",
+      "timestamp": "2026-07-20T06:05:00Z",
+      "trigger": "planning_complete"
+    }
+  ],
+  "plugin_sha": "f5e4524c7b9618d99914da272f8e8e9745ed9057",
+  "consumer_sha": "e75e687b7d30e403e649d951a5dbd370c192f148",
+  "models": {
+    "lead": "opus",
+    "examiner": "haiku",
+    "implementer": "sonnet"
+  },
+  "ownership_ledger_path": "ownership-ledger.json",
+  "gate_runs": [
+    {
+      "gate_id": "mutation",
+      "outcome": "skipped",
+      "skip_reason": "base:mutation-testing agent unavailable this session (post-crash); UI-heavy change, low mutation signal"
+    },
+    {
+      "gate_id": "e2e",
+      "outcome": "fired_remediated",
+      "detail": "3 changed specs (8 tests) green after 1 test-harness fix; peripheral groups-rename green; full unit 3788 pass. Full 60-suite not run (chronically-flaky per project memory); judged by own specs + testid-stability."
+    },
+    {
+      "gate_id": "pre_commit_review",
+      "outcome": "fired_pass",
+      "structural_findings": {
+        "surfaced": 0,
+        "acted": 0,
+        "disclosed_unacted": 0
+      }
+    }
+  ],
+  "ac_closure": [
+    {
+      "ac_id": "AC-DATA-1",
+      "status": "met",
+      "evidence": "readPreJoinGroupData + realMarmot test"
+    },
+    {
+      "ac_id": "AC-DATA-2",
+      "status": "met",
+      "evidence": "nullPath tests; card/preview fallback"
+    },
+    {
+      "ac_id": "AC-ATTR-1",
+      "status": "met",
+      "evidence": "pubkeyDisplay.test resolveInviterLabel"
+    },
+    {
+      "ac_id": "AC-ATTR-2",
+      "status": "met",
+      "evidence": "pubkeyDisplay.test truncate fallback"
+    },
+    {
+      "ac_id": "AC-ATTR-3",
+      "status": "met",
+      "evidence": "examiner S1: no relay; local getContact"
+    },
+    {
+      "ac_id": "AC-CARD-1",
+      "status": "met",
+      "evidence": "InvitationCard.test + accept spec e2e"
+    },
+    {
+      "ac_id": "AC-CARD-2",
+      "status": "met",
+      "evidence": "groups.tsx top-pinned; e2e card at top"
+    },
+    {
+      "ac_id": "AC-CARD-3",
+      "status": "met",
+      "evidence": "InvitationCard fully-coloured LinkBox (no opacity)"
+    },
+    {
+      "ac_id": "AC-CARD-4",
+      "status": "met",
+      "evidence": "card->/groups?invite=; e2e toHaveURL(/invite=/)"
+    },
+    {
+      "ac_id": "AC-CARD-5",
+      "status": "met",
+      "evidence": "accept spec e2e: Accept->joined group-card"
+    },
+    {
+      "ac_id": "AC-CARD-6",
+      "status": "met",
+      "evidence": "decline spec e2e: immediate Decline, no join"
+    },
+    {
+      "ac_id": "AC-PREVIEW-1",
+      "status": "met",
+      "evidence": "preview spec e2e: name/invited-by/admins"
+    },
+    {
+      "ac_id": "AC-PREVIEW-2",
+      "status": "met",
+      "evidence": "preview spec e2e: Accept & Decline from preview"
+    },
+    {
+      "ac_id": "AC-PREVIEW-3",
+      "status": "met",
+      "evidence": "hydrated-gated redirect to list; return null"
+    },
+    {
+      "ac_id": "AC-REMOVE-1",
+      "status": "met",
+      "evidence": "grep: no heading/empty; e2e green"
+    },
+    {
+      "ac_id": "AC-REMOVE-2",
+      "status": "met",
+      "evidence": "PendingInvitations.tsx deleted; keys dropped; typecheck clean"
+    },
+    {
+      "ac_id": "AC-TESTID-1",
+      "status": "met",
+      "evidence": "grep: stable testids; groups-rename e2e green"
+    },
+    {
+      "ac_id": "AC-COPY-1",
+      "status": "met",
+      "evidence": "i18n en+de; pendingInvitations.i18n.test"
+    },
+    {
+      "ac_id": "AC-REG-1",
+      "status": "met",
+      "evidence": "Layout.tsx untouched"
+    },
+    {
+      "ac_id": "AC-REG-2",
+      "status": "met",
+      "evidence": "examiner S1: no relay publish"
+    },
+    {
+      "ac_id": "AC-TEST-1",
+      "status": "met",
+      "evidence": "groups-pull-only-invitation-accept.spec green"
+    },
+    {
+      "ac_id": "AC-TEST-2",
+      "status": "met",
+      "evidence": "groups-pull-only-invitation-decline.spec green"
+    },
+    {
+      "ac_id": "AC-TEST-3",
+      "status": "met",
+      "evidence": "groups-invitation-preview.spec green (2 tests)"
+    },
+    {
+      "ac_id": "AC-TEST-4",
+      "status": "met",
+      "evidence": "only 3 specs changed; unit+targeted e2e green"
+    }
+  ],
+  "manual_validation": []
+}

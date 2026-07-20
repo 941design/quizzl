@@ -29,7 +29,7 @@ import {
   IdbKeyPackageBackend,
   clearAllGroupData,
 } from '@/src/lib/marmot/groupStorage';
-import type { WelcomeReceivedCallback } from '@/src/lib/marmot/welcomeSubscription';
+import type { WelcomeReceivedCallback, UnwrappedRumor } from '@/src/lib/marmot/welcomeSubscription';
 import { serialiseProfileUpdate, PROFILE_RUMOR_KIND } from '@/src/lib/marmot/profileSync';
 import { LEAVE_INTENT_KIND, serialiseLeaveIntent } from '@/src/lib/marmot/leaveSync';
 import { PROFILE_REQUEST_KIND } from '@/src/lib/marmot/profileRequestSync';
@@ -306,6 +306,8 @@ type MarmotContextValue = {
   acceptPendingInvitation: (id: string) => Promise<void>;
   /** Decline a pending invitation: removes from queue, no network call. */
   declinePendingInvitation: (id: string) => Promise<void>;
+  /** Reads a stored invitation's pre-join group data (name/description/admins) without joining. Returns null on parse failure, client-not-ready, or undecodable Welcome. */
+  getInvitationGroupData: (welcomeEventJson: string) => Promise<{ name: string; description: string; adminPubkeys: string[] } | null>;
   /** Grant admin status to a member. Idempotent; superset guard prevents demotion; retries once on epoch conflict. */
   grantAdmin: (groupId: string, pubkey: string) => Promise<{ ok: boolean; error?: string }>;
   /** Rename the group via an admin-only MLS metadata commit. Validates/​trims the name; no-op (changed:false) when unchanged. */
@@ -1935,6 +1937,27 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
     await doDecline(id);
   }, []);
 
+  // S1 (inline-invitation-cards): reads a stored invitation's pre-join group
+  // data (name/description/admins) without joining, for card preview. Never
+  // throws — parse failure, an uninitialized client, or an undecodable
+  // Welcome all resolve to null (readPreJoinGroupData already returns null
+  // on its own failures per its contract).
+  const getInvitationGroupData = useCallback(
+    async (welcomeEventJson: string): Promise<{ name: string; description: string; adminPubkeys: string[] } | null> => {
+      const client = clientRef.current;
+      if (!client) return null;
+      let rumor: UnwrappedRumor;
+      try {
+        rumor = JSON.parse(welcomeEventJson);
+      } catch {
+        return null;
+      }
+      const { readPreJoinGroupData } = await import('@/src/lib/marmot/welcomeSubscription');
+      return readPreJoinGroupData(rumor, client);
+    },
+    [],
+  );
+
   // S3: Grant admin status to a member. Pure impl in grantAdminImpl.ts (AC-BOUND-1).
   // Mirrors the cancelPendingInvitation pattern: dynamic import at the boundary,
   // Proposals injected via Deps so the impl has zero marmot-ts top-level imports.
@@ -2139,6 +2162,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       requestProfilesIfStale,
       acceptPendingInvitation,
       declinePendingInvitation,
+      getInvitationGroupData,
       grantAdmin,
       renameGroup,
       getPendingRemovals,
@@ -2178,6 +2202,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
       requestProfilesIfStale,
       acceptPendingInvitation,
       declinePendingInvitation,
+      getInvitationGroupData,
       grantAdmin,
       renameGroup,
       getPendingRemovals,
@@ -2228,6 +2253,7 @@ const DEFAULT_MARMOT: MarmotContextValue = {
   requestProfilesIfStale: NOOP_ASYNC,
   acceptPendingInvitation: NOOP_ASYNC,
   declinePendingInvitation: NOOP_ASYNC,
+  getInvitationGroupData: async () => null,
   grantAdmin: async () => ({ ok: false, error: 'not_ready' }),
   renameGroup: async () => ({ ok: false, error: 'not_ready' }),
   getPendingRemovals: () => [],

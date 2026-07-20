@@ -261,15 +261,13 @@ export type Copy = {
     listPreviewEmpty: string;
     listPreviewStructured: string;
     pendingInvitations: {
-      heading: string;
+      badge: string;
+      invitedBy: (name: string) => string;
+      unknownGroupFallback: string;
+      adminLabel: string;
       acceptBtn: string;
       declineBtn: string;
-      empty: string;
       acceptError: string;
-      relativeJustNow: string;
-      relativeMinutesAgo: (n: number) => string;
-      relativeHoursAgo: (n: number) => string;
-      relativeDaysAgo: (n: number) => string;
     };
     /**
      * Returning-user invite-link awaiting landing (epic-invite-link-awaiting-landing, S1).
@@ -932,15 +930,13 @@ const copy: Record<LanguageCode, Copy> = {
       listPreviewEmpty: 'No messages yet',
       listPreviewStructured: 'New activity',
       pendingInvitations: {
-        heading: 'Pending Invitations',
+        badge: 'Invitation',
+        invitedBy: (name: string) => `Invited by ${name}`,
+        unknownGroupFallback: 'Group invitation',
+        adminLabel: 'Group admins',
         acceptBtn: 'Accept',
         declineBtn: 'Decline',
-        empty: 'No pending invitations',
         acceptError: 'This invitation is no longer valid',
-        relativeJustNow: 'just now',
-        relativeMinutesAgo: (n: number) => `${n}m ago`,
-        relativeHoursAgo: (n: number) => `${n}h ago`,
-        relativeDaysAgo: (n: number) => `${n}d ago`,
       },
       inviteAwaitingBanner: (groupName: string) => `You've been invited to join ${groupName}.`,
       awaitingApprovalBanner: (groupName: string) => `Waiting for the admin to approve your request to join ${groupName}.`,
@@ -1499,15 +1495,13 @@ const copy: Record<LanguageCode, Copy> = {
       listPreviewEmpty: 'Noch keine Nachrichten',
       listPreviewStructured: 'Neue Aktivität',
       pendingInvitations: {
-        heading: 'Ausstehende Einladungen',
+        badge: 'Einladung',
+        invitedBy: (name: string) => `Eingeladen von ${name}`,
+        unknownGroupFallback: 'Gruppeneinladung',
+        adminLabel: 'Gruppen-Admins',
         acceptBtn: 'Annehmen',
         declineBtn: 'Ablehnen',
-        empty: 'Keine ausstehenden Einladungen',
         acceptError: 'Diese Einladung ist nicht mehr gültig',
-        relativeJustNow: 'gerade eben',
-        relativeMinutesAgo: (n: number) => `vor ${n} Min.`,
-        relativeHoursAgo: (n: number) => `vor ${n} Std.`,
-        relativeDaysAgo: (n: number) => `vor ${n} Tagen`,
       },
       inviteAwaitingBanner: (groupName: string) => `Du wurdest eingeladen, der Gruppe ${groupName} beizutreten.`,
       awaitingApprovalBanner: (groupName: string) => `Warte darauf, dass der Admin deine Anfrage zum Beitritt zu ${groupName} genehmigt.`,

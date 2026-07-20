@@ -1,0 +1,90 @@
+{
+  "story_id": "S3",
+  "authored_by": "story-planner",
+  "authored_at": "2026-07-20T06:17:00Z",
+  "questions": [
+    {
+      "question_id": "VQ-S3-001",
+      "phase": "pre-impl",
+      "category": "QUALITY",
+      "question": "Is the InvitationPreviewView's stale-id fallback genuinely checking the pendingInvitations store for a matching record (not a hardcoded 'always found' or 'always not-found' branch), and does the admin list rendering come from real adminPubkeys returned by getInvitationGroupData rather than a frozen placeholder array?"
+    },
+    {
+      "question_id": "VQ-S3-002",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Is the new router.query.invite branch added inside groups.tsx mirroring the router.query.id GroupDetailView branch (same file, same query-param-only routing pattern, no new page file, no dynamic path segment)? Does the preview consume group data/attribution only via S1's getInvitationGroupData/resolveInviterLabel (not a duplicated decode)? Does Accept/Decline reuse S2's existing accept/decline handlers rather than reimplementing them?"
+    },
+    {
+      "question_id": "VQ-S3-003",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Could groups page be deleted and rewritten without modifying any file outside its dependencies_allowed list? If not, which cross-module dependencies exist and do they flow through declared seam contracts in architecture.md?"
+    },
+    {
+      "question_id": "VQ-S3-004",
+      "phase": "pre-impl",
+      "category": "TEST",
+      "question": "Does the new groups-invitation-preview.spec.ts exercise invite-through-app -> tap invitation card -> preview showing name/description/admin/invited-by -> Accept and Decline paths end-to-end through the app's real publish path, and is there any additional unit-level test for the stale-id fallback logic (via pure-function extraction) beyond the e2e spec?"
+    },
+    {
+      "question_id": "VQ-S3-005",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Does the implemented preview view match acceptance-criteria.md's 'Preview' section in full (name/fallback, description-when-present, invited-by, admins, Accept/Decline, stale-id fallback), with no partial subset implemented — e.g. admins shown but description silently omitted?"
+    },
+    {
+      "question_id": "VQ-S3-006",
+      "phase": "pre-impl",
+      "category": "BEST_PRACTICES",
+      "question": "Does the preview handle an in-flight (not-yet-resolved) getInvitationGroupData decode gracefully (fallback/loading state, no crash), in addition to the already-covered stale/unknown-id case? Does Accept/Decline from the preview leave the app in a consistent state (no orphaned invitation, no duplicate join) if the user navigates away mid-action?"
+    },
+    {
+      "question_id": "VQ-S3-007",
+      "phase": "pre-impl",
+      "category": "ARCHITECTURE",
+      "question": "Does S3's diff stay within app/pages/groups.tsx (new preview branch), app/src/lib/i18n.ts (adminLabel + preview chrome keys), and the new groups-invitation-preview.spec.ts — with no changes to InvitationCard.tsx's own rendering (only its existing link target is consumed), welcomeSubscription.ts, MarmotContext.tsx, or the accept/decline store mechanics?"
+    },
+    {
+      "question_id": "VQ-S3-008",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "question": "Grep groups.tsx for the new preview branch — is it keyed exclusively off router.query.invite (a query parameter), with zero new dynamic path segment file (no app/pages/groups/[invite].tsx or similar) added anywhere in app/pages/, consistent with the project's output:'export' static-export routing constraint documented in architecture.md's Implementation Constraints?"
+    },
+    {
+      "question_id": "VQ-S3-009",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PREVIEW-1",
+      "question": "Show the production router.query.invite branch in groups.tsx rendering group name (or fallback), description (when present), 'Invited by <X>', and admin pubkey(s)/label sourced from getInvitationGroupData and resolveInviterLabel; show the groups-invitation-preview.spec.ts assertion that all four elements are visible on the preview page for a real invitation delivered through the app; and confirm the route is reached via ?invite=<id> only, with no dynamic path segment."
+    },
+    {
+      "question_id": "VQ-S3-010",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PREVIEW-2",
+      "question": "Show the production Accept and Decline handlers on the preview calling acceptPendingInvitation/declinePendingInvitation and navigating back to the list afterward; show the e2e assertions that Accept results in the group appearing joined in the list and Decline results in the invitation being gone with no group joined; and confirm both paths are exercised by groups-invitation-preview.spec.ts through real app interactions, not a store mutation injected by the test."
+    },
+    {
+      "question_id": "VQ-S3-011",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-PREVIEW-3",
+      "question": "Show the production fallback logic that renders the groups list (not a crash or blank page) when router.query.invite references an invitation id no longer present in the pendingInvitations store; show a test (e2e or component-level) that navigates directly to /groups?invite=<stale-or-unknown-id> and asserts the list renders without a thrown error or blank screen; and confirm this mirrors the GroupDetailView notFound->list precedent at groups.tsx:638-654."
+    },
+    {
+      "question_id": "VQ-S3-012",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-3",
+      "question": "Show the new groups-invitation-preview.spec.ts driving invite-through-app -> tap invitation card -> preview shows group name + description + admin + 'Invited by' -> Accept and Decline both exercised; confirm all peer/self publishes route through the app's real publish helpers (never raw WebSocket); and confirm the filename retains the groups- prefix for the relay bucket, and URL assertions are trailing-slash-safe."
+    },
+    {
+      "question_id": "VQ-S3-013",
+      "phase": "pre-impl",
+      "category": "SPEC",
+      "ac_id": "AC-TEST-4",
+      "question": "Confirm via git diff / file list that S3's change touches only app/pages/groups.tsx, app/src/lib/i18n.ts, and the new groups-invitation-preview.spec.ts — no other existing spec file, no helpers/group-setup.ts, and no accept/decline/testid string was modified. Then show the result of running make test-e2e-all (the full 60-test suite, not a filtered subset) passing green."
+    }
+  ]
+}

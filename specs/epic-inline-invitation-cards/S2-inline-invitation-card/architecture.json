@@ -1,0 +1,70 @@
+{
+  "module_name": "invitation card component",
+  "purpose": "Inline, fully-coloured invitation card rendered at the top of the groups list (replacing the separate PendingInvitations section), plus the groups.tsx wiring, badge accent, and i18n changes that support it.",
+  "public_api": [
+    {
+      "name": "InvitationCard",
+      "signature": "export default function InvitationCard({ invitation }: { invitation: PendingInvitation }): JSX.Element",
+      "description": "Pure per-item card: async-decodes the group name via useMarmot().getInvitationGroupData(welcomeEventJson) (fallback label while pending/undecodable, never throws), shows a BADGE_ACCENT.invitation badge, an 'Invited by <X>' line via resolveInviterLabel(inviterPubkeyHex, ownPubkeyHex), Accept/Decline buttons wired to useMarmot()'s acceptPendingInvitation/declinePendingInvitation, and a LinkBox/LinkOverlay body linking to /groups?invite=<id>. Own pubkey read directly via useNostrIdentity() (component-level context consumption, precedented by InviteAwaitingBanner/JoinRequestCard). Reads the invitation as a prop — the parent (groups.tsx) owns the useSyncExternalStore subscription and list-mapping, mirroring the existing groups.map(GroupCard) pattern."
+    }
+  ],
+  "private_files": [
+    "app/src/components/groups/InvitationCard.tsx"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "app/src/lib/pendingInvitations.ts (subscribe/getSnapshot/PendingInvitation type, read-only, list-mapped in groups.tsx)",
+    "app/src/context/MarmotContext.tsx (useMarmot(): getInvitationGroupData, acceptPendingInvitation, declinePendingInvitation)",
+    "app/src/context/NostrIdentityContext.tsx (useNostrIdentity(): pubkeyHex, for attribution's ownPubkeyHex)",
+    "app/src/lib/pubkeyDisplay.ts (resolveInviterLabel)",
+    "app/src/lib/badgeAccent.ts (BADGE_ACCENT, extended with .invitation)",
+    "app/src/context/LanguageContext.tsx (useCopy())",
+    "app/src/lib/i18n.ts (extended with groups.pendingInvitations.badge/invitedBy/unknownGroupFallback; heading/empty removed)"
+  ],
+  "dependencies_forbidden": [
+    "app/src/lib/marmot/welcomeSubscription.ts (must never be imported directly by a component — only via useMarmot())",
+    "constructing a MarmotClient directly",
+    "any relay publish or public profile lookup"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/pendingInvitations.i18n.test.ts (updated key set)",
+    "app/tests/e2e/groups-pull-only-invitation-accept.spec.ts (rewritten)",
+    "app/tests/e2e/groups-pull-only-invitation-decline.spec.ts (rewritten)"
+  ],
+  "boundary_check": {
+    "crosses_module_boundary": true,
+    "seams_consumed": [
+      "MarmotContext.getInvitationGroupData (S1 seam 2, architecture.md)",
+      "truncatePubkey / resolveInviterLabel (S1 seams 3 & 4)",
+      "acceptPendingInvitation / declinePendingInvitation (pre-existing MarmotContext methods)",
+      "pendingInvitations store subscribe/getSnapshot (pre-existing, unchanged)",
+      "stable testids accept-invitation-${id} / decline-invitation-${id} / pending-invitations-section (S1/S2 seam 5)"
+    ],
+    "new_seams_created": false
+  },
+  "data_ownership_check": {
+    "owns_exclusively": [],
+    "overlap_with_other_modules": "none — InvitationCard and the groups.tsx wiring read pendingInvitations.ts (unchanged owner) and marmot context state; no new persisted data introduced."
+  },
+  "paradigm_compliance_check": {
+    "complies": true,
+    "notes": "Modular monolith / package-by-feature preserved. No new React context layer added. Marmot access stays behind useMarmot() (dynamic-import boundary owned by MarmotContext, unchanged by this story). No new paradigm introduced."
+  },
+  "additional_design_decisions": [
+    {
+      "decision": "InvitationCard is list-mapped in groups.tsx (useSyncExternalStore lives in GroupsPage, not inside the card), mirroring groups.map(GroupCard).",
+      "why": "Keeps the reactive-store subscription in one place per list (matches the existing GroupCard/OutboundJoinRequestCard convention) instead of N independent subscriptions, one per card."
+    },
+    {
+      "decision": "BADGE_ACCENT.invitation = 'badge3' (shares the scale used by 'awaiting', the outbound-request badge).",
+      "why": "Semantically parallel — both mark something awaiting a decision — and never co-renders with 'awaiting' (different list sections), so no adjacency clash per badgeAccent.ts's pairwise-distinct rule."
+    },
+    {
+      "decision": "The card DOM keeps a second, inner data-testid=`pending-invitation-row-${id}` (on the left content column, alongside the outer LinkBox's data-testid=`invitation-card-${id}`) in addition to the three testids AC-TESTID-1 names.",
+      "why": "Research gap found during implementation: architecture.md/exploration.json's AC-TESTID-1 blast-radius count (accept/decline buttons + `pending-invitations-section` wrapper only) undercounts actual reliance — a grep across app/tests/e2e found 13 additional groups-*.spec.ts files plus none beyond helpers/group-setup.ts (which only uses the wrapper + accept button, already covered) locating `[data-testid^=\"pending-invitation-row-\"]` as a readiness gate before clicking Accept. Dropping that prefix would fail AC-TEST-4 (full suite green, only the 2 target + 1 new spec touched) for those 13 files. Keeping it as an additional, real, visible descendant testid satisfies AC-TESTID-1's literal 3-testid list AND its stated intent (avoid rewriting peripheral specs) without touching any of those 13 files. Not a genuine spec conflict requiring escalation — the minimal-blast-radius choice is unambiguous and squarely within delegated implementation-detail authority."
+    }
+  ]
+}

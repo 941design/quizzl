@@ -257,22 +257,23 @@ async function joinGroupFromWelcomeCore(
 // ---------------------------------------------------------------------------
 
 /**
- * Reads the Welcome's pre-join Marmot group data (notably its `name`)
- * WITHOUT joining, for AC-AUTO-4a disambiguation. Mirrors the key-package
- * matching loop `MarmotClient.readInviteGroupInfo` uses internally, but
- * calls `readWelcomeMarmotGroupData` directly (rather than
- * `readWelcomeGroupInfo`) so the decoded Marmot Group Data extension —
- * including the group name — is actually populated; the client's own
- * `readInviteGroupInfo` convenience method returns a `GroupInfo` whose
- * `extensions` array is unconditionally empty in the current marmot-ts
- * release, which would make disambiguation always fail.
+ * Reads the Welcome's pre-join Marmot group data (name, description, admin
+ * pubkeys) WITHOUT joining. Mirrors the key-package matching loop
+ * `MarmotClient.readInviteGroupInfo` uses internally, but calls
+ * `readWelcomeMarmotGroupData` directly (rather than `readWelcomeGroupInfo`)
+ * so the decoded Marmot Group Data extension is actually populated; the
+ * client's own `readInviteGroupInfo` convenience method returns a
+ * `GroupInfo` whose `extensions` array is unconditionally empty in the
+ * current marmot-ts release, which would make disambiguation (and, for
+ * inline invitation cards, the preview) always fail.
  *
  * Returns `null` on ANY failure (no local key package matches this
  * Welcome's recipient slots, the extension is absent, or the Welcome cannot
  * be decoded) — never throws. A `null` result degrades disambiguation to
- * "cannot determine" so the caller correctly treats it as zero matches
- * (AC-AUTO-4a: zero-or-multiple matches => uncorrelated => AC-AUTO-3), never
- * as a false match.
+ * "cannot determine" so callers correctly treat it as zero matches
+ * (AC-AUTO-4a: zero-or-multiple matches => uncorrelated => AC-AUTO-3; and
+ * AC-DATA-2: an undecodable Welcome renders without group data), never as a
+ * false match.
  *
  * Side-effect verdict (confirmed by marmot-protocol domain review): this
  * function, and the marmot-ts calls it makes (`getWelcome`,
@@ -287,13 +288,13 @@ async function joinGroupFromWelcomeCore(
  * owner never actually joins — is safe and does not consume anything. Do not
  * re-litigate this without re-checking `joinGroupFromWelcome`'s call graph
  * first. Efficiency caveat: each call re-derives a full `ClientState` just to
- * read one extension, which is heavier than ideal though cryptographically
+ * read the extension, which is heavier than ideal though cryptographically
  * inert.
  */
-export async function readPreJoinGroupName(
+export async function readPreJoinGroupData(
   welcomeRumor: UnwrappedRumor,
   marmotClient: import('@internet-privacy/marmot-ts').MarmotClient,
-): Promise<string | null> {
+): Promise<{ name: string; description: string; adminPubkeys: string[] } | null> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const welcome = getWelcome(welcomeRumor as any);
@@ -310,7 +311,13 @@ export async function readPreJoinGroupName(
           keyPackage: stored,
           ciphersuiteImpl,
         });
-        if (groupData) return groupData.name;
+        if (groupData) {
+          return {
+            name: groupData.name,
+            description: groupData.description,
+            adminPubkeys: groupData.adminPubkeys,
+          };
+        }
       } catch {
         // This key package doesn't match this Welcome's secrets — try the
         // next candidate ref (mirrors readInviteGroupInfo's own loop).
@@ -318,11 +325,24 @@ export async function readPreJoinGroupName(
     }
     return null;
   } catch (err) {
-    logger.warn('dm:auto-accept-group-name-read-failed', {
+    logger.warn('dm:pre-join-group-data-read-failed', {
       reason: err instanceof Error ? err.message : 'unknown',
     });
     return null;
   }
+}
+
+/**
+ * Convenience wrapper over {@link readPreJoinGroupData} for the AC-AUTO-4a
+ * disambiguation call site, which only needs the group name. See
+ * {@link readPreJoinGroupData}'s doc comment for the full side-effect-free
+ * rationale and failure semantics — both apply here unchanged.
+ */
+export async function readPreJoinGroupName(
+  welcomeRumor: UnwrappedRumor,
+  marmotClient: import('@internet-privacy/marmot-ts').MarmotClient,
+): Promise<string | null> {
+  return (await readPreJoinGroupData(welcomeRumor, marmotClient))?.name ?? null;
 }
 
 /**

@@ -1,0 +1,52 @@
+{
+  "module_name": "welcome-subscription (marmot lib)",
+  "purpose": "Add the lib/context seams the S2 invitation card and S3 preview will consume: a side-effect-free pre-join Welcome group-data decode, a MarmotContext read boundary for it, a shared pubkey-truncation util, and a pure inviter-attribution helper. No UI, no store-shape changes, no relay publish.",
+  "public_api": [
+    {
+      "name": "readPreJoinGroupData",
+      "signature": "readPreJoinGroupData(welcomeRumor: UnwrappedRumor, marmotClient: MarmotClient): Promise<{ name: string; description: string; adminPubkeys: string[] } | null>",
+      "description": "Sibling of readPreJoinGroupName in app/src/lib/marmot/welcomeSubscription.ts. Same side-effect-free key-package loop against the Welcome via readWelcomeMarmotGroupData (never readInviteGroupInfo — its extensions are empty in this release). Returns the wider MarmotGroupData slice {name, description, adminPubkeys}. Returns null on any failure or when no local key package matches (AC-DATA-1, AC-DATA-2). No key-package burn, no MLS adoption, no network publish."
+    },
+    {
+      "name": "readPreJoinGroupName",
+      "signature": "readPreJoinGroupName(welcomeRumor: UnwrappedRumor, marmotClient: MarmotClient): Promise<string | null>",
+      "description": "PRE-EXISTING export, refactored to delegate to readPreJoinGroupData ((await readPreJoinGroupData(...))?.name ?? null) so the key-package loop is not duplicated. Signature and behavior for existing callers (auto-accept correlation) unchanged."
+    },
+    {
+      "name": "MarmotContext.getInvitationGroupData",
+      "signature": "getInvitationGroupData(welcomeEventJson: string): Promise<{ name: string; description: string; adminPubkeys: string[] } | null>",
+      "description": "NEW MarmotContext method (added to the interface, provider value, useMemo deps, and DEFAULT_MARMOT no-op default). JSON.parses the stored rumor string into UnwrappedRumor (returns null on parse failure, never throws), then dynamic-imports welcomeSubscription.ts and calls readPreJoinGroupData with clientRef.current, mirroring the acceptPendingInvitation dynamic-import boundary. Exposed via useMarmot(). Returns null immediately if clientRef.current is unset."
+    },
+    {
+      "name": "truncatePubkey",
+      "signature": "truncatePubkey(hex: string): string",
+      "description": "Pure function extracted from the inlined truncation at PendingInvitations.tsx:80-81 into new module app/src/lib/pubkeyDisplay.ts. Returns hex.slice(0,8)+'…'+hex.slice(-8) when hex.length >= 16, otherwise hex unchanged."
+    },
+    {
+      "name": "resolveInviterLabel",
+      "signature": "resolveInviterLabel(inviterPubkeyHex: string, ownPubkeyHex: string | null | undefined): string",
+      "description": "Pure helper in app/src/lib/pubkeyDisplay.ts. Returns getContact(inviterPubkeyHex, ownPubkeyHex)?.nickname when that lookup yields a non-empty string; otherwise returns truncatePubkey(inviterPubkeyHex). Both 'no known contact' (null) and 'known contact with empty nickname' ('') fall through to the truncated pubkey. getContact is local-only (reads stored contacts, no relay call) — see AC-ATTR-3."
+    }
+  ],
+  "private_files": [
+    "app/src/lib/marmot/welcomeSubscription.ts (extended, existing file)",
+    "app/src/context/MarmotContext.tsx (extended, existing file)"
+  ],
+  "owned_data": [],
+  "dependencies_allowed": [
+    "@internet-privacy/marmot-ts (readWelcomeMarmotGroupData, getWelcome, getWelcomeKeyPackageRefs — already imported by welcomeSubscription.ts)",
+    "app/src/lib/contacts.ts (getContact — reused, unchanged)",
+    "app/src/lib/pendingInvitations.ts (PendingInvitation type only, already imported by welcomeSubscription.ts; store itself unchanged)"
+  ],
+  "dependencies_forbidden": [
+    "No relay-publish or broadcast call of any kind",
+    "No new import into app/src/components/groups/InvitationCard.tsx (does not exist yet — out of scope)",
+    "No import of welcomeSubscription.ts directly into any React component (components only reach it through MarmotContext.getInvitationGroupData)"
+  ],
+  "external_ports": [],
+  "events_emitted": [],
+  "events_consumed": [],
+  "test_targets": [
+    "app/tests/unit/lib/pubkeyDisplay.test.ts (truncatePubkey: known-length, short/edge-length; resolveInviterLabel: known contact w/ nickname, known contact w/ empty nickname, unknown pubkey, seeded via the real contacts.ts/contactCache.ts local-storage-mock pattern used by tests/unit/contacts.test.ts — no mocked getContact)"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "story_id": "S1",
+  "status": "done",
+  "final_outcome": "accepted",
+  "completed_at": "2026-07-20T06:20:00Z",
+  "files_created": [
+    "app/src/lib/pubkeyDisplay.ts",
+    "app/tests/unit/lib/pubkeyDisplay.test.ts",
+    "app/tests/unit/marmot/readPreJoinGroupData.realMarmot.test.ts",
+    "app/tests/unit/marmot/readPreJoinGroupData.nullPath.test.ts"
+  ],
+  "files_modified": [
+    "app/src/lib/marmot/welcomeSubscription.ts",
+    "app/src/context/MarmotContext.tsx",
+    "app/src/components/groups/PendingInvitations.tsx"
+  ],
+  "tests_added": {
+    "unit": 10,
+    "integration_real_fixture": 1
+  },
+  "test_counts": {
+    "baseline": 3756,
+    "final": 3766
+  },
+  "mocks": [],
+  "remediation_rounds": 0,
+  "architect_skipped": false,
+  "modules_touched": [
+    "welcome-subscription (marmot lib)",
+    "marmot context"
+  ],
+  "escalation_history": [],
+  "retrospective": {
+    "skipped": true,
+    "reason": "clean_run"
+  }
+}

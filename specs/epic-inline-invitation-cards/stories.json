@@ -1,0 +1,135 @@
+{
+  "epic_name": "inline-invitation-cards",
+  "created_at": "2026-07-20T05:58:00Z",
+  "updated_at": "2026-07-20T07:40:00Z",
+  "total_stories": 3,
+  "stories": [
+    {
+      "id": "S1",
+      "name": "prejoin-data-and-attribution-helpers",
+      "title": "Pre-join group-data decode + inviter attribution helpers (lib layer)",
+      "description": "Add the lib/context seams the card and preview consume: (1) a side-effect-free sibling of readPreJoinGroupName in app/src/lib/marmot/welcomeSubscription.ts that returns { name, description, adminPubkeys } | null from a Welcome (via readWelcomeMarmotGroupData, not readInviteGroupInfo); (2) a MarmotContext read method getInvitationGroupData(welcomeEventJson) that JSON-parses the stored rumor and calls that helper with the live client; (3) extract the inlined pubkey-truncation (PendingInvitations.tsx:80-81) to a shared pure util truncatePubkey; (4) a pure attribution helper resolving inviterPubkeyHex -> known contact nickname (via getContact) else truncated pubkey, treating '' as fall-through. Unit-test the pure helpers (truncatePubkey, attribution) under app/tests/unit. No UI changes.",
+      "acceptance_criteria": [
+        "AC-DATA-1",
+        "AC-DATA-2",
+        "AC-ATTR-1",
+        "AC-ATTR-2",
+        "AC-ATTR-3",
+        "AC-REG-2"
+      ],
+      "scope": {
+        "includes": [
+          "New exported async readPreJoinGroupData(welcomeRumor, marmotClient): Promise<{name,description,adminPubkeys}|null> in welcomeSubscription.ts, mirroring readPreJoinGroupName's side-effect-free key-package loop and null/no-match behavior (AC-DATA-1, AC-DATA-2)",
+          "New MarmotContext method getInvitationGroupData(welcomeEventJson: string): Promise<{name,description,adminPubkeys}|null>, dynamic-imported at the boundary like acceptPendingInvitation, exposed via useMarmot() (AC-DATA-1)",
+          "Extract truncatePubkey(hex) to a shared pure module (e.g. app/src/lib/pubkeyDisplay.ts); replace the inlined slice at PendingInvitations.tsx:80-81 with it (AC-ATTR-2)",
+          "Pure attribution helper resolveInviterLabel(inviterPubkeyHex, ownPubkeyHex): string = getContact(...)?.nickname (non-empty) else truncatePubkey(...) (AC-ATTR-1, AC-ATTR-2)",
+          "Unit tests for truncatePubkey and resolveInviterLabel under app/tests/unit (extracted-pure-function pattern; no jsdom)",
+          "Confirm no code path added here publishes to a relay; decode is local Welcome decrypt, attribution is local getContact only (AC-ATTR-3, AC-REG-2)"
+        ],
+        "excludes": [
+          "No InvitationCard component, no groups.tsx changes, no preview view (S2/S3)",
+          "No change to the pendingInvitations.ts store shape",
+          "No change to accept/decline mechanics"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "welcome-subscription (marmot lib)",
+      "creates_seam": true,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "notes": "readPreJoinGroupName is at welcomeSubscription.ts:293-326; MarmotGroupData (marmot-ts protocol.d.ts:46-66) has name/description/adminPubkeys. getContact at contacts.ts:341. Own pubkey from identity/marmot context. Seam frozen by S1 completing before S2/S3 (sequential order)."
+    },
+    {
+      "id": "S2",
+      "name": "inline-invitation-card",
+      "title": "Inline invitation card, top-of-list placement, section removal, i18n",
+      "description": "Replace the separate <PendingInvitations /> section with inline invitation cards pinned at the top of the groups list. New InvitationCard component (fully coloured, NOT dimmed): group name (decoded via getInvitationGroupData, fallback label while pending/undecodable), a status Badge (new BADGE_ACCENT.invitation kind), an 'Invited by <X>' line (resolveInviterLabel), and Accept/Decline controls. Card body is a NextLink/LinkBox to /groups?invite=<id>. Wire into groups.tsx: render invitation cards as the FIRST children inside the groups-list VStack, wrapped in a structural Box that keeps data-testid=pending-invitations-section (present only when >=1 invitation exists; NO heading text, NO empty-state); fix the empty-state condition to include invitations.length===0; remove the PendingInvitations import/mount. Remove PendingInvitations.tsx's heading/empty/row layout. Add i18n (en+de) for badge, invitedBy(name), unknownGroupFallback; drop heading/empty keys. Preserve accept-invitation-<id>/decline-invitation-<id> testids (AC-TESTID-1). Rewrite the two target e2e specs.",
+      "acceptance_criteria": [
+        "AC-CARD-1",
+        "AC-CARD-2",
+        "AC-CARD-3",
+        "AC-CARD-4",
+        "AC-CARD-5",
+        "AC-CARD-6",
+        "AC-REMOVE-1",
+        "AC-REMOVE-2",
+        "AC-TESTID-1",
+        "AC-COPY-1",
+        "AC-REG-1",
+        "AC-TEST-1",
+        "AC-TEST-2"
+      ],
+      "scope": {
+        "includes": [
+          "New app/src/components/groups/InvitationCard.tsx: reads pendingInvitations store (useSyncExternalStore), renders name/badge/invited-by/accept/decline, LinkBox+NextLink to /groups?invite=<id>, data-testid=invitation-card-<id>, buttons accept-invitation-<id>/decline-invitation-<id> (AC-CARD-1..6, AC-TESTID-1)",
+          "Async group-name decode via getInvitationGroupData with fallback label until resolved / on failure; a failed decode never breaks the list (AC-CARD-1, AC-REG-1 relies on AC-DATA-2 from S1)",
+          "New BADGE_ACCENT.invitation kind in badgeAccent.ts (AC-CARD-1)",
+          "groups.tsx: replace <PendingInvitations/> (line 1031) with invitation cards pinned as first children of groups-list VStack (line 1059), inside a structural wrapper retaining data-testid=pending-invitations-section rendered only when invitations exist; add invitations.length===0 to the empty-state condition (AC-CARD-2, AC-CARD-3, AC-REMOVE-1)",
+          "Remove PendingInvitations.tsx render path (heading/empty/row) and its import in groups.tsx; delete the component or reduce to nothing referenced (AC-REMOVE-1, AC-REMOVE-2)",
+          "i18n: add groups.pendingInvitations.badge, invitedBy(name: string)=>string, unknownGroupFallback (en+de); remove heading and empty keys and their type entries (AC-COPY-1, AC-REMOVE-2)",
+          "Decline is immediate (declinePendingInvitation, no confirm); Accept calls acceptPendingInvitation then card->joined group card via reloadGroups (AC-CARD-5, AC-CARD-6)",
+          "Rewrite groups-pull-only-invitation-accept.spec.ts: assert inline invitation-card-<...> shows group name + invitation badge + 'Invited by' text; Accept -> group-card appears; keep publish-through-app (AC-TEST-1)",
+          "Rewrite groups-pull-only-invitation-decline.spec.ts: inline card shown; Decline removes it immediately; group never joined, group name not visible (AC-TEST-2)",
+          "Layout.tsx nav count still works off the unchanged store (AC-REG-1)"
+        ],
+        "excludes": [
+          "The /groups?invite preview VIEW itself (S3) \u2014 S2 only creates the card's link to it",
+          "New preview e2e spec (S3)",
+          "Changes to accept/decline lib mechanics (S1/existing)"
+        ]
+      },
+      "complexity": "high",
+      "status": "done",
+      "owning_module": "invitation card component",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "notes": "Pin as first children inside groups-list VStack (groups.tsx:1059). Wrapper testid pending-invitations-section retained as a stable readiness gate for ~19 peripheral specs (add a code comment saying so). Truncation + attribution + decode come from S1. Existing i18n parity test pendingInvitations.i18n.test.ts must be updated to the new key set."
+    },
+    {
+      "id": "S3",
+      "name": "invitation-preview-route",
+      "title": "Read-only invitation preview via /groups?invite=<id> + new e2e coverage",
+      "description": "Add a read-only preview view rendered inside app/pages/groups.tsx, selected by router.query.invite (mirroring the router.query.id GroupDetailView branch; query-param only, no dynamic path segment). The preview shows the group name (or fallback), description (when present), 'Invited by <X>', and the group admin(s), plus Accept/Decline. Accept joins the group and returns to the list (group now joined); Decline discards and returns to the list. A stale/unknown invite id falls back to the groups list without crashing (mirror GroupDetailView's notFound-> list precedent). Add a new groups-invitation-preview.spec.ts (groups-* prefix for the relay bucket) driving invite-through-app -> tap card -> preview shows name/description/admin/invited-by -> Accept/Decline work. Then confirm the full suite passes.",
+      "acceptance_criteria": [
+        "AC-PREVIEW-1",
+        "AC-PREVIEW-2",
+        "AC-PREVIEW-3",
+        "AC-TEST-3",
+        "AC-TEST-4"
+      ],
+      "scope": {
+        "includes": [
+          "New router.query.invite branch in groups.tsx returning an InvitationPreviewView(inviteId) before/around the id branch (AC-PREVIEW-1)",
+          "Preview reads the invitation from the pendingInvitations store by id and getInvitationGroupData for name/description/admins; resolveInviterLabel for attribution; admins rendered via a new adminLabel i18n key (AC-PREVIEW-1)",
+          "Accept -> acceptPendingInvitation then navigate back to /groups (list) with group joined; Decline -> declinePendingInvitation then back to list (AC-PREVIEW-2)",
+          "Stale/unknown invite id -> fall back to the groups list, no crash (AC-PREVIEW-3)",
+          "i18n: add adminLabel (and any preview chrome) en+de (AC-TEST-3 relies on i18n from S2's block)",
+          "New app/tests/e2e/groups-invitation-preview.spec.ts: invite through the app, tap invitation card, assert preview shows group name + description + admin + 'Invited by'; Accept and Decline paths; trailing-slash-safe URL assertions (AC-TEST-3)",
+          "Run make test-e2e-all green; only the 2 target specs + this new spec changed (AC-TEST-4)"
+        ],
+        "excludes": [
+          "Full member roster in the preview (out of scope \u2014 not recoverable pre-join)",
+          "Any modal-based preview (page branch only)"
+        ]
+      },
+      "complexity": "medium",
+      "status": "done",
+      "owning_module": "groups page",
+      "creates_seam": false,
+      "consumes_seams": [],
+      "lighter_path": false,
+      "notes": "GroupDetailView notFound->list precedent at groups.tsx:638-654; shouldRedirectToGroupsList at 118. Trailing-slash URL idiom: toHaveURL(new RegExp('invite='+id)) unanchored. adminLabel i18n en+de. Consumes S1 getInvitationGroupData/resolveInviterLabel and S2's card link."
+    }
+  ],
+  "story_order": [
+    "S1",
+    "S2",
+    "S3"
+  ],
+  "dependency_notes": "Strictly sequential S1 -> S2 -> S3. S1 freezes the lib/context seams (readPreJoinGroupData, getInvitationGroupData, truncatePubkey, resolveInviterLabel) that S2 (card) and S3 (preview) both consume; sequential order naturally freezes the contract before consumers run. S2 creates the card whose body links to the S3 preview route; S3 renders that route. Removing PendingInvitations (S2) must not disturb the ADR-011 InviteAwaitingBanner/OutboundJoinRequestCard path (separate ?join= mechanism, no param collision).",
+  "mock_resolution_plan": "No mocks introduced. All seams are real (S1 ships the actual helpers before S2/S3 consume them).",
+  "seams": [],
+  "cross_cutting_acs": []
+}

@@ -1,0 +1,19 @@
+{
+  "captured_at": "2026-07-20T08:11:37Z",
+  "command": "make test-unit (cd app && npx vitest run)",
+  "status": "PASS",
+  "test_files": 198,
+  "tests_passed": 3756,
+  "tests_skipped": 1,
+  "tests_failed": 0,
+  "lint": {
+    "command": "cd app && npm run lint (next lint)",
+    "status": "NO_LINT",
+    "notes": "next lint has no ESLint config in this repo; running it drops into an interactive 'How would you like to configure ESLint?' setup prompt rather than linting. No non-interactive lint gate exists to baseline against."
+  },
+  "typecheck": {
+    "command": "cd app && npx tsc --noEmit -p tsconfig.json",
+    "status": "clean",
+    "exit_code": 0
+  }
+}

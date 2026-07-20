@@ -1,0 +1,25 @@
+{
+  "story_id": "S3",
+  "status": "done",
+  "final_outcome": "accepted",
+  "modules_touched": [
+    "groups page",
+    "i18n"
+  ],
+  "files_modified": [
+    "app/pages/groups.tsx",
+    "app/src/lib/i18n.ts",
+    "app/tests/unit/pendingInvitations.i18n.test.ts",
+    "app/tests/e2e/groups-invitation-preview.spec.ts (new)",
+    "specs/epic-inline-invitation-cards/spec.md (amendment)"
+  ],
+  "remediation_rounds": 0,
+  "completed_at": "2026-07-20T07:40:00Z",
+  "retrospective": {
+    "skipped": false,
+    "harder_than_needed": "S3 was implemented by the lead directly (not via base:integration-architect) because that subagent type became unavailable after a VM crash mid-epic. The lead had full context from the architecture/exploration work, so the page-branch + preview component + new e2e spec landed cleanly, but independent architect authorship was replaced by lead authorship + Codex as the independent reviewer at the pre-commit gate.",
+    "surprised_by": "The app's create-group flow takes a name only (no description), so the preview's description branch is not e2e-observable with app-created groups; covered by unit conditional render + spec amendment instead.",
+    "scope": "meta",
+    "outcome": "merged"
+  }
+}
