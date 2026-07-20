@@ -40,6 +40,7 @@ import { useCopy } from '@/src/context/LanguageContext';
 import { listContacts } from '@/src/lib/contacts';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
+import { BADGE_ACCENT } from '@/src/lib/badgeAccent';
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -102,7 +103,7 @@ export function IncomingCallModal() {
               {copy.calls.incomingCallTitle}
             </Text>
             <Badge
-              colorScheme={incoming?.callType === 'video' ? 'blue' : 'green'}
+              colorScheme={incoming?.callType === 'video' ? BADGE_ACCENT.callVideo : BADGE_ACCENT.callVoice}
               alignSelf="flex-start"
               data-testid="incoming-call-type-badge"
             >

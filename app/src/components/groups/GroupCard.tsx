@@ -15,6 +15,7 @@ import { loadMessages } from '@/src/lib/marmot/chatPersistence';
 import { formatThreadPreviewText } from '@/src/lib/messageEdits/messageActionUi';
 import { useUnreadCounts } from '@/src/lib/unreadStore';
 import UnreadCountBadge from '@/src/components/UnreadCountBadge';
+import { BADGE_ACCENT } from '@/src/lib/badgeAccent';
 
 type GroupCardProps = {
   group: Group;
@@ -83,7 +84,7 @@ export default function GroupCard({ group }: GroupCardProps) {
           </NextLink>
           <HStack spacing={2}>
             <Badge
-              colorScheme={nearLimit ? 'warning' : 'brand'}
+              colorScheme={BADGE_ACCENT.memberCount}
               variant="subtle"
               data-testid={`group-member-count-${group.id}`}
             >

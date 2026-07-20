@@ -27,6 +27,7 @@ import { Box, Badge, Button, HStack, VStack, Text } from '@chakra-ui/react';
 import type { OutboundJoinRequestRecord } from '@/src/lib/marmot/outboundJoinRequests';
 import { cancelOutboundJoinRequest } from '@/src/lib/marmot/outboundJoinRequests';
 import { useCopy } from '@/src/context/LanguageContext';
+import { BADGE_ACCENT } from '@/src/lib/badgeAccent';
 
 type OutboundJoinRequestCardProps = {
   record: OutboundJoinRequestRecord;
@@ -70,7 +71,7 @@ export default function OutboundJoinRequestCard({ record }: OutboundJoinRequestC
             <Text fontWeight="semibold" fontSize="md" noOfLines={1}>
               {record.groupName}
             </Text>
-            <Badge colorScheme="warning" variant="subtle">
+            <Badge colorScheme={BADGE_ACCENT.awaiting} variant="subtle">
               {copy.groups.awaitingBadgeLabel}
             </Badge>
           </HStack>

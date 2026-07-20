@@ -18,6 +18,7 @@ import {
 } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
 import { useCopy } from '@/src/context/LanguageContext';
+import { BADGE_ACCENT } from '@/src/lib/badgeAccent';
 import { pubkeyToNpub, truncateNpub } from '@/src/lib/nostrKeys';
 import ThemeIcon from '@/src/components/ThemeIcon';
 import UserCard, { ConfirmButton, RejectButton } from '@/src/components/UserCard';
@@ -187,7 +188,7 @@ function PendingRequestRow({
       actions={
         <>
           <Badge
-            colorScheme="warning"
+            colorScheme={BADGE_ACCENT.memberRequested}
             variant="subtle"
             fontSize="2xs"
             data-testid={`member-requested-${prefix}`}
@@ -476,7 +477,7 @@ function MemberListItem({
           <>
             {isPending && (
               <Badge
-                colorScheme="warning"
+                colorScheme={BADGE_ACCENT.memberPending}
                 variant="subtle"
                 fontSize="2xs"
                 data-testid={`member-pending-${prefix}`}
@@ -486,7 +487,7 @@ function MemberListItem({
             )}
             {isRowAdmin && adminBadgeLabel && (
               <Badge
-                colorScheme="brand"
+                colorScheme={BADGE_ACCENT.admin}
                 variant="subtle"
                 fontSize="2xs"
                 data-testid={`admin-badge-${prefix}`}
@@ -496,7 +497,7 @@ function MemberListItem({
             )}
             {isPendingRemoval && removalPendingLabel && (
               <Badge
-                colorScheme="danger"
+                colorScheme={BADGE_ACCENT.removalPending}
                 variant="subtle"
                 fontSize="2xs"
                 data-testid={`removal-pending-${prefix}`}

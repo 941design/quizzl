@@ -83,10 +83,12 @@ describe('OutboundJoinRequestCard.tsx — badge and copy sourcing', () => {
     expect(CARD_SOURCE).toMatch(/copy\.groups\.cancelOutboundRequestLabel/);
   });
 
-  it('renders the Badge with colorScheme="warning" and variant="subtle"', () => {
+  it('renders the Badge with the decorative BADGE_ACCENT.awaiting colorScheme and variant="subtle"', () => {
     const badgeMatch = CARD_SOURCE.match(/<Badge[\s\S]*?>/);
     expect(badgeMatch).not.toBeNull();
-    expect(badgeMatch?.[0]).toMatch(/colorScheme="warning"/);
+    // Badge color leans on the theme via the shared decorative palette, not a
+    // hardcoded semantic scheme (see app/src/lib/badgeAccent.ts).
+    expect(badgeMatch?.[0]).toMatch(/colorScheme=\{BADGE_ACCENT\.awaiting\}/);
     expect(badgeMatch?.[0]).toMatch(/variant="subtle"/);
   });
 });

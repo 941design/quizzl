@@ -39,6 +39,7 @@ import { useCopy } from '@/src/context/LanguageContext';
 import { useAppTheme } from '@/src/hooks/useMoodTheme';
 import { useThemeStyles } from '@/src/hooks/useThemeStyles';
 import { listThemes } from '@/src/lib/theme';
+import { BADGE_ACCENT, BADGE_ACCENTS } from '@/src/lib/badgeAccent';
 import type { AppThemeName } from '@/src/types';
 
 /** Small caption that names which token(s) a block is demonstrating. */
@@ -133,7 +134,7 @@ export default function ThemePreviewPage() {
               >
                 {t.label.en}
                 {t.status !== 'stable' && (
-                  <Badge ml={2} fontSize="0.6em" colorScheme="neutral">
+                  <Badge ml={2} fontSize="0.6em" colorScheme={BADGE_ACCENT.themeStatus}>
                     {t.status}
                   </Badge>
                 )}
@@ -437,12 +438,15 @@ export default function ThemePreviewPage() {
           </Grid>
         </Section>
 
-        <Section title="Badges">
+        <Section
+          title="Badges"
+          subtitle="A decorative, non-hierarchical palette: the theme's five hued scales used as colors only (badgeAccent.ts). No badge outranks another — the color just distinguishes one kind from the next. Attention badges (unread count, nav dot) are separate and keep a single strong color."
+        >
           <Wrap spacing={3}>
-            {/* Badges use brand (admin/role), warning (pending/awaiting states),
-                danger (removal-pending), and neutral (hidden/blocked/muted). No
-                success badge exists. All theme-driven — no raw Chakra palettes. */}
-            {(['brand', 'warning', 'danger', 'neutral'] as const).map((c) => (
+            {/* The full decorative badge palette — brand / success / warning /
+                danger / neutral, reused as plain colors (no severity meaning).
+                All theme-driven — no raw Chakra palettes. */}
+            {BADGE_ACCENTS.map((c) => (
               <Badge key={c} colorScheme={c}>
                 {c}
               </Badge>
