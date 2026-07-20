@@ -14,7 +14,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useToast } from '@chakra-ui/react';
 import type { Group, MemberProfile, UserProfile } from '@/src/types';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
 import { useCopy } from '@/src/context/LanguageContext';
@@ -365,6 +364,18 @@ type MarmotContextValue = {
 
 const MarmotContext = createContext<MarmotContextValue | null>(null);
 
+/*
+ * NOTE — pairing-admission-digest decision core (below). The floating toast
+ * that once surfaced this digest was removed (product decision: no toast for
+ * a redemption of a code the user shared earlier; the new contact simply
+ * appears in the list). These pure functions have NO production caller today;
+ * they are retained, exported, and unit-tested as the reusable decision core
+ * for a future notification-bell row ("N people paired with your code"), which
+ * is the intended long-term home for this signal. If that bell is never built,
+ * this block (and admissionDigest.test.ts + the pairingAdmissionDigest i18n
+ * string) can be deleted wholesale.
+ */
+
 /**
  * S5 (epic: contact-pairing-code, AC-UI-2) — count the distinct senders in
  * `admissions` (S3's `getPairingAckAdmissions()` map: senderPubkeyHex ->
@@ -582,14 +593,7 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   const { privateKeyHex, pubkeyHex, hydrated: identityHydrated, signerMode } = useNostrIdentity();
   const { profile: localProfile } = useProfile();
   const { markDirty: markBackupDirty } = useBackup();
-  // S5 (AC-UI-2): admission-digest notification. `toast` is used from inside
-  // the welcome-subscription callback (defined once inside init()'s useEffect
-  // closure), so `copy` is mirrored into a ref the same way `localProfile` is
-  // below — the callback must always read the CURRENT language, not whatever
-  // was active when init() last ran.
-  const toast = useToast();
   const copy = useCopy();
-  const copyRef = useRef(copy);
   const [ready, setReady] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -657,61 +661,6 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localProfileRef.current = localProfile;
   }, [localProfile]);
-
-  // Keep copyRef in sync so the pairing-admission-digest callback (S5) always
-  // reads the current language rather than a stale closure.
-  useEffect(() => {
-    copyRef.current = copy;
-  }, [copy]);
-
-  // S5 (AC-UI-2): recompute the admission digest for the issuer's CURRENTLY-
-  // active nonce and show/update a SINGLE toast — never one toast per
-  // admission.
-  //
-  // Review-remediation (sev 3 correctness finding): this MUST use
-  // `peekActiveNonce()`, not `getOrMintActiveNonce()`. The latter mints a
-  // FRESH nonce (a store write + prune) whenever the in-memory pointer is
-  // absent or already expired — and a grace-window ack (admissible up to
-  // expiresAt + 2h, i.e. arriving 30-150 minutes after the nonce was minted)
-  // arrives well after the issuer's own 30-minute nonce has expired in the
-  // common case. Calling `getOrMintActiveNonce` here would therefore rotate
-  // the issuer's pairing nonce as a side effect of merely RECEIVING an ack,
-  // and the digest would then count admissions against the wrong (freshly-
-  // minted, zero-match) nonce. `peekActiveNonce()` only ever reads the
-  // existing in-memory pointer — never mints, persists, or prunes. If it
-  // returns `null` (no code shared this session, or the active nonce already
-  // expired without a subsequent mint/reload), the digest shows nothing:
-  // there is no well-defined "currently-active nonce" to count against.
-  // `getPairingAckAdmissions` (S3) is likewise read-only — this function
-  // never writes to either module, honoring the "read the signals they
-  // expose" boundary (does not modify pairingAck.ts).
-  const PAIRING_DIGEST_TOAST_ID = 'pairing-admission-digest';
-  const showPairingAdmissionDigest = useCallback(async () => {
-    try {
-      const [{ peekActiveNonce }, { getPairingAckAdmissions }] = await Promise.all([
-        import('@/src/lib/pairing/nonceStore'),
-        import('@/src/lib/pairing/pairingAck'),
-      ]);
-      resolveAndApplyPairingAdmissionDigest(
-        getPairingAckAdmissions(),
-        peekActiveNonce,
-        PAIRING_DIGEST_TOAST_ID,
-        (count) => copyRef.current.contacts.pairingAdmissionDigest(count),
-        { isActive: toast.isActive, update: toast.update, show: toast },
-      );
-    } catch (err) {
-      console.debug('[Marmot] pairing-admission-digest failed:', err);
-    }
-  }, [toast]);
-
-  // Ref indirection so the welcome-subscription callback (captured once
-  // inside init()'s useEffect closure, which does not re-run on every
-  // render) always invokes the CURRENT showPairingAdmissionDigest —
-  // mirrors localProfileRef/groupsRef's stale-closure guard above.
-  const showPairingAdmissionDigestRef = useRef(showPairingAdmissionDigest);
-  useEffect(() => {
-    showPairingAdmissionDigestRef.current = showPairingAdmissionDigest;
-  }, [showPairingAdmissionDigest]);
 
   // Keep groupsRef in sync so welcome subscription callbacks see current membership
   useEffect(() => {
@@ -1173,11 +1122,6 @@ export function MarmotProvider({ children }: { children: React.ReactNode }) {
             // the paired peer's first DMs/calls are silently dropped by the
             // stale walled-garden cache for the rest of the session.
             setKnownPeersRevision((n) => n + 1);
-            // S5 (AC-UI-2): recompute the active-nonce admission digest and
-            // show/update the single consolidated toast. Fire-and-forget —
-            // this must never block or fail the welcome subscription's own
-            // processing loop.
-            void showPairingAdmissionDigestRef.current();
           },
         ).then((unsub) => {
           if (cancelled) {

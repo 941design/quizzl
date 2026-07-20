@@ -57,9 +57,8 @@ export function extractV2PairingFields(cardB64Url: string): { nonceHex: string; 
  * the precise, storage-level "was X admitted" signal: `MarmotContext`'s
  * `onPairingAckReceived` callback updates this storage for real on
  * admission but does NOT bump the contacts-list UI's own re-render trigger
- * (it only drives the S5 admission-digest toast) — so a passing DOM
- * assertion on the contacts list is not a reliable admission signal without
- * an explicit reload, while this read is.
+ * — so a passing DOM assertion on the contacts list is not a reliable
+ * admission signal without an explicit reload, while this read is.
  */
 export async function readKnownPeers(page: Page): Promise<string[]> {
   return page.evaluate(() => {

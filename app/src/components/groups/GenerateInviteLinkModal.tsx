@@ -19,7 +19,6 @@ import {
   Alert,
   AlertIcon,
   AlertDescription,
-  useToast,
 } from '@chakra-ui/react';
 import { useCopy } from '@/src/context/LanguageContext';
 import { useNostrIdentity } from '@/src/context/NostrIdentityContext';
@@ -42,9 +41,11 @@ export default function GenerateInviteLinkModal({
 }: GenerateInviteLinkModalProps) {
   const copy = useCopy();
   const { npub } = useNostrIdentity();
-  const toast = useToast();
   const [label, setLabel] = useState('');
   const [copied, setCopied] = useState(false);
+  // Transient label shown on the Copy button itself after a copy attempt —
+  // replaces the former floating toast. Auto-reverts to 'idle' after 2s.
+  const [copyFeedback, setCopyFeedback] = useState<'idle' | 'copied' | 'error'>('idle');
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
@@ -106,24 +107,22 @@ export default function GenerateInviteLinkModal({
     );
   }
 
+  // Revert the button's transient copied/error label back to its resting state
+  // a couple seconds after a copy attempt.
+  useEffect(() => {
+    if (copyFeedback === 'idle') return;
+    const timer = setTimeout(() => setCopyFeedback('idle'), 2000);
+    return () => clearTimeout(timer);
+  }, [copyFeedback]);
+
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(inviteUrl);
       await persistLink();
       setCopied(true);
-      toast({
-        title: copy.groups.inviteLinkCopied,
-        status: 'success',
-        duration: 2000,
-        isClosable: true,
-      });
+      setCopyFeedback('copied');
     } catch {
-      toast({
-        title: copy.groups.inviteLinkCopyError,
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
+      setCopyFeedback('error');
     }
   }
 
@@ -133,6 +132,7 @@ export default function GenerateInviteLinkModal({
     }
     setLabel('');
     setCopied(false);
+    setCopyFeedback('idle');
     onClose();
   }
 
@@ -220,7 +220,11 @@ export default function GenerateInviteLinkModal({
             isDisabled={!inviteUrl}
             data-testid="invite-link-copy-btn"
           >
-            {copy.groups.inviteLinkCopy}
+            {copyFeedback === 'copied'
+              ? copy.groups.inviteLinkCopied
+              : copyFeedback === 'error'
+                ? copy.groups.inviteLinkCopyError
+                : copy.groups.inviteLinkCopy}
           </Button>
         </ModalFooter>
       </ModalContent>

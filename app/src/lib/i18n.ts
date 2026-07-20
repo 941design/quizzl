@@ -484,7 +484,6 @@ export type Copy = {
     reactWith: string;
     insertEmoji: string;
     removeReaction: string;
-    couldntReact: string;
     reactors: string;
     reactionCount: string;
   };
@@ -1064,7 +1063,6 @@ const copy: Record<LanguageCode, Copy> = {
       reactWith: 'React with emoji',
       insertEmoji: 'Insert emoji',
       removeReaction: 'Remove reaction',
-      couldntReact: "Couldn't react",
       reactors: 'Reactors',
       reactionCount: 'reactions',
     },
@@ -1629,7 +1627,6 @@ const copy: Record<LanguageCode, Copy> = {
       reactWith: 'Mit Emoji reagieren',
       insertEmoji: 'Emoji einfügen',
       removeReaction: 'Reaktion entfernen',
-      couldntReact: 'Reaktion fehlgeschlagen',
       reactors: 'Reagiert von',
       reactionCount: 'Reaktionen',
     },

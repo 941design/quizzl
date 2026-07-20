@@ -42,7 +42,6 @@ import {
 } from '@/src/lib/messageEdits/api';
 import { DELETE_EDIT_RUMOR_KIND, hasEditMarkerTag } from '@/src/lib/messageEdits/rumor';
 import { useCopy } from '@/src/context/LanguageContext';
-import { useToast } from '@chakra-ui/react';
 
 type ContactChatProps = {
   peerPubkeyHex: string;
@@ -240,7 +239,6 @@ export default function ContactChat({
   composerPlaceholder,
 }: ContactChatProps) {
   const copy = useCopy();
-  const toast = useToast();
   const { groups, ready: marmotReady, whenReady, knownPeersRevision, blockedPeersRevision } = useMarmot();
   // Ref for groups so subscription handlers always see the latest whitelist
   // without the effect needing to re-subscribe on every membership change.
@@ -953,7 +951,8 @@ export default function ContactChat({
    *
    * Builds the rumor ONCE (single call to buildReactionRumor), writes the optimistic
    * row with the real rumor id (AC-43 — no temp UUID), seals+wraps, publishes,
-   * and rolls back on failure with a toast (D7).
+   * and silently rolls back the optimistic state on failure (D7). The optimistic
+   * reaction simply disappears — no user-facing notice.
    *
    * The single-build design avoids the created_at second-boundary race that would
    * arise if we built the rumor twice (once for the id, once for publish). By
@@ -1003,7 +1002,7 @@ export default function ContactChat({
       await ndkEvent.publish();
       // Success: the echo will reconcile via inbound dispatch (applyInboundRumor).
     } catch (err) {
-      // AC-44, D7: rollback optimistic state and show toast.
+      // AC-44, D7: silently roll back the optimistic state (no toast).
       // For the add path, rollbackOptimistic deletes the in-flight insert by id.
       // For the remove path, we re-insert a fresh non-removed row so the badge
       // returns. The original row id is unknown here; aggregateForMessage groups
@@ -1025,15 +1024,9 @@ export default function ContactChat({
       } else {
         await rollbackOptimistic(dmThread, rumorId);
       }
-      toast({
-        title: copy.emoji.couldntReact,
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
       throw err;
     }
-  }, [copy.emoji.couldntReact, dmThread, peerPubkeyHex, privateKeyHex, pubkeyHex, toast]);
+  }, [dmThread, peerPubkeyHex, privateKeyHex, pubkeyHex]);
 
   /**
    * S4 (epic-feature-request-message-edit-and-delete): DM delete handler — the DM

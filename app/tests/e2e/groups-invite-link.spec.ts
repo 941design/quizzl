@@ -99,7 +99,7 @@ test.describe.serial('Invite link flow — generate, join request, approve', () 
     await pageA.getByTestId('invite-link-copy-btn').click();
     await pageA.waitForTimeout(1_000);
 
-    // Close the modal (scope to modal so we don't hit a toast close button)
+    // Close the modal (scope to the modal to avoid matching any other Close control)
     await pageA.getByTestId('generate-invite-link-modal').locator('[aria-label="Close"]').click();
     await expect(pageA.getByTestId('generate-invite-link-modal')).not.toBeVisible({ timeout: 5_000 });
   });

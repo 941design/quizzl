@@ -725,9 +725,11 @@ export function ChatStoreProvider({
           await rollbackOptimistic(thread, rumor.id);
         }
 
-        // Surface the failure toast — caller (GroupChat / ChatBox) must render it.
-        // We re-throw with a sentinel so callers can detect and show the toast.
-        // The toast string is emoji.couldntReact (added in story-01).
+        // Optimistic state was rolled back above. We re-throw with a
+        // `couldntReact` sentinel that callers can detect; today every caller
+        // swallows it (silent revert — no user-facing notice), matching the DM
+        // path. The sentinel is retained so a caller could reintroduce failure
+        // UX (e.g. an inline marker) without re-plumbing the throw.
         throw Object.assign(err instanceof Error ? err : new Error(String(err)), {
           couldntReact: true,
         });

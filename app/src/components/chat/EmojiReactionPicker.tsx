@@ -169,7 +169,8 @@ export default function EmojiReactionPicker({ messageId, message, aggregates, on
     (emoji: string) => {
       const op = computeReactOp(aggregates, emoji);
       onReact(emoji, message, op).catch(() => {
-        // Parent (ChatBox) handles failure toast via onReact rejection.
+        // Failure is handled by the onReact owner, which silently rolls back
+        // the optimistic reaction (no user-facing notice).
       });
       onClose();
     },

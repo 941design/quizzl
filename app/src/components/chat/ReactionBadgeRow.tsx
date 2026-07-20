@@ -105,7 +105,8 @@ export default function ReactionBadgeRow({
               aria-label={countLabel}
               onClick={() => {
                 void onReact(agg.emoji, message, op).catch(() => {
-                  // Parent ChatBox handles couldntReact toast via the onReact prop chain.
+                  // Failure is handled by the onReact owner, which silently rolls
+                  // back the optimistic reaction (no user-facing notice).
                 });
               }}
               px={1.5}
